@@ -1,0 +1,99 @@
+package monitor
+
+// Snapshot 一次采集的全部指标快照（前端订阅这个结构）
+type Snapshot struct {
+	Host     string     `json:"host"`
+	Overview Overview   `json:"overview"`
+	Disks    []DiskInfo `json:"disks"`
+	Procs    []ProcInfo `json:"procs"`
+	Docker   DockerInfo `json:"docker"`
+	Java     []ProcInfo `json:"java"`
+	Services []Service     `json:"services"`
+	Crons    []Cron        `json:"crons"`
+	Packages []AptPackage  `json:"packages"`
+	Error    string        `json:"error,omitempty"`
+}
+
+// Overview 顶层系统指标
+type Overview struct {
+	CPUPercent   float64 `json:"cpuPercent"`   // 总体 CPU 使用率
+	MemPercent   float64 `json:"memPercent"`   // 内存使用率
+	MemTotal     uint64  `json:"memTotal"`     // 内存总量 bytes
+	MemUsed      uint64  `json:"memUsed"`      // 已用内存
+	SwapPercent  float64 `json:"swapPercent"`  // swap 使用率
+	SwapTotal    uint64  `json:"swapTotal"`
+	SwapUsed     uint64  `json:"swapUsed"`
+	Load1        float64 `json:"load1"`        // 1 分钟负载
+	Load5        float64 `json:"load5"`
+	Load15       float64 `json:"load15"`
+	Uptime       uint64  `json:"uptime"`       // 启动至今的秒数
+	Kernel       string  `json:"kernel"`
+	OSRelease    string  `json:"osRelease"`
+	CPUCount     int     `json:"cpuCount"`
+	CPUModel     string  `json:"cpuModel"`
+}
+
+type DiskInfo struct {
+	Filesystem string `json:"filesystem"`
+	Mount      string `json:"mount"`
+	Total      uint64 `json:"total"`
+	Used       uint64 `json:"used"`
+	Avail      uint64 `json:"avail"`
+	Percent    float64 `json:"percent"`
+}
+
+type ProcInfo struct {
+	PID     uint32  `json:"pid"`
+	PPID    uint32  `json:"ppid"`
+	User    string  `json:"user"`
+	CPU     float64 `json:"cpu"`
+	Mem     float64 `json:"mem"`
+	RSS     uint64  `json:"rss"`     // 物理内存 bytes
+	Elapsed uint64  `json:"elapsed"` // 启动至今秒数
+	Cmd     string  `json:"cmd"`
+}
+
+type DockerInfo struct {
+	Available bool         `json:"available"` // 目标机是否有 docker
+	Containers []Container `json:"containers"`
+	Stats      []ContainerStat `json:"stats"`
+}
+
+type Container struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Image string `json:"image"`
+	Status string `json:"status"`
+	State  string `json:"state"`
+	Ports  string `json:"ports"`
+}
+
+type ContainerStat struct {
+	Name      string  `json:"name"`
+	CPUPercent float64 `json:"cpuPercent"`
+	MemUsage  uint64  `json:"memUsage"`
+	MemLimit  uint64  `json:"memLimit"`
+	MemPercent float64 `json:"memPercent"`
+	NetIn     uint64  `json:"netIn"`
+	NetOut    uint64  `json:"netOut"`
+	BlockIn   uint64  `json:"blockIn"`
+	BlockOut  uint64  `json:"blockOut"`
+}
+
+type Service struct {
+	Name   string `json:"name"`
+	Load   string `json:"load"`
+	Active string `json:"active"`  // active / failed / inactive
+	Sub    string `json:"sub"`
+}
+
+type Cron struct {
+	User string `json:"user"`
+	Line string `json:"line"`
+	Source string `json:"source"` // user / etc-cron.d / etc-crontab
+}
+
+type AptPackage struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
