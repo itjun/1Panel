@@ -1,5 +1,11 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Folder, Server, Search } from "lucide-react";
+import {
+  ChevronRight,
+  Folder,
+  Server,
+  Search,
+  LayoutGrid,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -7,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useApp } from "@/store/app";
 
 export function Sidebar() {
-  const { groupNodes, selectedHost, selectHost, hosts } = useApp();
+  const { groupNodes, selection, hosts, selectGroup, selectHost } = useApp();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
 
@@ -25,6 +31,9 @@ export function Sidebar() {
       }))
       .filter((node) => node.hosts.length > 0);
   }, [groupNodes, query]);
+
+  const selectedHostName =
+    selection?.type === "host" ? selection.name : null;
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card/30">
@@ -52,30 +61,55 @@ export function Sidebar() {
             const id = node.group?.id ?? "__ungrouped__";
             const name = node.group?.name ?? "未分组";
             const isCollapsed = collapsed[id] === true;
+            const isGroupActive =
+              selection?.type === "group" && selection.id === id;
             return (
               <div key={id}>
-                <button
-                  onClick={() =>
-                    setCollapsed((c) => ({ ...c, [id]: !isCollapsed }))
-                  }
-                  className="group flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
-                >
-                  <ChevronRight
+                <div className="group flex items-center">
+                  <button
+                    onClick={() =>
+                      setCollapsed((c) => ({ ...c, [id]: !isCollapsed }))
+                    }
+                    className="flex h-7 w-6 items-center justify-center text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "h-3 w-3 transition-transform",
+                        !isCollapsed && "rotate-90"
+                      )}
+                    />
+                  </button>
+                  <button
+                    onClick={() => selectGroup(id, name)}
                     className={cn(
-                      "h-3 w-3 transition-transform",
-                      !isCollapsed && "rotate-90"
+                      "flex flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-xs font-medium transition-colors",
+                      isGroupActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
-                  />
-                  <Folder className="h-3 w-3" />
-                  <span className="flex-1 text-left">{name}</span>
-                  <span className="text-[10px] tabular-nums text-muted-foreground">
-                    {node.hosts.length}
-                  </span>
-                </button>
+                  >
+                    {isGroupActive ? (
+                      <LayoutGrid className="h-3 w-3" />
+                    ) : (
+                      <Folder className="h-3 w-3" />
+                    )}
+                    <span className="flex-1 text-left truncate">{name}</span>
+                    <span
+                      className={cn(
+                        "text-[10px] tabular-nums",
+                        isGroupActive
+                          ? "text-primary-foreground/70"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {node.hosts.length}
+                    </span>
+                  </button>
+                </div>
                 {!isCollapsed && (
                   <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border pl-2">
                     {node.hosts.map((h) => {
-                      const active = selectedHost === h.name;
+                      const active = selectedHostName === h.name;
                       return (
                         <button
                           key={h.name}
@@ -90,15 +124,21 @@ export function Sidebar() {
                           <Server
                             className={cn(
                               "h-3 w-3 shrink-0",
-                              active ? "text-primary-foreground" : "text-muted-foreground"
+                              active
+                                ? "text-primary-foreground"
+                                : "text-muted-foreground"
                             )}
                           />
                           <div className="flex-1 min-w-0">
-                            <div className="truncate font-medium">{h.name}</div>
+                            <div className="truncate font-medium">
+                              {h.name}
+                            </div>
                             <div
                               className={cn(
                                 "truncate text-[10px]",
-                                active ? "text-primary-foreground/70" : "text-muted-foreground"
+                                active
+                                  ? "text-primary-foreground/70"
+                                  : "text-muted-foreground"
                               )}
                             >
                               {h.user || "?"}@{h.hostName || "?"}

@@ -1,11 +1,12 @@
 // 前端 API 封装：所有对 Wails 后端的调用都走这里
 // 统一封装错误处理 + 日志
-import { CollectDisks, CollectDocker, CollectJava, CollectOverview, CollectProcesses, CollectServices, CollectPackages, CollectCrons, AddHost, AssignHost, CloseTerminal, CopySSHID, DeleteGroup, DockerAction, KillProcess, ListGroups, ListHosts, OpenTerminal, UpsertGroup, WriteTerminal } from "@wailsjs/go/main/App";
+import { CollectDisks, CollectDocker, CollectJava, CollectOverview, CollectProcesses, CollectServices, CollectPackages, CollectCrons, AddHost, AssignHost, CloseTerminal, CopySSHID, DeleteGroup, DockerAction, KillProcess, ListGroups, ListHosts, ListHostsAll, ListGroupOverview, OpenTerminal, UpsertGroup, WriteTerminal } from "@wailsjs/go/main/App";
 import type { groups, main, monitor, sshconfig } from "@wailsjs/go/models";
 
 export const api = {
   // 主机
   listHosts: (): Promise<sshconfig.HostConfig[]> => ListHosts(),
+  listHostsAll: (): Promise<sshconfig.HostConfig[]> => ListHostsAll(),
   addHost: (cfg: sshconfig.HostConfig) => AddHost(cfg),
 
   // 分组
@@ -13,6 +14,9 @@ export const api = {
   upsertGroup: (g: groups.Group) => UpsertGroup(g),
   deleteGroup: (id: string) => DeleteGroup(id),
   assignHost: (host: string, groupID: string) => AssignHost(host, groupID),
+
+  // 分组概览
+  listGroupOverview: (): Promise<main.GroupOverview[]> => ListGroupOverview(),
 
   // 监控
   collectOverview: (host: string) => CollectOverview(host),

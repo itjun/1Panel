@@ -8,14 +8,25 @@ export interface GroupNode {
   hosts: sshconfig.HostConfig[];
 }
 
+// selection 表示当前选中的对象
+//   { type: "group", id }   → 进入分组概览页
+//   { type: "host", name }  → 进入主机详情页
+//   null                    → 默认空态
+export type Selection =
+  | { type: "group"; id: string; name: string }
+  | { type: "host"; name: string }
+  | null;
+
 interface AppState {
   hosts: sshconfig.HostConfig[];
   groupNodes: GroupNode[];
-  selectedHost: string | null;
+  selection: Selection;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  selectHost: (host: string | null) => void;
+  selectGroup: (id: string, name: string) => void;
+  selectHost: (name: string) => void;
+  clearSelection: () => void;
   assignHost: (host: string, groupID: string) => Promise<void>;
 }
 
@@ -26,7 +37,7 @@ const UNGROUPED_ID = "__ungrouped__";
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hosts, setHosts] = useState<sshconfig.HostConfig[]>([]);
   const [groupsList, setGroupsList] = useState<groups.Group[]>([]);
-  const [selectedHost, setSelectedHost] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,16 +88,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refresh();
   };
 
+  // selection 切换时校验：如果选中的 host/group 已不存在，自动清空
+  useEffect(() => {
+    if (!selection) return;
+    if (selection.type === "host") {
+      if (!hosts.some((h) => h.name === selection.name)) {
+        setSelection(null);
+      }
+    } else if (selection.type === "group") {
+      if (selection.id !== UNGROUPED_ID) {
+        const exists = groupsList.some((g) => g.id === selection.id);
+        if (!exists) setSelection(null);
+      } else {
+        // 未分组永远存在，但如果未分组空了且选中它，也清掉
+        const ungrouped = groupNodes.find((n) => n.group === null);
+        if (!ungrouped || ungrouped.hosts.length === 0) {
+          setSelection(null);
+        }
+      }
+    }
+  }, [selection, hosts, groupsList, groupNodes]);
+
   return (
     <AppContext.Provider
       value={{
         hosts,
         groupNodes,
-        selectedHost,
+        selection,
         loading,
         error,
         refresh,
-        selectHost: setSelectedHost,
+        selectGroup: (id, name) => setSelection({ type: "group", id, name }),
+        selectHost: (name) => setSelection({ type: "host", name }),
+        clearSelection: () => setSelection(null),
         assignHost,
       }}
     >

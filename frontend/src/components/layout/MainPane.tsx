@@ -16,8 +16,8 @@ import { TerminalTab } from "@/components/terminal/TerminalTab";
 import { ServicesTab } from "@/components/overview/ServicesTab";
 import { CronTab } from "@/components/overview/CronTab";
 import { PackagesTab } from "@/components/overview/PackagesTab";
+import { GroupOverview } from "@/components/group/GroupOverview";
 import { useApp } from "@/store/app";
-import { cn } from "@/lib/utils";
 
 type TabKey =
   | "overview"
@@ -29,10 +29,43 @@ type TabKey =
   | "packages";
 
 export function MainPane() {
-  const { selectedHost, hosts } = useApp();
+  const { selection, hosts, selectHost } = useApp();
   const [tab, setTab] = useState<TabKey>("overview");
-  const host = hosts.find((h) => h.name === selectedHost);
 
+  if (!selection) {
+    return <EmptyState />;
+  }
+
+  // 分组概览页
+  if (selection.type === "group") {
+    return (
+      <main className="flex flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary">
+            <Boxes className="h-3.5 w-3.5" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold leading-tight">
+              {selection.name}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              分组概览
+            </span>
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden p-5 pt-3">
+          <GroupOverview
+            groupID={selection.id}
+            groupName={selection.name}
+            onPickHost={(name) => selectHost(name)}
+          />
+        </div>
+      </main>
+    );
+  }
+
+  // 主机详情页
+  const host = hosts.find((h) => h.name === selection.name);
   if (!host) {
     return <EmptyState />;
   }
@@ -45,7 +78,9 @@ export function MainPane() {
           <Server className="h-3.5 w-3.5" />
         </div>
         <div className="flex flex-col">
-          <span className="text-sm font-semibold leading-tight">{host.name}</span>
+          <span className="text-sm font-semibold leading-tight">
+            {host.name}
+          </span>
           <span className="text-[10px] text-muted-foreground">
             {host.user}@{host.hostName}
             {host.port && host.port !== "22" ? `:${host.port}` : ""}
@@ -54,7 +89,11 @@ export function MainPane() {
       </div>
 
       {/* Tab 区 */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="flex flex-1 flex-col overflow-hidden px-5 pt-3">
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as TabKey)}
+        className="flex flex-1 flex-col overflow-hidden px-5 pt-3"
+      >
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="overview">
@@ -122,9 +161,9 @@ function EmptyState() {
           <Server className="h-8 w-8 text-muted-foreground" />
         </div>
         <div>
-          <h2 className="text-base font-semibold">选择一台主机</h2>
+          <h2 className="text-base font-semibold">选择一台主机或分组</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            从左侧列表选择主机，开始查看监控与连接终端
+            从左侧列表选择分组看总览，或选择单台主机看详情
           </p>
         </div>
       </div>
