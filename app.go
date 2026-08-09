@@ -52,7 +52,26 @@ func (a *App) shutdown(_ context.Context) {
 // ============ SSH 配置 ============
 
 // ListHosts 解析 ~/.ssh/config 返回所有 Host 条目
+// 默认过滤掉 Git 托管服务（github.com / gitee.com 等）
+// 这些通常不是用户想要管理的"服务器"
 func (a *App) ListHosts() ([]sshconfig.HostConfig, error) {
+	all, err := sshconfig.Parse()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]sshconfig.HostConfig, 0, len(all))
+	for _, h := range all {
+		if sshconfig.IsGitHost(h) {
+			continue
+		}
+		out = append(out, h)
+	}
+	return out, nil
+}
+
+// ListHostsAll 返回所有 Host 条目（包括 Git 服务）
+// 供前端「显示 Git 服务」开关使用
+func (a *App) ListHostsAll() ([]sshconfig.HostConfig, error) {
 	return sshconfig.Parse()
 }
 
