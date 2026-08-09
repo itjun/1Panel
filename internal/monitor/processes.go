@@ -24,14 +24,51 @@ func (c *Collector) CollectProcesses(host string, opt sshd.ConnectOption, limit 
 	return parseProcesses(string(out)), nil
 }
 
-// CollectJava 采集 Java 进程列表（cmd 含 java）
+// CollectJava 采集 Java 进程列表
+// 判定标准：进程的可执行文件名（comm）等于 java，避免误识别命令行内含 "java" 字样的进程
+// 实现：ps 输出加 comm 字段，按 comm=="java" 精确过滤
 func (c *Collector) CollectJava(host string, opt sshd.ConnectOption) ([]ProcInfo, error) {
-	cmd := `ps -eo pid,ppid,user,pcpu,pmem,rss,etime,cmd --sort=-pcpu | grep -iE '\bjava\b|jdk|-jar' | grep -v grep`
+	cmd := `ps -eo pid,ppid,user,pcpu,pmem,rss,etime,comm,args --sort=-pcpu | awk '$8=="java"'`
 	out, err := c.mgr.Run(host, opt, cmd)
 	if err != nil {
 		return nil, err
 	}
-	return parseProcesses(string(out)), nil
+	return parseProcessesWithComm(string(out)), nil
+}
+
+// parseProcessesWithComm 解析带 comm 字段的 ps 输出
+// 字段顺序：pid ppid user pcpu pmem rss etime comm args...
+func parseProcessesWithComm(s string) []ProcInfo {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	if len(lines) == 0 {
+		return nil
+	}
+	out := make([]ProcInfo, 0, len(lines))
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 8 {
+			continue
+		}
+		pid, _ := strconv.ParseUint(fields[0], 10, 32)
+		ppid, _ := strconv.ParseUint(fields[1], 10, 32)
+		cpu, _ := strconv.ParseFloat(fields[3], 64)
+		mem, _ := strconv.ParseFloat(fields[4], 64)
+		rssKB, _ := strconv.ParseUint(fields[5], 10, 64)
+		elapsedSec := parseElapsedToSeconds(fields[6])
+		// fields[7] 是 comm（java），fields[8:] 是完整 args
+		cmd := strings.Join(fields[8:], " ")
+		out = append(out, ProcInfo{
+			PID:     uint32(pid),
+			PPID:    uint32(ppid),
+			User:    fields[2],
+			CPU:     cpu,
+			Mem:     mem,
+			RSS:     rssKB * 1024,
+			Elapsed: elapsedSec,
+			Cmd:     cmd,
+		})
+	}
+	return out
 }
 
 func parseProcesses(s string) []ProcInfo {

@@ -4,17 +4,21 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"diteng-pannel/internal/sshd"
 )
 
 // Collector 监控数据采集器（依赖 sshd.Manager）
+// 维护每台主机的上次 CPU 时间片，用于差分计算瞬时使用率
 type Collector struct {
-	mgr *sshd.Manager
+	mu       sync.Mutex
+	mgr      *sshd.Manager
+	lastStat map[string][10]uint64 // host -> 上次 cpu 各列 jiffies
 }
 
 func NewCollector(mgr *sshd.Manager) *Collector {
-	return &Collector{mgr: mgr}
+	return &Collector{mgr: mgr, lastStat: map[string][10]uint64{}}
 }
 
 // CollectOverview 采集顶层系统指标（CPU/MEM/负载/磁盘汇总）
@@ -24,13 +28,75 @@ func NewCollector(mgr *sshd.Manager) *Collector {
 //   - /proc/loadavg：负载
 //   - uname + /etc/os-release：内核与发行版
 func (c *Collector) CollectOverview(host string, opt sshd.ConnectOption) (Overview, error) {
-	// 用一个组合命令一次性拿数据，减少 SSH 往返次数
-	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; head -n1 /etc/os-release 2>/dev/null`
+	// 用一个组合命令一次性拿数据，减少 SSH 往往次数
+	// PRETTY_NAME 是 os-release 标准字段（systemd 规范），Debian/Ubuntu/CentOS 都有
+	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; grep -E '^(PRETTY_NAME|NAME)=' /etc/os-release 2>/dev/null | head -n2`
 	out, err := c.mgr.Run(host, opt, script)
 	if err != nil {
 		return Overview{}, err
 	}
-	return parseOverview(string(out))
+	o, err := parseOverview(string(out))
+	if err != nil {
+		return o, err
+	}
+	// CPU 差分计算：基于上次采样的 jiffies 算瞬时使用率
+	// 注意 o.CPUPercent 此处仅作为「自启动以来的累计平均」fallback
+	c.mu.Lock()
+	o.CPUPercent = c.computeCPUDiffLocked(host, string(out), o.CPUPercent)
+	c.mu.Unlock()
+	return o, nil
+}
+
+// computeCPUDiffLocked 调用者必须持有 c.mu
+// raw 是脚本原始输出（用于重新提取 stat 字段），approxPct 是无上次采样时的 fallback
+func (c *Collector) computeCPUDiffLocked(host, raw string, approxPct float64) float64 {
+	// 重新从原始输出中提取 /proc/stat 第一行
+	statLine := ""
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.HasPrefix(line, "cpu ") {
+			statLine = line
+			break
+		}
+	}
+	if statLine == "" {
+		return approxPct
+	}
+	fields := strings.Fields(statLine)
+	if len(fields) < 5 {
+		return approxPct
+	}
+	// /proc/stat cpu 行：user nice system idle iowait irq softirq steal guest guest_nice
+	var cur [10]uint64
+	for i := 1; i < len(fields) && i <= 10; i++ {
+		v, _ := strconv.ParseUint(fields[i], 10, 64)
+		cur[i-1] = v
+	}
+	prev, hasPrev := c.lastStat[host]
+	c.lastStat[host] = cur
+	if !hasPrev {
+		return approxPct // 首次采样无差分，用近似值
+	}
+	// 计算差分
+	var curSum, curIdle, prevSum, prevIdle uint64
+	curIdle = cur[3] + cur[4] // idle + iowait
+	prevIdle = prev[3] + prev[4]
+	for i := 0; i < 10; i++ {
+		curSum += cur[i]
+		prevSum += prev[i]
+	}
+	totalDelta := int64(curSum) - int64(prevSum)
+	idleDelta := int64(curIdle) - int64(prevIdle)
+	if totalDelta <= 0 {
+		return approxPct
+	}
+	usage := float64(totalDelta-idleDelta) / float64(totalDelta) * 100
+	if usage < 0 {
+		usage = 0
+	}
+	if usage > 100 {
+		usage = 100
+	}
+	return usage
 }
 
 func parseOverview(s string) (Overview, error) {
@@ -106,10 +172,17 @@ func parseOverview(s string) (Overview, error) {
 		if len(lines) >= 1 {
 			o.Kernel = strings.TrimSpace(lines[0])
 		}
-		if len(lines) >= 2 {
-			// PRETTY_NAME="Ubuntu 22.04.4 LTS"
-			_, v, ok := splitKVColon(lines[1])
-			if ok {
+		// 从剩余行里找 PRETTY_NAME（优先）或 NAME
+		// os-release 用 KEY="value" 格式，不是 KEY: value
+		for _, line := range lines[1:] {
+			l := strings.TrimSpace(line)
+			if strings.HasPrefix(l, "PRETTY_NAME=") {
+				v := strings.TrimPrefix(l, "PRETTY_NAME=")
+				o.OSRelease = strings.Trim(strings.TrimSpace(v), "\"")
+				break
+			}
+			if strings.HasPrefix(l, "NAME=") && o.OSRelease == "" {
+				v := strings.TrimPrefix(l, "NAME=")
 				o.OSRelease = strings.Trim(strings.TrimSpace(v), "\"")
 			}
 		}

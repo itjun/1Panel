@@ -8,13 +8,45 @@ import (
 )
 
 // CollectDisks 采集磁盘容量信息（df -B1 拿到字节数）
+// 过滤掉容器内部挂载点、虚拟文件系统，只保留真实分区
 func (c *Collector) CollectDisks(host string, opt sshd.ConnectOption) ([]DiskInfo, error) {
-	// -B1 让 df 输出以字节为单位，避免按块大小换算
-	out, err := c.mgr.Run(host, opt, "df -B1 -x tmpfs -x devtmpfs -x squashfs")
+	// -B1 让 df 输出以字节为单位
+	// -x 排除常见虚拟/网络/容器文件系统
+	// 后续再二次过滤 docker overlay2/merged 等容器挂载点
+	cmd := "df -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x overlay2 2>/dev/null"
+	out, err := c.mgr.Run(host, opt, cmd)
 	if err != nil {
 		return nil, err
 	}
-	return parseDisks(string(out)), nil
+	disks := parseDisks(string(out))
+	// 二次过滤：去除 docker 容器挂载点、snap loopback、容器 merged 等
+	filtered := disks[:0]
+	for _, d := range disks {
+		if shouldSkipMount(d.Mount) {
+			continue
+		}
+		filtered = append(filtered, d)
+	}
+	return filtered, nil
+}
+
+// shouldSkipMount 判断一个挂载点是否应该从磁盘列表中隐藏
+// 隐藏：docker 容器、snap 包内部、kubelet/PodMAN 等
+func shouldSkipMount(mount string) bool {
+	skipPrefixes := []string{
+		"/var/lib/docker/",       // docker 容器/卷/镜像
+		"/var/lib/containers/",   // podman
+		"/var/lib/kubelet/",      // kubernetes
+		"/var/lib/snapd/",        // snap
+		"/snap/",                 // snap 挂载
+		"/run/containerd/",       // containerd
+	}
+	for _, p := range skipPrefixes {
+		if strings.HasPrefix(mount, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseDisks(s string) []DiskInfo {

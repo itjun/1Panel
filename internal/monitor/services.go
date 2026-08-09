@@ -60,6 +60,11 @@ func parseCrons(s string) []Cron {
 		if l == "" || strings.HasPrefix(l, "#") {
 			continue
 		}
+		// 跳过 /etc/crontab 与 /etc/cron.d/* 里的环境变量定义行
+		// 形如 SHELL=/bin/sh、PATH=/usr/local/sbin:...、RANDOM_DELAY=...
+		if isCronEnvLine(l) {
+			continue
+		}
 		source := ""
 		user := ""
 		switch current {
@@ -80,6 +85,27 @@ func parseCrons(s string) []Cron {
 		out = append(out, Cron{User: user, Line: l, Source: source})
 	}
 	return out
+}
+
+// isCronEnvLine 判断一行是否是 cron 的环境变量定义（而非调度任务）
+// 形如 KEY=VALUE 或 KEY = VALUE
+func isCronEnvLine(l string) bool {
+	// 必须包含 =
+	idx := strings.Index(l, "=")
+	if idx <= 0 {
+		return false
+	}
+	key := strings.TrimSpace(l[:idx])
+	// key 必须全是大写字母/下划线/数字，且以字母开头
+	if key[0] < 'A' || key[0] > 'Z' {
+		return false
+	}
+	for _, c := range key {
+		if !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9') && c != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 // CollectPackages 采集 apt 已安装的软件包列表（按需触发，频率低）
