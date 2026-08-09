@@ -62,12 +62,20 @@ export function KillProcess(arg1, arg2, arg3) {
   return window['go']['main']['App']['KillProcess'](arg1, arg2, arg3);
 }
 
+export function ListGroupOverview() {
+  return window['go']['main']['App']['ListGroupOverview']();
+}
+
 export function ListGroups() {
   return window['go']['main']['App']['ListGroups']();
 }
 
 export function ListHosts() {
   return window['go']['main']['App']['ListHosts']();
+}
+
+export function ListHostsAll() {
+  return window['go']['main']['App']['ListHostsAll']();
 }
 
 export function OpenTerminal(arg1, arg2) {
