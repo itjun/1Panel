@@ -1,11 +1,18 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "diteng-pannel",
+  "name": "ServerPanel",
   "outputfilename": "ServerPanel",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "version": "1.0.0",
+  "info": {
+    "productName": "ServerPanel",
+    "productVersion": "1.0.0",
+    "companyName": "黄荣君",
+    "comments": "SSH 服务器可视化管理面板"
+  },
   "author": {
     "name": "黄荣君",
     "email": "l1091462907@gmail.com"
