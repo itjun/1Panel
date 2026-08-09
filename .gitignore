@@ -1,0 +1,9 @@
+build/
+frontend/dist/
+frontend/node_modules/
+*.DS_Store
+*.log
+.idea/
+.vscode/
+*.app
+ServerPanel
