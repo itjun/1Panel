@@ -30,6 +30,10 @@ export function CollectJava(arg1) {
   return window['go']['main']['App']['CollectJava'](arg1);
 }
 
+export function CollectLargestFiles(arg1, arg2) {
+  return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2);
+}
+
 export function CollectOverview(arg1) {
   return window['go']['main']['App']['CollectOverview'](arg1);
 }
@@ -82,12 +86,20 @@ export function ListHostsAll() {
   return window['go']['main']['App']['ListHostsAll']();
 }
 
-export function OpenTerminal(arg1, arg2) {
-  return window['go']['main']['App']['OpenTerminal'](arg1, arg2);
+export function ListOneGroupOverview(arg1) {
+  return window['go']['main']['App']['ListOneGroupOverview'](arg1);
+}
+
+export function OpenTerminal(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['OpenTerminal'](arg1, arg2, arg3, arg4);
 }
 
 export function ReadFileText(arg1, arg2) {
   return window['go']['main']['App']['ReadFileText'](arg1, arg2);
+}
+
+export function RenameGroup(arg1, arg2) {
+  return window['go']['main']['App']['RenameGroup'](arg1, arg2);
 }
 
 export function RenameHost(arg1, arg2) {

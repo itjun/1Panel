@@ -19,6 +19,8 @@ export function CollectDocker(arg1:string):Promise<monitor.DockerInfo>;
 
 export function CollectJava(arg1:string):Promise<Array<monitor.ProcInfo>>;
 
+export function CollectLargestFiles(arg1:string,arg2:number):Promise<monitor.LargeFilesResult>;
+
 export function CollectOverview(arg1:string):Promise<monitor.Overview>;
 
 export function CollectPackages(arg1:string):Promise<Array<monitor.AptPackage>>;
@@ -45,9 +47,13 @@ export function ListHosts():Promise<Array<sshconfig.HostConfig>>;
 
 export function ListHostsAll():Promise<Array<sshconfig.HostConfig>>;
 
-export function OpenTerminal(arg1:string,arg2:string):Promise<string>;
+export function ListOneGroupOverview(arg1:string):Promise<main.GroupOverview>;
+
+export function OpenTerminal(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
 
 export function ReadFileText(arg1:string,arg2:string):Promise<string>;
+
+export function RenameGroup(arg1:string,arg2:string):Promise<void>;
 
 export function RenameHost(arg1:string,arg2:string):Promise<void>;
 

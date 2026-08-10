@@ -19,10 +19,10 @@ import (
 type App struct {
 	ctx context.Context
 
-	sshMgr     *sshd.Manager
-	collector  *monitor.Collector
-	groups     *groups.Store
-	termMgr    *terminal.Manager
+	sshMgr    *sshd.Manager
+	collector *monitor.Collector
+	groups    *groups.Store
+	termMgr   *terminal.Manager
 }
 
 func NewApp() *App {
@@ -192,7 +192,18 @@ func (a *App) UpsertGroup(g groups.Group) error {
 	return a.groups.Upsert(g)
 }
 
+// RenameGroup 重命名分组（只改显示名，保留 hosts）
+func (a *App) RenameGroup(id, newName string) error {
+	if a.groups == nil {
+		return fmt.Errorf("分组存储未初始化")
+	}
+	return a.groups.Rename(id, newName)
+}
+
 func (a *App) DeleteGroup(id string) error {
+	if a.groups == nil {
+		return fmt.Errorf("分组存储未初始化")
+	}
 	return a.groups.Delete(id)
 }
 
@@ -209,7 +220,7 @@ func (a *App) AssignHost(host, groupID string) error {
 
 // ============ 监控 ============
 
-// CollectOverview 采集顶层系统指标
+// CollectOverview 采集顶层系统指标（按需/手动刷新，不做秒级轮询落盘）
 func (a *App) CollectOverview(host string) (monitor.Overview, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
@@ -224,6 +235,15 @@ func (a *App) CollectDisks(host string) ([]monitor.DiskInfo, error) {
 		return nil, err
 	}
 	return a.collector.CollectDisks(host, opt)
+}
+
+// CollectLargestFiles 异步场景：扫描根分区 Top N 大文件（可能较慢，勿阻塞 UI）
+func (a *App) CollectLargestFiles(host string, limit int) (monitor.LargeFilesResult, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return monitor.LargeFilesResult{}, err
+	}
+	return a.collector.CollectLargestFiles(host, opt, limit)
 }
 
 func (a *App) CollectProcesses(host string, limit int) ([]monitor.ProcInfo, error) {
@@ -335,12 +355,13 @@ func (a *App) DockerAction(host string, action string, container string) (string
 
 // OpenTerminal 打开一个终端会话
 // eventName 是前端订阅输出的 Wails 事件名
-func (a *App) OpenTerminal(host string, eventName string) (string, error) {
+// cols/rows 为 xterm fit 后的真实行列，开 PTY 时就用正确尺寸，避免开局乱码
+func (a *App) OpenTerminal(host string, eventName string, cols int, rows int) (string, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
 		return "", err
 	}
-	return a.termMgr.Open(host, opt, eventName)
+	return a.termMgr.Open(host, opt, eventName, cols, rows)
 }
 
 func (a *App) WriteTerminal(sessionID string, data string) error {
