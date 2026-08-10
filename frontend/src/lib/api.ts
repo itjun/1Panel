@@ -1,13 +1,16 @@
 // 前端 API 封装：所有对 Wails 后端的调用都走这里
 // 统一封装错误处理 + 日志
-import { CollectDisks, CollectDocker, CollectJava, CollectOverview, CollectProcesses, CollectServices, CollectPackages, CollectCrons, AddHost, AssignHost, CloseTerminal, CopySSHID, DeleteGroup, DockerAction, KillProcess, ListDir, ListGroups, ListHosts, ListHostsAll, ListGroupOverview, OpenTerminal, ReadFileText, RenameHost, ResizeTerminal, UploadFile, UpsertGroup, WriteTerminal } from "@wailsjs/go/main/App";
+import { CollectDisks, CollectDocker, CollectJava, CollectOverview, CollectProcesses, CollectServices, CollectPackages, CollectCrons, AddHost, AssignHost, CloseTerminal, CopySSHID, DeleteGroup, DockerAction, KillProcess, ListDir, ListGroups, ListHosts, ListHostsAll, ListGroupOverview, OpenTerminal, ReadFileText, RenameHost, ResizeTerminal, TestConnection, UploadFile, UpsertGroup, WriteTerminal } from "@wailsjs/go/main/App";
 import type { groups, main, monitor, sshconfig } from "@wailsjs/go/models";
 
 export const api = {
   // 主机
   listHosts: (): Promise<sshconfig.HostConfig[]> => ListHosts(),
   listHostsAll: (): Promise<sshconfig.HostConfig[]> => ListHostsAll(),
-  addHost: (cfg: sshconfig.HostConfig) => AddHost(cfg),
+  // 添加主机：别名/IP/用户/密码 4 项，后端会先验证连接再推送公钥写 config
+  addHost: (input: main.AddHostInput) => AddHost(input),
+  // 仅测试 SSH 连接是否通畅（不写 config、不推公钥）
+  testConnection: (input: main.AddHostInput): Promise<string> => TestConnection(input),
   renameHost: (oldName: string, newName: string) => RenameHost(oldName, newName),
 
   // 分组

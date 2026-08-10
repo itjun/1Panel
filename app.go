@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"diteng-pannel/internal/groups"
@@ -76,9 +77,75 @@ func (a *App) ListHostsAll() ([]sshconfig.HostConfig, error) {
 	return sshconfig.Parse()
 }
 
-// AddHost 把新主机追加写入 ~/.ssh/config（写入前自动备份）
-func (a *App) AddHost(cfg sshconfig.HostConfig) error {
-	return sshconfig.AppendHost(cfg)
+// AddHost 添加新主机：先校验别名不重复 → 用密码连一次验证 → 推送本机公钥 → 回写 ~/.ssh/config
+// 用户只需提供别名/IP/用户/密码 4 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
+// 验证通过并推送公钥后，后续对该主机即可免密登录
+// 契约：四项必填；只有连通性+凭据验证成功才会写 config（由 CopySSHID 内部完成）
+func (a *App) AddHost(input AddHostInput) error {
+	input.Name = strings.TrimSpace(input.Name)
+	input.HostName = strings.TrimSpace(input.HostName)
+	input.User = strings.TrimSpace(input.User)
+	// 密码不 trim，保留用户输入原样
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return fmt.Errorf("别名、IP、用户、密码均不能为空")
+	}
+	if strings.ContainsAny(input.Name, " \t*") {
+		return fmt.Errorf("别名不能包含空格或通配符 *")
+	}
+	// 校验别名是否已存在
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return fmt.Errorf("读取 ssh config 失败: %w", err)
+	}
+	for _, h := range hosts {
+		if h.Name == input.Name {
+			return fmt.Errorf("别名 %s 已存在，请换一个", input.Name)
+		}
+	}
+	// 复用 CopySSHID：密码连接 → 推送公钥 → 回写 config（含 IdentityFile）
+	// 密码连接本身就是一次验证；失败则不会写 config
+	_, err = a.CopySSHID(CopyIDInput{
+		Name:          input.Name,
+		HostName:      input.HostName,
+		User:          input.User,
+		Port:          "22",
+		Password:      input.Password,
+		PublicKeyFile: "~/.ssh/id_ed25519.pub",
+		IdentityFile:  "~/.ssh/id_ed25519",
+	})
+	return err
+}
+
+// TestConnection 用密码尝试 SSH 登录（执行 hostname），仅验证连通性与凭据是否正确
+// 不推送公钥、不写 config；测试完立即关闭连接，避免污染连接池
+// 成功返回包含远程主机名的提示信息
+// 四个字段（别名/IP/用户/密码）均必填，与前端「测试通过后才能保存」契约一致
+func (a *App) TestConnection(input AddHostInput) (string, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	input.HostName = strings.TrimSpace(input.HostName)
+	input.User = strings.TrimSpace(input.User)
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return "", fmt.Errorf("别名、IP、用户、密码均不能为空")
+	}
+	// 使用独立缓存 key，避免测试连接污染正式 Host 连接池
+	testKey := "__test__:" + input.Name
+	opt := sshd.ConnectOption{
+		Host:     input.Name,
+		HostName: input.HostName,
+		User:     input.User,
+		Port:     "22",
+		Password: input.Password,
+	}
+	// 无论成功失败都关闭测试连接
+	defer a.sshMgr.Close(testKey)
+
+	// 跑一条无害命令验证连通性，顺便取主机名
+	out, err := a.sshMgr.Run(testKey, opt, "hostname")
+	if err != nil {
+		return "", fmt.Errorf("连接失败: %w", err)
+	}
+	remoteHost := strings.TrimSpace(string(out))
+	return fmt.Sprintf("连接成功，远程主机: %s", remoteHost), nil
 }
 
 // RenameHost 修改 ~/.ssh/config 里 Host 的别名
@@ -130,6 +197,13 @@ func (a *App) DeleteGroup(id string) error {
 }
 
 func (a *App) AssignHost(host, groupID string) error {
+	if a.groups == nil {
+		return fmt.Errorf("分组存储未初始化")
+	}
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return fmt.Errorf("主机名不能为空")
+	}
 	return a.groups.AssignHost(host, groupID)
 }
 

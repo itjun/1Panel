@@ -23,6 +23,24 @@ export namespace groups {
 
 export namespace main {
 	
+	export class AddHostInput {
+	    name: string;
+	    hostName: string;
+	    user: string;
+	    password: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddHostInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.hostName = source["hostName"];
+	        this.user = source["user"];
+	        this.password = source["password"];
+	    }
+	}
 	export class CopyIDInput {
 	    name: string;
 	    hostName: string;
