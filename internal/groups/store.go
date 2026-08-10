@@ -24,13 +24,16 @@ type Store struct {
 	data map[string]*Group // groupID -> Group
 }
 
-// NewStore 创建一个分组存储，数据落盘到 ~/Library/Application Support/<app>/groups.json
+// NewStore 创建一个分组存储，数据落盘到系统应用数据目录：
+//   Windows: %AppData%\<app>\groups.json
+//   macOS:   ~/Library/Application Support/<app>/groups.json
+//   Linux:   ~/.config/<app>/groups.json
 func NewStore(appName string) (*Store, error) {
-	home, err := os.UserHomeDir()
+	base, err := os.UserConfigDir()
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(home, "Library", "Application Support", appName)
+	dir := filepath.Join(base, appName)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("创建应用数据目录失败: %w", err)
 	}
@@ -44,7 +47,7 @@ func NewStore(appName string) (*Store, error) {
 	return s, nil
 }
 
-// Path 返回数据文件路径（前端可能用于"在 Finder 中显示"）
+// Path 返回数据文件路径（前端可能用于在文件管理器中显示）
 func (s *Store) Path() string { return s.path }
 
 // List 返回所有分组，按 Order 升序
