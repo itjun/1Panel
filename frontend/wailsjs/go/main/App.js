@@ -10,6 +10,18 @@ export function AssignHost(arg1, arg2) {
   return window['go']['main']['App']['AssignHost'](arg1, arg2);
 }
 
+export function AuthStatus() {
+  return window['go']['main']['App']['AuthStatus']();
+}
+
+export function AuthenticateMacUser(arg1, arg2) {
+  return window['go']['main']['App']['AuthenticateMacUser'](arg1, arg2);
+}
+
+export function AuthenticateWithSystem() {
+  return window['go']['main']['App']['AuthenticateWithSystem']();
+}
+
 export function CloseTerminal(arg1) {
   return window['go']['main']['App']['CloseTerminal'](arg1);
 }
@@ -62,6 +74,10 @@ export function DockerAction(arg1, arg2, arg3) {
   return window['go']['main']['App']['DockerAction'](arg1, arg2, arg3);
 }
 
+export function GetCurrentMacUser() {
+  return window['go']['main']['App']['GetCurrentMacUser']();
+}
+
 export function KillProcess(arg1, arg2, arg3) {
   return window['go']['main']['App']['KillProcess'](arg1, arg2, arg3);
 }
@@ -88,6 +104,10 @@ export function ListHostsAll() {
 
 export function ListOneGroupOverview(arg1) {
   return window['go']['main']['App']['ListOneGroupOverview'](arg1);
+}
+
+export function LogoutMacUser() {
+  return window['go']['main']['App']['LogoutMacUser']();
 }
 
 export function OpenTerminal(arg1, arg2, arg3, arg4) {

@@ -1,13 +1,46 @@
+# --- 构建产物 ---
 build/
-frontend/dist/
-frontend/node_modules/
-*.DS_Store
-*.log
-.idea/
-.vscode/
+**/dist/
 *.app
 ServerPanel
+
+# --- 依赖 ---
+**/node_modules/
+
+# --- 前端本地/生成 ---
+frontend/dist/
+frontend/node_modules/
+# Wails 绑定校验哈希会随 package.json 变，保留提交更稳；若本地乱生成可取消下行注释
+# frontend/package.json.md5
+
+# --- 归档 React 前端（仅源码入库，构建/依赖忽略）---
+frontend-react/dist/
+frontend-react/node_modules/
+
+# --- 日志 / 编辑器 / OS ---
+*.log
+*.DS_Store
+.idea/
+.vscode/
 .playwright-mcp/
 
-# 本地 AI/计划缓存
+# --- 环境与密钥（勿入库）---
+.env
+.env.*
+!.env.example
+
+# --- 测试 / 覆盖率 / 临时 ---
+coverage/
+*.out
+*.test
+/tmp/
+*.bak
+*.swp
+*~
+
+# --- 本地 AI / 计划缓存 ---
 .zcode/
+
+# --- 本地冒烟/截图产物（可选手动提交 docs 正文）---
+docs/*-smoke-report.html
+docs/ipannel-vue-smoke-report.html

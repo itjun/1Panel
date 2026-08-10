@@ -41,6 +41,20 @@ export namespace main {
 	        this.password = source["password"];
 	    }
 	}
+	export class AuthState {
+	    authenticated: boolean;
+	    username: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuthState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.authenticated = source["authenticated"];
+	        this.username = source["username"];
+	    }
+	}
 	export class CopyIDInput {
 	    name: string;
 	    hostName: string;
@@ -138,6 +152,23 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	
+	export class MacUserInfo {
+	    username: string;
+	    fullName: string;
+	    homeDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MacUserInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.username = source["username"];
+	        this.fullName = source["fullName"];
+	        this.homeDir = source["homeDir"];
+	    }
 	}
 
 }
@@ -378,6 +409,11 @@ export namespace monitor {
 	    osRelease: string;
 	    cpuCount: number;
 	    cpuModel: string;
+	    hostname: string;
+	    arch: string;
+	    ipAddress: string;
+	    netRxBytes: number;
+	    netTxBytes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Overview(source);
@@ -400,6 +436,11 @@ export namespace monitor {
 	        this.osRelease = source["osRelease"];
 	        this.cpuCount = source["cpuCount"];
 	        this.cpuModel = source["cpuModel"];
+	        this.hostname = source["hostname"];
+	        this.arch = source["arch"];
+	        this.ipAddress = source["ipAddress"];
+	        this.netRxBytes = source["netRxBytes"];
+	        this.netTxBytes = source["netTxBytes"];
 	    }
 	}
 	export class ProcInfo {

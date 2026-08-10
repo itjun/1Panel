@@ -9,6 +9,12 @@ export function AddHost(arg1:main.AddHostInput):Promise<void>;
 
 export function AssignHost(arg1:string,arg2:string):Promise<void>;
 
+export function AuthStatus():Promise<main.AuthState>;
+
+export function AuthenticateMacUser(arg1:string,arg2:string):Promise<main.AuthState>;
+
+export function AuthenticateWithSystem():Promise<main.AuthState>;
+
 export function CloseTerminal(arg1:string):Promise<void>;
 
 export function CollectCrons(arg1:string):Promise<Array<monitor.Cron>>;
@@ -35,6 +41,8 @@ export function DeleteGroup(arg1:string):Promise<void>;
 
 export function DockerAction(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function GetCurrentMacUser():Promise<main.MacUserInfo>;
+
 export function KillProcess(arg1:string,arg2:number,arg3:boolean):Promise<void>;
 
 export function ListDir(arg1:string,arg2:string):Promise<Array<monitor.FileEntry>>;
@@ -48,6 +56,8 @@ export function ListHosts():Promise<Array<sshconfig.HostConfig>>;
 export function ListHostsAll():Promise<Array<sshconfig.HostConfig>>;
 
 export function ListOneGroupOverview(arg1:string):Promise<main.GroupOverview>;
+
+export function LogoutMacUser():Promise<main.AuthState>;
 
 export function OpenTerminal(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
 

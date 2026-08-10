@@ -1,0 +1,625 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+ * 主题系统：1Panel 风格配色（以 demo.1panel.cn 实测为准）
+ * 主色 #005eeb（品牌蓝）
+ * 优先完善 light 白蓝风格；dark 等其它主题后续再对齐
+ * ============================================================ */
+
+@layer base {
+  /* 暗黑（源码 frontend/src/styles/element-dark.scss） */
+  [data-theme="dark"] {
+    --background: 230 14% 16%;       /* #242633 */
+    --foreground: 225 25% 92%;       /* #e3e6f3 */
+    --card: 229 13% 21%;             /* #2e313d */
+    --card-foreground: 225 25% 92%;
+    --popover: 229 13% 21%;
+    --popover-foreground: 225 25% 92%;
+    --primary: 213 100% 62%;         /* #3d8eff */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 10% 24%;
+    --secondary-foreground: 225 25% 92%;
+    --muted: 229 13% 21%;
+    --muted-foreground: 228 6% 59%;  /* #90929f */
+    --accent: 213 100% 62%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 349 76% 54%;      /* #e2324f */
+    --destructive-foreground: 0 0% 100%;
+    --success: 133 51% 47%;          /* #3fb950 */
+    --success-foreground: 0 0% 100%;
+    --warning: 40 84% 55%;           /* #edac2c */
+    --warning-foreground: 0 0% 100%;
+    --border: 228 10% 29%;           /* #434552 */
+    --input: 228 10% 29%;
+    --ring: 213 100% 62%;
+    --sidebar: 230 14% 16%;
+    --sidebar-foreground: 225 18% 75%;
+    --menu-item: 229 13% 21%;
+    --menu-item-active: 228 10% 29%;
+    --card-border: 228 10% 29%;
+    --primary-light-5: 268 20% 23%;  /* #372e46 */
+    --primary-light-8: 213 58% 51%;  /* #3674cc */
+    --primary-light-9: 215 46% 33%;  /* #2d4a7a */
+    --card-shadow: 0 0 4px rgba(61, 142, 255, 0.12);
+    /* 1Panel 原始变量 */
+    --panel-color-primary: #3d8eff;
+    --panel-color-primary-light-1: #6eaaff;
+    --panel-color-primary-light-2: #366fc2;
+    --panel-color-primary-light-3: #3364ad;
+    --panel-color-primary-light-4: #2f558f;
+    --panel-color-primary-light-5: #372e46;
+    --panel-color-primary-light-6: #2a4066;
+    --panel-color-primary-light-7: #2d4a7a;
+    --panel-color-primary-light-8: #3674cc;
+    --panel-color-primary-light-9: #2d4a7a;
+    --panel-menu-bg-color: #242633;
+    --panel-menu-width: 180px;
+    --panel-text-color: #e3e6f3;
+    --panel-main-bg-color-9: #2e313d;
+    --panel-main-bg-color-10: #242633;
+    --panel-pie-bg-color: #434552;
+    --el-menu-item-bg-color: #2e313d;
+    --el-menu-item-bg-color-active: #434552;
+    --el-text-color-primary: #c0c2cf;
+    --el-text-color-regular: #c0c2cf;
+    --el-text-color-secondary: #90929f;
+    --el-border-color-light: #434552;
+    --el-bg-color-overlay: #2e313d;
+    --el-box-shadow-light: 0px 0px 12px rgba(36, 38, 51, 0.72);
+    color-scheme: dark;
+  }
+
+  /* 明亮（源码 frontend/src/styles/element.scss） */
+  [data-theme="light"] {
+    --background: 0 0% 96%;           /* #f4f4f4 --panel-main-bg-color-9 */
+    --foreground: 220 13% 14%;        /* #1f2329 --panel-text-color */
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 14%;
+    --primary: 216 100% 46%;          /* #005eeb */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 220 13% 14%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 6% 42%;   /* #646a73 --el-text-color-regular */
+    --accent: 216 100% 46%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 79% 69%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 100 46% 49%;
+    --success-foreground: 0 0% 100%;
+    --warning: 36 79% 57%;
+    --warning-foreground: 0 0% 100%;
+    --border: 0 0% 95%;
+    --input: 220 13% 91%;
+    --ring: 216 100% 46%;
+    --sidebar: 216 100% 46%;
+    --sidebar-alpha: 0.1;
+    --sidebar-foreground: 220 13% 14%;
+    --menu-item: 0 0% 100%;
+    --menu-item-active: 0 0% 100%;
+    --card-border: 220 13% 91%;
+    --primary-light-5: 216 85% 73%;   /* #7faef5 */
+    --primary-light-8: 216 100% 51%;  /* #196eed（源码 light-8） */
+    --primary-light-9: 216 85% 95%;   /* #e5eefd */
+    --card-shadow: 0 0 4px rgba(0, 94, 235, 0.1);
+    /* 1Panel 原始变量（ECharts 直接读取） */
+    --panel-color-primary: #005eeb;
+    --panel-color-primary-light-1: #196eed;
+    --panel-color-primary-light-2: #337eef;
+    --panel-color-primary-light-3: #4c8ef1;
+    --panel-color-primary-light-4: #669ef3;
+    --panel-color-primary-light-5: #7faef5;
+    --panel-color-primary-light-6: #99bef7;
+    --panel-color-primary-light-7: #b2cef9;
+    --panel-color-primary-light-8: #196eed;
+    --panel-color-primary-light-9: #e5eefd;
+    --panel-menu-bg-color: rgba(0, 94, 235, 0.1);
+    --panel-menu-width: 180px;
+    --panel-text-color: #1f2329;
+    --panel-main-bg-color-9: #f4f4f4;
+    --panel-pie-bg-color: #ffffff;
+    --el-menu-item-bg-color: rgba(255, 255, 255, 0.3);
+    --el-menu-item-bg-color-active: #ffffff;
+    --el-text-color-primary: #303133;
+    --el-text-color-regular: #646a73;
+    --el-text-color-secondary: #909399;
+    --el-border-color-light: #e4e7ed;
+    --el-bg-color-overlay: #ffffff;
+    --el-box-shadow-light: 0px 0px 4px rgba(0, 94, 235, 0.1);
+    color-scheme: light;
+  }
+
+  /* 墨蓝（Midnight）：深蓝背景 + 冰蓝点缀，开发者友好 */
+  [data-theme="midnight"] {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 213 100% 62%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 222 30% 15%;
+    --muted-foreground: 215 25% 65%;
+    --accent: 213 100% 62%;
+    --accent-foreground: 222 47% 7%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 96%;
+    --success: 142 71% 45%;
+    --success-foreground: 222 47% 7%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 7%;
+    --border: 222 30% 20%;
+    --input: 222 30% 18%;
+    --ring: 213 100% 62%;
+    --sidebar: 222 47% 6%;
+    --sidebar-foreground: 210 40% 96%;
+    --menu-item: 222 30% 15%;
+    --menu-item-active: 222 40% 14%;
+    --card-border: 222 30% 20%;
+    --primary-light-5: 213 100% 73%;
+    --primary-light-8: 213 60% 25%;
+    --primary-light-9: 213 50% 18%;
+    --card-shadow: 0 0 4px hsl(213 100% 62% / 0.15);
+    color-scheme: dark;
+  }
+
+  /* 墨绿（Forest）：深墨绿背景 + 翡翠点缀 */
+  [data-theme="forest"] {
+    --background: 150 18% 8%;
+    --foreground: 140 30% 95%;
+    --card: 150 15% 12%;
+    --card-foreground: 140 30% 95%;
+    --popover: 150 18% 9%;
+    --popover-foreground: 140 30% 95%;
+    --primary: 142 71% 45%;
+    --primary-foreground: 150 18% 8%;
+    --secondary: 150 12% 20%;
+    --secondary-foreground: 140 30% 95%;
+    --muted: 150 12% 16%;
+    --muted-foreground: 150 10% 65%;
+    --accent: 142 71% 45%;
+    --accent-foreground: 150 18% 8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 140 30% 95%;
+    --success: 142 71% 45%;
+    --success-foreground: 150 18% 8%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 150 18% 8%;
+    --border: 150 12% 18%;
+    --input: 150 12% 20%;
+    --ring: 142 71% 45%;
+    --sidebar: 150 18% 7%;
+    --sidebar-foreground: 140 30% 95%;
+    --menu-item: 150 12% 16%;
+    --menu-item-active: 150 15% 14%;
+    --card-border: 150 12% 18%;
+    --primary-light-5: 142 50% 60%;
+    --primary-light-8: 142 30% 20%;
+    --primary-light-9: 142 25% 14%;
+    --card-shadow: 0 0 4px hsl(142 71% 45% / 0.15);
+    color-scheme: dark;
+  }
+
+  /* 樱花（Sakura）：粉调暖系 */
+  [data-theme="sakura"] {
+    --background: 340 30% 97%;
+    --foreground: 340 40% 15%;
+    --card: 340 30% 99%;
+    --card-foreground: 340 40% 15%;
+    --popover: 340 30% 99%;
+    --popover-foreground: 340 40% 15%;
+    --primary: 340 75% 55%;
+    --primary-foreground: 340 30% 99%;
+    --secondary: 340 25% 92%;
+    --secondary-foreground: 340 40% 15%;
+    --muted: 340 25% 92%;
+    --muted-foreground: 340 15% 50%;
+    --accent: 340 75% 55%;
+    --accent-foreground: 340 30% 99%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 340 30% 99%;
+    --success: 142 60% 45%;
+    --success-foreground: 340 30% 99%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 340 30% 99%;
+    --border: 340 25% 88%;
+    --input: 340 25% 88%;
+    --ring: 340 75% 55%;
+    --sidebar: 340 40% 94%;
+    --sidebar-foreground: 340 40% 15%;
+    --menu-item: 340 30% 97%;
+    --menu-item-active: 0 0% 100%;
+    --card-border: 340 25% 88%;
+    --primary-light-5: 340 70% 72%;
+    --primary-light-8: 340 60% 92%;
+    --primary-light-9: 340 50% 96%;
+    --card-shadow: 0 0 4px hsl(340 75% 55% / 0.12);
+    color-scheme: light;
+  }
+
+  :root {
+    /* 1Panel 圆角 4px */
+    --radius: 0.25rem;
+    /* 字体设置（由 Settings store 控制覆盖）
+     * 1Panel: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif
+     */
+    --app-font-family: "Helvetica Neue", Helvetica, "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+    --app-font-size: 14px;
+    --app-zoom: 100;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body,
+  #root {
+    @apply h-full w-full;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--app-font-family);
+    font-size: var(--app-font-size);
+    zoom: calc(var(--app-zoom) / 100);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    overflow: hidden;
+    user-select: none;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer components {
+  /*
+   * ========== 1Panel 侧栏 1:1（demo.1panel.cn 实测）==========
+   * 宽度 180px | 底色 #005eeb1a | 菜单 padding 0 7px
+   * 项高 42px | margin 7px 0 | radius 4px | 字号 14px
+   * 未选：bg #ffffff4d + shadow 0 0 4px #005eeb1a + color #303133
+   * 选中：bg #fff + inset 2px 主色 + 左侧 4×14 蓝条 left:12px
+   * 子项：padding-left 35px，无阴影
+   */
+  .panel-sidebar {
+    width: 180px;
+    background-color: #005eeb1a;
+    color: #303133;
+  }
+  [data-theme="dark"] .panel-sidebar {
+    background-color: #242633;
+    color: #c0c2cf;
+  }
+  [data-theme="midnight"] .panel-sidebar,
+  [data-theme="forest"] .panel-sidebar {
+    background-color: hsl(var(--sidebar));
+    color: hsl(var(--sidebar-foreground));
+  }
+
+  .panel-sidebar-logo {
+    display: flex;
+    align-items: center;
+    height: 49px;
+    width: 100%;
+    padding: 0 14px;
+    flex-shrink: 0;
+    color: #005eeb; /* 1Panel 字标蓝 */
+  }
+  [data-theme="dark"] .panel-sidebar-logo {
+    color: #3d8eff;
+  }
+
+  .panel-sidebar-menu {
+    width: 100%;
+    padding: 0 7px;
+    box-sizing: border-box;
+    user-select: none;
+  }
+
+  /* 一级项 / 分组标题（等同 el-sub-menu__title / el-menu-item） */
+  .panel-menu-item {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 42px;
+    margin: 7px 0;
+    padding: 0 20px;
+    border: none;
+    border-radius: 4px;
+    background-color: #ffffff4d;
+    color: #303133;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1;
+    box-shadow: 0 0 4px #005eeb1a;
+    cursor: pointer;
+    text-align: left;
+    transition: color 0.15s, background-color 0.15s;
+  }
+  .panel-menu-item:hover {
+    color: #005eeb;
+  }
+  .panel-menu-item:hover .panel-menu-icon {
+    color: #005eeb;
+  }
+
+  /* 子项（主机）：pl 35px，无外阴影 */
+  .panel-menu-item-sub {
+    padding-left: 35px;
+    padding-right: 16px;
+    box-shadow: none;
+  }
+
+  /* 选中：白底 + 内描边 + 左侧蓝条（1Panel is-active） */
+  .panel-menu-item-active {
+    background-color: #fff !important;
+    color: #005eeb !important;
+    box-shadow: 0 0 4px #005eeb1a, inset 0 0 0 2px #005eeb !important;
+  }
+  .panel-menu-item-active::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 14px;
+    border-radius: 4px;
+    background: #005eeb;
+  }
+  .panel-menu-item-active .panel-menu-icon {
+    color: #005eeb;
+  }
+
+  [data-theme="dark"] .panel-menu-item {
+    background-color: #2e313d;
+    color: #c0c2cf;
+    box-shadow: 0 0 4px rgba(61, 142, 255, 0.08);
+  }
+  [data-theme="dark"] .panel-menu-item:hover {
+    color: #3d8eff;
+  }
+  [data-theme="dark"] .panel-menu-item-sub {
+    box-shadow: none;
+  }
+  [data-theme="dark"] .panel-menu-item-active {
+    background-color: #434552 !important;
+    color: #3d8eff !important;
+    box-shadow: 0 0 4px rgba(61, 142, 255, 0.15),
+      inset 0 0 0 2px #3d8eff !important;
+  }
+  [data-theme="dark"] .panel-menu-item-active::before {
+    background: #3d8eff;
+  }
+
+  [data-theme="midnight"] .panel-menu-item,
+  [data-theme="forest"] .panel-menu-item {
+    background-color: hsl(var(--menu-item));
+    color: hsl(var(--foreground));
+    box-shadow: none;
+  }
+  [data-theme="midnight"] .panel-menu-item-active,
+  [data-theme="forest"] .panel-menu-item-active {
+    background-color: hsl(var(--primary) / 0.15) !important;
+    color: hsl(var(--primary)) !important;
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.5) !important;
+  }
+
+  .panel-menu-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: inherit;
+  }
+  .panel-menu-label {
+    margin-left: 10px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .panel-menu-extra {
+    margin-left: 6px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #909399;
+  }
+  .panel-menu-item-active .panel-menu-extra {
+    color: #005eeb99;
+  }
+  .panel-menu-chevron {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-left: 4px;
+    color: #909399;
+    transition: transform 0.2s;
+  }
+  .panel-menu-chevron-open {
+    transform: rotate(90deg);
+  }
+
+  /* 暗色下 gauge 轨道用更深的 primary-light-9 */
+  [data-theme="dark"] .panel-tag {
+    background: hsl(var(--primary-light-9));
+    border-color: hsl(var(--primary-light-8));
+    color: hsl(var(--primary));
+  }
+
+  /* 1Panel 卡片：白底 + #e4e7ed 边 + 淡蓝阴影 */
+  .panel-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--card-border));
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+  }
+
+  /* 1Panel 区块标题：左侧 4×14 主色竖条 */
+  .panel-section-title {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding-left: 13px;
+    font-size: 16px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    line-height: 22px;
+  }
+  .panel-section-title::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 14px;
+    border-radius: 10px;
+    background: hsl(var(--primary));
+  }
+
+  /* 1Panel 浅色 Tag：primary-light-9 底 + primary 字 + light-8 边 */
+  .panel-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 12px;
+    line-height: 1;
+    color: hsl(var(--primary));
+    background: hsl(var(--primary-light-9));
+    border: 1px solid hsl(var(--primary-light-8));
+    border-radius: var(--radius);
+  }
+
+  /* 1Panel 主色链接文字按钮 */
+  .panel-link {
+    color: hsl(var(--primary));
+    font-size: 12px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .panel-link:hover {
+    opacity: 0.8;
+  }
+
+  /*
+   * 1Panel 选中高亮（应用商店实测）
+   * 标签/方框：白底 + 2px 主色描边 + 主色字
+   * 卡片：1px → 主色边，或 inset 2px 主色
+   */
+  .panel-outline {
+    border: 1px solid hsl(var(--card-border));
+    background: hsl(var(--card));
+    color: hsl(var(--muted-foreground));
+    border-radius: var(--radius);
+    transition: border-color 0.15s, color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .panel-outline:hover {
+    color: hsl(var(--primary));
+    border-color: hsl(var(--primary-light-5));
+  }
+  .panel-outline-active,
+  .panel-outline[data-state="active"],
+  .panel-outline[aria-selected="true"],
+  .panel-outline[data-checked="true"] {
+    border: 2px solid hsl(var(--primary));
+    background: hsl(var(--card));
+    color: hsl(var(--primary));
+    box-shadow: none;
+  }
+
+  /* 可选卡片：默认淡边，选中/悬停主色描边 */
+  .panel-card-selectable {
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    cursor: pointer;
+  }
+  .panel-card-selectable:hover {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.25), var(--card-shadow);
+  }
+  .panel-card-selectable-active,
+  .panel-card-selectable[data-state="active"],
+  .panel-card-selectable[aria-selected="true"] {
+    border: 2px solid hsl(var(--primary));
+    box-shadow: 0 0 4px hsl(var(--primary) / 0.15);
+  }
+
+  /* 分类 Chip / CheckTag：未选中灰字，选中主色字 + 浅底 */
+  .panel-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px;
+    font-size: 13px;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .panel-chip:hover {
+    color: hsl(var(--primary));
+    background: hsl(var(--primary-light-9));
+  }
+  .panel-chip-active,
+  .panel-chip[data-state="active"],
+  .panel-chip[aria-selected="true"] {
+    color: hsl(var(--primary));
+    background: hsl(var(--primary-light-9));
+    border-color: hsl(var(--primary-light-8));
+  }
+}
+
+@layer utilities {
+  /*
+   * Wails 窗口拖拽：默认检测 CSS 变量 --wails-draggable（见 options.CSSDragProperty）
+   * 值为 drag 的区域可拖动窗口；交互控件必须设 no-drag，否则点不到。
+   * 同时保留 -webkit-app-region 作为 WebKit 兜底。
+   */
+  .drag-region {
+    --wails-draggable: drag;
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .no-drag {
+    --wails-draggable: no-drag;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  .glass {
+    background: hsl(var(--card) / 0.6);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+}

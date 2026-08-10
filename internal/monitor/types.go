@@ -31,6 +31,12 @@ type Overview struct {
 	OSRelease    string  `json:"osRelease"`
 	CPUCount     int     `json:"cpuCount"`
 	CPUModel     string  `json:"cpuModel"`
+	// 1Panel 风格概览扩展
+	Hostname   string `json:"hostname"`   // 主机名
+	Arch       string `json:"arch"`       // 系统架构 uname -m
+	IPAddress  string `json:"ipAddress"`  // 主网卡 IP（尽力获取）
+	NetRxBytes uint64 `json:"netRxBytes"` // 累计接收字节（全网卡合计，不含 lo）
+	NetTxBytes uint64 `json:"netTxBytes"` // 累计发送字节
 }
 
 type DiskInfo struct {
