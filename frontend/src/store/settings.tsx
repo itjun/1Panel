@@ -78,24 +78,24 @@ export const THEME_OPTIONS: {
   {
     key: "auto",
     name: "跟随系统",
-    description: "根据 macOS 外观自动切换亮/暗",
+    description: "根据系统外观自动切换亮/暗",
     swatch: {
-      bg: "linear-gradient(135deg, #fff 50%, #0a0a0a 50%)",
+      bg: "linear-gradient(135deg, #f4f4f4 50%, #242633 50%)",
       fg: "#888",
-      accent: "#888",
+      accent: "#005eeb",
     },
   },
   {
     key: "dark",
     name: "暗黑",
-    description: "Vercel/Linear 风，深色面板默认",
-    swatch: { bg: "#0a0a0a", fg: "#fafafa", accent: "#fafafa" },
+    description: "1Panel 风深色，蓝灰底 + 亮蓝强调",
+    swatch: { bg: "#242633", fg: "#e3e6f3", accent: "#3d8eff" },
   },
   {
     key: "light",
     name: "明亮",
-    description: "经典浅色，强光下清晰",
-    swatch: { bg: "#ffffff", fg: "#0a0a0a", accent: "#0a0a0a" },
+    description: "1Panel 风浅色，灰白底 + 品牌蓝",
+    swatch: { bg: "#f4f4f4", fg: "#1f2329", accent: "#005eeb" },
   },
   {
     key: "midnight",

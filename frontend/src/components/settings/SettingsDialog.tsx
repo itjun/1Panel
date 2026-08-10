@@ -32,7 +32,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             主题
           </h3>
           <p className="mb-3 text-[11px] text-muted-foreground">
-            选择整体配色方案。「跟随系统」会按 macOS 外观自动切换亮/暗。
+            选择整体配色方案。「跟随系统」会按系统外观自动切换亮/暗。
           </p>
           <div className="grid grid-cols-3 gap-2.5">
             {THEME_OPTIONS.map((t) => {
