@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/overview/Progress";
 import { LoadBadge } from "@/components/overview/LoadBadge";
-import { Sparkline } from "@/components/overview/Sparkline";
 import { LoadingState, ErrorState } from "@/components/overview/States";
 import { api } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
@@ -18,7 +17,9 @@ import {
   Clock,
   Cpu,
   HardDrive,
+  Loader2,
   MemoryStick,
+  RefreshCw,
 } from "lucide-react";
 
 interface OverviewTabProps {
@@ -26,26 +27,63 @@ interface OverviewTabProps {
 }
 
 export function OverviewTab({ host }: OverviewTabProps) {
-  const { data, error, loading } = usePolling<monitor.Overview>(
+  // 仅进入页面时拉一次；不做 2s 秒级轮询（太卡）
+  const { data, error, loading, refresh } = usePolling<monitor.Overview>(
     () => api.collectOverview(host),
-    2000,
+    0,
     [host]
   );
   const { data: disks, refresh: refreshDisks } = usePolling<monitor.DiskInfo[]>(
     () => api.collectDisks(host),
-    30_000,
+    0,
     [host]
   );
 
-  // 历史值：用于做 sparkline 趋势
-  const [cpuHist, setCpuHist] = useState<number[]>([]);
-  const [memHist, setMemHist] = useState<number[]>([]);
+  // Top10 大文件：概览打开后异步加载，不挡主卡片
+  const [largeFiles, setLargeFiles] = useState<monitor.LargeFilesResult | null>(
+    null
+  );
+  const [lfLoading, setLfLoading] = useState(false);
+  const [lfError, setLfError] = useState<string | null>(null);
+
   useEffect(() => {
-    if (data) {
-      setCpuHist((h) => [...h.slice(-59), data.cpuPercent]);
-      setMemHist((h) => [...h.slice(-59), data.memPercent]);
-    }
-  }, [data]);
+    let cancelled = false;
+    setLargeFiles(null);
+    setLfError(null);
+    setLfLoading(true);
+    const timer = window.setTimeout(() => {
+      api
+        .collectLargestFiles(host, 10)
+        .then((r) => {
+          if (!cancelled) setLargeFiles(r);
+        })
+        .catch((e) => {
+          if (!cancelled) setLfError(String(e));
+        })
+        .finally(() => {
+          if (!cancelled) setLfLoading(false);
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [host]);
+
+  const rescanLargeFiles = () => {
+    setLfLoading(true);
+    setLfError(null);
+    api
+      .collectLargestFiles(host, 10)
+      .then(setLargeFiles)
+      .catch((e) => setLfError(String(e)))
+      .finally(() => setLfLoading(false));
+  };
+
+  const refreshAll = () => {
+    refresh();
+    refreshDisks();
+  };
 
   if (loading && !data) return <LoadingState />;
   if (error && !data) return <ErrorState message={error} />;
@@ -71,28 +109,35 @@ export function OverviewTab({ host }: OverviewTabProps) {
               </span>
             }
           />
+          <button
+            type="button"
+            onClick={refreshAll}
+            className="ml-auto flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <RefreshCw className="h-3 w-3" />
+            刷新指标
+          </button>
         </CardContent>
       </Card>
 
-      {/* 核心 4 卡 */}
+      {/* 核心 4 卡：瞬时值，无曲线、无秒级监听 */}
       <div className="grid grid-cols-2 gap-3">
         <MetricCard
           icon={<Cpu className="h-4 w-4" />}
           title="CPU 使用率"
           value={data.cpuPercent.toFixed(1) + "%"}
-          hist={cpuHist}
-          color="hsl(217 91% 60%)"
-        />
+        >
+          <Progress value={data.cpuPercent} className="h-1.5" />
+        </MetricCard>
         <MetricCard
           icon={<MemoryStick className="h-4 w-4" />}
           title="内存使用"
           value={`${data.memPercent.toFixed(1)}%`}
           sub={`${formatBytes(data.memUsed)} / ${formatBytes(data.memTotal)}`}
-          hist={memHist}
-          color="hsl(280 80% 60%)"
-        />
+        >
+          <Progress value={data.memPercent} className="h-1.5" />
+        </MetricCard>
 
-        {/* Load */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
@@ -107,7 +152,6 @@ export function OverviewTab({ host }: OverviewTabProps) {
           </CardContent>
         </Card>
 
-        {/* Swap */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
@@ -135,7 +179,7 @@ export function OverviewTab({ host }: OverviewTabProps) {
         </Card>
       </div>
 
-      {/* 磁盘 */}
+      {/* 磁盘分区 */}
       <div className="mt-3">
         <Card>
           <CardHeader className="pb-2">
@@ -143,6 +187,7 @@ export function OverviewTab({ host }: OverviewTabProps) {
               <HardDrive className="h-4 w-4" />
               磁盘
               <button
+                type="button"
                 onClick={refreshDisks}
                 className="ml-auto text-[10px] font-normal text-muted-foreground hover:text-foreground"
               >
@@ -180,6 +225,97 @@ export function OverviewTab({ host }: OverviewTabProps) {
                 </span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top10 大文件（异步） */}
+      <div className="mt-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              最大文件 Top 10
+              <button
+                type="button"
+                onClick={rescanLargeFiles}
+                disabled={lfLoading}
+                className="ml-auto flex items-center gap-1 text-[10px] font-normal text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                {lfLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+                {lfLoading ? "扫描中…" : "重新扫描"}
+              </button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lfLoading && !largeFiles && (
+              <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                后台扫描根分区大文件…
+              </div>
+            )}
+            {lfError && !largeFiles && (
+              <div className="py-4 text-center text-xs text-destructive">
+                {lfError}
+              </div>
+            )}
+            {largeFiles && (
+              <>
+                {(largeFiles.incomplete || largeFiles.message) && (
+                  <div className="mb-2 rounded-md bg-warning/10 px-2 py-1 text-[10px] text-warning">
+                    {largeFiles.message || "扫描未完成，结果可能不完整"}
+                    {largeFiles.elapsedMs > 0 &&
+                      ` · 耗时 ${(largeFiles.elapsedMs / 1000).toFixed(1)}s`}
+                  </div>
+                )}
+                {(!largeFiles.files || largeFiles.files.length === 0) && (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    {largeFiles.message || "暂无数据"}
+                  </div>
+                )}
+                {(largeFiles.files || []).length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-border text-[10px] text-muted-foreground">
+                          <th className="pb-1.5 pr-2 font-medium">文件</th>
+                          <th className="pb-1.5 pr-2 font-medium">所在目录</th>
+                          <th className="pb-1.5 text-right font-medium">大小</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {largeFiles.files.map((f) => (
+                          <tr
+                            key={f.path}
+                            className="border-b border-border/50 last:border-0"
+                          >
+                            <td
+                              className="max-w-[140px] truncate py-1.5 pr-2 font-medium"
+                              title={f.path}
+                            >
+                              {f.name}
+                            </td>
+                            <td
+                              className="max-w-[220px] truncate py-1.5 pr-2 text-muted-foreground"
+                              title={f.dir}
+                            >
+                              {f.dir}
+                            </td>
+                            <td className="py-1.5 text-right tabular-nums">
+                              {formatBytes(f.size)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -229,15 +365,13 @@ function MetricCard({
   title,
   value,
   sub,
-  hist,
-  color,
+  children,
 }: {
   icon: React.ReactNode;
   title: string;
   value: string;
   sub?: string;
-  hist: number[];
-  color: string;
+  children?: React.ReactNode;
 }) {
   return (
     <Card>
@@ -254,7 +388,7 @@ function MetricCard({
             <span className="text-[10px] text-muted-foreground">{sub}</span>
           )}
         </div>
-        <Sparkline data={hist} color={color} />
+        {children}
       </CardContent>
     </Card>
   );
