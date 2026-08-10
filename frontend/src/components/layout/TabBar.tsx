@@ -29,6 +29,9 @@ interface TabBarProps {
 
 // 垂直标签列：独立的第二列，放在 Sidebar 和 MainPane 之间
 // 宽度可拖拽调整（右边缘 resize handle），窄时只显示图标
+// 拖过该距离才算开始排序（避免误触）
+const REORDER_THRESHOLD_PX = 5;
+
 export function TabBar({ width, onResize }: TabBarProps) {
   const {
     tabs,
@@ -39,13 +42,80 @@ export function TabBar({ width, onResize }: TabBarProps) {
     closeLeftTabs,
     closeRightTabs,
     closeAllTabs,
+    reorderTab,
   } = useApp();
   const [menu, setMenu] = useState<TabMenu | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const resizing = useRef(false);
+  // 指针拖拽排序状态
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const suppressClickRef = useRef(false);
 
   // 判断是否处于「紧凑模式」（宽度太窄，只显示图标）
   const compact = width < 80;
+
+  /**
+   * 标签拖拽排序（指针事件，兼容 WKWebView）
+   * 按住标签拖动，放到另一标签上松开即重排。
+   */
+  const onTabPointerDown = (e: React.PointerEvent, tabId: string) => {
+    if (e.button !== 0) return;
+    // 点关闭按钮不触发排序
+    if ((e.target as HTMLElement).closest("[data-tab-close]")) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let active = false;
+
+    const tabIdAtPoint = (x: number, y: number): string | null => {
+      const el = document.elementFromPoint(x, y);
+      const node = el?.closest("[data-tab-id]") as HTMLElement | null;
+      return node?.dataset.tabId ?? null;
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!active) {
+        if (Math.hypot(dx, dy) < REORDER_THRESHOLD_PX) return;
+        active = true;
+        suppressClickRef.current = true;
+        setDraggingId(tabId);
+        document.body.style.cursor = "grabbing";
+        document.body.style.userSelect = "none";
+      }
+      const over = tabIdAtPoint(ev.clientX, ev.clientY);
+      setDropTargetId(over && over !== tabId ? over : null);
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      cleanup();
+      if (!active) {
+        setDraggingId(null);
+        setDropTargetId(null);
+        return;
+      }
+      const over = tabIdAtPoint(ev.clientX, ev.clientY);
+      setDraggingId(null);
+      setDropTargetId(null);
+      if (over && over !== tabId) {
+        reorderTab(tabId, over);
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
 
   // 拖拽 resize：鼠标按下右边缘 handle 后，跟踪 mousemove 改宽度
   const startResize = useCallback(
@@ -178,32 +248,47 @@ export function TabBar({ width, onResize }: TabBarProps) {
           {tabs.map((t) => {
             const active = t.id === activeTabId;
             const Icon = t.kind === "host" ? Server : Boxes;
+            const isDragging = draggingId === t.id;
+            const isDropTarget = dropTargetId === t.id;
             return (
               <div
                 key={t.id}
                 data-tab-id={t.id}
-                title={compact ? `${t.title}${t.subtitle ? " " + t.subtitle : ""}` : undefined}
-                onClick={() => setActiveTab(t.id)}
+                title={
+                  compact
+                    ? `${t.title}${t.subtitle ? " " + t.subtitle : ""}（可拖拽排序）`
+                    : "按住拖动可排序"
+                }
+                onPointerDown={(e) => onTabPointerDown(e, t.id)}
+                onClick={() => {
+                  if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return;
+                  }
+                  setActiveTab(t.id);
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setMenu({ tabId: t.id, x: e.clientX, y: e.clientY });
                 }}
                 className={cn(
-                  "group relative flex cursor-pointer rounded-md transition-colors",
+                  "group relative flex cursor-grab rounded-md transition-colors active:cursor-grabbing",
                   compact
                     ? "justify-center py-2"
                     : "flex-col gap-0.5 px-2 py-1.5",
                   active
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  isDragging && "opacity-40",
+                  isDropTarget &&
+                    "ring-2 ring-primary ring-offset-1 ring-offset-background"
                 )}
               >
                 {/* 紧凑模式：只显示图标 + 活跃指示条 */}
                 {compact ? (
                   <>
                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                    {/* 活跃标签左侧竖条 */}
                     {active && (
                       <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary-foreground" />
                     )}
@@ -223,10 +308,12 @@ export function TabBar({ width, onResize }: TabBarProps) {
                       </span>
                       <span
                         role="button"
+                        data-tab-close
                         onClick={(e) => {
                           e.stopPropagation();
                           closeTab(t.id);
                         }}
+                        onPointerDown={(e) => e.stopPropagation()}
                         className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-background group-hover:opacity-100"
                       >
                         <X className="h-2.5 w-2.5" />
