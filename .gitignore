@@ -8,3 +8,6 @@ frontend/node_modules/
 *.app
 ServerPanel
 .playwright-mcp/
+
+# 本地 AI/计划缓存
+.zcode/
