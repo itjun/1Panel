@@ -96,4 +96,5 @@ type Cron struct {
 type AptPackage struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	Depends int    `json:"depends"` // 依赖包数量（apt-cache depends 的 uniq 计数）
 }

@@ -108,23 +108,76 @@ func isCronEnvLine(l string) bool {
 	return true
 }
 
-// CollectPackages 采集 apt 已安装的软件包列表（按需触发，频率低）
+// CollectPackages 采集 apt 已安装的软件包列表 + 依赖数
+// 用 dpkg-query 一次性拿 Package / Version / Depends 三个字段（避免每个包单独跑 apt-cache）
+// Depends 字段是一行用逗号分隔的依赖列表，我们解析后统计个数
 func (c *Collector) CollectPackages(host string, opt sshd.ConnectOption) ([]AptPackage, error) {
-	out, err := c.mgr.Run(host, opt, "dpkg-query -W -f='${Package}\t${Version}\n'")
+	// 用 \x1f (US) 作为字段分隔符，避免 Depends 中的逗号/空格干扰
+	// Depends 字段长这样："libc6 (>= 2.34), libssl3 (>= 3.0.0), zlib1g"
+	cmd := "dpkg-query -W -f='${Package}\t${Version}\t${Depends}\n'"
+	out, err := c.mgr.Run(host, opt, cmd)
 	if err != nil {
 		return nil, err
 	}
 	return parsePackages(string(out)), nil
 }
 
+// parsePackages 解析 dpkg-query 输出
+// 字段顺序：Package \t Version \t Depends
+// Depends 字段可能为空（无依赖），或形如 "libc6 (>= 2.34), libssl3, zlib1g"
 func parsePackages(s string) []AptPackage {
 	out := []AptPackage{}
 	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
-		fields := strings.Split(line, "\t")
-		if len(fields) != 2 {
+		if line == "" {
 			continue
 		}
-		out = append(out, AptPackage{Name: fields[0], Version: fields[1]})
+		// 注意：dpkg-query 用单引号包裹，输出仍是 \t 分隔
+		fields := strings.Split(line, "\t")
+		if len(fields) < 2 {
+			continue
+		}
+		pkg := AptPackage{
+			Name:    fields[0],
+			Version: fields[1],
+		}
+		if len(fields) >= 3 {
+			pkg.Depends = countDepends(fields[2])
+		}
+		out = append(out, pkg)
 	}
 	return out
+}
+
+// countDepends 解析 Depends 字段，返回依赖包的数量
+// Depends 字段示例：
+//   "libc6 (>= 2.34), libssl3 (>= 3.0.0), zlib1g"
+//   "libpython3.10 (>= 3.10), libpython3.10:amd64 | libpython3.11"
+// 解析规则：按逗号分隔，每一项取第一个 token 为依赖名；or 选择（|）取一项算一次
+func countDepends(depends string) int {
+	if depends == "" {
+		return 0
+	}
+	count := 0
+	for _, item := range strings.Split(depends, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		// 处理 | 选择项：「A | B」只算一次（用户视角：满足任一即可）
+		if idx := strings.Index(item, "|"); idx >= 0 {
+			item = strings.TrimSpace(item[:idx])
+		}
+		// 去掉版本约束： "libc6 (>= 2.34)" → "libc6"
+		if idx := strings.Index(item, "("); idx >= 0 {
+			item = strings.TrimSpace(item[:idx])
+		}
+		// 去掉架构后缀："libssl3:amd64" → "libssl3"
+		if idx := strings.Index(item, ":"); idx >= 0 {
+			item = strings.TrimSpace(item[:idx])
+		}
+		if item != "" {
+			count++
+		}
+	}
+	return count
 }

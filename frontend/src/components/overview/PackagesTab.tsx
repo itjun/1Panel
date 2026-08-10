@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -6,18 +6,26 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
 import type { monitor } from "@wailsjs/go/models";
 import { LoadingState, ErrorState } from "@/components/overview/States";
-import { Package } from "lucide-react";
+import { Package, ArrowDown, ArrowUp, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   host: string;
 }
 
+type SortKey = "name" | "version" | "depends";
+type SortDir = "asc" | "desc";
+
 export function PackagesTab({ host }: Props) {
   const [filter, setFilter] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
   // 软件包列表很大，初始不拉，点刷新再拉
   const { data, error, loading, refresh } = usePolling<monitor.AptPackage[]>(
     () => api.collectPackages(host),
@@ -25,9 +33,69 @@ export function PackagesTab({ host }: Props) {
     [host]
   );
 
-  const filtered = (data || []).filter((p) =>
-    filter ? p.name.toLowerCase().includes(filter.toLowerCase()) : true
-  );
+  // 先过滤，再排序
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const q = filter.trim().toLowerCase();
+    let list = data;
+    if (q) {
+      list = data.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.version.toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...list].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "name":
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case "version":
+          cmp = a.version.localeCompare(b.version);
+          break;
+        case "depends":
+          cmp = a.depends - b.depends;
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [data, filter, sortKey, sortDir]);
+
+  // 依赖数统计
+  const stats = useMemo(() => {
+    if (!data || data.length === 0) return null;
+    let maxDeps = 0;
+    let sumDeps = 0;
+    for (const p of data) {
+      if (p.depends > maxDeps) maxDeps = p.depends;
+      sumDeps += p.depends;
+    }
+    return {
+      total: data.length,
+      maxDeps,
+      avgDeps: Math.round((sumDeps / data.length) * 10) / 10,
+    };
+  }, [data]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ active }: { active: boolean }) =>
+    active ? (
+      sortDir === "asc" ? (
+        <ArrowUp className="h-3 w-3" />
+      ) : (
+        <ArrowDown className="h-3 w-3" />
+      )
+    ) : null;
 
   return (
     <Card className="h-full overflow-hidden">
@@ -35,17 +103,21 @@ export function PackagesTab({ host }: Props) {
         <CardTitle className="flex items-center gap-2">
           <Package className="h-4 w-4" />
           已安装软件包
-          {data && (
+          {stats && (
             <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-              共 {data.length} 个
+              共 {stats.total} 个 · 平均依赖 {stats.avgDeps} 个 · 最多{" "}
+              {stats.maxDeps} 个依赖
             </span>
           )}
-          <Input
-            placeholder="过滤包名..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="ml-auto h-7 max-w-xs text-xs"
-          />
+          <div className="relative ml-auto">
+            <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索包名/版本..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="h-7 w-64 pl-7 text-xs"
+            />
+          </div>
           <button
             onClick={refresh}
             className="text-[10px] font-normal text-muted-foreground hover:text-foreground"
@@ -61,16 +133,34 @@ export function PackagesTab({ host }: Props) {
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-card">
               <tr className="border-b border-border">
-                <th className="px-2 py-2 text-left font-medium text-muted-foreground">
-                  包名
+                <th
+                  className="cursor-pointer px-2 py-2 text-left font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleSort("name")}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    包名 <SortIcon active={sortKey === "name"} />
+                  </span>
                 </th>
-                <th className="px-2 py-2 text-left font-medium text-muted-foreground">
-                  版本
+                <th
+                  className="cursor-pointer px-2 py-2 text-left font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleSort("version")}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    版本 <SortIcon active={sortKey === "version"} />
+                  </span>
+                </th>
+                <th
+                  className="cursor-pointer px-2 py-2 text-right font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleSort("depends")}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    依赖数 <SortIcon active={sortKey === "depends"} />
+                  </span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, 1000).map((p) => (
+              {filtered.slice(0, 500).map((p) => (
                 <tr
                   key={p.name}
                   className="border-b border-border/30 hover:bg-accent/40"
@@ -79,22 +169,45 @@ export function PackagesTab({ host }: Props) {
                   <td className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">
                     {p.version}
                   </td>
+                  <td className="px-2 py-1.5 text-right">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-5 px-1.5 text-[10px] tabular-nums",
+                        p.depends >= 20
+                          ? "border-warning/50 text-warning"
+                          : p.depends >= 10
+                          ? "border-primary/40 text-primary"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {p.depends}
+                    </Badge>
+                  </td>
                 </tr>
               ))}
-              {filtered.length > 1000 && (
+              {filtered.length > 500 && (
                 <tr>
-                  <td colSpan={2} className="px-2 py-3 text-center text-[10px] text-muted-foreground">
-                    只显示前 1000 条，请用过滤缩小范围
+                  <td
+                    colSpan={3}
+                    className="px-2 py-3 text-center text-[10px] text-muted-foreground"
+                  >
+                    只显示前 500 条（共 {filtered.length} 条匹配），请用搜索缩小范围
+                  </td>
+                </tr>
+              )}
+              {filtered.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-2 py-8 text-center text-[11px] text-muted-foreground"
+                  >
+                    {filter ? `无匹配 "${filter}" 的包` : "无软件包数据"}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-        )}
-        {data?.length === 0 && (
-          <div className="py-12 text-center text-xs text-muted-foreground">
-            无软件包数据
-          </div>
         )}
       </CardContent>
     </Card>
