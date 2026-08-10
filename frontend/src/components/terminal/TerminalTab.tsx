@@ -5,6 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { EventsOn, EventsOff } from "@wailsjs/runtime/runtime";
 import { api } from "@/lib/api";
 import { useSettings } from "@/store/settings";
+import { useApp } from "@/store/app";
 import { Plus, X, SquareTerminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,9 +28,13 @@ let tabSeq = 0;
 
 export function TerminalTab({ host }: TerminalTabProps) {
   const { settings } = useSettings();
+  const { pendingTerminalCmd, clearTerminalCmd } = useApp();
   const [tabs, setTabs] = useState<SessionTab[]>([]);
   const [activeID, setActiveID] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 待执行的命令：会话建立后自动输入
+  // 用 ref 避免重复执行（pendingTerminalCmd 变化时消费一次）
+  const pendingCmdRef = useRef<string | null>(null);
 
   // 终端字体随设置变化
   const termFontSize = Math.round(settings.fontSize * 1.05); // 略大一点便于阅读
@@ -99,6 +104,17 @@ export function TerminalTab({ host }: TerminalTabProps) {
       });
     }
 
+    // 如果有待执行的命令（来自软件包「检查更新/升级」），等 shell 就绪后自动输入
+    // 等 1.2 秒让 ssh 握手 + shell 提示符出现，避免命令被吞
+    if (sessionID && pendingCmdRef.current) {
+      const cmd = pendingCmdRef.current;
+      pendingCmdRef.current = null;
+      clearTerminalCmd();
+      setTimeout(() => {
+        api.writeTerminal(sessionID, cmd + "\n").catch(() => {});
+      }, 1200);
+    }
+
     // 监听后端输出
     EventsOn(eventName, (payload: { data?: string }) => {
       if (payload?.data) term.write(payload.data);
@@ -152,6 +168,27 @@ export function TerminalTab({ host }: TerminalTabProps) {
     setTabs((ts) => [...ts, tab]);
     setActiveID(id);
   };
+
+  // 把 store 里的 pendingTerminalCmd 同步到 ref（openNew 里读取）
+  useEffect(() => {
+    if (pendingTerminalCmd) {
+      pendingCmdRef.current = pendingTerminalCmd;
+    }
+  }, [pendingTerminalCmd]);
+
+  // 如果终端已有活跃会话且收到待执行命令，直接发给活跃会话
+  useEffect(() => {
+    if (!pendingTerminalCmd || tabs.length === 0) return;
+    const active = tabs.find((t) => t.id === activeID) || tabs[0];
+    if (!active?.sessionID) return;
+    const cmd = pendingTerminalCmd;
+    clearTerminalCmd();
+    pendingCmdRef.current = null;
+    // 等 shell 就绪
+    setTimeout(() => {
+      api.writeTerminal(active.sessionID, cmd + "\n").catch(() => {});
+    }, 300);
+  }, [pendingTerminalCmd, tabs, activeID]);
 
   // 首次进入自动开一个
   useEffect(() => {

@@ -11,8 +11,9 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
 import type { monitor } from "@wailsjs/go/models";
 import { LoadingState, ErrorState } from "@/components/overview/States";
-import { Package, ArrowDown, ArrowUp, Search } from "lucide-react";
+import { Package, ArrowDown, ArrowUp, Search, RefreshCw, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useApp } from "@/store/app";
 
 interface Props {
   host: string;
@@ -22,9 +23,18 @@ type SortKey = "name" | "version" | "depends";
 type SortDir = "asc" | "desc";
 
 export function PackagesTab({ host }: Props) {
+  const { activeTabId, setSubTab, sendTerminalCmd } = useApp();
   const [filter, setFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // 切到终端并自动执行命令（apt update / apt upgrade）
+  // apt upgrade -y 自动确认，但某些交互场景仍需用户手动 Y/N，终端原生支持
+  const runInTerminal = (cmd: string) => {
+    if (!activeTabId) return;
+    sendTerminalCmd(cmd);
+    setSubTab(activeTabId, "terminal");
+  };
 
   // 软件包列表很大，初始不拉，点刷新再拉
   const { data, error, loading, refresh } = usePolling<monitor.AptPackage[]>(
@@ -122,7 +132,23 @@ export function PackagesTab({ host }: Props) {
             onClick={refresh}
             className="text-[10px] font-normal text-muted-foreground hover:text-foreground"
           >
-            刷新
+            <RefreshCw className="inline h-3 w-3" /> 刷新
+          </button>
+          <button
+            onClick={() => runInTerminal("apt update")}
+            className="flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="在终端执行 apt update（检查可用更新）"
+          >
+            <RefreshCw className="h-3 w-3" />
+            检查更新
+          </button>
+          <button
+            onClick={() => runInTerminal("apt update && apt upgrade -y")}
+            className="flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            title="在终端执行 apt update && apt upgrade -y（升级所有软件包，-y 自动确认常规提示；交互场景可手动输入 Y/N）"
+          >
+            <Upload className="h-3 w-3" />
+            升级所有
           </button>
         </CardTitle>
       </CardHeader>
