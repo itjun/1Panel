@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import "@xterm/xterm/css/xterm.css";
 import { EventsOn, EventsOff } from "@wailsjs/runtime/runtime";
 import { api } from "@/lib/api";
 import { useSettings } from "@/store/settings";
 import { useApp } from "@/store/app";
-import { Plus, X, SquareTerminal } from "lucide-react";
+import { Plus, X, SquareTerminal, Copy, ClipboardPaste } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TerminalTabProps {
@@ -14,14 +15,21 @@ interface TerminalTabProps {
 }
 
 interface SessionTab {
-  id: string;          // 前端 Tab ID
-  sessionID: string;   // 后端会话 ID
-  eventName: string;   // 后端事件名
+  id: string;
+  sessionID: string;
+  eventName: string;
   term: XTerm;
   fit: FitAddon;
   closed: boolean;
-  // term.open() 的目标 DOM 节点；切换 active 时把这个节点 detach/attach
   el: HTMLDivElement;
+}
+
+interface CtxMenu {
+  x: number;
+  y: number;
+  sessionID: string;
+  term: XTerm;
+  hasSelection: boolean;
 }
 
 let tabSeq = 0;
@@ -31,31 +39,35 @@ export function TerminalTab({ host }: TerminalTabProps) {
   const { pendingTerminalCmd, clearTerminalCmd } = useApp();
   const [tabs, setTabs] = useState<SessionTab[]>([]);
   const [activeID, setActiveID] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // 待执行的命令：会话建立后自动输入
-  // 用 ref 避免重复执行（pendingTerminalCmd 变化时消费一次）
+  const tabsRef = useRef<SessionTab[]>([]);
+  tabsRef.current = tabs;
   const pendingCmdRef = useRef<string | null>(null);
 
-  // 终端字体随设置变化
-  const termFontSize = Math.round(settings.fontSize * 1.05); // 略大一点便于阅读
+  const termFontSize = Math.round(settings.fontSize * 1.05);
   const termFontFamily = settings.fontFamily.includes("Mono")
     ? settings.fontFamily
     : '"SF Mono", "JetBrains Mono", Menlo, Monaco, monospace';
 
   const openNew = async () => {
+    const container = containerRef.current;
+    if (!container) return;
+
     const id = `term-${Date.now()}-${tabSeq++}`;
     const eventName = `term:${id}`;
 
-    // 创建 term 实例，主题色固定深色（终端永远是深色更舒服）
     const term = new XTerm({
       cursorBlink: true,
       fontSize: termFontSize,
       fontFamily: termFontFamily,
+      // 允许选中文本用于复制
+      rightClickSelectsWord: false,
       theme: {
         background: "#0a0a0a",
         foreground: "#e4e4e7",
         cursor: "#e4e4e7",
-        selectionBackground: "#27272a",
+        selectionBackground: "#3f3f46",
         black: "#0a0a0a",
         red: "#ef4444",
         green: "#22c55e",
@@ -79,33 +91,51 @@ export function TerminalTab({ host }: TerminalTabProps) {
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
 
-    // 关键：先创建持久 DOM 节点，并一次性 open（绝不再 open 第二次）
+    // 必须先挂到真实容器再 fit，否则行列为 0/错误 → 远程 PTY 开局出 ]]] 乱码
     const el = document.createElement("div");
     el.style.width = "100%";
     el.style.height = "100%";
+    el.style.position = "absolute";
+    el.style.inset = "0";
+    // 清掉旧可见终端，先用本 el 测量尺寸
+    container.innerHTML = "";
+    container.appendChild(el);
     term.open(el);
-    fit.fit();
 
-    // 先建立后端会话
+    // 等一帧让布局生效再 fit
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    try {
+      fit.fit();
+    } catch {
+      /* ignore */
+    }
+    let cols = term.cols || 80;
+    let rows = term.rows || 24;
+    if (cols < 20) cols = 80;
+    if (rows < 5) rows = 24;
+
     let sessionID = "";
     try {
-      sessionID = await api.openTerminal(host, eventName);
+      sessionID = await api.openTerminal(host, eventName, cols, rows);
     } catch (e) {
       term.write(`\x1b[31m连接失败: ${e}\x1b[0m\r\n`);
     }
 
-    // 会话建立后，把当前 cols/rows 同步给后端 PTY，并注册 onResize 持续同步
     if (sessionID) {
-      api.resizeTerminal(sessionID, term.cols, term.rows).catch(() => {});
-      term.onResize(() => {
-        api
-          .resizeTerminal(sessionID, term.cols, term.rows)
-          .catch(() => {});
+      // 再同步一次尺寸（挂载后可能略变）
+      try {
+        fit.fit();
+        if (term.cols !== cols || term.rows !== rows) {
+          await api.resizeTerminal(sessionID, term.cols, term.rows);
+        }
+      } catch {
+        /* ignore */
+      }
+      term.onResize(({ cols: c, rows: r }) => {
+        api.resizeTerminal(sessionID, c, r).catch(() => {});
       });
     }
 
-    // 如果有待执行的命令（来自软件包「检查更新/升级」），等 shell 就绪后自动输入
-    // 等 1.2 秒让 ssh 握手 + shell 提示符出现，避免命令被吞
     if (sessionID && pendingCmdRef.current) {
       const cmd = pendingCmdRef.current;
       pendingCmdRef.current = null;
@@ -115,7 +145,6 @@ export function TerminalTab({ host }: TerminalTabProps) {
       }, 1200);
     }
 
-    // 监听后端输出
     EventsOn(eventName, (payload: { data?: string }) => {
       if (payload?.data) term.write(payload.data);
     });
@@ -126,17 +155,13 @@ export function TerminalTab({ host }: TerminalTabProps) {
       );
     });
 
-    // 用户输入转发给后端
-    // 优化：xterm onData 每次按键触发一次，如果每次都走 Wails IPC 会有明显延迟
-    //（每字符一次 JSON 序列化 + 消息往返）。用缓冲区把连续按键合并，
-    // 用 setTimeout(0) 在下一个事件循环一次性发送，大幅减少 IPC 次数
+    // 输入：合并普通按键，控制字符立即发
     const sessionIDRef = sessionID;
     let inputBuf = "";
     let flushScheduled = false;
     const flushInput = () => {
       flushScheduled = false;
       if (inputBuf && sessionIDRef) {
-        // fire-and-forget：不 await，避免阻塞下一个按键
         api.writeTerminal(sessionIDRef, inputBuf).catch(() => {});
         inputBuf = "";
       }
@@ -146,13 +171,26 @@ export function TerminalTab({ host }: TerminalTabProps) {
       inputBuf += d;
       if (!flushScheduled) {
         flushScheduled = true;
-        // 回车/换行/控制字符立刻发送，不等待合并（保证命令及时执行）
         if (d === "\r" || d === "\n" || d.charCodeAt(0) < 32) {
           flushInput();
         } else {
           setTimeout(flushInput, 0);
         }
       }
+    });
+
+    // 右键：自定义复制/粘贴菜单（拦截浏览器默认菜单）
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const sel = term.getSelection();
+      setCtxMenu({
+        x: e.clientX,
+        y: e.clientY,
+        sessionID: sessionIDRef,
+        term,
+        hasSelection: !!sel && sel.length > 0,
+      });
     });
 
     const tab: SessionTab = {
@@ -167,16 +205,15 @@ export function TerminalTab({ host }: TerminalTabProps) {
 
     setTabs((ts) => [...ts, tab]);
     setActiveID(id);
+    term.focus();
   };
 
-  // 把 store 里的 pendingTerminalCmd 同步到 ref（openNew 里读取）
   useEffect(() => {
     if (pendingTerminalCmd) {
       pendingCmdRef.current = pendingTerminalCmd;
     }
   }, [pendingTerminalCmd]);
 
-  // 如果终端已有活跃会话且收到待执行命令，直接发给活跃会话
   useEffect(() => {
     if (!pendingTerminalCmd || tabs.length === 0) return;
     const active = tabs.find((t) => t.id === activeID) || tabs[0];
@@ -184,7 +221,6 @@ export function TerminalTab({ host }: TerminalTabProps) {
     const cmd = pendingTerminalCmd;
     clearTerminalCmd();
     pendingCmdRef.current = null;
-    // 等 shell 就绪
     setTimeout(() => {
       api.writeTerminal(active.sessionID, cmd + "\n").catch(() => {});
     }, 300);
@@ -192,41 +228,65 @@ export function TerminalTab({ host }: TerminalTabProps) {
 
   // 首次进入自动开一个
   useEffect(() => {
-    if (tabs.length === 0) {
-      openNew();
-    }
+    // 等容器挂载后再开
+    const t = window.setTimeout(() => {
+      if (tabsRef.current.length === 0) {
+        void openNew();
+      }
+    }, 50);
     return () => {
-      // 组件卸载时关掉所有会话
-      tabs.forEach((t) => {
-        if (t.sessionID) api.closeTerminal(t.sessionID);
-        EventsOff(t.eventName);
-        EventsOff(`${t.eventName}:exit`);
-        t.term.dispose();
+      clearTimeout(t);
+      tabsRef.current.forEach((tab) => {
+        if (tab.sessionID) api.closeTerminal(tab.sessionID);
+        EventsOff(tab.eventName);
+        EventsOff(`${tab.eventName}:exit`);
+        tab.term.dispose();
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 切换 active tab：把对应 el 挂到容器，其它的 detach
+  // 切换 active tab：挂载对应 el
   useEffect(() => {
     if (!containerRef.current || !activeID) return;
     const container = containerRef.current;
-    // 清空容器
-    container.innerHTML = "";
     const active = tabs.find((t) => t.id === activeID);
     if (!active) return;
-    // 重新挂当前 active 的 el（注意：xterm 的 textarea 会一起跟着走，不丢焦点）
+
+    // 只保留当前 active 的子节点
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
     container.appendChild(active.el);
-    active.fit.fit();
-    active.term.focus();
-    const onResize = () => active.fit.fit();
+
+    // 下一帧 fit，避免尺寸为 0
+    requestAnimationFrame(() => {
+      try {
+        active.fit.fit();
+        if (active.sessionID) {
+          api
+            .resizeTerminal(active.sessionID, active.term.cols, active.term.rows)
+            .catch(() => {});
+        }
+      } catch {
+        /* ignore */
+      }
+      active.term.focus();
+    });
+
+    const onResize = () => {
+      try {
+        active.fit.fit();
+      } catch {
+        /* ignore */
+      }
+    };
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
     };
   }, [activeID, tabs]);
 
-  // 字号/字体变化时，更新所有 term
   useEffect(() => {
     tabs.forEach((t) => {
       t.term.options.fontSize = termFontSize;
@@ -239,6 +299,21 @@ export function TerminalTab({ host }: TerminalTabProps) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [termFontSize, termFontFamily]);
+
+  // 点外面关闭右键菜单
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const timer = setTimeout(() => {
+      window.addEventListener("click", close);
+      window.addEventListener("contextmenu", close);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("click", close);
+      window.removeEventListener("contextmenu", close);
+    };
+  }, [ctxMenu]);
 
   const close = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -255,6 +330,42 @@ export function TerminalTab({ host }: TerminalTabProps) {
     }
   };
 
+  const copySelection = async (term: XTerm) => {
+    const text = term.getSelection();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // 降级：execCommand
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCtxMenu(null);
+  };
+
+  const pasteClipboard = async (sessionID: string, term: XTerm) => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        setCtxMenu(null);
+        return;
+      }
+      if (sessionID) {
+        await api.writeTerminal(sessionID, text);
+      } else {
+        term.paste(text);
+      }
+    } catch (e) {
+      console.error("粘贴失败", e);
+    }
+    setCtxMenu(null);
+    term.focus();
+  };
+
   return (
     <div className="flex h-full flex-col">
       {/* Tab 条 */}
@@ -262,6 +373,7 @@ export function TerminalTab({ host }: TerminalTabProps) {
         {tabs.map((t) => (
           <button
             key={t.id}
+            type="button"
             onClick={() => setActiveID(t.id)}
             className={cn(
               "group flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors",
@@ -287,7 +399,8 @@ export function TerminalTab({ host }: TerminalTabProps) {
           </button>
         ))}
         <button
-          onClick={openNew}
+          type="button"
+          onClick={() => void openNew()}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
           title="新开终端"
         >
@@ -295,12 +408,53 @@ export function TerminalTab({ host }: TerminalTabProps) {
         </button>
       </div>
 
-      {/* 终端容器 */}
+      {/* 终端容器：relative 供 absolute 子节点铺满 */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-hidden rounded-lg border border-border bg-[#0a0a0a] p-1"
+        className="relative flex-1 overflow-hidden rounded-lg border border-border bg-[#0a0a0a]"
         style={{ userSelect: "text" }}
       />
+
+      {/* 右键菜单：复制 / 粘贴 */}
+      {ctxMenu && (
+        <div
+          className="fixed z-50 min-w-[140px] rounded-md border border-border bg-popover p-1 shadow-lg"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            disabled={!ctxMenu.hasSelection}
+            className={cn(
+              "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs",
+              ctxMenu.hasSelection
+                ? "hover:bg-accent"
+                : "cursor-not-allowed text-muted-foreground/50"
+            )}
+            onClick={() => void copySelection(ctxMenu.term)}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            复制
+            <span className="ml-auto text-[10px] text-muted-foreground">
+              ⌘C
+            </span>
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+            onClick={() =>
+              void pasteClipboard(ctxMenu.sessionID, ctxMenu.term)
+            }
+          >
+            <ClipboardPaste className="h-3.5 w-3.5" />
+            粘贴
+            <span className="ml-auto text-[10px] text-muted-foreground">
+              ⌘V
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
