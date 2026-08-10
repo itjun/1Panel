@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { EventsOn, EventsOff } from "@wailsjs/runtime/runtime";
 import { api } from "@/lib/api";
+import { useSettings } from "@/store/settings";
 import { Plus, X, SquareTerminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,30 +13,39 @@ interface TerminalTabProps {
 }
 
 interface SessionTab {
-  id: string;        // 前端 Tab ID
-  sessionID: string; // 后端会话 ID
-  eventName: string; // 后端事件名
+  id: string;          // 前端 Tab ID
+  sessionID: string;   // 后端会话 ID
+  eventName: string;   // 后端事件名
   term: XTerm;
   fit: FitAddon;
   closed: boolean;
+  // term.open() 的目标 DOM 节点；切换 active 时把这个节点 detach/attach
+  el: HTMLDivElement;
 }
 
 let tabSeq = 0;
 
 export function TerminalTab({ host }: TerminalTabProps) {
+  const { settings } = useSettings();
   const [tabs, setTabs] = useState<SessionTab[]>([]);
   const [activeID, setActiveID] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 终端字体随设置变化
+  const termFontSize = Math.round(settings.fontSize * 1.05); // 略大一点便于阅读
+  const termFontFamily = settings.fontFamily.includes("Mono")
+    ? settings.fontFamily
+    : '"SF Mono", "JetBrains Mono", Menlo, Monaco, monospace';
 
   const openNew = async () => {
     const id = `term-${Date.now()}-${tabSeq++}`;
     const eventName = `term:${id}`;
 
+    // 创建 term 实例，主题色固定深色（终端永远是深色更舒服）
     const term = new XTerm({
       cursorBlink: true,
-      fontSize: 13,
-      fontFamily:
-        "'JetBrains Mono', 'SF Mono', 'Menlo', 'Consolas', monospace",
+      fontSize: termFontSize,
+      fontFamily: termFontFamily,
       theme: {
         background: "#0a0a0a",
         foreground: "#e4e4e7",
@@ -64,32 +74,30 @@ export function TerminalTab({ host }: TerminalTabProps) {
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
 
-    // 先建立会话
-    let sessionID: string = "";
+    // 关键：先创建持久 DOM 节点，并一次性 open（绝不再 open 第二次）
+    const el = document.createElement("div");
+    el.style.width = "100%";
+    el.style.height = "100%";
+    term.open(el);
+    fit.fit();
+
+    // 先建立后端会话
+    let sessionID = "";
     try {
       sessionID = await api.openTerminal(host, eventName);
     } catch (e) {
       term.write(`\x1b[31m连接失败: ${e}\x1b[0m\r\n`);
     }
-    // 把 sessionID 装入 tab 结构（即使失败也保留以便展示错误）
-    const tab: SessionTab = {
-      id,
-      sessionID: sessionID || "",
-      eventName,
-      term,
-      fit,
-      closed: false,
-    };
 
-    // 把 term 挂到一个隐藏 div，等切到 active 再 attach 到主容器
-    const holder = document.createElement("div");
-    holder.style.position = "absolute";
-    holder.style.left = "-9999px";
-    holder.style.width = "100%";
-    holder.style.height = "100%";
-    document.body.appendChild(holder);
-    term.open(holder);
-    fit.fit();
+    // 会话建立后，把当前 cols/rows 同步给后端 PTY，并注册 onResize 持续同步
+    if (sessionID) {
+      api.resizeTerminal(sessionID, term.cols, term.rows).catch(() => {});
+      term.onResize(() => {
+        api
+          .resizeTerminal(sessionID, term.cols, term.rows)
+          .catch(() => {});
+      });
+    }
 
     // 监听后端输出
     EventsOn(eventName, (payload: { data?: string }) => {
@@ -103,11 +111,43 @@ export function TerminalTab({ host }: TerminalTabProps) {
     });
 
     // 用户输入转发给后端
+    // 优化：xterm onData 每次按键触发一次，如果每次都走 Wails IPC 会有明显延迟
+    //（每字符一次 JSON 序列化 + 消息往返）。用缓冲区把连续按键合并，
+    // 用 setTimeout(0) 在下一个事件循环一次性发送，大幅减少 IPC 次数
+    const sessionIDRef = sessionID;
+    let inputBuf = "";
+    let flushScheduled = false;
+    const flushInput = () => {
+      flushScheduled = false;
+      if (inputBuf && sessionIDRef) {
+        // fire-and-forget：不 await，避免阻塞下一个按键
+        api.writeTerminal(sessionIDRef, inputBuf).catch(() => {});
+        inputBuf = "";
+      }
+    };
     term.onData((d) => {
-      if (tab.sessionID) {
-        api.writeTerminal(tab.sessionID, d);
+      if (!sessionIDRef) return;
+      inputBuf += d;
+      if (!flushScheduled) {
+        flushScheduled = true;
+        // 回车/换行/控制字符立刻发送，不等待合并（保证命令及时执行）
+        if (d === "\r" || d === "\n" || d.charCodeAt(0) < 32) {
+          flushInput();
+        } else {
+          setTimeout(flushInput, 0);
+        }
       }
     });
+
+    const tab: SessionTab = {
+      id,
+      sessionID,
+      eventName,
+      term,
+      fit,
+      closed: false,
+      el,
+    };
 
     setTabs((ts) => [...ts, tab]);
     setActiveID(id);
@@ -130,28 +170,38 @@ export function TerminalTab({ host }: TerminalTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 切换 active tab 时把对应 term detach/attach 到容器
+  // 切换 active tab：把对应 el 挂到容器，其它的 detach
   useEffect(() => {
     if (!containerRef.current || !activeID) return;
+    const container = containerRef.current;
+    // 清空容器
+    container.innerHTML = "";
     const active = tabs.find((t) => t.id === activeID);
     if (!active) return;
-    // 清空容器
-    containerRef.current.innerHTML = "";
-    // 重建一个子 div 给 xterm
-    const inner = document.createElement("div");
-    inner.style.width = "100%";
-    inner.style.height = "100%";
-    containerRef.current.appendChild(inner);
-    active.term.open(inner);
+    // 重新挂当前 active 的 el（注意：xterm 的 textarea 会一起跟着走，不丢焦点）
+    container.appendChild(active.el);
     active.fit.fit();
     active.term.focus();
-    // 重新挂监听 resize
     const onResize = () => active.fit.fit();
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
     };
   }, [activeID, tabs]);
+
+  // 字号/字体变化时，更新所有 term
+  useEffect(() => {
+    tabs.forEach((t) => {
+      t.term.options.fontSize = termFontSize;
+      t.term.options.fontFamily = termFontFamily;
+      try {
+        t.fit.fit();
+      } catch {
+        /* ignore */
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termFontSize, termFontFamily]);
 
   const close = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();

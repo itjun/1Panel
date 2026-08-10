@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Activity,
   Boxes,
@@ -7,6 +6,7 @@ import {
   ScrollText,
   Package,
   Server,
+  FolderTree,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { OverviewTab } from "@/components/overview/OverviewTab";
@@ -16,140 +16,156 @@ import { TerminalTab } from "@/components/terminal/TerminalTab";
 import { ServicesTab } from "@/components/overview/ServicesTab";
 import { CronTab } from "@/components/overview/CronTab";
 import { PackagesTab } from "@/components/overview/PackagesTab";
+import { FilesTab } from "@/components/files/FilesTab";
 import { GroupOverview } from "@/components/group/GroupOverview";
+import { TabBar } from "@/components/layout/TabBar";
 import { useApp } from "@/store/app";
 
-type TabKey =
-  | "overview"
-  | "processes"
-  | "docker"
-  | "terminal"
-  | "services"
-  | "cron"
-  | "packages";
-
 export function MainPane() {
-  const { selection, hosts, selectHost } = useApp();
-  const [tab, setTab] = useState<TabKey>("overview");
+  const { activeTab, hosts, activeTabId, setSubTab, openHostTab } = useApp();
 
-  if (!selection) {
-    return <EmptyState />;
-  }
-
-  // 分组概览页
-  if (selection.type === "group") {
+  // 无标签页时空态
+  if (!activeTab) {
     return (
-      <main className="flex flex-1 flex-col overflow-hidden bg-background">
-        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary">
-            <Boxes className="h-3.5 w-3.5" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold leading-tight">
-              {selection.name}
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              分组概览
-            </span>
-          </div>
-        </div>
-        <div className="flex-1 overflow-hidden p-5 pt-3">
-          <GroupOverview
-            groupID={selection.id}
-            groupName={selection.name}
-            onPickHost={(name) => selectHost(name)}
-          />
-        </div>
-      </main>
+      <>
+        <TabBar />
+        <EmptyState />
+      </>
     );
   }
 
-  // 主机详情页
-  const host = hosts.find((h) => h.name === selection.name);
+  // 分组概览标签
+  if (activeTab.kind === "group") {
+    return (
+      <>
+        <TabBar />
+        <main className="flex flex-1 flex-col overflow-hidden bg-background">
+          <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary">
+              <Boxes className="h-3.5 w-3.5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold leading-tight">
+                {activeTab.title}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                分组概览
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden p-5 pt-3">
+            <GroupOverview
+              groupID={activeTab.id}
+              groupName={activeTab.title}
+              onPickHost={(name) => openHostTab(name)}
+            />
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // 主机详情标签
+  const host = hosts.find((h) => h.name === activeTab.id);
   if (!host) {
-    return <EmptyState />;
+    return (
+      <>
+        <TabBar />
+        <EmptyState />
+      </>
+    );
   }
 
   return (
-    <main className="flex flex-1 flex-col overflow-hidden bg-background">
-      {/* 主机标题条 */}
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary">
-          <Server className="h-3.5 w-3.5" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-semibold leading-tight">
-            {host.name}
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            {host.user}@{host.hostName}
-            {host.port && host.port !== "22" ? `:${host.port}` : ""}
-          </span>
-        </div>
-      </div>
-
-      {/* Tab 区 */}
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as TabKey)}
-        className="flex flex-1 flex-col overflow-hidden px-5 pt-3"
-      >
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="overview">
-              <Activity className="h-3 w-3" />
-              概览
-            </TabsTrigger>
-            <TabsTrigger value="processes">
-              <ListTree className="h-3 w-3" />
-              进程
-            </TabsTrigger>
-            <TabsTrigger value="docker">
-              <Boxes className="h-3 w-3" />
-              Docker
-            </TabsTrigger>
-            <TabsTrigger value="services">
-              <Boxes className="h-3 w-3" />
-              服务
-            </TabsTrigger>
-            <TabsTrigger value="cron">
-              <ScrollText className="h-3 w-3" />
-              定时任务
-            </TabsTrigger>
-            <TabsTrigger value="packages">
-              <Package className="h-3 w-3" />
-              软件包
-            </TabsTrigger>
-            <TabsTrigger value="terminal">
-              <Terminal className="h-3 w-3" />
-              终端
-            </TabsTrigger>
-          </TabsList>
+    <>
+      <TabBar />
+      <main className="flex flex-1 flex-col overflow-hidden bg-background">
+        {/* 主机标题条 */}
+        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary">
+            <Server className="h-3.5 w-3.5" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold leading-tight">
+              {host.name}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              {host.user}@{host.hostName}
+              {host.port && host.port !== "22" ? `:${host.port}` : ""}
+            </span>
+          </div>
         </div>
 
-        <TabsContent value="overview" className="mt-3 flex-1 overflow-hidden">
-          <OverviewTab host={host.name} />
-        </TabsContent>
-        <TabsContent value="processes" className="mt-3 flex-1 overflow-hidden">
-          <ProcessesTab host={host.name} />
-        </TabsContent>
-        <TabsContent value="docker" className="mt-3 flex-1 overflow-hidden">
-          <DockerTab host={host.name} />
-        </TabsContent>
-        <TabsContent value="services" className="mt-3 flex-1 overflow-hidden">
-          <ServicesTab host={host.name} />
-        </TabsContent>
-        <TabsContent value="cron" className="mt-3 flex-1 overflow-hidden">
-          <CronTab host={host.name} />
-        </TabsContent>
-        <TabsContent value="packages" className="mt-3 flex-1 overflow-hidden">
-          <PackagesTab host={host.name} />
-        </TabsContent>
-        <TabsContent value="terminal" className="mt-3 flex-1 overflow-hidden">
-          <TerminalTab host={host.name} />
-        </TabsContent>
-      </Tabs>
-    </main>
+        {/* 子 Tab 区：value 从 activeTab.subTab 取，持久化到标签页 */}
+        <Tabs
+          value={activeTab.subTab}
+          onValueChange={(v) => activeTabId && setSubTab(activeTabId, v as never)}
+          className="flex flex-1 flex-col overflow-hidden px-5 pt-3"
+        >
+          <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="overview">
+                <Activity className="h-3 w-3" />
+                概览
+              </TabsTrigger>
+              <TabsTrigger value="processes">
+                <ListTree className="h-3 w-3" />
+                进程
+              </TabsTrigger>
+              <TabsTrigger value="docker">
+                <Boxes className="h-3 w-3" />
+                Docker
+              </TabsTrigger>
+              <TabsTrigger value="files">
+                <FolderTree className="h-3 w-3" />
+                文件
+              </TabsTrigger>
+              <TabsTrigger value="services">
+                <Boxes className="h-3 w-3" />
+                服务
+              </TabsTrigger>
+              <TabsTrigger value="cron">
+                <ScrollText className="h-3 w-3" />
+                定时任务
+              </TabsTrigger>
+              <TabsTrigger value="packages">
+                <Package className="h-3 w-3" />
+                软件包
+              </TabsTrigger>
+              <TabsTrigger value="terminal">
+                <Terminal className="h-3 w-3" />
+                终端
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="mt-3 flex-1 overflow-hidden">
+            <OverviewTab host={host.name} />
+          </TabsContent>
+          <TabsContent value="processes" className="mt-3 flex-1 overflow-hidden">
+            <ProcessesTab host={host.name} />
+          </TabsContent>
+          <TabsContent value="docker" className="mt-3 flex-1 overflow-hidden">
+            <DockerTab host={host.name} />
+          </TabsContent>
+          <TabsContent value="files" className="mt-3 flex-1 overflow-hidden">
+            <FilesTab host={host.name} />
+          </TabsContent>
+          <TabsContent value="services" className="mt-3 flex-1 overflow-hidden">
+            <ServicesTab host={host.name} />
+          </TabsContent>
+          <TabsContent value="cron" className="mt-3 flex-1 overflow-hidden">
+            <CronTab host={host.name} />
+          </TabsContent>
+          <TabsContent value="packages" className="mt-3 flex-1 overflow-hidden">
+            <PackagesTab host={host.name} />
+          </TabsContent>
+          <TabsContent value="terminal" className="mt-3 flex-1 overflow-hidden">
+            <TerminalTab host={host.name} />
+          </TabsContent>
+        </Tabs>
+      </main>
+    </>
   );
 }
 
@@ -163,7 +179,7 @@ function EmptyState() {
         <div>
           <h2 className="text-base font-semibold">选择一台主机或分组</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            从左侧列表选择分组看总览，或选择单台主机看详情
+            单击打开标签页，右键可「在新标签页打开」
           </p>
         </div>
       </div>
