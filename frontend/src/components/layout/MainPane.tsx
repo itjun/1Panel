@@ -18,6 +18,7 @@ import { CronTab } from "@/components/overview/CronTab";
 import { PackagesTab } from "@/components/overview/PackagesTab";
 import { FilesTab } from "@/components/files/FilesTab";
 import { GroupOverview } from "@/components/group/GroupOverview";
+import { AppLogo } from "@/components/common/AppLogo";
 import { useApp } from "@/store/app";
 
 export function MainPane() {
@@ -156,9 +157,7 @@ function EmptyState() {
   return (
     <main className="flex flex-1 items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary">
-          <Server className="h-8 w-8 text-muted-foreground" />
-        </div>
+        <AppLogo sizeClassName="h-16 w-16" className="opacity-90" />
         <div>
           <h2 className="text-base font-semibold">选择一台主机或分组</h2>
           <p className="mt-1 text-xs text-muted-foreground">

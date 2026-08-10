@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { RefreshCw, Plus, Settings, Palette, Server, PanelLeft } from "lucide-react";
+import { RefreshCw, Plus, Settings, Palette, PanelLeft } from "lucide-react";
 import { WindowToggleMaximise } from "@wailsjs/runtime/runtime";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,6 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AppLogo } from "@/components/common/AppLogo";
 import { useApp } from "@/store/app";
 import { useSettings, type ThemeKey } from "@/store/settings";
 import { cn } from "@/lib/utils";
@@ -98,9 +99,7 @@ export function TopBar({
           </TooltipContent>
         </Tooltip>
 
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <Server className="h-4 w-4" />
-        </div>
+        <AppLogo sizeClassName="h-7 w-7" className="rounded-md" />
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold tracking-tight">iPannel</span>
           <span className="text-[10px] text-muted-foreground">运维管理</span>
