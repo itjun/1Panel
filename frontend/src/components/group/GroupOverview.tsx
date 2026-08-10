@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Cpu, HardDrive, MemoryStick, Activity, AlertCircle } from "lucide-react";
 import {
   Card,
@@ -30,32 +29,28 @@ export function GroupOverview({
   groupName,
   onPickHost,
 }: GroupOverviewProps) {
-  const { data, error, loading } = usePolling<main.GroupOverview[]>(
-    () => api.listGroupOverview(),
+  // 只采当前分组，避免全量扫导致长时间「加载中」
+  const { data: group, error, loading } = usePolling<main.GroupOverview>(
+    () => api.listOneGroupOverview(groupID),
     5000,
-    []
+    [groupID]
   );
 
-  // 找到当前分组
-  const group = useMemo(() => {
-    return (data || []).find((g) => g.groupId === groupID);
-  }, [data, groupID]);
-
-  if (loading && !data) {
+  if (loading && !group) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         加载中...
       </div>
     );
   }
-  if (error && !data) {
+  if (error && !group) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-destructive">
         加载失败: {error}
       </div>
     );
   }
-  if (!group || group.hosts.length === 0) {
+  if (!group || !group.hosts || group.hosts.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         分组「{groupName}」暂无主机

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -74,7 +75,41 @@ func (s *Store) Upsert(g Group) error {
 	if g.ID == "" {
 		return fmt.Errorf("分组 ID 不能为空")
 	}
-	s.data[g.ID] = &g
+	// 若调用方未带 hosts（常见于只改名），保留原有 hosts，避免误清空
+	if existing, ok := s.data[g.ID]; ok {
+		if g.Hosts == nil {
+			g.Hosts = existing.Hosts
+		}
+		if g.Order == 0 && existing.Order != 0 {
+			g.Order = existing.Order
+		}
+	}
+	cp := g
+	s.data[g.ID] = &cp
+	return s.saveLocked()
+}
+
+// Rename 只改分组显示名，不动 hosts/order
+func (s *Store) Rename(id, newName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	newName = strings.TrimSpace(newName)
+	if id == "" {
+		return fmt.Errorf("分组 ID 不能为空")
+	}
+	if newName == "" {
+		return fmt.Errorf("分组名称不能为空")
+	}
+	g, ok := s.data[id]
+	if !ok {
+		return fmt.Errorf("分组 %s 不存在", id)
+	}
+	for _, other := range s.data {
+		if other.ID != id && other.Name == newName {
+			return fmt.Errorf("分组名 %s 已存在", newName)
+		}
+	}
+	g.Name = newName
 	return s.saveLocked()
 }
 

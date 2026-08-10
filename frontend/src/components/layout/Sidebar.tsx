@@ -12,10 +12,14 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   FolderInput,
+  FolderPlus,
+  Plus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useApp, UNGROUPED_ID } from "@/store/app";
 import { api } from "@/lib/api";
@@ -30,7 +34,7 @@ const DRAG_THRESHOLD_PX = 6;
 
 // 右键菜单目标
 interface MenuTarget {
-  kind: "host" | "group";
+  kind: "host" | "group" | "blank";
   id: string;
   name: string;
   info?: string;
@@ -47,6 +51,8 @@ export function Sidebar() {
     openGroupTab,
     openHostTab,
     assignHost,
+    renameGroup,
+    createGroup,
     refresh,
   } = useApp();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -58,6 +64,19 @@ export function Sidebar() {
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
   const [width, setWidth] = useState(SIDEBAR_MIN_WIDTH);
   const menuRef = useRef<HTMLDivElement>(null);
+  // 分组重命名对话框（不用 window.prompt：Wails WebView 里常失效）
+  const [renameDlg, setRenameDlg] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  // 新建分组对话框
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createInput, setCreateInput] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   // 拖拽结束后抑制紧随其后的 click（避免误开标签）
   const suppressClickRef = useRef(false);
   // 最新 groupNodes，供 pointerup 闭包读取
@@ -169,6 +188,36 @@ export function Sidebar() {
     setMenu({ kind: "group", id, name, x: e.clientX, y: e.clientY });
   };
 
+  const openCreateGroup = () => {
+    setCreateInput("");
+    setCreateError(null);
+    setCreateOpen(true);
+    setMenu(null);
+  };
+
+  const submitCreateGroup = async () => {
+    if (createBusy) return;
+    const name = createInput.trim();
+    if (!name) {
+      setCreateError("分组名称不能为空");
+      return;
+    }
+    setCreateBusy(true);
+    setCreateError(null);
+    try {
+      const id = await createGroup(name);
+      setCreateOpen(false);
+      setCreateInput("");
+      // 展开并打开新分组
+      setCollapsed((c) => ({ ...c, [id]: false }));
+      openGroupTab(id, name);
+    } catch (err) {
+      setCreateError(String(err));
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
   const findHostGroupId = (hostName: string, nodes = groupNodesRef.current): string => {
     for (const node of nodes) {
       if (node.hosts.some((h) => h.name === hostName)) {
@@ -263,7 +312,7 @@ export function Sidebar() {
       className="flex shrink-0 flex-col border-r border-border bg-card/30 transition-[width] duration-200 ease-out"
       style={{ width }}
     >
-      {/* 搜索 + 展开/收起开关 */}
+      {/* 搜索 + 新建分组 + 展开/收起 */}
       <div className="flex items-center gap-1.5 p-3 pb-2">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -274,6 +323,18 @@ export function Sidebar() {
             className="h-8 pl-8 text-xs"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setCreateInput("");
+            setCreateError(null);
+            setCreateOpen(true);
+          }}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="新建分组"
+        >
+          <FolderPlus className="h-3.5 w-3.5" />
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -297,7 +358,22 @@ export function Sidebar() {
       </div>
 
       <ScrollArea className="flex-1 px-2 pb-3">
-        <div className="space-y-0.5">
+        <div
+          className="min-h-full space-y-0.5"
+          onContextMenu={(e) => {
+            // 空白处右键：提供新建分组（点在主机/分组行上则走各自菜单）
+            const target = e.target as HTMLElement;
+            if (target.closest("[data-group-id]")) return;
+            e.preventDefault();
+            setMenu({
+              kind: "blank",
+              id: "",
+              name: "",
+              x: e.clientX,
+              y: e.clientY,
+            });
+          }}
+        >
           {filtered.length === 0 && (
             <div className="px-3 py-8 text-center text-xs text-muted-foreground">
               {hosts.length === 0 ? "暂无主机" : "无匹配结果"}
@@ -336,7 +412,18 @@ export function Sidebar() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => openGroupTab(id, name)}
+                    // 单击分组名即可查看概览；双击不再额外开标签
+                    onClick={() => {
+                      if (suppressClickRef.current) {
+                        suppressClickRef.current = false;
+                        return;
+                      }
+                      openGroupTab(id, name);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
                     onContextMenu={(e) => openGroupMenu(e, id, name)}
                     className={cn(
                       "flex flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-xs font-medium transition-colors",
@@ -453,6 +540,18 @@ export function Sidebar() {
       </ScrollArea>
 
       <div className="border-t border-border p-3">
+        <button
+          type="button"
+          onClick={() => {
+            setCreateInput("");
+            setCreateError(null);
+            setCreateOpen(true);
+          }}
+          className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" />
+          新建分组
+        </button>
         <div className="text-[10px] text-muted-foreground">
           共 {hosts.length} 台主机
           {draggingHost ? " · 拖到目标分组后松开" : ""}
@@ -473,6 +572,150 @@ export function Sidebar() {
         </div>
       )}
 
+      {/* 新建分组对话框 */}
+      <Dialog
+        open={createOpen}
+        onClose={() => {
+          if (createBusy) return;
+          setCreateOpen(false);
+          setCreateError(null);
+        }}
+        title="新建分组"
+        width="400px"
+      >
+        <div className="space-y-3">
+          <p className="text-[11px] text-muted-foreground">
+            创建空分组后，可将主机拖入，或在主机右键中选择「移动到分组」。
+          </p>
+          <Input
+            autoFocus
+            value={createInput}
+            onChange={(e) => setCreateInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void submitCreateGroup();
+              }
+            }}
+            placeholder="如：生产环境、测试集群"
+            className="h-9 text-sm"
+          />
+          {createError && (
+            <p className="text-[11px] text-destructive">{createError}</p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              disabled={createBusy}
+              onClick={() => setCreateOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs"
+              disabled={createBusy || !createInput.trim()}
+              onClick={() => void submitCreateGroup()}
+            >
+              {createBusy ? "创建中…" : "创建"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* 分组重命名对话框 */}
+      <Dialog
+        open={!!renameDlg}
+        onClose={() => {
+          if (renameBusy) return;
+          setRenameDlg(null);
+          setRenameError(null);
+        }}
+        title="重命名分组"
+        width="400px"
+      >
+        <div className="space-y-3">
+          <p className="text-[11px] text-muted-foreground">
+            当前名称：{renameDlg?.name}
+          </p>
+          <Input
+            autoFocus
+            value={renameInput}
+            onChange={(e) => setRenameInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void (async () => {
+                  if (!renameDlg || renameBusy) return;
+                  const next = renameInput.trim();
+                  if (!next || next === renameDlg.name) {
+                    setRenameDlg(null);
+                    return;
+                  }
+                  setRenameBusy(true);
+                  setRenameError(null);
+                  try {
+                    await renameGroup(renameDlg.id, next);
+                    setRenameDlg(null);
+                  } catch (err) {
+                    setRenameError(String(err));
+                  } finally {
+                    setRenameBusy(false);
+                  }
+                })();
+              }
+            }}
+            placeholder="新的分组名称"
+            className="h-9 text-sm"
+          />
+          {renameError && (
+            <p className="text-[11px] text-destructive">{renameError}</p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              disabled={renameBusy}
+              onClick={() => setRenameDlg(null)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs"
+              disabled={renameBusy || !renameInput.trim()}
+              onClick={async () => {
+                if (!renameDlg || renameBusy) return;
+                const next = renameInput.trim();
+                if (!next || next === renameDlg.name) {
+                  setRenameDlg(null);
+                  return;
+                }
+                setRenameBusy(true);
+                setRenameError(null);
+                try {
+                  await renameGroup(renameDlg.id, next);
+                  setRenameDlg(null);
+                } catch (err) {
+                  setRenameError(String(err));
+                } finally {
+                  setRenameBusy(false);
+                }
+              }}
+            >
+              {renameBusy ? "保存中…" : "保存"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
       {/* 右键菜单 */}
       {menu && (
         <div
@@ -481,18 +724,31 @@ export function Sidebar() {
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
-            onClick={() => {
-              if (menu.kind === "host") openHostTab(menu.id);
-              else openGroupTab(menu.id, menu.name);
-              setMenu(null);
-            }}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            在新标签页打开
-          </button>
+          {menu.kind !== "blank" && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+              onClick={() => {
+                if (menu.kind === "host") openHostTab(menu.id);
+                else openGroupTab(menu.id, menu.name);
+                setMenu(null);
+              }}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              在新标签页打开
+            </button>
+          )}
+          {/* 空白处 / 任意分组右键：新建分组 */}
+          {(menu.kind === "blank" || menu.kind === "group") && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+              onClick={openCreateGroup}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+              新建分组
+            </button>
+          )}
           {menu.kind === "host" && (
             <button
               type="button"
@@ -541,6 +797,22 @@ export function Sidebar() {
             >
               <Edit3 className="h-3.5 w-3.5" />
               重命名
+            </button>
+          )}
+          {/* 分组重命名（「未分组」虚拟桶不可改） */}
+          {menu.kind === "group" && menu.id !== UNGROUPED_ID && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+              onClick={() => {
+                setRenameDlg({ id: menu.id, name: menu.name });
+                setRenameInput(menu.name);
+                setRenameError(null);
+                setMenu(null);
+              }}
+            >
+              <Edit3 className="h-3.5 w-3.5" />
+              重命名分组
             </button>
           )}
 

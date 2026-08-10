@@ -47,12 +47,16 @@ interface AppState {
   closeAllTabs: () => void;
   setActiveTab: (id: string) => void;
   setSubTab: (tabId: string, sub: SubTabKey) => void;
+  /** 拖拽排序：把 fromId 移到 toId 的位置（toId 原位置及之后顺延） */
+  reorderTab: (fromId: string, toId: string) => void;
   // 终端命令下发：其它组件（如软件包）切到终端时让终端自动执行的命令
   pendingTerminalCmd: string | null;
   sendTerminalCmd: (cmd: string) => void;
   clearTerminalCmd: () => void;
-  // 分组拖拽
+  // 分组
   assignHost: (host: string, groupID: string) => Promise<void>;
+  renameGroup: (id: string, newName: string) => Promise<void>;
+  createGroup: (name: string) => Promise<string>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -196,6 +200,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setActiveTab = (id: string) => setActiveTabId(id);
 
+  // 标签拖拽排序：把 fromId 抽出来插到 toId 的位置
+  const reorderTab = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    setTabs((ts) => {
+      const from = ts.findIndex((t) => t.id === fromId);
+      const to = ts.findIndex((t) => t.id === toId);
+      if (from < 0 || to < 0 || from === to) return ts;
+      const next = [...ts];
+      const [item] = next.splice(from, 1);
+      // from 在 to 之前时，splice 后 to 索引左移 1；这里用原始 to 时需修正
+      const insertAt = from < to ? to : to;
+      next.splice(insertAt, 0, item);
+      return next;
+    });
+  };
+
   const sendTerminalCmd = (cmd: string) => setPendingTerminalCmd(cmd);
   const clearTerminalCmd = () => setPendingTerminalCmd(null);
 
@@ -209,6 +229,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const targetID = groupID === UNGROUPED_ID ? "" : groupID;
     await api.assignHost(host, targetID);
     await refresh();
+  };
+
+  // 重命名分组：后端只改名保留 hosts，并同步已打开的分组标签标题
+  const renameGroup = async (id: string, newName: string) => {
+    const name = newName.trim();
+    if (!name) {
+      throw new Error("分组名称不能为空");
+    }
+    if (id === UNGROUPED_ID) {
+      throw new Error("「未分组」不能重命名");
+    }
+    await api.renameGroup(id, name);
+    setTabs((ts) =>
+      ts.map((t) =>
+        t.kind === "group" && t.id === id ? { ...t, title: name } : t
+      )
+    );
+    await refresh();
+  };
+
+  // 新建空分组，返回新分组 id
+  const createGroup = async (name: string) => {
+    const n = name.trim();
+    if (!n) {
+      throw new Error("分组名称不能为空");
+    }
+    if (n === "未分组") {
+      throw new Error("不能使用「未分组」作为分组名");
+    }
+    if (groupsList.some((g) => g.name === n)) {
+      throw new Error(`分组名「${n}」已存在`);
+    }
+    const maxOrder = groupsList.reduce(
+      (m, g) => (typeof g.order === "number" && g.order > m ? g.order : m),
+      0
+    );
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `g-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await api.upsertGroup({
+      id,
+      name: n,
+      order: maxOrder + 1,
+      hosts: [],
+    });
+    await refresh();
+    return id;
   };
 
   // 自动清理：当主机/分组从列表消失时，移除对应的标签页
@@ -252,10 +320,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         closeAllTabs,
         setActiveTab,
         setSubTab,
+        reorderTab,
         pendingTerminalCmd,
         sendTerminalCmd,
         clearTerminalCmd,
         assignHost,
+        renameGroup,
+        createGroup,
       }}
     >
       {children}
