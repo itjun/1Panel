@@ -67,6 +67,11 @@ func (m *Manager) Get(host string, opt ConnectOption) (*ssh.Client, error) {
 	return client, nil
 }
 
+// GetClient 是 Get 的公开别名，供 sftp 等第三方包直接复用 *ssh.Client
+func (m *Manager) GetClient(host string, opt ConnectOption) (*ssh.Client, error) {
+	return m.Get(host, opt)
+}
+
 // Close 释放指定 host 的连接
 func (m *Manager) Close(host string) {
 	m.mu.Lock()
