@@ -42,8 +42,15 @@ interface AppState {
   openGroupTab: (id: string, name: string) => void;
   closeTab: (id: string) => void;
   closeOtherTabs: (id: string) => void;
+  closeLeftTabs: (id: string) => void;
+  closeRightTabs: (id: string) => void;
+  closeAllTabs: () => void;
   setActiveTab: (id: string) => void;
   setSubTab: (tabId: string, sub: SubTabKey) => void;
+  // 终端命令下发：其它组件（如软件包）切到终端时让终端自动执行的命令
+  pendingTerminalCmd: string | null;
+  sendTerminalCmd: (cmd: string) => void;
+  clearTerminalCmd: () => void;
   // 分组拖拽
   assignHost: (host: string, groupID: string) => Promise<void>;
 }
@@ -57,6 +64,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [groupsList, setGroupsList] = useState<groups.Group[]>([]);
   const [tabs, setTabs] = useState<AppTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [pendingTerminalCmd, setPendingTerminalCmd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,7 +172,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveTabId(id);
   };
 
+  // 关闭某标签左侧的所有标签
+  const closeLeftTabs = (id: string) => {
+    const idx = tabs.findIndex((t) => t.id === id);
+    if (idx <= 0) return;
+    setTabs(tabs.slice(idx));
+    setActiveTabId(id);
+  };
+
+  // 关闭某标签右侧的所有标签
+  const closeRightTabs = (id: string) => {
+    const idx = tabs.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    setTabs(tabs.slice(0, idx + 1));
+    setActiveTabId(id);
+  };
+
+  // 关闭所有标签
+  const closeAllTabs = () => {
+    setTabs([]);
+    setActiveTabId(null);
+  };
+
   const setActiveTab = (id: string) => setActiveTabId(id);
+
+  const sendTerminalCmd = (cmd: string) => setPendingTerminalCmd(cmd);
+  const clearTerminalCmd = () => setPendingTerminalCmd(null);
 
   const setSubTab = (tabId: string, sub: SubTabKey) => {
     setTabs((ts) =>
@@ -214,8 +247,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         openGroupTab,
         closeTab,
         closeOtherTabs,
+        closeLeftTabs,
+        closeRightTabs,
+        closeAllTabs,
         setActiveTab,
         setSubTab,
+        pendingTerminalCmd,
+        sendTerminalCmd,
+        clearTerminalCmd,
         assignHost,
       }}
     >

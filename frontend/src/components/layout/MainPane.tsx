@@ -18,7 +18,6 @@ import { CronTab } from "@/components/overview/CronTab";
 import { PackagesTab } from "@/components/overview/PackagesTab";
 import { FilesTab } from "@/components/files/FilesTab";
 import { GroupOverview } from "@/components/group/GroupOverview";
-import { TabBar } from "@/components/layout/TabBar";
 import { useApp } from "@/store/app";
 
 export function MainPane() {
@@ -26,19 +25,12 @@ export function MainPane() {
 
   // 无标签页时空态
   if (!activeTab) {
-    return (
-      <>
-        <TabBar />
-        <EmptyState />
-      </>
-    );
+    return <EmptyState />;
   }
 
   // 分组概览标签
   if (activeTab.kind === "group") {
     return (
-      <>
-        <TabBar />
         <main className="flex flex-1 flex-col overflow-hidden bg-background">
           <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-5">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary">
@@ -61,25 +53,17 @@ export function MainPane() {
             />
           </div>
         </main>
-      </>
     );
   }
 
   // 主机详情标签
   const host = hosts.find((h) => h.name === activeTab.id);
   if (!host) {
-    return (
-      <>
-        <TabBar />
-        <EmptyState />
-      </>
-    );
+    return <EmptyState />;
   }
 
   return (
-    <>
-      <TabBar />
-      <main className="flex flex-1 flex-col overflow-hidden bg-background">
+    <main className="flex flex-1 flex-col overflow-hidden bg-background">
         {/* 主机标题条 */}
         <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-5">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary">
@@ -165,7 +149,6 @@ export function MainPane() {
           </TabsContent>
         </Tabs>
       </main>
-    </>
   );
 }
 
