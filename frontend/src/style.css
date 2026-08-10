@@ -3,66 +3,67 @@
 @tailwind utilities;
 
 /* ============================================================
- * 主题系统：用 data-theme 属性切换，每个主题定义一组 CSS 变量
+ * 主题系统：1Panel 风格配色
+ * 以 1Panel 官方色板为基准，主色 #005eeb（亮蓝）
  * 共 6 个主题：dark(默认) / light / midnight(墨蓝) / forest(墨绿)
  *             / sakura(樱花) / auto(跟随系统)
  * auto 不定义新变量，由 JS 根据系统主题切换到 dark/light
  * ============================================================ */
 
 @layer base {
-  /* 暗黑（默认）：Vercel/Linear 风格深色面板 */
+  /* 暗黑（1Panel Dark 风格，默认）*/
   [data-theme="dark"] {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 6% 7%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 13%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 72% 51%;
+    --background: 230 14% 16%;       /* #242633 主背景 */
+    --foreground: 225 15% 89%;       /* #e3e6f3 主文字 */
+    --card: 229 16% 20%;             /* #2e313d 卡片/面板 */
+    --card-foreground: 225 15% 89%;
+    --popover: 230 14% 18%;          /* #2a2d3a */
+    --popover-foreground: 225 15% 89%;
+    --primary: 213 100% 62%;         /* #3d8eff 强调蓝 */
+    --primary-foreground: 230 14% 16%;
+    --secondary: 230 12% 24%;        /* #3b3e4d */
+    --secondary-foreground: 225 15% 89%;
+    --muted: 230 12% 22%;            /* #363947 */
+    --muted-foreground: 225 8% 63%;  /* #90929f */
+    --accent: 213 100% 62%;
+    --accent-foreground: 230 14% 16%;
+    --destructive: 349 76% 54%;      /* #e2324f */
     --destructive-foreground: 0 0% 98%;
-    --success: 142 71% 45%;
+    --success: 133 51% 47%;          /* #3fb950 */
     --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
+    --warning: 38 82% 55%;           /* #edac2c */
     --warning-foreground: 0 0% 98%;
-    --border: 240 3.7% 14%;
-    --input: 240 3.7% 16%;
-    --ring: 240 4.9% 83.9%;
+    --border: 230 14% 28%;           /* #434552 */
+    --input: 230 14% 26%;
+    --ring: 213 100% 62%;
     color-scheme: dark;
   }
 
-  /* 明亮：经典浅色 */
+  /* 明亮（1Panel Light 风格）*/
   [data-theme="light"] {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --background: 0 0% 96%;           /* #f4f4f4 主背景灰 */
+    --foreground: 225 14% 15%;        /* #1f2329 主文字 */
+    --card: 0 0% 100%;                /* #ffffff 卡片白 */
+    --card-foreground: 225 14% 15%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --popover-foreground: 225 14% 15%;
+    --primary: 216 100% 46%;          /* #005eeb 强调蓝 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 95%;            /* #f2f2f2 */
+    --secondary-foreground: 225 14% 15%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 222 7% 43%;   /* #646a73 次要文字 */
+    --accent: 216 100% 46%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
     --success: 142 71% 45%;
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    --border: 0 0% 95%;               /* #f2f2f2 */
+    --input: 0 0% 94%;
+    --ring: 216 100% 46%;
     color-scheme: light;
   }
 
@@ -74,13 +75,13 @@
     --card-foreground: 210 40% 96%;
     --popover: 222 47% 9%;
     --popover-foreground: 210 40% 96%;
-    --primary: 199 89% 48%;
+    --primary: 213 100% 62%;
     --primary-foreground: 222 47% 7%;
     --secondary: 222 30% 18%;
     --secondary-foreground: 210 40% 96%;
     --muted: 222 30% 15%;
     --muted-foreground: 215 25% 65%;
-    --accent: 199 89% 48%;
+    --accent: 213 100% 62%;
     --accent-foreground: 222 47% 7%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 96%;
@@ -90,7 +91,7 @@
     --warning-foreground: 222 47% 7%;
     --border: 222 30% 20%;
     --input: 222 30% 18%;
-    --ring: 199 89% 48%;
+    --ring: 213 100% 62%;
     color-scheme: dark;
   }
 
@@ -151,7 +152,7 @@
   }
 
   :root {
-    --radius: 0.6rem;
+    --radius: 0.5rem;
     /* 字体设置（由 Settings store 控制覆盖） */
     --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
       "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -181,15 +182,15 @@
     user-select: none;
   }
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
-    border-radius: 4px;
+    border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
@@ -197,11 +198,20 @@
 }
 
 @layer utilities {
+  /*
+   * Wails 窗口拖拽：默认检测 CSS 变量 --wails-draggable（见 options.CSSDragProperty）
+   * 值为 drag 的区域可拖动窗口；交互控件必须设 no-drag，否则点不到。
+   * 同时保留 -webkit-app-region 作为 WebKit 兜底。
+   */
   .drag-region {
+    --wails-draggable: drag;
     -webkit-app-region: drag;
+    app-region: drag;
   }
   .no-drag {
+    --wails-draggable: no-drag;
     -webkit-app-region: no-drag;
+    app-region: no-drag;
   }
   .glass {
     background: hsl(var(--card) / 0.6);

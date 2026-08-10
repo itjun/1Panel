@@ -37,9 +37,9 @@ func main() {
 			app,
 		},
 		Mac: &mac.Options{
-			// 用普通原生标题栏，避免与红绿灯按钮位置冲突
-			// 让 macOS 自己处理关闭/最小化/最大化按钮的位置
-			TitleBar: mac.TitleBarDefault(),
+			// 隐藏标题栏，红绿灯按钮保留在左上角（Obsidian/Notion 风格）
+			// 用 TitleBarHidden 而非 TitleBarHiddenInset：后者启用 toolbar 模式会导致窗口无法 resize/双击放大
+			TitleBar: mac.TitleBarHidden(),
 			// 启用「Appearance: auto」让应用跟随系统主题切换
 			Appearance: mac.DefaultAppearance,
 		},
