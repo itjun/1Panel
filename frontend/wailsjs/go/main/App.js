@@ -62,6 +62,10 @@ export function KillProcess(arg1, arg2, arg3) {
   return window['go']['main']['App']['KillProcess'](arg1, arg2, arg3);
 }
 
+export function ListDir(arg1, arg2) {
+  return window['go']['main']['App']['ListDir'](arg1, arg2);
+}
+
 export function ListGroupOverview() {
   return window['go']['main']['App']['ListGroupOverview']();
 }
@@ -80,6 +84,22 @@ export function ListHostsAll() {
 
 export function OpenTerminal(arg1, arg2) {
   return window['go']['main']['App']['OpenTerminal'](arg1, arg2);
+}
+
+export function ReadFileText(arg1, arg2) {
+  return window['go']['main']['App']['ReadFileText'](arg1, arg2);
+}
+
+export function RenameHost(arg1, arg2) {
+  return window['go']['main']['App']['RenameHost'](arg1, arg2);
+}
+
+export function ResizeTerminal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ResizeTerminal'](arg1, arg2, arg3);
+}
+
+export function UploadFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UploadFile'](arg1, arg2, arg3);
 }
 
 export function UpsertGroup(arg1) {

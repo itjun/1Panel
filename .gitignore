@@ -7,3 +7,4 @@ frontend/node_modules/
 .vscode/
 *.app
 ServerPanel
+.playwright-mcp/

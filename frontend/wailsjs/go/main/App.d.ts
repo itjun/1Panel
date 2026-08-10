@@ -35,6 +35,8 @@ export function DockerAction(arg1:string,arg2:string,arg3:string):Promise<string
 
 export function KillProcess(arg1:string,arg2:number,arg3:boolean):Promise<void>;
 
+export function ListDir(arg1:string,arg2:string):Promise<Array<monitor.FileEntry>>;
+
 export function ListGroupOverview():Promise<Array<main.GroupOverview>>;
 
 export function ListGroups():Promise<Array<groups.Group>>;
@@ -44,6 +46,14 @@ export function ListHosts():Promise<Array<sshconfig.HostConfig>>;
 export function ListHostsAll():Promise<Array<sshconfig.HostConfig>>;
 
 export function OpenTerminal(arg1:string,arg2:string):Promise<string>;
+
+export function ReadFileText(arg1:string,arg2:string):Promise<string>;
+
+export function RenameHost(arg1:string,arg2:string):Promise<void>;
+
+export function ResizeTerminal(arg1:string,arg2:number,arg3:number):Promise<void>;
+
+export function UploadFile(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function UpsertGroup(arg1:groups.Group):Promise<void>;
 

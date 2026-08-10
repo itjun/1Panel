@@ -129,6 +129,7 @@ export namespace monitor {
 	export class AptPackage {
 	    name: string;
 	    version: string;
+	    depends: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AptPackage(source);
@@ -138,6 +139,7 @@ export namespace monitor {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.version = source["version"];
+	        this.depends = source["depends"];
 	    }
 	}
 	export class Container {
@@ -261,6 +263,32 @@ export namespace monitor {
 		    }
 		    return a;
 		}
+	}
+	export class FileEntry {
+	    name: string;
+	    path: string;
+	    isDir: boolean;
+	    size: number;
+	    mode: string;
+	    modTime: string;
+	    owner: string;
+	    group: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.isDir = source["isDir"];
+	        this.size = source["size"];
+	        this.mode = source["mode"];
+	        this.modTime = source["modTime"];
+	        this.owner = source["owner"];
+	        this.group = source["group"];
+	    }
 	}
 	export class Overview {
 	    cpuPercent: number;

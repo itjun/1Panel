@@ -178,6 +178,74 @@ func main() {
 		fmt.Println("  分组路径:", store.Path())
 		fmt.Printf("  当前分组数: %d\n", len(store.List()))
 	}
+
+	// 10. ListDir（文件浏览）
+	fmt.Println("\n[ListDir /]")
+	entries, err := coll.ListDir(beta.Name, opt, "/")
+	if err != nil {
+		fmt.Println("  ERR:", err)
+	} else {
+		fmt.Printf("  根目录 %d 个条目\n", len(entries))
+		for i, e := range entries {
+			if i >= 8 {
+				fmt.Println("  ...")
+				break
+			}
+			tag := "F"
+			if e.IsDir {
+				tag = "D"
+			}
+			fmt.Printf("  [%s] %-20s %s\n", tag, e.Name, e.Mode)
+		}
+	}
+
+	// 11. ReadFileText
+	fmt.Println("\n[ReadFileText /etc/hostname]")
+	content, err := coll.ReadFileText(beta.Name, opt, "/etc/hostname", 1024)
+	if err != nil {
+		fmt.Println("  ERR:", err)
+	} else {
+		fmt.Printf("  内容: %q\n", content)
+	}
+
+	// 12. RenameHost 往返验证：cdcp-beta → cdcp-beta-tmp → cdcp-beta
+	// 确保改名不破坏 ssh config 结构，改回来后完全恢复
+	fmt.Println("\n[RenameHost 往返验证]")
+	tmpName := "cdcp-beta-tmp-rename-test"
+	// 改成临时名
+	if err := sshconfig.RenameHost("cdcp-beta", tmpName); err != nil {
+		fmt.Println("  改成临时名 ERR:", err)
+	} else {
+		fmt.Printf("  ✓ 改成 %s 成功\n", tmpName)
+		// 验证：Parse 能找到新名
+		after, _ := sshconfig.Parse()
+		found := false
+		for _, h := range after {
+			if h.Name == tmpName {
+				fmt.Printf("  ✓ Parse 找到新别名（HostName=%s User=%s）\n", h.HostName, h.User)
+				found = true
+			}
+			if h.Name == "cdcp-beta" {
+				fmt.Println("  ✗ 旧别名仍存在！")
+			}
+		}
+		if !found {
+			fmt.Println("  ✗ Parse 未找到新别名")
+		}
+		// 改回来
+		if err := sshconfig.RenameHost(tmpName, "cdcp-beta"); err != nil {
+			fmt.Println("  改回来 ERR:", err)
+		} else {
+			// 验证完全恢复
+			final, _ := sshconfig.Parse()
+			for _, h := range final {
+				if h.Name == "cdcp-beta" {
+					fmt.Printf("  ✓ 改回来成功（HostName=%s User=%s Port=%s）\n", h.HostName, h.User, h.Port)
+				}
+			}
+			fmt.Println("  备份文件已生成（.bak.时间戳）")
+		}
+	}
 }
 
 func min(a, b int) int {

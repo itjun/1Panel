@@ -25,9 +25,10 @@ type App struct {
 }
 
 func NewApp() *App {
+	sshMgr := sshd.NewManager()
 	return &App{
-		sshMgr:  sshd.NewManager(),
-		termMgr: terminal.NewManager(),
+		sshMgr:  sshMgr,
+		termMgr: terminal.NewManager(sshMgr),
 	}
 }
 
@@ -78,6 +79,34 @@ func (a *App) ListHostsAll() ([]sshconfig.HostConfig, error) {
 // AddHost 把新主机追加写入 ~/.ssh/config（写入前自动备份）
 func (a *App) AddHost(cfg sshconfig.HostConfig) error {
 	return sshconfig.AppendHost(cfg)
+}
+
+// RenameHost 修改 ~/.ssh/config 里 Host 的别名
+// 同时同步 groups.json 里的引用，并关闭旧名的 SSH 连接（避免连接池残留）
+func (a *App) RenameHost(oldName, newName string) error {
+	// 先校验 newName 不与已有别名重复
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return err
+	}
+	for _, h := range hosts {
+		if h.Name == newName {
+			return fmt.Errorf("别名 %s 已存在", newName)
+		}
+	}
+	// 改 ssh config
+	if err := sshconfig.RenameHost(oldName, newName); err != nil {
+		return err
+	}
+	// 同步分组引用
+	if a.groups != nil {
+		if err := a.groups.RenameHost(oldName, newName); err != nil {
+			runtime.LogWarningf(a.ctx, "同步分组引用失败: %v", err)
+		}
+	}
+	// 关闭旧连接，下次用新别名时重新建立
+	a.sshMgr.Close(oldName)
+	return nil
 }
 
 // ============ 分组 ============
@@ -171,6 +200,26 @@ func (a *App) CollectPackages(host string) ([]monitor.AptPackage, error) {
 	return a.collector.CollectPackages(host, opt)
 }
 
+// ============ 文件浏览（只读） ============
+
+// ListDir 列出远程主机某目录下的内容（只读，不修改）
+func (a *App) ListDir(host, dir string) ([]monitor.FileEntry, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return nil, err
+	}
+	return a.collector.ListDir(host, opt, dir)
+}
+
+// ReadFileText 读远程文本文件内容（最多 512KB，只读）
+func (a *App) ReadFileText(host, file string) (string, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return "", err
+	}
+	return a.collector.ReadFileText(host, opt, file, 512*1024)
+}
+
 // KillProcess 在远程主机上杀掉指定 PID
 func (a *App) KillProcess(host string, pid uint32, force bool) error {
 	opt, err := a.connectOptionFor(host)
@@ -213,11 +262,21 @@ func (a *App) DockerAction(host string, action string, container string) (string
 // OpenTerminal 打开一个终端会话
 // eventName 是前端订阅输出的 Wails 事件名
 func (a *App) OpenTerminal(host string, eventName string) (string, error) {
-	return a.termMgr.Open(host, eventName)
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return "", err
+	}
+	return a.termMgr.Open(host, opt, eventName)
 }
 
 func (a *App) WriteTerminal(sessionID string, data string) error {
 	return a.termMgr.WriteInput(sessionID, []byte(data))
+}
+
+// ResizeTerminal 通知终端会话窗口大小变化（cols/rows）
+// 前端 xterm 的 fit.addon 计算出行列数后调用此方法，后端通过 ioctl 同步给 PTY
+func (a *App) ResizeTerminal(sessionID string, cols int, rows int) error {
+	return a.termMgr.Resize(sessionID, cols, rows)
 }
 
 func (a *App) CloseTerminal(sessionID string) error {

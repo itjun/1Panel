@@ -8,10 +8,10 @@
   "frontend:dev:serverUrl": "auto",
   "version": "1.0.0",
   "info": {
-    "productName": "ServerPanel",
+    "productName": "iPannel",
     "productVersion": "1.0.0",
     "companyName": "黄荣君",
-    "comments": "SSH 服务器可视化管理面板"
+    "comments": "运维管理"
   },
   "author": {
     "name": "黄荣君",

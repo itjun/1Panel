@@ -1,6 +1,6 @@
-# ServerPanel
+# iPannel
 
-一个 macOS 原生的 SSH 服务器可视化管理面板，基于 Wails v2（Go + React + TypeScript）。
+一个 macOS 原生的运维管理面板，基于 Wails v2（Go + React + TypeScript）。
 
 读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）。
 
