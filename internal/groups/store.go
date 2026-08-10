@@ -108,6 +108,25 @@ func (s *Store) AssignHost(host, groupID string) error {
 	return s.saveLocked()
 }
 
+// RenameHost 把所有分组里的 oldName 替换成 newName（主机改名时同步分组引用）
+func (s *Store) RenameHost(oldName, newName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := false
+	for _, g := range s.data {
+		for i, h := range g.Hosts {
+			if h == oldName {
+				g.Hosts[i] = newName
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return nil // 没有分组引用该主机，无需落盘
+	}
+	return s.saveLocked()
+}
+
 func (s *Store) load() error {
 	b, err := os.ReadFile(s.path)
 	if err != nil {

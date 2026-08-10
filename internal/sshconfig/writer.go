@@ -1,6 +1,7 @@
 package sshconfig
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -98,4 +99,87 @@ func backup(path string) error {
 
 	_, err = io.Copy(dstFile, src)
 	return err
+}
+
+// RenameHost 把 ~/.ssh/config 里的 Host 别名从 oldName 改成 newName
+// 行为：
+//   - 只改 Host 行（其它字段不动）；Host 行可能有多个别名，只替换匹配的那一个 token
+//   - 写入前自动备份
+// 校验：
+//   - newName 不能为空、不能含空格/制表符、不能含通配符 *
+func RenameHost(oldName, newName string) error {
+	if oldName == "" || newName == "" {
+		return fmt.Errorf("名称不能为空")
+	}
+	if strings.ContainsAny(newName, " \t*") {
+		return fmt.Errorf("新别名不能包含空格或通配符 *")
+	}
+	if oldName == newName {
+		return nil
+	}
+
+	path, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+	return RenameHostFile(path, oldName, newName)
+}
+
+// RenameHostFile 对指定文件执行重命名（便于测试）
+func RenameHostFile(path, oldName, newName string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取 ssh config 失败: %w", err)
+	}
+
+	changed := false
+	var out strings.Builder
+	scanner := bufio.NewScanner(strings.NewReader(string(content)))
+	for scanner.Scan() {
+		raw := scanner.Text()
+		line := strings.TrimSpace(raw)
+		// 空行/注释直接写回
+		if line == "" || strings.HasPrefix(line, "#") {
+			out.WriteString(raw + "\n")
+			continue
+		}
+		key, value, ok := splitField(line)
+		if !ok || strings.ToLower(key) != "host" {
+			out.WriteString(raw + "\n")
+			continue
+		}
+		// Host 行：拆成 token，精确匹配替换 oldName
+		tokens := strings.Fields(value)
+		hit := false
+		for i, tok := range tokens {
+			if tok == oldName {
+				tokens[i] = newName
+				hit = true
+				break
+			}
+		}
+		if hit {
+			changed = true
+			// 保留原行的缩进：取 raw 里 Host 前的前缀
+			indent := raw[:len(raw)-len(strings.TrimLeft(raw, " \t"))]
+			out.WriteString(fmt.Sprintf("%sHost %s\n", indent, strings.Join(tokens, " ")))
+		} else {
+			out.WriteString(raw + "\n")
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("扫描 ssh config 失败: %w", err)
+	}
+	if !changed {
+		return fmt.Errorf("未在 ssh config 中找到 Host 别名: %s", oldName)
+	}
+
+	// 写前备份
+	if _, err := os.Stat(path); err == nil {
+		if err := backup(path); err != nil {
+			return fmt.Errorf("备份 ssh config 失败: %w", err)
+		}
+	}
+
+	return os.WriteFile(path, []byte(out.String()), 0600)
 }
