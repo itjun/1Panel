@@ -1,4 +1,4 @@
-# iPannel
+# 1Pannel
 
 一个 macOS 原生的运维管理面板，基于 Wails v2（Go + React + TypeScript）。
 
@@ -33,14 +33,14 @@ wails dev
 wails build -platform darwin/arm64 -clean
 ```
 
-构建产物：`build/bin/iPannel.app`。
+构建产物：`build/bin/1Pannel.app`。
 
 ## 分发（给同事）
 
 ### 同事侧使用步骤
 
-1. **解压 zip**：拿到 `iPannel-v1.0-arm64-mac.zip`，双击解压出 `iPannel.app`
-2. **拖入 `/Applications`**：把 `iPannel.app` 拖到「应用程序」文件夹
+1. **解压 zip**：拿到 `1Pannel-v1.0-arm64-mac.zip`，双击解压出 `1Pannel.app`
+2. **拖入 `/Applications`**：把 `1Pannel.app` 拖到「应用程序」文件夹
 3. **首次打开**：右键 → 打开（macOS Gatekeeper 会拦未签名应用，普通双击会被拒；右键打开后选「仍要打开」即可，只需做一次）
 4. **配置 SSH**：应用读取的是同事本机的 `~/.ssh/config`，请确保：
    - 已生成密钥：`ssh-keygen -t ed25519`（一路回车）

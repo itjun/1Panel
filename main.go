@@ -16,7 +16,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:     "iPannel",
+		Title:     "1Pannel",
 		Width:     1440,
 		Height:    900,
 		MinWidth:  1100,

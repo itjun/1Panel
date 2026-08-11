@@ -1,4 +1,4 @@
-# iPannel 前端（1Panel 技术栈）
+# 1Pannel 前端（1Panel 技术栈）
 
 本目录已切换为与 [1Panel](https://github.com/1Panel-dev/1Panel) 对齐的前端技术栈，**不再维护手写 React/Tailwind 复刻**。
 

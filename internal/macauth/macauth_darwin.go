@@ -20,7 +20,7 @@ static int MacAuthSystemPrompt(const char *reason, char *errbuf, int errlen) {
         if (errbuf && errlen > 0) {
             errbuf[0] = '\0';
         }
-        NSString *localizedReason = @"解锁 iPannel";
+        NSString *localizedReason = @"解锁 1Pannel";
         if (reason && reason[0] != '\0') {
             localizedReason = [NSString stringWithUTF8String:reason];
         }
@@ -86,7 +86,7 @@ import (
 // 使用 LocalAuthentication · LAPolicyDeviceOwnerAuthentication
 func AuthenticateWithSystem(reason string) error {
 	if reason == "" {
-		reason = "解锁 iPannel"
+		reason = "解锁 1Pannel"
 	}
 	var errbuf [512]C.char
 	cr := C.CString(reason)

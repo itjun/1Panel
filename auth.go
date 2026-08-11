@@ -61,7 +61,7 @@ func (a *App) AuthenticateWithSystem() (AuthState, error) {
 		return AuthState{}, fmt.Errorf("读取当前用户失败: %w", err)
 	}
 
-	reason := fmt.Sprintf("使用 Mac 密码或 Touch ID 解锁 iPannel（用户 %s）", cur.Username)
+	reason := fmt.Sprintf("使用 Mac 密码或 Touch ID 解锁 1Pannel（用户 %s）", cur.Username)
 	if err := macauth.AuthenticateWithSystem(reason); err != nil {
 		return AuthState{}, err
 	}
