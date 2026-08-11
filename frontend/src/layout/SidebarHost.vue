@@ -18,23 +18,46 @@
       <!-- 不用 unique-opened：多分组可同时展开 -->
       <el-menu :default-active="activeId" :default-openeds="openedGroups">
         <el-sub-menu
-          v-for="node in filtered"
+          v-for="(node, gIdx) in filtered"
           :key="node.group?.id || UNGROUPED_ID"
           :index="node.group?.id || UNGROUPED_ID"
+          class="group-sub"
           :class="{
             'is-drop-target':
               dropTargetId === (node.group?.id || UNGROUPED_ID),
           }"
+          :style="groupCssVars(node.group?.id || UNGROUPED_ID, gIdx)"
         >
           <template #title>
             <!-- data-drop-group：指针拖放命中区（整行标题） -->
             <div
               class="group-title-row"
               :data-drop-group="node.group?.id || UNGROUPED_ID"
+              :style="groupCssVars(node.group?.id || UNGROUPED_ID, gIdx)"
             >
-              <el-icon><Folder /></el-icon>
               <span
-                class="menu-title"
+                class="group-color-dot"
+                title="分组色"
+                :style="{
+                  backgroundColor: groupColor(
+                    node.group?.id || UNGROUPED_ID,
+                    gIdx
+                  ).accent,
+                }"
+              />
+              <el-icon
+                class="group-folder-ico"
+                :style="{
+                  color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
+                }"
+              >
+                <Folder />
+              </el-icon>
+              <span
+                class="menu-title group-name"
+                :style="{
+                  color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
+                }"
                 @click.stop="
                   openGroup(
                     node.group?.id || UNGROUPED_ID,
@@ -44,7 +67,18 @@
               >
                 {{ node.group?.name || "未分组" }}
               </span>
-              <span class="menu-count">{{ node.hosts.length }}</span>
+              <span
+                class="menu-count"
+                :style="{
+                  color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
+                  backgroundColor: groupColor(
+                    node.group?.id || UNGROUPED_ID,
+                    gIdx
+                  ).soft,
+                }"
+              >
+                {{ node.hosts.length }}
+              </span>
             </div>
           </template>
 
@@ -57,11 +91,25 @@
               'is-running': app.isRunning(h.name),
               'is-drag-source': dragState?.host === h.name,
             }"
+            :style="{
+              ...groupCssVars(node.group?.id || UNGROUPED_ID, gIdx),
+              borderLeftColor: groupColor(
+                node.group?.id || UNGROUPED_ID,
+                gIdx
+              ).accent,
+            }"
             @pointerdown="onHostPointerDown($event, h.name)"
             @click="onHostClick(h.name)"
             @contextmenu.prevent="onHostContext($event, h.name)"
           >
-            <el-icon><Monitor /></el-icon>
+            <el-icon
+              class="host-ico"
+              :style="{
+                color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
+              }"
+            >
+              <Monitor />
+            </el-icon>
             <span class="menu-title">{{ h.name }}</span>
             <span
               v-if="app.isRunning(h.name)"
@@ -250,6 +298,53 @@ const HOST_ROW_CHROME = 80;
 const STORAGE_KEY = "ipannel.sidebarWidth";
 /** 移动超过该像素才算拖拽，避免误触 */
 const DRAG_THRESHOLD = 6;
+
+/**
+ * 分组色板：统一在 1Panel 主色蓝附近的冷色阶梯
+ * 相邻组可区分，但整体同一色系（无橙/红/高饱和撞色）
+ * accent=色条/圆点，soft=浅底，ink=文字/图标
+ */
+const GROUP_PALETTE = [
+  { accent: "#005eeb", soft: "rgba(0, 94, 235, 0.12)", ink: "#005eeb" }, // 主蓝
+  { accent: "#3375f6", soft: "rgba(51, 117, 246, 0.12)", ink: "#2a62d4" }, // 亮蓝
+  { accent: "#1a7fd4", soft: "rgba(26, 127, 212, 0.12)", ink: "#176bae" }, // 天蓝
+  { accent: "#3d8bfd", soft: "rgba(61, 139, 253, 0.12)", ink: "#2f6fd4" }, // 浅蓝
+  { accent: "#4c6ef5", soft: "rgba(76, 110, 245, 0.12)", ink: "#3b5bdb" }, // 靛蓝
+  { accent: "#5c7cfa", soft: "rgba(92, 124, 250, 0.12)", ink: "#4c6ef5" }, // 柔靛
+  { accent: "#228be6", soft: "rgba(34, 139, 230, 0.12)", ink: "#1c7ed6" }, // 青蓝
+  { accent: "#15aabf", soft: "rgba(21, 170, 191, 0.12)", ink: "#1098ad" }, // 青蓝绿（仍冷色）
+  { accent: "#4263eb", soft: "rgba(66, 99, 235, 0.12)", ink: "#364fc7" }, // 深紫蓝
+  { accent: "#748ffc", soft: "rgba(116, 143, 252, 0.12)", ink: "#5c7cfa" }, // 淡蓝紫
+] as const;
+
+/** 未分组：同色系低饱和灰蓝，不抢戏 */
+const UNGROUPED_COLOR = {
+  accent: "#868e96",
+  soft: "rgba(134, 142, 150, 0.12)",
+  ink: "#495057",
+} as const;
+
+type GroupColor = {
+  accent: string;
+  soft: string;
+  ink: string;
+};
+
+/** 按列表下标取色（最直观、相邻必不同）；未分组固定灰 */
+function groupColor(groupId: string, index: number): GroupColor {
+  if (groupId === UNGROUPED_ID) return UNGROUPED_COLOR;
+  return GROUP_PALETTE[index % GROUP_PALETTE.length];
+}
+
+/** CSS 变量：写到标题行 / 主机行，避免依赖 el-sub-menu 根节点继承 */
+function groupCssVars(groupId: string, index: number): Record<string, string> {
+  const c = groupColor(groupId, index);
+  return {
+    "--g-accent": c.accent,
+    "--g-soft": c.soft,
+    "--g-ink": c.ink,
+  };
+}
 
 const app = useAppStore();
 const query = ref("");
@@ -821,16 +916,59 @@ html.dark .host-search {
   }
 }
 
+/* ---------- 分组分色（颜色以内联 style 为准，避免 EP/全局主色覆盖） ---------- */
+.group-sub {
+  /* 兜底，正常由 :style CSS 变量覆盖 */
+  --g-accent: #909399;
+  --g-soft: rgba(144, 147, 153, 0.12);
+  --g-ink: #606266;
+}
+
+/* 标题外层 li 上的 style 变量 → 作用于 title */
+.group-sub :deep(> .el-sub-menu__title) {
+  background: var(--g-soft) !important;
+  border: 1px solid transparent !important;
+  border-left: 3px solid var(--g-accent) !important;
+  box-shadow: none !important;
+  padding-left: 9px !important;
+}
+
+.group-sub :deep(> .el-sub-menu__title:hover) {
+  background: var(--g-soft) !important;
+  border-color: transparent !important;
+  border-left-color: var(--g-accent) !important;
+  box-shadow: none !important;
+  color: var(--g-ink) !important;
+}
+
+.group-sub :deep(> .el-sub-menu__title .el-sub-menu__icon-arrow) {
+  color: var(--g-ink) !important;
+  opacity: 0.9;
+}
+
 .group-title-row {
   display: flex;
   align-items: center;
   width: 100%;
   min-width: 0;
-  gap: 4px;
-  /* 扩大命中：撑满 sub-menu 标题行 */
-  margin: -0 0;
+  gap: 6px;
   min-height: 100%;
   pointer-events: auto;
+}
+
+.group-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.group-folder-ico {
+  flex-shrink: 0;
+}
+
+.group-name {
+  font-weight: 600;
 }
 
 .menu-title {
@@ -842,14 +980,29 @@ html.dark .host-search {
 
 .menu-count {
   margin-left: 6px;
-  font-size: 12px;
-  color: #909399;
+  font-size: 11px;
+  font-weight: 600;
   flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 9px;
 }
 
+/* 主机项：左侧色条以内联 borderLeftColor 为准 */
 .host-item {
   cursor: grab;
-  touch-action: none; /* 允许纵向滚动菜单时，横向拖仍可用；指针拖靠 threshold */
+  touch-action: none;
+  border: 1px solid transparent !important;
+  border-left: 3px solid var(--g-accent, #909399) !important;
+  margin-left: 4px !important;
+  box-shadow: none !important;
+
+  .host-ico {
+    opacity: 0.9;
+  }
 
   &:active {
     cursor: grabbing;
@@ -862,6 +1015,23 @@ html.dark .host-search {
   &.is-drag-source {
     opacity: 0.45;
   }
+}
+
+/* 覆盖全局 panel-sidebar 的主色 hover/active 描边 */
+.group-sub :deep(.el-menu-item.host-item:hover) {
+  background: var(--g-soft) !important;
+  border-color: transparent !important;
+  border-left-color: var(--g-accent) !important;
+  box-shadow: none !important;
+  color: var(--g-ink) !important;
+}
+
+.group-sub :deep(.el-menu-item.host-item.is-active) {
+  background: var(--g-soft) !important;
+  border-color: transparent !important;
+  border-left-color: var(--g-accent) !important;
+  box-shadow: inset 0 0 0 1px var(--g-accent) !important;
+  color: var(--g-ink) !important;
 }
 
 .run-dot {
