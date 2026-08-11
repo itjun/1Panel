@@ -2,9 +2,12 @@
 build/
 **/dist/
 *.app
+*.app.dSYM/
 ServerPanel
 bin/
 *.syso
+*.dmg
+*.pkg
 
 # --- 依赖 ---
 **/node_modules/
@@ -28,6 +31,7 @@ frontend-react/node_modules/
 *.swp
 *~
 .playwright-mcp/
+.history/
 
 # --- 环境与密钥（勿入库）---
 .env
@@ -37,6 +41,8 @@ frontend-react/node_modules/
 *.key
 id_rsa
 id_ed25519
+*.p12
+*.mobileprovision
 
 # --- 测试 / 覆盖率 / 临时 ---
 coverage/
@@ -47,6 +53,7 @@ tmp/
 *.bak
 *.tmp
 *.orig
+*.rej
 
 # --- 本地 AI / 会话 / 计划缓存 ---
 .zcode/
@@ -54,13 +61,19 @@ tmp/
 .cursor/
 .claude/settings.local.json
 .agents/
+.codex/
 
 # --- 本地冒烟/截图产物（可选手动提交 docs 正文）---
 docs/*-smoke-report.html
 docs/ipannel-vue-smoke-report.html
 docs/**/screenshots/
+docs/**/*.png
+!docs/**/README.md
 
 # --- 系统 / 压缩包杂项 ---
 __MACOSX/
 Thumbs.db
 Desktop.ini
+*.zip
+*.tar.gz
+!docs/**/*.md
