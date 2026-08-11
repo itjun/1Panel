@@ -8,6 +8,7 @@ import (
 
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/monitor"
+	"diteng-pannel/internal/nethist"
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
@@ -22,6 +23,7 @@ type App struct {
 	sshMgr    *sshd.Manager
 	collector *monitor.Collector
 	groups    *groups.Store
+	netHist   *nethist.Store
 	termMgr   *terminal.Manager
 }
 
@@ -42,6 +44,12 @@ func (a *App) startup(ctx context.Context) {
 		runtime.LogErrorf(ctx, "初始化分组存储失败: %v", err)
 	} else {
 		a.groups = store
+	}
+	// 与分组同目录：网卡累计采样，供 1 天 / 7 天流量差分
+	if nh, err := nethist.NewStore("ServerPanel"); err != nil {
+		runtime.LogErrorf(ctx, "初始化网卡历史失败: %v", err)
+	} else {
+		a.netHist = nh
 	}
 	a.collector = monitor.NewCollector(a.sshMgr)
 }
@@ -176,6 +184,91 @@ func (a *App) RenameHost(oldName, newName string) error {
 	return nil
 }
 
+// UpdateHost 编辑主机：密码测试连通性 → 推送本机公钥 → 更新 ~/.ssh/config 中的 HostName/User
+// 别名不变；验证失败不写 config
+func (a *App) UpdateHost(input UpdateHostInput) error {
+	input.Name = strings.TrimSpace(input.Name)
+	input.HostName = strings.TrimSpace(input.HostName)
+	input.User = strings.TrimSpace(input.User)
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return fmt.Errorf("别名、IP、用户、密码均不能为空")
+	}
+
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return fmt.Errorf("读取 ssh config 失败: %w", err)
+	}
+	found := false
+	for _, h := range hosts {
+		if h.Name == input.Name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("未找到主机别名: %s", input.Name)
+	}
+
+	// 1) 密码验证连通性（不污染正式连接池）
+	if _, err := a.TestConnection(AddHostInput{
+		Name:     input.Name,
+		HostName: input.HostName,
+		User:     input.User,
+		Password: input.Password,
+	}); err != nil {
+		return err
+	}
+
+	// 2) 推送公钥，保证新 IP/用户下后续可免密
+	pub, err := readPublicKey("~/.ssh/id_ed25519.pub")
+	if err != nil {
+		return err
+	}
+	opt := sshd.ConnectOption{
+		Host:     "__update__:" + input.Name,
+		HostName: input.HostName,
+		User:     input.User,
+		Port:     "22",
+		Password: input.Password,
+	}
+	defer a.sshMgr.Close(opt.Host)
+	script := fmt.Sprintf(
+		`mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys`,
+		pub,
+	)
+	if _, err := a.sshMgr.Run(opt.Host, opt, script); err != nil {
+		return fmt.Errorf("安装公钥失败: %w", err)
+	}
+
+	// 3) 原地更新 config 字段（IdentityFile 等其它行保持不动）
+	if err := sshconfig.UpdateHostFields(input.Name, input.HostName, input.User); err != nil {
+		return err
+	}
+
+	// 关闭旧连接，下次用新参数重连
+	a.sshMgr.Close(input.Name)
+	return nil
+}
+
+// DeleteHost 从 ~/.ssh/config 删除主机别名，并清理分组引用与连接池
+func (a *App) DeleteHost(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("主机别名不能为空")
+	}
+	if err := sshconfig.DeleteHost(name); err != nil {
+		return err
+	}
+	// 从所有分组中移除
+	if a.groups != nil {
+		if err := a.groups.AssignHost(name, ""); err != nil {
+			runtime.LogWarningf(a.ctx, "清理分组引用失败: %v", err)
+		}
+	}
+	a.sshMgr.Close(name)
+	return nil
+}
+
 // ============ 分组 ============
 
 func (a *App) ListGroups() []groups.Group {
@@ -221,12 +314,28 @@ func (a *App) AssignHost(host, groupID string) error {
 // ============ 监控 ============
 
 // CollectOverview 采集顶层系统指标（按需/手动刷新，不做秒级轮询落盘）
+// 额外根据本机历史采样填充近 1 天 / 7 天收发字节（net1d / net7d）
 func (a *App) CollectOverview(host string) (monitor.Overview, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
 		return monitor.Overview{}, err
 	}
-	return a.collector.CollectOverview(host, opt)
+	ov, err := a.collector.CollectOverview(host, opt)
+	if err != nil {
+		return ov, err
+	}
+	if a.netHist != nil {
+		d1, d7 := a.netHist.RecordAndWindows(host, ov.NetRxBytes, ov.NetTxBytes)
+		ov.Net1d = monitor.NetWindow{
+			RxBytes: d1.RxBytes, TxBytes: d1.TxBytes,
+			SpanHours: d1.SpanHours, Complete: d1.Complete,
+		}
+		ov.Net7d = monitor.NetWindow{
+			RxBytes: d7.RxBytes, TxBytes: d7.TxBytes,
+			SpanHours: d7.SpanHours, Complete: d7.Complete,
+		}
+	}
+	return ov, nil
 }
 
 func (a *App) CollectDisks(host string) ([]monitor.DiskInfo, error) {
@@ -262,6 +371,15 @@ func (a *App) CollectJava(host string) ([]monitor.ProcInfo, error) {
 	return a.collector.CollectJava(host, opt)
 }
 
+// CollectNetwork 网卡 / IP 分类 / TCP 连接 / 疑似卡顿连接
+func (a *App) CollectNetwork(host string) (monitor.NetworkSnapshot, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return monitor.NetworkSnapshot{}, err
+	}
+	return a.collector.CollectNetwork(host, opt)
+}
+
 func (a *App) CollectDocker(host string) (monitor.DockerInfo, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
@@ -295,6 +413,34 @@ func (a *App) CollectPackages(host string) ([]monitor.AptPackage, error) {
 }
 
 // ============ 文件浏览（只读） ============
+
+// GetHomeDir 返回远程登录用户的家目录（$HOME）。
+// 文件管理器默认打开此路径，而不是系统根 /。
+// 远程查询失败时按 SSH User 回退：root → /root，其它 → /home/<user>。
+func (a *App) GetHomeDir(host string) (string, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return fallbackHomeDir(opt.User), err
+	}
+	out, err := a.sshMgr.Run(host, opt, `printf '%s' "$HOME"`)
+	home := strings.TrimSpace(string(out))
+	if err == nil && home != "" && strings.HasPrefix(home, "/") {
+		// 去掉多余尾部斜杠（根目录本身除外）
+		if len(home) > 1 {
+			home = strings.TrimRight(home, "/")
+		}
+		return home, nil
+	}
+	return fallbackHomeDir(opt.User), nil
+}
+
+func fallbackHomeDir(user string) string {
+	u := strings.TrimSpace(user)
+	if u == "" || u == "root" {
+		return "/root"
+	}
+	return "/home/" + u
+}
 
 // ListDir 列出远程主机某目录下的内容（只读，不修改）
 func (a *App) ListDir(host, dir string) ([]monitor.FileEntry, error) {

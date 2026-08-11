@@ -27,6 +27,15 @@ type AddHostInput struct {
 	Password string `json:"password"` // 仅本次使用，不落盘
 }
 
+// UpdateHostInput 是「编辑主机」对话框的入参
+// 别名不可在此接口修改（请用 RenameHost）；须带密码做连通性验证，通过后才写 config
+type UpdateHostInput struct {
+	Name     string `json:"name"`     // 现有 Host 别名
+	HostName string `json:"hostName"` // 新 IP/域名
+	User     string `json:"user"`     // 登录用户
+	Password string `json:"password"` // 仅本次使用，不落盘
+}
+
 // readPublicKey 读公钥文件内容（去掉末尾换行）
 func readPublicKey(path string) (string, error) {
 	path = expandTilde(path)

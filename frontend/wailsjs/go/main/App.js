@@ -46,6 +46,10 @@ export function CollectLargestFiles(arg1, arg2) {
   return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2);
 }
 
+export function CollectNetwork(arg1) {
+  return window['go']['main']['App']['CollectNetwork'](arg1);
+}
+
 export function CollectOverview(arg1) {
   return window['go']['main']['App']['CollectOverview'](arg1);
 }
@@ -70,12 +74,20 @@ export function DeleteGroup(arg1) {
   return window['go']['main']['App']['DeleteGroup'](arg1);
 }
 
+export function DeleteHost(arg1) {
+  return window['go']['main']['App']['DeleteHost'](arg1);
+}
+
 export function DockerAction(arg1, arg2, arg3) {
   return window['go']['main']['App']['DockerAction'](arg1, arg2, arg3);
 }
 
 export function GetCurrentMacUser() {
   return window['go']['main']['App']['GetCurrentMacUser']();
+}
+
+export function GetHomeDir(arg1) {
+  return window['go']['main']['App']['GetHomeDir'](arg1);
 }
 
 export function KillProcess(arg1, arg2, arg3) {
@@ -110,8 +122,16 @@ export function LogoutMacUser() {
   return window['go']['main']['App']['LogoutMacUser']();
 }
 
+export function NormalizeFileToLinux(arg1, arg2) {
+  return window['go']['main']['App']['NormalizeFileToLinux'](arg1, arg2);
+}
+
 export function OpenTerminal(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenTerminal'](arg1, arg2, arg3, arg4);
+}
+
+export function ReadFilePreview(arg1, arg2) {
+  return window['go']['main']['App']['ReadFilePreview'](arg1, arg2);
 }
 
 export function ReadFileText(arg1, arg2) {
@@ -132,6 +152,10 @@ export function ResizeTerminal(arg1, arg2, arg3) {
 
 export function TestConnection(arg1) {
   return window['go']['main']['App']['TestConnection'](arg1);
+}
+
+export function UpdateHost(arg1) {
+  return window['go']['main']['App']['UpdateHost'](arg1);
 }
 
 export function UploadFile(arg1, arg2, arg3) {

@@ -4,6 +4,7 @@ import {main} from '../models';
 import {monitor} from '../models';
 import {groups} from '../models';
 import {sshconfig} from '../models';
+import {filetext} from '../models';
 
 export function AddHost(arg1:main.AddHostInput):Promise<void>;
 
@@ -27,6 +28,8 @@ export function CollectJava(arg1:string):Promise<Array<monitor.ProcInfo>>;
 
 export function CollectLargestFiles(arg1:string,arg2:number):Promise<monitor.LargeFilesResult>;
 
+export function CollectNetwork(arg1:string):Promise<monitor.NetworkSnapshot>;
+
 export function CollectOverview(arg1:string):Promise<monitor.Overview>;
 
 export function CollectPackages(arg1:string):Promise<Array<monitor.AptPackage>>;
@@ -39,9 +42,13 @@ export function CopySSHID(arg1:main.CopyIDInput):Promise<string>;
 
 export function DeleteGroup(arg1:string):Promise<void>;
 
+export function DeleteHost(arg1:string):Promise<void>;
+
 export function DockerAction(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GetCurrentMacUser():Promise<main.MacUserInfo>;
+
+export function GetHomeDir(arg1:string):Promise<string>;
 
 export function KillProcess(arg1:string,arg2:number,arg3:boolean):Promise<void>;
 
@@ -59,7 +66,11 @@ export function ListOneGroupOverview(arg1:string):Promise<main.GroupOverview>;
 
 export function LogoutMacUser():Promise<main.AuthState>;
 
+export function NormalizeFileToLinux(arg1:string,arg2:string):Promise<filetext.Preview>;
+
 export function OpenTerminal(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
+
+export function ReadFilePreview(arg1:string,arg2:string):Promise<filetext.Preview>;
 
 export function ReadFileText(arg1:string,arg2:string):Promise<string>;
 
@@ -70,6 +81,8 @@ export function RenameHost(arg1:string,arg2:string):Promise<void>;
 export function ResizeTerminal(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function TestConnection(arg1:main.AddHostInput):Promise<string>;
+
+export function UpdateHost(arg1:main.UpdateHostInput):Promise<void>;
 
 export function UploadFile(arg1:string,arg2:string,arg3:string):Promise<string>;
 

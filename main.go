@@ -27,6 +27,8 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 24, G: 24, B: 27, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
+		// 发布包默认也不要浏览器右键菜单；开发态另有前端 preventDefault 兜底
+		EnableDefaultContextMenu: false,
 		// 启用文件拖放：前端通过 OnFileDrop(callback) 接收本地文件绝对路径
 		// 同时 DisableWebViewDrop=true，阻止 webview 默认行为（直接打开文件）
 		DragAndDrop: &options.DragAndDrop{
