@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "verify:shell": "node scripts/verify-shell.mjs"
+    "verify:shell": "node scripts/verify-shell.mjs",
+    "test:helpers": "node scripts/test-helpers.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

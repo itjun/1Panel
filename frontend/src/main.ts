@@ -7,6 +7,16 @@ import "element-plus/dist/index.css";
 import "@/styles/index.scss";
 import App from "./App.vue";
 
+// 屏蔽 WebView 默认右键菜单（Reload / Inspect Element）
+// 误点 Reload 会硬刷页面，Wails 桥与会话状态易白屏；业务区如需自定义菜单可在元素上 stopPropagation
+document.addEventListener(
+  "contextmenu",
+  (e) => {
+    e.preventDefault();
+  },
+  { capture: true }
+);
+
 const app = createApp(App);
 const pinia = createPinia();
 

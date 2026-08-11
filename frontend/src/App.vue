@@ -10,24 +10,46 @@
           :icon="sidebarOpen ? Fold : Expand"
           @click="sidebarOpen = !sidebarOpen"
         />
-        <LogoFull style="height: 22px; width: auto" />
+        <!-- 彩色品牌字标：原侧栏顶部 Logo 移至顶栏 -->
+        <LogoFull class="top-brand-logo" />
       </div>
       <div class="right no-drag">
-        <el-button text :icon="Brush" @click="settings.cycleTheme()">
-          主题
-        </el-button>
-        <el-button
-          text
-          :icon="Refresh"
-          :loading="app.loading"
-          @click="app.refresh()"
-        >
-          刷新
-        </el-button>
         <el-button type="primary" :icon="Plus" @click="addHostOpen = true">
           添加主机
         </el-button>
-        <el-button text :icon="Lock" @click="onLogout">锁定</el-button>
+        <!-- 设置 / 刷新 / 锁定 折叠为菜单；设置也可用 ⌘, 打开 -->
+        <el-dropdown trigger="click" @command="onMenuCommand">
+          <el-button text :icon="MoreFilled" class="more-btn" title="更多" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="settings">
+                <span class="menu-item-row">
+                  <span>
+                    <el-icon class="menu-ico"><Setting /></el-icon>
+                    设置…
+                  </span>
+                  <span class="menu-kbd">⌘,</span>
+                </span>
+              </el-dropdown-item>
+              <el-dropdown-item command="refresh" :disabled="app.loading">
+                <span class="menu-item-row">
+                  <span>
+                    <el-icon class="menu-ico"><Refresh /></el-icon>
+                    刷新
+                  </span>
+                </span>
+              </el-dropdown-item>
+              <el-dropdown-item divided command="lock">
+                <span class="menu-item-row">
+                  <span>
+                    <el-icon class="menu-ico"><Lock /></el-icon>
+                    锁定
+                  </span>
+                </span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </header>
 
@@ -74,18 +96,21 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <SettingsDialog v-model="settingsOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import {
-  Brush,
   Expand,
   Fold,
   Lock,
+  MoreFilled,
   Plus,
   Refresh,
+  Setting,
 } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
@@ -95,13 +120,16 @@ import SidebarHost from "@/layout/SidebarHost.vue";
 import MainArea from "@/layout/MainArea.vue";
 import LogoFull from "@/components/LogoFull.vue";
 import LoginView from "@/views/LoginView.vue";
+import SettingsDialog from "@/components/SettingsDialog.vue";
 
 const app = useAppStore();
-const settings = useSettingsStore();
+// 确保设置 store 初始化并应用主题/字体
+useSettingsStore();
 const unlocked = ref(false);
 const authChecking = ref(true);
 const sidebarOpen = ref(true);
 const addHostOpen = ref(false);
+const settingsOpen = ref(false);
 const saving = ref(false);
 const form = reactive({
   name: "",
@@ -109,6 +137,29 @@ const form = reactive({
   user: "root",
   password: "",
 });
+
+function openSettings() {
+  if (!unlocked.value) return;
+  settingsOpen.value = true;
+}
+
+function onMenuCommand(cmd: string | number | object) {
+  if (cmd === "settings") openSettings();
+  else if (cmd === "refresh") void app.refresh();
+  else if (cmd === "lock") void onLogout();
+}
+
+/** macOS 传统：⌘, 打开设置 */
+function onGlobalKeydown(e: KeyboardEvent) {
+  // Meta=, 或 Meta+,（不同键盘布局）
+  const isComma =
+    e.key === "," || e.code === "Comma" || e.key === "，";
+  if ((e.metaKey || e.ctrlKey) && isComma && !e.shiftKey && !e.altKey) {
+    // 输入框内也允许（系统偏好设置行为）
+    e.preventDefault();
+    openSettings();
+  }
+}
 
 function formatErr(e: unknown): string {
   if (e == null) return "未知错误";
@@ -164,6 +215,7 @@ async function onLogout() {
 }
 
 onMounted(async () => {
+  window.addEventListener("keydown", onGlobalKeydown, true);
   try {
     const st = await api.authStatus();
     unlocked.value = !!st.authenticated;
@@ -177,6 +229,10 @@ onMounted(async () => {
     authChecking.value = false;
   }
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onGlobalKeydown, true);
+});
 </script>
 
 <style scoped>
@@ -188,7 +244,34 @@ onMounted(async () => {
 .right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+}
+.more-btn {
+  padding: 8px;
+  font-size: 18px;
+}
+.menu-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  min-width: 140px;
+}
+.menu-ico {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.menu-kbd {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+/* 顶栏彩色 Logo（primary），替代原先侧栏彩色字标 */
+.top-brand-logo {
+  height: 22px;
+  width: auto;
+  color: var(--el-color-primary);
+  flex-shrink: 0;
 }
 .add-host-hint {
   margin: 0 0 12px;

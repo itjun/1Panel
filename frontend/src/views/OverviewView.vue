@@ -81,12 +81,38 @@
               <el-tag type="primary" effect="light">
                 下行: {{ formatBytes(rates.downBps) }}/s
               </el-tag>
-              <el-tag type="primary" effect="light">
-                总发送: {{ formatBytes(Number(overview.netTxBytes) || 0) }}
-              </el-tag>
-              <el-tag type="primary" effect="light">
-                总接收: {{ formatBytes(Number(overview.netRxBytes) || 0) }}
-              </el-tag>
+              <el-tooltip
+                :content="netWindowTip(overview.net1d, '1 天')"
+                placement="top"
+              >
+                <el-tag type="success" effect="light">
+                  近1天↑ {{ formatNetWindow(overview.net1d, "tx") }}
+                </el-tag>
+              </el-tooltip>
+              <el-tooltip
+                :content="netWindowTip(overview.net1d, '1 天')"
+                placement="top"
+              >
+                <el-tag type="success" effect="light">
+                  近1天↓ {{ formatNetWindow(overview.net1d, "rx") }}
+                </el-tag>
+              </el-tooltip>
+              <el-tooltip
+                :content="netWindowTip(overview.net7d, '7 天')"
+                placement="top"
+              >
+                <el-tag type="warning" effect="light">
+                  近7天↑ {{ formatNetWindow(overview.net7d, "tx") }}
+                </el-tag>
+              </el-tooltip>
+              <el-tooltip
+                :content="netWindowTip(overview.net7d, '7 天')"
+                placement="top"
+              >
+                <el-tag type="warning" effect="light">
+                  近7天↓ {{ formatNetWindow(overview.net7d, "rx") }}
+                </el-tag>
+              </el-tooltip>
             </div>
             <VChartLine height="280px" :option="lineOption" />
           </el-card>
@@ -167,23 +193,52 @@
             </div>
           </el-card>
 
+          <!-- 应用：先 Java，再 Docker -->
           <el-card shadow="never" class="home-card card-interval">
             <div class="card-header">
               <span class="panel-section-title">应用</span>
-              <span class="hint">Docker</span>
+              <span class="hint">Java · {{ javaList.length }}</span>
             </div>
-            <div v-if="dockerLoading" class="empty-tip">加载中…</div>
+            <div v-if="appsLoading" class="empty-tip">加载中…</div>
+            <div v-else-if="!javaList.length" class="empty-tip">暂无 Java 进程</div>
+            <div
+              v-for="p in javaList.slice(0, 12)"
+              :key="'j-' + p.pid"
+              class="app-row"
+            >
+              <div class="app-meta">
+                <div class="app-name" :title="p.cmd">
+                  {{ javaAppTitle(p.cmd) }}
+                </div>
+                <div class="app-img">
+                  PID {{ p.pid }} · CPU {{ (p.cpu || 0).toFixed(1) }}% ·
+                  {{ formatBytes(Number(p.rss) || 0) }}
+                </div>
+              </div>
+              <el-tag size="small" type="warning">Java</el-tag>
+            </div>
+            <div v-if="javaList.length > 12" class="app-more">
+              另有 {{ javaList.length - 12 }} 个进程未展示
+            </div>
+          </el-card>
+
+          <el-card shadow="never" class="home-card card-interval">
+            <div class="card-header">
+              <span class="panel-section-title">应用</span>
+              <span class="hint">
+                Docker ·
+                {{ docker?.available ? dockerList.length : "—" }}
+              </span>
+            </div>
+            <div v-if="appsLoading" class="empty-tip">加载中…</div>
             <div v-else-if="!docker?.available" class="empty-tip">
               未检测到 Docker
             </div>
-            <div
-              v-else-if="!docker.containers?.length"
-              class="empty-tip"
-            >
+            <div v-else-if="!dockerList.length" class="empty-tip">
               暂无容器
             </div>
             <div
-              v-for="c in (docker?.containers || []).slice(0, 12)"
+              v-for="c in dockerList.slice(0, 12)"
               :key="c.id || c.name"
               class="app-row"
             >
@@ -201,6 +256,9 @@
               >
                 {{ c.state || "—" }}
               </el-tag>
+            </div>
+            <div v-if="dockerList.length > 12" class="app-more">
+              另有 {{ dockerList.length - 12 }} 个容器未展示
             </div>
           </el-card>
         </el-col>
@@ -229,7 +287,12 @@ const error = ref<string | null>(null);
 const overview = ref<monitor.Overview | null>(null);
 const disks = ref<monitor.DiskInfo[]>([]);
 const docker = ref<monitor.DockerInfo | null>(null);
-const dockerLoading = ref(false);
+const javaList = ref<monitor.ProcInfo[]>([]);
+const appsLoading = ref(false);
+
+const dockerList = computed(
+  () => (docker.value?.containers || []) as monitor.Container[]
+);
 
 const traffic = ref<{ time: string; up: number; down: number }[]>([]);
 const rates = ref({ upBps: 0, downBps: 0 });
@@ -257,6 +320,39 @@ const loadPercent = computed(() => {
     (overview.value.load1 / overview.value.cpuCount) * 100
   );
 });
+
+/** 近 1/7 天流量展示 */
+function formatNetWindow(
+  w: { rxBytes?: number; txBytes?: number; spanHours?: number; complete?: boolean } | null | undefined,
+  dir: "rx" | "tx"
+): string {
+  if (!w) return "—";
+  const n = dir === "rx" ? Number(w.rxBytes) || 0 : Number(w.txBytes) || 0;
+  const span = Number(w.spanHours) || 0;
+  // 几乎无历史
+  if (span < 0.02 && n === 0) return "积累中";
+  const s = formatBytes(n);
+  return w.complete ? s : `${s}*`;
+}
+
+function netWindowTip(
+  w: { spanHours?: number; complete?: boolean } | null | undefined,
+  label: string
+): string {
+  if (!w) {
+    return `近${label}流量：打开主机会话后开始在本机采样累计，需持续观察才能出完整窗口。`;
+  }
+  const h = Number(w.spanHours) || 0;
+  if (w.complete) {
+    return `近${label}完整窗口：基于本机历史采样对 /proc/net/dev 累计值做差分（除 lo 外网卡合计，1024 进制）。`;
+  }
+  if (h < 0.05) {
+    return `近${label}：数据积累中（约每分钟采样一次，请保持主机「运行中」）。`;
+  }
+  const pretty =
+    h >= 24 ? `${(h / 24).toFixed(1)} 天` : `${h.toFixed(1)} 小时`;
+  return `近${label}：当前仅有约 ${pretty} 样本（标记 *），满 ${label} 后显示完整值。重启会导致计数回绕并重新累计。`;
+}
 
 const loadLabel = computed(() => {
   const v = loadPercent.value;
@@ -334,20 +430,43 @@ async function loadDisks() {
   }
 }
 
-async function loadDocker() {
-  dockerLoading.value = true;
+async function loadApps() {
+  appsLoading.value = true;
   try {
-    docker.value = await api.collectDocker(props.host);
-  } catch {
-    docker.value = null;
+    const [dj, dd] = await Promise.all([
+      api.collectJava(props.host).catch(() => [] as monitor.ProcInfo[]),
+      api.collectDocker(props.host).catch(() => null),
+    ]);
+    javaList.value = (dj || []) as monitor.ProcInfo[];
+    docker.value = dd as monitor.DockerInfo | null;
   } finally {
-    dockerLoading.value = false;
+    appsLoading.value = false;
   }
+}
+
+/** 从 java 命令行提取可读标题：优先 -jar 包名，其次疑似主类 */
+function javaAppTitle(cmd: string): string {
+  if (!cmd) return "java";
+  const jar = cmd.match(/-jar\s+(\S+\.jar)/i);
+  if (jar?.[1]) {
+    const base = jar[1].split(/[/\\]/).pop() || jar[1];
+    return base;
+  }
+  // 常见主类：com.xxx.Main / org.springframework.boot.loader...
+  const tokens = cmd.split(/\s+/);
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (/^[a-zA-Z_][\w.]*\.[A-Z][\w$]*$/.test(t) && !t.includes("/")) {
+      return t;
+    }
+  }
+  // 截断过长命令行
+  return cmd.length > 48 ? cmd.slice(0, 46) + "…" : cmd;
 }
 
 async function refreshAll() {
   loading.value = true;
-  await Promise.all([loadOverview(), loadDisks(), loadDocker()]);
+  await Promise.all([loadOverview(), loadDisks(), loadApps()]);
   loading.value = false;
 }
 
@@ -380,6 +499,7 @@ function resetHostState() {
   overview.value = null;
   disks.value = [];
   docker.value = null;
+  javaList.value = [];
   traffic.value = [];
   rates.value = { upBps: 0, downBps: 0 };
   lastNet.value = null;
@@ -429,10 +549,17 @@ onBeforeUnmount(() => {
   }
 }
 .home-card {
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
+  border: 1px solid var(--el-border-color-light, #e4e7ed) !important;
   border-radius: 4px;
   max-width: 100%;
   overflow: hidden; /* 卡片内图表/描述表不得撑破横向 */
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  /* 1Panel：悬停主色描边 */
+  &:hover {
+    border-color: var(--el-color-primary) !important;
+    box-shadow: 0 0 0 1px var(--el-color-primary);
+  }
   :deep(.el-card__body) {
     padding: 14px 16px;
     max-width: 100%;
@@ -505,6 +632,9 @@ onBeforeUnmount(() => {
   gap: 10px;
   padding: 8px 0;
   border-bottom: 1px solid var(--el-border-color-extra-light, #f2f6fc);
+  &:last-of-type {
+    border-bottom: none;
+  }
 }
 .app-meta {
   flex: 1;
@@ -516,6 +646,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.app-more {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  text-align: center;
 }
 .app-img {
   font-size: 11px;

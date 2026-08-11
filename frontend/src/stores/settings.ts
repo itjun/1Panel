@@ -3,10 +3,166 @@ import { ref, watch } from "vue";
 
 export type ThemeKey = "light" | "dark" | "auto";
 
+export interface AppSettings {
+  theme: ThemeKey;
+  fontFamily: string;
+  fontSize: number; // UI 字号 px 12~18
+  terminalFontSize: number; // 终端字号 px 11~20
+  terminalFontFamily: string;
+}
+
+export const FONT_OPTIONS: { label: string; value: string }[] = [
+  {
+    label: "1Panel 默认",
+    value:
+      '"Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif',
+  },
+  {
+    label: "系统默认（SF Pro）",
+    value:
+      '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif',
+  },
+  {
+    label: "中文：苹方",
+    value: '"PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif',
+  },
+  {
+    label: "中文：微软雅黑",
+    value: '"Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif',
+  },
+  {
+    label: "等宽：SF Mono",
+    value: '"SF Mono", "JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
+  },
+  {
+    label: "等宽：Menlo",
+    value: 'Menlo, Monaco, "SF Mono", "Courier New", monospace',
+  },
+  {
+    label: "等宽：JetBrains Mono",
+    value: '"JetBrains Mono", "SF Mono", Menlo, Monaco, monospace',
+  },
+  {
+    label: "衬线：Songti / Times",
+    value: '"Songti SC", "New York", "Times New Roman", serif',
+  },
+];
+
+export const TERMINAL_FONT_OPTIONS: { label: string; value: string }[] = [
+  {
+    label: "SF Mono（推荐）",
+    value: '"SF Mono", "JetBrains Mono", Menlo, Monaco, monospace',
+  },
+  {
+    label: "Menlo",
+    value: 'Menlo, Monaco, "SF Mono", monospace',
+  },
+  {
+    label: "JetBrains Mono",
+    value: '"JetBrains Mono", "SF Mono", Menlo, Monaco, monospace',
+  },
+  {
+    label: "Courier New",
+    value: '"Courier New", Courier, monospace',
+  },
+  {
+    label: "跟随界面字体",
+    value: "inherit",
+  },
+];
+
+export const THEME_OPTIONS: {
+  key: ThemeKey;
+  name: string;
+  description: string;
+  swatch: { bg: string; fg: string; accent: string };
+}[] = [
+  {
+    key: "light",
+    name: "明亮",
+    description: "1Panel 白蓝风格",
+    swatch: { bg: "#f4f4f4", fg: "#1f2329", accent: "#005eeb" },
+  },
+  {
+    key: "dark",
+    name: "暗黑",
+    description: "深色界面，护眼",
+    swatch: { bg: "#242633", fg: "#e3e6f3", accent: "#3d8eff" },
+  },
+  {
+    key: "auto",
+    name: "跟随系统",
+    description: "按系统亮/暗自动切换",
+    swatch: {
+      bg: "linear-gradient(135deg, #f4f4f4 50%, #242633 50%)",
+      fg: "#888",
+      accent: "#005eeb",
+    },
+  },
+];
+
+const STORAGE_KEY = "ipannel.settings.v1";
+
+const DEFAULTS: AppSettings = {
+  theme: "light",
+  fontFamily: FONT_OPTIONS[0].value,
+  fontSize: 14,
+  terminalFontSize: 13,
+  terminalFontFamily: TERMINAL_FONT_OPTIONS[0].value,
+};
+
+function load(): AppSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // 兼容旧版仅 theme 键
+      const oldTheme = localStorage.getItem("ipannel.theme") as ThemeKey | null;
+      if (oldTheme && ["light", "dark", "auto"].includes(oldTheme)) {
+        return { ...DEFAULTS, theme: oldTheme };
+      }
+      return { ...DEFAULTS };
+    }
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    return {
+      theme: (parsed.theme as ThemeKey) || DEFAULTS.theme,
+      fontFamily: parsed.fontFamily || DEFAULTS.fontFamily,
+      fontSize: clamp(Number(parsed.fontSize) || DEFAULTS.fontSize, 11, 20),
+      terminalFontSize: clamp(
+        Number(parsed.terminalFontSize) || DEFAULTS.terminalFontSize,
+        10,
+        22
+      ),
+      terminalFontFamily:
+        parsed.terminalFontFamily || DEFAULTS.terminalFontFamily,
+    };
+  } catch {
+    return { ...DEFAULTS };
+  }
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
 export const useSettingsStore = defineStore("settings", () => {
-  const theme = ref<ThemeKey>(
-    (localStorage.getItem("ipannel.theme") as ThemeKey) || "light"
-  );
+  const initial = load();
+  const theme = ref<ThemeKey>(initial.theme);
+  const fontFamily = ref(initial.fontFamily);
+  const fontSize = ref(initial.fontSize);
+  const terminalFontSize = ref(initial.terminalFontSize);
+  const terminalFontFamily = ref(initial.terminalFontFamily);
+
+  function persist() {
+    const data: AppSettings = {
+      theme: theme.value,
+      fontFamily: fontFamily.value,
+      fontSize: fontSize.value,
+      terminalFontSize: terminalFontSize.value,
+      terminalFontFamily: terminalFontFamily.value,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem("ipannel.theme", theme.value);
+  }
 
   function applyTheme(t: ThemeKey) {
     let actual: "light" | "dark" = "light";
@@ -21,10 +177,33 @@ export const useSettingsStore = defineStore("settings", () => {
     document.documentElement.setAttribute("data-theme", actual);
   }
 
+  function applyTypography() {
+    const root = document.documentElement;
+    root.style.setProperty("--app-font-family", fontFamily.value);
+    root.style.setProperty("--app-font-size", `${fontSize.value}px`);
+    root.style.setProperty(
+      "--app-terminal-font-size",
+      `${terminalFontSize.value}px`
+    );
+    const termFont =
+      terminalFontFamily.value === "inherit"
+        ? fontFamily.value
+        : terminalFontFamily.value;
+    root.style.setProperty("--app-terminal-font-family", termFont);
+    // 同步 body / #app（index.scss 会引用变量）
+    document.body.style.fontFamily = fontFamily.value;
+    document.body.style.fontSize = `${fontSize.value}px`;
+  }
+
+  function applyAll() {
+    applyTheme(theme.value);
+    applyTypography();
+  }
+
   function setTheme(t: ThemeKey) {
     theme.value = t;
-    localStorage.setItem("ipannel.theme", t);
     applyTheme(t);
+    persist();
   }
 
   function cycleTheme() {
@@ -33,7 +212,42 @@ export const useSettingsStore = defineStore("settings", () => {
     setTheme(order[(i + 1) % order.length]);
   }
 
-  applyTheme(theme.value);
+  function setFontFamily(v: string) {
+    fontFamily.value = v;
+    applyTypography();
+    persist();
+  }
+
+  function setFontSize(v: number) {
+    fontSize.value = clamp(v, 11, 20);
+    applyTypography();
+    persist();
+  }
+
+  function setTerminalFontSize(v: number) {
+    terminalFontSize.value = clamp(v, 10, 22);
+    applyTypography();
+    persist();
+  }
+
+  function setTerminalFontFamily(v: string) {
+    terminalFontFamily.value = v;
+    applyTypography();
+    persist();
+  }
+
+  function resetSettings() {
+    theme.value = DEFAULTS.theme;
+    fontFamily.value = DEFAULTS.fontFamily;
+    fontSize.value = DEFAULTS.fontSize;
+    terminalFontSize.value = DEFAULTS.terminalFontSize;
+    terminalFontFamily.value = DEFAULTS.terminalFontFamily;
+    applyAll();
+    persist();
+  }
+
+  // 启动时应用
+  applyAll();
 
   if (typeof window !== "undefined") {
     window
@@ -45,5 +259,19 @@ export const useSettingsStore = defineStore("settings", () => {
 
   watch(theme, (t) => applyTheme(t));
 
-  return { theme, setTheme, cycleTheme };
+  return {
+    theme,
+    fontFamily,
+    fontSize,
+    terminalFontSize,
+    terminalFontFamily,
+    setTheme,
+    cycleTheme,
+    setFontFamily,
+    setFontSize,
+    setTerminalFontSize,
+    setTerminalFontFamily,
+    resetSettings,
+    applyAll,
+  };
 });

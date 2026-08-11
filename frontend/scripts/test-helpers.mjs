@@ -1,0 +1,79 @@
+/**
+ * 对 shipped 纯函数做冒烟单测（直接读编译后的逻辑：用 node 解析 TS 不现实时，
+ * 改为动态 import vite-node 不可用则内嵌读源并 eval 不允许 —— 这里用 esbuild-register 的替代：
+ * 用简单 re-export 的 .mjs 包装器调用 TS 编译产物。
+ *
+ * 实际：用 Node 直接加载同逻辑的 TS 源文件经 esbuild sync transform。
+ */
+import { createRequire } from "module";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+import { transformSync } from "esbuild";
+import assert from "assert";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = join(__dirname, "..");
+const src = join(root, "src/utils/format.ts");
+const code = readFileSync(src, "utf8");
+const out = transformSync(code, {
+  loader: "ts",
+  format: "cjs",
+  target: "node18",
+}).code;
+
+const tmpDir = join(root, "node_modules/.cache/ipannel-tests");
+mkdirSync(tmpDir, { recursive: true });
+const tmpFile = join(tmpDir, "format.cjs");
+writeFileSync(tmpFile, out);
+
+const require = createRequire(import.meta.url);
+const mod = require(tmpFile);
+
+const {
+  modeToOctal,
+  breadcrumbParts,
+  breadcrumbPath,
+  parentDir,
+  formatBytes,
+  formatDuration,
+  detectLineEnding,
+  detectTextEncoding,
+  splitTextLines,
+} = mod;
+
+// modeToOctal
+assert.strictEqual(modeToOctal("drwxr-xr-x"), "0755");
+assert.strictEqual(modeToOctal("-rw-r--r--"), "0644");
+assert.strictEqual(modeToOctal("-rwxr-xr-x"), "0755");
+assert.strictEqual(modeToOctal(""), "");
+
+// breadcrumb
+assert.deepStrictEqual(breadcrumbParts("/"), ["/"]);
+assert.deepStrictEqual(breadcrumbParts("/home/debian"), ["/", "home", "debian"]);
+assert.strictEqual(breadcrumbPath(["/", "home", "debian"], 0), "/");
+assert.strictEqual(breadcrumbPath(["/", "home", "debian"], 2), "/home/debian");
+
+// parentDir
+assert.strictEqual(parentDir("/"), "/");
+assert.strictEqual(parentDir("/home"), "/");
+assert.strictEqual(parentDir("/home/debian"), "/home");
+
+// formatBytes / duration
+assert.strictEqual(formatBytes(0), "0 B");
+assert.match(formatBytes(1024), /KB/);
+assert.strictEqual(formatDuration(30), "30s");
+assert.match(formatDuration(120), /m/);
+
+// line ending / encoding / split
+assert.strictEqual(detectLineEnding("a\nb\nc"), "LF");
+assert.strictEqual(detectLineEnding("a\r\nb\r\nc"), "CRLF");
+assert.strictEqual(detectLineEnding("a\rb\rc"), "CR");
+assert.strictEqual(detectLineEnding("a\r\nb\nc"), "Mixed");
+assert.strictEqual(detectLineEnding(""), "—");
+assert.strictEqual(detectTextEncoding("hello"), "UTF-8");
+assert.strictEqual(detectTextEncoding("\uFEFFhello"), "UTF-8 BOM");
+assert.deepStrictEqual(splitTextLines("a\nb"), ["a", "b"]);
+assert.deepStrictEqual(splitTextLines("a\r\nb\r\n"), ["a", "b", ""]);
+
+console.log("OK: format helpers unit tests passed");

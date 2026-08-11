@@ -12,6 +12,7 @@ import {
   CollectPackages,
   CollectCrons,
   CollectJava,
+  CollectNetwork,
   AddHost,
   AssignHost,
   AuthenticateMacUser,
@@ -20,8 +21,10 @@ import {
   CloseTerminal,
   CopySSHID,
   DeleteGroup,
+  DeleteHost,
   DockerAction,
   GetCurrentMacUser,
+  GetHomeDir,
   KillProcess,
   ListDir,
   ListGroups,
@@ -31,16 +34,19 @@ import {
   ListOneGroupOverview,
   LogoutMacUser,
   OpenTerminal,
+  NormalizeFileToLinux,
+  ReadFilePreview,
   ReadFileText,
   RenameGroup,
   RenameHost,
   ResizeTerminal,
   TestConnection,
+  UpdateHost,
   UploadFile,
   UpsertGroup,
   WriteTerminal,
 } from "@wailsjs/go/main/App";
-import type { groups, main, monitor, sshconfig } from "@wailsjs/go/models";
+import type { filetext, groups, main, monitor, sshconfig } from "@wailsjs/go/models";
 
 export interface MacUserInfo {
   username: string;
@@ -69,6 +75,8 @@ export const api = {
   testConnection: (input: main.AddHostInput): Promise<string> =>
     TestConnection(input),
   renameHost: (oldName: string, newName: string) => RenameHost(oldName, newName),
+  updateHost: (input: main.UpdateHostInput) => UpdateHost(input),
+  deleteHost: (name: string) => DeleteHost(name),
 
   listGroups: (): Promise<groups.Group[]> => ListGroups(),
   upsertGroup: (g: groups.Group) => UpsertGroup(g),
@@ -85,6 +93,7 @@ export const api = {
   collectProcesses: (host: string, limit: number) =>
     CollectProcesses(host, limit),
   collectJava: (host: string) => CollectJava(host),
+  collectNetwork: (host: string) => CollectNetwork(host),
   collectDocker: (host: string) => CollectDocker(host),
   collectServices: (host: string) => CollectServices(host),
   collectCrons: (host: string) => CollectCrons(host),
@@ -95,7 +104,17 @@ export const api = {
   ): Promise<monitor.LargeFilesResult> => CollectLargestFiles(host, limit),
 
   listDir: (host: string, dir: string) => ListDir(host, dir),
+  /** 远程登录用户家目录（文件管理默认打开路径） */
+  getHomeDir: (host: string): Promise<string> => GetHomeDir(host),
   readFileText: (host: string, file: string) => ReadFileText(host, file),
+  /** 文本预览：含编码 / 换行检测 */
+  readFilePreview: (host: string, file: string): Promise<filetext.Preview> =>
+    ReadFilePreview(host, file),
+  /** 远程文本 → UTF-8 + LF（写前自动备份） */
+  normalizeFileToLinux: (
+    host: string,
+    file: string
+  ): Promise<filetext.Preview> => NormalizeFileToLinux(host, file),
   uploadFile: (host: string, localPath: string, remoteDir: string) =>
     UploadFile(host, localPath, remoteDir),
 
@@ -119,4 +138,4 @@ export const api = {
   copySSHID: (input: main.CopyIDInput) => CopySSHID(input),
 };
 
-export type { groups, main, monitor, sshconfig };
+export type { filetext, groups, main, monitor, sshconfig };

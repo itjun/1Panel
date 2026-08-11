@@ -43,6 +43,12 @@ npm run build   # 产出 dist/ 供 Wails 嵌入
 | 标签列 | ✅ |
 | 概览看板（环图+流量） | ✅ ECharts 对齐 1Panel |
 | 添加主机 | ✅ |
-| 进程 / Docker / 文件 / 终端等 | ⏳ 占位，可按业务优先级从 `frontend-react` 迁移 |
+| 终端 | ✅ `views/TerminalView.vue` + xterm.js |
+| 进程 | ✅ `views/ProcessesView.vue` |
+| Docker | ✅ `views/DockerView.vue` |
+| 文件 | ✅ `views/FilesView.vue`（左树 + 1Panel 风格表） |
+| 服务 | ✅ `views/ServicesView.vue` |
+| 定时任务 | ✅ `views/CronView.vue` |
+| 软件包 | ✅ `views/PackagesView.vue` |
 
 后端 Go / Wails 绑定不变，仍走 `wailsjs/go/main/App`。
