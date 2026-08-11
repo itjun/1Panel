@@ -137,7 +137,7 @@ func expandPath(p string) string {
 	return p
 }
 
-// gitHostPatterns 是常见 Git 托管服务的域名后缀
+// gitHostPatterns 是常见 Git 托管服务的域名
 // 命中任一即视为 Git 服务条目，默认在主机列表中隐藏
 var gitHostPatterns = []string{
 	"github.com",
@@ -147,25 +147,45 @@ var gitHostPatterns = []string{
 	"codeup.aliyun.com",
 	"gitcode.com",
 	"coding.net",
-	"git@code",
 	"ssh.github.com",
+}
+
+// gitHostAliases 常见 Host 别名（无域名时）
+var gitHostAliases = []string{
+	"github",
+	"gitee",
+	"gitlab",
+	"bitbucket",
 }
 
 // IsGitHost 判断一个 Host 条目是否是 Git 托管服务
 // 判定规则（满足任一）：
-//   - User == "git"（git 服务几乎都用 git 用户）
-//   - HostName 命中 gitHostPatterns 中任一后缀
+//   - User == "git"
+//   - HostName 或 Name 等于/后缀命中 git 域名
+//   - Name 恰好为 github / gitee / gitlab / bitbucket
 func IsGitHost(h HostConfig) bool {
-	if h.User == "git" {
+	if strings.EqualFold(strings.TrimSpace(h.User), "git") {
 		return true
 	}
-	host := strings.ToLower(h.HostName)
-	// 如果 HostName 为空，看 Name（有时直接把域名写在 Host 后面）
-	if host == "" {
-		host = strings.ToLower(h.Name)
+	if matchGitDomain(h.HostName) || matchGitDomain(h.Name) {
+		return true
+	}
+	name := strings.ToLower(strings.TrimSpace(h.Name))
+	for _, a := range gitHostAliases {
+		if name == a {
+			return true
+		}
+	}
+	return false
+}
+
+func matchGitDomain(s string) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" {
+		return false
 	}
 	for _, p := range gitHostPatterns {
-		if host == p || strings.HasSuffix(host, "."+p) {
+		if s == p || strings.HasSuffix(s, "."+p) {
 			return true
 		}
 	}
