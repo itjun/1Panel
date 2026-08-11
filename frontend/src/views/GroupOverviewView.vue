@@ -193,7 +193,7 @@
               <ListMetric
                 v-else
                 :percent="row.overview.cpuPercent || 0"
-                :alert="(row.overview.cpuPercent || 0) > THRESHOLDS.cpu"
+                :alert="(row.overview.cpuPercent || 0) >= THRESHOLDS.cpu"
                 :text="`${(row.overview.cpuPercent || 0).toFixed(1)}%`"
               />
             </template>
@@ -406,7 +406,8 @@ const props = defineProps<{
 const app = useAppStore();
 
 const THRESHOLDS = {
-  cpu: 80,
+  /** CPU ≥ 90% 才告警（原先 80% 过敏感） */
+  cpu: 90,
   mem: 85,
   disk: 90,
   loadRatio: 1.0,
@@ -626,7 +627,7 @@ function isHostAlert(h: HostSnap): boolean {
   if (h.error) return false;
   const ov = h.overview;
   if (!ov) return false;
-  if ((ov.cpuPercent || 0) > THRESHOLDS.cpu) return true;
+  if ((ov.cpuPercent || 0) >= THRESHOLDS.cpu) return true;
   if ((ov.memPercent || 0) > THRESHOLDS.mem) return true;
   if (diskPercent(h) > THRESHOLDS.disk) return true;
   if (isLoadAlert(h)) return true;
@@ -646,10 +647,10 @@ function collectHostAlerts(h: HostSnap): { key: string; line: string }[] {
   if (!ov) return [];
   const out: { key: string; line: string }[] = [];
   const cpu = ov.cpuPercent || 0;
-  if (cpu > THRESHOLDS.cpu) {
+  if (cpu >= THRESHOLDS.cpu) {
     out.push({
       key: `${h.name}|cpu`,
-      line: `「${h.name}」CPU ${cpu.toFixed(1)}% 超过 ${THRESHOLDS.cpu}%`,
+      line: `「${h.name}」CPU ${cpu.toFixed(1)}% ≥ ${THRESHOLDS.cpu}%`,
     });
   }
   const mem = ov.memPercent || 0;
@@ -1062,7 +1063,7 @@ const HostCardBody = defineComponent({
                 metricRow(
                   "CPU",
                   ov.cpuPercent || 0,
-                  (ov.cpuPercent || 0) > THRESHOLDS.cpu,
+                  (ov.cpuPercent || 0) >= THRESHOLDS.cpu,
                   `${(ov.cpuPercent || 0).toFixed(1)}%`
                 ),
                 metricRow(
