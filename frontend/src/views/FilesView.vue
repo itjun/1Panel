@@ -1,5 +1,12 @@
 <template>
-  <div class="file-management-page">
+  <div
+    class="file-management-page"
+    :class="{ 'is-dragover': dragOver }"
+    @dragenter.prevent="onDragEnter"
+    @dragover.prevent
+    @dragleave.prevent="onDragLeave"
+    @drop.prevent="onDropFallback"
+  >
     <!-- 路径 Tab（1Panel 风格 card tabs） -->
     <el-tabs
       v-model="activeTabId"
@@ -152,7 +159,13 @@
               <el-button plain :disabled="selects.length === 0">移动</el-button>
               <el-button plain :disabled="selects.length === 0">压缩</el-button>
               <el-button plain :disabled="selects.length === 0">权限</el-button>
-              <el-button plain :disabled="selects.length === 0">删除</el-button>
+              <el-button
+                plain
+                :disabled="selects.length === 0"
+                @click="onDeleteSelected"
+              >
+                删除
+              </el-button>
             </el-button-group>
           </div>
         </div>
@@ -375,11 +388,93 @@
       class="hidden-input"
       @change="onFilePicked"
     />
+
+    <!-- 拖拽上传遮罩 -->
+    <div v-if="dragOver" class="drop-overlay">
+      <el-icon class="drop-icon"><UploadFilled /></el-icon>
+      <div class="drop-text">松开以上传到当前目录</div>
+      <div class="drop-cwd">{{ cwd }}</div>
+    </div>
+
+    <!-- 编码检查弹窗：逐文件勾选 + 展开预览原始/转换后 -->
+    <el-dialog
+      v-model="encodeVisible"
+      title="检测到非标准 Linux 文本"
+      width="680px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <div class="encode-tip">
+        以下文件非 <b>UTF-8（无 BOM）+ LF</b>。勾选的文件上传时自动规范为标准格式，未勾选的原样上传。
+      </div>
+      <div class="encode-list">
+        <div v-for="item in encodeItems" :key="item.path" class="encode-item">
+          <div class="encode-head">
+            <el-checkbox
+              :model-value="encodeChecked.has(item.path)"
+              @change="(v: boolean) => toggleEncode(item.path, v)"
+            >
+              <span class="encode-name">{{ item.relPath }}</span>
+            </el-checkbox>
+            <span class="encode-badge">{{ item.encoding }} / {{ item.lineEnding }}</span>
+            <span class="encode-arrow">→</span>
+            <span class="encode-badge encode-badge--ok">UTF-8 / LF</span>
+            <el-button
+              link
+              type="primary"
+              size="small"
+              class="encode-preview-btn"
+              @click="toggleExpand(item.path)"
+            >
+              {{ encodeExpanded.has(item.path) ? "收起" : "预览" }}
+            </el-button>
+          </div>
+          <div v-if="encodeExpanded.has(item.path)" class="encode-preview">
+            <div class="encode-col">
+              <div class="encode-col-label">原始（{{ item.encoding }} / {{ item.lineEnding }}）</div>
+              <pre class="encode-pre">{{ item.content }}</pre>
+            </div>
+            <div class="encode-col">
+              <div class="encode-col-label">转换后（UTF-8 / LF）</div>
+              <pre class="encode-pre">{{ item.normalized }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="cancelEncode">取消</el-button>
+        <el-button @click="uploadAllRaw">全部原样上传</el-button>
+        <el-button type="primary" @click="uploadWithConvert">
+          上传（勾选转 UTF-8/LF）
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 上传进度 -->
+    <el-dialog
+      v-model="uploading"
+      title="正在上传"
+      width="440px"
+      :show-close="false"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      append-to-body
+      class="upload-progress-dialog"
+    >
+      <div class="upload-current">{{ uploadProg.current || "准备中…" }}</div>
+      <el-progress
+        :percentage="uploadPercent"
+        :status="uploadPercent >= 100 ? 'success' : undefined"
+      />
+      <div class="upload-bytes">
+        {{ formatBytes(uploadProg.uploaded) }} / {{ formatBytes(uploadProg.total) }}
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   ArrowDown,
   Back,
@@ -391,12 +486,14 @@ import {
   Search,
   Top,
   Upload,
+  UploadFilled,
 } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
-import type { filetext } from "@/api";
+import type { filetext, LocalTextCheck } from "@/api";
 import FileFolderIcon from "@/components/FileFolderIcon.vue";
 import { useAppStore } from "@/stores/app";
+import { EventsOff, EventsOn, OnFileDrop, OnFileDropOff } from "@wailsjs/runtime/runtime";
 import {
   formatBytes,
   modeToOctal,
@@ -467,6 +564,22 @@ const previewPath = ref("");
 const previewLoading = ref(false);
 const previewConverting = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+// ---- 拖拽上传 + 编码检查 + 进度 ----
+const dragOver = ref(false);
+let dragCounter = 0;
+let pendingPaths: string[] = []; // 拖入待上传的本地路径（文件/文件夹混合）
+const encodeVisible = ref(false);
+const encodeItems = ref<LocalTextCheck[]>([]);
+const encodeChecked = ref<Set<string>>(new Set()); // 勾选「转换」的文件路径
+const encodeExpanded = ref<Set<string>>(new Set()); // 展开预览的文件
+const uploading = ref(false);
+const uploadProg = ref({ uploaded: 0, total: 0, current: "" });
+const uploadPercent = computed(() => {
+  const t = uploadProg.value.total;
+  if (!t) return 0;
+  return Math.min(100, Math.round((uploadProg.value.uploaded / t) * 100));
+});
 
 const previewLines = computed(() => {
   if (!preview.value) return [];
@@ -623,6 +736,29 @@ function onSelectionChange(rows: FileEntry[]) {
   selects.value = rows;
 }
 
+async function onDeleteSelected() {
+  const rows = selects.value;
+  if (!rows.length) return;
+  const names = rows.map((r) => r.name).join("、");
+  try {
+    await ElMessageBox.confirm(
+      `确认删除以下 ${rows.length} 项？此操作不可恢复：\n${names}`,
+      "危险操作",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.deletePaths(props.host, rows.map((r) => r.path));
+    ElMessage.success(`已删除 ${rows.length} 项`);
+    selects.value = [];
+    reload();
+  } catch (e) {
+    ElMessage.error(`删除失败: ${e}`);
+  }
+}
+
 function onOpen(row: FileEntry) {
   if (row.isDir) jump(row.path);
   else void previewFile(row);
@@ -777,6 +913,104 @@ async function onFilePicked(ev: Event) {
   input.value = "";
 }
 
+// ---- 拖拽上传 ----
+function onDragEnter() {
+  dragCounter++;
+  dragOver.value = true;
+}
+function onDragLeave() {
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragOver.value = false;
+    dragCounter = 0;
+  }
+}
+// drop 兜底：无论 Wails OnFileDrop 是否回调，webview 的 drop 触发时先复位遮罩，
+// 避免拖放后 dragCounter 失衡或回调未触发导致遮罩卡死
+function onDropFallback() {
+  dragOver.value = false;
+  dragCounter = 0;
+}
+
+// Wails OnFileDrop 回调：拿到本地路径 → 先检测编码
+function handleFileDrop(_x: number, _y: number, paths: string[]) {
+  dragOver.value = false;
+  dragCounter = 0;
+  if (!paths?.length) return;
+  pendingPaths = paths;
+  void startEncodeCheck(paths);
+}
+
+async function startEncodeCheck(paths: string[]) {
+  try {
+    const items = await api.checkLocalPaths(paths);
+    if (items.length > 0) {
+      encodeItems.value = items;
+      encodeChecked.value = new Set(items.map((i) => i.path)); // 默认全选转换
+      encodeExpanded.value = new Set();
+      encodeVisible.value = true;
+    } else {
+      await doUpload([]); // 无非标准文件，直接上传
+    }
+  } catch (e) {
+    ElMessage.error(`编码检测失败: ${e}`);
+    await doUpload([]); // 检测失败仍允许原样上传
+  }
+}
+
+function toggleEncode(path: string, checked: boolean) {
+  const next = new Set(encodeChecked.value);
+  if (checked) next.add(path);
+  else next.delete(path);
+  encodeChecked.value = next;
+}
+function toggleExpand(path: string) {
+  const next = new Set(encodeExpanded.value);
+  if (next.has(path)) next.delete(path);
+  else next.add(path);
+  encodeExpanded.value = next;
+}
+function cancelEncode() {
+  encodeVisible.value = false;
+  pendingPaths = [];
+}
+function uploadAllRaw() {
+  encodeVisible.value = false;
+  void doUpload([]);
+}
+function uploadWithConvert() {
+  encodeVisible.value = false;
+  void doUpload(Array.from(encodeChecked.value));
+}
+
+async function doUpload(convertPaths: string[]) {
+  if (!pendingPaths.length) return;
+  uploading.value = true;
+  uploadProg.value = { uploaded: 0, total: 0, current: "" };
+  try {
+    await api.uploadPaths(props.host, pendingPaths, convertPaths, cwd.value);
+    ElMessage.success("上传完成");
+    reload();
+  } catch (e) {
+    ElMessage.error(`上传失败: ${e}`);
+  } finally {
+    uploading.value = false;
+    pendingPaths = [];
+  }
+}
+
+function onUploadProgress(ev: {
+  uploaded: number;
+  total: number;
+  current: string;
+}) {
+  uploadProg.value = {
+    uploaded: ev.uploaded || 0,
+    total: ev.total || 0,
+    current: ev.current || "",
+  };
+}
+
 async function resolveHomeDir(): Promise<string> {
   try {
     const h = await api.getHomeDir(props.host);
@@ -812,6 +1046,15 @@ watch(() => props.host, () => {
 });
 onMounted(() => {
   void resetHost();
+  // useDropTarget=false：不要求 drop 目标元素带 --wails-drop-target 样式，
+  // 文件管理整页均可接收拖放（否则 drop 落在无该样式的元素上会被 Wails 静默丢弃）
+  OnFileDrop(handleFileDrop, false);
+  EventsOn("upload:progress", onUploadProgress);
+});
+
+onBeforeUnmount(() => {
+  OnFileDropOff();
+  EventsOff("upload:progress");
 });
 </script>
 
@@ -823,6 +1066,125 @@ onMounted(() => {
   min-height: 0;
   gap: 0;
   background: transparent;
+  position: relative; /* 拖拽遮罩 absolute 定位基准 */
+}
+
+/* ---- 拖拽上传遮罩 ---- */
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(0, 94, 235, 0.12);
+  border: 2px dashed var(--el-color-primary);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.drop-icon {
+  font-size: 56px;
+  color: var(--el-color-primary);
+}
+.drop-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+.drop-cwd {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ---- 编码检查弹窗 ---- */
+.encode-tip {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  line-height: 1.6;
+}
+.encode-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.encode-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+.encode-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.encode-name {
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.encode-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-secondary);
+}
+.encode-badge--ok {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+.encode-arrow {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.encode-preview-btn {
+  margin-left: auto;
+}
+.encode-preview {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.encode-col {
+  flex: 1;
+  min-width: 0;
+}
+.encode-col-label {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
+}
+.encode-pre {
+  margin: 0;
+  padding: 8px;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ---- 上传进度弹窗 ---- */
+.upload-current {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  margin-bottom: 12px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-bytes {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  text-align: right;
 }
 
 /* ---- path tabs ---- */

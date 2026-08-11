@@ -183,6 +183,34 @@ export namespace main {
 		}
 	}
 	
+	export class LocalTextCheck {
+	    path: string;
+	    relPath: string;
+	    name: string;
+	    encoding: string;
+	    lineEnding: string;
+	    needsNormalize: boolean;
+	    content: string;
+	    normalized: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalTextCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.relPath = source["relPath"];
+	        this.name = source["name"];
+	        this.encoding = source["encoding"];
+	        this.lineEnding = source["lineEnding"];
+	        this.needsNormalize = source["needsNormalize"];
+	        this.content = source["content"];
+	        this.normalized = source["normalized"];
+	        this.size = source["size"];
+	    }
+	}
 	export class MacUserInfo {
 	    username: string;
 	    fullName: string;

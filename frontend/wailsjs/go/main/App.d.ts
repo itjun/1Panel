@@ -16,6 +16,8 @@ export function AuthenticateMacUser(arg1:string,arg2:string):Promise<main.AuthSt
 
 export function AuthenticateWithSystem():Promise<main.AuthState>;
 
+export function CheckLocalPaths(arg1:Array<string>):Promise<Array<main.LocalTextCheck>>;
+
 export function CloseTerminal(arg1:string):Promise<void>;
 
 export function CollectCrons(arg1:string):Promise<Array<monitor.Cron>>;
@@ -43,6 +45,8 @@ export function CopySSHID(arg1:main.CopyIDInput):Promise<string>;
 export function DeleteGroup(arg1:string):Promise<void>;
 
 export function DeleteHost(arg1:string):Promise<void>;
+
+export function DeletePaths(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function DockerAction(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -84,7 +88,11 @@ export function TestConnection(arg1:main.AddHostInput):Promise<string>;
 
 export function UpdateHost(arg1:main.UpdateHostInput):Promise<void>;
 
-export function UploadFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+export function UploadDir(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
+
+export function UploadFile(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
+
+export function UploadPaths(arg1:string,arg2:Array<string>,arg3:Array<string>,arg4:string):Promise<void>;
 
 export function UpsertGroup(arg1:groups.Group):Promise<void>;
 

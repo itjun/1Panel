@@ -59,6 +59,35 @@ export interface AuthState {
   username: string;
 }
 
+/** 本地文件编码检测结果（对应后端 main.LocalTextCheck）*/
+export interface LocalTextCheck {
+  path: string;
+  relPath: string;
+  name: string;
+  encoding: string;
+  lineEnding: string;
+  needsNormalize: boolean;
+  content: string;
+  normalized: string;
+  size: number;
+}
+
+// vue-tsc 对 wails 生成的新增绑定（UploadDir/UploadPaths/CheckLocalPaths）类型解析异常，
+// 这里直接走运行时 window 注入调用，绕过 .d.ts 解析问题。
+function wailsMain<T>(method: string, ...args: unknown[]): Promise<T> {
+  const fn = (
+    window as unknown as {
+      go?: {
+        main?: { App?: Record<string, (...a: unknown[]) => unknown> };
+      };
+    }
+  ).go?.main?.App?.[method];
+  if (typeof fn !== "function") {
+    return Promise.reject(new Error(`后端方法未就绪: ${method}`));
+  }
+  return fn(...args) as Promise<T>;
+}
+
 export const api = {
   // 本机门禁：macOS LocalAuthentication 系统面板
   getCurrentMacUser: (): Promise<MacUserInfo> => GetCurrentMacUser(),
@@ -115,8 +144,39 @@ export const api = {
     host: string,
     file: string
   ): Promise<filetext.Preview> => NormalizeFileToLinux(host, file),
-  uploadFile: (host: string, localPath: string, remoteDir: string) =>
-    UploadFile(host, localPath, remoteDir),
+  uploadFile: (
+    host: string,
+    localPath: string,
+    remoteDir: string,
+    normalize = false
+  ) => UploadFile(host, localPath, remoteDir, normalize),
+  /** 递归上传文件夹，保留目录结构；normalize=true 时文本文件转 UTF-8+LF */
+  uploadDir: (
+    host: string,
+    localDir: string,
+    remoteDir: string,
+    normalize = false
+  ) => wailsMain<string>("UploadDir", host, localDir, remoteDir, normalize),
+  /** 拖拽批量上传：localPaths 文件/文件夹混合；convertPaths 命中的文件转 UTF-8+LF */
+  uploadPaths: (
+    host: string,
+    localPaths: string[],
+    convertPaths: string[],
+    remoteDir: string
+  ) =>
+    wailsMain<void>(
+      "UploadPaths",
+      host,
+      localPaths,
+      convertPaths,
+      remoteDir
+    ),
+  /** 上传前检测本地路径（文件/文件夹），返回所有「非标准文本」文件清单 */
+  checkLocalPaths: (localPaths: string[]): Promise<LocalTextCheck[]> =>
+    wailsMain<LocalTextCheck[]>("CheckLocalPaths", localPaths),
+  /** 删除远程文件/目录（递归，不可恢复） */
+  deletePaths: (host: string, paths: string[]) =>
+    wailsMain<string>("DeletePaths", host, paths),
 
   killProcess: (host: string, pid: number, force: boolean) =>
     KillProcess(host, pid, force),

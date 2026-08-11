@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -147,4 +148,91 @@ func writeRemoteFileWithBackup(mgr *sshd.Manager, host string, opt sshd.ConnectO
 		return fmt.Errorf("写入失败: %w", err)
 	}
 	return nil
+}
+
+// ============ 上传前本地编码检测 ============
+
+const localCheckMaxBytes = 8 * 1024 * 1024 // 超过 8MB 不检测（大文件通常非脚本，避免内存压力）
+const localPreviewRunes = 400              // 预览片段字符数（弹窗展开预览用）
+
+// LocalTextCheck 单个本地文件的编码检测结果（上传前编码检查弹窗用）
+type LocalTextCheck struct {
+	Path           string `json:"path"`
+	RelPath        string `json:"relPath"`        // 相对路径（文件夹上传时展示层级）
+	Name           string `json:"name"`
+	Encoding       string `json:"encoding"`       // UTF-8 / GBK / GB18030 / UTF-16LE …
+	LineEnding     string `json:"lineEnding"`     // LF / CRLF / CR / Mixed
+	NeedsNormalize bool   `json:"needsNormalize"` // 非 Linux 标准（非 UTF-8 无 BOM + LF）
+	Content        string `json:"content"`        // 原始解码后片段（弹窗预览）
+	Normalized     string `json:"normalized"`     // NormalizeLinux 后片段（弹窗预览对比）
+	Size           int64  `json:"size"`
+}
+
+// CheckLocalPaths 检测本地路径（文件/文件夹混合），返回所有「非 Linux 标准」的文本文件清单
+// 二进制 / 标准 UTF-8+LF / 超大文件 均跳过（不需用户决策）
+func (a *App) CheckLocalPaths(localPaths []string) ([]LocalTextCheck, error) {
+	out := make([]LocalTextCheck, 0)
+	for _, p := range localPaths {
+		info, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		if info.IsDir() {
+			_ = filepath.Walk(p, func(fp string, fi os.FileInfo, err error) error {
+				if err != nil || fi.IsDir() {
+					return nil
+				}
+				rel, _ := filepath.Rel(p, fp)
+				if c, ok := checkOneLocalFile(fp, rel); ok {
+					out = append(out, c)
+				}
+				return nil
+			})
+		} else if c, ok := checkOneLocalFile(p, filepath.Base(p)); ok {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+// checkOneLocalFile 检测单个本地文件；仅在「文本且非标准」时返回结果
+func checkOneLocalFile(fp, rel string) (LocalTextCheck, bool) {
+	info, err := os.Stat(fp)
+	if err != nil || info.Size() == 0 || info.Size() > localCheckMaxBytes {
+		return LocalTextCheck{}, false
+	}
+	raw, err := os.ReadFile(fp)
+	if err != nil {
+		return LocalTextCheck{}, false
+	}
+	if !filetext.IsLikelyText(raw) {
+		return LocalTextCheck{}, false // 二进制，跳过
+	}
+	text, enc, err := filetext.DecodeToUTF8(raw)
+	if err != nil {
+		return LocalTextCheck{}, false
+	}
+	le := filetext.DetectLineEnding(raw)
+	if !filetext.NeedsNormalize(enc, le) {
+		return LocalTextCheck{}, false // 标准 UTF-8+LF，跳过
+	}
+	return LocalTextCheck{
+		Path:           fp,
+		RelPath:        rel,
+		Name:           filepath.Base(fp),
+		Encoding:       enc,
+		LineEnding:     le,
+		NeedsNormalize: true,
+		Content:        truncateRunes(text, localPreviewRunes),
+		Normalized:     truncateRunes(filetext.NormalizeLinux(text), localPreviewRunes),
+		Size:           info.Size(),
+	}, true
+}
+
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }

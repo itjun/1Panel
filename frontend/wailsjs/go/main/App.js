@@ -22,6 +22,10 @@ export function AuthenticateWithSystem() {
   return window['go']['main']['App']['AuthenticateWithSystem']();
 }
 
+export function CheckLocalPaths(arg1) {
+  return window['go']['main']['App']['CheckLocalPaths'](arg1);
+}
+
 export function CloseTerminal(arg1) {
   return window['go']['main']['App']['CloseTerminal'](arg1);
 }
@@ -76,6 +80,10 @@ export function DeleteGroup(arg1) {
 
 export function DeleteHost(arg1) {
   return window['go']['main']['App']['DeleteHost'](arg1);
+}
+
+export function DeletePaths(arg1, arg2) {
+  return window['go']['main']['App']['DeletePaths'](arg1, arg2);
 }
 
 export function DockerAction(arg1, arg2, arg3) {
@@ -158,8 +166,16 @@ export function UpdateHost(arg1) {
   return window['go']['main']['App']['UpdateHost'](arg1);
 }
 
-export function UploadFile(arg1, arg2, arg3) {
-  return window['go']['main']['App']['UploadFile'](arg1, arg2, arg3);
+export function UploadDir(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UploadDir'](arg1, arg2, arg3, arg4);
+}
+
+export function UploadFile(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UploadFile'](arg1, arg2, arg3, arg4);
+}
+
+export function UploadPaths(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UploadPaths'](arg1, arg2, arg3, arg4);
 }
 
 export function UpsertGroup(arg1) {

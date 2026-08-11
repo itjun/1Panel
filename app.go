@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -458,6 +459,46 @@ func (a *App) ReadFileText(host, file string) (string, error) {
 		return "", err
 	}
 	return a.collector.ReadFileText(host, opt, file, 512*1024)
+}
+
+// DeletePaths 删除远程主机上的多个文件或目录（递归，不可恢复）
+// 路径必须是绝对路径；系统根目录（/、/etc、/usr 等）禁止删除
+func (a *App) DeletePaths(host string, paths []string) (string, error) {
+	if len(paths) == 0 {
+		return "", fmt.Errorf("未选择任何文件")
+	}
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return "", err
+	}
+	// 系统根目录黑名单：禁止删除这些目录本身（其下的子目录可正常删）
+	systemRoots := map[string]bool{
+		"/": true, "/bin": true, "/boot": true, "/dev": true,
+		"/etc": true, "/home": true, "/lib": true, "/lib64": true,
+		"/opt": true, "/proc": true, "/root": true, "/sbin": true,
+		"/sys": true, "/usr": true, "/var": true,
+	}
+	args := make([]string, 0, len(paths))
+	for _, p := range paths {
+		c := path.Clean(p)
+		if !strings.HasPrefix(c, "/") {
+			return "", fmt.Errorf("路径必须为绝对路径: %s", p)
+		}
+		// 单引号包裹防 shell 注入；含单引号的路径直接拒绝
+		if strings.Contains(c, "'") {
+			return "", fmt.Errorf("路径含非法字符: %s", p)
+		}
+		if systemRoots[c] {
+			return "", fmt.Errorf("禁止删除系统目录: %s", c)
+		}
+		args = append(args, "'"+c+"'")
+	}
+	cmd := "rm -rf " + strings.Join(args, " ")
+	out, err := a.sshMgr.Run(host, opt, cmd)
+	if err != nil {
+		return string(out), fmt.Errorf("删除失败: %w", err)
+	}
+	return string(out), nil
 }
 
 // KillProcess 在远程主机上杀掉指定 PID

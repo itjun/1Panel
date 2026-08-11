@@ -179,3 +179,14 @@ func BuildPreview(path, name string, raw []byte) (Preview, error) {
 		Size:           len(raw),
 	}, nil
 }
+
+// IsLikelyText 粗判是否为文本文件：字节序列不含 NUL 视为文本。
+// 二进制文件几乎都含 NUL（如图片/压缩包/可执行），文本文件极少含。
+func IsLikelyText(raw []byte) bool {
+	for _, b := range raw {
+		if b == 0 {
+			return false
+		}
+	}
+	return true
+}
