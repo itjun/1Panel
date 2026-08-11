@@ -1,16 +1,30 @@
 <template>
-  <div v-loading="loading && !overview" class="overview-page">
+  <div ref="pageRef" v-loading="loading && !overview" class="overview-page">
     <el-alert v-if="error && !overview" type="error" :title="error" show-icon />
     <template v-if="overview">
       <el-row :gutter="7">
         <!-- 左栏 16 -->
         <el-col :xs="24" :md="16">
-          <el-card shadow="never" class="home-card">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card"
+            :class="{ 'is-enlarged': enlargedKey === 'overview' }"
+            :style="enlargedKey === 'overview' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('overview')">
               <span class="panel-section-title">概览</span>
-              <el-button link type="primary" :icon="Refresh" @click="refreshAll">
-                刷新
-              </el-button>
+              <div class="card-actions">
+                <el-button link type="primary" :icon="Refresh" @click="refreshAll">
+                  刷新
+                </el-button>
+                <el-button
+                  link
+                  class="enlarge-btn"
+                  :icon="enlargedKey === 'overview' ? Close : FullScreen"
+                  :title="enlargedKey === 'overview' ? '退出放大' : '放大'"
+                  @click="toggleEnlarge('overview')"
+                />
+              </div>
             </div>
             <el-row :gutter="12">
               <el-col :span="6" v-for="s in stats" :key="s.label">
@@ -22,9 +36,21 @@
             </el-row>
           </el-card>
 
-          <el-card shadow="never" class="home-card card-interval">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card card-interval"
+            :class="{ 'is-enlarged': enlargedKey === 'status' }"
+            :style="enlargedKey === 'status' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('status')">
               <span class="panel-section-title">状态</span>
+              <el-button
+                link
+                class="enlarge-btn"
+                :icon="enlargedKey === 'status' ? Close : FullScreen"
+                :title="enlargedKey === 'status' ? '退出放大' : '放大'"
+                @click="toggleEnlarge('status')"
+              />
             </div>
             <el-row :gutter="8">
               <el-col :span="6" align="center">
@@ -70,9 +96,21 @@
             </el-row>
           </el-card>
 
-          <el-card shadow="never" class="home-card card-interval">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card card-interval"
+            :class="{ 'is-enlarged': enlargedKey === 'monitor' }"
+            :style="enlargedKey === 'monitor' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('monitor')">
               <span class="panel-section-title">监控</span>
+              <el-button
+                link
+                class="enlarge-btn"
+                :icon="enlargedKey === 'monitor' ? Close : FullScreen"
+                :title="enlargedKey === 'monitor' ? '退出放大' : '放大'"
+                @click="toggleEnlarge('monitor')"
+              />
             </div>
             <div class="monitor-tags">
               <el-tag type="primary" effect="light">
@@ -117,10 +155,24 @@
             <VChartLine height="280px" :option="lineOption" />
           </el-card>
 
-          <el-card shadow="never" class="home-card card-interval">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card card-interval"
+            :class="{ 'is-enlarged': enlargedKey === 'disks' }"
+            :style="enlargedKey === 'disks' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('disks')">
               <span class="panel-section-title">磁盘</span>
-              <el-button link type="primary" @click="loadDisks">刷新</el-button>
+              <div class="card-actions">
+                <el-button link type="primary" @click="loadDisks">刷新</el-button>
+                <el-button
+                  link
+                  class="enlarge-btn"
+                  :icon="enlargedKey === 'disks' ? Close : FullScreen"
+                  :title="enlargedKey === 'disks' ? '退出放大' : '放大'"
+                  @click="toggleEnlarge('disks')"
+                />
+              </div>
             </div>
             <div v-if="!disks?.length" class="empty-tip">暂无磁盘数据</div>
             <div v-for="d in disks" :key="d.mount" class="disk-row">
@@ -140,9 +192,21 @@
 
         <!-- 右栏 8 -->
         <el-col :xs="24" :md="8">
-          <el-card shadow="never" class="home-card">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card"
+            :class="{ 'is-enlarged': enlargedKey === 'sysinfo' }"
+            :style="enlargedKey === 'sysinfo' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('sysinfo')">
               <span class="panel-section-title">系统信息</span>
+              <el-button
+                link
+                class="enlarge-btn"
+                :icon="enlargedKey === 'sysinfo' ? Close : FullScreen"
+                :title="enlargedKey === 'sysinfo' ? '退出放大' : '放大'"
+                @click="toggleEnlarge('sysinfo')"
+              />
             </div>
             <el-descriptions :column="1" border size="small" class="sys-desc">
               <el-descriptions-item label="主机名称">
@@ -169,17 +233,31 @@
             </el-descriptions>
           </el-card>
 
-          <el-card shadow="never" class="home-card card-interval">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card card-interval"
+            :class="{ 'is-enlarged': enlargedKey === 'memo' }"
+            :style="enlargedKey === 'memo' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('memo')">
               <span class="panel-section-title">备忘录</span>
-              <el-button
-                link
-                type="primary"
-                :icon="memoEditing ? Check : Edit"
-                @click="toggleMemo"
-              >
-                {{ memoEditing ? "保存" : "编辑" }}
-              </el-button>
+              <div class="card-actions">
+                <el-button
+                  link
+                  type="primary"
+                  :icon="memoEditing ? Check : Edit"
+                  @click="toggleMemo"
+                >
+                  {{ memoEditing ? "保存" : "编辑" }}
+                </el-button>
+                <el-button
+                  link
+                  class="enlarge-btn"
+                  :icon="enlargedKey === 'memo' ? Close : FullScreen"
+                  :title="enlargedKey === 'memo' ? '退出放大' : '放大'"
+                  @click="toggleEnlarge('memo')"
+                />
+              </div>
             </div>
             <el-input
               v-if="memoEditing"
@@ -194,82 +272,115 @@
           </el-card>
 
           <!-- 应用：先 Java，再 Docker -->
-          <el-card shadow="never" class="home-card card-interval">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card card-interval"
+            :class="{ 'is-enlarged': enlargedKey === 'java' }"
+            :style="enlargedKey === 'java' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('java')">
               <span class="panel-section-title">应用</span>
-              <span class="hint">Java · {{ javaList.length }}</span>
-            </div>
-            <div v-if="appsLoading" class="empty-tip">加载中…</div>
-            <div v-else-if="!javaList.length" class="empty-tip">暂无 Java 进程</div>
-            <div
-              v-for="p in javaList.slice(0, 12)"
-              :key="'j-' + p.pid"
-              class="app-row"
-            >
-              <div class="app-meta">
-                <div class="app-name" :title="p.cmd">
-                  {{ javaAppTitle(p.cmd) }}
-                </div>
-                <div class="app-img">
-                  PID {{ p.pid }} · CPU {{ (p.cpu || 0).toFixed(1) }}% ·
-                  {{ formatBytes(Number(p.rss) || 0) }}
-                </div>
+              <div class="card-actions">
+                <span class="hint">Java · {{ javaList.length }}</span>
+                <el-button
+                  link
+                  class="enlarge-btn"
+                  :icon="enlargedKey === 'java' ? Close : FullScreen"
+                  :title="enlargedKey === 'java' ? '退出放大' : '放大'"
+                  @click="toggleEnlarge('java')"
+                />
               </div>
-              <el-tag size="small" type="warning">Java</el-tag>
             </div>
-            <div v-if="javaList.length > 12" class="app-more">
-              另有 {{ javaList.length - 12 }} 个进程未展示
+            <div class="app-scroll">
+              <div v-if="appsLoading" class="empty-tip">加载中…</div>
+              <div v-else-if="!javaList.length" class="empty-tip">暂无 Java 进程</div>
+              <div
+                v-for="p in javaList"
+                :key="'j-' + p.pid"
+                class="app-row"
+              >
+                <div class="app-meta">
+                  <div class="app-name" :title="p.cmd">
+                    {{ javaAppTitle(p.cmd) }}
+                  </div>
+                  <div class="app-img">
+                    PID {{ p.pid }} · CPU {{ (p.cpu || 0).toFixed(1) }}% ·
+                    {{ formatBytes(Number(p.rss) || 0) }}
+                  </div>
+                </div>
+                <el-tag size="small" type="warning">Java</el-tag>
+              </div>
             </div>
           </el-card>
 
-          <el-card shadow="never" class="home-card card-interval">
-            <div class="card-header">
+          <el-card
+            shadow="never"
+            class="home-card card-interval"
+            :class="{ 'is-enlarged': enlargedKey === 'docker' }"
+            :style="enlargedKey === 'docker' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('docker')">
               <span class="panel-section-title">应用</span>
-              <span class="hint">
-                Docker ·
-                {{ docker?.available ? dockerList.length : "—" }}
-              </span>
-            </div>
-            <div v-if="appsLoading" class="empty-tip">加载中…</div>
-            <div v-else-if="!docker?.available" class="empty-tip">
-              未检测到 Docker
-            </div>
-            <div v-else-if="!dockerList.length" class="empty-tip">
-              暂无容器
-            </div>
-            <div
-              v-for="c in dockerList.slice(0, 12)"
-              :key="c.id || c.name"
-              class="app-row"
-            >
-              <div class="app-meta">
-                <div class="app-name">{{ c.name || c.id }}</div>
-                <div class="app-img">{{ c.image || c.status }}</div>
+              <div class="card-actions">
+                <span class="hint">
+                  Docker ·
+                  {{ docker?.available ? dockerList.length : "—" }}
+                </span>
+                <el-button
+                  link
+                  class="enlarge-btn"
+                  :icon="enlargedKey === 'docker' ? Close : FullScreen"
+                  :title="enlargedKey === 'docker' ? '退出放大' : '放大'"
+                  @click="toggleEnlarge('docker')"
+                />
               </div>
-              <el-tag
-                size="small"
-                :type="
-                  (c.state || '').toLowerCase() === 'running'
-                    ? 'success'
-                    : 'info'
-                "
-              >
-                {{ c.state || "—" }}
-              </el-tag>
             </div>
-            <div v-if="dockerList.length > 12" class="app-more">
-              另有 {{ dockerList.length - 12 }} 个容器未展示
+            <div class="app-scroll">
+              <div v-if="appsLoading" class="empty-tip">加载中…</div>
+              <div v-else-if="!docker?.available" class="empty-tip">
+                未检测到 Docker
+              </div>
+              <div v-else-if="!dockerList.length" class="empty-tip">
+                暂无容器
+              </div>
+              <div
+                v-for="c in dockerList"
+                :key="c.id || c.name"
+                class="app-row"
+              >
+                <div class="app-meta">
+                  <div class="app-name">{{ c.name || c.id }}</div>
+                  <div class="app-img">{{ c.image || c.status }}</div>
+                </div>
+                <el-tag
+                  size="small"
+                  :type="
+                    (c.state || '').toLowerCase() === 'running'
+                      ? 'success'
+                      : 'info'
+                  "
+                >
+                  {{ c.state || "—" }}
+                </el-tag>
+              </div>
             </div>
           </el-card>
         </el-col>
       </el-row>
     </template>
+
+    <div
+      v-if="enlargedKey"
+      class="enlarge-mask"
+      :style="enlargeStyle"
+      @click="closeEnlarge"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Check, Edit, Refresh } from "@element-plus/icons-vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Check, Close, Edit, FullScreen, Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { monitor } from "@/api";
 import {
@@ -506,10 +617,61 @@ function resetHostState() {
   loadMemo();
 }
 
+// ---------- 卡片放大（铺满主内容区，侧栏/标签栏保留） ----------
+const pageRef = ref<HTMLElement | null>(null);
+const enlargedKey = ref<string | null>(null);
+const enlargeRect = ref({ top: 0, left: 0, width: 0, height: 0 });
+
+const enlargeStyle = computed(() => ({
+  top: `${enlargeRect.value.top}px`,
+  left: `${enlargeRect.value.left}px`,
+  width: `${enlargeRect.value.width}px`,
+  height: `${enlargeRect.value.height}px`,
+}));
+
+// 取主内容区 .content-pad 的视口坐标，放大卡片据此 fixed 铺满
+function updateEnlargeRect() {
+  const pad = pageRef.value?.closest(".content-pad") as HTMLElement | null;
+  if (!pad) return;
+  const r = pad.getBoundingClientRect();
+  enlargeRect.value = {
+    top: r.top,
+    left: r.left,
+    width: r.width,
+    height: r.height,
+  };
+}
+
+function openEnlarge(key: string) {
+  updateEnlargeRect();
+  enlargedKey.value = key;
+  // 容器尺寸变化后通知 ECharts resize
+  nextTick(() => window.dispatchEvent(new Event("resize")));
+}
+
+function closeEnlarge() {
+  enlargedKey.value = null;
+  nextTick(() => window.dispatchEvent(new Event("resize")));
+}
+
+function toggleEnlarge(key: string) {
+  if (enlargedKey.value === key) closeEnlarge();
+  else openEnlarge(key);
+}
+
+function onEnlargeKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && enlargedKey.value) closeEnlarge();
+}
+
+function onEnlargeWinResize() {
+  if (enlargedKey.value) updateEnlargeRect();
+}
+
 watch(
   () => props.host,
   async () => {
     resetHostState();
+    enlargedKey.value = null;
     loading.value = true;
     await refreshAll();
     loading.value = false;
@@ -522,10 +684,14 @@ onMounted(async () => {
   await refreshAll();
   loading.value = false;
   timer = window.setInterval(loadOverview, 3000);
+  window.addEventListener("keydown", onEnlargeKeydown);
+  window.addEventListener("resize", onEnlargeWinResize);
 });
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
+  window.removeEventListener("keydown", onEnlargeKeydown);
+  window.removeEventListener("resize", onEnlargeWinResize);
 });
 </script>
 
@@ -566,11 +732,47 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
   }
 }
+/* 放大态：卡片提升铺满主内容区，内部列表撑满滚动 */
+.home-card.is-enlarged {
+  position: fixed;
+  z-index: 2001;
+  max-width: none;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  :deep(.el-card__body) {
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .app-scroll {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+.enlarge-mask {
+  position: fixed;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.5);
+}
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.enlarge-btn {
+  color: var(--el-text-color-secondary);
+  &:hover {
+    color: var(--el-color-primary);
+  }
 }
 .stat-cell {
   text-align: center;
@@ -625,6 +827,10 @@ onBeforeUnmount(() => {
   font-size: 13px;
   color: var(--el-text-color-regular);
   white-space: pre-wrap;
+}
+.app-scroll {
+  max-height: 300px;
+  overflow-y: auto;
 }
 .app-row {
   display: flex;

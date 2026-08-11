@@ -14,7 +14,7 @@
         <div class="summary-left">
           <span class="panel-section-title">主机监控</span>
           <span class="meta">共 {{ hosts.length }} 台</span>
-          <el-tag size="small" type="success" effect="plain">
+          <el-tag size="small" type="success" effect="dark">
             正常 {{ okCount }}
           </el-tag>
           <el-tag
@@ -29,7 +29,7 @@
             v-if="errCount > 0"
             size="small"
             type="danger"
-            effect="plain"
+            effect="dark"
           >
             失败 {{ errCount }}
           </el-tag>
@@ -971,7 +971,7 @@ function startPoll() {
 }
 
 async function loadQuiet() {
-  if (!props.groupId || document.hidden) return;
+  if (!props.groupId) return;
   const my = ++seq;
   try {
     const data = (await api.listOneGroupOverview(props.groupId)) as GroupSnap;

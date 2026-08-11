@@ -7,9 +7,22 @@
       <div class="left no-drag">
         <el-button
           text
-          :icon="sidebarOpen ? Fold : Expand"
+          class="sidebar-toggle-btn"
+          :title="sidebarOpen ? '收起侧栏' : '展开侧栏'"
           @click="sidebarOpen = !sidebarOpen"
-        />
+        >
+          <el-icon>
+            <!-- 边框收缩图标：横向矩形方框 -->
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+            >
+              <rect x="3" y="7" width="18" height="10" rx="1.5" />
+            </svg>
+          </el-icon>
+        </el-button>
         <!-- 彩色品牌字标：原侧栏顶部 Logo 移至顶栏 -->
         <LogoFull class="top-brand-logo" />
       </div>
@@ -104,8 +117,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import {
-  Expand,
-  Fold,
   Lock,
   MoreFilled,
   Plus,
