@@ -39,7 +39,7 @@
           </div>
           <div v-if="!privateIPv4List.length" class="ip-empty">未获取到</div>
           <button
-            v-for="ip in privateIPv4List"
+            v-for="ip in visibleIps(privateIPv4List, 'private')"
             :key="'p' + ip"
             type="button"
             class="ip-value"
@@ -48,6 +48,14 @@
           >
             <span class="ip-value__text">{{ ip }}</span>
             <span class="ip-value__copy">复制</span>
+          </button>
+          <button
+            v-if="privateIPv4List.length > IP_COLLAPSE_LIMIT"
+            type="button"
+            class="ip-toggle"
+            @click="ipExpanded.private = !ipExpanded.private"
+          >
+            {{ ipExpanded.private ? "收起" : `展开剩余 ${privateIPv4List.length - IP_COLLAPSE_LIMIT} 个` }}
           </button>
         </div>
 
@@ -88,7 +96,7 @@
             <span class="ip-value__copy">复制</span>
           </button>
           <button
-            v-for="ip in publicIPv4List"
+            v-for="ip in visibleIps(publicIPv4List, 'public')"
             :key="'u' + ip"
             type="button"
             class="ip-value"
@@ -97,6 +105,14 @@
           >
             <span class="ip-value__text">{{ ip }}</span>
             <span class="ip-value__copy">复制</span>
+          </button>
+          <button
+            v-if="publicIPv4List.length > IP_COLLAPSE_LIMIT"
+            type="button"
+            class="ip-toggle"
+            @click="ipExpanded.public = !ipExpanded.public"
+          >
+            {{ ipExpanded.public ? "收起" : `展开剩余 ${publicIPv4List.length - IP_COLLAPSE_LIMIT} 个` }}
           </button>
         </div>
 
@@ -110,7 +126,7 @@
           </div>
           <div v-if="!dockerIPv4List.length" class="ip-empty">未检测到</div>
           <button
-            v-for="ip in dockerIPv4List"
+            v-for="ip in visibleIps(dockerIPv4List, 'docker')"
             :key="'d' + ip"
             type="button"
             class="ip-value"
@@ -119,6 +135,14 @@
           >
             <span class="ip-value__text">{{ ip }}</span>
             <span class="ip-value__copy">复制</span>
+          </button>
+          <button
+            v-if="dockerIPv4List.length > IP_COLLAPSE_LIMIT"
+            type="button"
+            class="ip-toggle"
+            @click="ipExpanded.docker = !ipExpanded.docker"
+          >
+            {{ ipExpanded.docker ? "收起" : `展开剩余 ${dockerIPv4List.length - IP_COLLAPSE_LIMIT} 个` }}
           </button>
         </div>
 
@@ -257,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
@@ -341,6 +365,22 @@ function uniqIps(list: string[] | undefined): string[] {
 const privateIPv4List = computed(() => uniqIps(snap.value?.privateIPs));
 const publicIPv4List = computed(() => uniqIps(snap.value?.publicIPs));
 const dockerIPv4List = computed(() => uniqIps(snap.value?.dockerIPs));
+
+// IP 卡片折叠：每张卡片默认最多展示 IP_COLLAPSE_LIMIT 个，超出点击展开
+const IP_COLLAPSE_LIMIT = 3;
+const ipExpanded = reactive<Record<string, boolean>>({
+  private: false,
+  public: false,
+  docker: false,
+});
+
+// 折叠时只返回前 IP_COLLAPSE_LIMIT 个；已展开或未超阈值时返回全部
+function visibleIps(list: string[], key: string): string[] {
+  if (ipExpanded[key] || list.length <= IP_COLLAPSE_LIMIT) {
+    return list;
+  }
+  return list.slice(0, IP_COLLAPSE_LIMIT);
+}
 
 const filteredConns = computed(() => {
   let list = snap.value?.connections || [];
@@ -598,6 +638,24 @@ html.dark .ip-card {
   color: var(--el-text-color-placeholder, #a8abb2);
   background: transparent;
 }
+
+.ip-toggle {
+  margin-top: 2px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-color-primary, #409eff);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s;
+
+  &:hover {
+    background: var(--el-color-primary-light-9, #ecf5ff);
+  }
+}
+
 .block-card {
   min-width: 0;
   :deep(.el-card__body) {
