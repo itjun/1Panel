@@ -28,9 +28,10 @@ func NewCollector(mgr *sshd.Manager) *Collector {
 //   - /proc/loadavg：负载
 //   - uname + /etc/os-release：内核与发行版
 func (c *Collector) CollectOverview(host string, opt sshd.ConnectOption) (Overview, error) {
-	// 用一个组合命令一次性拿数据，减少 SSH 往往次数
+	// 用一个组合命令一次性拿数据，减少 SSH 往返次数
 	// PRETTY_NAME 是 os-release 标准字段（systemd 规范），Debian/Ubuntu/CentOS 都有
-	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; grep -E '^(PRETTY_NAME|NAME)=' /etc/os-release 2>/dev/null | head -n2`
+	// NET：/proc/net/dev 累计收发；HOST：主机名 + 架构；IP：默认路由出口 IP
+	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; grep -E '^(PRETTY_NAME|NAME)=' /etc/os-release 2>/dev/null | head -n2; echo "=HOST="; hostname 2>/dev/null; uname -m; echo "=IP="; (ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || hostname -I 2>/dev/null | awk '{print $1}'); echo "=NET="; cat /proc/net/dev 2>/dev/null`
 	out, err := c.mgr.Run(host, opt, script)
 	if err != nil {
 		return Overview{}, err
@@ -187,7 +188,62 @@ func parseOverview(s string) (Overview, error) {
 			}
 		}
 	}
+	if hostSec := sections["HOST"]; hostSec != "" {
+		lines := strings.Split(hostSec, "\n")
+		if len(lines) >= 1 {
+			o.Hostname = strings.TrimSpace(lines[0])
+		}
+		if len(lines) >= 2 {
+			o.Arch = strings.TrimSpace(lines[1])
+		}
+	}
+	if ipSec := sections["IP"]; ipSec != "" {
+		// 取第一行非空
+		for _, line := range strings.Split(ipSec, "\n") {
+			s := strings.TrimSpace(line)
+			if s != "" {
+				o.IPAddress = s
+				break
+			}
+		}
+	}
+	if netSec := sections["NET"]; netSec != "" {
+		o.NetRxBytes, o.NetTxBytes = parseNetDev(netSec)
+	}
 	return o, nil
+}
+
+// parseNetDev 解析 /proc/net/dev，合计除 lo 外所有网卡的收发字节
+// 格式：Interface: rx_bytes rx_packets ... tx_bytes tx_packets ...
+func parseNetDev(s string) (rx, tx uint64) {
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.Contains(line, ":") {
+			continue
+		}
+		// 跳过表头
+		if strings.HasPrefix(line, "Inter-") || strings.HasPrefix(line, "face") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		name := strings.TrimSpace(parts[0])
+		if name == "lo" || name == "" {
+			continue
+		}
+		fields := strings.Fields(parts[1])
+		// rx_bytes=0, tx_bytes=8
+		if len(fields) < 9 {
+			continue
+		}
+		r, _ := strconv.ParseUint(fields[0], 10, 64)
+		t, _ := strconv.ParseUint(fields[8], 10, 64)
+		rx += r
+		tx += t
+	}
+	return rx, tx
 }
 
 // splitSections 把脚本输出的 "=STAT=" / "=MEMINFO=" 等分段解析成 map

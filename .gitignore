@@ -1,10 +1,79 @@
+# --- 构建产物 ---
 build/
+**/dist/
+*.app
+*.app.dSYM/
+ServerPanel
+bin/
+*.syso
+*.dmg
+*.pkg
+
+# --- 依赖 ---
+**/node_modules/
+
+# --- 前端本地/生成 ---
 frontend/dist/
 frontend/node_modules/
-*.DS_Store
+# Wails 绑定校验哈希会随 package.json 变，保留提交更稳；若本地乱生成可取消下行注释
+# frontend/package.json.md5
+
+# --- 归档 React 前端（仅源码入库，构建/依赖忽略）---
+frontend-react/dist/
+frontend-react/node_modules/
+
+# --- 日志 / 编辑器 / OS ---
 *.log
+*.DS_Store
+.DS_Store
 .idea/
 .vscode/
-*.app
-ServerPanel
+*.swp
+*~
 .playwright-mcp/
+.history/
+
+# --- 环境与密钥（勿入库）---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_ed25519
+*.p12
+*.mobileprovision
+
+# --- 测试 / 覆盖率 / 临时 ---
+coverage/
+*.out
+*.test
+/tmp/
+tmp/
+*.bak
+*.tmp
+*.orig
+*.rej
+
+# --- 本地 AI / 会话 / 计划缓存 ---
+.zcode/
+.grok/
+.cursor/
+.claude/settings.local.json
+.agents/
+.codex/
+
+# --- 本地冒烟/截图产物（可选手动提交 docs 正文）---
+docs/*-smoke-report.html
+docs/ipannel-vue-smoke-report.html
+docs/**/screenshots/
+docs/**/*.png
+!docs/**/README.md
+
+# --- 系统 / 压缩包杂项 ---
+__MACOSX/
+Thumbs.db
+Desktop.ini
+*.zip
+*.tar.gz
+!docs/**/*.md

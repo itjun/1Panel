@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -24,13 +25,16 @@ type Store struct {
 	data map[string]*Group // groupID -> Group
 }
 
-// NewStore 创建一个分组存储，数据落盘到 ~/Library/Application Support/<app>/groups.json
+// NewStore 创建一个分组存储，数据落盘到系统应用数据目录：
+//   Windows: %AppData%\<app>\groups.json
+//   macOS:   ~/Library/Application Support/<app>/groups.json
+//   Linux:   ~/.config/<app>/groups.json
 func NewStore(appName string) (*Store, error) {
-	home, err := os.UserHomeDir()
+	base, err := os.UserConfigDir()
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(home, "Library", "Application Support", appName)
+	dir := filepath.Join(base, appName)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("创建应用数据目录失败: %w", err)
 	}
@@ -44,7 +48,7 @@ func NewStore(appName string) (*Store, error) {
 	return s, nil
 }
 
-// Path 返回数据文件路径（前端可能用于"在 Finder 中显示"）
+// Path 返回数据文件路径（前端可能用于在文件管理器中显示）
 func (s *Store) Path() string { return s.path }
 
 // List 返回所有分组，按 Order 升序
@@ -71,7 +75,41 @@ func (s *Store) Upsert(g Group) error {
 	if g.ID == "" {
 		return fmt.Errorf("分组 ID 不能为空")
 	}
-	s.data[g.ID] = &g
+	// 若调用方未带 hosts（常见于只改名），保留原有 hosts，避免误清空
+	if existing, ok := s.data[g.ID]; ok {
+		if g.Hosts == nil {
+			g.Hosts = existing.Hosts
+		}
+		if g.Order == 0 && existing.Order != 0 {
+			g.Order = existing.Order
+		}
+	}
+	cp := g
+	s.data[g.ID] = &cp
+	return s.saveLocked()
+}
+
+// Rename 只改分组显示名，不动 hosts/order
+func (s *Store) Rename(id, newName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	newName = strings.TrimSpace(newName)
+	if id == "" {
+		return fmt.Errorf("分组 ID 不能为空")
+	}
+	if newName == "" {
+		return fmt.Errorf("分组名称不能为空")
+	}
+	g, ok := s.data[id]
+	if !ok {
+		return fmt.Errorf("分组 %s 不存在", id)
+	}
+	for _, other := range s.data {
+		if other.ID != id && other.Name == newName {
+			return fmt.Errorf("分组名 %s 已存在", newName)
+		}
+	}
+	g.Name = newName
 	return s.saveLocked()
 }
 

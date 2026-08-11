@@ -26,15 +26,54 @@ type GroupOverview struct {
 	Hosts     []HostOverviewSnapshot `json:"hosts"`
 }
 
-// ListGroupOverview 采集所有分组的所有主机概览
-// 并发上限 5，避免一次性发太多 SSH 连接压垮目标机
-// 任何单台主机出错不影响其它主机的展示，错误记录到 Error 字段
+// ListGroupOverview 采集所有分组的所有主机概览（较慢，慎用）
+// 并发上限 5；单台失败不拖垮其它主机
 func (a *App) ListGroupOverview() ([]GroupOverview, error) {
+	buckets, err := a.buildGroupBuckets()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GroupOverview, 0, len(buckets))
+	for _, b := range buckets {
+		snapshots := collectHostSnapshotsParallel(a.collector, b.hosts, 5)
+		out = append(out, GroupOverview{
+			GroupID:   b.id,
+			GroupName: b.name,
+			Hosts:     snapshots,
+		})
+	}
+	return out, nil
+}
+
+// ListOneGroupOverview 只采集指定分组，避免「打开一个分组却扫全库」导致长时间加载中
+func (a *App) ListOneGroupOverview(groupID string) (GroupOverview, error) {
+	buckets, err := a.buildGroupBuckets()
+	if err != nil {
+		return GroupOverview{}, err
+	}
+	for _, b := range buckets {
+		if b.id == groupID {
+			return GroupOverview{
+				GroupID:   b.id,
+				GroupName: b.name,
+				Hosts:     collectHostSnapshotsParallel(a.collector, b.hosts, 5),
+			}, nil
+		}
+	}
+	return GroupOverview{GroupID: groupID, GroupName: groupID, Hosts: []HostOverviewSnapshot{}}, nil
+}
+
+type groupBucket struct {
+	id    string
+	name  string
+	hosts []sshconfig.HostConfig
+}
+
+func (a *App) buildGroupBuckets() ([]groupBucket, error) {
 	hosts, err := sshconfig.Parse()
 	if err != nil {
 		return nil, err
 	}
-	// 过滤 git host（与 ListHosts 保持一致）
 	filtered := hosts[:0]
 	for _, h := range hosts {
 		if !sshconfig.IsGitHost(h) {
@@ -46,18 +85,11 @@ func (a *App) ListGroupOverview() ([]GroupOverview, error) {
 		hostMap[h.Name] = h
 	}
 
-	// 拿分组（如果分组存储没初始化，就用空列表，所有主机落到未分组）
 	var gs []groups.Group
 	if a.groups != nil {
 		gs = a.groups.List()
 	}
 
-	// 组装分组结构（与前端 store/app.tsx 的逻辑一致）
-	type groupBucket struct {
-		id   string
-		name string
-		hosts []sshconfig.HostConfig
-	}
 	var buckets []groupBucket
 	assigned := map[string]bool{}
 	for _, g := range gs {
@@ -70,7 +102,6 @@ func (a *App) ListGroupOverview() ([]GroupOverview, error) {
 		}
 		buckets = append(buckets, groupBucket{id: g.ID, name: g.Name, hosts: hs})
 	}
-	// 未分组
 	var ungrouped []sshconfig.HostConfig
 	for _, h := range filtered {
 		if !assigned[h.Name] {
@@ -80,18 +111,7 @@ func (a *App) ListGroupOverview() ([]GroupOverview, error) {
 	if len(ungrouped) > 0 {
 		buckets = append(buckets, groupBucket{id: "__ungrouped__", name: "未分组", hosts: ungrouped})
 	}
-
-	// 并发采集（5 上限）
-	out := make([]GroupOverview, 0, len(buckets))
-	for _, b := range buckets {
-		snapshots := collectHostSnapshotsParallel(a.collector, b.hosts, 5)
-		out = append(out, GroupOverview{
-			GroupID:   b.id,
-			GroupName: b.name,
-			Hosts:     snapshots,
-		})
-	}
-	return out, nil
+	return buckets, nil
 }
 
 // collectHostSnapshotsParallel 并发采集多台主机，sem 限制并发数

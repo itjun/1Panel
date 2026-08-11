@@ -11,11 +11,19 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// 连接超时：覆盖 TCP 建连 + SSH 握手/认证全过程
+// 注意：ssh.ClientConfig.Timeout 只作用于 TCP Dial，不覆盖握手阶段
+const (
+	tcpConnectTimeout = 10 * time.Second
+	handshakeTimeout  = 15 * time.Second // 含认证；超时必须失败，避免拖死全局锁
+)
+
 // Manager 维护每个 Host 一个长连接 ssh.Client，按需开 Session
 // 设计原则：
 //   - 一个 host → 一个 ssh.Client（TCP 复用）
 //   - 同一 host 上跑多条命令各自开 Session
 //   - 连接失败/断开时自动清理，下次重新建立
+//   - dial 不持锁：握手可能很慢/挂死，绝不能阻塞其它 host
 type Manager struct {
 	mu    sync.Mutex
 	conns map[string]*clientEntry // host -> 连接
@@ -37,33 +45,44 @@ type ConnectOption struct {
 	User         string
 	Port         string // 留空则 22
 	IdentityFile string
-	Password     string // 与 IdentityFile 二选一
+	Password     string // 与 IdentityFile 二选一；也可同时给（密钥优先）
 }
 
 // Get 返回一个 host 对应的 ssh.Client；若不存在则建立
 // host 参数作为缓存 key，应该唯一标识一个目标（通常是 ssh config 里的 Host 别名）
 func (m *Manager) Get(host string, opt ConnectOption) (*ssh.Client, error) {
+	// 1) 快路径：复用已有连接（持锁时间极短）
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// 复用已有连接
 	if entry, ok := m.conns[host]; ok {
-		// 用一个 Session 测试连接是否还活着
 		s, err := entry.client.NewSession()
 		if err == nil {
 			_ = s.Close()
-			return entry.client, nil
+			client := entry.client
+			m.mu.Unlock()
+			return client, nil
 		}
 		// 连接死了，清理后重建
 		_ = entry.client.Close()
 		delete(m.conns, host)
 	}
+	m.mu.Unlock()
 
+	// 2) dial 不持锁：握手卡死时不应阻塞其它 host 的 Get/Close
 	client, err := m.dial(opt)
 	if err != nil {
 		return nil, err
 	}
+
+	// 3) 写回缓存；若并发已有人先连上，丢弃本次连接、复用已有
+	m.mu.Lock()
+	if entry, ok := m.conns[host]; ok {
+		existing := entry.client
+		m.mu.Unlock()
+		_ = client.Close()
+		return existing, nil
+	}
 	m.conns[host] = &clientEntry{client: client, created: time.Now()}
+	m.mu.Unlock()
 	return client, nil
 }
 
@@ -111,9 +130,22 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 			auths = append(auths, ssh.PublicKeys(signer))
 		}
 	}
-	// 2. 密码备选（用于首次 ssh-copy-id 场景）
+	// 2. 密码（password + keyboard-interactive，兼容只开后者的服务器）
 	if opt.Password != "" {
-		auths = append(auths, ssh.Password(opt.Password))
+		pass := opt.Password
+		auths = append(auths, ssh.Password(pass))
+		auths = append(auths, ssh.KeyboardInteractive(
+			func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+				_ = user
+				_ = instruction
+				_ = echos
+				answers := make([]string, len(questions))
+				for i := range questions {
+					answers[i] = pass
+				}
+				return answers, nil
+			},
+		))
 	}
 	if len(auths) == 0 {
 		return nil, fmt.Errorf("没有可用的认证方式（密钥或密码）")
@@ -122,15 +154,27 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 	config := &ssh.ClientConfig{
 		User:            opt.User,
 		Auth:            auths,
-		Timeout:         10 * time.Second,
+		Timeout:         tcpConnectTimeout,          // 仅 TCP；完整握手见下方 SetDeadline
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // 内部工具，不做 host key 校验
 	}
 	addr := net.JoinHostPort(opt.HostName, port)
-	client, err := ssh.Dial("tcp", addr, config)
+
+	// 手写 Dial：给整段握手设绝对截止时间，避免代理/防火墙半开连接永久挂死
+	raw, err := net.DialTimeout("tcp", addr, tcpConnectTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("连接 %s 失败: %w", addr, err)
 	}
-	return client, nil
+	_ = raw.SetDeadline(time.Now().Add(handshakeTimeout))
+
+	cc, chans, reqs, err := ssh.NewClientConn(raw, addr, config)
+	if err != nil {
+		_ = raw.Close()
+		return nil, fmt.Errorf("连接 %s 失败: %w", addr, err)
+	}
+	// 握手成功后清掉 deadline，长连接后续由业务超时控制
+	_ = raw.SetDeadline(time.Time{})
+
+	return ssh.NewClient(cc, chans, reqs), nil
 }
 
 func loadSigner(path string) ssh.Signer {

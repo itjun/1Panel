@@ -31,6 +31,23 @@ type Overview struct {
 	OSRelease    string  `json:"osRelease"`
 	CPUCount     int     `json:"cpuCount"`
 	CPUModel     string  `json:"cpuModel"`
+	// 1Panel 风格概览扩展
+	Hostname   string `json:"hostname"`   // 主机名
+	Arch       string `json:"arch"`       // 系统架构 uname -m
+	IPAddress  string `json:"ipAddress"`  // 主网卡 IP（尽力获取）
+	NetRxBytes uint64 `json:"netRxBytes"` // 累计接收字节（全网卡合计，不含 lo；开机至今）
+	NetTxBytes uint64 `json:"netTxBytes"` // 累计发送字节（开机至今）
+	// 近 1 天 / 7 天：由本机历史采样对累计值做差分（非内核原生窗口）
+	Net1d NetWindow `json:"net1d"`
+	Net7d NetWindow `json:"net7d"`
+}
+
+// NetWindow 某时间窗口内的收发字节（差分）
+type NetWindow struct {
+	RxBytes   uint64  `json:"rxBytes"`
+	TxBytes   uint64  `json:"txBytes"`
+	SpanHours float64 `json:"spanHours"` // 实际覆盖小时数
+	Complete  bool    `json:"complete"`  // 是否已有满窗口历史样本
 }
 
 type DiskInfo struct {

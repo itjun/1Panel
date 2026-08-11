@@ -1,0 +1,215 @@
+// 1Panel 官方主题变量（源：1Panel/frontend/src/styles）
+@use "./element.scss";
+@use "./element-dark.scss";
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  /* 可由设置弹窗覆盖：--app-font-family / --app-font-size */
+  font-family: var(
+    --app-font-family,
+    "Helvetica Neue",
+    Helvetica,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    Arial,
+    sans-serif
+  );
+  font-size: var(--app-font-size, 14px);
+  color: var(--panel-text-color, #1f2329);
+  background: var(--panel-main-bg-color-9, #f4f4f4);
+  user-select: none;
+}
+
+// Wails 拖拽
+.drag-region {
+  --wails-draggable: drag;
+  -webkit-app-region: drag;
+}
+.no-drag {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+// 1Panel 卡片间隔
+.card-interval {
+  margin-top: 7px;
+}
+
+// 1Panel 风格：鼠标悬停显示主色描边（应用商店卡片同款）
+.panel-hover-card {
+  border: 1px solid var(--el-border-color-light, #e4e7ed) !important;
+  border-radius: 4px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+
+  &:hover {
+    border-color: var(--el-color-primary) !important;
+    box-shadow: 0 0 0 1px var(--el-color-primary);
+  }
+}
+
+// 1Panel 区块标题蓝条
+.panel-section-title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 13px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 14px;
+    border-radius: 10px;
+    background: var(--el-color-primary);
+  }
+}
+
+// 侧栏（对齐 1Panel Sidebar/index.scss；宽度可由组件 inline 覆盖，支持拖拽）
+.panel-sidebar {
+  width: var(--panel-menu-width, 180px);
+  min-width: 180px;
+  max-width: 320px;
+  height: 100%;
+  background: var(--panel-menu-bg-color);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  box-sizing: border-box;
+
+  /* 侧栏顶部不再放品牌 Logo（已移至顶栏） */
+  .menu-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 2px 10px 0;
+  }
+
+  .el-menu {
+    border-right: none !important;
+    background: transparent !important;
+    width: 100%;
+
+    .el-menu-item,
+    .el-sub-menu__title {
+      border-radius: 4px;
+      background-color: var(--el-menu-item-bg-color) !important;
+      margin: 7px 0;
+      height: 42px !important;
+      line-height: 42px !important;
+      /* 与 panel-hover-card 一致：默认浅边框，悬停主色描边 */
+      border: 1px solid transparent;
+      box-shadow: 0 0 4px rgba(0, 94, 235, 0.1);
+      box-sizing: border-box;
+      color: var(--el-text-color-primary, #303133);
+      transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        color 0.15s ease;
+
+      &:hover {
+        color: var(--el-color-primary) !important;
+        border-color: var(--el-color-primary) !important;
+        box-shadow: 0 0 0 1px var(--el-color-primary);
+        .el-icon {
+          color: var(--el-color-primary) !important;
+        }
+      }
+    }
+
+    .el-menu-item.is-active {
+      background-color: var(--el-menu-item-bg-color-active) !important;
+      color: var(--el-color-primary) !important;
+      border-color: var(--el-color-primary) !important;
+      box-shadow: 0 0 0 1px var(--el-color-primary);
+
+      &::before {
+        position: absolute;
+        border-radius: 4px;
+        left: 12px;
+        width: 4px;
+        height: 14px;
+        content: "";
+        background: var(--el-color-primary);
+      }
+
+      /* 已选中再悬停：保持主色描边，不回退 */
+      &:hover {
+        border-color: var(--el-color-primary) !important;
+        box-shadow: 0 0 0 1px var(--el-color-primary);
+      }
+    }
+
+    .el-sub-menu .el-menu {
+      background: transparent !important;
+      .el-menu-item {
+        /* 嵌套主机项同样保留可悬停的边框 */
+        padding-left: 35px !important;
+      }
+    }
+  }
+
+  .sidebar-footer {
+    flex-shrink: 0;
+    padding: 8px 7px 12px;
+  }
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--panel-main-bg-color-9, #f4f4f4);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden; /* 禁止整壳横向/纵向被内容撑出滚动条 */
+}
+
+.main-container {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-main-bg-color-9, #f4f4f4);
+  overflow: hidden;
+}
+
+.top-bar {
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 0 78px;
+  background: #fff;
+  border-bottom: var(--panel-border, 1px solid #f2f2f2);
+}
+
+html.dark .top-bar {
+  background: var(--panel-main-bg-color-9, #2e313d);
+}
+
+.monitor-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}

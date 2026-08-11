@@ -55,12 +55,19 @@ func (m *Manager) Init(ctx context.Context) {
 
 // Open 启动一个新终端会话
 // host 是目标主机别名，eventName 是前端用来接收输出的 Wails 事件名
-func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string) (string, error) {
+// cols/rows 必须是前端 fit 后的真实尺寸；错误尺寸会导致远程 shell 开局乱码（如一串 ]）
+func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, cols, rows int) (string, error) {
 	if m.ctx == nil {
 		return "", fmt.Errorf("终端管理器未初始化")
 	}
 	if m.sshMgr == nil {
 		return "", fmt.Errorf("SSH 管理器未注入")
+	}
+	if cols < 20 {
+		cols = 80
+	}
+	if rows < 5 {
+		rows = 24
 	}
 
 	// 复用 sshd.Manager 的连接池拿到 *ssh.Client
@@ -76,12 +83,13 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string) (s
 
 	// 申请 PTY：这是终端能正常回显/补全/支持全屏程序的关键
 	// ECHO=1 确保远程线路规程回显用户输入（大多数 shell 默认就开，这里显式设置避免被关掉）
+	// RequestPty(term, h, w) = rows, cols
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
 	}
-	if err := session.RequestPty("xterm-256color", 30, 100, modes); err != nil {
+	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		_ = session.Close()
 		return "", fmt.Errorf("请求 PTY 失败: %w", err)
 	}

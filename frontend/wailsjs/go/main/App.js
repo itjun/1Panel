@@ -10,6 +10,22 @@ export function AssignHost(arg1, arg2) {
   return window['go']['main']['App']['AssignHost'](arg1, arg2);
 }
 
+export function AuthStatus() {
+  return window['go']['main']['App']['AuthStatus']();
+}
+
+export function AuthenticateMacUser(arg1, arg2) {
+  return window['go']['main']['App']['AuthenticateMacUser'](arg1, arg2);
+}
+
+export function AuthenticateWithSystem() {
+  return window['go']['main']['App']['AuthenticateWithSystem']();
+}
+
+export function CheckLocalPaths(arg1) {
+  return window['go']['main']['App']['CheckLocalPaths'](arg1);
+}
+
 export function CloseTerminal(arg1) {
   return window['go']['main']['App']['CloseTerminal'](arg1);
 }
@@ -28,6 +44,14 @@ export function CollectDocker(arg1) {
 
 export function CollectJava(arg1) {
   return window['go']['main']['App']['CollectJava'](arg1);
+}
+
+export function CollectLargestFiles(arg1, arg2) {
+  return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2);
+}
+
+export function CollectNetwork(arg1) {
+  return window['go']['main']['App']['CollectNetwork'](arg1);
 }
 
 export function CollectOverview(arg1) {
@@ -54,8 +78,24 @@ export function DeleteGroup(arg1) {
   return window['go']['main']['App']['DeleteGroup'](arg1);
 }
 
+export function DeleteHost(arg1) {
+  return window['go']['main']['App']['DeleteHost'](arg1);
+}
+
+export function DeletePaths(arg1, arg2) {
+  return window['go']['main']['App']['DeletePaths'](arg1, arg2);
+}
+
 export function DockerAction(arg1, arg2, arg3) {
   return window['go']['main']['App']['DockerAction'](arg1, arg2, arg3);
+}
+
+export function GetCurrentMacUser() {
+  return window['go']['main']['App']['GetCurrentMacUser']();
+}
+
+export function GetHomeDir(arg1) {
+  return window['go']['main']['App']['GetHomeDir'](arg1);
 }
 
 export function KillProcess(arg1, arg2, arg3) {
@@ -82,12 +122,32 @@ export function ListHostsAll() {
   return window['go']['main']['App']['ListHostsAll']();
 }
 
-export function OpenTerminal(arg1, arg2) {
-  return window['go']['main']['App']['OpenTerminal'](arg1, arg2);
+export function ListOneGroupOverview(arg1) {
+  return window['go']['main']['App']['ListOneGroupOverview'](arg1);
+}
+
+export function LogoutMacUser() {
+  return window['go']['main']['App']['LogoutMacUser']();
+}
+
+export function NormalizeFileToLinux(arg1, arg2) {
+  return window['go']['main']['App']['NormalizeFileToLinux'](arg1, arg2);
+}
+
+export function OpenTerminal(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['OpenTerminal'](arg1, arg2, arg3, arg4);
+}
+
+export function ReadFilePreview(arg1, arg2) {
+  return window['go']['main']['App']['ReadFilePreview'](arg1, arg2);
 }
 
 export function ReadFileText(arg1, arg2) {
   return window['go']['main']['App']['ReadFileText'](arg1, arg2);
+}
+
+export function RenameGroup(arg1, arg2) {
+  return window['go']['main']['App']['RenameGroup'](arg1, arg2);
 }
 
 export function RenameHost(arg1, arg2) {
@@ -98,8 +158,24 @@ export function ResizeTerminal(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResizeTerminal'](arg1, arg2, arg3);
 }
 
-export function UploadFile(arg1, arg2, arg3) {
-  return window['go']['main']['App']['UploadFile'](arg1, arg2, arg3);
+export function TestConnection(arg1) {
+  return window['go']['main']['App']['TestConnection'](arg1);
+}
+
+export function UpdateHost(arg1) {
+  return window['go']['main']['App']['UpdateHost'](arg1);
+}
+
+export function UploadDir(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UploadDir'](arg1, arg2, arg3, arg4);
+}
+
+export function UploadFile(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UploadFile'](arg1, arg2, arg3, arg4);
+}
+
+export function UploadPaths(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UploadPaths'](arg1, arg2, arg3, arg4);
 }
 
 export function UpsertGroup(arg1) {
