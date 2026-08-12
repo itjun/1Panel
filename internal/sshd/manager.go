@@ -50,20 +50,17 @@ type ConnectOption struct {
 
 // Get 返回一个 host 对应的 ssh.Client；若不存在则建立
 // host 参数作为缓存 key，应该唯一标识一个目标（通常是 ssh config 里的 Host 别名）
+//
+// 注意：不做 NewSession 健康检查。之前每次 Get 都用 NewSession 测试连接存活，
+// 失败就 Close 整个 client —— 这会断开该主机上正在使用的终端 session（PTY）。
+// 连接存活性改由 Run 的重试机制兜底（仅连接级失败时重建，不 Close 旧连接）。
 func (m *Manager) Get(host string, opt ConnectOption) (*ssh.Client, error) {
-	// 1) 快路径：复用已有连接（持锁时间极短）
+	// 快路径：复用已有连接
 	m.mu.Lock()
 	if entry, ok := m.conns[host]; ok {
-		s, err := entry.client.NewSession()
-		if err == nil {
-			_ = s.Close()
-			client := entry.client
-			m.mu.Unlock()
-			return client, nil
-		}
-		// 连接死了，清理后重建
-		_ = entry.client.Close()
-		delete(m.conns, host)
+		client := entry.client
+		m.mu.Unlock()
+		return client, nil
 	}
 	m.mu.Unlock()
 
