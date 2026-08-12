@@ -113,6 +113,9 @@ declare module "@wailsjs/go/models" {
       ipAddress: string;
       netRxBytes: number;
       netTxBytes: number;
+      diskReadBytes: number;
+      diskWriteBytes: number;
+      diskIOCount: number;
       net1d?: {
         rxBytes: number;
         txBytes: number;

@@ -623,6 +623,9 @@ export namespace monitor {
 	    ipAddress: string;
 	    netRxBytes: number;
 	    netTxBytes: number;
+	    diskReadBytes: number;
+	    diskWriteBytes: number;
+	    diskIOCount: number;
 	    net1d: NetWindow;
 	    net7d: NetWindow;
 	
@@ -652,6 +655,9 @@ export namespace monitor {
 	        this.ipAddress = source["ipAddress"];
 	        this.netRxBytes = source["netRxBytes"];
 	        this.netTxBytes = source["netTxBytes"];
+	        this.diskReadBytes = source["diskReadBytes"];
+	        this.diskWriteBytes = source["diskWriteBytes"];
+	        this.diskIOCount = source["diskIOCount"];
 	        this.net1d = this.convertValues(source["net1d"], NetWindow);
 	        this.net7d = this.convertValues(source["net7d"], NetWindow);
 	    }
