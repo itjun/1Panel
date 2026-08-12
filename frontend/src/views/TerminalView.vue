@@ -1,5 +1,11 @@
 <template>
-  <div class="term-root">
+  <div
+    class="term-root"
+    @dragenter.prevent="onDragEnter"
+    @dragover.prevent
+    @dragleave.prevent="onDragLeave"
+    @drop.prevent="onDropFallback"
+  >
     <!-- 会话标签：深色工具条，与上方「概览/进程/终端」模块 Tab 明确分层 -->
     <div class="term-bar">
       <div class="term-tabs" role="tablist" aria-label="终端会话">
@@ -39,6 +45,28 @@
       @contextmenu.prevent
     />
 
+    <!-- 拖拽上传遮罩：仅 UI 反馈，真正的本地路径来自 Wails OnFileDrop -->
+    <div v-if="dragOver" class="term-drop-overlay">
+      <el-icon class="term-drop-icon"><UploadFilled /></el-icon>
+      <div class="term-drop-text">松开以上传到 /tmp</div>
+    </div>
+
+    <!-- 上传进度浮层：不遮挡终端操作（pointer-events:none） -->
+    <div
+      v-if="uploadState.visible"
+      class="term-upload-toast"
+      :class="{ 'is-done': uploadState.done, 'is-error': uploadState.error }"
+    >
+      <div v-if="!uploadState.done && !uploadState.error" class="term-upload-bar">
+        <div class="term-upload-fill" :style="{ width: pct + '%' }" />
+      </div>
+      <span class="term-upload-msg">
+        <template v-if="uploadState.error">上传失败：{{ uploadState.error }}</template>
+        <template v-else-if="uploadState.done">已上传到 /tmp</template>
+        <template v-else>{{ pct }}% · {{ uploadState.current || "准备中…" }}</template>
+      </span>
+    </div>
+
     <!-- 右键菜单：复制 / 粘贴 -->
     <div
       v-if="ctxMenu"
@@ -71,6 +99,7 @@
  * 此处用 xterm.js + Wails EventsOn 接 PTY 输出。
  */
 import {
+  computed,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -78,12 +107,17 @@ import {
   shallowRef,
   watch,
 } from "vue";
-import { Plus } from "@element-plus/icons-vue";
+import { Plus, UploadFilled } from "@element-plus/icons-vue";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
-import { EventsOff, EventsOn } from "@wailsjs/runtime/runtime";
+import {
+  EventsOff,
+  EventsOn,
+  OnFileDrop,
+  OnFileDropOff,
+} from "@wailsjs/runtime/runtime";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
@@ -129,6 +163,27 @@ let seq = 0;
 let opening = false;
 /** 打开新会话前暂存的 pending（避免 open 过程中 store 被清空） */
 let pendingCmdLocal: string | null = null;
+
+// ---- 拖拽上传 ----
+// 终端拖拽上传固定目标目录：/tmp（通用、权限宽松、适合临时传文件执行）
+const TERM_UPLOAD_DIR = "/tmp";
+const dragOver = ref(false);
+// dragCounter：抵消子元素进出导致的 dragenter/dragleave 抖动（同 FilesView 技巧）
+let dragCounter = 0;
+const uploadState = ref({
+  visible: false,
+  done: false,
+  error: "" as string,
+  current: "",
+  uploaded: 0,
+  total: 0,
+});
+let uploadToastTimer: ReturnType<typeof setTimeout> | null = null;
+const pct = computed(() => {
+  const t = uploadState.value.total;
+  if (!t) return 0;
+  return Math.min(100, Math.round((uploadState.value.uploaded / t) * 100));
+});
 
 
 function patchSession(id: string, patch: Partial<Session>) {
@@ -388,6 +443,81 @@ async function pasteClipboard() {
   term.focus();
 }
 
+// ---- 拖拽上传 ----
+function onDragEnter() {
+  dragCounter++;
+  dragOver.value = true;
+}
+function onDragLeave() {
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragOver.value = false;
+    dragCounter = 0;
+  }
+}
+// drop 兜底：webview 拿不到本地路径，真正的路径走 Wails OnFileDrop；
+// 这里仅复位遮罩，避免回调未触发时遮罩卡死
+function onDropFallback() {
+  dragOver.value = false;
+  dragCounter = 0;
+}
+
+// Wails OnFileDrop 回调：拿到本地绝对路径 → 上传到 /tmp → 回填远程路径到光标
+async function handleFileDrop(_x: number, _y: number, paths: string[]) {
+  dragOver.value = false;
+  dragCounter = 0;
+  if (!paths?.length) return;
+
+  if (uploadToastTimer) {
+    clearTimeout(uploadToastTimer);
+    uploadToastTimer = null;
+  }
+  uploadState.value = {
+    visible: true,
+    done: false,
+    error: "",
+    current: "准备上传…",
+    uploaded: 0,
+    total: 0,
+  };
+
+  try {
+    // 原样上传到 /tmp（convertPaths 传空数组 = 不做编码转换）
+    await api.uploadPaths(props.host, paths, [], TERM_UPLOAD_DIR);
+    uploadState.value.done = true;
+    writeRemotePathsToTerm(paths);
+  } catch (e) {
+    uploadState.value.error = String(e);
+  } finally {
+    // 完成 / 失败后 1.5s 自动淡出浮层
+    uploadToastTimer = setTimeout(() => {
+      uploadState.value.visible = false;
+    }, 1500);
+  }
+}
+
+// 把远程路径写到当前活动会话的光标处（不回车，便于接 vim/cat 等命令）
+// 路径 = /tmp/<basename>，单引号包裹防空格 / 特殊字符，多个用空格拼接
+function writeRemotePathsToTerm(localPaths: string[]) {
+  const active = sessions.value.find((s) => s.id === activeId.value);
+  if (!active?.sessionID) return;
+  const remote = localPaths
+    .map((p) => p.split(/[\\/]/).pop() || p)
+    .map((name) => `'${TERM_UPLOAD_DIR}/${name}'`)
+    .join(" ");
+  api.writeTerminal(active.sessionID, remote).catch(() => {});
+}
+
+function onUploadProgress(ev: {
+  uploaded?: number;
+  total?: number;
+  current?: string;
+}) {
+  uploadState.value.uploaded = ev.uploaded ?? 0;
+  uploadState.value.total = ev.total ?? 0;
+  uploadState.value.current = ev.current ?? "";
+}
+
 async function teardownAll() {
   const list = [...sessions.value];
   sessions.value = [];
@@ -466,11 +596,20 @@ onMounted(() => {
   setTimeout(() => {
     if (sessions.value.length === 0) void openNew();
   }, 50);
+  // useDropTarget=false：整页均可接收拖放，不要求目标元素带 --wails-drop-target 样式
+  OnFileDrop(handleFileDrop, false);
+  EventsOn("upload:progress", onUploadProgress);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", onWinResize);
   window.removeEventListener("click", onDocClick);
+  OnFileDropOff();
+  EventsOff("upload:progress");
+  if (uploadToastTimer) {
+    clearTimeout(uploadToastTimer);
+    uploadToastTimer = null;
+  }
   void teardownAll();
 });
 </script>
@@ -631,6 +770,77 @@ onBeforeUnmount(() => {
     padding: 4px 8px 8px;
     box-sizing: border-box;
   }
+}
+
+/* ---- 拖拽上传遮罩 ---- */
+.term-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 94, 235, 0.14);
+  border: 2px dashed var(--el-color-primary, #005eeb);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.term-drop-icon {
+  font-size: 56px;
+  color: var(--el-color-primary, #005eeb);
+}
+.term-drop-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-color-primary, #005eeb);
+}
+
+/* ---- 上传进度浮层（不遮挡终端：pointer-events:none） ---- */
+.term-upload-toast {
+  position: absolute;
+  top: 48px;
+  right: 12px;
+  z-index: 60;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(22, 22, 22, 0.92);
+  border: 1px solid #2a2a2a;
+  color: #e4e4e7;
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  &.is-done {
+    border-color: #22c55e;
+    color: #4ade80;
+  }
+  &.is-error {
+    border-color: #ef4444;
+    color: #f87171;
+  }
+}
+.term-upload-bar {
+  height: 4px;
+  margin-bottom: 8px;
+  border-radius: 2px;
+  background: #2a2a2a;
+  overflow: hidden;
+}
+.term-upload-fill {
+  height: 100%;
+  background: var(--el-color-primary, #005eeb);
+  transition: width 0.15s linear;
+}
+.term-upload-msg {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .term-ctx {

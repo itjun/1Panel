@@ -54,6 +54,10 @@ export const TERMINAL_FONT_OPTIONS: { label: string; value: string }[] = [
     value: '"SF Mono", "JetBrains Mono", Menlo, Monaco, monospace',
   },
   {
+    label: "Maple Mono NF CN",
+    value: '"Maple Mono NF CN", "SF Mono", Menlo, monospace',
+  },
+  {
     label: "Menlo",
     value: 'Menlo, Monaco, "SF Mono", monospace',
   },
