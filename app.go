@@ -3,7 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +17,8 @@ import (
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -656,3 +662,39 @@ func (a *App) connectOptionFor(host string) (sshd.ConnectOption, error) {
 //   - 错误处理静默失败 + 红色徽章 + 断线 30s 才重试
 //   - 这里返回时间常量供前端使用
 const RetryInterval = 30 * time.Second
+
+// buildAppMenu 构造 macOS 应用菜单。
+// 第一个子菜单会被 macOS 当作应用菜单(粗体应用名)显示。
+// 放弃 menu.AppMenu() role —— 它原子生成、无法插入自定义项。
+// 菜单点击回调里读 a.ctx:用户点击发生在 startup 之后,ctx 已就绪。
+func (a *App) buildAppMenu() *menu.Menu {
+	m := menu.NewMenu()
+	appSub := m.AddSubmenu("1Pannel")
+	appSub.AddText("设置…", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "open-settings")
+	})
+	appSub.AddText("重启应用", nil, func(_ *menu.CallbackData) {
+		a.restartApp()
+	})
+	appSub.AddSeparator()
+	appSub.AddText("退出 1Pannel", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+		runtime.Quit(a.ctx)
+	})
+	m.Append(menu.EditMenu())
+	m.Append(menu.WindowMenu())
+	return m
+}
+
+// restartApp 杀掉当前进程并重新启动应用:
+// 先在后台 detach 一个「sleep 1; open <bundle>」(1 秒后起新实例),
+// 然后当前进程 os.Exit(0) 自杀。子进程 fork 后由系统接管,不受父进程退出影响。
+func (a *App) restartApp() {
+	exe, err := os.Executable() // .../1Pannel.app/Contents/MacOS/1Pannel
+	if err != nil {
+		runtime.Quit(a.ctx)
+		return
+	}
+	bundle := filepath.Clean(filepath.Join(exe, "..", "..", "..")) // → .../1Pannel.app
+	_ = exec.Command("sh", "-c", "sleep 1; open "+strconv.Quote(bundle)).Start()
+	os.Exit(0) // 自杀
+}

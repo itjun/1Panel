@@ -29,6 +29,8 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 24, G: 24, B: 27, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
+		// 自定义 macOS 应用菜单（设置… / 重启应用 / 退出）
+		Menu:             app.buildAppMenu(),
 		// 发布包默认也不要浏览器右键菜单；开发态另有前端 preventDefault 兜底
 		EnableDefaultContextMenu: false,
 		// 启用文件拖放：前端通过 OnFileDrop(callback) 接收本地文件绝对路径

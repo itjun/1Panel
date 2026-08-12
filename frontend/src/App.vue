@@ -130,6 +130,7 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
+import { EventsOff, EventsOn } from "@wailsjs/runtime/runtime";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import SidebarHost from "@/layout/SidebarHost.vue";
@@ -248,6 +249,8 @@ async function onLogout() {
 
 onMounted(async () => {
   window.addEventListener("keydown", onGlobalKeydown, true);
+  // macOS 应用菜单「设置…」点击事件 → 打开设置弹窗
+  EventsOn("open-settings", () => openSettings());
   try {
     const st = await api.authStatus();
     unlocked.value = !!st.authenticated;
@@ -264,6 +267,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown, true);
+  EventsOff("open-settings");
 });
 </script>
 
