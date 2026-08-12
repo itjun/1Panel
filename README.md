@@ -35,11 +35,18 @@ wails build -platform darwin/arm64 -clean
 
 构建产物：`build/bin/1Pannel.app`。
 
-## 分发（给同事）
+## 分发
 
-### 同事侧使用步骤
+### 下载
 
-1. **解压 zip**：拿到 `1Pannel-v1.0-arm64-mac.zip`，双击解压出 `1Pannel.app`
+打 `v*` tag 时,GitHub Actions 自动构建并发布到 **GitHub Releases**（页面右侧 Releases）：
+
+- `1Pannel-v<版本>-mac-universal.zip` —— macOS 通用包（Apple Silicon + Intel 通吃，含 `1Pannel.app`）
+- `1Pannel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Pannel.exe`）
+
+### macOS 同事侧使用步骤
+
+1. **解压 zip**：双击解压出 `1Pannel.app`
 2. **拖入 `/Applications`**：把 `1Pannel.app` 拖到「应用程序」文件夹
 3. **首次打开**：右键 → 打开（macOS Gatekeeper 会拦未签名应用，普通双击会被拒；右键打开后选「仍要打开」即可，只需做一次）
 4. **配置 SSH**：应用读取的是同事本机的 `~/.ssh/config`，请确保：
@@ -47,6 +54,13 @@ wails build -platform darwin/arm64 -clean
    - `~/.ssh/config` 中已有目标主机配置（`Host`、`HostName`、`User`、`IdentityFile` 等）
    - 已通过 `ssh-copy-id user@host` 把公钥推到目标主机
 5. **打开应用**：左侧分组/主机列表会自动加载，点击进入即可
+
+### Windows 同事侧使用步骤
+
+1. **解压 zip**：解压出 `1Pannel.exe`
+2. **运行**：双击 `1Pannel.exe`；首次运行 SmartScreen 会提示「Windows 已保护你的电脑」（未签名应用），点「更多信息」→「仍要运行」即可
+3. **配置 SSH**：与 macOS 相同，读取本机 `%USERPROFILE%\.ssh\config`，确保已有目标主机配置与密钥
+4. **解锁**：Windows 无系统认证面板，直接进入主界面
 
 ### 安全说明
 
@@ -56,8 +70,8 @@ wails build -platform darwin/arm64 -clean
 
 ### 系统要求
 
-- macOS 12 Monterey 或更高（Apple Silicon 架构）
-- 不支持 Intel Mac（当前仅打 arm64 单架构；如需 Intel 版本请用 `wails build -platform darwin/amd64` 重新构建）
+- macOS 12 Monterey 或更高（Apple Silicon / Intel 均可，通用包）
+- Windows 10/11 64 位
 - 目标主机需为 Debian/Ubuntu 系列（其他发行版部分监控字段可能解析失败）
 
 ## 技术栈

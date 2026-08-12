@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/user"
+	"runtime"
 	"sync"
 
 	"diteng-pannel/internal/macauth"
@@ -59,6 +60,14 @@ func (a *App) AuthenticateWithSystem() (AuthState, error) {
 	cur, err := user.Current()
 	if err != nil {
 		return AuthState{}, fmt.Errorf("读取当前用户失败: %w", err)
+	}
+
+	// 非 macOS（如 Windows）没有 LocalAuthentication 系统面板,直接放行
+	if runtime.GOOS != "darwin" {
+		authMu.Lock()
+		authUser = cur.Username
+		authMu.Unlock()
+		return AuthState{Authenticated: true, Username: cur.Username}, nil
 	}
 
 	reason := fmt.Sprintf("使用 Mac 密码或 Touch ID 解锁 1Pannel（用户 %s）", cur.Username)

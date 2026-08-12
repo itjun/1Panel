@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -689,12 +690,17 @@ func (a *App) buildAppMenu() *menu.Menu {
 // 先在后台 detach 一个「sleep 1; open <bundle>」(1 秒后起新实例),
 // 然后当前进程 os.Exit(0) 自杀。子进程 fork 后由系统接管,不受父进程退出影响。
 func (a *App) restartApp() {
-	exe, err := os.Executable() // .../1Pannel.app/Contents/MacOS/1Pannel
+	exe, err := os.Executable() // .../1Pannel.app/Contents/MacOS/1Pannel 或 .../1Pannel.exe
 	if err != nil {
 		runtime.Quit(a.ctx)
 		return
 	}
-	bundle := filepath.Clean(filepath.Join(exe, "..", "..", "..")) // → .../1Pannel.app
-	_ = exec.Command("sh", "-c", "sleep 1; open "+strconv.Quote(bundle)).Start()
+	if goruntime.GOOS == "windows" {
+		// Windows: 直接重新拉起自己的 exe
+		_ = exec.Command(exe).Start()
+	} else {
+		bundle := filepath.Clean(filepath.Join(exe, "..", "..", "..")) // → .../1Pannel.app
+		_ = exec.Command("sh", "-c", "sleep 1; open "+strconv.Quote(bundle)).Start()
+	}
 	os.Exit(0) // 自杀
 }
