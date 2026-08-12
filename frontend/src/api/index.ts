@@ -204,6 +204,9 @@ export const api = {
     ResizeTerminal(sessionID, cols, rows),
   closeTerminal: (sessionID: string) => CloseTerminal(sessionID),
 
+  // 走 wailsMain 运行时调用(Wails 新增绑定的 .d.ts 类型解析不稳,与 UploadDir 等同模式)
+  bootstrapZsh: (host: string): Promise<string> =>
+    wailsMain<string>("BootstrapZsh", host),
   copySSHID: (input: main.CopyIDInput) => CopySSHID(input),
 };
 

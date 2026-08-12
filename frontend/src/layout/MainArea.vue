@@ -36,14 +36,23 @@
             </div>
             <div class="sub">{{ sessionOf(hid)?.subtitle }}</div>
           </div>
-          <el-button
-            text
-            type="danger"
-            size="small"
-            @click="app.stopHost(hid)"
-          >
-            停止会话
-          </el-button>
+          <div class="host-actions">
+            <el-button
+              size="small"
+              :loading="zshBusy === hid"
+              @click="onInitZsh(hid)"
+            >
+              初始化 zsh
+            </el-button>
+            <el-button
+              text
+              type="danger"
+              size="small"
+              @click="app.stopHost(hid)"
+            >
+              停止会话
+            </el-button>
+          </div>
         </div>
 
         <div class="router-tabs">
@@ -127,6 +136,9 @@
 
 <script setup lang="ts">
 import { useAppStore, type SubTab } from "@/stores/app";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { api } from "@/api";
+import { ref } from "vue";
 import OverviewView from "@/views/OverviewView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
@@ -143,6 +155,38 @@ import TerminalView from "@/views/TerminalView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
 
 const app = useAppStore();
+
+const zshBusy = ref<string | null>(null);
+
+function formatErr(e: unknown): string {
+  return (e as { message?: string })?.message || String(e);
+}
+
+// 初始化 zsh 环境:上传内置脚本 → 切终端自动执行,实时看输出
+async function onInitZsh(hid: string) {
+  try {
+    await ElMessageBox.confirm(
+      `将在主机「${hid}」上安装 zsh + Oh My Zsh(ys 主题)+ 代码高亮/历史提示插件。\n` +
+        `需要该用户具备 sudo 免密权限,耗时约 1~5 分钟,会在终端实时显示输出。`,
+      "初始化 zsh 环境",
+      { type: "warning", confirmButtonText: "开始", cancelButtonText: "取消" }
+    );
+  } catch {
+    return; // 用户取消
+  }
+  zshBusy.value = hid;
+  try {
+    const remotePath = await api.bootstrapZsh(hid);
+    // ; rm 保证脚本成功或失败都清理上传的临时脚本(呼应"临时文件要删")
+    app.sendTerminalCmd(`bash ${remotePath}; rm -f ${remotePath}`);
+    app.setSubTab(hid, "terminal");
+    ElMessage.success("脚本已上传,正在终端执行…");
+  } catch (e) {
+    ElMessage.error(`上传脚本失败: ${formatErr(e)}`);
+  } finally {
+    zshBusy.value = null;
+  }
+}
 
 const subTabs: { value: SubTab; label: string }[] = [
   { value: "overview", label: "概览" },
@@ -213,6 +257,11 @@ function onSubChange(hid: string, v: string | number | boolean | undefined) {
   .sub {
     font-size: 11px;
     color: var(--el-text-color-secondary);
+  }
+  .host-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 }
 .run-badge {

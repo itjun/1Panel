@@ -101,3 +101,15 @@ wails build -platform darwin/arm64 -clean
 - 仅 Debian/Ubuntu 目标机（其他发行版的 `systemctl`、`dpkg-query` 等命令可能不可用）
 - 监控采集全部为只读命令，不做任何写操作
 - 终端通过系统 `ssh` 二进制启动，依赖本机 PATH 中存在 `ssh`
+
+## 初始化脚本
+
+`scripts/bootstrap-zsh.sh` —— 一键在远程 Debian/Ubuntu 主机上初始化 zsh 环境：安装 zsh、Oh My Zsh、ys 主题、代码高亮插件（zsh-syntax-highlighting）、历史提示插件（zsh-autosuggestions），写入 `.zshrc` 并切换默认 shell。脚本幂等，可重复执行；下载的 install.sh 临时文件在任何退出情况下都会自动清理。
+
+```bash
+# scp 到远程后执行
+scp scripts/bootstrap-zsh.sh user@host:/tmp/ && ssh user@host 'bash /tmp/bootstrap-zsh.sh'
+
+# 直接远程拉起（脚本本身不落地）
+ssh user@host 'bash -s' < scripts/bootstrap-zsh.sh
+```

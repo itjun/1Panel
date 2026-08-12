@@ -16,6 +16,8 @@ export function AuthenticateMacUser(arg1:string,arg2:string):Promise<main.AuthSt
 
 export function AuthenticateWithSystem():Promise<main.AuthState>;
 
+export function BootstrapZsh(arg1:string):Promise<string>;
+
 export function CheckLocalPaths(arg1:Array<string>):Promise<Array<main.LocalTextCheck>>;
 
 export function CloseTerminal(arg1:string):Promise<void>;

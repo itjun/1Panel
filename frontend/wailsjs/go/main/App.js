@@ -22,6 +22,10 @@ export function AuthenticateWithSystem() {
   return window['go']['main']['App']['AuthenticateWithSystem']();
 }
 
+export function BootstrapZsh(arg1) {
+  return window['go']['main']['App']['BootstrapZsh'](arg1);
+}
+
 export function CheckLocalPaths(arg1) {
   return window['go']['main']['App']['CheckLocalPaths'](arg1);
 }
