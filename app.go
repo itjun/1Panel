@@ -461,6 +461,25 @@ func (a *App) ReadFileText(host, file string) (string, error) {
 	return a.collector.ReadFileText(host, opt, file, 512*1024)
 }
 
+// CollectLog 读取指定类型日志的末尾 N 行
+// logType: system / auth / kernel / nginx_access / nginx_error
+func (a *App) CollectLog(host, logType string, lines int) (monitor.LogResult, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return monitor.LogResult{}, err
+	}
+	return a.collector.CollectLog(host, logType, opt, lines)
+}
+
+// CollectDatabases 检测远程主机上已安装的数据库
+func (a *App) CollectDatabases(host string) ([]monitor.DatabaseInfo, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return nil, err
+	}
+	return a.collector.CollectDatabases(host, opt)
+}
+
 // DeletePaths 删除远程主机上的多个文件或目录（递归，不可恢复）
 // 路径必须是绝对路径；系统根目录（/、/etc、/usr 等）禁止删除
 func (a *App) DeletePaths(host string, paths []string) (string, error) {

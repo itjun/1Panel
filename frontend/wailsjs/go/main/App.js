@@ -34,6 +34,10 @@ export function CollectCrons(arg1) {
   return window['go']['main']['App']['CollectCrons'](arg1);
 }
 
+export function CollectDatabases(arg1) {
+  return window['go']['main']['App']['CollectDatabases'](arg1);
+}
+
 export function CollectDisks(arg1) {
   return window['go']['main']['App']['CollectDisks'](arg1);
 }
@@ -48,6 +52,10 @@ export function CollectJava(arg1) {
 
 export function CollectLargestFiles(arg1, arg2) {
   return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2);
+}
+
+export function CollectLog(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CollectLog'](arg1, arg2, arg3);
 }
 
 export function CollectNetwork(arg1) {

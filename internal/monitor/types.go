@@ -55,11 +55,12 @@ type NetWindow struct {
 }
 
 type DiskInfo struct {
-	Filesystem string `json:"filesystem"`
-	Mount      string `json:"mount"`
-	Total      uint64 `json:"total"`
-	Used       uint64 `json:"used"`
-	Avail      uint64 `json:"avail"`
+	Filesystem string  `json:"filesystem"`
+	FSType     string  `json:"fsType"`
+	Mount      string  `json:"mount"`
+	Total      uint64  `json:"total"`
+	Used       uint64  `json:"used"`
+	Avail      uint64  `json:"avail"`
 	Percent    float64 `json:"percent"`
 }
 
@@ -118,4 +119,18 @@ type AptPackage struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Depends int    `json:"depends"` // 依赖包数量（apt-cache depends 的 uniq 计数）
+}
+
+// LogResult 日志采集结果（末尾 N 行）
+type LogResult struct {
+	Content string `json:"content"` // 日志文本
+	Source  string `json:"source"`  // 数据来源（如 /var/log/syslog；空表示未找到）
+}
+
+// DatabaseInfo 远程主机检测到的数据库信息
+type DatabaseInfo struct {
+	Name    string `json:"name"`    // MySQL / Redis / PostgreSQL / MongoDB
+	Version string `json:"version"` // 版本号
+	Running bool   `json:"running"` // 是否运行中
+	Port    string `json:"port"`    // 监听端口（如 "3306"）
 }

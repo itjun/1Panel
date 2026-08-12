@@ -13,10 +13,13 @@ export type SubTab =
   | "processes"
   | "network"
   | "docker"
+  | "databases"
   | "files"
+  | "disks"
   | "services"
   | "cron"
   | "packages"
+  | "logs"
   | "terminal";
 
 /** 当前主区展示的对象 */
@@ -47,6 +50,8 @@ export const useAppStore = defineStore("app", () => {
   const groupList = ref<groups.Group[]>([]);
   const activeView = ref<ActiveView | null>(null);
   const loading = ref(false);
+  /** 主机名 → osRelease 映射（异步采集，供侧栏/概览页显示发行版图标） */
+  const osReleaseMap = ref<Map<string, string>>(new Map());
   /** 软件包等模块切到终端时希望自动执行的命令 */
   const pendingTerminalCmd = ref<string | null>(null);
 
@@ -92,6 +97,24 @@ export const useAppStore = defineStore("app", () => {
       }
     } finally {
       loading.value = false;
+    }
+    // 异步刷新发行版图标数据（不阻塞 UI，失败静默）
+    void loadOsReleases();
+  }
+
+  /** 采集所有主机 osRelease，供侧栏/概览页匹配发行版图标 */
+  async function loadOsReleases() {
+    try {
+      const data = await api.listGroupOverview();
+      const m = new Map<string, string>();
+      for (const g of data || []) {
+        for (const hst of g.hosts || []) {
+          m.set(hst.name, hst.overview?.osRelease || "");
+        }
+      }
+      osReleaseMap.value = m;
+    } catch {
+      /* 采不到则保持原映射，图标回退默认 Linux */
     }
   }
 
@@ -167,6 +190,11 @@ export const useAppStore = defineStore("app", () => {
       kind: "group",
       subTab: "overview",
     };
+  }
+
+  /** 返回全部主机概览（保留后台运行的主机会话） */
+  function goHome() {
+    activeView.value = null;
   }
 
   function setSubTab(_tabId: string, sub: SubTab) {
@@ -277,6 +305,7 @@ export const useAppStore = defineStore("app", () => {
     activeTabId,
     groupNodes,
     loading,
+    osReleaseMap,
     pendingTerminalCmd,
     hostSessions,
     runningHosts,
@@ -285,6 +314,7 @@ export const useAppStore = defineStore("app", () => {
     isRunning,
     openHostTab,
     openGroupTab,
+    goHome,
     setSubTab,
     stopHost,
     sendTerminalCmd,

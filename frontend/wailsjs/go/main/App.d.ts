@@ -22,6 +22,8 @@ export function CloseTerminal(arg1:string):Promise<void>;
 
 export function CollectCrons(arg1:string):Promise<Array<monitor.Cron>>;
 
+export function CollectDatabases(arg1:string):Promise<Array<monitor.DatabaseInfo>>;
+
 export function CollectDisks(arg1:string):Promise<Array<monitor.DiskInfo>>;
 
 export function CollectDocker(arg1:string):Promise<monitor.DockerInfo>;
@@ -29,6 +31,8 @@ export function CollectDocker(arg1:string):Promise<monitor.DockerInfo>;
 export function CollectJava(arg1:string):Promise<Array<monitor.ProcInfo>>;
 
 export function CollectLargestFiles(arg1:string,arg2:number):Promise<monitor.LargeFilesResult>;
+
+export function CollectLog(arg1:string,arg2:string,arg3:number):Promise<monitor.LogResult>;
 
 export function CollectNetwork(arg1:string):Promise<monitor.NetworkSnapshot>;
 

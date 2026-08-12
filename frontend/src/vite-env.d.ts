@@ -9,7 +9,9 @@ declare module "*.vue" {
 declare module "@wailsjs/go/main/App" {
   export function CollectDisks(...args: any[]): Promise<any>;
   export function CollectDocker(...args: any[]): Promise<any>;
+  export function CollectDatabases(...args: any[]): Promise<any>;
   export function CollectLargestFiles(...args: any[]): Promise<any>;
+  export function CollectLog(...args: any[]): Promise<any>;
   export function CollectOverview(...args: any[]): Promise<any>;
   export function CollectProcesses(...args: any[]): Promise<any>;
   export function CollectServices(...args: any[]): Promise<any>;
@@ -131,6 +133,7 @@ declare module "@wailsjs/go/models" {
     }
     export class DiskInfo {
       filesystem: string;
+      fsType: string;
       mount: string;
       total: number;
       used: number;
@@ -151,6 +154,16 @@ declare module "@wailsjs/go/models" {
     }
     export class LargeFilesResult {
       [key: string]: any;
+    }
+    export class LogResult {
+      content: string;
+      source: string;
+    }
+    export class DatabaseInfo {
+      name: string;
+      version: string;
+      running: boolean;
+      port: string;
     }
     export class ProcInfo {
       pid: number;
