@@ -54,40 +54,153 @@
             </div>
             <el-row :gutter="8">
               <el-col :span="6" align="center">
-                <VChartPie
-                  height="160px"
-                  :option="{ title: '负载', data: loadPercent }"
-                />
+                <el-popover trigger="hover" placement="bottom" :width="200">
+                  <div class="ring-popover">
+                    <div class="ring-pop-row">
+                      <span>1 分钟</span>
+                      <span class="num">{{ overview.load1.toFixed(2) }}</span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>5 分钟</span>
+                      <span class="num">{{ overview.load5.toFixed(2) }}</span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>15 分钟</span>
+                      <span class="num">{{ overview.load15.toFixed(2) }}</span>
+                    </div>
+                  </div>
+                  <template #reference>
+                    <VChartPie
+                      height="160px"
+                      :option="{ title: '负载', data: loadPercent }"
+                    />
+                  </template>
+                </el-popover>
                 <div class="input-help">{{ loadLabel }}</div>
               </el-col>
               <el-col :span="6" align="center">
-                <VChartPie
-                  height="160px"
-                  :option="{ title: 'CPU', data: overview.cpuPercent }"
-                />
+                <el-popover trigger="hover" placement="bottom" :width="280">
+                  <div class="ring-popover">
+                    <div class="ring-pop-row">
+                      <span class="ring-pop-label">型号</span>
+                      <span
+                        class="ring-pop-value"
+                        :title="overview.cpuModel"
+                      >
+                        {{ overview.cpuModel || '—' }}
+                      </span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>核心数</span>
+                      <span class="num">{{ overview.cpuCount }} 核</span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>使用率</span>
+                      <span class="num">{{ overview.cpuPercent.toFixed(2) }}%</span>
+                    </div>
+                  </div>
+                  <template #reference>
+                    <VChartPie
+                      height="160px"
+                      :option="{ title: 'CPU', data: overview.cpuPercent }"
+                    />
+                  </template>
+                </el-popover>
                 <div class="input-help">
                   ( {{ overview.cpuPercent.toFixed(2) }} /
                   {{ overview.cpuCount }} ) 核
                 </div>
               </el-col>
               <el-col :span="6" align="center">
-                <VChartPie
-                  height="160px"
-                  :option="{ title: '内存', data: overview.memPercent }"
-                />
+                <el-popover trigger="hover" placement="bottom" :width="300">
+                  <div class="ring-popover">
+                    <div class="ring-pop-grid">
+                      <div class="ring-pop-col">
+                        <div class="ring-pop-title">内存</div>
+                        <div class="ring-pop-row">
+                          <span>总量</span>
+                          <span class="num">{{ formatBytes(overview.memTotal) }}</span>
+                        </div>
+                        <div class="ring-pop-row">
+                          <span>已用</span>
+                          <span class="num">{{ formatBytes(overview.memUsed) }}</span>
+                        </div>
+                        <div class="ring-pop-row">
+                          <span>可用</span>
+                          <span class="num">{{ formatBytes(overview.memTotal - overview.memUsed) }}</span>
+                        </div>
+                        <div class="ring-pop-row">
+                          <span>使用率</span>
+                          <span class="num">{{ overview.memPercent.toFixed(2) }}%</span>
+                        </div>
+                      </div>
+                      <div v-if="overview.swapTotal > 0" class="ring-pop-col">
+                        <div class="ring-pop-title">Swap</div>
+                        <div class="ring-pop-row">
+                          <span>总量</span>
+                          <span class="num">{{ formatBytes(overview.swapTotal) }}</span>
+                        </div>
+                        <div class="ring-pop-row">
+                          <span>已用</span>
+                          <span class="num">{{ formatBytes(overview.swapUsed) }}</span>
+                        </div>
+                        <div class="ring-pop-row">
+                          <span>可用</span>
+                          <span class="num">{{ formatBytes(overview.swapTotal - overview.swapUsed) }}</span>
+                        </div>
+                        <div class="ring-pop-row">
+                          <span>使用率</span>
+                          <span class="num">{{ overview.swapPercent.toFixed(2) }}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <template #reference>
+                    <VChartPie
+                      height="160px"
+                      :option="{ title: '内存', data: overview.memPercent }"
+                    />
+                  </template>
+                </el-popover>
                 <div class="input-help">
                   {{ formatBytes(overview.memUsed) }} /
                   {{ formatBytes(overview.memTotal) }}
                 </div>
               </el-col>
               <el-col :span="6" align="center">
-                <VChartPie
-                  height="160px"
-                  :option="{
-                    title: rootDisk?.mount || '/',
-                    data: rootDisk?.percent || 0,
-                  }"
-                />
+                <el-popover trigger="hover" placement="bottom" :width="240">
+                  <div class="ring-popover">
+                    <div class="ring-pop-row">
+                      <span>挂载点</span>
+                      <span class="num">{{ rootDisk?.mount || '/' }}</span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>总量</span>
+                      <span class="num">{{ formatBytes(rootDisk?.total || 0) }}</span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>已用</span>
+                      <span class="num">{{ formatBytes(rootDisk?.used || 0) }}</span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>可用</span>
+                      <span class="num">{{ formatBytes(rootDisk?.avail || 0) }}</span>
+                    </div>
+                    <div class="ring-pop-row">
+                      <span>使用率</span>
+                      <span class="num">{{ (rootDisk?.percent || 0).toFixed(2) }}%</span>
+                    </div>
+                  </div>
+                  <template #reference>
+                    <VChartPie
+                      height="160px"
+                      :option="{
+                        title: rootDisk?.mount || '/',
+                        data: rootDisk?.percent || 0,
+                      }"
+                    />
+                  </template>
+                </el-popover>
                 <div class="input-help" v-if="rootDisk">
                   {{ formatBytes(rootDisk.used) }} /
                   {{ formatBytes(rootDisk.total) }}
@@ -103,7 +216,13 @@
             :style="enlargedKey === 'monitor' ? enlargeStyle : undefined"
           >
             <div class="card-header" @dblclick="openEnlarge('monitor')">
-              <span class="panel-section-title">监控</span>
+              <div class="card-title-group">
+                <span class="panel-section-title">监控</span>
+                <el-radio-group v-model="chartMode" size="small">
+                  <el-radio-button value="network">流量</el-radio-button>
+                  <el-radio-button value="io">磁盘 IO</el-radio-button>
+                </el-radio-group>
+              </div>
               <el-button
                 link
                 class="enlarge-btn"
@@ -112,7 +231,7 @@
                 @click="toggleEnlarge('monitor')"
               />
             </div>
-            <div class="monitor-tags">
+            <div v-if="chartMode === 'network'" class="monitor-tags">
               <el-tag type="primary" effect="light">
                 上行: {{ formatBytes(rates.upBps) }}/s
               </el-tag>
@@ -152,7 +271,21 @@
                 </el-tag>
               </el-tooltip>
             </div>
-            <VChartLine height="280px" :option="lineOption" />
+            <div v-else class="monitor-tags">
+              <el-tag type="primary" effect="light">
+                读: {{ formatBytes(ioRates.readBps) }}/s
+              </el-tag>
+              <el-tag type="primary" effect="light">
+                写: {{ formatBytes(ioRates.writeBps) }}/s
+              </el-tag>
+              <el-tag type="warning" effect="light">
+                IOPS: {{ ioRates.iops }}/s
+              </el-tag>
+            </div>
+            <VChartLine
+              height="280px"
+              :option="chartMode === 'network' ? lineOption : ioLineOption"
+            />
           </el-card>
 
           <el-card
@@ -409,6 +542,12 @@ const traffic = ref<{ time: string; up: number; down: number }[]>([]);
 const rates = ref({ upBps: 0, downBps: 0 });
 const lastNet = ref<{ rx: number; tx: number; ts: number } | null>(null);
 
+// 监控卡片：流量 / 磁盘 IO 切换
+const chartMode = ref<"network" | "io">("network");
+const ioTraffic = ref<{ time: string; read: number; write: number }[]>([]);
+const ioRates = ref({ readBps: 0, writeBps: 0, iops: 0 });
+const lastDisk = ref<{ read: number; write: number; count: number; ts: number } | null>(null);
+
 const memoKey = computed(() => `ipannel.memo.${props.host}`);
 const memo = ref("");
 const memoDraft = ref("");
@@ -499,12 +638,22 @@ const lineOption = computed(() => ({
   formatStr: "KB/s",
 }));
 
+const ioLineOption = computed(() => ({
+  xData: ioTraffic.value.map((t) => t.time),
+  yData: [
+    { name: "读", data: ioTraffic.value.map((t) => t.read) },
+    { name: "写", data: ioTraffic.value.map((t) => t.write) },
+  ],
+  formatStr: "KB/s",
+}));
+
 async function loadOverview() {
   try {
     const data = await api.collectOverview(props.host);
     overview.value = data;
     error.value = null;
     pushTraffic(data);
+    pushDiskIO(data);
   } catch (e) {
     error.value = String(e);
   }
@@ -531,6 +680,32 @@ function pushTraffic(data: monitor.Overview) {
     hour12: false,
   });
   traffic.value = [...traffic.value, { time, up, down }].slice(-100);
+}
+
+// 磁盘 IO 速率：对累计值做差分，和网络流量同模式
+function pushDiskIO(data: monitor.Overview) {
+  const now = Date.now();
+  const read = Number(data.diskReadBytes) || 0;
+  const write = Number(data.diskWriteBytes) || 0;
+  const count = Number(data.diskIOCount) || 0;
+  const prev = lastDisk.value;
+  lastDisk.value = { read, write, count, ts: now };
+  if (!prev || now <= prev.ts || read < prev.read || write < prev.write) return;
+  const dt = now - prev.ts;
+  const readKBps = bytesToKBps(read - prev.read, dt);
+  const writeKBps = bytesToKBps(write - prev.write, dt);
+  ioRates.value = {
+    readBps: ((read - prev.read) / dt) * 1000,
+    writeBps: ((write - prev.write) / dt) * 1000,
+    iops: Math.round(((count - prev.count) / dt) * 1000),
+  };
+  const time = new Date(now).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  ioTraffic.value = [...ioTraffic.value, { time, read: readKBps, write: writeKBps }].slice(-100);
 }
 
 async function loadDisks() {
@@ -614,6 +789,9 @@ function resetHostState() {
   traffic.value = [];
   rates.value = { upBps: 0, downBps: 0 };
   lastNet.value = null;
+  ioTraffic.value = [];
+  ioRates.value = { readBps: 0, writeBps: 0, iops: 0 };
+  lastDisk.value = null;
   loadMemo();
 }
 
@@ -763,6 +941,11 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   margin-bottom: 12px;
 }
+.card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .card-actions {
   display: flex;
   align-items: center;
@@ -873,6 +1056,56 @@ onBeforeUnmount(() => {
 .sys-desc {
   :deep(.el-descriptions__label) {
     width: 88px;
+  }
+}
+</style>
+
+<!-- el-popover 内容 teleport 到 body，scoped 样式无法穿透，故用全局样式 -->
+<style lang="scss">
+.ring-popover {
+  font-size: 12px;
+  color: var(--el-text-color-primary);
+
+  .ring-pop-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 3px 0;
+
+    .num {
+      font-weight: 600;
+      color: var(--el-color-primary);
+      white-space: nowrap;
+    }
+  }
+
+  /* CPU 型号行：标签固定宽，值截断 */
+  .ring-pop-label {
+    flex-shrink: 0;
+    color: var(--el-text-color-secondary);
+  }
+  .ring-pop-value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  /* 内存两列网格 */
+  .ring-pop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0 20px;
+  }
+  .ring-pop-title {
+    font-weight: 600;
+    color: var(--el-color-primary);
+    padding: 3px 0;
+    margin-bottom: 2px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
   }
 }
 </style>

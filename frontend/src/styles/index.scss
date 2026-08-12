@@ -83,6 +83,9 @@ body,
   max-width: 320px;
   height: 100%;
   background: var(--panel-menu-bg-color);
+  /* 半透明质感：背景带透明度 + 背景模糊（CSS 模拟毛玻璃）*/
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -168,14 +171,15 @@ body,
 }
 
 .app-shell {
+  /* 横向布局：侧栏（全高左）+ 主列（顶栏 + 主区域）*/
   display: flex;
-  flex-direction: column;
   height: 100%;
   background: var(--panel-main-bg-color-9, #f4f4f4);
 }
 
-.app-body {
+.main-column {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -198,9 +202,15 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px 0 78px;
+  /* 侧栏占左边时，顶栏无需给红绿灯让位 */
+  padding: 0 16px;
   background: #fff;
   border-bottom: var(--panel-border, 1px solid #f2f2f2);
+}
+
+/* 侧栏收起后，红绿灯让位转移到顶栏左侧 */
+.app-shell.sidebar-collapsed .top-bar {
+  padding-left: 78px;
 }
 
 html.dark .top-bar {

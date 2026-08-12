@@ -4,15 +4,63 @@
     :class="{ 'is-resizing': resizing, 'is-host-dragging': !!dragState }"
     :style="{ width: width + 'px' }"
   >
-    <div class="search-box">
+    <!-- 顶部 header：红绿灯（78px 让位）在左；右侧放搜索 + 收起按钮 -->
+    <div class="sidebar-header drag-region">
+      <el-button
+        text
+        class="sidebar-search-btn no-drag"
+        :class="{ 'is-active': searchActive }"
+        :title="searchActive ? '收起搜索' : '搜索主机'"
+        @click="toggleSearch"
+      >
+        <el-icon>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+            />
+          </svg>
+        </el-icon>
+      </el-button>
+      <el-button
+        text
+        class="sidebar-collapse-btn no-drag"
+        title="收起侧栏"
+        @click="emit('collapse')"
+      >
+        <el-icon>
+          <svg viewBox="0 0 1024 1024" fill="currentColor">
+            <path
+              fill-rule="evenodd"
+              d="M192 128c-35 0-64 29-64 64v640c0 35 29 64 64 64h640c35 0 64-29 64-64V192c0-35-29-64-64-64H192zM320 192v640h384V192H320z"
+            />
+            <path d="M600 380L400 512l200 132V380z" />
+          </svg>
+        </el-icon>
+      </el-button>
+    </div>
+
+    <transition name="search-slide">
+      <div v-show="searchActive" class="search-box">
       <el-input
+        ref="searchInputRef"
         v-model="query"
         clearable
         class="host-search"
         placeholder="搜索主机..."
-        :prefix-icon="Search"
-      />
-    </div>
+        @keydown.esc="closeSearch"
+      >
+        <template #prefix>
+          <el-icon>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+              />
+            </svg>
+          </el-icon>
+        </template>
+      </el-input>
+      </div>
+    </transition>
 
     <div class="menu-wrap" ref="menuWrapRef">
       <!-- 不用 unique-opened：多分组可同时展开 -->
@@ -102,14 +150,11 @@
             @click="onHostClick(h.name)"
             @contextmenu.prevent="onHostContext($event, h.name)"
           >
-            <el-icon
+            <DistroLogo
+              :os-release="app.osReleaseMap.get(h.name) || ''"
+              :size="16"
               class="host-ico"
-              :style="{
-                color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
-              }"
-            >
-              <Monitor />
-            </el-icon>
+            />
             <span class="menu-title">{{ h.name }}</span>
             <span
               v-if="app.isRunning(h.name)"
@@ -119,6 +164,9 @@
           </el-menu-item>
         </el-sub-menu>
       </el-menu>
+      <div v-if="searchActive && query && filtered.length === 0" class="search-empty">
+        无匹配主机
+      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -287,10 +335,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { Folder, Monitor, Plus, Search } from "@element-plus/icons-vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { Folder, Monitor, Plus } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import DistroLogo from "@/components/DistroLogo.vue";
+
+const emit = defineEmits<{ collapse: [] }>();
 
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 320;
@@ -348,6 +399,9 @@ function groupCssVars(groupId: string, index: number): Record<string, string> {
 
 const app = useAppStore();
 const query = ref("");
+/** 搜索框展开态：收起即清空 query（无残留过滤） */
+const searchActive = ref(false);
+const searchInputRef = ref<{ focus: () => void } | null>(null);
 const resizing = ref(false);
 const width = ref(loadStoredWidth());
 const dropTargetId = ref<string | null>(null);
@@ -603,9 +657,27 @@ async function moveHostToGroup(host: string, groupId: string) {
   }
 }
 
+/** 展开/收起搜索：展开时聚焦输入框，收起时清空 */
+function toggleSearch() {
+  if (searchActive.value) {
+    closeSearch();
+  } else {
+    searchActive.value = true;
+    nextTick(() => searchInputRef.value?.focus());
+  }
+}
+
+/** 收起搜索并清空 query（收起即重置） */
+function closeSearch() {
+  searchActive.value = false;
+  query.value = "";
+}
+
 function onHostClick(name: string) {
   if (suppressClick) return;
   app.openHostTab(name);
+  // 打开主机即收起搜索、清空过滤（搜索目的达成）
+  closeSearch();
 }
 
 // ---------- 主机右键菜单 ----------
@@ -817,6 +889,22 @@ function onCtxKeydown(e: KeyboardEvent) {
   }
 }
 
+/** / 键唤起搜索：仅当焦点不在输入框/终端时触发 */
+function onSearchKeydown(e: KeyboardEvent) {
+  if (e.key !== "/" || searchActive.value) return;
+  const el = document.activeElement;
+  if (!el) return;
+  const tag = el.tagName;
+  // 焦点在输入类元素：放行（正常输入 /）
+  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (el instanceof HTMLElement && el.isContentEditable) return;
+  // 焦点在终端（xterm）：放行（终端输入 /）
+  if (el.closest(".xterm-helper-textarea, .terminal-wrap")) return;
+  e.preventDefault();
+  searchActive.value = true;
+  nextTick(() => searchInputRef.value?.focus());
+}
+
 async function onCreateGroup() {
   try {
     const { value } = await ElMessageBox.prompt("分组名称", "新建分组", {
@@ -836,6 +924,7 @@ async function onCreateGroup() {
 onMounted(() => {
   autoFitWidth();
   window.addEventListener("keydown", onCtxKeydown);
+  window.addEventListener("keydown", onSearchKeydown);
 });
 
 onBeforeUnmount(() => {
@@ -843,6 +932,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("pointerup", onHostPointerUp);
   window.removeEventListener("pointercancel", onHostPointerUp);
   window.removeEventListener("keydown", onCtxKeydown);
+  window.removeEventListener("keydown", onSearchKeydown);
 });
 
 watch(
@@ -872,11 +962,59 @@ watch(
   }
 }
 
+.sidebar-header {
+  flex-shrink: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  /* 78px 左留白给 macOS 红绿灯按钮 */
+  padding: 0 8px 0 78px;
+  /* 透明：继承 .panel-sidebar 背景，避免半透明底色双层叠加造成与内容区色差 */
+  background: transparent;
+}
+
+.sidebar-collapse-btn {
+  padding: 8px;
+  color: var(--el-text-color-secondary);
+}
+
+.sidebar-search-btn {
+  padding: 8px;
+  margin-right: 2px;
+  color: var(--el-text-color-secondary);
+
+  &.is-active {
+    color: var(--el-color-primary);
+  }
+}
+
+/* 搜索框展开/收起动画（配合 <transition name="search-slide">） */
+.search-slide-enter-active,
+.search-slide-leave-active {
+  transition: max-height 0.15s ease, opacity 0.15s ease;
+}
+.search-slide-enter-from,
+.search-slide-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.search-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .search-box {
   flex-shrink: 0;
   /* 与顶栏约 48px 视觉对齐：更大内边距 + 默认尺寸输入框 */
   padding: 12px 12px 10px;
   box-sizing: border-box;
+  /* 配合 search-slide 动画：max-height 可过渡 */
+  max-height: 100px;
+  overflow: hidden;
 }
 
 .host-search {
@@ -1001,6 +1139,7 @@ html.dark .host-search {
   box-shadow: none !important;
 
   .host-ico {
+    margin-right: 8px;
     opacity: 0.9;
   }
 

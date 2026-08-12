@@ -37,6 +37,10 @@ type Overview struct {
 	IPAddress  string `json:"ipAddress"`  // 主网卡 IP（尽力获取）
 	NetRxBytes uint64 `json:"netRxBytes"` // 累计接收字节（全网卡合计，不含 lo；开机至今）
 	NetTxBytes uint64 `json:"netTxBytes"` // 累计发送字节（开机至今）
+	// 磁盘 IO 累计值（仅物理块设备合计，不含分区/虚拟设备；前端差分算速率）
+	DiskReadBytes  uint64 `json:"diskReadBytes"`  // 累计读字节（sectors_read × 512）
+	DiskWriteBytes uint64 `json:"diskWriteBytes"` // 累计写字节
+	DiskIOCount    uint64 `json:"diskIOCount"`    // 累计读写操作次数（reads + writes completed）
 	// 近 1 天 / 7 天：由本机历史采样对累计值做差分（非内核原生窗口）
 	Net1d NetWindow `json:"net1d"`
 	Net7d NetWindow `json:"net7d"`
@@ -51,11 +55,12 @@ type NetWindow struct {
 }
 
 type DiskInfo struct {
-	Filesystem string `json:"filesystem"`
-	Mount      string `json:"mount"`
-	Total      uint64 `json:"total"`
-	Used       uint64 `json:"used"`
-	Avail      uint64 `json:"avail"`
+	Filesystem string  `json:"filesystem"`
+	FSType     string  `json:"fsType"`
+	Mount      string  `json:"mount"`
+	Total      uint64  `json:"total"`
+	Used       uint64  `json:"used"`
+	Avail      uint64  `json:"avail"`
 	Percent    float64 `json:"percent"`
 }
 
@@ -114,4 +119,18 @@ type AptPackage struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Depends int    `json:"depends"` // 依赖包数量（apt-cache depends 的 uniq 计数）
+}
+
+// LogResult 日志采集结果（末尾 N 行）
+type LogResult struct {
+	Content string `json:"content"` // 日志文本
+	Source  string `json:"source"`  // 数据来源（如 /var/log/syslog；空表示未找到）
+}
+
+// DatabaseInfo 远程主机检测到的数据库信息
+type DatabaseInfo struct {
+	Name    string `json:"name"`    // MySQL / Redis / PostgreSQL / MongoDB
+	Version string `json:"version"` // 版本号
+	Running bool   `json:"running"` // 是否运行中
+	Port    string `json:"port"`    // 监听端口（如 "3306"）
 }

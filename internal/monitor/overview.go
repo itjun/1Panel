@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,7 +32,7 @@ func (c *Collector) CollectOverview(host string, opt sshd.ConnectOption) (Overvi
 	// 用一个组合命令一次性拿数据，减少 SSH 往返次数
 	// PRETTY_NAME 是 os-release 标准字段（systemd 规范），Debian/Ubuntu/CentOS 都有
 	// NET：/proc/net/dev 累计收发；HOST：主机名 + 架构；IP：默认路由出口 IP
-	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; grep -E '^(PRETTY_NAME|NAME)=' /etc/os-release 2>/dev/null | head -n2; echo "=HOST="; hostname 2>/dev/null; uname -m; echo "=IP="; (ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || hostname -I 2>/dev/null | awk '{print $1}'); echo "=NET="; cat /proc/net/dev 2>/dev/null`
+	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; grep -E '^(PRETTY_NAME|NAME)=' /etc/os-release 2>/dev/null | head -n2; echo "=HOST="; hostname 2>/dev/null; uname -m; echo "=IP="; (ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || hostname -I 2>/dev/null | awk '{print $1}'); echo "=NET="; cat /proc/net/dev 2>/dev/null; echo "=DISKIO="; cat /proc/diskstats 2>/dev/null`
 	out, err := c.mgr.Run(host, opt, script)
 	if err != nil {
 		return Overview{}, err
@@ -210,6 +211,9 @@ func parseOverview(s string) (Overview, error) {
 	if netSec := sections["NET"]; netSec != "" {
 		o.NetRxBytes, o.NetTxBytes = parseNetDev(netSec)
 	}
+	if dio := sections["DISKIO"]; dio != "" {
+		o.DiskReadBytes, o.DiskWriteBytes, o.DiskIOCount = parseDiskStats(dio)
+	}
 	return o, nil
 }
 
@@ -244,6 +248,35 @@ func parseNetDev(s string) (rx, tx uint64) {
 		tx += t
 	}
 	return rx, tx
+}
+
+// diskDevRe 匹配物理块设备名（排除分区 sda1/nvme0n1p1 和虚拟设备 loop/dm-0）
+var diskDevRe = regexp.MustCompile(`^(sd[a-z]+|nvme[0-9]+n[0-9]+|vd[a-z]+|hd[a-z]+|xvd[a-z]+|mmcblk[0-9]+)$`)
+
+// parseDiskStats 解析 /proc/diskstats，合计所有物理块设备的读写字节和操作次数
+// 每行格式：major minor name reads_completed reads_merged sectors_read time_read_ms
+//
+//	writes_completed writes_merged sectors_written time_write_ms ...
+//
+// 扇区固定 512 字节（Linux 内核约定）
+func parseDiskStats(s string) (readBytes, writeBytes, ioCount uint64) {
+	for _, line := range strings.Split(s, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 11 {
+			continue
+		}
+		if !diskDevRe.MatchString(fields[2]) {
+			continue
+		}
+		reads, _ := strconv.ParseUint(fields[3], 10, 64)
+		sectorsRead, _ := strconv.ParseUint(fields[5], 10, 64)
+		writes, _ := strconv.ParseUint(fields[7], 10, 64)
+		sectorsWritten, _ := strconv.ParseUint(fields[9], 10, 64)
+		readBytes += sectorsRead * 512
+		writeBytes += sectorsWritten * 512
+		ioCount += reads + writes
+	}
+	return
 }
 
 // splitSections 把脚本输出的 "=STAT=" / "=MEMINFO=" 等分段解析成 map

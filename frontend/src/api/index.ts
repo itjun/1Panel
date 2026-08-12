@@ -5,7 +5,9 @@
 import {
   CollectDisks,
   CollectDocker,
+  CollectDatabases,
   CollectLargestFiles,
+  CollectLog,
   CollectOverview,
   CollectProcesses,
   CollectServices,
@@ -124,6 +126,8 @@ export const api = {
   collectJava: (host: string) => CollectJava(host),
   collectNetwork: (host: string) => CollectNetwork(host),
   collectDocker: (host: string) => CollectDocker(host),
+  collectDatabases: (host: string): Promise<monitor.DatabaseInfo[]> =>
+    CollectDatabases(host),
   collectServices: (host: string) => CollectServices(host),
   collectCrons: (host: string) => CollectCrons(host),
   collectPackages: (host: string) => CollectPackages(host),
@@ -131,6 +135,11 @@ export const api = {
     host: string,
     limit = 10
   ): Promise<monitor.LargeFilesResult> => CollectLargestFiles(host, limit),
+  collectLog: (
+    host: string,
+    logType: string,
+    lines: number
+  ): Promise<monitor.LogResult> => CollectLog(host, logType, lines),
 
   listDir: (host: string, dir: string) => ListDir(host, dir),
   /** 远程登录用户家目录（文件管理默认打开路径） */

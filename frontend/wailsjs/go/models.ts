@@ -332,8 +332,27 @@ export namespace monitor {
 	        this.source = source["source"];
 	    }
 	}
+	export class DatabaseInfo {
+	    name: string;
+	    version: string;
+	    running: boolean;
+	    port: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DatabaseInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.running = source["running"];
+	        this.port = source["port"];
+	    }
+	}
 	export class DiskInfo {
 	    filesystem: string;
+	    fsType: string;
 	    mount: string;
 	    total: number;
 	    used: number;
@@ -347,6 +366,7 @@ export namespace monitor {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.filesystem = source["filesystem"];
+	        this.fsType = source["fsType"];
 	        this.mount = source["mount"];
 	        this.total = source["total"];
 	        this.used = source["used"];
@@ -467,6 +487,20 @@ export namespace monitor {
 		    }
 		    return a;
 		}
+	}
+	export class LogResult {
+	    content: string;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.content = source["content"];
+	        this.source = source["source"];
+	    }
 	}
 	export class NetConnection {
 	    proto: string;
@@ -623,6 +657,9 @@ export namespace monitor {
 	    ipAddress: string;
 	    netRxBytes: number;
 	    netTxBytes: number;
+	    diskReadBytes: number;
+	    diskWriteBytes: number;
+	    diskIOCount: number;
 	    net1d: NetWindow;
 	    net7d: NetWindow;
 	
@@ -652,6 +689,9 @@ export namespace monitor {
 	        this.ipAddress = source["ipAddress"];
 	        this.netRxBytes = source["netRxBytes"];
 	        this.netTxBytes = source["netTxBytes"];
+	        this.diskReadBytes = source["diskReadBytes"];
+	        this.diskWriteBytes = source["diskWriteBytes"];
+	        this.diskIOCount = source["diskIOCount"];
 	        this.net1d = this.convertValues(source["net1d"], NetWindow);
 	        this.net7d = this.convertValues(source["net7d"], NetWindow);
 	    }

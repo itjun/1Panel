@@ -2,72 +2,77 @@
   <!-- 未解锁：本机密码登录页 -->
   <LoginView v-if="!unlocked" @success="onLoginSuccess" />
 
-  <div v-else class="app-shell">
-    <header class="top-bar drag-region">
-      <div class="left no-drag">
-        <el-button
-          text
-          class="sidebar-toggle-btn"
-          :title="sidebarOpen ? '收起侧栏' : '展开侧栏'"
-          @click="sidebarOpen = !sidebarOpen"
-        >
-          <el-icon>
-            <!-- 边框收缩图标：横向矩形方框 -->
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-            >
-              <rect x="3" y="7" width="18" height="10" rx="1.5" />
-            </svg>
-          </el-icon>
-        </el-button>
-        <!-- 彩色品牌字标：原侧栏顶部 Logo 移至顶栏 -->
-        <LogoFull class="top-brand-logo" />
-      </div>
-      <div class="right no-drag">
-        <el-button type="primary" :icon="Plus" @click="addHostOpen = true">
-          添加主机
-        </el-button>
-        <!-- 设置 / 刷新 / 锁定 折叠为菜单；设置也可用 ⌘, 打开 -->
-        <el-dropdown trigger="click" @command="onMenuCommand">
-          <el-button text :icon="MoreFilled" class="more-btn" title="更多" />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="settings">
-                <span class="menu-item-row">
-                  <span>
-                    <el-icon class="menu-ico"><Setting /></el-icon>
-                    设置…
-                  </span>
-                  <span class="menu-kbd">⌘,</span>
-                </span>
-              </el-dropdown-item>
-              <el-dropdown-item command="refresh" :disabled="app.loading">
-                <span class="menu-item-row">
-                  <span>
-                    <el-icon class="menu-ico"><Refresh /></el-icon>
-                    刷新
-                  </span>
-                </span>
-              </el-dropdown-item>
-              <el-dropdown-item divided command="lock">
-                <span class="menu-item-row">
-                  <span>
-                    <el-icon class="menu-ico"><Lock /></el-icon>
-                    锁定
-                  </span>
-                </span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-    </header>
+  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': !sidebarOpen }">
+    <SidebarHost v-show="sidebarOpen" @collapse="sidebarOpen = false" />
 
-    <div class="app-body">
-      <SidebarHost v-show="sidebarOpen" />
+    <div class="main-column">
+      <header class="top-bar drag-region">
+        <div class="left no-drag">
+          <!-- 侧栏收起后显示展开按钮（此时顶栏左侧给红绿灯让位） -->
+          <el-button
+            v-if="!sidebarOpen"
+            text
+            class="sidebar-toggle-btn"
+            title="展开侧栏"
+            @click="sidebarOpen = true"
+          >
+            <el-icon>
+              <svg viewBox="0 0 1024 1024" fill="currentColor">
+                <path
+                  fill-rule="evenodd"
+                  d="M192 128c-35 0-64 29-64 64v640c0 35 29 64 64 64h640c35 0 64-29 64-64V192c0-35-29-64-64-64H192zM320 192v640h384V192H320z"
+                />
+                <path d="M424 380l200 132-200 132V380z" />
+              </svg>
+            </el-icon>
+          </el-button>
+          <!-- 彩色品牌字标：点击返回全部主机概览 -->
+          <LogoFull
+            class="top-brand-logo"
+            title="返回全部主机"
+            @click="app.goHome()"
+          />
+        </div>
+        <div class="right no-drag">
+          <el-button type="primary" :icon="Plus" @click="addHostOpen = true">
+            添加主机
+          </el-button>
+          <!-- 设置 / 刷新 / 锁定 折叠为菜单；设置也可用 ⌘, 打开 -->
+          <el-dropdown trigger="click" @command="onMenuCommand">
+            <el-button text :icon="MoreFilled" class="more-btn" title="更多" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="settings">
+                  <span class="menu-item-row">
+                    <span>
+                      <el-icon class="menu-ico"><Setting /></el-icon>
+                      设置…
+                    </span>
+                    <span class="menu-kbd">⌘,</span>
+                  </span>
+                </el-dropdown-item>
+                <el-dropdown-item command="refresh" :disabled="app.loading">
+                  <span class="menu-item-row">
+                    <span>
+                      <el-icon class="menu-ico"><Refresh /></el-icon>
+                      刷新
+                    </span>
+                  </span>
+                </el-dropdown-item>
+                <el-dropdown-item divided command="lock">
+                  <span class="menu-item-row">
+                    <span>
+                      <el-icon class="menu-ico"><Lock /></el-icon>
+                      锁定
+                    </span>
+                  </span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </header>
+
       <MainArea />
     </div>
 
@@ -115,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import {
   Lock,
   MoreFilled,
@@ -138,7 +143,23 @@ const app = useAppStore();
 useSettingsStore();
 const unlocked = ref(false);
 const authChecking = ref(true);
-const sidebarOpen = ref(true);
+/** 侧栏开/关状态持久化（默认展开） */
+function loadSidebarOpen(): boolean {
+  try {
+    const v = localStorage.getItem("ipannel.sidebarOpen");
+    return v === null ? true : v === "1";
+  } catch {
+    return true;
+  }
+}
+const sidebarOpen = ref(loadSidebarOpen());
+watch(sidebarOpen, (v) => {
+  try {
+    localStorage.setItem("ipannel.sidebarOpen", v ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+});
 const addHostOpen = ref(false);
 const settingsOpen = ref(false);
 const saving = ref(false);
@@ -283,6 +304,7 @@ onBeforeUnmount(() => {
   width: auto;
   color: var(--el-color-primary);
   flex-shrink: 0;
+  cursor: pointer;
 }
 .add-host-hint {
   margin: 0 0 12px;

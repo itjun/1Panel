@@ -1,10 +1,8 @@
 <template>
   <div class="main-container">
-    <template v-if="!app.activeTab && app.runningHosts.length === 0">
-      <div class="empty-main">
-        <LogoFull style="height: 48px; width: auto; opacity: 0.9" />
-        <h3>选择一台主机或分组</h3>
-        <p>从左侧侧栏选择主机；已打开的主机会后台保持，可随时切换</p>
+    <template v-if="!app.activeTab">
+      <div class="content-pad">
+        <AllHostsOverviewView />
       </div>
     </template>
 
@@ -89,8 +87,16 @@
             v-if="sessionOf(hid)?.subTab === 'docker'"
             :host="hid"
           />
+          <DatabasesView
+            v-if="sessionOf(hid)?.subTab === 'databases'"
+            :host="hid"
+          />
           <FilesView
             v-if="sessionOf(hid)?.subTab === 'files'"
+            :host="hid"
+          />
+          <DiskManageView
+            v-if="sessionOf(hid)?.subTab === 'disks'"
             :host="hid"
           />
           <ServicesView
@@ -103,6 +109,10 @@
           />
           <PackagesView
             v-if="sessionOf(hid)?.subTab === 'packages'"
+            :host="hid"
+          />
+          <LogsView
+            v-if="sessionOf(hid)?.subTab === 'logs'"
             :host="hid"
           />
           <TerminalView
@@ -122,12 +132,15 @@ import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
 import DockerView from "@/views/DockerView.vue";
+import DatabasesView from "@/views/DatabasesView.vue";
 import FilesView from "@/views/FilesView.vue";
+import DiskManageView from "@/views/DiskManageView.vue";
 import ServicesView from "@/views/ServicesView.vue";
 import CronView from "@/views/CronView.vue";
 import PackagesView from "@/views/PackagesView.vue";
+import LogsView from "@/views/LogsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
-import LogoFull from "@/components/LogoFull.vue";
+import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
 
 const app = useAppStore();
 
@@ -136,10 +149,13 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "processes", label: "进程" },
   { value: "network", label: "网络" },
   { value: "docker", label: "Docker" },
+  { value: "databases", label: "数据库" },
   { value: "files", label: "文件" },
+  { value: "disks", label: "磁盘" },
   { value: "services", label: "服务" },
   { value: "cron", label: "定时任务" },
   { value: "packages", label: "软件包" },
+  { value: "logs", label: "日志" },
   { value: "terminal", label: "终端" },
 ];
 
@@ -171,24 +187,6 @@ function onSubChange(hid: string, v: string | number | boolean | undefined) {
 </script>
 
 <style scoped lang="scss">
-.empty-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--el-text-color-secondary);
-  h3 {
-    margin: 12px 0 0;
-    color: var(--panel-text-color);
-    font-size: 16px;
-  }
-  p {
-    margin: 0;
-    font-size: 12px;
-  }
-}
 .host-shell {
   flex: 1;
   min-height: 0;

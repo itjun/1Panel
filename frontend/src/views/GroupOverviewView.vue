@@ -63,23 +63,6 @@
           >
             刷新
           </el-button>
-          <el-button
-            type="primary"
-            size="small"
-            :icon="Monitor"
-            @click="enterDashboard()"
-          >
-            看板
-          </el-button>
-          <el-tooltip content="看板 + 系统全屏 (F11)" placement="bottom">
-            <el-button
-              size="small"
-              :icon="FullScreen"
-              @click="enterDashboard({ systemFullscreen: true })"
-            >
-              全屏
-            </el-button>
-          </el-tooltip>
         </div>
       </div>
 
@@ -254,117 +237,6 @@
       </div>
     </template>
 
-    <!-- ===== 看板模式：纯壳，Teleport 盖住全应用 ===== -->
-    <Teleport to="body">
-      <div
-        v-if="isDashboard && group"
-        class="group-dashboard"
-        :class="{ 'has-alerts': alertHosts.length > 0 }"
-      >
-        <header class="dash-header">
-          <div class="dash-header-left">
-            <span class="dash-title">{{ groupName || group.groupName }}</span>
-            <span class="dash-badge">看板</span>
-            <span class="dash-meta">共 {{ hosts.length }} 台</span>
-            <el-tag size="small" type="success" effect="dark" round>
-              正常 {{ okCount }}
-            </el-tag>
-            <el-tag
-              v-if="alertHosts.length > 0"
-              size="small"
-              type="danger"
-              effect="dark"
-              round
-              class="dash-alert-tag"
-            >
-              告警 {{ alertHosts.length }}
-            </el-tag>
-            <span class="dash-hint">
-              每 5 秒刷新 · 有告警持续响铃 · 双击主机进入 ·
-              <kbd>F11</kbd> 全屏 ·
-              <kbd>Esc</kbd> 退出
-            </span>
-          </div>
-          <div class="dash-header-right">
-            <el-button
-              size="small"
-              :type="soundMuted ? 'warning' : 'default'"
-              :plain="!soundMuted"
-              @click="toggleMute"
-            >
-              {{ soundMuted ? "已静音" : "声音开" }}
-            </el-button>
-            <el-button
-              size="small"
-              :type="sysFullscreen ? 'primary' : 'default'"
-              plain
-              :icon="sysFullscreen ? Close : FullScreen"
-              @click="toggleSysFullscreen"
-            >
-              {{ sysFullscreen ? "退出系统全屏" : "系统全屏" }}
-            </el-button>
-            <el-button
-              size="small"
-              :icon="Refresh"
-              :loading="loading"
-              @click="load"
-            >
-              刷新
-            </el-button>
-            <el-button size="small" type="primary" plain @click="exitDashboard">
-              退出看板
-            </el-button>
-          </div>
-        </header>
-
-        <div v-if="hosts.length === 0" class="dash-empty">
-          <el-empty description="该分组暂无主机" />
-        </div>
-
-        <div v-else class="dash-body">
-          <!-- 告警区 -->
-          <section v-if="alertHosts.length > 0" class="dash-zone dash-zone--alert">
-            <div class="zone-head">
-              <span class="zone-title danger">告警</span>
-              <span class="zone-count">{{ alertHosts.length }} 台</span>
-            </div>
-            <div class="dash-grid">
-              <div
-                v-for="h in alertHosts"
-                :key="'da-' + h.name"
-                class="dash-card is-alarm"
-                title="双击打开主机"
-                @dblclick="openHostFromDash(h.name)"
-              >
-                <HostCardBody :host="h" large />
-              </div>
-            </div>
-          </section>
-
-          <!-- 正常区 -->
-          <section class="dash-zone dash-zone--ok">
-            <div class="zone-head">
-              <span class="zone-title">正常运行</span>
-              <span class="zone-count">{{ normalHosts.length }} 台</span>
-            </div>
-            <div v-if="normalHosts.length === 0" class="zone-empty">
-              当前无正常主机
-            </div>
-            <div v-else class="dash-grid">
-              <div
-                v-for="h in normalHosts"
-                :key="'dn-' + h.name"
-                class="dash-card"
-                title="双击打开主机"
-                @dblclick="openHostFromDash(h.name)"
-              >
-                <HostCardBody :host="h" large />
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -379,19 +251,12 @@ import {
   watch,
 } from "vue";
 import {
-  Close,
-  FullScreen,
   Grid,
   List,
-  Monitor,
   Refresh,
   WarningFilled,
 } from "@element-plus/icons-vue";
 import { ElNotification, ElProgress } from "element-plus";
-import {
-  WindowFullscreen,
-  WindowUnfullscreen,
-} from "@wailsjs/runtime/runtime";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
@@ -413,10 +278,7 @@ const THRESHOLDS = {
   loadRatio: 1.0,
 };
 const POLL_MS = 5000;
-/** 有告警时循环响铃间隔 */
-const SIREN_MS = 2500;
 const VIEW_KEY = "ipannel.groupViewMode";
-const MUTE_KEY = "ipannel.groupDashMute";
 
 type ViewMode = "card" | "list";
 
@@ -445,40 +307,20 @@ function loadViewMode(): ViewMode {
   return "card";
 }
 
-function loadMute(): boolean {
-  try {
-    return localStorage.getItem(MUTE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 const viewMode = ref<ViewMode>(loadViewMode());
-const isDashboard = ref(false);
-const sysFullscreen = ref(false);
-const soundMuted = ref(loadMute());
 const group = ref<GroupSnap | null>(null);
 const loading = ref(false);
 const error = ref("");
 
 let timer: ReturnType<typeof setInterval> | null = null;
-let sirenTimer: ReturnType<typeof setInterval> | null = null;
 let seq = 0;
 let prevAlertKeys = new Set<string>();
-let audioCtx: AudioContext | null = null;
-/** 防止上一声未结束又叠太多 */
-let beepBusy = false;
 
 const hosts = computed(() => group.value?.hosts || []);
 
-const alertHosts = computed(() =>
-  hosts.value.filter((h) => !!h.error || isHostAlert(h))
+const okCount = computed(
+  () => hosts.value.filter((h) => !h.error && !isHostAlert(h)).length
 );
-const normalHosts = computed(() =>
-  hosts.value.filter((h) => !h.error && !isHostAlert(h))
-);
-
-const okCount = computed(() => normalHosts.value.length);
 const alertCount = computed(
   () => hosts.value.filter((h) => !h.error && isHostAlert(h)).length
 );
@@ -492,109 +334,7 @@ function persistViewMode() {
   }
 }
 
-function persistMute() {
-  try {
-    localStorage.setItem(MUTE_KEY, soundMuted.value ? "1" : "0");
-  } catch {
-    /* ignore */
-  }
-}
-
-function toggleMute() {
-  soundMuted.value = !soundMuted.value;
-  persistMute();
-  // 取消静音时解锁 + 试听，并按是否有告警启停循环响铃
-  if (!soundMuted.value) {
-    void unlockAndBeep(true).then(() => syncSiren());
-  } else {
-    stopSiren();
-  }
-}
-
-// ---------- 看板 / 系统全屏 ----------
-
-function setWindowFullscreen(on: boolean) {
-  try {
-    if (on) WindowFullscreen();
-    else WindowUnfullscreen();
-  } catch {
-    /* 无 Wails runtime */
-  }
-}
-
-function enterDashboard(opts?: { systemFullscreen?: boolean }) {
-  const wantSysFs = !!opts?.systemFullscreen;
-  isDashboard.value = true;
-  document.body.classList.add("group-dash-lock");
-  // 必须在用户手势里解锁音频（WKWebView 自动播放策略）
-  void unlockAndBeep(false).then(() => syncSiren());
-  if (wantSysFs) {
-    sysFullscreen.value = true;
-    setWindowFullscreen(true);
-  }
-  // 按钮进入默认不系统全屏；F11 进入时带系统全屏
-}
-
-function exitDashboard() {
-  if (!isDashboard.value) return;
-  isDashboard.value = false;
-  if (sysFullscreen.value) {
-    sysFullscreen.value = false;
-    setWindowFullscreen(false);
-  }
-  document.body.classList.remove("group-dash-lock");
-  // 退出看板后仍保持「有警告就响」，不在这里 stopSiren
-}
-
-function toggleSysFullscreen() {
-  if (!isDashboard.value) return;
-  sysFullscreen.value = !sysFullscreen.value;
-  setWindowFullscreen(sysFullscreen.value);
-}
-
-/** F11：直接进入看板 + 系统全屏；再按退出 */
-function onF11Toggle(e: KeyboardEvent) {
-  e.preventDefault();
-  e.stopPropagation();
-  if (isDashboard.value && sysFullscreen.value) {
-    // 已在全屏看板 → 退出
-    exitDashboard();
-    return;
-  }
-  if (isDashboard.value && !sysFullscreen.value) {
-    // 已在看板但未系统全屏 → 补上系统全屏
-    sysFullscreen.value = true;
-    setWindowFullscreen(true);
-    return;
-  }
-  // 日常分组页 → 一键看板全屏
-  enterDashboard({ systemFullscreen: true });
-}
-
-function onDashKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape" && isDashboard.value) {
-    e.preventDefault();
-    e.stopPropagation();
-    exitDashboard();
-    return;
-  }
-  // F11 / Fn+F11（部分键盘 key 为 "F11"）；忽略输入框内（侧栏搜索）
-  if (e.key === "F11" || e.code === "F11") {
-    const t = e.target as HTMLElement | null;
-    const tag = (t?.tagName || "").toLowerCase();
-    if (tag === "input" || tag === "textarea" || t?.isContentEditable) {
-      return;
-    }
-    onF11Toggle(e);
-  }
-}
-
 function openHost(name: string) {
-  app.openHostTab(name);
-}
-
-function openHostFromDash(name: string) {
-  exitDashboard();
   app.openHostTab(name);
 }
 
@@ -678,188 +418,6 @@ function collectHostAlerts(h: HostSnap): { key: string; line: string }[] {
   return out;
 }
 
-/** 获取可用 AudioContext 构造器 */
-function getAudioContextCtor(): typeof AudioContext | null {
-  const w = window as unknown as {
-    AudioContext?: typeof AudioContext;
-    webkitAudioContext?: typeof AudioContext;
-  };
-  return w.AudioContext || w.webkitAudioContext || null;
-}
-
-/** 用户手势内解锁音频（Wails/WKWebView 必需） */
-async function unlockAudio(): Promise<boolean> {
-  try {
-    const AC = getAudioContextCtor();
-    if (!AC) return false;
-    if (!audioCtx || audioCtx.state === "closed") {
-      audioCtx = new AC();
-    }
-    if (audioCtx.state === "suspended") {
-      await audioCtx.resume();
-    }
-    // 极短静音缓冲，进一步「点亮」部分 WebView 音频管线
-    if (audioCtx.state === "running") {
-      const buf = audioCtx.createBuffer(1, 1, 22050);
-      const src = audioCtx.createBufferSource();
-      src.buffer = buf;
-      src.connect(audioCtx.destination);
-      src.start(0);
-    }
-    return audioCtx.state === "running";
-  } catch {
-    return false;
-  }
-}
-
-/** 生成双音短 beep 的 WAV Blob URL（HTMLAudio 回退，兼容性更好） */
-function buildBeepWavUrl(): string {
-  const sampleRate = 22050;
-  const freqs = [880, 1175];
-  const toneSec = 0.11;
-  const gapSec = 0.04;
-  const totalSec = freqs.length * toneSec + (freqs.length - 1) * gapSec;
-  const n = Math.floor(sampleRate * totalSec);
-  const data = new Int16Array(n);
-  let offset = 0;
-  for (let t = 0; t < freqs.length; t++) {
-    const len = Math.floor(sampleRate * toneSec);
-    const f = freqs[t];
-    for (let i = 0; i < len && offset + i < n; i++) {
-      const env = Math.min(1, i / (sampleRate * 0.01), (len - i) / (sampleRate * 0.02));
-      const sample = Math.sin((2 * Math.PI * f * i) / sampleRate) * env * 0.55;
-      data[offset + i] = (sample * 0x7fff) | 0;
-    }
-    offset += len + Math.floor(sampleRate * gapSec);
-  }
-  const bytes = data.byteLength;
-  const buf = new ArrayBuffer(44 + bytes);
-  const view = new DataView(buf);
-  const writeStr = (at: number, s: string) => {
-    for (let i = 0; i < s.length; i++) view.setUint8(at + i, s.charCodeAt(i));
-  };
-  writeStr(0, "RIFF");
-  view.setUint32(4, 36 + bytes, true);
-  writeStr(8, "WAVE");
-  writeStr(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeStr(36, "data");
-  view.setUint32(40, bytes, true);
-  new Uint8Array(buf, 44).set(new Uint8Array(data.buffer));
-  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
-}
-
-async function playBeepViaWebAudio(): Promise<boolean> {
-  try {
-    const ok = await unlockAudio();
-    if (!ok || !audioCtx) return false;
-    const ctx = audioCtx;
-    const now = ctx.currentTime;
-    for (let i = 0; i < 2; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = i === 0 ? 880 : 1175;
-      const t0 = now + i * 0.15;
-      // 线性包络更稳（部分实现 exponential 对 0 敏感）
-      gain.gain.setValueAtTime(0, t0);
-      gain.gain.linearRampToValueAtTime(0.25, t0 + 0.015);
-      gain.gain.linearRampToValueAtTime(0, t0 + 0.12);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(t0);
-      osc.stop(t0 + 0.13);
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function playBeepViaHtmlAudio(): Promise<boolean> {
-  try {
-    const url = buildBeepWavUrl();
-    const audio = new Audio(url);
-    audio.volume = 0.7;
-    await audio.play();
-    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** 告警音：优先 WebAudio，失败则 HTMLAudio WAV */
-async function playAlertBeep() {
-  if (soundMuted.value) return;
-  if (beepBusy) return;
-  beepBusy = true;
-  try {
-    const a = await playBeepViaWebAudio();
-    if (!a) await playBeepViaHtmlAudio();
-  } finally {
-    window.setTimeout(() => {
-      beepBusy = false;
-    }, 400);
-  }
-}
-
-/** 解锁；optionally 立刻响一声（取消静音试听） */
-async function unlockAndBeep(forceBeep: boolean) {
-  await unlockAudio();
-  // 再尝试一次 HTML 管线解锁
-  try {
-    const url = buildBeepWavUrl();
-    const audio = new Audio(url);
-    audio.volume = forceBeep && !soundMuted.value ? 0.7 : 0.001;
-    await audio.play().catch(() => undefined);
-    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
-  } catch {
-    /* ignore */
-  }
-  if (forceBeep && !soundMuted.value) {
-    await playAlertBeep();
-  }
-}
-
-function hasActiveAlerts(list: HostSnap[] = hosts.value): boolean {
-  return list.some((h) => !!h.error || isHostAlert(h));
-}
-
-function stopSiren() {
-  if (sirenTimer) {
-    clearInterval(sirenTimer);
-    sirenTimer = null;
-  }
-}
-
-/**
- * 有警告就一直响：存在告警且未静音时，按间隔循环 beep；
- * 全部恢复或静音后停止。
- */
-function syncSiren() {
-  if (soundMuted.value || !hasActiveAlerts()) {
-    stopSiren();
-    return;
-  }
-  if (sirenTimer) return;
-  // 立即响一声，再进入循环
-  void playAlertBeep();
-  sirenTimer = setInterval(() => {
-    if (soundMuted.value || !hasActiveAlerts()) {
-      stopSiren();
-      return;
-    }
-    void playAlertBeep();
-  }, SIREN_MS);
-}
-
 function notifyNewAlerts(list: HostSnap[]) {
   const next = new Set<string>();
   const newLines: string[] = [];
@@ -872,7 +430,7 @@ function notifyNewAlerts(list: HostSnap[]) {
     }
   }
   prevAlertKeys = next;
-  // 声音交给 syncSiren 持续响；弹窗仅在新出现的告警时
+  // 仅在新出现的告警时弹窗
   if (newLines.length === 0) return;
 
   const title =
@@ -904,7 +462,6 @@ function applyHostData(data: GroupSnap) {
     hosts: list,
   };
   notifyNewAlerts(list);
-  syncSiren();
 }
 
 function statusLabel(h: HostSnap): string {
@@ -990,7 +547,7 @@ function stopPoll() {
   }
 }
 
-// ---------- 子组件：卡片内容（日常 / 看板复用） ----------
+// ---------- 子组件：卡片内容 ----------
 
 const HostCardBody = defineComponent({
   name: "HostCardBody",
@@ -1163,30 +720,20 @@ const ListMetric = defineComponent({
 });
 
 onMounted(() => {
-  window.addEventListener("keydown", onDashKeydown, true);
   void load().then(startPoll);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("keydown", onDashKeydown, true);
-  exitDashboard();
-  stopSiren();
   stopPoll();
   seq++;
-  if (audioCtx && audioCtx.state !== "closed") {
-    void audioCtx.close().catch(() => undefined);
-    audioCtx = null;
-  }
 });
 
 watch(
   () => props.groupId,
   () => {
-    exitDashboard();
     group.value = null;
     error.value = "";
     prevAlertKeys = new Set();
-    stopSiren();
     void load().then(startPoll);
   }
 );
@@ -1502,210 +1049,6 @@ html.dark .host-list-wrap {
 </style>
 
 <style>
-/* 看板壳：盖住整应用（非简单放大列表） */
-body.group-dash-lock {
-  overflow: hidden !important;
-}
-
-.group-dashboard {
-  position: fixed;
-  inset: 0;
-  z-index: 30000;
-  display: flex;
-  flex-direction: column;
-  background: #0f1419;
-  color: #e8eef5;
-  font-family: inherit;
-}
-
-.group-dashboard .dash-header {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, #161d27 0%, #121820 100%);
-}
-
-.group-dashboard .dash-header-left,
-.group-dashboard .dash-header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.group-dashboard .dash-title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #fff;
-}
-
-.group-dashboard .dash-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(64, 158, 255, 0.2);
-  color: #79bbff;
-}
-
-.group-dashboard .dash-meta {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.group-dashboard .dash-hint {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-left: 4px;
-}
-
-.group-dashboard .dash-hint kbd {
-  padding: 0 5px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 11px;
-  font-family: inherit;
-}
-
-.group-dashboard .dash-alert-tag {
-  animation: dash-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes dash-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(245, 108, 108, 0.45);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(245, 108, 108, 0);
-  }
-}
-
-.group-dashboard .dash-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 16px 20px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.group-dashboard .dash-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.group-dashboard .dash-zone {
-  flex-shrink: 0;
-}
-
-.group-dashboard .zone-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.group-dashboard .zone-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.group-dashboard .zone-title.danger {
-  color: #f89898;
-}
-
-.group-dashboard .zone-count {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.group-dashboard .zone-empty {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.35);
-  padding: 12px 0;
-}
-
-.group-dashboard .dash-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 14px;
-}
-
-.group-dashboard .dash-card {
-  position: relative;
-  padding: 16px;
-  border-radius: 10px;
-  background: #1a222d;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  cursor: default;
-  user-select: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease,
-    transform 0.15s ease;
-}
-
-.group-dashboard .dash-card:hover {
-  border-color: rgba(64, 158, 255, 0.45);
-  transform: translateY(-1px);
-}
-
-.group-dashboard .dash-card.is-alarm {
-  background: linear-gradient(145deg, #2a1518 0%, #1f1214 100%);
-  border-color: #f56c6c;
-  box-shadow: 0 0 0 1px rgba(245, 108, 108, 0.35),
-    0 8px 24px rgba(245, 108, 108, 0.12);
-  animation: dash-card-alarm 2s ease-in-out infinite;
-}
-
-@keyframes dash-card-alarm {
-  0%,
-  100% {
-    box-shadow: 0 0 0 1px rgba(245, 108, 108, 0.35),
-      0 8px 24px rgba(245, 108, 108, 0.1);
-  }
-  50% {
-    box-shadow: 0 0 0 2px rgba(245, 108, 108, 0.7),
-      0 8px 28px rgba(245, 108, 108, 0.22);
-  }
-}
-
-/* 看板内卡片文字提亮 */
-.group-dashboard .hcb .host-name {
-  color: #fff;
-}
-.group-dashboard .hcb .host-sub,
-.group-dashboard .hcb .host-meta,
-.group-dashboard .hcb .m-label,
-.group-dashboard .hcb .m-sub {
-  color: rgba(255, 255, 255, 0.55);
-}
-.group-dashboard .hcb .m-val {
-  color: rgba(255, 255, 255, 0.92);
-}
-.group-dashboard .hcb .m-val.is-alert,
-.group-dashboard .hcb .metric-row.is-alert .m-label {
-  color: #f89898 !important;
-}
-.group-dashboard .hcb .avatar:not(.err) {
-  background: rgba(64, 158, 255, 0.12);
-}
-.group-dashboard .hcb .err-text {
-  color: #f89898;
-}
-
 .group-alert-notify {
   white-space: pre-line !important;
   max-width: 420px;
