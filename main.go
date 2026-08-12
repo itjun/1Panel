@@ -17,10 +17,12 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:     "1Pannel",
-		Width:     1440,
-		Height:    900,
-		MinWidth:  1100,
-		MinHeight: 700,
+		Width:             1440,
+		Height:            900,
+		MinWidth:          1100,
+		MinHeight:         700,
+		// 启动即最大化窗口（用户点还原后回到上面的 1440x900）
+		WindowStartState:  options.Maximised,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
