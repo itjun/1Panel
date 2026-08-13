@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"diteng-pannel/internal/groups"
+	"diteng-pannel/internal/hosticon"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/nethist"
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
+	"diteng-pannel/internal/vmquery"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -28,18 +30,24 @@ import (
 type App struct {
 	ctx context.Context
 
-	sshMgr    *sshd.Manager
-	collector *monitor.Collector
-	groups    *groups.Store
-	netHist   *nethist.Store
-	termMgr   *terminal.Manager
+	sshMgr       *sshd.Manager
+	collector    *monitor.Collector
+	groups       *groups.Store
+	hostIcons    *hosticon.Store
+	netHist      *nethist.Store
+	termMgr      *terminal.Manager
+	vmClient     *vmquery.Client
+	vmScheduler  *vmquery.QueryScheduler
 }
 
 func NewApp() *App {
 	sshMgr := sshd.NewManager()
+	vmClient := vmquery.NewClient(sshMgr)
 	return &App{
-		sshMgr:  sshMgr,
-		termMgr: terminal.NewManager(sshMgr),
+		sshMgr:      sshMgr,
+		termMgr:     terminal.NewManager(sshMgr),
+		vmClient:    vmClient,
+		vmScheduler: vmquery.NewScheduler(vmClient),
 	}
 }
 
@@ -58,6 +66,11 @@ func (a *App) startup(ctx context.Context) {
 		runtime.LogErrorf(ctx, "初始化网卡历史失败: %v", err)
 	} else {
 		a.netHist = nh
+	}
+	if hi, err := hosticon.NewStore("ServerPanel"); err != nil {
+		runtime.LogErrorf(ctx, "初始化主机图标存储失败: %v", err)
+	} else {
+		a.hostIcons = hi
 	}
 	a.collector = monitor.NewCollector(a.sshMgr)
 }
@@ -187,6 +200,11 @@ func (a *App) RenameHost(oldName, newName string) error {
 			runtime.LogWarningf(a.ctx, "同步分组引用失败: %v", err)
 		}
 	}
+	if a.hostIcons != nil {
+		if err := a.hostIcons.Rename(oldName, newName); err != nil {
+			runtime.LogWarningf(a.ctx, "同步主机图标失败: %v", err)
+		}
+	}
 	// 关闭旧连接，下次用新别名时重新建立
 	a.sshMgr.Close(oldName)
 	return nil
@@ -273,6 +291,11 @@ func (a *App) DeleteHost(name string) error {
 			runtime.LogWarningf(a.ctx, "清理分组引用失败: %v", err)
 		}
 	}
+	if a.hostIcons != nil {
+		if err := a.hostIcons.Delete(name); err != nil {
+			runtime.LogWarningf(a.ctx, "清理主机图标失败: %v", err)
+		}
+	}
 	a.sshMgr.Close(name)
 	return nil
 }
@@ -332,6 +355,8 @@ func (a *App) CollectOverview(host string) (monitor.Overview, error) {
 	if err != nil {
 		return ov, err
 	}
+	// 首次访问或概览刷新时顺手记下发行版，避免下次启动再远程探测
+	a.rememberOS(host, ov.OSRelease)
 	if a.netHist != nil {
 		d1, d7 := a.netHist.RecordAndWindows(host, ov.NetRxBytes, ov.NetTxBytes)
 		ov.Net1d = monitor.NetWindow{
@@ -485,6 +510,48 @@ func (a *App) CollectDatabases(host string) ([]monitor.DatabaseInfo, error) {
 		return nil, err
 	}
 	return a.collector.CollectDatabases(host, opt)
+}
+
+// ============ Java 监控（VM + JVM 详情） ============
+
+// CollectJavaDetail 一次 SSH 解析全机 Java 进程的 Xms/Xmx/jar/GC日志/screen
+// 供 JavaView 的列表与详情展示
+func (a *App) CollectJavaDetail(host string) ([]monitor.JavaDetail, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return nil, err
+	}
+	return a.collector.CollectJavaDetail(host, opt)
+}
+
+// CollectJvmEvents 采集指定 GC 日志的末尾 N 行（走 SSH tail，不进时序库）
+func (a *App) CollectJvmEvents(host, gcLogPath string, limit int) (string, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return "", err
+	}
+	return a.collector.CollectJvmEvents(host, opt, gcLogPath, limit)
+}
+
+// ProbeMetrics 探测远端 VictoriaMetrics 是否在跑
+// 只有 beta 装了 VM；cloud/raven 探测失败时前端降级为只显示实时值
+func (a *App) ProbeMetrics(host string) (vmquery.ProbeResult, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return vmquery.ProbeResult{}, err
+	}
+	return a.vmClient.Probe(host, opt), nil
+}
+
+// QueryMetricRange 查询 VM 的 range 接口（用于画时序曲线）
+// query: PromQL；start/end：Unix 秒；step：秒
+// 返回 VM 原始 JSON，前端用 ECharts 解析
+func (a *App) QueryMetricRange(host, query string, start, end int64, step int) ([]byte, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return nil, err
+	}
+	return a.vmScheduler.QueryRange(host, opt, query, start, end, step)
 }
 
 // DeletePaths 删除远程主机上的多个文件或目录（递归，不可恢复）
