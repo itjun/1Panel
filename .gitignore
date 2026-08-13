@@ -1,5 +1,20 @@
 # --- 构建产物 ---
+# build/ 下的构建资产（appicon、Info.plist、windows icon/manifest 等）需入库，
+# 供 CI 拉取后打包；build/bin/ 是产物，保持忽略。
 build/
+!build/appicon.icns
+!build/appicon.png
+!build/appicon.svg
+!build/darwin/
+!build/darwin/Info.plist
+!build/darwin/Info.dev.plist
+!build/windows/
+!build/windows/icon.ico
+!build/windows/info.json
+!build/windows/wails.exe.manifest
+!build/windows/installer/
+!build/windows/installer/*
+!build/README.md
 **/dist/
 *.app
 *.app.dSYM/
