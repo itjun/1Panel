@@ -245,6 +245,38 @@ export namespace main {
 	        this.password = source["password"];
 	    }
 	}
+	export class ProbeResult {
+	    available: boolean;
+	    version: string;
+	    latencyMs: number;
+
+	    static createFrom(source: any = {}) {
+	        return new ProbeResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.version = source["version"];
+	        this.latencyMs = source["latencyMs"];
+	    }
+	}
+	export class HostIcon {
+	    host: string;
+	    osRelease: string;
+	    error?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new HostIcon(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.osRelease = source["osRelease"];
+	        this.error = source["error"];
+	    }
+	}
 
 }
 
@@ -756,6 +788,36 @@ export namespace monitor {
 	        this.load = source["load"];
 	        this.active = source["active"];
 	        this.sub = source["sub"];
+	    }
+	}
+	export class JavaDetail {
+	    pid: number;
+	    xms: string;
+	    xmx: string;
+	    jar: string;
+	    gcLog: string;
+	    heapDumpPath: string;
+	    screen: string;
+	    hasGCLogging: boolean;
+	    hasExitCode: boolean;
+	    port: number;
+
+	    static createFrom(source: any = {}) {
+	        return new JavaDetail(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pid = source["pid"];
+	        this.xms = source["xms"];
+	        this.xmx = source["xmx"];
+	        this.jar = source["jar"];
+	        this.gcLog = source["gcLog"];
+	        this.heapDumpPath = source["heapDumpPath"];
+	        this.screen = source["screen"];
+	        this.hasGCLogging = source["hasGCLogging"];
+	        this.hasExitCode = source["hasExitCode"];
+	        this.port = source["port"];
 	    }
 	}
 

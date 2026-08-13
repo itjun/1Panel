@@ -128,6 +128,10 @@
             v-if="sessionOf(hid)?.subTab === 'terminal'"
             :host="hid"
           />
+          <JavaView
+            v-if="sessionOf(hid)?.subTab === 'java'"
+            :host="hid"
+          />
         </div>
       </div>
     </template>
@@ -152,6 +156,7 @@ import CronView from "@/views/CronView.vue";
 import PackagesView from "@/views/PackagesView.vue";
 import LogsView from "@/views/LogsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
+import JavaView from "@/views/JavaView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
 
 const app = useAppStore();
@@ -201,6 +206,7 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "packages", label: "软件包" },
   { value: "logs", label: "日志" },
   { value: "terminal", label: "终端" },
+  { value: "java", label: "Java" },
 ];
 
 const FILL_SUBS: SubTab[] = [
@@ -212,6 +218,7 @@ const FILL_SUBS: SubTab[] = [
   "services",
   "cron",
   "packages",
+  "java",
 ];
 
 function sessionOf(hid: string) {

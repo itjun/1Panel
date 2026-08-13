@@ -20,7 +20,8 @@ export type SubTab =
   | "cron"
   | "packages"
   | "logs"
-  | "terminal";
+  | "terminal"
+  | "java";
 
 /** 当前主区展示的对象 */
 export interface ActiveView {
@@ -50,8 +51,10 @@ export const useAppStore = defineStore("app", () => {
   const groupList = ref<groups.Group[]>([]);
   const activeView = ref<ActiveView | null>(null);
   const loading = ref(false);
-  /** 主机名 → osRelease 映射（异步采集，供侧栏/概览页显示发行版图标） */
+  /** 主机名 → osRelease 映射（本地记录；启动只读盘，缺失再远程补） */
   const osReleaseMap = ref<Map<string, string>>(new Map());
+  /** 批量检查/更新图标进行中 */
+  const iconsRefreshing = ref(false);
   /** 软件包等模块切到终端时希望自动执行的命令 */
   const pendingTerminalCmd = ref<string | null>(null);
 
@@ -98,23 +101,96 @@ export const useAppStore = defineStore("app", () => {
     } finally {
       loading.value = false;
     }
-    // 异步刷新发行版图标数据（不阻塞 UI，失败静默）
-    void loadOsReleases();
+    // 启动/刷新：先读本地图标记录，没有记录的主机再后台轻量探测
+    await loadLocalIcons();
+    void fillMissingIcons();
   }
 
-  /** 采集所有主机 osRelease，供侧栏/概览页匹配发行版图标 */
-  async function loadOsReleases() {
+  function applyIconResults(
+    list: { host?: string; osRelease?: string }[] | null | undefined
+  ) {
+    const m = new Map(osReleaseMap.value);
+    for (const it of list || []) {
+      if (it.host && it.osRelease) {
+        m.set(it.host, it.osRelease);
+      }
+    }
+    osReleaseMap.value = m;
+  }
+
+  /** 从本机 host_icons.json 加载，不访问远程 */
+  async function loadLocalIcons() {
     try {
-      const data = await api.listGroupOverview();
+      const list = await api.listHostIcons();
       const m = new Map<string, string>();
-      for (const g of data || []) {
-        for (const hst of g.hosts || []) {
-          m.set(hst.name, hst.overview?.osRelease || "");
+      for (const it of list || []) {
+        if (it.host && it.osRelease) {
+          m.set(it.host, it.osRelease);
         }
       }
       osReleaseMap.value = m;
     } catch {
-      /* 采不到则保持原映射，图标回退默认 Linux */
+      /* 读不到则保持原映射，图标回退默认 Linux */
+    }
+  }
+
+  /** 只补齐还没有记录的主机（轻量读 os-release，失败静默） */
+  async function fillMissingIcons() {
+    const names = hosts.value.map((h) => h.name);
+    const missing = names.filter((n) => !osReleaseMap.value.get(n));
+    if (missing.length === 0) return;
+    try {
+      const list = await api.refreshMissingHostIcons();
+      applyIconResults(list);
+    } catch {
+      /* 补齐失败不影响启动 */
+    }
+  }
+
+  /** 打开主机概览拿到 osRelease 后，立刻更新侧栏图标 */
+  function rememberOsRelease(host: string, osRelease: string) {
+    const name = (host || "").trim();
+    const os = (osRelease || "").trim();
+    if (!name || !os) return;
+    if (osReleaseMap.value.get(name) === os) return;
+    const m = new Map(osReleaseMap.value);
+    m.set(name, os);
+    osReleaseMap.value = m;
+  }
+
+  /** 强制重新探测一台主机的发行版图标 */
+  async function refreshHostIcon(name: string): Promise<string> {
+    const r = await api.refreshHostIcon(name);
+    if (r?.osRelease) {
+      rememberOsRelease(r.host || name, r.osRelease);
+    }
+    if (r?.error) {
+      throw new Error(r.error);
+    }
+    return r?.osRelease || "";
+  }
+
+  /** 强制检查并更新全部主机图标 */
+  async function refreshAllHostIcons(): Promise<{
+    ok: number;
+    failed: { host: string; error: string }[];
+  }> {
+    iconsRefreshing.value = true;
+    try {
+      const list = await api.refreshAllHostIcons();
+      applyIconResults(list);
+      const failed: { host: string; error: string }[] = [];
+      let ok = 0;
+      for (const it of list || []) {
+        if (it.error) {
+          failed.push({ host: it.host || "", error: it.error });
+        } else if (it.osRelease) {
+          ok += 1;
+        }
+      }
+      return { ok, failed };
+    } finally {
+      iconsRefreshing.value = false;
     }
   }
 
@@ -249,6 +325,15 @@ export const useAppStore = defineStore("app", () => {
     if (!next || next === oldName) return;
     await api.renameHost(oldName, next);
 
+    // 图标记录随别名迁移，避免侧栏闪回默认企鹅
+    if (osReleaseMap.value.has(oldName)) {
+      const m = new Map(osReleaseMap.value);
+      const os = m.get(oldName) || "";
+      m.delete(oldName);
+      if (os) m.set(next, os);
+      osReleaseMap.value = m;
+    }
+
     // 迁移后台会话 / 激活态（后端会关旧 SSH 连接）
     const sess = hostSessions.value[oldName];
     if (sess) {
@@ -306,11 +391,15 @@ export const useAppStore = defineStore("app", () => {
     groupNodes,
     loading,
     osReleaseMap,
+    iconsRefreshing,
     pendingTerminalCmd,
     hostSessions,
     runningHosts,
     runningOrder,
     refresh,
+    rememberOsRelease,
+    refreshHostIcon,
+    refreshAllHostIcons,
     isRunning,
     openHostTab,
     openGroupTab,

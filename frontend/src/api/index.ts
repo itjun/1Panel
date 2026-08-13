@@ -14,7 +14,11 @@ import {
   CollectPackages,
   CollectCrons,
   CollectJava,
+  CollectJavaDetail,
+  CollectJvmEvents,
   CollectNetwork,
+  ProbeMetrics,
+  QueryMetricRange,
   AddHost,
   AssignHost,
   AuthenticateMacUser,
@@ -59,6 +63,13 @@ export interface MacUserInfo {
 export interface AuthState {
   authenticated: boolean;
   username: string;
+}
+
+/** 主机发行版图标记录（对应后端 main.HostIcon）*/
+export interface HostIcon {
+  host: string;
+  osRelease: string;
+  error?: string;
 }
 
 /** 本地文件编码检测结果（对应后端 main.LocalTextCheck）*/
@@ -119,11 +130,34 @@ export const api = {
   listOneGroupOverview: (groupID: string): Promise<main.GroupOverview> =>
     ListOneGroupOverview(groupID),
 
+  /** 本地已记录的发行版图标，不访问远程 */
+  listHostIcons: (): Promise<HostIcon[]> => wailsMain<HostIcon[]>("ListHostIcons"),
+  /** 强制远程探测一台主机并落盘 */
+  refreshHostIcon: (host: string): Promise<HostIcon> =>
+    wailsMain<HostIcon>("RefreshHostIcon", host),
+  /** 只补齐没有记录的主机 */
+  refreshMissingHostIcons: (): Promise<HostIcon[]> =>
+    wailsMain<HostIcon[]>("RefreshMissingHostIcons"),
+  /** 强制重新探测全部主机 */
+  refreshAllHostIcons: (): Promise<HostIcon[]> =>
+    wailsMain<HostIcon[]>("RefreshAllHostIcons"),
+
   collectOverview: (host: string) => CollectOverview(host),
   collectDisks: (host: string) => CollectDisks(host),
   collectProcesses: (host: string, limit: number) =>
     CollectProcesses(host, limit),
   collectJava: (host: string) => CollectJava(host),
+  collectJavaDetail: (host: string) => CollectJavaDetail(host),
+  collectJvmEvents: (host: string, gcLogPath: string, limit: number) =>
+    CollectJvmEvents(host, gcLogPath, limit),
+  probeMetrics: (host: string) => ProbeMetrics(host),
+  queryMetricRange: (
+    host: string,
+    query: string,
+    start: number,
+    end: number,
+    step: number
+  ) => QueryMetricRange(host, query, start, end, step),
   collectNetwork: (host: string) => CollectNetwork(host),
   collectDocker: (host: string) => CollectDocker(host),
   collectDatabases: (host: string): Promise<monitor.DatabaseInfo[]> =>

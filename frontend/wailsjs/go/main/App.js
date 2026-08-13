@@ -54,6 +54,22 @@ export function CollectJava(arg1) {
   return window['go']['main']['App']['CollectJava'](arg1);
 }
 
+export function CollectJavaDetail(arg1) {
+  return window['go']['main']['App']['CollectJavaDetail'](arg1);
+}
+
+export function CollectJvmEvents(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CollectJvmEvents'](arg1, arg2, arg3);
+}
+
+export function ProbeMetrics(arg1) {
+  return window['go']['main']['App']['ProbeMetrics'](arg1);
+}
+
+export function QueryMetricRange(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['QueryMetricRange'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function CollectLargestFiles(arg1, arg2) {
   return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2);
 }
@@ -126,6 +142,10 @@ export function ListGroups() {
   return window['go']['main']['App']['ListGroups']();
 }
 
+export function ListHostIcons() {
+  return window['go']['main']['App']['ListHostIcons']();
+}
+
 export function ListHosts() {
   return window['go']['main']['App']['ListHosts']();
 }
@@ -156,6 +176,18 @@ export function ReadFilePreview(arg1, arg2) {
 
 export function ReadFileText(arg1, arg2) {
   return window['go']['main']['App']['ReadFileText'](arg1, arg2);
+}
+
+export function RefreshAllHostIcons() {
+  return window['go']['main']['App']['RefreshAllHostIcons']();
+}
+
+export function RefreshHostIcon(arg1) {
+  return window['go']['main']['App']['RefreshHostIcon'](arg1);
+}
+
+export function RefreshMissingHostIcons() {
+  return window['go']['main']['App']['RefreshMissingHostIcons']();
 }
 
 export function RenameGroup(arg1, arg2) {

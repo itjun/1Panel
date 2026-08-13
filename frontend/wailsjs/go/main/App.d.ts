@@ -32,6 +32,14 @@ export function CollectDocker(arg1:string):Promise<monitor.DockerInfo>;
 
 export function CollectJava(arg1:string):Promise<Array<monitor.ProcInfo>>;
 
+export function CollectJavaDetail(arg1:string):Promise<Array<monitor.JavaDetail>>;
+
+export function CollectJvmEvents(arg1:string,arg2:string,arg3:number):Promise<string>;
+
+export function ProbeMetrics(arg1:string):Promise<main.ProbeResult>;
+
+export function QueryMetricRange(arg1:string,arg2:string,arg3:number,arg4:number,arg5:number):Promise<any>;
+
 export function CollectLargestFiles(arg1:string,arg2:number):Promise<monitor.LargeFilesResult>;
 
 export function CollectLog(arg1:string,arg2:string,arg3:number):Promise<monitor.LogResult>;
@@ -68,11 +76,19 @@ export function ListGroupOverview():Promise<Array<main.GroupOverview>>;
 
 export function ListGroups():Promise<Array<groups.Group>>;
 
+export function ListHostIcons():Promise<Array<main.HostIcon>>;
+
 export function ListHosts():Promise<Array<sshconfig.HostConfig>>;
 
 export function ListHostsAll():Promise<Array<sshconfig.HostConfig>>;
 
 export function ListOneGroupOverview(arg1:string):Promise<main.GroupOverview>;
+
+export function RefreshAllHostIcons():Promise<Array<main.HostIcon>>;
+
+export function RefreshHostIcon(arg1:string):Promise<main.HostIcon>;
+
+export function RefreshMissingHostIcons():Promise<Array<main.HostIcon>>;
 
 export function LogoutMacUser():Promise<main.AuthState>;
 
