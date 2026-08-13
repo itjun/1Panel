@@ -3,6 +3,7 @@
     :model-value="modelValue"
     title="设置"
     width="560px"
+    append-to-body
     destroy-on-close
     class="settings-dialog"
     @update:model-value="emit('update:modelValue', $event)"

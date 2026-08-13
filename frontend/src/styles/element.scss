@@ -71,6 +71,34 @@ html {
     z-index: 99999 !important;
 }
 
+/* Wails/WKWebView 下弹窗的 fixed + inline-block(:after)/flex 居中偶发失效（弹窗会跑到左上/侧栏区域），
+   统一改用「绝对定位 + 50% + translate(-50%,-50%)」兜底：不依赖父容器高度、兼容性最好，
+   保证弹窗在整个应用窗口水平垂直居中；遮罩层级提到 toast 之下的最高层保证置顶 */
+.el-overlay {
+    z-index: 99998 !important;
+}
+
+/* message-box（重命名 / 删除确认 / 新建分组等）绝对居中 */
+.el-overlay-message-box::after {
+    display: none !important;
+}
+
+.el-overlay-message-box .el-message-box {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+}
+
+/* el-dialog（编辑主机 / 添加主机 / 设置等）绝对居中 */
+.el-overlay-dialog .el-dialog {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+}
+
 .table-box {
     display: flex;
     flex-direction: column;

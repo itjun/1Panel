@@ -285,6 +285,7 @@
       v-model="editOpen"
       title="编辑主机"
       width="440px"
+      append-to-body
       destroy-on-close
       :close-on-click-modal="!editSaving"
       @closed="resetEditForm"

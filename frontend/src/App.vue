@@ -80,6 +80,7 @@
       v-model="addHostOpen"
       title="添加主机"
       width="440px"
+      append-to-body
       destroy-on-close
       :close-on-click-modal="!saving"
     >
