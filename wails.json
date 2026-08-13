@@ -6,10 +6,10 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "info": {
     "productName": "1Pannel",
-    "productVersion": "1.0.0",
+    "productVersion": "1.0.3",
     "companyName": "黄荣君",
     "comments": "运维管理"
   },
