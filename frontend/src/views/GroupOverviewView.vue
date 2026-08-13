@@ -189,7 +189,7 @@
                 :percent="row.overview.memPercent || 0"
                 :alert="(row.overview.memPercent || 0) > THRESHOLDS.mem"
                 :text="`${(row.overview.memPercent || 0).toFixed(1)}%`"
-                :sub="formatBytes(row.overview.memUsed || 0)"
+                :sub="memUsage(row)"
               />
             </template>
           </el-table-column>
@@ -201,7 +201,7 @@
                 :percent="diskPercent(row)"
                 :alert="diskPercent(row) > THRESHOLDS.disk"
                 :text="`${diskPercent(row).toFixed(1)}%`"
-                :sub="diskUsed(row) || '—'"
+                :sub="diskUsage(row) || '—'"
               />
             </template>
           </el-table-column>
@@ -344,10 +344,18 @@ function diskPercent(h: HostSnap): number {
   return h.disks?.[0]?.percent ?? 0;
 }
 
-function diskUsed(h: HostSnap): string | undefined {
+/** 内存：已用 / 总量 */
+function memUsage(h: HostSnap): string {
+  const ov = h.overview;
+  if (!ov) return "—";
+  return `${formatBytes(ov.memUsed || 0)} / ${formatBytes(ov.memTotal || 0)}`;
+}
+
+/** 磁盘：已用 / 总量 */
+function diskUsage(h: HostSnap): string | undefined {
   const d = h.disks?.[0];
   if (!d) return undefined;
-  return formatBytes(d.used || 0);
+  return `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`;
 }
 
 function loadBar(h: HostSnap): number {
@@ -628,14 +636,14 @@ const HostCardBody = defineComponent({
                   ov.memPercent || 0,
                   (ov.memPercent || 0) > THRESHOLDS.mem,
                   `${(ov.memPercent || 0).toFixed(1)}%`,
-                  formatBytes(ov.memUsed || 0)
+                  memUsage(hst)
                 ),
                 metricRow(
                   "DISK",
                   diskPercent(hst),
                   diskPercent(hst) > THRESHOLDS.disk,
                   `${diskPercent(hst).toFixed(1)}%`,
-                  diskUsed(hst)
+                  diskUsage(hst)
                 ),
                 metricRow(
                   "LOAD",
@@ -912,7 +920,7 @@ watch(
   }
 }
 :deep(.m-sub) {
-  width: 56px;
+  width: 96px;
   text-align: right;
   font-size: 10px;
   color: var(--el-text-color-placeholder);
@@ -1040,6 +1048,7 @@ watch(
 :deep(.list-metric-sub) {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+  white-space: nowrap;
 }
 
 html.dark .host-card,
