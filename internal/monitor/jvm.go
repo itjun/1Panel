@@ -153,7 +153,10 @@ func parseOneJava(pid uint32, cmd string) JavaDetail {
 func parseSSPorts(body string) map[uint32]int {
 	result := map[uint32]int{}
 	pidRe := regexp.MustCompile(`pid=(\d+)`)
-	portRe := regexp.MustCompile(`[:\s](\d+)\s`)
+	// ss 输出形如 "*:36645    *:*" 或 "0.0.0.0:8883  0.0.0.0:*"
+	// 端口一定紧跟在第一个 ":" 后面（本端地址的端口），不能匹配行首的 "LISTEN 0"
+	// 用 ":<port>" 的精确模式，避免误匹配 queue 长度等数字
+	portRe := regexp.MustCompile(`:(\d{2,5})\s`)
 	for _, line := range strings.Split(body, "\n") {
 		pm := pidRe.FindStringSubmatch(line)
 		if pm == nil {

@@ -6,6 +6,10 @@ export function AddHost(arg1) {
   return window['go']['main']['App']['AddHost'](arg1);
 }
 
+export function AnalyzeExitReason(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AnalyzeExitReason'](arg1, arg2, arg3);
+}
+
 export function AssignHost(arg1, arg2) {
   return window['go']['main']['App']['AssignHost'](arg1, arg2);
 }
@@ -60,18 +64,6 @@ export function CollectJavaDetail(arg1) {
 
 export function CollectJvmEvents(arg1, arg2, arg3) {
   return window['go']['main']['App']['CollectJvmEvents'](arg1, arg2, arg3);
-}
-
-export function AnalyzeExitReason(arg1, arg2, arg3) {
-  return window['go']['main']['App']['AnalyzeExitReason'](arg1, arg2, arg3);
-}
-
-export function ProbeMetrics(arg1) {
-  return window['go']['main']['App']['ProbeMetrics'](arg1);
-}
-
-export function QueryMetricRange(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['QueryMetricRange'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function CollectLargestFiles(arg1, arg2) {
@@ -172,6 +164,14 @@ export function NormalizeFileToLinux(arg1, arg2) {
 
 export function OpenTerminal(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenTerminal'](arg1, arg2, arg3, arg4);
+}
+
+export function ProbeMetrics(arg1) {
+  return window['go']['main']['App']['ProbeMetrics'](arg1);
+}
+
+export function QueryMetricRange(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['QueryMetricRange'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function ReadFilePreview(arg1, arg2) {

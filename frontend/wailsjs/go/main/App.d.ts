@@ -5,8 +5,11 @@ import {monitor} from '../models';
 import {groups} from '../models';
 import {sshconfig} from '../models';
 import {filetext} from '../models';
+import {vmquery} from '../models';
 
 export function AddHost(arg1:main.AddHostInput):Promise<void>;
+
+export function AnalyzeExitReason(arg1:string,arg2:string,arg3:string):Promise<monitor.ExitReason>;
 
 export function AssignHost(arg1:string,arg2:string):Promise<void>;
 
@@ -35,12 +38,6 @@ export function CollectJava(arg1:string):Promise<Array<monitor.ProcInfo>>;
 export function CollectJavaDetail(arg1:string):Promise<Array<monitor.JavaDetail>>;
 
 export function CollectJvmEvents(arg1:string,arg2:string,arg3:number):Promise<string>;
-
-export function AnalyzeExitReason(arg1:string,arg2:string,arg3:string):Promise<monitor.ExitReason>;
-
-export function ProbeMetrics(arg1:string):Promise<main.ProbeResult>;
-
-export function QueryMetricRange(arg1:string,arg2:string,arg3:number,arg4:number,arg5:number):Promise<any>;
 
 export function CollectLargestFiles(arg1:string,arg2:number):Promise<monitor.LargeFilesResult>;
 
@@ -86,21 +83,25 @@ export function ListHostsAll():Promise<Array<sshconfig.HostConfig>>;
 
 export function ListOneGroupOverview(arg1:string):Promise<main.GroupOverview>;
 
-export function RefreshAllHostIcons():Promise<Array<main.HostIcon>>;
-
-export function RefreshHostIcon(arg1:string):Promise<main.HostIcon>;
-
-export function RefreshMissingHostIcons():Promise<Array<main.HostIcon>>;
-
 export function LogoutMacUser():Promise<main.AuthState>;
 
 export function NormalizeFileToLinux(arg1:string,arg2:string):Promise<filetext.Preview>;
 
 export function OpenTerminal(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
 
+export function ProbeMetrics(arg1:string):Promise<vmquery.ProbeResult>;
+
+export function QueryMetricRange(arg1:string,arg2:string,arg3:number,arg4:number,arg5:number):Promise<Array<number>>;
+
 export function ReadFilePreview(arg1:string,arg2:string):Promise<filetext.Preview>;
 
 export function ReadFileText(arg1:string,arg2:string):Promise<string>;
+
+export function RefreshAllHostIcons():Promise<Array<main.HostIcon>>;
+
+export function RefreshHostIcon(arg1:string):Promise<main.HostIcon>;
+
+export function RefreshMissingHostIcons():Promise<Array<main.HostIcon>>;
 
 export function RenameGroup(arg1:string,arg2:string):Promise<void>;
 

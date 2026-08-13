@@ -182,6 +182,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class HostIcon {
+	    host: string;
+	    osRelease: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostIcon(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.osRelease = source["osRelease"];
+	        this.error = source["error"];
+	    }
+	}
 	
 	export class LocalTextCheck {
 	    path: string;
@@ -243,38 +259,6 @@ export namespace main {
 	        this.hostName = source["hostName"];
 	        this.user = source["user"];
 	        this.password = source["password"];
-	    }
-	}
-	export class ProbeResult {
-	    available: boolean;
-	    version: string;
-	    latencyMs: number;
-
-	    static createFrom(source: any = {}) {
-	        return new ProbeResult(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.available = source["available"];
-	        this.version = source["version"];
-	        this.latencyMs = source["latencyMs"];
-	    }
-	}
-	export class HostIcon {
-	    host: string;
-	    osRelease: string;
-	    error?: string;
-
-	    static createFrom(source: any = {}) {
-	        return new HostIcon(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.host = source["host"];
-	        this.osRelease = source["osRelease"];
-	        this.error = source["error"];
 	    }
 	}
 
@@ -440,6 +424,34 @@ export namespace monitor {
 		    return a;
 		}
 	}
+	export class ExitReason {
+	    session: string;
+	    pid: number;
+	    exitCode: number;
+	    rawReason: string;
+	    category: string;
+	    detail: string;
+	    hasDump: boolean;
+	    hasHsErr: boolean;
+	    dmesgHit: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExitReason(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session = source["session"];
+	        this.pid = source["pid"];
+	        this.exitCode = source["exitCode"];
+	        this.rawReason = source["rawReason"];
+	        this.category = source["category"];
+	        this.detail = source["detail"];
+	        this.hasDump = source["hasDump"];
+	        this.hasHsErr = source["hasHsErr"];
+	        this.dmesgHit = source["dmesgHit"];
+	    }
+	}
 	export class FileEntry {
 	    name: string;
 	    path: string;
@@ -464,6 +476,36 @@ export namespace monitor {
 	        this.modTime = source["modTime"];
 	        this.owner = source["owner"];
 	        this.group = source["group"];
+	    }
+	}
+	export class JavaDetail {
+	    pid: number;
+	    xms: string;
+	    xmx: string;
+	    jar: string;
+	    gcLog: string;
+	    heapDumpPath: string;
+	    screen: string;
+	    hasGCLogging: boolean;
+	    hasExitCode: boolean;
+	    port: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new JavaDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pid = source["pid"];
+	        this.xms = source["xms"];
+	        this.xmx = source["xmx"];
+	        this.jar = source["jar"];
+	        this.gcLog = source["gcLog"];
+	        this.heapDumpPath = source["heapDumpPath"];
+	        this.screen = source["screen"];
+	        this.hasGCLogging = source["hasGCLogging"];
+	        this.hasExitCode = source["hasExitCode"];
+	        this.port = source["port"];
 	    }
 	}
 	export class LargeFile {
@@ -790,64 +832,6 @@ export namespace monitor {
 	        this.sub = source["sub"];
 	    }
 	}
-	export class JavaDetail {
-	    pid: number;
-	    xms: string;
-	    xmx: string;
-	    jar: string;
-	    gcLog: string;
-	    heapDumpPath: string;
-	    screen: string;
-	    hasGCLogging: boolean;
-	    hasExitCode: boolean;
-	    port: number;
-
-	    static createFrom(source: any = {}) {
-	        return new JavaDetail(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.pid = source["pid"];
-	        this.xms = source["xms"];
-	        this.xmx = source["xmx"];
-	        this.jar = source["jar"];
-	        this.gcLog = source["gcLog"];
-	        this.heapDumpPath = source["heapDumpPath"];
-	        this.screen = source["screen"];
-	        this.hasGCLogging = source["hasGCLogging"];
-	        this.hasExitCode = source["hasExitCode"];
-	        this.port = source["port"];
-	    }
-	}
-	export class ExitReason {
-	    session: string;
-	    pid: number;
-	    exitCode: number;
-	    rawReason: string;
-	    category: string;
-	    detail: string;
-	    hasDump: boolean;
-	    hasHsErr: boolean;
-	    dmesgHit: boolean;
-
-	    static createFrom(source: any = {}) {
-	        return new ExitReason(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.session = source["session"];
-	        this.pid = source["pid"];
-	        this.exitCode = source["exitCode"];
-	        this.rawReason = source["rawReason"];
-	        this.category = source["category"];
-	        this.detail = source["detail"];
-	        this.hasDump = source["hasDump"];
-	        this.hasHsErr = source["hasHsErr"];
-	        this.dmesgHit = source["dmesgHit"];
-	    }
-	}
 
 }
 
@@ -875,6 +859,27 @@ export namespace sshconfig {
 	        this.identityFile = source["identityFile"];
 	        this.proxyJump = source["proxyJump"];
 	        this.hostKeyAlgos = source["hostKeyAlgos"];
+	    }
+	}
+
+}
+
+export namespace vmquery {
+	
+	export class ProbeResult {
+	    available: boolean;
+	    version: string;
+	    latencyMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProbeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.version = source["version"];
+	        this.latencyMs = source["latencyMs"];
 	    }
 	}
 
