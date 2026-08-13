@@ -124,11 +124,20 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	// 把远程 shell 的输出流推送给前端
 	go pumpToEvent(ctx, stdout, eventName, id)
 
-	// 进程结束时通知前端 + 清理
+	// 进程结束时通知前端 + 清理。
+	// 区分断开原因：正常退出（exit 命令）reason=exit，异常断开（网络等）reason=error，
+	// 前端据此决定是否自动重连。
 	go func() {
-		_ = session.Wait()
+		err := session.Wait()
+		reason := "exit"
+		if err != nil {
+			if _, ok := err.(*ssh.ExitError); !ok {
+				reason = "error"
+			}
+		}
 		runtime.EventsEmit(m.ctx, eventName+":exit", map[string]any{
 			"sessionId": id,
+			"reason":   reason,
 		})
 		m.mu.Lock()
 		delete(m.sessions, id)

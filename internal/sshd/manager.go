@@ -1,6 +1,8 @@
 package sshd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -18,6 +20,16 @@ const (
 	handshakeTimeout  = 15 * time.Second // 含认证；超时必须失败，避免拖死全局锁
 )
 
+// keepalive 心跳：从源头减少空闲长连接被防火墙/服务器掐断
+const (
+	keepaliveInterval  = 15 * time.Second // 心跳间隔
+	keepaliveTimeout   = 5 * time.Second  // 单次心跳发送的超时
+	keepaliveMaxMissed = 3                // 连续无响应次数，超过判死关闭连接
+)
+
+// errKeepaliveTimeout 标识单次心跳超时
+var errKeepaliveTimeout = errors.New("keepalive timeout")
+
 // Manager 维护每个 Host 一个长连接 ssh.Client，按需开 Session
 // 设计原则：
 //   - 一个 host → 一个 ssh.Client（TCP 复用）
@@ -32,6 +44,7 @@ type Manager struct {
 type clientEntry struct {
 	client  *ssh.Client
 	created time.Time
+	cancel  context.CancelFunc // 停止 keepalive 心跳
 }
 
 func NewManager() *Manager {
@@ -71,15 +84,18 @@ func (m *Manager) Get(host string, opt ConnectOption) (*ssh.Client, error) {
 	}
 
 	// 3) 写回缓存；若并发已有人先连上，丢弃本次连接、复用已有
+	ctx, cancel := context.WithCancel(context.Background())
 	m.mu.Lock()
 	if entry, ok := m.conns[host]; ok {
 		existing := entry.client
 		m.mu.Unlock()
+		cancel()
 		_ = client.Close()
 		return existing, nil
 	}
-	m.conns[host] = &clientEntry{client: client, created: time.Now()}
+	m.conns[host] = &clientEntry{client: client, created: time.Now(), cancel: cancel}
 	m.mu.Unlock()
+	go m.keepaliveLoop(host, client, ctx)
 	return client, nil
 }
 
@@ -93,6 +109,7 @@ func (m *Manager) Close(host string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if entry, ok := m.conns[host]; ok {
+		entry.cancel()
 		_ = entry.client.Close()
 		delete(m.conns, host)
 	}
@@ -103,9 +120,54 @@ func (m *Manager) CloseAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, entry := range m.conns {
+		entry.cancel()
 		_ = entry.client.Close()
 	}
 	m.conns = map[string]*clientEntry{}
+}
+
+// keepaliveLoop 周期发心跳保活；连续无响应超过阈值则判死并关闭连接，
+// 同时从缓存移除该连接，使下一次 Get 重新建连。
+func (m *Manager) keepaliveLoop(host string, client *ssh.Client, ctx context.Context) {
+	ticker := time.NewTicker(keepaliveInterval)
+	defer ticker.Stop()
+	missed := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := sendKeepalive(client); err != nil {
+				missed++
+				if missed >= keepaliveMaxMissed {
+					m.mu.Lock()
+					if e, ok := m.conns[host]; ok && e.client == client {
+						delete(m.conns, host)
+					}
+					m.mu.Unlock()
+					_ = client.Close()
+					return
+				}
+			} else {
+				missed = 0
+			}
+		}
+	}
+}
+
+// sendKeepalive 发一次 keepalive@openssh.com 请求；带超时，避免半开连接永久阻塞。
+func sendKeepalive(client *ssh.Client) error {
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := client.SendRequest("keepalive@openssh.com", true, nil)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(keepaliveTimeout):
+		return errKeepaliveTimeout
+	}
 }
 
 func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {

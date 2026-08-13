@@ -20,7 +20,8 @@
           @click="activate(t.id)"
         >
           <span class="tab-label">会话 {{ idx + 1 }}</span>
-          <span v-if="t.closed" class="tab-closed">已断开</span>
+          <span v-if="t.reconnecting" class="tab-closed tab-reconnecting">重连中…</span>
+          <span v-else-if="t.closed" class="tab-closed">已断开</span>
           <span
             class="tab-close"
             title="关闭会话"
@@ -108,6 +109,7 @@ import {
   watch,
 } from "vue";
 import { Plus, UploadFilled } from "@element-plus/icons-vue";
+import { ElNotification } from "element-plus";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -143,7 +145,14 @@ interface Session {
   term: XTerm;
   fit: FitAddon;
   closed: boolean;
+  reconnecting: boolean;
   el: HTMLDivElement;
+}
+
+interface ReconnectCtl {
+  timer: ReturnType<typeof setTimeout> | null;
+  attempt: number;
+  stopped: boolean;
 }
 
 interface CtxMenu {
@@ -190,6 +199,29 @@ function patchSession(id: string, patch: Partial<Session>) {
   sessions.value = sessions.value.map((s) =>
     s.id === id ? { ...s, ...patch } : s
   );
+}
+
+// 重连控制：会话 id -> 状态（定时器 / 退避次数 / 是否已停止）
+const reconnectMap = new Map<string, ReconnectCtl>();
+
+// 断连通知：2s 窗口内多个会话断开合并成一条，避免刷屏
+let pendingDisconnects = 0;
+let disconnectNotifyTimer: ReturnType<typeof setTimeout> | null = null;
+function notifyDisconnect() {
+  pendingDisconnects++;
+  if (disconnectNotifyTimer) return;
+  disconnectNotifyTimer = setTimeout(() => {
+    const n = pendingDisconnects;
+    pendingDisconnects = 0;
+    disconnectNotifyTimer = null;
+    ElNotification({
+      title: "终端连接已断开",
+      message:
+        n > 1 ? `${n} 个会话已断开，正在自动重连…` : "会话已断开，正在自动重连…",
+      type: "warning",
+      duration: 5000,
+    });
+  }, 2000);
 }
 
 async function openNew() {
@@ -246,53 +278,102 @@ async function openNew() {
   } catch {
     /* ignore */
   }
-  let cols = term.cols || 80;
-  let rows = term.rows || 24;
-  if (cols < 20) cols = 80;
-  if (rows < 5) rows = 24;
 
-  let sessionID = "";
-  try {
-    sessionID = await api.openTerminal(props.host, eventName, cols, rows);
-  } catch (e) {
-    term.write(`\x1b[31m连接失败: ${e}\x1b[0m\r\n`);
-  }
+  // 先登记 tab，sessionID 待连接成功后填充（重连会更新它）
+  const tab: Session = {
+    id,
+    sessionID: "",
+    eventName,
+    term,
+    fit,
+    closed: false,
+    reconnecting: false,
+    el,
+  };
+  sessions.value = [...sessions.value, tab];
+  activeId.value = id;
 
-  if (sessionID) {
+  // 当前 sessionID（重连后变化，统一从 sessions 里取）
+  const currentSid = () =>
+    sessions.value.find((x) => x.id === id)?.sessionID || "";
+
+  // 重连控制
+  const ctl: ReconnectCtl = { timer: null, attempt: 0, stopped: false };
+  reconnectMap.set(id, ctl);
+
+  // 连接（首次 + 自动重连复用）：成功填充 sessionID，失败指数退避重试
+  async function connect(first: boolean) {
+    const c = term.cols || 80;
+    const r = term.rows || 24;
     try {
-      fit.fit();
-      if (term.cols !== cols || term.rows !== rows) {
-        await api.resizeTerminal(sessionID, term.cols, term.rows);
+      const sid = await api.openTerminal(props.host, eventName, c, r);
+      if (ctl.stopped) {
+        if (sid) api.closeTerminal(sid).catch(() => {});
+        return;
       }
-    } catch {
-      /* ignore */
+      patchSession(id, { sessionID: sid, closed: false, reconnecting: false });
+      ctl.attempt = 0;
+      // 连接后 fit + resize 一次，确保 PTY 尺寸正确
+      try {
+        fit.fit();
+        if (term.cols !== c || term.rows !== r) {
+          await api.resizeTerminal(sid, term.cols, term.rows);
+        }
+      } catch {
+        /* ignore */
+      }
+      if (!first) term.write("\r\n\x1b[32m[已重新连接]\x1b[0m\r\n");
+      // 若有待执行命令（如软件包「检查更新」），连接后稍等再写入
+      const pending = pendingTerminalCmd.value || pendingCmdLocal;
+      if (pending) {
+        pendingCmdLocal = null;
+        app.clearTerminalCmd();
+        const cmd = pending;
+        setTimeout(() => {
+          api.writeTerminal(sid, cmd + "\n").catch(() => {});
+        }, 1200);
+      }
+    } catch (e) {
+      if (ctl.stopped) return;
+      if (first) term.write(`\x1b[31m连接失败: ${e}\x1b[0m\r\n`);
+      const delay = Math.min(30000, 1000 * Math.pow(2, ctl.attempt));
+      ctl.attempt++;
+      ctl.timer = setTimeout(() => void connect(false), delay);
     }
-    term.onResize(({ cols: c, rows: r }) => {
-      api.resizeTerminal(sessionID, c, r).catch(() => {});
-    });
   }
 
   EventsOn(eventName, (payload: { data?: string }) => {
     if (payload?.data) term.write(payload.data);
   });
-  EventsOn(`${eventName}:exit`, () => {
-    term.write("\r\n\x1b[33m[连接已关闭]\x1b[0m\r\n");
-    patchSession(id, { closed: true });
+  EventsOn(`${eventName}:exit`, (payload: { reason?: string }) => {
+    if (ctl.stopped) return;
+    if (payload?.reason === "error") {
+      // 异常断开：提示 + 通知 + 自动重连
+      term.write("\r\n\x1b[33m[连接已断开，正在自动重连…]\x1b[0m\r\n");
+      patchSession(id, { closed: true, reconnecting: true, sessionID: "" });
+      notifyDisconnect();
+      ctl.attempt = 0;
+      void connect(false);
+    } else {
+      // 正常退出（exit）：不重连
+      term.write("\r\n\x1b[33m[连接已关闭]\x1b[0m\r\n");
+      patchSession(id, { closed: true });
+    }
   });
 
   // 输入：普通按键合并，控制字符立即发
-  const sessionIDRef = sessionID;
   let inputBuf = "";
   let flushScheduled = false;
   const flushInput = () => {
     flushScheduled = false;
-    if (inputBuf && sessionIDRef) {
-      api.writeTerminal(sessionIDRef, inputBuf).catch(() => {});
+    const sid = currentSid();
+    if (inputBuf && sid) {
+      api.writeTerminal(sid, inputBuf).catch(() => {});
       inputBuf = "";
     }
   };
   term.onData((d) => {
-    if (!sessionIDRef) return;
+    if (!currentSid()) return;
     inputBuf += d;
     if (!flushScheduled) {
       flushScheduled = true;
@@ -304,6 +385,12 @@ async function openNew() {
     }
   });
 
+  // 窗口尺寸变化：用当前 sessionID 同步 PTY（重连后仍是此回调）
+  term.onResize(({ cols: c, rows: r }) => {
+    const sid = currentSid();
+    if (sid) api.resizeTerminal(sid, c, r).catch(() => {});
+  });
+
   el.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -311,39 +398,27 @@ async function openNew() {
     ctxMenu.value = {
       x: e.clientX,
       y: e.clientY,
-      sessionID: sessionIDRef,
+      sessionID: currentSid(),
       term,
       hasSelection: !!sel && sel.length > 0,
     };
   });
 
-  const tab: Session = {
-    id,
-    sessionID,
-    eventName,
-    term,
-    fit,
-    closed: false,
-    el,
-  };
-  sessions.value = [...sessions.value, tab];
-  activeId.value = id;
   term.focus();
   opening = false;
 
-  // 若有待执行命令（如软件包「检查更新」），连接后稍等再写入
-  const pending = pendingTerminalCmd.value || pendingCmdLocal;
-  if (sessionID && pending) {
-    pendingCmdLocal = null;
-    app.clearTerminalCmd();
-    const cmd = pending;
-    setTimeout(() => {
-      api.writeTerminal(sessionID, cmd + "\n").catch(() => {});
-    }, 1200);
-  }
+  // 首次连接
+  void connect(true);
 }
 
 async function destroySession(t: Session) {
+  // 停止该会话的自动重连
+  const ctl = reconnectMap.get(t.id);
+  if (ctl) {
+    ctl.stopped = true;
+    if (ctl.timer) clearTimeout(ctl.timer);
+    reconnectMap.delete(t.id);
+  }
   if (t.sessionID) {
     try {
       await api.closeTerminal(t.sessionID);
@@ -610,6 +685,10 @@ onBeforeUnmount(() => {
     clearTimeout(uploadToastTimer);
     uploadToastTimer = null;
   }
+  if (disconnectNotifyTimer) {
+    clearTimeout(disconnectNotifyTimer);
+    disconnectNotifyTimer = null;
+  }
   void teardownAll();
 });
 </script>
@@ -727,6 +806,10 @@ onBeforeUnmount(() => {
 .tab-closed {
   font-size: 10px;
   color: #fbbf24;
+}
+
+.tab-reconnecting {
+  color: #60a5fa;
 }
 
 .tab-close {
