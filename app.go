@@ -533,6 +533,17 @@ func (a *App) CollectJvmEvents(host, gcLogPath string, limit int) (string, error
 	return a.collector.CollectJvmEvents(host, opt, gcLogPath, limit)
 }
 
+// AnalyzeExitReason 分析指定 screen 会话的终止原因
+// 结合退出码、dump 文件、dmesg 区分五种终止原因：
+// heap-oom / system-oom / jvm-crash / normal-shutdown / killed-sigkill
+func (a *App) AnalyzeExitReason(host, sessionName, jarDir string) (monitor.ExitReason, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return monitor.ExitReason{}, err
+	}
+	return a.collector.AnalyzeExitReason(host, opt, sessionName, jarDir)
+}
+
 // ProbeMetrics 探测远端 VictoriaMetrics 是否在跑
 // 只有 beta 装了 VM；cloud/raven 探测失败时前端降级为只显示实时值
 func (a *App) ProbeMetrics(host string) (vmquery.ProbeResult, error) {

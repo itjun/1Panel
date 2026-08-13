@@ -820,6 +820,34 @@ export namespace monitor {
 	        this.port = source["port"];
 	    }
 	}
+	export class ExitReason {
+	    session: string;
+	    pid: number;
+	    exitCode: number;
+	    rawReason: string;
+	    category: string;
+	    detail: string;
+	    hasDump: boolean;
+	    hasHsErr: boolean;
+	    dmesgHit: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new ExitReason(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session = source["session"];
+	        this.pid = source["pid"];
+	        this.exitCode = source["exitCode"];
+	        this.rawReason = source["rawReason"];
+	        this.category = source["category"];
+	        this.detail = source["detail"];
+	        this.hasDump = source["hasDump"];
+	        this.hasHsErr = source["hasHsErr"];
+	        this.dmesgHit = source["dmesgHit"];
+	    }
+	}
 
 }
 

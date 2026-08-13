@@ -70,6 +70,18 @@
         </div>
       </div>
 
+      <!-- 终止原因分析（选中进程的 screen 会话）-->
+      <div class="exit-panel" v-if="exitReason">
+        <div class="exit-label">终止原因分析</div>
+        <el-tag :type="exitTagType" size="small">
+          {{ exitReason.category }}
+        </el-tag>
+        <span class="exit-detail">{{ exitReason.detail }}</span>
+        <span class="exit-meta" v-if="exitReason.exitCode >= 0">
+          退出码 {{ exitReason.exitCode }}
+        </span>
+      </div>
+
       <!-- 三个子页签 -->
       <el-tabs v-model="subView" class="sub-tabs">
         <!-- 内存：堆使用曲线 + Xmx 上限 -->
@@ -190,6 +202,18 @@ interface ProbeResult {
   latencyMs: number;
 }
 
+interface ExitReason {
+  session: string;
+  pid: number;
+  exitCode: number;
+  rawReason: string;
+  category: string;
+  detail: string;
+  hasDump: boolean;
+  hasHsErr: boolean;
+  dmesgHit: boolean;
+}
+
 const props = defineProps<{ host: string }>();
 const appStore = useAppStore();
 
@@ -286,6 +310,34 @@ async function loadGcLog() {
   }
 }
 
+// 终止原因分析
+const exitReason = ref<ExitReason | null>(null);
+async function loadExitReason() {
+  if (!selected.value) {
+    exitReason.value = null;
+    return;
+  }
+  const jarDir = selected.value.jar?.substring(0, selected.value.jar.lastIndexOf("/")) || "";
+  if (!selected.value.screen || !jarDir) {
+    exitReason.value = null;
+    return;
+  }
+  try {
+    exitReason.value = await api.analyzeExitReason(props.host, selected.value.screen, jarDir);
+  } catch (e) {
+    // 分析失败不阻塞主界面
+    exitReason.value = null;
+  }
+}
+const exitTagType = computed(() => {
+  const cat = exitReason.value?.category || "";
+  if (cat === "running") return "success";
+  if (cat === "normal-shutdown") return "info";
+  if (cat === "heap-oom" || cat === "system-oom" || cat === "jvm-crash") return "danger";
+  if (cat === "killed-sigkill") return "warning";
+  return "info";
+});
+
 // 切到终端页签并提示用户接入 screen
 function openScreenTerminal() {
   if (!selected.value?.screen) return;
@@ -295,6 +347,7 @@ function openScreenTerminal() {
 
 // 切换进程或时间范围时重载图表
 watch([selected, () => probe.value.available], () => {
+  loadExitReason();
   if (subView.value === "memory") loadMemChart();
   if (subView.value === "gc") {
     loadGcChart();
@@ -442,6 +495,26 @@ loadProbe();
 .sub-tabs {
   :deep(.el-tabs__content) {
     overflow: visible;
+  }
+}
+.exit-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 16px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  font-size: 12px;
+  .exit-label {
+    color: var(--el-text-color-secondary);
+  }
+  .exit-detail {
+    color: var(--el-text-color-regular);
+  }
+  .exit-meta {
+    color: var(--el-text-color-secondary);
+    margin-left: auto;
   }
 }
 .hint {

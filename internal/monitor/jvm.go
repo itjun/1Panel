@@ -235,3 +235,135 @@ func (c *Collector) CollectJvmEvents(host string, opt sshd.ConnectOption, gcLogP
 	}
 	return string(out), nil
 }
+
+// ExitReason 进程终止原因分析结果
+//
+// 结合退出码、dump 文件、dmesg 区分五种终止原因：
+//   - heap-oom：堆 OOM（退出码 3 + 有 dump 文件）
+//   - system-oom：被 OOM Killer 杀（退出码 137 + dmesg 有 oom-kill 记录）
+//   - jvm-crash：JVM 自身崩溃（退出码 134 + 有 hs_err_pid 文件）
+//   - normal-shutdown：正常下线（退出码 0/143，无异常文件）
+//   - killed-sigkill：被强杀（退出码 137，dmesg 无 oom-kill）
+type ExitReason struct {
+	Session     string `json:"session"`     // screen 会话名
+	PID         uint32 `json:"pid"`         // 当前 java pid（仍在跑时）；0 表示已退出
+	ExitCode    int    `json:"exitCode"`    // exit/<name>.exit 里的退出码；-1 表示无记录
+	RawReason   string `json:"rawReason"`   // exit/<name>.reason 里的原始推断
+	Category    string `json:"category"`    // 五种分类之一：heap-oom/system-oom/jvm-crash/normal-shutdown/killed-sigkill/running/unknown
+	Detail      string `json:"detail"`      // 面板展示的中文说明
+	HasDump     bool   `json:"hasDump"`     // 是否有 heap dump 文件（堆 OOM 的佐证）
+	HasHsErr    bool   `json:"hasHsErr"`    // 是否有 hs_err_pid 文件（JVM 崩溃的佐证
+	DmesgHit    bool   `json:"dmesgHit"`    // dmesg 是否有近期 oom-kill 记录（系统 OOM 的佐证）
+}
+
+// AnalyzeExitReason 分析指定 screen 会话的终止原因
+//
+// sessionName: 如 "oss-1786638505"
+// jarDir: jar 所在目录（exit/gc/dump 子目录的父）
+//
+// 读取顺序：先看进程是否在跑（pid>0 → running），
+// 否则读 exit/<name>.exit 拿退出码，结合 dump/hs_err/dmesg 细化分类。
+func (c *Collector) AnalyzeExitReason(host string, opt sshd.ConnectOption, sessionName, jarDir string) (ExitReason, error) {
+	r := ExitReason{
+		Session:  sessionName,
+		ExitCode: -1,
+		Category: "unknown",
+	}
+
+	// 一个组合脚本：
+	//   1. 查当前是否有匹配 screen 名的 java 进程在跑
+	//   2. 读 exit/<session>.exit（若有）
+	//   3. 看 dump/ 下有没有该 session 的 dump 文件
+	//   4. 看 jarDir 下有没有 hs_err_pid 文件
+	//   5. dmesg 近 5 分钟有没有 oom-kill
+	exitFile := fmt.Sprintf("%s/exit/%s.exit", jarDir, sessionName)
+	reasonFile := fmt.Sprintf("%s/exit/%s.reason", jarDir, sessionName)
+	dumpGlob := fmt.Sprintf("%s/dump/dump-%s-*.dump", jarDir, sessionName)
+	hsErrGlob := fmt.Sprintf("%s/hs_err_pid*.log", jarDir)
+
+	script := fmt.Sprintf(`echo "=RUNNING="
+pgrep -af 'java.*%s' | grep -v grep | head -1 | awk '{print $1}'
+echo "=EXIT="
+cat %s 2>/dev/null
+echo "=REASON="
+cat %s 2>/dev/null
+echo "=DUMP="
+ls %s 2>/dev/null | head -1
+echo "=HSERR="
+ls %s 2>/dev/null | head -1
+echo "=DMESG="
+dmesg -T 2>/dev/null | grep -iE 'oom.kill|out of memory|killed process' | tail -3`,
+		sessionName, exitFile, reasonFile, dumpGlob, hsErrGlob)
+
+	out, err := c.mgr.Run(host, opt, script)
+	if err != nil {
+		return r, err
+	}
+
+	sections := splitSections(string(out))
+
+	// 在跑？
+	if pidStr := strings.TrimSpace(sections["RUNNING"]); pidStr != "" {
+		pid, _ := strconv.ParseUint(pidStr, 10, 32)
+		r.PID = uint32(pid)
+		r.Category = "running"
+		r.Detail = "进程运行中"
+		return r, nil
+	}
+
+	// 退出码
+	if exitStr := strings.TrimSpace(sections["EXIT"]); exitStr != "" {
+		fields := strings.Fields(exitStr)
+		if len(fields) > 0 {
+			code, _ := strconv.Atoi(fields[0])
+			r.ExitCode = code
+		}
+	}
+	r.RawReason = strings.TrimSpace(sections["REASON"])
+	r.HasDump = strings.TrimSpace(sections["DUMP"]) != ""
+	r.HasHsErr = strings.TrimSpace(sections["HSERR"]) != ""
+	r.DmesgHit = strings.TrimSpace(sections["DMESG"]) != ""
+
+	// 综合判定
+	r.Category, r.Detail = categorize(r.ExitCode, r.HasDump, r.HasHsErr, r.DmesgHit, r.RawReason)
+	return r, nil
+}
+
+// categorize 根据退出码与佐证文件细化五种分类
+//
+// 判定优先级：
+//   1. 退出码 3 + dump → heap-oom（确凿）
+//   2. 退出码 137 + dmesg → system-oom
+//   3. 退出码 137 + 无 dmesg → killed-sigkill
+//   4. 退出码 134 + hs_err → jvm-crash
+//   5. 退出码 0/143 → normal-shutdown
+//   6. 其它 → unknown
+func categorize(code int, hasDump, hasHsErr, dmesgHit bool, rawReason string) (cat, detail string) {
+	switch {
+	case code == 3 && hasDump:
+		return "heap-oom", "堆 OOM（ExitOnOutOfMemoryError 触发，已生成堆 dump）"
+	case code == 3:
+		return "heap-oom", "堆 OOM（ExitOnOutOfMemoryError 触发，退出码 3）"
+	case code == 137 && dmesgHit:
+		return "system-oom", "被系统 OOM Killer 杀（dmesg 有 oom-kill 记录）"
+	case code == 137:
+		return "killed-sigkill", "被强杀 SIGKILL（kill -9，非 OOM Killer）"
+	case code == 134 && hasHsErr:
+		return "jvm-crash", "JVM 崩溃（SIGABRT，已生成 hs_err_pid 日志）"
+	case code == 134:
+		return "jvm-crash", "JVM 崩溃（SIGABRT，退出码 134）"
+	case code == 0:
+		return "normal-shutdown", "正常下线（退出码 0）"
+	case code == 143:
+		return "normal-shutdown", "正常下线（SIGTERM，systemd stop 或 kill 默认信号）"
+	case code == 130:
+		return "normal-shutdown", "中断退出（SIGINT，Ctrl+C）"
+	case code == -1:
+		return "unknown", "无退出记录（exit/<name>.exit 不存在）"
+	default:
+		if rawReason != "" {
+			return "unknown", rawReason
+		}
+		return "unknown", fmt.Sprintf("未分类退出码 %d", code)
+	}
+}

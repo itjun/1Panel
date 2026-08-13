@@ -17,6 +17,7 @@ import {
   CollectJavaDetail,
   CollectJvmEvents,
   CollectNetwork,
+  AnalyzeExitReason,
   ProbeMetrics,
   QueryMetricRange,
   AddHost,
@@ -150,6 +151,8 @@ export const api = {
   collectJavaDetail: (host: string) => CollectJavaDetail(host),
   collectJvmEvents: (host: string, gcLogPath: string, limit: number) =>
     CollectJvmEvents(host, gcLogPath, limit),
+  analyzeExitReason: (host: string, sessionName: string, jarDir: string) =>
+    AnalyzeExitReason(host, sessionName, jarDir),
   probeMetrics: (host: string) => ProbeMetrics(host),
   queryMetricRange: (
     host: string,

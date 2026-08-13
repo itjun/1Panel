@@ -62,6 +62,10 @@ export function CollectJvmEvents(arg1, arg2, arg3) {
   return window['go']['main']['App']['CollectJvmEvents'](arg1, arg2, arg3);
 }
 
+export function AnalyzeExitReason(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AnalyzeExitReason'](arg1, arg2, arg3);
+}
+
 export function ProbeMetrics(arg1) {
   return window['go']['main']['App']['ProbeMetrics'](arg1);
 }

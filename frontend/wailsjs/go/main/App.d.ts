@@ -36,6 +36,8 @@ export function CollectJavaDetail(arg1:string):Promise<Array<monitor.JavaDetail>
 
 export function CollectJvmEvents(arg1:string,arg2:string,arg3:number):Promise<string>;
 
+export function AnalyzeExitReason(arg1:string,arg2:string,arg3:string):Promise<monitor.ExitReason>;
+
 export function ProbeMetrics(arg1:string):Promise<main.ProbeResult>;
 
 export function QueryMetricRange(arg1:string,arg2:string,arg3:number,arg4:number,arg5:number):Promise<any>;
