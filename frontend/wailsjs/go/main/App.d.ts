@@ -91,7 +91,9 @@ export function OpenTerminal(arg1:string,arg2:string,arg3:number,arg4:number):Pr
 
 export function ProbeMetrics(arg1:string):Promise<vmquery.ProbeResult>;
 
-export function QueryMetricRange(arg1:string,arg2:string,arg3:number,arg4:number,arg5:number):Promise<Array<number>>;
+export function QueryMetric(arg1:string,arg2:string):Promise<string>;
+
+export function QueryMetricRange(arg1:string,arg2:string,arg3:number,arg4:number,arg5:number):Promise<string>;
 
 export function ReadFilePreview(arg1:string,arg2:string):Promise<filetext.Preview>;
 

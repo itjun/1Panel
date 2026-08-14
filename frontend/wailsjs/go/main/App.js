@@ -170,6 +170,10 @@ export function ProbeMetrics(arg1) {
   return window['go']['main']['App']['ProbeMetrics'](arg1);
 }
 
+export function QueryMetric(arg1, arg2) {
+  return window['go']['main']['App']['QueryMetric'](arg1, arg2);
+}
+
 export function QueryMetricRange(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['QueryMetricRange'](arg1, arg2, arg3, arg4, arg5);
 }

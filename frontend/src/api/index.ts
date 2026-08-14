@@ -19,6 +19,7 @@ import {
   CollectNetwork,
   AnalyzeExitReason,
   ProbeMetrics,
+  QueryMetric,
   QueryMetricRange,
   AddHost,
   AssignHost,
@@ -154,6 +155,7 @@ export const api = {
   analyzeExitReason: (host: string, sessionName: string, jarDir: string) =>
     AnalyzeExitReason(host, sessionName, jarDir),
   probeMetrics: (host: string) => ProbeMetrics(host),
+  queryMetric: (host: string, query: string) => QueryMetric(host, query),
   queryMetricRange: (
     host: string,
     query: string,

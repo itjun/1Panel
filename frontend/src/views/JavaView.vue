@@ -25,6 +25,7 @@
           :value="d.pid"
         >
           {{ appLabel(d) }}
+          <span v-if="scrapedApps.has(appLabel(d))" class="scrape-dot" title="已接入 VM">●</span>
         </el-radio-button>
       </el-radio-group>
     </div>
@@ -89,9 +90,6 @@
           <div v-if="!probe.available" class="hint">
             VM 未部署，无法显示历史曲线。仅显示实时 Xms/Xmx（见上方卡片）。
           </div>
-          <div v-else-if="!selected.port" class="hint">
-            该进程未监听端口，VM 无法抓取其 /actuator/prometheus。
-          </div>
           <div v-else class="chart-wrap">
             <div class="chart-header">
               <span>堆内存使用（近 {{ rangeHours }} 小时）</span>
@@ -106,7 +104,7 @@
               :option="memOption"
               height="280px"
             />
-            <el-empty v-else description="暂无数据" />
+            <el-empty v-else :description="memEmptyHint" />
           </div>
         </el-tab-pane>
 
@@ -242,27 +240,60 @@ watch(details, (list) => {
 // VM 探测（不轮询，进入页签探一次 + 手动刷新）
 const probe = ref<ProbeResult>({ available: false, version: "", latencyMs: 0 });
 const probeLoading = ref(false);
+const scrapedApps = ref<Set<string>>(new Set());
 async function loadProbe() {
   probeLoading.value = true;
   try {
     probe.value = await api.probeMetrics(props.host);
+    if (probe.value.available) {
+      await loadScrapedApps();
+    }
   } catch (e) {
-    // 探测失败视为不可用，前端降级
     probe.value = { available: false, version: "", latencyMs: 0 };
   } finally {
     probeLoading.value = false;
   }
 }
 
+async function loadScrapedApps() {
+  try {
+    const raw = await api.queryMetric(
+      props.host,
+      'count by (app) (jvm_memory_used_bytes{area="heap"})'
+    );
+    const json = JSON.parse(decodeVmJson(raw));
+    const apps = new Set<string>();
+    for (const item of json?.data?.result || []) {
+      const app = item.metric?.app;
+      if (app) apps.add(app);
+    }
+    scrapedApps.value = apps;
+  } catch {
+    scrapedApps.value = new Set();
+  }
+}
+
+const memEmptyHint = computed(() => {
+  const app = selected.value ? appLabel(selected.value) : "";
+  const joined = Array.from(scrapedApps.value).join("、") || "暂无";
+  if (app && !scrapedApps.value.has(app)) {
+    return `「${app}」尚未暴露 /actuator/prometheus，VM 里没有堆曲线。当前已接入：${joined}。请点选带 ● 的进程查看。`;
+  }
+  return "暂无堆内存数据。";
+});
+
 // 内存曲线
 const memOption = ref<LineOption | null>(null);
 async function loadMemChart() {
-  if (!probe.value.available || !selected.value?.port) {
+  if (!probe.value.available || !selected.value) {
     memOption.value = null;
     return;
   }
-  // 必须带 {area="heap"}，否则会把非堆加进来
-  const query = `sum(jvm_memory_used_bytes{area="heap",pid="${selected.value.pid}"})`;
+  const app = appLabel(selected.value);
+  // 必须带 {area="heap"}，否则会把非堆加进来。优先按 app 标签查，pid 作兜底。
+  const query = app
+    ? `sum(jvm_memory_used_bytes{area="heap",app="${app}"})`
+    : `sum(jvm_memory_used_bytes{area="heap",pid="${selected.value.pid}"})`;
   const end = Math.floor(Date.now() / 1000);
   const start = end - rangeHours.value * 3600;
   const step = rangeHours.value <= 1 ? 15 : 60;
@@ -278,9 +309,11 @@ async function loadMemChart() {
 // GC 曲线（分配速率）
 const gcOption = ref<LineOption | null>(null);
 async function loadGcChart() {
-  if (!probe.value.available || !selected.value?.port) return;
-  // 看 jvm_gc_allocation_bytes_estimated 的速率，ZGC 下比 pause 更有意义
-  const query = `rate(jvm_gc_allocation_bytes_estimated{pid="${selected.value.pid}"}[5m])`;
+  if (!probe.value.available || !selected.value) return;
+  const app = appLabel(selected.value);
+  const query = app
+    ? `rate(jvm_gc_memory_allocated_bytes_total{app="${app}"}[5m])`
+    : `rate(jvm_gc_memory_allocated_bytes_total{pid="${selected.value.pid}"}[5m])`;
   const end = Math.floor(Date.now() / 1000);
   const start = end - rangeHours.value * 3600;
   const step = rangeHours.value <= 1 ? 15 : 60;
@@ -379,22 +412,27 @@ function appLabel(d: JavaDetail): string {
   return m ? m[1] : (base.replace(/\.jar$/, "") || `pid:${d.pid}`);
 }
 
+function decodeVmJson(raw: unknown): string {
+  if (raw == null) return "";
+  if (typeof raw === "string") return raw;
+  if (raw instanceof Uint8Array) return new TextDecoder().decode(raw);
+  if (Array.isArray(raw)) return new TextDecoder().decode(new Uint8Array(raw as number[]));
+  if (typeof raw === "object") return JSON.stringify(raw);
+  return String(raw);
+}
+
 // 解析 VM range 响应为 VChartLine 的 option
-// VM 返回 {"data":{"result":[{"metric":{...},"values":[[ts,"val"],...]}]}}
 function parseRangeResponse(
-  raw: Uint8Array | string,
+  raw: unknown,
   seriesName: string,
   unit: "bytes" | "rate"
 ): LineOption | null {
-  let text: string;
-  if (raw instanceof Uint8Array) {
-    text = new TextDecoder().decode(raw);
-  } else {
-    text = raw;
-  }
+  const text = decodeVmJson(raw);
   let json: any;
   try {
-    json = JSON.parse(text);
+    json = typeof raw === "object" && raw !== null && !Array.isArray(raw) && !(raw instanceof Uint8Array)
+      ? raw
+      : JSON.parse(text);
   } catch {
     return null;
   }
@@ -453,8 +491,10 @@ loadProbe();
   gap: 8px;
   align-items: center;
 }
-.proc-list {
-  margin-bottom: 14px;
+.scrape-dot {
+  color: #67c23a;
+  font-size: 10px;
+  margin-left: 2px;
 }
 .detail {
   background: var(--el-bg-color);

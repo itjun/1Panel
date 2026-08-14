@@ -554,15 +554,32 @@ func (a *App) ProbeMetrics(host string) (vmquery.ProbeResult, error) {
 	return a.vmClient.Probe(host, opt), nil
 }
 
-// QueryMetricRange 查询 VM 的 range 接口（用于画时序曲线）
-// query: PromQL；start/end：Unix 秒；step：秒
-// 返回 VM 原始 JSON，前端用 ECharts 解析
-func (a *App) QueryMetricRange(host, query string, start, end int64, step int) ([]byte, error) {
+// QueryMetric 查询 VM 的 instant 接口，返回 JSON 文本（不用 []byte，避免 Wails 编成数字数组）
+func (a *App) QueryMetric(host, query string) (string, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return a.vmScheduler.QueryRange(host, opt, query, start, end, step)
+	body, err := a.vmScheduler.Query(host, opt, query)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
+// QueryMetricRange 查询 VM 的 range 接口（用于画时序曲线）
+// query: PromQL；start/end：Unix 秒；step：秒
+// 返回 JSON 文本，前端用 ECharts 解析
+func (a *App) QueryMetricRange(host, query string, start, end int64, step int) (string, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return "", err
+	}
+	body, err := a.vmScheduler.QueryRange(host, opt, query, start, end, step)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
 }
 
 // DeletePaths 删除远程主机上的多个文件或目录（递归，不可恢复）
