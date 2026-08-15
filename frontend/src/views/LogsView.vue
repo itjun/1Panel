@@ -1,7 +1,8 @@
 <template>
   <div class="tab-root">
+    <EnlargableCard title="日志">
     <div class="toolbar">
-      <el-radio-group v-model="currentLogType" size="small" @change="loadLog">
+      <el-radio-group v-model="currentLogType" size="large" @change="loadLog">
         <el-radio-button
           v-for="t in logTypes"
           :key="t.key"
@@ -13,7 +14,7 @@
       <div class="toolbar-right">
         <el-select
           v-model="lines"
-          size="small"
+          size="large"
           style="width: 110px"
           @change="loadLog"
         >
@@ -24,14 +25,14 @@
         </el-select>
         <el-input
           v-model="search"
-          size="small"
+          size="large"
           placeholder="搜索过滤"
           clearable
           style="width: 180px"
           :prefix-icon="Search"
         />
         <el-button
-          size="small"
+          size="large"
           type="primary"
           :icon="Refresh"
           :loading="loading"
@@ -66,6 +67,7 @@
       <span class="sep">|</span>
       <span>{{ contentLines }} 行</span>
     </div>
+    </EnlargableCard>
   </div>
 </template>
 
@@ -74,6 +76,7 @@ import { ref, computed, watch, nextTick } from "vue";
 import { Refresh, Search } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { monitor } from "@/api";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 
 const props = defineProps<{ host: string }>();
 

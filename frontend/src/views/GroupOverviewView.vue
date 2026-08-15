@@ -35,6 +35,7 @@
           </el-tag>
         </div>
         <div class="summary-right">
+          <span class="dblclick-hint">双击主机打开</span>
           <el-radio-group
             v-model="viewMode"
             size="small"
@@ -92,7 +93,7 @@
           stripe
           class="host-list-table"
           :row-class-name="tableRowClass"
-          @row-click="(row: HostSnap) => openHost(row.name)"
+          @row-dblclick="(row: HostSnap) => openHost(row.name)"
         >
           <el-table-column label="状态" width="78" fixed>
             <template #default="{ row }">
@@ -219,18 +220,6 @@
                 <span class="load-sep">/</span>
                 <span class="load-cores">{{ row.overview.cpuCount || 0 }}</span>
               </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right" align="center">
-            <template #default="{ row }">
-              <el-button
-                link
-                type="primary"
-                size="small"
-                @click.stop="openHost(row.name)"
-              >
-                打开
-              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -771,6 +760,10 @@ watch(
   flex-wrap: wrap;
 }
 .meta {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.dblclick-hint {
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }

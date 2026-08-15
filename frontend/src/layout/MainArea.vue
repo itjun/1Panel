@@ -1,6 +1,15 @@
 <template>
   <div class="main-container">
     <template v-if="!app.activeTab">
+      <div class="host-header drag-region" @dblclick="toggleMaximise">
+        <div class="header-left no-drag">
+          <SidebarExpandBtn v-if="!app.sidebarOpen" @expand="app.setSidebarOpen(true)" />
+          <div>
+            <div class="name">全部主机</div>
+            <div class="sub">全部主机概览</div>
+          </div>
+        </div>
+      </div>
       <div class="content-pad">
         <AllHostsOverviewView />
       </div>
@@ -8,10 +17,13 @@
 
     <!-- 分组视图：展示组内全部主机监控卡片 -->
     <template v-else-if="app.activeTab?.kind === 'group'">
-      <div class="host-header">
-        <div>
-          <div class="name">{{ app.activeTab.title }}</div>
-          <div class="sub">分组概览 · 组内全部主机</div>
+      <div class="host-header drag-region" @dblclick="toggleMaximise">
+        <div class="header-left no-drag">
+          <SidebarExpandBtn v-if="!app.sidebarOpen" @expand="app.setSidebarOpen(true)" />
+          <div>
+            <div class="name">{{ app.activeTab.title }}</div>
+            <div class="sub">分组概览 · 组内全部主机</div>
+          </div>
         </div>
       </div>
       <div class="content-pad">
@@ -28,42 +40,25 @@
         v-show="app.activeTab?.kind === 'host' && app.activeTab.id === hid"
         class="host-shell"
       >
-        <div class="host-header">
-          <div>
-            <div class="name">
-              {{ sessionOf(hid)?.title || hid }}
-              <span class="run-badge" title="后台保持中">运行中</span>
-            </div>
-            <div class="sub">{{ sessionOf(hid)?.subtitle }}</div>
-          </div>
-          <div class="host-actions">
-            <el-button
-              size="small"
-              :loading="zshBusy === hid"
-              @click="onInitZsh(hid)"
-            >
-              初始化 zsh
-            </el-button>
-            <el-button
-              text
-              type="danger"
-              size="small"
-              @click="app.stopHost(hid)"
-            >
-              停止会话
-            </el-button>
-          </div>
+        <!-- 顶部仅保留拖拽条；侧栏收起时增高，容纳红绿灯让位与展开按钮 -->
+        <div class="top-drag-strip drag-region" @dblclick="toggleMaximise">
+          <SidebarExpandBtn
+            v-if="!app.sidebarOpen"
+            class="no-drag"
+            @expand="app.setSidebarOpen(true)"
+          />
         </div>
 
         <div class="router-tabs">
           <el-radio-group
             :model-value="sessionOf(hid)?.subTab || 'overview'"
-            size="default"
+            size="large"
             @change="(v: string | number | boolean | undefined) => onSubChange(hid, v)"
           >
             <el-radio-button
               v-for="t in subTabs"
               :key="t.value"
+              class="router-tab-btn"
               :value="t.value"
             >
               {{ t.label }}
@@ -96,20 +91,20 @@
             v-if="sessionOf(hid)?.subTab === 'docker'"
             :host="hid"
           />
-          <DatabasesView
-            v-if="sessionOf(hid)?.subTab === 'databases'"
+          <JavaView
+            v-if="sessionOf(hid)?.subTab === 'java'"
             :host="hid"
           />
           <FilesView
             v-if="sessionOf(hid)?.subTab === 'files'"
             :host="hid"
           />
-          <DiskManageView
-            v-if="sessionOf(hid)?.subTab === 'disks'"
-            :host="hid"
-          />
           <ServicesView
             v-if="sessionOf(hid)?.subTab === 'services'"
+            :host="hid"
+          />
+          <CertsView
+            v-if="sessionOf(hid)?.subTab === 'certs'"
             :host="hid"
           />
           <CronView
@@ -124,14 +119,14 @@
             v-if="sessionOf(hid)?.subTab === 'logs'"
             :host="hid"
           />
-          <TerminalView
-            v-if="sessionOf(hid)?.subTab === 'terminal'"
-            :host="hid"
-          />
-          <JavaView
-            v-if="sessionOf(hid)?.subTab === 'java'"
-            :host="hid"
-          />
+          <!-- KeepAlive：切到其他子页签时终端只停用不卸载，
+               避免卸载钩子关闭全部 PTY 会话（切回来就断线） -->
+          <KeepAlive>
+            <TerminalView
+              v-if="sessionOf(hid)?.subTab === 'terminal'"
+              :host="hid"
+            />
+          </KeepAlive>
         </div>
       </div>
     </template>
@@ -139,58 +134,29 @@
 </template>
 
 <script setup lang="ts">
+import { WindowToggleMaximise } from "@wailsjs/runtime/runtime";
 import { useAppStore, type SubTab } from "@/stores/app";
-import { ElMessage, ElMessageBox } from "element-plus";
-import { api } from "@/api";
-import { ref } from "vue";
 import OverviewView from "@/views/OverviewView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
 import DockerView from "@/views/DockerView.vue";
-import DatabasesView from "@/views/DatabasesView.vue";
+import JavaView from "@/views/JavaView.vue";
 import FilesView from "@/views/FilesView.vue";
-import DiskManageView from "@/views/DiskManageView.vue";
 import ServicesView from "@/views/ServicesView.vue";
+import CertsView from "@/views/CertsView.vue";
 import CronView from "@/views/CronView.vue";
 import PackagesView from "@/views/PackagesView.vue";
 import LogsView from "@/views/LogsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
-import JavaView from "@/views/JavaView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
+import SidebarExpandBtn from "@/components/SidebarExpandBtn.vue";
 
 const app = useAppStore();
 
-const zshBusy = ref<string | null>(null);
-
-function formatErr(e: unknown): string {
-  return (e as { message?: string })?.message || String(e);
-}
-
-// 初始化 zsh 环境:上传内置脚本 → 切终端自动执行,实时看输出
-async function onInitZsh(hid: string) {
-  try {
-    await ElMessageBox.confirm(
-      `将在主机「${hid}」上安装 zsh + Oh My Zsh(ys 主题)+ 代码高亮/历史提示插件。\n` +
-        `需要该用户具备 sudo 免密权限,耗时约 1~5 分钟,会在终端实时显示输出。`,
-      "初始化 zsh 环境",
-      { type: "warning", confirmButtonText: "开始", cancelButtonText: "取消" }
-    );
-  } catch {
-    return; // 用户取消
-  }
-  zshBusy.value = hid;
-  try {
-    const remotePath = await api.bootstrapZsh(hid);
-    // ; rm 保证脚本成功或失败都清理上传的临时脚本(呼应"临时文件要删")
-    app.sendTerminalCmd(`bash ${remotePath}; rm -f ${remotePath}`);
-    app.setSubTab(hid, "terminal");
-    ElMessage.success("脚本已上传,正在终端执行…");
-  } catch (e) {
-    ElMessage.error(`上传脚本失败: ${formatErr(e)}`);
-  } finally {
-    zshBusy.value = null;
-  }
+/** 双击顶部拖拽区：最大化 / 还原 */
+function toggleMaximise() {
+  WindowToggleMaximise();
 }
 
 const subTabs: { value: SubTab; label: string }[] = [
@@ -198,15 +164,14 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "processes", label: "进程" },
   { value: "network", label: "网络" },
   { value: "docker", label: "Docker" },
-  { value: "databases", label: "数据库" },
+  { value: "java", label: "Java" },
   { value: "files", label: "文件" },
-  { value: "disks", label: "磁盘" },
   { value: "services", label: "服务" },
+  { value: "certs", label: "证书" },
   { value: "cron", label: "定时任务" },
   { value: "packages", label: "软件包" },
   { value: "logs", label: "日志" },
   { value: "terminal", label: "终端" },
-  { value: "java", label: "Java" },
 ];
 
 const FILL_SUBS: SubTab[] = [
@@ -216,9 +181,9 @@ const FILL_SUBS: SubTab[] = [
   "network",
   "docker",
   "services",
+  "certs",
   "cron",
   "packages",
-  "java",
 ];
 
 function sessionOf(hid: string) {
@@ -252,8 +217,14 @@ function onSubChange(hid: string, v: string | number | boolean | undefined) {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: #fff;
-  border-bottom: var(--panel-border, 1px solid #f2f2f2);
+  background: transparent;
+  border-bottom: none;
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
   .name {
     font-size: 14px;
     font-weight: 600;
@@ -265,42 +236,58 @@ function onSubChange(hid: string, v: string | number | boolean | undefined) {
     font-size: 11px;
     color: var(--el-text-color-secondary);
   }
-  .host-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
 }
-.run-badge {
-  font-size: 10px;
-  font-weight: 500;
-  color: #67c23a;
-  background: rgba(103, 194, 58, 0.12);
-  border: 1px solid rgba(103, 194, 58, 0.35);
-  border-radius: 10px;
-  padding: 0 6px;
-  line-height: 16px;
-}
-html.dark .host-header {
-  background: var(--panel-main-bg-color-9, #2e313d);
-}
+/* 像素级对齐 1Panel RouterButton：按钮紧贴排列（无缝），容器零内边距，
+   整条高度 = 按钮高度 40px；按钮间距由各自 19px 横向内边距撑出 */
 .router-tabs {
   flex-shrink: 0;
-  padding: 10px 20px 10px;
-  background: #fff;
-  border-bottom: 1px solid var(--panel-border, #f2f2f2);
-  :deep(.el-radio-button__inner) {
-    padding: 10px 16px;
+  margin: 0 20px;
+  padding: 0;
+  background: var(--panel-button-active, #fff);
+  border-radius: 4px;
+  box-shadow: var(--el-box-shadow-light, 0 0 12px rgba(0, 0, 0, 0.12));
+
+  :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    /* 单行时与 1Panel 完全一致；标签多到换行时留出行距，避免两行贴死 */
+    row-gap: 8px;
+    padding: 0;
   }
-  :deep(.el-radio-button.is-active .el-radio-button__inner) {
-    background: #fff;
-    color: var(--el-color-primary);
-    border-color: var(--el-color-primary);
-    box-shadow: none;
+
+  :deep(.router-tab-btn) {
+    flex: none;
+    margin: 0 !important;
   }
-}
-html.dark .router-tabs {
-  background: var(--panel-main-bg-color-9, #2e313d);
+
+  :deep(.router-tab-btn .el-radio-button__inner) {
+    min-width: 100px;
+    height: 40px;
+    padding: 0 19px;
+    font-size: 14px;
+    /* EP 原生 inner 是 line-height:1 的 inline-block，清掉垂直 padding 后文字会顶在上方，
+       改用 flex 保证水平垂直居中；border-box 避免 2px 边框撑大选中按钮 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    background-color: var(--panel-button-active, #fff) !important;
+    box-shadow: none !important;
+    border: 2px solid transparent !important;
+    border-radius: 4px !important;
+    color: var(--el-text-color-regular) !important;
+    font-weight: 400;
+  }
+
+  :deep(.router-tab-btn .el-radio-button__original-radio:checked + .el-radio-button__inner),
+  :deep(.router-tab-btn.is-active .el-radio-button__inner) {
+    color: var(--panel-button-text-color, var(--el-color-primary)) !important;
+    background-color: var(--panel-button-bg-color, #fff) !important;
+    border-color: var(--panel-color-primary, var(--el-color-primary)) !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+  }
 }
 .content-pad {
   flex: 1;
@@ -314,7 +301,7 @@ html.dark .router-tabs {
   &--fill {
     display: flex;
     flex-direction: column;
-    padding: 0;
+    padding: 10px 20px 16px;
     overflow: hidden;
     /* 终端等全高视图：子组件必须能吃掉剩余高度 */
     > * {

@@ -1,7 +1,7 @@
 <template>
   <div class="net-root" v-loading="loading && !snap">
     <div class="toolbar">
-      <el-button size="small" :loading="loading" @click="refresh">刷新</el-button>
+      <el-button size="large" :loading="loading" @click="refresh">刷新</el-button>
       <span class="hint">
         连接 {{ snap?.connTotal ?? 0 }} · 已建立
         {{ snap?.connEstablished ?? 0 }} · 监听
@@ -27,8 +27,13 @@
     />
 
     <div v-if="snap" class="net-body">
-      <!-- IP 总览：高对比卡片，纯 IPv4，可点复制 -->
-      <div class="mb ip-grid">
+      <!-- IP 总览：高对比卡片，纯 IPv4，可点复制（bare 包装，右上角可最大化） -->
+      <EnlargableCard
+        bare
+        title="IP 总览"
+        class="mb ip-grid"
+        @toggle="onIpCardToggle"
+      >
         <div
           class="ip-card panel-hover-card"
           :class="{ 'is-empty': !privateIPv4List.length }"
@@ -166,17 +171,24 @@
             <span class="ip-value__copy">复制</span>
           </button>
         </div>
-      </div>
+      </EnlargableCard>
 
       <!-- 网卡 -->
-      <el-card shadow="never" class="mb block-card ifaces-card panel-hover-card">
+      <EnlargableCard
+        bare
+        title="网卡"
+        class="ifaces-card"
+        :class="{ 'is-max': ifacesEnlarged }"
+        @toggle="(v) => (ifacesEnlarged = v)"
+      >
+      <el-card shadow="never" class="mb block-card panel-hover-card">
         <div class="block-title">网卡</div>
         <el-table
           :data="snap.interfaces || []"
           size="small"
           stripe
           class="no-x-scroll-table"
-          height="140"
+          :height="ifacesEnlarged ? '100%' : 140"
         >
           <el-table-column prop="name" label="接口" min-width="88" />
           <el-table-column label="类型" width="88">
@@ -187,9 +199,13 @@
           <el-table-column prop="state" label="状态" width="72" />
           <el-table-column prop="mtu" label="MTU" width="64" />
           <el-table-column prop="mac" label="MAC" min-width="120" show-overflow-tooltip />
-          <el-table-column label="IPv4" min-width="120" show-overflow-tooltip>
+          <el-table-column label="IPv4" min-width="130">
             <template #default="{ row }">
-              {{ formatIfaceIpv4(row.ipv4) }}
+              <!-- 多 IP（如 docker 网桥/子接口）逐行展示，自动撑开行高 -->
+              <div class="iface-ips">
+                <span v-for="ip in ifaceIpv4List(row.ipv4)" :key="ip">{{ ip }}</span>
+                <span v-if="!ifaceIpv4List(row.ipv4).length">—</span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="接收" width="88">
@@ -200,10 +216,18 @@
           </el-table-column>
         </el-table>
       </el-card>
+      </EnlargableCard>
 
       <!-- 卡顿连接 -->
-      <el-card
+      <EnlargableCard
         v-if="(snap.slowConnections || []).length"
+        bare
+        title="卡顿连接"
+        class="ifaces-card"
+        :class="{ 'is-max': slowEnlarged }"
+        @toggle="(v) => (slowEnlarged = v)"
+      >
+      <el-card
         shadow="never"
         class="mb block-card slow-card panel-hover-card"
       >
@@ -215,7 +239,8 @@
           :data="snap.slowConnections"
           size="small"
           stripe
-          max-height="200"
+          :height="slowEnlarged ? '100%' : undefined"
+          :max-height="slowEnlarged ? undefined : 200"
           row-class-name="slow-row"
         >
           <el-table-column prop="process" label="进程" width="120" show-overflow-tooltip />
@@ -232,20 +257,22 @@
           <el-table-column prop="slowReason" label="原因" min-width="140" show-overflow-tooltip />
         </el-table>
       </el-card>
+      </EnlargableCard>
 
       <!-- 全部连接 -->
-      <el-card shadow="never" class="block-card flex-fill panel-hover-card">
+      <EnlargableCard bare title="TCP 连接" class="flex-fill">
+      <el-card shadow="never" class="block-card panel-hover-card" style="height: 100%">
         <div class="block-head">
           <div class="block-title">TCP 连接</div>
           <el-input
             v-model="filter"
-            size="small"
+            size="large"
             clearable
             class="filter"
             placeholder="过滤 进程/地址/状态..."
           />
-          <el-checkbox v-model="onlyEstab" size="small">仅 ESTAB</el-checkbox>
-          <el-checkbox v-model="onlySlow" size="small">仅卡顿</el-checkbox>
+          <el-checkbox v-model="onlyEstab" size="large">仅 ESTAB</el-checkbox>
+          <el-checkbox v-model="onlySlow" size="large">仅卡顿</el-checkbox>
         </div>
         <div class="conn-table-wrap">
           <el-table
@@ -276,14 +303,20 @@
           </el-table>
         </div>
       </el-card>
+      </EnlargableCard>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+
+/** 网卡/卡顿连接卡片是否处于最大化（放大时表格高度改为自适应填满） */
+const ifacesEnlarged = ref(false);
+const slowEnlarged = ref(false);
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 import { usePolling } from "@/composables/usePolling";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes } from "@/utils/format";
@@ -382,6 +415,13 @@ function visibleIps(list: string[], key: string): string[] {
   return list.slice(0, IP_COLLAPSE_LIMIT);
 }
 
+// IP 总览卡最大化时自动展开剩余 IP，退出最大化自动收起
+function onIpCardToggle(enlarged: boolean) {
+  ipExpanded.private = enlarged;
+  ipExpanded.public = enlarged;
+  ipExpanded.docker = enlarged;
+}
+
 const filteredConns = computed(() => {
   let list = snap.value?.connections || [];
   if (onlySlow.value) list = list.filter((c) => c.slow);
@@ -409,6 +449,11 @@ const filteredConns = computed(() => {
 function formatIfaceIpv4(list: string[] | undefined): string {
   if (!list?.length) return "—";
   return list.map((x) => pureIp(x)).filter(Boolean).join(", ") || "—";
+}
+
+/** 网卡 IPv4 列：每个 IP 独立一行 */
+function ifaceIpv4List(list: string[] | undefined): string[] {
+  return (list || []).map((x) => pureIp(x)).filter(Boolean);
 }
 
 async function copyIp(raw: string) {
@@ -456,7 +501,6 @@ function rowClass({ row }: { row: NetConnection }) {
   min-height: 0;
   min-width: 0;
   gap: 8px;
-  padding: 10px 12px 12px;
   box-sizing: border-box;
   overflow: hidden; /* 页面本身不出现滚动条 */
 }
@@ -665,6 +709,21 @@ html.dark .ip-card {
 .ifaces-card {
   flex-shrink: 0;
 }
+/* 最大化时：卡片撑满浮层，内部表格随之拉高 */
+.ifaces-card.is-max :deep(.el-card) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.ifaces-card.is-max :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ifaces-card.is-max :deep(.el-table) {
+  flex: 1;
+}
 .block-title {
   font-size: 13px;
   font-weight: 600;
@@ -721,6 +780,15 @@ html.dark .ip-card {
   :deep(.el-scrollbar__wrap) {
     overflow-x: hidden !important;
   }
+}
+
+/* 网卡 IPv4 多行展示 */
+.iface-ips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.4;
+  font-size: 12px;
 }
 :deep(.slow-row) {
   --el-table-tr-bg-color: rgba(245, 108, 108, 0.12);

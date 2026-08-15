@@ -1,4 +1,5 @@
 <template>
+  <EnlargableCard bare title="文件" class="files-enl">
   <div
     class="file-management-page"
     :class="{ 'is-dragover': dragOver }"
@@ -471,6 +472,7 @@
       </div>
     </el-dialog>
   </div>
+  </EnlargableCard>
 </template>
 
 <script setup lang="ts">
@@ -490,6 +492,7 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 import type { filetext, LocalTextCheck } from "@/api";
 import FileFolderIcon from "@/components/FileFolderIcon.vue";
 import { useAppStore } from "@/stores/app";
@@ -1059,6 +1062,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
+/* bare 放大包装层：占满 content-pad--fill 给的剩余空间 */
+.files-enl {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .file-management-page {
   display: flex;
   flex-direction: column;

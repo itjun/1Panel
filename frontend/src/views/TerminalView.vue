@@ -1,4 +1,5 @@
 <template>
+  <EnlargableCard bare title="终端" class="term-enl">
   <div
     class="term-root"
     @dragenter.prevent="onDragEnter"
@@ -91,6 +92,7 @@
       </button>
     </div>
   </div>
+  </EnlargableCard>
 </template>
 
 <script setup lang="ts">
@@ -102,6 +104,7 @@
 import {
   computed,
   nextTick,
+  onActivated,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -109,8 +112,9 @@ import {
   watch,
 } from "vue";
 import { Plus, UploadFilled } from "@element-plus/icons-vue";
-import { ElNotification } from "element-plus";
+import { ElMessageBox, ElNotification } from "element-plus";
 import { Terminal as XTerm } from "@xterm/xterm";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
@@ -436,8 +440,19 @@ async function destroySession(t: Session) {
 }
 
 async function closeSession(id: string) {
-  const t = sessions.value.find((x) => x.id === id);
-  if (!t) return;
+  const idx = sessions.value.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  const t = sessions.value[idx];
+  // 手动关闭前确认：会话断开不可恢复
+  try {
+    await ElMessageBox.confirm(
+      `确定关闭「会话 ${idx + 1}」吗？该终端的远程连接将断开。`,
+      "关闭会话",
+      { type: "warning", confirmButtonText: "关闭", cancelButtonText: "取消" }
+    );
+  } catch {
+    return; // 用户取消
+  }
   await destroySession(t);
   const next = sessions.value.filter((x) => x.id !== id);
   sessions.value = next;
@@ -676,6 +691,27 @@ onMounted(() => {
   EventsOn("upload:progress", onUploadProgress);
 });
 
+// KeepAlive 重新激活（从其他子页签切回终端）时重新适配尺寸：
+// 隐藏期间容器尺寸变化不会触发任何事件，需要显式 fit
+onActivated(() => {
+  const active = sessions.value.find((x) => x.id === activeId.value);
+  if (!active) return;
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      try {
+        active.fit.fit();
+        if (active.sessionID) {
+          api
+            .resizeTerminal(active.sessionID, active.term.cols, active.term.rows)
+            .catch(() => {});
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+  });
+});
+
 onBeforeUnmount(() => {
   window.removeEventListener("resize", onWinResize);
   window.removeEventListener("click", onDocClick);
@@ -694,6 +730,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
+/* bare 放大包装层：占满 content-pad--fill 给的剩余空间 */
+.term-enl {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .term-root {
   display: flex;
   flex-direction: column;
@@ -703,7 +747,8 @@ onBeforeUnmount(() => {
   min-height: 0;
   min-width: 0;
   background: #0d0d0d;
-  /* 盖住 content-pad 的浅色底，避免「白条夹在 Tab 与终端之间」 */
+  /* 与概览卡片一致的圆角，外层 content-pad 留白后呈卡片形态 */
+  border-radius: 6px;
   overflow: hidden;
 }
 
