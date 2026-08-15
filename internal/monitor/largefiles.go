@@ -10,6 +10,46 @@ import (
 	"diteng-pannel/internal/sshd"
 )
 
+// BuildLargeFilesScript 构造在远端执行的「Top N 大文件」扫描脚本
+// 抽成导出函数便于联调实测
+// 注意：远端登录 shell 可能是 zsh——zsh 不对未加引号的 $VAR 做分词，
+// 因此不能用 "$TO find ..." 的方式加 timeout 前缀，改用函数内 if/else 直接写命令
+func BuildLargeFilesScript(root string, limit int) string {
+	return fmt.Sprintf(`
+set +e
+LIMIT=%d
+ROOT='%s'
+
+# GNU find：-xdev 不跨设备；排除虚拟目录，其余所有目录递归
+scan_gnu() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 90 find "$ROOT" -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /snap -o -path /tmp -o -path '/tmp/*' \) -prune -o -type f -printf '%%s\t%%p\n' 2>/dev/null
+  else
+    find "$ROOT" -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /snap -o -path /tmp -o -path '/tmp/*' \) -prune -o -type f -printf '%%s\t%%p\n' 2>/dev/null
+  fi
+}
+# 回退：BSD/busybox 无 -printf 时用 find + stat
+scan_stat() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 90 find "$ROOT" -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /snap -o -path /tmp \) -prune -o -type f -print 2>/dev/null
+  else
+    find "$ROOT" -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /snap -o -path /tmp \) -prune -o -type f -print 2>/dev/null
+  fi
+}
+
+OUT=$( scan_gnu | sort -nr | head -n "$LIMIT" )
+if [ -n "$OUT" ]; then
+  echo "$OUT"
+  exit 0
+fi
+OUT=$( scan_stat | head -n 80000 | while IFS= read -r f; do
+  sz=$(stat -c '%%s' "$f" 2>/dev/null || stat -f '%%z' "$f" 2>/dev/null) || continue
+  printf '%%s\t%%s\n' "$sz" "$f"
+done | sort -nr | head -n "$LIMIT" )
+echo "$OUT"
+`, limit, root)
+}
+
 // LargeFile 磁盘上体积较大的普通文件
 type LargeFile struct {
 	Name string `json:"name"` // 文件名
@@ -26,13 +66,16 @@ type LargeFilesResult struct {
 	ElapsedMs  int64       `json:"elapsedMs"`
 }
 
-// CollectLargestFiles 在根分区扫描体积最大的 limit 个文件（异步调用方负责）
+// CollectLargestFiles 在指定挂载点（root）扫描体积最大的 limit 个文件（异步调用方负责）
 // 策略：
-//   - 仅扫 /，-xdev 不跨设备
+//   - 仅扫 root，-xdev 不跨设备
 //   - 排除 /proc /sys /dev /run /snap /tmp 等
 //   - 远端用 timeout 控制总时长，避免拖死会话
-func (c *Collector) CollectLargestFiles(host string, opt sshd.ConnectOption, limit int) (LargeFilesResult, error) {
+func (c *Collector) CollectLargestFiles(host string, opt sshd.ConnectOption, root string, limit int) (LargeFilesResult, error) {
 	start := time.Now()
+	if !isValidMountPath(root) {
+		return LargeFilesResult{}, fmt.Errorf("非法挂载点路径: %s", root)
+	}
 	if limit <= 0 {
 		limit = 10
 	}
@@ -42,39 +85,7 @@ func (c *Collector) CollectLargestFiles(host string, opt sshd.ConnectOption, lim
 
 	// timeout 90s；find 排除虚拟/临时路径；printf 输出 size\tpath
 	// 注意：部分精简系统无 GNU find -printf，失败时回退到 stat 方案
-	script := fmt.Sprintf(`
-set +e
-LIMIT=%d
-if command -v timeout >/dev/null 2>&1; then
-  TO="timeout 90"
-else
-  TO=""
-fi
-# GNU find
-OUT=$( $TO find / -xdev \
-  \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /snap -o -path '/tmp/*' -o -path /tmp -o -path /var/lib/docker -o -path '/var/lib/docker/*' \) -prune -o \
-  -type f -printf '%%s\t%%p\n' 2>/dev/null | sort -nr | head -n "$LIMIT" )
-EC=$?
-if [ -n "$OUT" ]; then
-  echo "$OUT"
-  if [ $EC -eq 124 ]; then
-    echo "__INCOMPLETE__"
-  fi
-  exit 0
-fi
-# 回退：BSD/busybox 无 -printf 时用 find + stat（更慢，同样 timeout）
-OUT=$( $TO find / -xdev \
-  \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /snap -o -path /tmp -o -path /var/lib/docker \) -prune -o \
-  -type f -print 2>/dev/null | head -n 80000 | while IFS= read -r f; do
-    sz=$(stat -c '%%s' "$f" 2>/dev/null || stat -f '%%z' "$f" 2>/dev/null) || continue
-    printf '%%s\t%%s\n' "$sz" "$f"
-  done | sort -nr | head -n "$LIMIT" )
-EC=$?
-echo "$OUT"
-if [ $EC -eq 124 ]; then
-  echo "__INCOMPLETE__"
-fi
-`, limit)
+	script := BuildLargeFilesScript(root, limit)
 
 	out, err := c.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 100 * time.Second})
 	result := LargeFilesResult{ElapsedMs: time.Since(start).Milliseconds()}
@@ -141,4 +152,12 @@ func largeFileFrom(path string, size uint64) LargeFile {
 		Dir:  filepath.Dir(path),
 		Size: size,
 	}
+}
+
+// isValidMountPath 挂载点必须是简洁的绝对路径（防 shell 注入）
+func isValidMountPath(p string) bool {
+	if !strings.HasPrefix(p, "/") || len(p) > 200 {
+		return false
+	}
+	return !strings.ContainsAny(p, "'\" \t\n;$`\\|&()<>*?[]{}")
 }
