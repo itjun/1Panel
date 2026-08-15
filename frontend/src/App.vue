@@ -1,78 +1,12 @@
 <template>
-  <!-- 未解锁：本机密码登录页 -->
-  <LoginView v-if="!unlocked" @success="onLoginSuccess" />
-
-  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': !sidebarOpen }">
-    <SidebarHost v-show="sidebarOpen" @collapse="sidebarOpen = false" />
+  <div class="app-shell" :class="{ 'sidebar-collapsed': !app.sidebarOpen }">
+    <SidebarHost
+      v-show="app.sidebarOpen"
+      @collapse="app.setSidebarOpen(false)"
+      @add-host="addHostOpen = true"
+    />
 
     <div class="main-column">
-      <header class="top-bar drag-region">
-        <div class="left no-drag">
-          <!-- 侧栏收起后显示展开按钮（此时顶栏左侧给红绿灯让位） -->
-          <el-button
-            v-if="!sidebarOpen"
-            text
-            class="sidebar-toggle-btn"
-            title="展开侧栏"
-            @click="sidebarOpen = true"
-          >
-            <el-icon>
-              <svg viewBox="0 0 1024 1024" fill="currentColor">
-                <path
-                  fill-rule="evenodd"
-                  d="M192 128c-35 0-64 29-64 64v640c0 35 29 64 64 64h640c35 0 64-29 64-64V192c0-35-29-64-64-64H192zM320 192v640h384V192H320z"
-                />
-                <path d="M424 380l200 132-200 132V380z" />
-              </svg>
-            </el-icon>
-          </el-button>
-          <!-- 彩色品牌字标：点击返回全部主机概览 -->
-          <LogoFull
-            class="top-brand-logo"
-            title="返回全部主机"
-            @click="app.goHome()"
-          />
-        </div>
-        <div class="right no-drag">
-          <el-button type="primary" :icon="Plus" @click="addHostOpen = true">
-            添加主机
-          </el-button>
-          <!-- 设置 / 刷新 / 锁定 折叠为菜单；设置也可用 ⌘, 打开 -->
-          <el-dropdown trigger="click" @command="onMenuCommand">
-            <el-button text :icon="MoreFilled" class="more-btn" title="更多" />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="settings">
-                  <span class="menu-item-row">
-                    <span>
-                      <el-icon class="menu-ico"><Setting /></el-icon>
-                      设置…
-                    </span>
-                    <span class="menu-kbd">⌘,</span>
-                  </span>
-                </el-dropdown-item>
-                <el-dropdown-item command="refresh" :disabled="app.loading">
-                  <span class="menu-item-row">
-                    <span>
-                      <el-icon class="menu-ico"><Refresh /></el-icon>
-                      刷新
-                    </span>
-                  </span>
-                </el-dropdown-item>
-                <el-dropdown-item divided command="lock">
-                  <span class="menu-item-row">
-                    <span>
-                      <el-icon class="menu-ico"><Lock /></el-icon>
-                      锁定
-                    </span>
-                  </span>
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </header>
-
       <MainArea />
     </div>
 
@@ -121,14 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import {
-  Lock,
-  MoreFilled,
-  Plus,
-  Refresh,
-  Setting,
-} from "@element-plus/icons-vue";
+import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
 import { EventsOff, EventsOn } from "@wailsjs/runtime/runtime";
@@ -136,32 +63,11 @@ import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import SidebarHost from "@/layout/SidebarHost.vue";
 import MainArea from "@/layout/MainArea.vue";
-import LogoFull from "@/components/LogoFull.vue";
-import LoginView from "@/views/LoginView.vue";
 import SettingsDialog from "@/components/SettingsDialog.vue";
 
 const app = useAppStore();
 // 确保设置 store 初始化并应用主题/字体
 useSettingsStore();
-const unlocked = ref(false);
-const authChecking = ref(true);
-/** 侧栏开/关状态持久化（默认展开） */
-function loadSidebarOpen(): boolean {
-  try {
-    const v = localStorage.getItem("ipannel.sidebarOpen");
-    return v === null ? true : v === "1";
-  } catch {
-    return true;
-  }
-}
-const sidebarOpen = ref(loadSidebarOpen());
-watch(sidebarOpen, (v) => {
-  try {
-    localStorage.setItem("ipannel.sidebarOpen", v ? "1" : "0");
-  } catch {
-    /* ignore */
-  }
-});
 const addHostOpen = ref(false);
 const settingsOpen = ref(false);
 const saving = ref(false);
@@ -173,14 +79,7 @@ const form = reactive({
 });
 
 function openSettings() {
-  if (!unlocked.value) return;
   settingsOpen.value = true;
-}
-
-function onMenuCommand(cmd: string | number | object) {
-  if (cmd === "settings") openSettings();
-  else if (cmd === "refresh") void app.refresh();
-  else if (cmd === "lock") void onLogout();
 }
 
 /** macOS 传统：⌘, 打开设置 */
@@ -203,6 +102,19 @@ function formatErr(e: unknown): string {
   const any = e as { message?: string };
   if (any.message) return any.message;
   return String(e);
+}
+
+async function onRefreshAllIcons() {
+  try {
+    const r = await app.refreshAllHostIcons();
+    if (r.failed.length > 0) {
+      ElMessage.warning(`已更新 ${r.ok} 台，失败 ${r.failed.length} 台`);
+    } else {
+      ElMessage.success(`已检查并更新 ${r.ok} 台主机图标`);
+    }
+  } catch (e) {
+    ElMessage.error(`检查图标失败: ${formatErr(e)}`);
+  }
 }
 
 async function onAddHost() {
@@ -234,83 +146,36 @@ async function onAddHost() {
   }
 }
 
-async function onLoginSuccess(_username: string) {
-  unlocked.value = true;
-  await app.refresh();
-}
-
-async function onLogout() {
-  try {
-    await api.logoutMacUser();
-  } catch {
-    /* ignore */
-  }
-  unlocked.value = false;
-}
-
 onMounted(async () => {
   window.addEventListener("keydown", onGlobalKeydown, true);
   // macOS 应用菜单「设置…」点击事件 → 打开设置弹窗
   EventsOn("open-settings", () => openSettings());
-  try {
-    const st = await api.authStatus();
-    unlocked.value = !!st.authenticated;
-    if (unlocked.value) {
-      await app.refresh();
+  // 系统菜单「主机」子菜单：添加主机 / 新建分组
+  EventsOn("open-add-host", () => (addHostOpen.value = true));
+  EventsOn("open-create-group", () => (app.pendingCreateGroup = true));
+  // 系统菜单「1Pannel」子菜单：刷新 / 检查并更新全部图标（原侧栏齿轮菜单）
+  EventsOn("app-refresh", () => void app.refresh());
+  EventsOn("app-refresh-icons", () => void onRefreshAllIcons());
+  EventsOn("host-icon-updated", (it: { host?: string; osRelease?: string }) => {
+    if (it?.host && it?.osRelease) {
+      app.rememberOsRelease(it.host, it.osRelease);
     }
-  } catch {
-    // 浏览器预览无 Wails 绑定时保持登录页
-    unlocked.value = false;
-  } finally {
-    authChecking.value = false;
-  }
+  });
+  await app.refresh();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown, true);
   EventsOff("open-settings");
+  EventsOff("open-add-host");
+  EventsOff("open-create-group");
+  EventsOff("app-refresh");
+  EventsOff("app-refresh-icons");
+  EventsOff("host-icon-updated");
 });
 </script>
 
 <style scoped>
-.left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.more-btn {
-  padding: 8px;
-  font-size: 18px;
-}
-.menu-item-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 28px;
-  min-width: 140px;
-}
-.menu-ico {
-  margin-right: 6px;
-  vertical-align: middle;
-}
-.menu-kbd {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  font-variant-numeric: tabular-nums;
-}
-/* 顶栏彩色 Logo（primary），替代原先侧栏彩色字标 */
-.top-brand-logo {
-  height: 22px;
-  width: auto;
-  color: var(--el-color-primary);
-  flex-shrink: 0;
-  cursor: pointer;
-}
 .add-host-hint {
   margin: 0 0 12px;
   font-size: 12px;

@@ -13,15 +13,14 @@ export type SubTab =
   | "processes"
   | "network"
   | "docker"
-  | "databases"
+  | "java"
   | "files"
-  | "disks"
   | "services"
+  | "certs"
   | "cron"
   | "packages"
   | "logs"
-  | "terminal"
-  | "java";
+  | "terminal";
 
 /** 当前主区展示的对象 */
 export interface ActiveView {
@@ -58,6 +57,28 @@ export const useAppStore = defineStore("app", () => {
   /** 软件包等模块切到终端时希望自动执行的命令 */
   const pendingTerminalCmd = ref<string | null>(null);
 
+  /** 系统菜单请求「新建分组」弹窗（跨组件通知 SidebarHost 处理） */
+  const pendingCreateGroup = ref(false);
+
+  /** 侧栏开/关（App 外壳与 MainArea 展开按钮共享，持久化到 localStorage） */
+  function loadSidebarOpen(): boolean {
+    try {
+      const v = localStorage.getItem("ipannel.sidebarOpen");
+      return v === null ? true : v === "1";
+    } catch {
+      return true;
+    }
+  }
+  const sidebarOpen = ref(loadSidebarOpen());
+  function setSidebarOpen(v: boolean) {
+    sidebarOpen.value = v;
+    try {
+      localStorage.setItem("ipannel.sidebarOpen", v ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+
   /** 后台常挂的主机会话（按打开顺序） */
   const hostSessions = ref<Record<string, HostSession>>({});
   const runningOrder = ref<string[]>([]);
@@ -90,9 +111,21 @@ export const useAppStore = defineStore("app", () => {
     loading.value = true;
     try {
       // ListHosts 已过滤 github/gitee/gitlab 等 Git 托管条目
-      const [h, g] = await Promise.all([api.listHosts(), api.listGroups()]);
+      // 图标记录与主机列表一起读本地，启动不再远程扫操作系统
+      const [h, g, icons] = await Promise.all([
+        api.listHosts(),
+        api.listGroups(),
+        api.listHostIcons().catch(() => [] as { host?: string; osRelease?: string }[]),
+      ]);
       hosts.value = h || [];
       groupList.value = g || [];
+      const m = new Map<string, string>();
+      for (const it of icons || []) {
+        if (it.host && it.osRelease) {
+          m.set(it.host, it.osRelease);
+        }
+      }
+      osReleaseMap.value = m;
       // 清理已不存在的主机会话
       const names = new Set((h || []).map((x) => x.name));
       for (const n of Object.keys(hostSessions.value)) {
@@ -101,8 +134,6 @@ export const useAppStore = defineStore("app", () => {
     } finally {
       loading.value = false;
     }
-    // 启动/刷新：先读本地图标记录，没有记录的主机再后台轻量探测
-    await loadLocalIcons();
     void fillMissingIcons();
   }
 
@@ -116,22 +147,6 @@ export const useAppStore = defineStore("app", () => {
       }
     }
     osReleaseMap.value = m;
-  }
-
-  /** 从本机 host_icons.json 加载，不访问远程 */
-  async function loadLocalIcons() {
-    try {
-      const list = await api.listHostIcons();
-      const m = new Map<string, string>();
-      for (const it of list || []) {
-        if (it.host && it.osRelease) {
-          m.set(it.host, it.osRelease);
-        }
-      }
-      osReleaseMap.value = m;
-    } catch {
-      /* 读不到则保持原映射，图标回退默认 Linux */
-    }
   }
 
   /** 只补齐还没有记录的主机（轻量读 os-release，失败静默） */
@@ -396,6 +411,9 @@ export const useAppStore = defineStore("app", () => {
     hostSessions,
     runningHosts,
     runningOrder,
+    sidebarOpen,
+    setSidebarOpen,
+    pendingCreateGroup,
     refresh,
     rememberOsRelease,
     refreshHostIcon,
