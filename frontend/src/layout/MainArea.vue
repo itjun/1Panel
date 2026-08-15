@@ -91,10 +91,6 @@
             v-if="sessionOf(hid)?.subTab === 'docker'"
             :host="hid"
           />
-          <JavaView
-            v-if="sessionOf(hid)?.subTab === 'java'"
-            :host="hid"
-          />
           <FilesView
             v-if="sessionOf(hid)?.subTab === 'files'"
             :host="hid"
@@ -141,7 +137,6 @@ import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
 import DockerView from "@/views/DockerView.vue";
-import JavaView from "@/views/JavaView.vue";
 import FilesView from "@/views/FilesView.vue";
 import ServicesView from "@/views/ServicesView.vue";
 import CertsView from "@/views/CertsView.vue";
@@ -164,7 +159,6 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "processes", label: "进程" },
   { value: "network", label: "网络" },
   { value: "docker", label: "Docker" },
-  { value: "java", label: "Java" },
   { value: "files", label: "文件" },
   { value: "services", label: "服务" },
   { value: "certs", label: "证书" },

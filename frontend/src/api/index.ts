@@ -15,7 +15,6 @@ import {
   CollectCrons,
   CollectRuntimes,
   CollectJava,
-  CollectJavaProcs,
   CollectJavaProcDetail,
   CollectNetwork,
   AddHost,
@@ -154,9 +153,10 @@ export const api = {
   collectProcesses: (host: string, limit: number) =>
     CollectProcesses(host, limit),
   collectJava: (host: string) => CollectJava(host),
-  /** Java 进程列表（含 cgroup 判定的部署方式/监听端口/jar 路径） */
-  collectJavaProcs: (host: string) => CollectJavaProcs(host),
-  /** 单个 Java 进程补充详情（悬浮卡片：工作目录/java 路径/磁盘 IO） */
+  /** 运行时进程列表（java/go/node/bun/python，含部署方式/端口/入口） */
+  collectRuntimeProcs: (host: string, runtime: string) =>
+    wailsMain<unknown[]>("CollectRuntimeProcs", host, runtime),
+  /** 单个运行时进程补充详情（悬浮卡片：工作目录/exe 路径/磁盘 IO） */
   collectJavaDetail: (host: string, pid: number) =>
     CollectJavaProcDetail(host, pid),
   collectRuntimes: (host: string) => CollectRuntimes(host),

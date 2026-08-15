@@ -13,7 +13,6 @@ export type SubTab =
   | "processes"
   | "network"
   | "docker"
-  | "java"
   | "files"
   | "services"
   | "certs"
