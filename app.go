@@ -15,11 +15,9 @@ import (
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/hosticon"
 	"diteng-pannel/internal/monitor"
-	"diteng-pannel/internal/nethist"
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
-	"diteng-pannel/internal/vmquery"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -34,20 +32,14 @@ type App struct {
 	collector    *monitor.Collector
 	groups       *groups.Store
 	hostIcons    *hosticon.Store
-	netHist      *nethist.Store
 	termMgr      *terminal.Manager
-	vmClient     *vmquery.Client
-	vmScheduler  *vmquery.QueryScheduler
 }
 
 func NewApp() *App {
 	sshMgr := sshd.NewManager()
-	vmClient := vmquery.NewClient(sshMgr)
 	return &App{
-		sshMgr:      sshMgr,
-		termMgr:     terminal.NewManager(sshMgr),
-		vmClient:    vmClient,
-		vmScheduler: vmquery.NewScheduler(vmClient),
+		sshMgr:  sshMgr,
+		termMgr: terminal.NewManager(sshMgr),
 	}
 }
 
@@ -60,12 +52,6 @@ func (a *App) startup(ctx context.Context) {
 		runtime.LogErrorf(ctx, "初始化分组存储失败: %v", err)
 	} else {
 		a.groups = store
-	}
-	// 与分组同目录：网卡累计采样，供 1 天 / 7 天流量差分
-	if nh, err := nethist.NewStore("ServerPanel"); err != nil {
-		runtime.LogErrorf(ctx, "初始化网卡历史失败: %v", err)
-	} else {
-		a.netHist = nh
 	}
 	if hi, err := hosticon.NewStore("ServerPanel"); err != nil {
 		runtime.LogErrorf(ctx, "初始化主机图标存储失败: %v", err)
@@ -345,7 +331,6 @@ func (a *App) AssignHost(host, groupID string) error {
 // ============ 监控 ============
 
 // CollectOverview 采集顶层系统指标（按需/手动刷新，不做秒级轮询落盘）
-// 额外根据本机历史采样填充近 1 天 / 7 天收发字节（net1d / net7d）
 func (a *App) CollectOverview(host string) (monitor.Overview, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
@@ -357,17 +342,6 @@ func (a *App) CollectOverview(host string) (monitor.Overview, error) {
 	}
 	// 首次访问或概览刷新时顺手记下发行版，避免下次启动再远程探测
 	a.rememberOS(host, ov.OSRelease)
-	if a.netHist != nil {
-		d1, d7 := a.netHist.RecordAndWindows(host, ov.NetRxBytes, ov.NetTxBytes)
-		ov.Net1d = monitor.NetWindow{
-			RxBytes: d1.RxBytes, TxBytes: d1.TxBytes,
-			SpanHours: d1.SpanHours, Complete: d1.Complete,
-		}
-		ov.Net7d = monitor.NetWindow{
-			RxBytes: d7.RxBytes, TxBytes: d7.TxBytes,
-			SpanHours: d7.SpanHours, Complete: d7.Complete,
-		}
-	}
 	return ov, nil
 }
 
@@ -379,13 +353,13 @@ func (a *App) CollectDisks(host string) ([]monitor.DiskInfo, error) {
 	return a.collector.CollectDisks(host, opt)
 }
 
-// CollectLargestFiles 异步场景：扫描根分区 Top N 大文件（可能较慢，勿阻塞 UI）
-func (a *App) CollectLargestFiles(host string, limit int) (monitor.LargeFilesResult, error) {
+// CollectLargestFiles 异步场景：扫描指定挂载点 Top N 大文件（可能较慢，勿阻塞 UI）
+func (a *App) CollectLargestFiles(host, root string, limit int) (monitor.LargeFilesResult, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
 		return monitor.LargeFilesResult{}, err
 	}
-	return a.collector.CollectLargestFiles(host, opt, limit)
+	return a.collector.CollectLargestFiles(host, opt, root, limit)
 }
 
 func (a *App) CollectProcesses(host string, limit int) ([]monitor.ProcInfo, error) {
@@ -402,6 +376,24 @@ func (a *App) CollectJava(host string) ([]monitor.ProcInfo, error) {
 		return nil, err
 	}
 	return a.collector.CollectJava(host, opt)
+}
+
+// CollectJavaProcs 采集所有 Java 进程（含部署方式/端口/jar 路径，Java 标签页主列表）
+func (a *App) CollectJavaProcs(host string) ([]monitor.JavaProc, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return nil, err
+	}
+	return a.collector.CollectJavaProcs(host, opt)
+}
+
+// CollectJavaProcDetail 单个 Java 进程的补充详情（悬浮卡片按需查询）
+func (a *App) CollectJavaProcDetail(host string, pid uint32) (monitor.JavaProcDetail, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return monitor.JavaProcDetail{}, err
+	}
+	return a.collector.CollectJavaProcDetail(host, pid, opt)
 }
 
 // CollectNetwork 网卡 / IP 分类 / TCP 连接 / 疑似卡顿连接
@@ -435,6 +427,15 @@ func (a *App) CollectCrons(host string) ([]monitor.Cron, error) {
 		return nil, err
 	}
 	return a.collector.CollectCrons(host, opt)
+}
+
+// CollectRuntimes 识别常用运行环境版本（java/go/python/node/bun）
+func (a *App) CollectRuntimes(host string) ([]monitor.RuntimeInfo, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return nil, err
+	}
+	return a.collector.CollectRuntimes(host, opt)
 }
 
 func (a *App) CollectPackages(host string) ([]monitor.AptPackage, error) {
@@ -503,83 +504,28 @@ func (a *App) CollectLog(host, logType string, lines int) (monitor.LogResult, er
 	return a.collector.CollectLog(host, logType, opt, lines)
 }
 
-// CollectDatabases 检测远程主机上已安装的数据库
-func (a *App) CollectDatabases(host string) ([]monitor.DatabaseInfo, error) {
+// CollectCerts 识别远程主机 /etc/nginx/cert 下的证书（目录不存在时 installed=false）
+func (a *App) CollectCerts(host string) (monitor.CertListResult, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
-		return nil, err
+		return monitor.CertListResult{}, err
 	}
-	return a.collector.CollectDatabases(host, opt)
+	return a.collector.CollectCerts(host, opt)
 }
 
-// ============ Java 监控（VM + JVM 详情） ============
-
-// CollectJavaDetail 一次 SSH 解析全机 Java 进程的 Xms/Xmx/jar/GC日志/screen
-// 供 JavaView 的列表与详情展示
-func (a *App) CollectJavaDetail(host string) ([]monitor.JavaDetail, error) {
+// CollectServiceDetail 查询单个 systemd 服务的详情（服务页悬浮卡片按需调用）
+func (a *App) CollectServiceDetail(host, name string) (monitor.ServiceDetail, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
-		return nil, err
+		return monitor.ServiceDetail{}, err
 	}
-	return a.collector.CollectJavaDetail(host, opt)
+	return a.collector.CollectServiceDetail(host, name, opt)
 }
 
-// CollectJvmEvents 采集指定 GC 日志的末尾 N 行（走 SSH tail，不进时序库）
-func (a *App) CollectJvmEvents(host, gcLogPath string, limit int) (string, error) {
-	opt, err := a.connectOptionFor(host)
-	if err != nil {
-		return "", err
-	}
-	return a.collector.CollectJvmEvents(host, opt, gcLogPath, limit)
-}
-
-// AnalyzeExitReason 分析指定 screen 会话的终止原因
-// 结合退出码、dump 文件、dmesg 区分五种终止原因：
-// heap-oom / system-oom / jvm-crash / normal-shutdown / killed-sigkill
-func (a *App) AnalyzeExitReason(host, sessionName, jarDir string) (monitor.ExitReason, error) {
-	opt, err := a.connectOptionFor(host)
-	if err != nil {
-		return monitor.ExitReason{}, err
-	}
-	return a.collector.AnalyzeExitReason(host, opt, sessionName, jarDir)
-}
-
-// ProbeMetrics 探测远端 VictoriaMetrics 是否在跑
-// 只有 beta 装了 VM；cloud/raven 探测失败时前端降级为只显示实时值
-func (a *App) ProbeMetrics(host string) (vmquery.ProbeResult, error) {
-	opt, err := a.connectOptionFor(host)
-	if err != nil {
-		return vmquery.ProbeResult{}, err
-	}
-	return a.vmClient.Probe(host, opt), nil
-}
-
-// QueryMetric 查询 VM 的 instant 接口，返回 JSON 文本（不用 []byte，避免 Wails 编成数字数组）
-func (a *App) QueryMetric(host, query string) (string, error) {
-	opt, err := a.connectOptionFor(host)
-	if err != nil {
-		return "", err
-	}
-	body, err := a.vmScheduler.Query(host, opt, query)
-	if err != nil {
-		return "", err
-	}
-	return string(body), nil
-}
-
-// QueryMetricRange 查询 VM 的 range 接口（用于画时序曲线）
-// query: PromQL；start/end：Unix 秒；step：秒
-// 返回 JSON 文本，前端用 ECharts 解析
-func (a *App) QueryMetricRange(host, query string, start, end int64, step int) (string, error) {
-	opt, err := a.connectOptionFor(host)
-	if err != nil {
-		return "", err
-	}
-	body, err := a.vmScheduler.QueryRange(host, opt, query, start, end, step)
-	if err != nil {
-		return "", err
-	}
-	return string(body), nil
+// SetTrafficLightsHidden 隐藏/恢复 macOS 窗口红绿灯按钮
+// 供前端卡片最大化时调用：最大化期间隐藏，退出时恢复
+func (a *App) SetTrafficLightsHidden(hidden bool) {
+	setTrafficLightsHidden(hidden)
 }
 
 // DeletePaths 删除远程主机上的多个文件或目录（递归，不可恢复）
@@ -657,6 +603,15 @@ func (a *App) DockerAction(host string, action string, container string) (string
 		return "", err
 	}
 	return string(out), nil
+}
+
+// DockerInspect 查询单个容器的 docker inspect 原始 JSON（Docker 页悬浮卡片按需调用）
+func (a *App) DockerInspect(host string, container string) (string, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return "", err
+	}
+	return a.collector.CollectDockerInspect(host, container, opt)
 }
 
 // ============ 终端 ============
@@ -769,12 +724,27 @@ func (a *App) buildAppMenu() *menu.Menu {
 	appSub.AddText("设置…", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
 		runtime.EventsEmit(a.ctx, "open-settings")
 	})
+	// 原侧栏底部齿轮菜单迁移至系统菜单
+	appSub.AddText("刷新", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "app-refresh")
+	})
+	appSub.AddText("检查并更新全部图标", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "app-refresh-icons")
+	})
 	appSub.AddText("重启应用", nil, func(_ *menu.CallbackData) {
 		a.restartApp()
 	})
 	appSub.AddSeparator()
 	appSub.AddText("退出 1Pannel", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
 		runtime.Quit(a.ctx)
+	})
+	// 主机子菜单：与侧栏空白处右键菜单同源
+	hostSub := m.AddSubmenu("主机")
+	hostSub.AddText("添加主机…", keys.CmdOrCtrl("n"), func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "open-add-host")
+	})
+	hostSub.AddText("新建分组…", nil, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "open-create-group")
 	})
 	m.Append(menu.EditMenu())
 	m.Append(menu.WindowMenu())

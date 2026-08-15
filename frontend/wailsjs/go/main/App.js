@@ -6,28 +6,16 @@ export function AddHost(arg1) {
   return window['go']['main']['App']['AddHost'](arg1);
 }
 
-export function AnalyzeExitReason(arg1, arg2, arg3) {
-  return window['go']['main']['App']['AnalyzeExitReason'](arg1, arg2, arg3);
-}
-
 export function AssignHost(arg1, arg2) {
   return window['go']['main']['App']['AssignHost'](arg1, arg2);
 }
 
-export function AuthStatus() {
-  return window['go']['main']['App']['AuthStatus']();
-}
-
-export function AuthenticateMacUser(arg1, arg2) {
-  return window['go']['main']['App']['AuthenticateMacUser'](arg1, arg2);
-}
-
-export function AuthenticateWithSystem() {
-  return window['go']['main']['App']['AuthenticateWithSystem']();
-}
-
 export function BootstrapZsh(arg1) {
   return window['go']['main']['App']['BootstrapZsh'](arg1);
+}
+
+export function CheckCertPair(arg1) {
+  return window['go']['main']['App']['CheckCertPair'](arg1);
 }
 
 export function CheckLocalPaths(arg1) {
@@ -38,12 +26,12 @@ export function CloseTerminal(arg1) {
   return window['go']['main']['App']['CloseTerminal'](arg1);
 }
 
-export function CollectCrons(arg1) {
-  return window['go']['main']['App']['CollectCrons'](arg1);
+export function CollectCerts(arg1) {
+  return window['go']['main']['App']['CollectCerts'](arg1);
 }
 
-export function CollectDatabases(arg1) {
-  return window['go']['main']['App']['CollectDatabases'](arg1);
+export function CollectCrons(arg1) {
+  return window['go']['main']['App']['CollectCrons'](arg1);
 }
 
 export function CollectDisks(arg1) {
@@ -58,16 +46,16 @@ export function CollectJava(arg1) {
   return window['go']['main']['App']['CollectJava'](arg1);
 }
 
-export function CollectJavaDetail(arg1) {
-  return window['go']['main']['App']['CollectJavaDetail'](arg1);
+export function CollectJavaProcDetail(arg1, arg2) {
+  return window['go']['main']['App']['CollectJavaProcDetail'](arg1, arg2);
 }
 
-export function CollectJvmEvents(arg1, arg2, arg3) {
-  return window['go']['main']['App']['CollectJvmEvents'](arg1, arg2, arg3);
+export function CollectJavaProcs(arg1) {
+  return window['go']['main']['App']['CollectJavaProcs'](arg1);
 }
 
-export function CollectLargestFiles(arg1, arg2) {
-  return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2);
+export function CollectLargestFiles(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2, arg3);
 }
 
 export function CollectLog(arg1, arg2, arg3) {
@@ -88,6 +76,14 @@ export function CollectPackages(arg1) {
 
 export function CollectProcesses(arg1, arg2) {
   return window['go']['main']['App']['CollectProcesses'](arg1, arg2);
+}
+
+export function CollectRuntimes(arg1) {
+  return window['go']['main']['App']['CollectRuntimes'](arg1);
+}
+
+export function CollectServiceDetail(arg1, arg2) {
+  return window['go']['main']['App']['CollectServiceDetail'](arg1, arg2);
 }
 
 export function CollectServices(arg1) {
@@ -114,8 +110,8 @@ export function DockerAction(arg1, arg2, arg3) {
   return window['go']['main']['App']['DockerAction'](arg1, arg2, arg3);
 }
 
-export function GetCurrentMacUser() {
-  return window['go']['main']['App']['GetCurrentMacUser']();
+export function DockerInspect(arg1, arg2) {
+  return window['go']['main']['App']['DockerInspect'](arg1, arg2);
 }
 
 export function GetHomeDir(arg1) {
@@ -154,28 +150,12 @@ export function ListOneGroupOverview(arg1) {
   return window['go']['main']['App']['ListOneGroupOverview'](arg1);
 }
 
-export function LogoutMacUser() {
-  return window['go']['main']['App']['LogoutMacUser']();
-}
-
 export function NormalizeFileToLinux(arg1, arg2) {
   return window['go']['main']['App']['NormalizeFileToLinux'](arg1, arg2);
 }
 
 export function OpenTerminal(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenTerminal'](arg1, arg2, arg3, arg4);
-}
-
-export function ProbeMetrics(arg1) {
-  return window['go']['main']['App']['ProbeMetrics'](arg1);
-}
-
-export function QueryMetric(arg1, arg2) {
-  return window['go']['main']['App']['QueryMetric'](arg1, arg2);
-}
-
-export function QueryMetricRange(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['QueryMetricRange'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function ReadFilePreview(arg1, arg2) {
@@ -210,12 +190,20 @@ export function ResizeTerminal(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResizeTerminal'](arg1, arg2, arg3);
 }
 
+export function SetTrafficLightsHidden(arg1) {
+  return window['go']['main']['App']['SetTrafficLightsHidden'](arg1);
+}
+
 export function TestConnection(arg1) {
   return window['go']['main']['App']['TestConnection'](arg1);
 }
 
 export function UpdateHost(arg1) {
   return window['go']['main']['App']['UpdateHost'](arg1);
+}
+
+export function UploadCertPair(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UploadCertPair'](arg1, arg2, arg3);
 }
 
 export function UploadDir(arg1, arg2, arg3, arg4) {

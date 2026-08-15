@@ -5,29 +5,22 @@ import {monitor} from '../models';
 import {groups} from '../models';
 import {sshconfig} from '../models';
 import {filetext} from '../models';
-import {vmquery} from '../models';
 
 export function AddHost(arg1:main.AddHostInput):Promise<void>;
 
-export function AnalyzeExitReason(arg1:string,arg2:string,arg3:string):Promise<monitor.ExitReason>;
-
 export function AssignHost(arg1:string,arg2:string):Promise<void>;
 
-export function AuthStatus():Promise<main.AuthState>;
-
-export function AuthenticateMacUser(arg1:string,arg2:string):Promise<main.AuthState>;
-
-export function AuthenticateWithSystem():Promise<main.AuthState>;
-
 export function BootstrapZsh(arg1:string):Promise<string>;
+
+export function CheckCertPair(arg1:Array<string>):Promise<main.CertPairCheck>;
 
 export function CheckLocalPaths(arg1:Array<string>):Promise<Array<main.LocalTextCheck>>;
 
 export function CloseTerminal(arg1:string):Promise<void>;
 
-export function CollectCrons(arg1:string):Promise<Array<monitor.Cron>>;
+export function CollectCerts(arg1:string):Promise<monitor.CertListResult>;
 
-export function CollectDatabases(arg1:string):Promise<Array<monitor.DatabaseInfo>>;
+export function CollectCrons(arg1:string):Promise<Array<monitor.Cron>>;
 
 export function CollectDisks(arg1:string):Promise<Array<monitor.DiskInfo>>;
 
@@ -35,11 +28,11 @@ export function CollectDocker(arg1:string):Promise<monitor.DockerInfo>;
 
 export function CollectJava(arg1:string):Promise<Array<monitor.ProcInfo>>;
 
-export function CollectJavaDetail(arg1:string):Promise<Array<monitor.JavaDetail>>;
+export function CollectJavaProcDetail(arg1:string,arg2:number):Promise<monitor.JavaProcDetail>;
 
-export function CollectJvmEvents(arg1:string,arg2:string,arg3:number):Promise<string>;
+export function CollectJavaProcs(arg1:string):Promise<Array<monitor.JavaProc>>;
 
-export function CollectLargestFiles(arg1:string,arg2:number):Promise<monitor.LargeFilesResult>;
+export function CollectLargestFiles(arg1:string,arg2:string,arg3:number):Promise<monitor.LargeFilesResult>;
 
 export function CollectLog(arg1:string,arg2:string,arg3:number):Promise<monitor.LogResult>;
 
@@ -50,6 +43,10 @@ export function CollectOverview(arg1:string):Promise<monitor.Overview>;
 export function CollectPackages(arg1:string):Promise<Array<monitor.AptPackage>>;
 
 export function CollectProcesses(arg1:string,arg2:number):Promise<Array<monitor.ProcInfo>>;
+
+export function CollectRuntimes(arg1:string):Promise<Array<monitor.RuntimeInfo>>;
+
+export function CollectServiceDetail(arg1:string,arg2:string):Promise<monitor.ServiceDetail>;
 
 export function CollectServices(arg1:string):Promise<Array<monitor.Service>>;
 
@@ -63,7 +60,7 @@ export function DeletePaths(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function DockerAction(arg1:string,arg2:string,arg3:string):Promise<string>;
 
-export function GetCurrentMacUser():Promise<main.MacUserInfo>;
+export function DockerInspect(arg1:string,arg2:string):Promise<string>;
 
 export function GetHomeDir(arg1:string):Promise<string>;
 
@@ -83,17 +80,9 @@ export function ListHostsAll():Promise<Array<sshconfig.HostConfig>>;
 
 export function ListOneGroupOverview(arg1:string):Promise<main.GroupOverview>;
 
-export function LogoutMacUser():Promise<main.AuthState>;
-
 export function NormalizeFileToLinux(arg1:string,arg2:string):Promise<filetext.Preview>;
 
 export function OpenTerminal(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
-
-export function ProbeMetrics(arg1:string):Promise<vmquery.ProbeResult>;
-
-export function QueryMetric(arg1:string,arg2:string):Promise<string>;
-
-export function QueryMetricRange(arg1:string,arg2:string,arg3:number,arg4:number,arg5:number):Promise<string>;
 
 export function ReadFilePreview(arg1:string,arg2:string):Promise<filetext.Preview>;
 
@@ -111,9 +100,13 @@ export function RenameHost(arg1:string,arg2:string):Promise<void>;
 
 export function ResizeTerminal(arg1:string,arg2:number,arg3:number):Promise<void>;
 
+export function SetTrafficLightsHidden(arg1:boolean):Promise<void>;
+
 export function TestConnection(arg1:main.AddHostInput):Promise<string>;
 
 export function UpdateHost(arg1:main.UpdateHostInput):Promise<void>;
+
+export function UploadCertPair(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function UploadDir(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
 

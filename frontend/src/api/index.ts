@@ -5,33 +5,27 @@
 import {
   CollectDisks,
   CollectDocker,
-  CollectDatabases,
   CollectLargestFiles,
   CollectLog,
   CollectOverview,
   CollectProcesses,
   CollectServices,
+  CollectServiceDetail,
   CollectPackages,
   CollectCrons,
+  CollectRuntimes,
   CollectJava,
-  CollectJavaDetail,
-  CollectJvmEvents,
+  CollectJavaProcs,
+  CollectJavaProcDetail,
   CollectNetwork,
-  AnalyzeExitReason,
-  ProbeMetrics,
-  QueryMetric,
-  QueryMetricRange,
   AddHost,
   AssignHost,
-  AuthenticateMacUser,
-  AuthenticateWithSystem,
-  AuthStatus,
   CloseTerminal,
   CopySSHID,
   DeleteGroup,
   DeleteHost,
   DockerAction,
-  GetCurrentMacUser,
+  DockerInspect,
   GetHomeDir,
   KillProcess,
   ListDir,
@@ -40,7 +34,6 @@ import {
   ListHostsAll,
   ListGroupOverview,
   ListOneGroupOverview,
-  LogoutMacUser,
   OpenTerminal,
   NormalizeFileToLinux,
   ReadFilePreview,
@@ -55,17 +48,6 @@ import {
   WriteTerminal,
 } from "@wailsjs/go/main/App";
 import type { filetext, groups, main, monitor, sshconfig } from "@wailsjs/go/models";
-
-export interface MacUserInfo {
-  username: string;
-  fullName: string;
-  homeDir: string;
-}
-
-export interface AuthState {
-  authenticated: boolean;
-  username: string;
-}
 
 /** 主机发行版图标记录（对应后端 main.HostIcon）*/
 export interface HostIcon {
@@ -87,6 +69,38 @@ export interface LocalTextCheck {
   size: number;
 }
 
+/** 单张证书识别结果（对应后端 monitor.CertInfo，wailsjs 未生成类型故本地声明）*/
+export interface CertInfo {
+  name: string;
+  domains: string[];
+  issuer: string;
+  notAfter: number;
+  daysLeft: number;
+  selfSigned: boolean;
+  hasKey: boolean;
+  keyName: string;
+  size: number;
+  mtime: number;
+}
+
+/** /etc/nginx/cert 整体识别结果（对应后端 monitor.CertListResult）*/
+export interface CertListResult {
+  installed: boolean;
+  noOpenssl: boolean;
+  certs: CertInfo[];
+}
+
+/** 证书+私钥本地配对校验结果（对应后端 main.CertPairCheck）*/
+export interface CertPairCheck {
+  certPath: string;
+  keyPath: string;
+  domains: string[];
+  issuer: string;
+  notAfter: number;
+  daysLeft: number;
+  selfSigned: boolean;
+}
+
 // vue-tsc 对 wails 生成的新增绑定（UploadDir/UploadPaths/CheckLocalPaths）类型解析异常，
 // 这里直接走运行时 window 注入调用，绕过 .d.ts 解析问题。
 function wailsMain<T>(method: string, ...args: unknown[]): Promise<T> {
@@ -104,15 +118,6 @@ function wailsMain<T>(method: string, ...args: unknown[]): Promise<T> {
 }
 
 export const api = {
-  // 本机门禁：macOS LocalAuthentication 系统面板
-  getCurrentMacUser: (): Promise<MacUserInfo> => GetCurrentMacUser(),
-  authStatus: (): Promise<AuthState> => AuthStatus(),
-  authenticateWithSystem: (): Promise<AuthState> => AuthenticateWithSystem(),
-  /** @deprecated 请用 authenticateWithSystem */
-  authenticateMacUser: (username: string, password: string): Promise<AuthState> =>
-    AuthenticateMacUser(username, password),
-  logoutMacUser: (): Promise<AuthState> => LogoutMacUser(),
-
   listHosts: (): Promise<sshconfig.HostConfig[]> => ListHosts(),
   listHostsAll: (): Promise<sshconfig.HostConfig[]> => ListHostsAll(),
   addHost: (input: main.AddHostInput) => AddHost(input),
@@ -149,31 +154,33 @@ export const api = {
   collectProcesses: (host: string, limit: number) =>
     CollectProcesses(host, limit),
   collectJava: (host: string) => CollectJava(host),
-  collectJavaDetail: (host: string) => CollectJavaDetail(host),
-  collectJvmEvents: (host: string, gcLogPath: string, limit: number) =>
-    CollectJvmEvents(host, gcLogPath, limit),
-  analyzeExitReason: (host: string, sessionName: string, jarDir: string) =>
-    AnalyzeExitReason(host, sessionName, jarDir),
-  probeMetrics: (host: string) => ProbeMetrics(host),
-  queryMetric: (host: string, query: string) => QueryMetric(host, query),
-  queryMetricRange: (
-    host: string,
-    query: string,
-    start: number,
-    end: number,
-    step: number
-  ) => QueryMetricRange(host, query, start, end, step),
+  /** Java 进程列表（含 cgroup 判定的部署方式/监听端口/jar 路径） */
+  collectJavaProcs: (host: string) => CollectJavaProcs(host),
+  /** 单个 Java 进程补充详情（悬浮卡片：工作目录/java 路径/磁盘 IO） */
+  collectJavaDetail: (host: string, pid: number) =>
+    CollectJavaProcDetail(host, pid),
+  collectRuntimes: (host: string) => CollectRuntimes(host),
   collectNetwork: (host: string) => CollectNetwork(host),
   collectDocker: (host: string) => CollectDocker(host),
-  collectDatabases: (host: string): Promise<monitor.DatabaseInfo[]> =>
-    CollectDatabases(host),
   collectServices: (host: string) => CollectServices(host),
+  collectServiceDetail: (host: string, name: string) =>
+    CollectServiceDetail(host, name),
   collectCrons: (host: string) => CollectCrons(host),
+  /** 识别 /etc/nginx/cert 下的证书（走运行时绑定，与 ListHostIcons 同模式） */
+  collectCerts: (host: string): Promise<CertListResult> =>
+    wailsMain<CertListResult>("CollectCerts", host),
+  /** 本地校验证书+私钥配对（不上传） */
+  checkCertPair: (localPaths: string[]): Promise<CertPairCheck> =>
+    wailsMain<CertPairCheck>("CheckCertPair", localPaths),
+  /** 上传已配对的证书+私钥到远程 /etc/nginx/cert */
+  uploadCertPair: (host: string, certPath: string, keyPath: string) =>
+    wailsMain<void>("UploadCertPair", host, certPath, keyPath),
   collectPackages: (host: string) => CollectPackages(host),
   collectLargestFiles: (
     host: string,
+    root: string,
     limit = 10
-  ): Promise<monitor.LargeFilesResult> => CollectLargestFiles(host, limit),
+  ): Promise<monitor.LargeFilesResult> => CollectLargestFiles(host, root, limit),
   collectLog: (
     host: string,
     logType: string,
@@ -230,6 +237,9 @@ export const api = {
     KillProcess(host, pid, force),
   dockerAction: (host: string, action: string, container: string) =>
     DockerAction(host, action, container),
+  /** 查询单个容器的 docker inspect 原始 JSON（悬浮详情卡片用） */
+  dockerInspect: (host: string, container: string) =>
+    DockerInspect(host, container),
 
   openTerminal: (
     host: string,

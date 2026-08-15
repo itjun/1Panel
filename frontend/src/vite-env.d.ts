@@ -9,29 +9,29 @@ declare module "*.vue" {
 declare module "@wailsjs/go/main/App" {
   export function CollectDisks(...args: any[]): Promise<any>;
   export function CollectDocker(...args: any[]): Promise<any>;
-  export function CollectDatabases(...args: any[]): Promise<any>;
   export function CollectLargestFiles(...args: any[]): Promise<any>;
   export function CollectLog(...args: any[]): Promise<any>;
   export function CollectOverview(...args: any[]): Promise<any>;
   export function CollectProcesses(...args: any[]): Promise<any>;
   export function CollectServices(...args: any[]): Promise<any>;
+  export function CollectServiceDetail(...args: any[]): Promise<any>;
   export function CollectPackages(...args: any[]): Promise<any>;
   export function CollectCrons(...args: any[]): Promise<any>;
   export function CollectJava(...args: any[]): Promise<any>;
+  export function CollectJavaProcs(...args: any[]): Promise<any>;
+  export function CollectJavaProcDetail(...args: any[]): Promise<any>;
   export function CollectNetwork(...args: any[]): Promise<any>;
+  export function CollectRuntimes(...args: any[]): Promise<any>;
   export function AddHost(...args: any[]): Promise<any>;
   export function AssignHost(...args: any[]): Promise<any>;
-  export function AuthenticateMacUser(...args: any[]): Promise<any>;
-  export function AuthenticateWithSystem(...args: any[]): Promise<any>;
-  export function AuthStatus(...args: any[]): Promise<any>;
-  export function GetCurrentMacUser(...args: any[]): Promise<any>;
   export function GetHomeDir(...args: any[]): Promise<string>;
-  export function LogoutMacUser(...args: any[]): Promise<any>;
+  export function SetTrafficLightsHidden(...args: any[]): Promise<void>;
   export function CloseTerminal(...args: any[]): Promise<any>;
   export function CopySSHID(...args: any[]): Promise<any>;
   export function DeleteGroup(...args: any[]): Promise<any>;
   export function DeleteHost(...args: any[]): Promise<any>;
   export function DockerAction(...args: any[]): Promise<any>;
+  export function DockerInspect(...args: any[]): Promise<any>;
   export function KillProcess(...args: any[]): Promise<any>;
   export function ListDir(...args: any[]): Promise<any>;
   export function ListGroups(...args: any[]): Promise<any>;
@@ -118,18 +118,6 @@ declare module "@wailsjs/go/models" {
       diskReadBytes: number;
       diskWriteBytes: number;
       diskIOCount: number;
-      net1d?: {
-        rxBytes: number;
-        txBytes: number;
-        spanHours: number;
-        complete: boolean;
-      };
-      net7d?: {
-        rxBytes: number;
-        txBytes: number;
-        spanHours: number;
-        complete: boolean;
-      };
     }
     export class DiskInfo {
       filesystem: string;
@@ -159,12 +147,6 @@ declare module "@wailsjs/go/models" {
       content: string;
       source: string;
     }
-    export class DatabaseInfo {
-      name: string;
-      version: string;
-      running: boolean;
-      port: string;
-    }
     export class ProcInfo {
       pid: number;
       ppid: number;
@@ -182,6 +164,12 @@ declare module "@wailsjs/go/models" {
       status: string;
       state: string;
       ports: string;
+    }
+    export class RuntimeInfo {
+      name: string;
+      version: string;
+      path: string;
+      detail: string;
     }
   }
   export namespace sshconfig {
