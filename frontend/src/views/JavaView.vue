@@ -1,623 +1,512 @@
 <template>
-  <div class="java-root">
-    <!-- 顶部：VM 可用性 + Java 进程列表 -->
-    <div class="top-bar">
-      <div class="vm-status">
-        <el-tag v-if="probe.available" type="success" size="small">
-          VM 可用 · {{ probe.latencyMs }}ms
-        </el-tag>
-        <el-tag v-else-if="!probeLoading" type="info" size="small">
-          VM 未部署（仅显示实时值）
-        </el-tag>
-      </div>
-      <el-button size="small" @click="refreshAll" :loading="loading">
-        刷新
-      </el-button>
+  <div class="tab-root" v-loading="loading && !list.length">
+    <EnlargableCard title="Java 进程">
+    <div class="toolbar">
+      <el-input
+        v-model="filter"
+        size="large"
+        clearable
+        class="filter"
+        placeholder="按 jar/命令/用户/PID 过滤..."
+      />
+      <el-button size="large" @click="refresh">刷新</el-button>
+      <span class="count">{{ filtered.length }} 个</span>
     </div>
+    <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
 
-    <div class="proc-list" v-loading="loading && !details.length">
-      <el-alert v-if="error" type="error" :title="error" show-icon closable />
-      <el-empty v-if="!loading && !details.length" description="未发现 Java 进程" />
-      <el-radio-group v-model="selectedPid" size="small" v-if="details.length">
-        <el-radio-button
-          v-for="d in details"
-          :key="d.pid"
-          :value="d.pid"
-        >
-          {{ appLabel(d) }}
-          <span v-if="scrapedApps.has(appLabel(d))" class="scrape-dot" title="已接入 VM">●</span>
-        </el-radio-button>
-      </el-radio-group>
-    </div>
+    <el-table
+      v-if="filtered.length || loading"
+      :data="filtered"
+      height="100%"
+      size="small"
+      stripe
+      @cell-mouse-enter="onRowEnter"
+      @cell-mouse-leave="scheduleHide"
+      @cell-click="onCellClick"
+    >
+      <el-table-column prop="pid" label="PID" width="80" />
+      <el-table-column prop="user" label="用户" width="90" show-overflow-tooltip />
+      <el-table-column label="部署方式" width="100">
+        <template #default="{ row }">
+          <el-tag size="small" :type="deployTagType(row.deploy)">
+            {{ deployLabel(row) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="应用" min-width="200" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span :title="row.jar || appName(row)">{{ displayName(row) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="端口" width="130" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="mono">{{ (row.ports || []).join(" ") || "—" }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="CPU%" width="80" sortable :sort-method="sortCpu">
+        <template #default="{ row }">
+          <span :class="row.cpu > 80 ? 'danger' : row.cpu > 30 ? 'warn' : ''">
+            {{ Number(row.cpu || 0).toFixed(1) }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="内存" width="90">
+        <template #default="{ row }">{{ formatBytes(row.rss || 0) }}</template>
+      </el-table-column>
+      <el-table-column label="堆内存 (Xms~Xmx)" width="150">
+        <template #default="{ row }">
+          <span class="mono" v-if="row.xms || row.xmx">
+            {{ row.xms ? formatBytes(row.xms) : "默认" }}~{{ row.xmx ? formatBytes(row.xmx) : "默认" }}
+          </span>
+          <span v-else class="dim">—</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="运行时长" width="110">
+        <template #default="{ row }">{{ fmtElapsed(row.elapsed || 0) }}</template>
+      </el-table-column>
+      <el-table-column prop="args" label="启动命令" min-width="260" show-overflow-tooltip />
+    </el-table>
 
-    <!-- 选中进程的详情 -->
-    <div v-if="selected" class="detail">
-      <div class="meta-cards">
-        <div class="meta-card">
-          <div class="meta-label">PID</div>
-          <div class="meta-value">{{ selected.pid }}</div>
+    <el-empty
+      v-if="!loading && list.length === 0 && !error"
+      description="未发现运行中的 Java 进程"
+    />
+    </EnlargableCard>
+
+    <!-- 跟随鼠标的详情卡片：固定定位 + 视口内自动避让；
+         悬浮时不参与鼠标事件，点击行固定（pinned）后可交互、可选择文本、可复制 -->
+    <Teleport to="body">
+      <div
+        v-if="card.visible && card.proc"
+        class="java-hover-card"
+        :class="{ pinned: card.pinned }"
+        :style="{ left: card.x + 'px', top: card.y + 'px' }"
+      >
+        <div class="detail-title">
+          {{ card.proc.jar ? jarName(card.proc.jar) : appName(card.proc) }}
+          <span class="pid-tag mono">PID {{ card.proc.pid }}</span>
+          <span class="flex-spacer" />
+          <el-button
+            v-if="card.pinned"
+            size="small"
+            text
+            class="close-btn"
+            @click="unpin"
+          >
+            ×
+          </el-button>
         </div>
-        <div class="meta-card">
-          <div class="meta-label">Xms / Xmx</div>
-          <div class="meta-value">{{ selected.xms || "—" }} / {{ selected.xmx || "—" }}</div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-label">端口</div>
-          <div class="meta-value">{{ selected.port || "—" }}</div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-label">screen</div>
-          <div class="meta-value">{{ selected.screen || "—" }}</div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-label">GC 日志</div>
-          <div class="meta-value">
-            <el-tag :type="selected.hasGCLogging ? 'success' : 'info'" size="small">
-              {{ selected.hasGCLogging ? "已开启" : "未开启" }}
-            </el-tag>
+        <div class="detail-rows">
+          <div class="d-row">
+            <span class="k">用户</span>
+            <span class="v mono">{{ card.proc.user || "—" }}</span>
+          </div>
+          <div class="d-row">
+            <span class="k">部署方式</span>
+            <span class="v">{{ deployLabel(card.proc) }}</span>
+          </div>
+          <div class="d-row" v-if="card.proc.service">
+            <span class="k">systemd</span>
+            <span class="v mono">{{ card.proc.service }}</span>
+          </div>
+          <div class="d-row" v-if="card.proc.container">
+            <span class="k">容器</span>
+            <span class="v mono">
+              {{ card.proc.container }}（{{ card.proc.image || "镜像未知" }}）
+            </span>
+          </div>
+          <div class="d-row">
+            <span class="k">jar 包</span>
+            <span class="v mono break">{{ card.proc.jar || "—（非 jar 启动）" }}</span>
+          </div>
+          <div class="d-row">
+            <span class="k">监听端口</span>
+            <span class="v mono">{{ (card.proc.ports || []).join("、") || "—" }}</span>
+          </div>
+          <div class="d-row">
+            <span class="k">CPU / 内存</span>
+            <span class="v mono">
+              {{ Number(card.proc.cpu || 0).toFixed(2) }}% /
+              {{ formatBytes(card.proc.rss || 0) }}（{{ Number(card.proc.mem || 0).toFixed(1) }}%）
+            </span>
+          </div>
+          <div class="d-row">
+            <span class="k">堆内存</span>
+            <span class="v mono">
+              <template v-if="card.proc.xms || card.proc.xmx">
+                {{ card.proc.xms ? formatBytes(card.proc.xms) : "默认" }} ~
+                {{ card.proc.xmx ? formatBytes(card.proc.xmx) : "默认" }}（Xms ~ Xmx）
+              </template>
+              <template v-else>—（未显式设置 -Xms/-Xmx）</template>
+            </span>
+          </div>
+          <div class="d-row">
+            <span class="k">已运行</span>
+            <span class="v">{{ fmtElapsed(card.proc.elapsed || 0) }}</span>
+          </div>
+          <div class="d-row" v-if="detailOf(card.proc.pid)">
+            <div class="d-row" style="padding: 0">
+              <span class="k">工作目录</span>
+              <span class="v mono break">{{ detailOf(card.proc.pid)?.workDir || "—（无权限）" }}</span>
+            </div>
+            <div class="d-row" style="padding: 0">
+              <span class="k">java 路径</span>
+              <span class="v mono break">{{ detailOf(card.proc.pid)?.exePath || "—（无权限）" }}</span>
+            </div>
+            <div class="d-row" style="padding: 0">
+              <span class="k">磁盘 IO</span>
+              <span class="v mono">
+                <template v-if="detailOf(card.proc.pid)?.readBytes || detailOf(card.proc.pid)?.writeBytes">
+                  读{{ formatBytes(detailOf(card.proc.pid)!.readBytes) }}
+                  写{{ formatBytes(detailOf(card.proc.pid)!.writeBytes) }}（累计）
+                </template>
+                <template v-else>—（无 /proc/io 读取权限）</template>
+              </span>
+            </div>
+          </div>
+          <div class="d-row">
+            <span class="k">命令行</span>
+            <span class="v mono break">{{ card.proc.args || "—" }}</span>
           </div>
         </div>
-        <div class="meta-card">
-          <div class="meta-label">OOM 退出码</div>
-          <div class="meta-value">
-            <el-tag :type="selected.hasExitCode ? 'warning' : 'info'" size="small">
-              {{ selected.hasExitCode ? "ExitOnOOM" : "未启用" }}
-            </el-tag>
-          </div>
-        </div>
-        <div class="meta-card wide">
-          <div class="meta-label">JAR</div>
-          <div class="meta-value path" :title="selected.jar">{{ selected.jar || "—" }}</div>
+        <div v-if="card.pinned" class="card-actions">
+          <el-button size="small" @click="copyProcInfo">复制进程信息</el-button>
+          <el-button size="small" @click="copyArgs">复制命令行</el-button>
         </div>
       </div>
-
-      <!-- 终止原因分析（选中进程的 screen 会话）-->
-      <div class="exit-panel" v-if="exitReason">
-        <div class="exit-label">终止原因分析</div>
-        <el-tag :type="exitTagType" size="small">
-          {{ exitReason.category }}
-        </el-tag>
-        <span class="exit-detail">{{ exitReason.detail }}</span>
-        <span class="exit-meta" v-if="exitReason.exitCode >= 0">
-          退出码 {{ exitReason.exitCode }}
-        </span>
-      </div>
-
-      <!-- 三个子页签 -->
-      <el-tabs v-model="subView" class="sub-tabs">
-        <!-- 内存：堆使用曲线 + Xmx 上限 -->
-        <el-tab-pane label="内存" name="memory">
-          <div v-if="!probe.available" class="hint">
-            VM 未部署，无法显示历史曲线。仅显示实时 Xms/Xmx（见上方卡片）。
-          </div>
-          <div v-else class="chart-wrap">
-            <div class="chart-header">
-              <span>堆内存使用（近 {{ rangeHours }} 小时）</span>
-              <el-radio-group v-model="rangeHours" size="small" @change="loadMemChart">
-                <el-radio-button :value="1">1h</el-radio-button>
-                <el-radio-button :value="6">6h</el-radio-button>
-                <el-radio-button :value="24">24h</el-radio-button>
-              </el-radio-group>
-            </div>
-            <VChartLine
-              v-if="memOption"
-              :option="memOption"
-              height="280px"
-            />
-            <el-empty v-else :description="memEmptyHint" />
-          </div>
-        </el-tab-pane>
-
-        <!-- GC：条件显示（仅当 hasGCLogging） -->
-        <el-tab-pane label="GC" name="gc" :disabled="!selected.hasGCLogging">
-          <div v-if="!selected.hasGCLogging" class="hint">
-            该进程未开启 -Xlog:gc，无法显示 GC 信息。
-          </div>
-          <div v-else class="gc-wrap">
-            <div v-if="probe.available && selected.port" class="chart-wrap">
-              <div class="chart-header">
-                <span>GC 分配速率（近 {{ rangeHours }} 小时）</span>
-              </div>
-              <VChartLine
-                v-if="gcOption"
-                :option="gcOption"
-                height="200px"
-              />
-            </div>
-            <div class="gc-log">
-              <div class="gc-log-header">
-                <span>GC 日志末尾 200 行</span>
-                <el-button size="small" @click="loadGcLog" :loading="gcLogLoading">
-                  刷新日志
-                </el-button>
-              </div>
-              <pre class="gc-log-body">{{ gcLog }}</pre>
-            </div>
-          </div>
-        </el-tab-pane>
-
-        <!-- 日志：screen 控制台 + GC 日志 -->
-        <el-tab-pane label="日志" name="logs">
-          <div class="log-wrap">
-            <div class="log-section">
-              <div class="log-header">
-                <span>screen 控制台（{{ selected.screen || "未知会话" }}）</span>
-                <el-button
-                  size="small"
-                  @click="openScreenTerminal"
-                  :disabled="!selected.screen"
-                >
-                  在终端中打开
-                </el-button>
-              </div>
-              <div class="log-hint" v-if="selected.screen">
-                已为你切到终端页签，执行 <code>screen -r {{ selected.screen }}</code> 即可接入会话。
-              </div>
-              <div class="log-hint" v-else>
-                该进程未关联 screen 会话（可能是 nohup / systemd 启动）。
-              </div>
-            </div>
-            <div class="log-section" v-if="selected.hasGCLogging">
-              <div class="log-header">
-                <span>GC 日志原文</span>
-                <el-button size="small" @click="loadGcLog" :loading="gcLogLoading">
-                  加载末尾 200 行
-                </el-button>
-              </div>
-              <pre class="log-body">{{ gcLog || "点击上方按钮加载…" }}</pre>
-            </div>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useAppStore } from "@/stores/app";
+import { computed, reactive, ref } from "vue";
+import { ElMessage } from "element-plus";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
-import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
-import { ElMessage } from "element-plus";
+import EnlargableCard from "@/components/EnlargableCard.vue";
+import { formatBytes } from "@/utils/format";
+import { copyText } from "@/utils/clipboard";
 
-interface JavaDetail {
+interface JavaProc {
   pid: number;
-  xms: string;
-  xmx: string;
+  user: string;
+  cpu: number;
+  mem: number;
+  rss: number;
+  elapsed: number;
+  args: string;
   jar: string;
-  gcLog: string;
-  heapDumpPath: string;
-  screen: string;
-  hasGCLogging: boolean;
-  hasExitCode: boolean;
-  port: number;
+  xms: number;
+  xmx: number;
+  ports: string[];
+  deploy: string;
+  service: string;
+  container: string;
+  image: string;
 }
-
-interface ProbeResult {
-  available: boolean;
-  version: string;
-  latencyMs: number;
-}
-
-interface ExitReason {
-  session: string;
+interface JavaProcDetail {
   pid: number;
-  exitCode: number;
-  rawReason: string;
-  category: string;
-  detail: string;
-  hasDump: boolean;
-  hasHsErr: boolean;
-  dmesgHit: boolean;
+  workDir: string;
+  exePath: string;
+  readBytes: number;
+  writeBytes: number;
 }
 
 const props = defineProps<{ host: string }>();
-const appStore = useAppStore();
+const filter = ref("");
 
-const subView = ref<"memory" | "gc" | "logs">("memory");
-const selectedPid = ref<number>(0);
-const rangeHours = ref(1);
-
-// 进程详情：轮询
-const { data, error, loading, refresh } = usePolling<JavaDetail[]>(
-  () => api.collectJavaDetail(props.host) as Promise<JavaDetail[]>,
-  5000,
-  () => [props.host]
+const { data, error, loading, refresh } = usePolling<JavaProc[]>(
+  () => api.collectJavaProcs(props.host) as Promise<JavaProc[]>,
+  8000,
+  () => props.host
 );
-const details = computed(() => data.value || []);
-const selected = computed(() =>
-  details.value.find((d) => d.pid === selectedPid.value) || details.value[0]
-);
-
-// 自动选第一个
-watch(details, (list) => {
-  if (list.length && !list.find((d) => d.pid === selectedPid.value)) {
-    selectedPid.value = list[0].pid;
-  }
-}, { immediate: true });
-
-// VM 探测（不轮询，进入页签探一次 + 手动刷新）
-const probe = ref<ProbeResult>({ available: false, version: "", latencyMs: 0 });
-const probeLoading = ref(false);
-const scrapedApps = ref<Set<string>>(new Set());
-async function loadProbe() {
-  probeLoading.value = true;
-  try {
-    probe.value = await api.probeMetrics(props.host);
-    if (probe.value.available) {
-      await loadScrapedApps();
-    }
-  } catch (e) {
-    probe.value = { available: false, version: "", latencyMs: 0 };
-  } finally {
-    probeLoading.value = false;
-  }
-}
-
-async function loadScrapedApps() {
-  try {
-    const raw = await api.queryMetric(
-      props.host,
-      'count by (app) (jvm_memory_used_bytes{area="heap"})'
-    );
-    const json = JSON.parse(decodeVmJson(raw));
-    const apps = new Set<string>();
-    for (const item of json?.data?.result || []) {
-      const app = item.metric?.app;
-      if (app) apps.add(app);
-    }
-    scrapedApps.value = apps;
-  } catch {
-    scrapedApps.value = new Set();
-  }
-}
-
-const memEmptyHint = computed(() => {
-  const app = selected.value ? appLabel(selected.value) : "";
-  const joined = Array.from(scrapedApps.value).join("、") || "暂无";
-  if (app && !scrapedApps.value.has(app)) {
-    return `「${app}」尚未暴露 /actuator/prometheus，VM 里没有堆曲线。当前已接入：${joined}。请点选带 ● 的进程查看。`;
-  }
-  return "暂无堆内存数据。";
+const list = computed(() => data.value || []);
+const filtered = computed(() => {
+  const q = filter.value.trim().toLowerCase();
+  if (!q) return list.value;
+  return list.value.filter(
+    (p) =>
+      (p.jar || "").toLowerCase().includes(q) ||
+      (p.args || "").toLowerCase().includes(q) ||
+      (p.user || "").toLowerCase().includes(q) ||
+      String(p.pid).includes(q)
+  );
 });
 
-// 内存曲线
-const memOption = ref<LineOption | null>(null);
-async function loadMemChart() {
-  if (!probe.value.available || !selected.value) {
-    memOption.value = null;
-    return;
+/** 详情按 PID 缓存；首次悬浮时查询一次（失败返回 null，卡片照常显示列表已有信息） */
+const detailMap = reactive<Record<number, JavaProcDetail | null>>({});
+const pending = new Set<number>();
+function detailOf(pid: number): JavaProcDetail | null | undefined {
+  if (detailMap[pid] === undefined && !pending.has(pid)) {
+    pending.add(pid);
+    api
+      .collectJavaDetail(props.host, pid)
+      .then((d) => (detailMap[pid] = d as JavaProcDetail))
+      .catch(() => (detailMap[pid] = null));
   }
-  const app = appLabel(selected.value);
-  // 必须带 {area="heap"}，否则会把非堆加进来。优先按 app 标签查，pid 作兜底。
-  const query = app
-    ? `sum(jvm_memory_used_bytes{area="heap",app="${app}"})`
-    : `sum(jvm_memory_used_bytes{area="heap",pid="${selected.value.pid}"})`;
-  const end = Math.floor(Date.now() / 1000);
-  const start = end - rangeHours.value * 3600;
-  const step = rangeHours.value <= 1 ? 15 : 60;
-  try {
-    const raw = await api.queryMetricRange(props.host, query, start, end, step);
-    memOption.value = parseRangeResponse(raw, "堆使用", "bytes");
-  } catch (e) {
-    ElMessage.error("加载内存曲线失败: " + (e as Error).message);
-    memOption.value = null;
-  }
+  return detailMap[pid];
 }
 
-// GC 曲线（分配速率）
-const gcOption = ref<LineOption | null>(null);
-async function loadGcChart() {
-  if (!probe.value.available || !selected.value) return;
-  const app = appLabel(selected.value);
-  const query = app
-    ? `rate(jvm_gc_memory_allocated_bytes_total{app="${app}"}[5m])`
-    : `rate(jvm_gc_memory_allocated_bytes_total{pid="${selected.value.pid}"}[5m])`;
-  const end = Math.floor(Date.now() / 1000);
-  const start = end - rangeHours.value * 3600;
-  const step = rangeHours.value <= 1 ? 15 : 60;
-  try {
-    const raw = await api.queryMetricRange(props.host, query, start, end, step);
-    gcOption.value = parseRangeResponse(raw, "分配速率", "rate");
-  } catch (e) {
-    gcOption.value = null;
+/** 跟随鼠标的悬浮卡片：行数据直接引用，无需回列表查找；
+ *  点击行进入 pinned 状态（位置固定、可交互、可复制），再点同行或 × 取消 */
+const card = reactive({
+  visible: false,
+  pinned: false,
+  proc: null as JavaProc | null,
+  x: 0,
+  y: 0,
+});
+const CARD_W = 420;
+const CARD_EST_H = 420;
+let hideTimer: number | undefined;
+
+function placeCard(e: MouseEvent) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let x = e.clientX + 16;
+  let y = e.clientY + 16;
+  if (x + CARD_W > vw - 8) x = Math.max(8, e.clientX - CARD_W - 16);
+  if (y + CARD_EST_H > vh - 8) y = Math.max(8, e.clientY - CARD_EST_H - 16);
+  card.x = x;
+  card.y = y;
+}
+function onRowEnter(row: JavaProc, _col: unknown, _cell: unknown, e: MouseEvent) {
+  if (card.pinned) return; // 固定期间不跟随不切换
+  clearTimeout(hideTimer);
+  card.proc = row;
+  placeCard(e);
+  card.visible = true;
+  void detailOf(row.pid);
+}
+/** el-table 的 cell-mouse-leave 在行间移动时会触发，延迟隐藏避免闪烁 */
+function scheduleHide() {
+  if (card.pinned) return;
+  clearTimeout(hideTimer);
+  hideTimer = window.setTimeout(() => (card.visible = false), 200);
+}
+/** 点击行：固定卡片（再点同一行取消固定，点其他行切换固定目标） */
+function onCellClick(row: JavaProc, _col: unknown, _cell: unknown, e: MouseEvent) {
+  if (card.pinned && card.proc?.pid === row.pid) {
+    card.pinned = false;
+    card.visible = false;
+    return;
   }
+  card.proc = row;
+  card.pinned = true;
+  placeCard(e);
+  card.visible = true;
+  void detailOf(row.pid);
+}
+function unpin() {
+  card.pinned = false;
+  card.visible = false;
 }
 
-// GC 日志原文
-const gcLog = ref("");
-const gcLogLoading = ref(false);
-async function loadGcLog() {
-  if (!selected.value?.gcLog) {
-    ElMessage.warning("该进程未指定 GC 日志路径");
-    return;
-  }
-  gcLogLoading.value = true;
-  try {
-    gcLog.value = await api.collectJvmEvents(props.host, selected.value.gcLog, 200);
-  } catch (e) {
-    ElMessage.error("加载 GC 日志失败: " + (e as Error).message);
-  } finally {
-    gcLogLoading.value = false;
-  }
+/** 列展示辅助 */
+function deployLabel(p: JavaProc): string {
+  if (p.deploy === "systemd") return "systemd";
+  if (p.deploy === "docker") return "Docker";
+  return "直跑";
 }
-
-// 终止原因分析
-const exitReason = ref<ExitReason | null>(null);
-async function loadExitReason() {
-  if (!selected.value) {
-    exitReason.value = null;
-    return;
-  }
-  const jarDir = selected.value.jar?.substring(0, selected.value.jar.lastIndexOf("/")) || "";
-  if (!selected.value.screen || !jarDir) {
-    exitReason.value = null;
-    return;
-  }
-  try {
-    exitReason.value = await api.analyzeExitReason(props.host, selected.value.screen, jarDir);
-  } catch (e) {
-    // 分析失败不阻塞主界面
-    exitReason.value = null;
-  }
-}
-const exitTagType = computed(() => {
-  const cat = exitReason.value?.category || "";
-  if (cat === "running") return "success";
-  if (cat === "normal-shutdown") return "info";
-  if (cat === "heap-oom" || cat === "system-oom" || cat === "jvm-crash") return "danger";
-  if (cat === "killed-sigkill") return "warning";
+function deployTagType(deploy: string): "primary" | "success" | "info" {
+  if (deploy === "docker") return "primary";
+  if (deploy === "systemd") return "success";
   return "info";
-});
-
-// 切到终端页签并提示用户接入 screen
-function openScreenTerminal() {
-  if (!selected.value?.screen) return;
-  appStore.setSubTab(props.host, "terminal");
-  ElMessage.info(`请在终端执行: screen -r ${selected.value.screen}`);
 }
-
-// 切换进程或时间范围时重载图表
-watch([selected, () => probe.value.available], () => {
-  loadExitReason();
-  if (subView.value === "memory") loadMemChart();
-  if (subView.value === "gc") {
-    loadGcChart();
-    loadGcLog();
-  }
-});
-watch(subView, (v) => {
-  if (v === "memory") loadMemChart();
-  if (v === "gc") {
-    loadGcChart();
-    loadGcLog();
-  }
-});
-watch(rangeHours, () => {
-  if (subView.value === "memory") loadMemChart();
-  if (subView.value === "gc") loadGcChart();
-});
-
-async function refreshAll() {
-  await Promise.all([refresh(), loadProbe()]);
-  if (subView.value === "memory") loadMemChart();
-  if (subView.value === "gc") loadGcChart();
+function displayName(p: JavaProc): string {
+  return p.jar ? jarName(p.jar) : appName(p);
 }
-
-function appLabel(d: JavaDetail): string {
-  // 从 jar 路径抽应用名，如 diteng-csp-xxx.jar → diteng-csp
-  const base = (d.jar || "").split("/").pop() || "";
-  const m = base.match(/^([a-zA-Z][a-zA-Z0-9-]*?)-\d/);
-  return m ? m[1] : (base.replace(/\.jar$/, "") || `pid:${d.pid}`);
+function jarName(jar: string): string {
+  const i = jar.lastIndexOf("/");
+  return i >= 0 ? jar.slice(i + 1) : jar;
 }
-
-function decodeVmJson(raw: unknown): string {
-  if (raw == null) return "";
-  if (typeof raw === "string") return raw;
-  if (raw instanceof Uint8Array) return new TextDecoder().decode(raw);
-  if (Array.isArray(raw)) return new TextDecoder().decode(new Uint8Array(raw as number[]));
-  if (typeof raw === "object") return JSON.stringify(raw);
-  return String(raw);
-}
-
-// 解析 VM range 响应为 VChartLine 的 option
-function parseRangeResponse(
-  raw: unknown,
-  seriesName: string,
-  unit: "bytes" | "rate"
-): LineOption | null {
-  const text = decodeVmJson(raw);
-  let json: any;
-  try {
-    json = typeof raw === "object" && raw !== null && !Array.isArray(raw) && !(raw instanceof Uint8Array)
-      ? raw
-      : JSON.parse(text);
-  } catch {
-    return null;
-  }
-  const result = json?.data?.result;
-  if (!Array.isArray(result) || result.length === 0) return null;
-
-  // 合并多个 series（一般只有一条 sum）
-  const allTs = new Set<number>();
-  const seriesData: Record<string, Record<number, number | null>> = {};
-  for (const item of result) {
-    const name = item.metric?.__name__ || item.metric?.id || seriesName;
-    seriesData[name] = {};
-    const pairs = item.values || [];
-    for (const [ts, val] of pairs) {
-      const n = parseFloat(val);
-      seriesData[name][ts] = isNaN(n) ? null : n;
-      allTs.add(ts);
+/** 非 jar 启动时展示主类名（-cp/-classpath 后的词）或最后一个非选项参数 */
+function appName(p: JavaProc): string {
+  const fields = (p.args || "").split(/\s+/);
+  for (let i = 0; i < fields.length; i++) {
+    if (fields[i] === "-cp" || fields[i] === "-classpath") {
+      if (fields[i + 2]) return fields[i + 2];
+      const jars = (fields[i + 1] || "").split(":").filter((x) => x.endsWith(".jar"));
+      if (jars.length) return jarName(jars[0]);
     }
   }
-  const sortedTs = Array.from(allTs).sort((a, b) => a - b);
-  const xData = sortedTs.map((ts) => {
-    const d = new Date(ts * 1000);
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  });
-  const yData = Object.entries(seriesData).map(([name, map]) => ({
-    name,
-    data: sortedTs.map((ts) => (ts in map ? map[ts] : null)),
-  }));
-  return {
-    xData,
-    yData,
-    formatStr: unit === "bytes" ? "MB" : "KB/s",
-    unit,
-  };
+  for (let i = fields.length - 1; i >= 0; i--) {
+    if (fields[i] && !fields[i].startsWith("-") && fields[i] !== "java") {
+      return fields[i];
+    }
+  }
+  return "java";
+}
+function sortCpu(a: JavaProc, b: JavaProc) {
+  return (a.cpu || 0) - (b.cpu || 0);
 }
 
-// 进入页面初始化
-loadProbe();
+/** 复制固定卡片的完整进程信息（格式化文本，方便直接贴给 AI 分析） */
+async function copyProcInfo() {
+  const p = card.proc;
+  if (!p) return;
+  const d = detailOf(p.pid);
+  const lines = [
+    `=== Java 进程信息（PID ${p.pid}）===`,
+    `用户: ${p.user || "—"}`,
+    `部署方式: ${deployLabel(p)}${p.service ? `（${p.service}）` : ""}${p.container ? `（容器 ${p.container}，镜像 ${p.image || "未知"}）` : ""}`,
+    `jar 包: ${p.jar || "—（非 jar 启动）"}`,
+    `监听端口: ${(p.ports || []).join("、") || "—"}`,
+    `CPU: ${Number(p.cpu || 0).toFixed(2)}%`,
+    `内存 RSS: ${formatBytes(p.rss || 0)}（${Number(p.mem || 0).toFixed(1)}%）`,
+    `堆内存: ${p.xms || p.xmx ? `${p.xms ? formatBytes(p.xms) : "默认"} ~ ${p.xmx ? formatBytes(p.xmx) : "默认"}（Xms ~ Xmx）` : "未显式设置 -Xms/-Xmx"}`,
+    `已运行: ${fmtElapsed(p.elapsed || 0)}`,
+    `工作目录: ${d?.workDir || "—（无权限）"}`,
+    `java 路径: ${d?.exePath || "—（无权限）"}`,
+    `磁盘 IO(累计): ${d?.readBytes || d?.writeBytes ? `读 ${formatBytes(d.readBytes)} / 写 ${formatBytes(d.writeBytes)}` : "—（无 /proc/io 读取权限）"}`,
+    `命令行: ${p.args || "—"}`,
+  ];
+  try {
+    await copyText(lines.join("\n"));
+    ElMessage.success("进程信息已复制");
+  } catch {
+    ElMessage.error("复制失败");
+  }
+}
+async function copyArgs() {
+  const text = (card.proc?.args || "").trim();
+  if (!text) {
+    ElMessage.warning("命令行为空");
+    return;
+  }
+  try {
+    await copyText(text);
+    ElMessage.success("命令行已复制");
+  } catch {
+    ElMessage.error("复制失败");
+  }
+}
+/** 秒 → 可读时长 */
+function fmtElapsed(sec: number): string {
+  if (!sec) return "—";
+  if (sec < 60) return `${sec} 秒`;
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m} 分钟`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} 小时 ${m % 60} 分`;
+  return `${Math.floor(h / 24)} 天 ${h % 24} 小时`;
+}
 </script>
 
-<style scoped lang="scss">
-.java-root {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px 16px 20px;
-}
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.vm-status {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.scrape-dot {
-  color: #67c23a;
-  font-size: 10px;
-  margin-left: 2px;
-}
-.detail {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  padding: 14px;
-}
-.meta-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.meta-card {
-  padding: 8px 10px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-  &.wide {
-    grid-column: span 2;
-  }
-  .meta-label {
-    font-size: 11px;
-    color: var(--el-text-color-secondary);
-    margin-bottom: 4px;
-  }
-  .meta-value {
-    font-size: 13px;
-    font-weight: 500;
-    &.path {
-      font-family: monospace;
-      font-size: 12px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-}
-.sub-tabs {
-  :deep(.el-tabs__content) {
-    overflow: visible;
-  }
-}
-.exit-panel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  margin-bottom: 16px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-  font-size: 12px;
-  .exit-label {
-    color: var(--el-text-color-secondary);
-  }
-  .exit-detail {
-    color: var(--el-text-color-regular);
-  }
-  .exit-meta {
-    color: var(--el-text-color-secondary);
-    margin-left: auto;
-  }
-}
-.hint {
-  padding: 20px;
-  color: var(--el-text-color-secondary);
-  text-align: center;
-  font-size: 13px;
-}
-.chart-wrap {
-  margin-top: 10px;
-}
-.chart-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-.gc-wrap,
-.log-wrap {
+<style scoped>
+.tab-root {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  gap: 8px;
 }
-.gc-log,
-.log-section {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.gc-log-header,
-.log-header {
+.toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  background: var(--el-fill-color-light);
-  font-size: 12px;
-  color: var(--el-text-color-regular);
+  gap: 8px;
+  flex-shrink: 0;
 }
-.gc-log-body,
-.log-body {
-  margin: 0;
-  padding: 10px;
-  max-height: 320px;
-  overflow: auto;
-  font-size: 12px;
-  font-family: monospace;
-  background: var(--el-bg-color);
-  color: var(--el-text-color-regular);
-  white-space: pre-wrap;
-  word-break: break-all;
+.filter {
+  width: 240px;
 }
-.log-hint {
-  padding: 10px;
+.count {
+  margin-left: auto;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  code {
-    background: var(--el-fill-color);
-    padding: 1px 4px;
-    border-radius: 2px;
-    font-family: monospace;
-  }
+}
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+.dim {
+  color: var(--el-text-color-placeholder);
+}
+.warn {
+  color: var(--el-color-warning);
+  font-weight: 600;
+}
+.danger {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+:deep(.el-table) {
+  flex: 1;
+}
+</style>
+
+<style>
+/* 跟随鼠标的详情卡片（Teleport 到 body，scoped 不生效）；
+   pointer-events:none 保证不挡鼠标、不闪烁 */
+.java-hover-card {
+  position: fixed;
+  z-index: 3000;
+  width: 420px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--el-bg-color-overlay, #fff);
+  border: 1px solid var(--el-border-color-light, #e4e7ed);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  color: var(--el-text-color-primary, #303133);
+  pointer-events: none;
+}
+/* 点击行固定后：可交互（选择文本/点按钮），主题色边框区分 */
+.java-hover-card.pinned {
+  pointer-events: auto;
+  z-index: 3001;
+  border-color: var(--el-color-primary);
+}
+.java-hover-card .flex-spacer {
+  flex: 1;
+}
+.java-hover-card .close-btn {
+  padding: 0 4px;
+  font-size: 14px;
+}
+.java-hover-card .card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.java-hover-card .detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.java-hover-card .pid-tag {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.java-hover-card .d-row {
+  display: flex;
+  gap: 12px;
+  padding: 3px 0;
+  line-height: 1.5;
+}
+.java-hover-card .k {
+  flex-shrink: 0;
+  width: 72px;
+  color: var(--el-text-color-secondary);
+}
+.java-hover-card .v {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+.java-hover-card .v.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
 }
 </style>
