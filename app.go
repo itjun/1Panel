@@ -47,6 +47,25 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.termMgr.Init(ctx)
 
+	// 按主屏分辨率计算 16:10 的窗口尺寸：高度取屏幕的 80%，过宽时按屏幕宽度的 90% 反推
+	if screens, err := runtime.ScreenGetAll(ctx); err == nil {
+		for _, s := range screens {
+			if !s.IsPrimary {
+				continue
+			}
+			screenW, screenH := s.Size.Width, s.Size.Height
+			h := screenH * 8 / 10
+			w := h * 16 / 10
+			if w > screenW*9/10 {
+				w = screenW * 9 / 10
+				h = w * 10 / 16
+			}
+			runtime.WindowSetSize(ctx, w, h)
+			runtime.WindowCenter(ctx)
+			break
+		}
+	}
+
 	store, err := groups.NewStore("ServerPanel")
 	if err != nil {
 		runtime.LogErrorf(ctx, "初始化分组存储失败: %v", err)

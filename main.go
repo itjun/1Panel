@@ -17,12 +17,11 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:     "1Pannel",
-		Width:             1440,
-		Height:            900,
+		// 静态值仅作兜底：startup 时会按主屏分辨率动态计算 16:10 尺寸（见 app.go）
+		Width:             1280,
+		Height:            800,
 		MinWidth:          1100,
 		MinHeight:         700,
-		// 启动即最大化窗口（用户点还原后回到上面的 1440x900）
-		WindowStartState:  options.Maximised,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
