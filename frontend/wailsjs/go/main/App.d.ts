@@ -30,8 +30,6 @@ export function CollectJava(arg1:string):Promise<Array<monitor.ProcInfo>>;
 
 export function CollectJavaProcDetail(arg1:string,arg2:number):Promise<monitor.JavaProcDetail>;
 
-export function CollectJavaProcs(arg1:string):Promise<Array<monitor.JavaProc>>;
-
 export function CollectLargestFiles(arg1:string,arg2:string,arg3:number):Promise<monitor.LargeFilesResult>;
 
 export function CollectLog(arg1:string,arg2:string,arg3:number):Promise<monitor.LogResult>;
@@ -43,6 +41,8 @@ export function CollectOverview(arg1:string):Promise<monitor.Overview>;
 export function CollectPackages(arg1:string):Promise<Array<monitor.AptPackage>>;
 
 export function CollectProcesses(arg1:string,arg2:number):Promise<Array<monitor.ProcInfo>>;
+
+export function CollectRuntimeProcs(arg1:string,arg2:string):Promise<Array<monitor.RuntimeProc>>;
 
 export function CollectRuntimes(arg1:string):Promise<Array<monitor.RuntimeInfo>>;
 

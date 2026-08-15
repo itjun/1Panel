@@ -50,10 +50,6 @@ export function CollectJavaProcDetail(arg1, arg2) {
   return window['go']['main']['App']['CollectJavaProcDetail'](arg1, arg2);
 }
 
-export function CollectJavaProcs(arg1) {
-  return window['go']['main']['App']['CollectJavaProcs'](arg1);
-}
-
 export function CollectLargestFiles(arg1, arg2, arg3) {
   return window['go']['main']['App']['CollectLargestFiles'](arg1, arg2, arg3);
 }
@@ -76,6 +72,10 @@ export function CollectPackages(arg1) {
 
 export function CollectProcesses(arg1, arg2) {
   return window['go']['main']['App']['CollectProcesses'](arg1, arg2);
+}
+
+export function CollectRuntimeProcs(arg1, arg2) {
+  return window['go']['main']['App']['CollectRuntimeProcs'](arg1, arg2);
 }
 
 export function CollectRuntimes(arg1) {

@@ -397,13 +397,14 @@ func (a *App) CollectJava(host string) ([]monitor.ProcInfo, error) {
 	return a.collector.CollectJava(host, opt)
 }
 
-// CollectJavaProcs 采集所有 Java 进程（含部署方式/端口/jar 路径，Java 标签页主列表）
-func (a *App) CollectJavaProcs(host string) ([]monitor.JavaProc, error) {
+// CollectRuntimeProcs 采集指定运行时（java/go/node/bun/python）的进程列表
+// 含部署方式/端口/入口（jar/脚本/可执行文件），进程页各运行时视图主列表
+func (a *App) CollectRuntimeProcs(host, runtime string) ([]monitor.RuntimeProc, error) {
 	opt, err := a.connectOptionFor(host)
 	if err != nil {
 		return nil, err
 	}
-	return a.collector.CollectJavaProcs(host, opt)
+	return a.collector.CollectRuntimeProcs(host, runtime, opt)
 }
 
 // CollectJavaProcDetail 单个 Java 进程的补充详情（悬浮卡片按需查询）

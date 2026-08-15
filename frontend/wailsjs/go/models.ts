@@ -490,46 +490,6 @@ export namespace monitor {
 	        this.group = source["group"];
 	    }
 	}
-	export class JavaProc {
-	    pid: number;
-	    user: string;
-	    cpu: number;
-	    mem: number;
-	    rss: number;
-	    elapsed: number;
-	    args: string;
-	    jar: string;
-	    xms: number;
-	    xmx: number;
-	    ports: string[];
-	    deploy: string;
-	    service: string;
-	    container: string;
-	    image: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new JavaProc(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.pid = source["pid"];
-	        this.user = source["user"];
-	        this.cpu = source["cpu"];
-	        this.mem = source["mem"];
-	        this.rss = source["rss"];
-	        this.elapsed = source["elapsed"];
-	        this.args = source["args"];
-	        this.jar = source["jar"];
-	        this.xms = source["xms"];
-	        this.xmx = source["xmx"];
-	        this.ports = source["ports"];
-	        this.deploy = source["deploy"];
-	        this.service = source["service"];
-	        this.container = source["container"];
-	        this.image = source["image"];
-	    }
-	}
 	export class JavaProcDetail {
 	    pid: number;
 	    workDir: string;
@@ -832,6 +792,46 @@ export namespace monitor {
 	        this.version = source["version"];
 	        this.path = source["path"];
 	        this.detail = source["detail"];
+	    }
+	}
+	export class RuntimeProc {
+	    pid: number;
+	    user: string;
+	    cpu: number;
+	    mem: number;
+	    rss: number;
+	    elapsed: number;
+	    args: string;
+	    entry: string;
+	    xms: number;
+	    xmx: number;
+	    ports: string[];
+	    deploy: string;
+	    service: string;
+	    container: string;
+	    image: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RuntimeProc(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pid = source["pid"];
+	        this.user = source["user"];
+	        this.cpu = source["cpu"];
+	        this.mem = source["mem"];
+	        this.rss = source["rss"];
+	        this.elapsed = source["elapsed"];
+	        this.args = source["args"];
+	        this.entry = source["entry"];
+	        this.xms = source["xms"];
+	        this.xmx = source["xmx"];
+	        this.ports = source["ports"];
+	        this.deploy = source["deploy"];
+	        this.service = source["service"];
+	        this.container = source["container"];
+	        this.image = source["image"];
 	    }
 	}
 	export class Service {
