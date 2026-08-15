@@ -1,0 +1,458 @@
+<template>
+  <div class="tab-root" v-loading="loading && !loaded">
+    <EnlargableCard title="证书">
+    <div class="toolbar">
+      <span class="muted">/etc/nginx/cert · {{ groups.length }} 张</span>
+      <el-button size="large" :icon="Plus" @click="openUpload">上传证书</el-button>
+      <el-button size="large" :icon="Refresh" @click="loadCerts">刷新</el-button>
+    </div>
+    <el-alert
+      v-if="error"
+      type="error"
+      :title="error"
+      show-icon
+      :closable="false"
+    />
+    <el-alert
+      v-else-if="loaded && result?.noOpenssl"
+      type="warning"
+      title="远程主机缺少 openssl，无法解析证书内容"
+      show-icon
+      :closable="false"
+    />
+    <el-table
+      v-if="groups.length"
+      :data="groups"
+      height="100%"
+      stripe
+    >
+      <el-table-column label="证书文件" min-width="200">
+        <template #default="{ row }">
+          <div class="cert-name-group">
+            <span class="cert-name mono" v-for="n in row.names" :key="n">{{ n }}</span>
+            <el-tag v-if="row.selfSigned" size="small" type="info">自签名</el-tag>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="域名" min-width="220" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="mono">{{ row.domains.join(", ") || "—" }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="颁发者" min-width="140" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span>{{ row.issuer || "—" }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="有效期至" min-width="200">
+        <template #default="{ row }">
+          <span class="mono">{{ formatTime(row.notAfter) }}</span>
+          <span class="days-left" :class="daysClass(row)">
+            （{{ daysText(row) }}）
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag size="small" :type="statusType(row)">
+            {{ statusText(row) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="私钥" width="160" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span v-if="row.hasKey" class="mono">{{ row.keyName }}</span>
+          <el-tag v-else size="small" type="danger">缺失</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="80" fixed="right">
+        <template #default="{ row }">
+          <el-button size="small" type="danger" link @click="removeGroup(row)">
+            删除
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-empty
+      v-if="!loading && !error && result && !result.installed"
+      description="当前主机没有安装证书"
+    >
+      <template #image>
+        <el-icon :size="60" class="empty-icon"><FolderRemove /></el-icon>
+      </template>
+      <div class="empty-sub">未找到 /etc/nginx/cert 目录，上传证书到该目录后即可在此管理</div>
+    </el-empty>
+    <el-empty
+      v-else-if="!loading && !error && result && result.installed && !result.noOpenssl && groups.length === 0"
+      description="/etc/nginx/cert 目录为空"
+    />
+    </EnlargableCard>
+
+    <!-- 上传证书：拖入证书+私钥 → 本地配对校验 → 通过才可上传 -->
+    <el-dialog
+      v-model="uploadVisible"
+      title="上传证书"
+      width="560px"
+      @close="closeUpload"
+    >
+      <div
+        class="dropzone"
+        :class="{ hover: dropHover, checking: pairChecking }"
+        @dragenter="onDragEnter"
+        @dragleave="onDragLeave"
+        @dragover.prevent
+        @drop.prevent="onDropFallback"
+      >
+        <el-icon :size="36"><UploadFilled /></el-icon>
+        <div class="drop-title">拖入证书 + 私钥文件</div>
+        <div class="drop-sub">自动识别证书 / 私钥，本地校验配对通过后才能上传</div>
+      </div>
+
+      <el-alert
+        v-if="pairError"
+        type="error"
+        :title="pairError"
+        show-icon
+        :closable="false"
+        class="pair-result"
+      />
+      <div v-if="pairChecking" class="pair-result" v-loading="true" element-loading-text="校验中…" style="min-height: 60px" />
+      <div v-if="pair && !pairChecking" class="pair-result ok">
+        <div class="pair-row">
+          <span class="pair-label">证书</span>
+          <span class="mono">{{ fileName(pair.certPath) }}</span>
+        </div>
+        <div class="pair-row">
+          <span class="pair-label">私钥</span>
+          <span class="mono">{{ fileName(pair.keyPath) }}</span>
+        </div>
+        <div class="pair-row">
+          <span class="pair-label">域名</span>
+          <span class="mono">{{ pair.domains.join(", ") || "—" }}</span>
+        </div>
+        <div class="pair-row">
+          <span class="pair-label">有效期至</span>
+          <span class="mono">{{ formatTime(pair.notAfter) }}（剩余 {{ pair.daysLeft }} 天）</span>
+        </div>
+        <el-alert type="success" title="配对成功" :closable="false" show-icon />
+      </div>
+
+      <template #footer>
+        <el-button @click="uploadVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!pair || !!pairError"
+          :loading="uploading"
+          @click="doUpload"
+        >
+          上传
+        </el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onUnmounted, ref, watch } from "vue";
+import { FolderRemove, Plus, Refresh, UploadFilled } from "@element-plus/icons-vue";
+import { OnFileDrop, OnFileDropOff } from "@wailsjs/runtime/runtime";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { api } from "@/api";
+import type { CertInfo, CertListResult, CertPairCheck } from "@/api";
+import EnlargableCard from "@/components/EnlargableCard.vue";
+
+const props = defineProps<{ host: string }>();
+
+const CERT_DIR = "/etc/nginx/cert";
+
+const result = ref<CertListResult | null>(null);
+const loading = ref(false);
+const loaded = ref(false);
+const error = ref<string | null>(null);
+
+const list = ref<CertInfo[]>([]);
+
+/** 同一张证书的多个格式文件（如 .crt + .pem）合并成一组 */
+interface CertGroup {
+  names: string[];
+  domains: string[];
+  issuer: string;
+  notAfter: number;
+  daysLeft: number;
+  selfSigned: boolean;
+  hasKey: boolean;
+  keyName: string;
+}
+
+const groups = computed<CertGroup[]>(() => {
+  const map = new Map<string, CertGroup>();
+  for (const c of list.value) {
+    const key = `${c.domains.join(",")}|${c.issuer}|${c.notAfter}`;
+    const g = map.get(key);
+    if (g) {
+      g.names.push(c.name);
+      if (c.hasKey) {
+        g.hasKey = true;
+        g.keyName = c.keyName;
+      }
+    } else {
+      map.set(key, {
+        names: [c.name],
+        domains: c.domains,
+        issuer: c.issuer,
+        notAfter: c.notAfter,
+        daysLeft: c.daysLeft,
+        selfSigned: c.selfSigned,
+        hasKey: c.hasKey,
+        keyName: c.keyName,
+      });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.names[0].localeCompare(b.names[0]));
+});
+
+async function loadCerts() {
+  loading.value = true;
+  error.value = null;
+  try {
+    result.value = await api.collectCerts(props.host);
+    list.value = result.value?.certs || [];
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    loading.value = false;
+    loaded.value = true;
+  }
+}
+
+function formatTime(unix: number): string {
+  if (!unix) return "—";
+  const d = new Date(unix * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 即将过期阈值（天），与 1Panel 保持一致 */
+const EXPIRE_SOON = 30;
+
+function statusText(row: CertGroup): string {
+  if (row.daysLeft < 0) return "已过期";
+  if (row.daysLeft <= EXPIRE_SOON) return "即将过期";
+  return "有效";
+}
+
+function statusType(row: CertGroup): "success" | "warning" | "danger" {
+  if (row.daysLeft < 0) return "danger";
+  if (row.daysLeft <= EXPIRE_SOON) return "warning";
+  return "success";
+}
+
+function daysText(row: CertGroup): string {
+  if (row.daysLeft < 0) return `已过期 ${-row.daysLeft} 天`;
+  return `剩余 ${row.daysLeft} 天`;
+}
+
+function daysClass(row: CertGroup): string {
+  if (row.daysLeft < 0) return "danger";
+  if (row.daysLeft <= EXPIRE_SOON) return "warning";
+  return "ok";
+}
+
+async function removeGroup(row: CertGroup) {
+  const paths = row.names.map((n) => `${CERT_DIR}/${n}`);
+  if (row.hasKey) paths.push(`${CERT_DIR}/${row.keyName}`);
+  const tip = row.hasKey ? `及其私钥 ${row.keyName}` : "";
+  try {
+    await ElMessageBox.confirm(
+      `将删除证书 ${row.names.join("、")}${tip}，删除后不可恢复，确定继续吗？`,
+      "删除证书",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.deletePaths(props.host, paths);
+    ElMessage.success(`已删除 ${row.names.join("、")}`);
+    loadCerts();
+  } catch (e) {
+    ElMessage.error(`删除失败: ${e}`);
+  }
+}
+
+// ---- 上传证书：拖入 → 本地配对校验 → 上传 ----
+const uploadVisible = ref(false);
+const dropHover = ref(false);
+let dragCounter = 0;
+const pair = ref<CertPairCheck | null>(null);
+const pairError = ref<string | null>(null);
+const pairChecking = ref(false);
+const uploading = ref(false);
+
+function openUpload() {
+  pair.value = null;
+  pairError.value = null;
+  uploadVisible.value = true;
+  OnFileDrop(handleUploadDrop, false);
+}
+
+function closeUpload() {
+  OnFileDropOff();
+}
+
+function onDragEnter() {
+  dragCounter++;
+  dropHover.value = true;
+}
+
+function onDragLeave() {
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dropHover.value = false;
+    dragCounter = 0;
+  }
+}
+
+// webview drop 兜底复位高亮；实际路径由 Wails OnFileDrop 回调提供
+function onDropFallback() {
+  dropHover.value = false;
+  dragCounter = 0;
+}
+
+function handleUploadDrop(_x: number, _y: number, paths: string[]) {
+  dropHover.value = false;
+  dragCounter = 0;
+  if (!paths?.length) return;
+  void checkPair(paths);
+}
+
+async function checkPair(paths: string[]) {
+  pair.value = null;
+  pairError.value = null;
+  pairChecking.value = true;
+  try {
+    pair.value = await api.checkCertPair(paths);
+  } catch (e) {
+    pairError.value = String(e).replace(/^Error:\s*/, "");
+  } finally {
+    pairChecking.value = false;
+  }
+}
+
+function fileName(p: string): string {
+  return p.split("/").pop() || p;
+}
+
+async function doUpload() {
+  if (!pair.value) return;
+  uploading.value = true;
+  try {
+    await api.uploadCertPair(props.host, pair.value.certPath, pair.value.keyPath);
+    ElMessage.success("证书上传成功");
+    uploadVisible.value = false;
+    loadCerts();
+  } catch (e) {
+    ElMessage.error(`上传失败: ${String(e).replace(/^Error:\s*/, "")}`);
+  } finally {
+    uploading.value = false;
+  }
+}
+
+onUnmounted(() => {
+  // 弹窗未关但组件被卸载时兜底注销拖放监听
+  OnFileDropOff();
+});
+
+watch(() => props.host, () => loadCerts(), { immediate: true });
+</script>
+
+<style scoped>
+.tab-root {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.muted {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  flex: 1;
+}
+.cert-name-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.cert-name {
+  font-weight: 500;
+}
+.mono {
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+.days-left.ok {
+  color: var(--el-color-success);
+}
+.days-left.warning {
+  color: var(--el-color-warning);
+}
+.days-left.danger {
+  color: var(--el-color-danger);
+}
+.empty-icon {
+  color: var(--el-text-color-disabled);
+}
+.empty-sub {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: -16px;
+}
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  color: var(--el-text-color-secondary);
+  transition: border-color 0.2s;
+}
+.dropzone.hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.drop-title {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+}
+.drop-sub {
+  font-size: 12px;
+}
+.pair-result {
+  margin-top: 14px;
+}
+.pair-result.ok .pair-row {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.pair-label {
+  width: 56px;
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+}
+.pair-result.ok .el-alert {
+  margin-top: 8px;
+}
+</style>
