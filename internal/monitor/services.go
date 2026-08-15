@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"fmt"
 	"strings"
 
 	"diteng-pannel/internal/sshd"
@@ -25,13 +26,89 @@ func parseServices(s string) []Service {
 			continue
 		}
 		out = append(out, Service{
-			Name:   fields[0],
-			Load:   fields[1],
-			Active: fields[2],
-			Sub:    fields[3],
+			Name:        fields[0],
+			Load:        fields[1],
+			Active:      fields[2],
+			Sub:         fields[3],
+			Description: strings.Join(fields[4:], " "),
 		})
 	}
 	return out
+}
+
+// CollectServiceDetail 按需查询单个服务的详情（悬浮卡片触发，不随列表轮询）
+// name 先做白名单校验再拼命令，避免注入
+func (c *Collector) CollectServiceDetail(host, name string, opt sshd.ConnectOption) (ServiceDetail, error) {
+	if !isValidServiceName(name) {
+		return ServiceDetail{}, fmt.Errorf("非法服务名: %s", name)
+	}
+	cmd := fmt.Sprintf(
+		`systemctl show %s --no-pager --property=Id,Description,LoadState,ActiveState,SubState,MainPID,ExecStart,FragmentPath,ActiveEnterTimestamp,MemoryCurrent,CPUTimeNSec,Restart,User 2>/dev/null`,
+		name,
+	)
+	out, err := c.mgr.Run(host, opt, cmd)
+	if err != nil {
+		return ServiceDetail{}, err
+	}
+	return parseServiceDetail(string(out)), nil
+}
+
+// isValidServiceName systemd 单元名仅允许字母数字与 . _ @ - 组合
+func isValidServiceName(s string) bool {
+	if s == "" || len(s) > 200 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '.' || r == '_' || r == '@' || r == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func parseServiceDetail(s string) ServiceDetail {
+	d := ServiceDetail{}
+	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
+		if line == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		switch k {
+		case "Id":
+			d.ID = v
+		case "Description":
+			d.Description = v
+		case "LoadState":
+			d.LoadState = v
+		case "ActiveState":
+			d.ActiveState = v
+		case "SubState":
+			d.SubState = v
+		case "MainPID":
+			d.MainPID = v
+		case "ExecStart":
+			d.ExecStart = v
+		case "FragmentPath":
+			d.FragmentPath = v
+		case "ActiveEnterTimestamp":
+			d.ActiveEnterTimestamp = v
+		case "MemoryCurrent":
+			d.MemoryCurrent = v
+		case "CPUTimeNSec":
+			d.CPUTimeNSec = v
+		case "Restart":
+			d.Restart = v
+		case "User":
+			d.User = v
+		}
+	}
+	return d
 }
 
 // CollectCrons 采集定时任务（用户级 + 系统级）
