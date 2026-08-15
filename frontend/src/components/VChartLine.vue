@@ -12,12 +12,18 @@
  */
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from "vue";
 import echarts from "@/utils/echarts";
-import { formatRateKBps } from "@/utils/format";
+import { formatBytes, formatRateKBps } from "@/utils/format";
 
 export interface LineOption {
   xData: string[];
   yData: { name: string; data: (number | null)[] }[];
   formatStr?: string;
+  /**
+   * tooltip 数值格式化策略：
+   * - 默认（不传）：用 formatRateKBps，适合网卡速率（KB/s）
+   * - "bytes"：把原始值当字节，格式化为 B/KB/MB/GB，适合内存/堆
+   */
+  unit?: "bytes" | "rate";
 }
 
 const props = withDefaults(
@@ -108,12 +114,14 @@ function initChart() {
           let res = datas[0].name + "<br/>";
           for (const item of datas) {
             const n = typeof item.data === "number" ? item.data : 0;
+            const formatted =
+              props.option.unit === "bytes" ? formatBytes(n) : formatRateKBps(n);
             res +=
               item.marker +
               " " +
               item.seriesName +
               "：" +
-              formatRateKBps(n) +
+              formatted +
               "<br/>";
           }
           return res;

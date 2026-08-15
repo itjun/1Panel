@@ -1,22 +1,22 @@
 <template>
   <div class="tab-root">
+    <EnlargableCard title="软件包">
     <div class="toolbar">
-      <span class="title">已安装软件包</span>
       <span v-if="stats" class="muted">
         共 {{ stats.total }} 个 · 平均依赖 {{ stats.avgDeps }} · 最多
         {{ stats.maxDeps }} 依赖
       </span>
       <el-input
         v-model="filter"
-        size="small"
+        size="large"
         clearable
         class="search"
         placeholder="搜索包名/版本..."
       />
-      <el-button size="small" :loading="loading" @click="refresh">刷新</el-button>
-      <el-button size="small" @click="runInTerminal('apt update')">检查更新</el-button>
+      <el-button size="large" :loading="loading" @click="refresh">刷新</el-button>
+      <el-button size="large" @click="runInTerminal('apt update')">检查更新</el-button>
       <el-button
-        size="small"
+        size="large"
         type="primary"
         @click="runInTerminal('apt update && apt upgrade -y')"
       >
@@ -53,6 +53,7 @@
     <div v-if="filtered.length > 500" class="hint">
       只显示前 500 条（共 {{ filtered.length }} 条匹配），请用搜索缩小范围
     </div>
+    </EnlargableCard>
   </div>
 </template>
 
@@ -60,6 +61,7 @@
 import { computed, ref } from "vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 import { useAppStore } from "@/stores/app";
 
 interface AptPackage {

@@ -24,12 +24,21 @@
         >
           刷新
         </el-button>
+        <el-button
+          link
+          type="primary"
+          :icon="Picture"
+          :loading="app.iconsRefreshing"
+          @click="onRefreshIcons"
+        >
+          检查图标
+        </el-button>
       </div>
     </div>
 
     <el-empty
       v-if="app.hosts.length === 0"
-      description="暂无主机，点击右上角「添加主机」"
+      description="暂无主机，右键侧栏空白处或菜单「主机 → 添加主机…」"
     />
 
     <!-- 按分组分段 -->
@@ -73,11 +82,22 @@
             :style="{ borderLeftColor: colorOf(node, idx).accent }"
             @click="openHost(h.name)"
           >
-            <DistroLogo
-              :os-release="app.osReleaseMap.get(h.name) || ''"
-              :size="22"
-              class="host-ico"
-            />
+            <span
+              class="host-ico-wrap"
+              :title="
+                app.osReleaseMap.get(h.name)
+                  ? `${app.osReleaseMap.get(h.name)}（右键重新识别）`
+                  : '未识别发行版，右键探测'
+              "
+              @click.stop
+              @contextmenu.prevent="onRefreshOneIcon(h.name)"
+            >
+              <DistroLogo
+                :os-release="app.osReleaseMap.get(h.name) || ''"
+                :size="22"
+                class="host-ico"
+              />
+            </span>
             <div class="host-info">
               <div class="host-name">
                 {{ h.name }}
@@ -103,7 +123,8 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Refresh } from "@element-plus/icons-vue";
+import { Picture, Refresh } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import type { sshconfig } from "@/api";
@@ -169,6 +190,39 @@ function showPort(port?: string): boolean {
 
 function openHost(name: string) {
   app.openHostTab(name);
+}
+
+function formatErr(e: unknown): string {
+  if (e == null) return "未知错误";
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message || String(e);
+  const any = e as { message?: string };
+  if (any.message) return any.message;
+  return String(e);
+}
+
+async function onRefreshOneIcon(name: string) {
+  try {
+    const os = await app.refreshHostIcon(name);
+    ElMessage.success(`${name}：${os || "图标已更新"}`);
+  } catch (e) {
+    ElMessage.error(`更新图标失败: ${formatErr(e)}`);
+  }
+}
+
+async function onRefreshIcons() {
+  try {
+    const r = await app.refreshAllHostIcons();
+    if (r.failed.length > 0) {
+      ElMessage.warning(
+        `已更新 ${r.ok} 台，失败 ${r.failed.length} 台`
+      );
+    } else {
+      ElMessage.success(`已检查并更新 ${r.ok} 台主机图标`);
+    }
+  } catch (e) {
+    ElMessage.error(`检查图标失败: ${formatErr(e)}`);
+  }
 }
 </script>
 
@@ -255,6 +309,11 @@ function openHost(name: string) {
   &:hover {
     transform: translateY(-1px);
   }
+}
+.host-ico-wrap {
+  display: flex;
+  flex-shrink: 0;
+  cursor: context-menu;
 }
 .host-ico {
   flex-shrink: 0;

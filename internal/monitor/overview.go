@@ -32,7 +32,7 @@ func (c *Collector) CollectOverview(host string, opt sshd.ConnectOption) (Overvi
 	// 用一个组合命令一次性拿数据，减少 SSH 往返次数
 	// PRETTY_NAME 是 os-release 标准字段（systemd 规范），Debian/Ubuntu/CentOS 都有
 	// NET：/proc/net/dev 累计收发；HOST：主机名 + 架构；IP：默认路由出口 IP
-	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; grep -E '^(PRETTY_NAME|NAME)=' /etc/os-release 2>/dev/null | head -n2; echo "=HOST="; hostname 2>/dev/null; uname -m; echo "=IP="; (ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || hostname -I 2>/dev/null | awk '{print $1}'); echo "=NET="; cat /proc/net/dev 2>/dev/null; echo "=DISKIO="; cat /proc/diskstats 2>/dev/null`
+	script := `echo "=STAT="; head -n1 /proc/stat; echo "=MEMINFO="; grep -E 'MemTotal|MemAvailable|SwapTotal|SwapFree' /proc/meminfo; echo "=LOAD="; cat /proc/loadavg; echo "=UPTIME="; awk '{print $1}' /proc/uptime; echo "=CPUINFO="; grep -c processor /proc/cpuinfo; grep -m1 'model name' /proc/cpuinfo; echo "=OS="; uname -r; grep -E '^(PRETTY_NAME|NAME)=' /etc/os-release 2>/dev/null | head -n2; echo "=HOST="; hostname 2>/dev/null; uname -m; echo "=IP="; (ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || hostname -I 2>/dev/null | awk '{print $1}'); echo "=DEFDEV="; ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}'; echo "=NET="; cat /proc/net/dev 2>/dev/null; echo "=DISKIO="; cat /proc/diskstats 2>/dev/null`
 	out, err := c.mgr.Run(host, opt, script)
 	if err != nil {
 		return Overview{}, err
@@ -174,20 +174,7 @@ func parseOverview(s string) (Overview, error) {
 		if len(lines) >= 1 {
 			o.Kernel = strings.TrimSpace(lines[0])
 		}
-		// 从剩余行里找 PRETTY_NAME（优先）或 NAME
-		// os-release 用 KEY="value" 格式，不是 KEY: value
-		for _, line := range lines[1:] {
-			l := strings.TrimSpace(line)
-			if strings.HasPrefix(l, "PRETTY_NAME=") {
-				v := strings.TrimPrefix(l, "PRETTY_NAME=")
-				o.OSRelease = strings.Trim(strings.TrimSpace(v), "\"")
-				break
-			}
-			if strings.HasPrefix(l, "NAME=") && o.OSRelease == "" {
-				v := strings.TrimPrefix(l, "NAME=")
-				o.OSRelease = strings.Trim(strings.TrimSpace(v), "\"")
-			}
-		}
+		o.OSRelease = parseOSReleaseText(osr)
 	}
 	if hostSec := sections["HOST"]; hostSec != "" {
 		lines := strings.Split(hostSec, "\n")
@@ -208,8 +195,19 @@ func parseOverview(s string) (Overview, error) {
 			}
 		}
 	}
+	// 默认路由出口网卡：概览网速只统计它，避免 docker0/veth 与 eth0 重复计数
+	defDev := ""
+	if dd := sections["DEFDEV"]; dd != "" {
+		for _, line := range strings.Split(dd, "\n") {
+			s := strings.TrimSpace(line)
+			if s != "" {
+				defDev = s
+				break
+			}
+		}
+	}
 	if netSec := sections["NET"]; netSec != "" {
-		o.NetRxBytes, o.NetTxBytes = parseNetDev(netSec)
+		o.NetRxBytes, o.NetTxBytes = parseNetDev(netSec, defDev)
 	}
 	if dio := sections["DISKIO"]; dio != "" {
 		o.DiskReadBytes, o.DiskWriteBytes, o.DiskIOCount = parseDiskStats(dio)
@@ -217,9 +215,16 @@ func parseOverview(s string) (Overview, error) {
 	return o, nil
 }
 
-// parseNetDev 解析 /proc/net/dev，合计除 lo 外所有网卡的收发字节
+// parseNetDev 解析 /proc/net/dev 的收发字节
+// defDev 非空时只统计该网卡（默认路由出口，即主机实际对外带宽）；
+// 为空或找不到该网卡时回退为合计除 lo 外所有网卡
 // 格式：Interface: rx_bytes rx_packets ... tx_bytes tx_packets ...
-func parseNetDev(s string) (rx, tx uint64) {
+func parseNetDev(s, defDev string) (rx, tx uint64) {
+	if defDev != "" {
+		if r, t, ok := netDevIface(s, defDev); ok {
+			return r, t
+		}
+	}
 	for _, line := range strings.Split(s, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || !strings.Contains(line, ":") {
@@ -237,17 +242,30 @@ func parseNetDev(s string) (rx, tx uint64) {
 		if name == "lo" || name == "" {
 			continue
 		}
-		fields := strings.Fields(parts[1])
-		// rx_bytes=0, tx_bytes=8
-		if len(fields) < 9 {
-			continue
-		}
-		r, _ := strconv.ParseUint(fields[0], 10, 64)
-		t, _ := strconv.ParseUint(fields[8], 10, 64)
+		r, t, _ := netDevIface(line, name)
 		rx += r
 		tx += t
 	}
 	return rx, tx
+}
+
+// netDevIface 从单行或整段 /proc/net/dev 内容中取指定网卡的收发字节
+func netDevIface(s, name string) (rx, tx uint64, ok bool) {
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, name+":") {
+			continue
+		}
+		fields := strings.Fields(line[len(name)+1:])
+		// rx_bytes=0, tx_bytes=8
+		if len(fields) < 9 {
+			return 0, 0, false
+		}
+		r, _ := strconv.ParseUint(fields[0], 10, 64)
+		t, _ := strconv.ParseUint(fields[8], 10, 64)
+		return r, t, true
+	}
+	return 0, 0, false
 }
 
 // diskDevRe 匹配物理块设备名（排除分区 sda1/nvme0n1p1 和虚拟设备 loop/dm-0）

@@ -14,12 +14,16 @@
             <div class="card-header" @dblclick="openEnlarge('overview')">
               <span class="panel-section-title">概览</span>
               <div class="card-actions">
-                <el-button link type="primary" :icon="Refresh" @click="refreshAll">
-                  刷新
-                </el-button>
                 <el-button
                   link
-                  class="enlarge-btn"
+                  class="card-icon-btn"
+                  :icon="Refresh"
+                  title="刷新"
+                  @click="refreshAll"
+                />
+                <el-button
+                  link
+                  class="card-icon-btn card-toggle"
                   :icon="enlargedKey === 'overview' ? Close : FullScreen"
                   :title="enlargedKey === 'overview' ? '退出放大' : '放大'"
                   @click="toggleEnlarge('overview')"
@@ -46,7 +50,7 @@
               <span class="panel-section-title">状态</span>
               <el-button
                 link
-                class="enlarge-btn"
+                class="card-icon-btn card-toggle"
                 :icon="enlargedKey === 'status' ? Close : FullScreen"
                 :title="enlargedKey === 'status' ? '退出放大' : '放大'"
                 @click="toggleEnlarge('status')"
@@ -225,7 +229,7 @@
               </div>
               <el-button
                 link
-                class="enlarge-btn"
+                class="card-icon-btn card-toggle"
                 :icon="enlargedKey === 'monitor' ? Close : FullScreen"
                 :title="enlargedKey === 'monitor' ? '退出放大' : '放大'"
                 @click="toggleEnlarge('monitor')"
@@ -238,38 +242,6 @@
               <el-tag type="primary" effect="light">
                 下行: {{ formatBytes(rates.downBps) }}/s
               </el-tag>
-              <el-tooltip
-                :content="netWindowTip(overview.net1d, '1 天')"
-                placement="top"
-              >
-                <el-tag type="success" effect="light">
-                  近1天↑ {{ formatNetWindow(overview.net1d, "tx") }}
-                </el-tag>
-              </el-tooltip>
-              <el-tooltip
-                :content="netWindowTip(overview.net1d, '1 天')"
-                placement="top"
-              >
-                <el-tag type="success" effect="light">
-                  近1天↓ {{ formatNetWindow(overview.net1d, "rx") }}
-                </el-tag>
-              </el-tooltip>
-              <el-tooltip
-                :content="netWindowTip(overview.net7d, '7 天')"
-                placement="top"
-              >
-                <el-tag type="warning" effect="light">
-                  近7天↑ {{ formatNetWindow(overview.net7d, "tx") }}
-                </el-tag>
-              </el-tooltip>
-              <el-tooltip
-                :content="netWindowTip(overview.net7d, '7 天')"
-                placement="top"
-              >
-                <el-tag type="warning" effect="light">
-                  近7天↓ {{ formatNetWindow(overview.net7d, "rx") }}
-                </el-tag>
-              </el-tooltip>
             </div>
             <div v-else class="monitor-tags">
               <el-tag type="primary" effect="light">
@@ -297,10 +269,16 @@
             <div class="card-header" @dblclick="openEnlarge('disks')">
               <span class="panel-section-title">磁盘</span>
               <div class="card-actions">
-                <el-button link type="primary" @click="loadDisks">刷新</el-button>
                 <el-button
                   link
-                  class="enlarge-btn"
+                  class="card-icon-btn"
+                  :icon="Refresh"
+                  title="刷新"
+                  @click="loadDisks"
+                />
+                <el-button
+                  link
+                  class="card-icon-btn card-toggle"
                   :icon="enlargedKey === 'disks' ? Close : FullScreen"
                   :title="enlargedKey === 'disks' ? '退出放大' : '放大'"
                   @click="toggleEnlarge('disks')"
@@ -308,7 +286,13 @@
               </div>
             </div>
             <div v-if="!disks?.length" class="empty-tip">暂无磁盘数据</div>
-            <div v-for="d in disks" :key="d.mount" class="disk-row">
+            <div
+              v-for="d in disks"
+              :key="d.mount"
+              class="disk-row disk-row--clickable"
+              title="点击查看该分区的最大文件"
+              @click="openLargestFiles(d)"
+            >
               <span class="disk-mount">{{ d.mount }}</span>
               <el-progress
                 :percentage="Math.min(100, d.percent)"
@@ -335,7 +319,7 @@
               <span class="panel-section-title">系统信息</span>
               <el-button
                 link
-                class="enlarge-btn"
+                class="card-icon-btn card-toggle"
                 :icon="enlargedKey === 'sysinfo' ? Close : FullScreen"
                 :title="enlargedKey === 'sysinfo' ? '退出放大' : '放大'"
                 @click="toggleEnlarge('sysinfo')"
@@ -369,38 +353,42 @@
           <el-card
             shadow="never"
             class="home-card card-interval"
-            :class="{ 'is-enlarged': enlargedKey === 'memo' }"
-            :style="enlargedKey === 'memo' ? enlargeStyle : undefined"
+            :class="{ 'is-enlarged': enlargedKey === 'runtimes' }"
+            :style="enlargedKey === 'runtimes' ? enlargeStyle : undefined"
           >
-            <div class="card-header" @dblclick="openEnlarge('memo')">
-              <span class="panel-section-title">备忘录</span>
+            <div class="card-header" @dblclick="openEnlarge('runtimes')">
+              <span class="panel-section-title">运行环境</span>
               <div class="card-actions">
+                <span class="hint">{{ installedRuntimes }} / {{ runtimes.length }} 已安装</span>
                 <el-button
                   link
-                  type="primary"
-                  :icon="memoEditing ? Check : Edit"
-                  @click="toggleMemo"
-                >
-                  {{ memoEditing ? "保存" : "编辑" }}
-                </el-button>
-                <el-button
-                  link
-                  class="enlarge-btn"
-                  :icon="enlargedKey === 'memo' ? Close : FullScreen"
-                  :title="enlargedKey === 'memo' ? '退出放大' : '放大'"
-                  @click="toggleEnlarge('memo')"
+                  class="card-icon-btn card-toggle"
+                  :icon="enlargedKey === 'runtimes' ? Close : FullScreen"
+                  :title="enlargedKey === 'runtimes' ? '退出放大' : '放大'"
+                  @click="toggleEnlarge('runtimes')"
                 />
               </div>
             </div>
-            <el-input
-              v-if="memoEditing"
-              v-model="memoDraft"
-              type="textarea"
-              :rows="5"
-              placeholder="记录此主机备注…"
-            />
-            <div v-else class="memo-body">
-              {{ memo || "点击编辑按钮启用编辑" }}
+            <div class="rt-list">
+              <div v-for="r in runtimes" :key="r.name" class="rt-row">
+                <span class="rt-chip" :class="'rt-' + r.name">{{ rtChip(r.name) }}</span>
+                <span class="rt-name">{{ r.name }}</span>
+                <el-tag v-if="r.version" size="small" type="success" effect="light">
+                  {{ r.version }}
+                </el-tag>
+                <template v-else>
+                  <el-tag size="small" type="info" effect="plain">未安装</el-tag>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="confirmInstallRuntime(r.name)"
+                  >
+                    安装
+                  </el-button>
+                </template>
+                <span class="rt-path" :title="r.detail || r.path">{{ r.path || "—" }}</span>
+              </div>
             </div>
           </el-card>
 
@@ -417,7 +405,7 @@
                 <span class="hint">Java · {{ javaList.length }}</span>
                 <el-button
                   link
-                  class="enlarge-btn"
+                  class="card-icon-btn card-toggle"
                   :icon="enlargedKey === 'java' ? Close : FullScreen"
                   :title="enlargedKey === 'java' ? '退出放大' : '放大'"
                   @click="toggleEnlarge('java')"
@@ -461,7 +449,7 @@
                 </span>
                 <el-button
                   link
-                  class="enlarge-btn"
+                  class="card-icon-btn card-toggle"
                   :icon="enlargedKey === 'docker' ? Close : FullScreen"
                   :title="enlargedKey === 'docker' ? '退出放大' : '放大'"
                   @click="toggleEnlarge('docker')"
@@ -508,14 +496,25 @@
       :style="enlargeStyle"
       @click="closeEnlarge"
     />
+
+    <!-- 点击磁盘行：查看该分区的最大文件（按大小倒序） -->
+    <LargestFilesDialog
+      v-model="largestFilesOpen"
+      :host="props.host"
+      :mount="largestFilesMount"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Check, Close, Edit, FullScreen, Refresh } from "@element-plus/icons-vue";
+import { Close, FullScreen, Refresh } from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { monitor } from "@/api";
+import { SetTrafficLightsHidden } from "@wailsjs/go/main/App";
+import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
+import { useAppStore } from "@/stores/app";
 import {
   bytesToKBps,
   formatBytes,
@@ -525,6 +524,7 @@ import VChartPie from "@/components/VChartPie.vue";
 import VChartLine from "@/components/VChartLine.vue";
 
 const props = defineProps<{ host: string }>();
+const app = useAppStore();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -533,6 +533,76 @@ const disks = ref<monitor.DiskInfo[]>([]);
 const docker = ref<monitor.DockerInfo | null>(null);
 const javaList = ref<monitor.ProcInfo[]>([]);
 const appsLoading = ref(false);
+
+/** 运行环境识别：java / go / python / node / bun */
+const runtimes = ref<monitor.RuntimeInfo[]>([]);
+const installedRuntimes = computed(
+  () => runtimes.value.filter((r) => r.version).length
+);
+
+/** 从 python3 / python 等原始名映射展示名 */
+function rtChip(name: string): string {
+  switch (name) {
+    case "java":
+      return "J";
+    case "go":
+      return "Go";
+    case "python":
+      return "Py";
+    case "node":
+      return "Nx";
+    case "bun":
+      return "Bun";
+    default:
+      return name.slice(0, 2).toUpperCase();
+  }
+}
+
+async function loadRuntimes() {
+  try {
+    runtimes.value = (await api.collectRuntimes(props.host)) || [];
+  } catch {
+    runtimes.value = [];
+  }
+}
+
+/**
+ * 未安装环境的一键安装命令（Ubuntu + root）
+ * Go / Node 安装时动态查询官方接口取最新版本，不固定版本号
+ */
+const INSTALL_COMMANDS: Record<string, string> = {
+  java: "apt update && apt install -y openjdk-21-jdk && java -version",
+  python:
+    "apt update && apt install -y python3 python3-pip python3-venv && ln -sf /usr/bin/python3 /usr/bin/python && python --version",
+  go: "ARCH=$(uname -m); case $ARCH in x86_64) A=amd64;; aarch64|arm64) A=arm64;; *) A=''; echo \"不支持的架构: $ARCH\";; esac; [ -n \"$A\" ] && V=$( (curl -fsSL --connect-timeout 8 'https://go.dev/dl/?mode=json' || curl -fsSL 'https://golang.google.cn/dl/?mode=json') | python3 -c 'import json,sys;print(json.load(sys.stdin)[0][\"version\"])' 2>/dev/null) && echo \"安装 Go $V ...\" && (curl -fL --connect-timeout 8 \"https://go.dev/dl/${V}.linux-${A}.tar.gz\" -o /tmp/go.tgz || curl -fL \"https://mirrors.aliyun.com/golang/${V}.linux-${A}.tar.gz\" -o /tmp/go.tgz) && rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/go.tgz && rm /tmp/go.tgz && printf 'export PATH=$PATH:/usr/local/go/bin\\n' > /etc/profile.d/go.sh && export PATH=$PATH:/usr/local/go/bin && go version",
+  node: "ARCH=$(uname -m); case $ARCH in x86_64) A=amd64;; aarch64|arm64) A=arm64;; *) A=''; echo \"不支持的架构: $ARCH\";; esac; [ -n \"$A\" ] && V=$( (curl -fsSL --connect-timeout 8 'https://nodejs.org/dist/index.json' || curl -fsSL 'https://npmmirror.com/mirrors/node/index.json') | python3 -c 'import json,sys;print([e[\"version\"] for e in json.load(sys.stdin) if e[\"lts\"]][0])' 2>/dev/null) && echo \"安装 Node $V (LTS) ...\" && (curl -fL --connect-timeout 8 \"https://nodejs.org/dist/${V}/node-${V}-linux-${A}.tar.xz\" -o /tmp/node.tar.xz || curl -fL \"https://npmmirror.com/mirrors/node/${V}/node-${V}-linux-${A}.tar.xz\" -o /tmp/node.tar.xz) && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && rm /tmp/node.tar.xz && node --version && npm --version",
+  bun: "curl -fsSL https://bun.sh/install | bash && export PATH=\"$HOME/.bun/bin:$PATH\" && bun --version",
+};
+
+/** 确认后切到终端自动执行安装命令 */
+async function confirmInstallRuntime(name: string) {
+  const cmd = INSTALL_COMMANDS[name];
+  if (!cmd) return;
+  try {
+    await ElMessageBox.confirm(
+      `将在终端真实执行以下命令安装 <b>${name}</b>（需 root 权限）：<pre>${cmd}</pre>`,
+      `安装 ${name}`,
+      {
+        confirmButtonText: "安装",
+        cancelButtonText: "取消",
+        type: "warning",
+        dangerouslyUseHTMLString: true,
+        customStyle: { maxWidth: "640px" },
+      }
+    );
+  } catch {
+    return; // 用户取消
+  }
+  app.sendTerminalCmd(cmd);
+  if (app.activeTabId) {
+    app.setSubTab(app.activeTabId, "terminal");
+  }
+}
 
 const dockerList = computed(
   () => (docker.value?.containers || []) as monitor.Container[]
@@ -547,11 +617,6 @@ const chartMode = ref<"network" | "io">("network");
 const ioTraffic = ref<{ time: string; read: number; write: number }[]>([]);
 const ioRates = ref({ readBps: 0, writeBps: 0, iops: 0 });
 const lastDisk = ref<{ read: number; write: number; count: number; ts: number } | null>(null);
-
-const memoKey = computed(() => `ipannel.memo.${props.host}`);
-const memo = ref("");
-const memoDraft = ref("");
-const memoEditing = ref(false);
 
 let timer: number | undefined;
 
@@ -570,39 +635,6 @@ const loadPercent = computed(() => {
     (overview.value.load1 / overview.value.cpuCount) * 100
   );
 });
-
-/** 近 1/7 天流量展示 */
-function formatNetWindow(
-  w: { rxBytes?: number; txBytes?: number; spanHours?: number; complete?: boolean } | null | undefined,
-  dir: "rx" | "tx"
-): string {
-  if (!w) return "—";
-  const n = dir === "rx" ? Number(w.rxBytes) || 0 : Number(w.txBytes) || 0;
-  const span = Number(w.spanHours) || 0;
-  // 几乎无历史
-  if (span < 0.02 && n === 0) return "积累中";
-  const s = formatBytes(n);
-  return w.complete ? s : `${s}*`;
-}
-
-function netWindowTip(
-  w: { spanHours?: number; complete?: boolean } | null | undefined,
-  label: string
-): string {
-  if (!w) {
-    return `近${label}流量：打开主机会话后开始在本机采样累计，需持续观察才能出完整窗口。`;
-  }
-  const h = Number(w.spanHours) || 0;
-  if (w.complete) {
-    return `近${label}完整窗口：基于本机历史采样对 /proc/net/dev 累计值做差分（除 lo 外网卡合计，1024 进制）。`;
-  }
-  if (h < 0.05) {
-    return `近${label}：数据积累中（约每分钟采样一次，请保持主机「运行中」）。`;
-  }
-  const pretty =
-    h >= 24 ? `${(h / 24).toFixed(1)} 天` : `${h.toFixed(1)} 小时`;
-  return `近${label}：当前仅有约 ${pretty} 样本（标记 *），满 ${label} 后显示完整值。重启会导致计数回绕并重新累计。`;
-}
 
 const loadLabel = computed(() => {
   const v = loadPercent.value;
@@ -652,6 +684,9 @@ async function loadOverview() {
     const data = await api.collectOverview(props.host);
     overview.value = data;
     error.value = null;
+    if (data.osRelease) {
+      app.rememberOsRelease(props.host, data.osRelease);
+    }
     pushTraffic(data);
     pushDiskIO(data);
   } catch (e) {
@@ -716,6 +751,14 @@ async function loadDisks() {
   }
 }
 
+/** 点击磁盘行：弹出该分区最大文件列表 */
+const largestFilesOpen = ref(false);
+const largestFilesMount = ref("");
+function openLargestFiles(d: monitor.DiskInfo) {
+  largestFilesMount.value = d.mount || d.filesystem || "/";
+  largestFilesOpen.value = true;
+}
+
 async function loadApps() {
   appsLoading.value = true;
   try {
@@ -752,33 +795,8 @@ function javaAppTitle(cmd: string): string {
 
 async function refreshAll() {
   loading.value = true;
-  await Promise.all([loadOverview(), loadDisks(), loadApps()]);
+  await Promise.all([loadOverview(), loadDisks(), loadApps(), loadRuntimes()]);
   loading.value = false;
-}
-
-function loadMemo() {
-  try {
-    memo.value = localStorage.getItem(memoKey.value) || "";
-  } catch {
-    memo.value = "";
-  }
-  memoDraft.value = memo.value;
-  memoEditing.value = false;
-}
-
-function toggleMemo() {
-  if (memoEditing.value) {
-    memo.value = memoDraft.value;
-    try {
-      localStorage.setItem(memoKey.value, memo.value);
-    } catch {
-      /* ignore */
-    }
-    memoEditing.value = false;
-  } else {
-    memoDraft.value = memo.value;
-    memoEditing.value = true;
-  }
 }
 
 function resetHostState() {
@@ -786,49 +804,37 @@ function resetHostState() {
   disks.value = [];
   docker.value = null;
   javaList.value = [];
+  runtimes.value = [];
   traffic.value = [];
   rates.value = { upBps: 0, downBps: 0 };
   lastNet.value = null;
   ioTraffic.value = [];
   ioRates.value = { readBps: 0, writeBps: 0, iops: 0 };
   lastDisk.value = null;
-  loadMemo();
 }
 
-// ---------- 卡片放大（铺满主内容区，侧栏/标签栏保留） ----------
+// ---------- 卡片放大（全窗口覆盖置顶，盖住侧栏/标签栏） ----------
 const pageRef = ref<HTMLElement | null>(null);
 const enlargedKey = ref<string | null>(null);
-const enlargeRect = ref({ top: 0, left: 0, width: 0, height: 0 });
 
 const enlargeStyle = computed(() => ({
-  top: `${enlargeRect.value.top}px`,
-  left: `${enlargeRect.value.left}px`,
-  width: `${enlargeRect.value.width}px`,
-  height: `${enlargeRect.value.height}px`,
+  top: 0,
+  left: 0,
+  width: "100vw",
+  height: "100vh",
 }));
 
-// 取主内容区 .content-pad 的视口坐标，放大卡片据此 fixed 铺满
-function updateEnlargeRect() {
-  const pad = pageRef.value?.closest(".content-pad") as HTMLElement | null;
-  if (!pad) return;
-  const r = pad.getBoundingClientRect();
-  enlargeRect.value = {
-    top: r.top,
-    left: r.left,
-    width: r.width,
-    height: r.height,
-  };
-}
-
 function openEnlarge(key: string) {
-  updateEnlargeRect();
   enlargedKey.value = key;
+  // 最大化期间隐藏 macOS 红绿灯
+  SetTrafficLightsHidden(true).catch(() => {});
   // 容器尺寸变化后通知 ECharts resize
   nextTick(() => window.dispatchEvent(new Event("resize")));
 }
 
 function closeEnlarge() {
   enlargedKey.value = null;
+  SetTrafficLightsHidden(false).catch(() => {});
   nextTick(() => window.dispatchEvent(new Event("resize")));
 }
 
@@ -839,10 +845,6 @@ function toggleEnlarge(key: string) {
 
 function onEnlargeKeydown(e: KeyboardEvent) {
   if (e.key === "Escape" && enlargedKey.value) closeEnlarge();
-}
-
-function onEnlargeWinResize() {
-  if (enlargedKey.value) updateEnlargeRect();
 }
 
 watch(
@@ -863,13 +865,11 @@ onMounted(async () => {
   loading.value = false;
   timer = window.setInterval(loadOverview, 3000);
   window.addEventListener("keydown", onEnlargeKeydown);
-  window.addEventListener("resize", onEnlargeWinResize);
 });
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
   window.removeEventListener("keydown", onEnlargeKeydown);
-  window.removeEventListener("resize", onEnlargeWinResize);
 });
 </script>
 
@@ -913,11 +913,11 @@ onBeforeUnmount(() => {
 /* 放大态：卡片提升铺满主内容区，内部列表撑满滚动 */
 .home-card.is-enlarged {
   position: fixed;
-  z-index: 2001;
+  z-index: 2500;
   max-width: none;
   overflow: hidden;
-  border-radius: 6px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-radius: 0;
+  box-shadow: none;
   :deep(.el-card__body) {
     height: 100%;
     box-sizing: border-box;
@@ -951,11 +951,16 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
 }
-.enlarge-btn {
+/* 卡片头右侧图标按钮：灰色纯图标，悬停变主色（对齐 1Panel） */
+.card-icon-btn {
   color: var(--el-text-color-secondary);
   &:hover {
     color: var(--el-color-primary);
   }
+}
+/* 放大状态下的关闭按钮：红色醒目 */
+.home-card.is-enlarged .card-toggle {
+  color: var(--el-color-danger);
 }
 .stat-cell {
   text-align: center;
@@ -986,6 +991,14 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
   font-size: 12px;
 }
+.disk-row--clickable {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  &:hover {
+    background: var(--el-fill-color-light);
+  }
+}
 .disk-mount {
   width: 72px;
   overflow: hidden;
@@ -1005,15 +1018,67 @@ onBeforeUnmount(() => {
   font-size: 13px;
   padding: 20px 0;
 }
-.memo-body {
-  min-height: 80px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-  white-space: pre-wrap;
-}
 .app-scroll {
   max-height: 300px;
   overflow-y: auto;
+}
+/* 运行环境卡片 */
+.rt-list {
+  display: flex;
+  flex-direction: column;
+}
+.rt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--el-border-color-extra-light, #f2f6fc);
+  &:last-of-type {
+    border-bottom: none;
+  }
+}
+.rt-chip {
+  flex-shrink: 0;
+  width: 34px;
+  height: 22px;
+  line-height: 22px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--el-color-info);
+}
+.rt-chip.rt-java {
+  background: #e76f00;
+}
+.rt-chip.rt-go {
+  background: #00add8;
+}
+.rt-chip.rt-python {
+  background: #3776ab;
+}
+.rt-chip.rt-node {
+  background: #43853e;
+}
+.rt-chip.rt-bun {
+  background: #3d658f;
+}
+.rt-name {
+  flex-shrink: 0;
+  width: 52px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.rt-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .app-row {
   display: flex;

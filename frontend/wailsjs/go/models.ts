@@ -70,18 +70,28 @@ export namespace main {
 	        this.password = source["password"];
 	    }
 	}
-	export class AuthState {
-	    authenticated: boolean;
-	    username: string;
+	export class CertPairCheck {
+	    certPath: string;
+	    keyPath: string;
+	    domains: string[];
+	    issuer: string;
+	    notAfter: number;
+	    daysLeft: number;
+	    selfSigned: boolean;
 	
 	    static createFrom(source: any = {}) {
-	        return new AuthState(source);
+	        return new CertPairCheck(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.authenticated = source["authenticated"];
-	        this.username = source["username"];
+	        this.certPath = source["certPath"];
+	        this.keyPath = source["keyPath"];
+	        this.domains = source["domains"];
+	        this.issuer = source["issuer"];
+	        this.notAfter = source["notAfter"];
+	        this.daysLeft = source["daysLeft"];
+	        this.selfSigned = source["selfSigned"];
 	    }
 	}
 	export class CopyIDInput {
@@ -182,6 +192,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class HostIcon {
+	    host: string;
+	    osRelease: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostIcon(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.osRelease = source["osRelease"];
+	        this.error = source["error"];
+	    }
+	}
 	
 	export class LocalTextCheck {
 	    path: string;
@@ -209,22 +235,6 @@ export namespace main {
 	        this.content = source["content"];
 	        this.normalized = source["normalized"];
 	        this.size = source["size"];
-	    }
-	}
-	export class MacUserInfo {
-	    username: string;
-	    fullName: string;
-	    homeDir: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new MacUserInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.username = source["username"];
-	        this.fullName = source["fullName"];
-	        this.homeDir = source["homeDir"];
 	    }
 	}
 	export class UpdateHostInput {
@@ -265,6 +275,70 @@ export namespace monitor {
 	        this.version = source["version"];
 	        this.depends = source["depends"];
 	    }
+	}
+	export class CertInfo {
+	    name: string;
+	    domains: string[];
+	    issuer: string;
+	    notAfter: number;
+	    daysLeft: number;
+	    selfSigned: boolean;
+	    hasKey: boolean;
+	    keyName: string;
+	    size: number;
+	    mtime: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CertInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.domains = source["domains"];
+	        this.issuer = source["issuer"];
+	        this.notAfter = source["notAfter"];
+	        this.daysLeft = source["daysLeft"];
+	        this.selfSigned = source["selfSigned"];
+	        this.hasKey = source["hasKey"];
+	        this.keyName = source["keyName"];
+	        this.size = source["size"];
+	        this.mtime = source["mtime"];
+	    }
+	}
+	export class CertListResult {
+	    installed: boolean;
+	    noOpenssl: boolean;
+	    certs: CertInfo[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CertListResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.installed = source["installed"];
+	        this.noOpenssl = source["noOpenssl"];
+	        this.certs = this.convertValues(source["certs"], CertInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Container {
 	    id: string;
@@ -330,24 +404,6 @@ export namespace monitor {
 	        this.user = source["user"];
 	        this.line = source["line"];
 	        this.source = source["source"];
-	    }
-	}
-	export class DatabaseInfo {
-	    name: string;
-	    version: string;
-	    running: boolean;
-	    port: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DatabaseInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.version = source["version"];
-	        this.running = source["running"];
-	        this.port = source["port"];
 	    }
 	}
 	export class DiskInfo {
@@ -432,6 +488,66 @@ export namespace monitor {
 	        this.modTime = source["modTime"];
 	        this.owner = source["owner"];
 	        this.group = source["group"];
+	    }
+	}
+	export class JavaProc {
+	    pid: number;
+	    user: string;
+	    cpu: number;
+	    mem: number;
+	    rss: number;
+	    elapsed: number;
+	    args: string;
+	    jar: string;
+	    xms: number;
+	    xmx: number;
+	    ports: string[];
+	    deploy: string;
+	    service: string;
+	    container: string;
+	    image: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new JavaProc(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pid = source["pid"];
+	        this.user = source["user"];
+	        this.cpu = source["cpu"];
+	        this.mem = source["mem"];
+	        this.rss = source["rss"];
+	        this.elapsed = source["elapsed"];
+	        this.args = source["args"];
+	        this.jar = source["jar"];
+	        this.xms = source["xms"];
+	        this.xmx = source["xmx"];
+	        this.ports = source["ports"];
+	        this.deploy = source["deploy"];
+	        this.service = source["service"];
+	        this.container = source["container"];
+	        this.image = source["image"];
+	    }
+	}
+	export class JavaProcDetail {
+	    pid: number;
+	    workDir: string;
+	    exePath: string;
+	    readBytes: number;
+	    writeBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new JavaProcDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pid = source["pid"];
+	        this.workDir = source["workDir"];
+	        this.exePath = source["exePath"];
+	        this.readBytes = source["readBytes"];
+	        this.writeBytes = source["writeBytes"];
 	    }
 	}
 	export class LargeFile {
@@ -564,24 +680,6 @@ export namespace monitor {
 	        this.txPackets = source["txPackets"];
 	    }
 	}
-	export class NetWindow {
-	    rxBytes: number;
-	    txBytes: number;
-	    spanHours: number;
-	    complete: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new NetWindow(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.rxBytes = source["rxBytes"];
-	        this.txBytes = source["txBytes"];
-	        this.spanHours = source["spanHours"];
-	        this.complete = source["complete"];
-	    }
-	}
 	export class NetworkSnapshot {
 	    interfaces: NetInterface[];
 	    privateIPs: string[];
@@ -660,8 +758,6 @@ export namespace monitor {
 	    diskReadBytes: number;
 	    diskWriteBytes: number;
 	    diskIOCount: number;
-	    net1d: NetWindow;
-	    net7d: NetWindow;
 	
 	    static createFrom(source: any = {}) {
 	        return new Overview(source);
@@ -692,27 +788,7 @@ export namespace monitor {
 	        this.diskReadBytes = source["diskReadBytes"];
 	        this.diskWriteBytes = source["diskWriteBytes"];
 	        this.diskIOCount = source["diskIOCount"];
-	        this.net1d = this.convertValues(source["net1d"], NetWindow);
-	        this.net7d = this.convertValues(source["net7d"], NetWindow);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class ProcInfo {
 	    pid: number;
@@ -740,11 +816,30 @@ export namespace monitor {
 	        this.cmd = source["cmd"];
 	    }
 	}
+	export class RuntimeInfo {
+	    name: string;
+	    version: string;
+	    path: string;
+	    detail: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RuntimeInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.path = source["path"];
+	        this.detail = source["detail"];
+	    }
+	}
 	export class Service {
 	    name: string;
 	    load: string;
 	    active: string;
 	    sub: string;
+	    description: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Service(source);
@@ -756,6 +851,43 @@ export namespace monitor {
 	        this.load = source["load"];
 	        this.active = source["active"];
 	        this.sub = source["sub"];
+	        this.description = source["description"];
+	    }
+	}
+	export class ServiceDetail {
+	    id: string;
+	    description: string;
+	    loadState: string;
+	    activeState: string;
+	    subState: string;
+	    mainPid: string;
+	    execStart: string;
+	    fragmentPath: string;
+	    activeEnterTimestamp: string;
+	    memoryCurrent: string;
+	    cpuTimeNsec: string;
+	    restart: string;
+	    user: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServiceDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.description = source["description"];
+	        this.loadState = source["loadState"];
+	        this.activeState = source["activeState"];
+	        this.subState = source["subState"];
+	        this.mainPid = source["mainPid"];
+	        this.execStart = source["execStart"];
+	        this.fragmentPath = source["fragmentPath"];
+	        this.activeEnterTimestamp = source["activeEnterTimestamp"];
+	        this.memoryCurrent = source["memoryCurrent"];
+	        this.cpuTimeNsec = source["cpuTimeNsec"];
+	        this.restart = source["restart"];
+	        this.user = source["user"];
 	    }
 	}
 

@@ -1,8 +1,8 @@
 <template>
   <div class="tab-root" v-loading="loading && !list.length">
+    <EnlargableCard title="定时任务">
     <div class="toolbar">
-      <span class="title">定时任务</span>
-      <el-button size="small" @click="refresh">刷新</el-button>
+      <el-button size="large" @click="refresh">刷新</el-button>
     </div>
     <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
     <el-table :data="rows" height="100%" size="small" stripe empty-text="未发现定时任务">
@@ -25,6 +25,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </EnlargableCard>
   </div>
 </template>
 
@@ -32,6 +33,7 @@
 import { computed } from "vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 
 interface Cron {
   user: string;

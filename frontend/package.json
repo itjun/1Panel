@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vite build",
+    "type-check": "vue-tsc --noEmit",
     "preview": "vite preview",
     "verify:shell": "node scripts/verify-shell.mjs",
     "test:helpers": "node scripts/test-helpers.mjs"

@@ -1,18 +1,19 @@
 <template>
   <div class="tab-root" v-loading="loading && !rows.length">
+    <EnlargableCard title="进程">
     <div class="toolbar">
-      <el-radio-group v-model="view" size="small">
+      <el-radio-group v-model="view" size="large">
         <el-radio-button value="all">全部进程</el-radio-button>
         <el-radio-button value="java">Java 进程</el-radio-button>
       </el-radio-group>
       <el-input
         v-model="filter"
-        size="small"
+        size="large"
         clearable
         class="filter"
         placeholder="按命令/用户/PID 过滤..."
       />
-      <el-button size="small" @click="refresh">刷新</el-button>
+      <el-button size="large" @click="refresh">刷新</el-button>
       <span class="count">{{ filtered.length }} 条</span>
     </div>
     <el-alert v-if="error && !rows.length" type="error" :title="error" show-icon />
@@ -64,6 +65,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </EnlargableCard>
   </div>
 </template>
 
@@ -72,6 +74,7 @@ import { computed, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatDuration } from "@/utils/format";
 
@@ -132,11 +135,19 @@ async function copyCmd(cmd: string) {
   }
 }
 async function kill(row: ProcInfo, force: boolean) {
+  // 二次确认：普通/强制结束都弹窗，防止误操作
   try {
     await ElMessageBox.confirm(
-      `${force ? "强制结束" : "结束"}进程 ${row.pid}?\n${(row.cmd || "").slice(0, 80)}`,
-      "确认",
-      { type: "warning" }
+      `确定要${force ? "强制结束（SIGKILL）" : "结束（SIGTERM）"}进程 ${row.pid} 吗？\n${
+        (row.cmd || "").slice(0, 120)
+      }`,
+      force ? "强制结束进程" : "结束进程",
+      {
+        type: "warning",
+        confirmButtonText: force ? "强制结束" : "结束进程",
+        cancelButtonText: "取消",
+        confirmButtonClass: "el-button--danger",
+      }
     );
   } catch {
     return;

@@ -13,10 +13,10 @@ export type SubTab =
   | "processes"
   | "network"
   | "docker"
-  | "databases"
+  | "java"
   | "files"
-  | "disks"
   | "services"
+  | "certs"
   | "cron"
   | "packages"
   | "logs"
@@ -50,10 +50,34 @@ export const useAppStore = defineStore("app", () => {
   const groupList = ref<groups.Group[]>([]);
   const activeView = ref<ActiveView | null>(null);
   const loading = ref(false);
-  /** 主机名 → osRelease 映射（异步采集，供侧栏/概览页显示发行版图标） */
+  /** 主机名 → osRelease 映射（本地记录；启动只读盘，缺失再远程补） */
   const osReleaseMap = ref<Map<string, string>>(new Map());
+  /** 批量检查/更新图标进行中 */
+  const iconsRefreshing = ref(false);
   /** 软件包等模块切到终端时希望自动执行的命令 */
   const pendingTerminalCmd = ref<string | null>(null);
+
+  /** 系统菜单请求「新建分组」弹窗（跨组件通知 SidebarHost 处理） */
+  const pendingCreateGroup = ref(false);
+
+  /** 侧栏开/关（App 外壳与 MainArea 展开按钮共享，持久化到 localStorage） */
+  function loadSidebarOpen(): boolean {
+    try {
+      const v = localStorage.getItem("ipannel.sidebarOpen");
+      return v === null ? true : v === "1";
+    } catch {
+      return true;
+    }
+  }
+  const sidebarOpen = ref(loadSidebarOpen());
+  function setSidebarOpen(v: boolean) {
+    sidebarOpen.value = v;
+    try {
+      localStorage.setItem("ipannel.sidebarOpen", v ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
 
   /** 后台常挂的主机会话（按打开顺序） */
   const hostSessions = ref<Record<string, HostSession>>({});
@@ -87,9 +111,21 @@ export const useAppStore = defineStore("app", () => {
     loading.value = true;
     try {
       // ListHosts 已过滤 github/gitee/gitlab 等 Git 托管条目
-      const [h, g] = await Promise.all([api.listHosts(), api.listGroups()]);
+      // 图标记录与主机列表一起读本地，启动不再远程扫操作系统
+      const [h, g, icons] = await Promise.all([
+        api.listHosts(),
+        api.listGroups(),
+        api.listHostIcons().catch(() => [] as { host?: string; osRelease?: string }[]),
+      ]);
       hosts.value = h || [];
       groupList.value = g || [];
+      const m = new Map<string, string>();
+      for (const it of icons || []) {
+        if (it.host && it.osRelease) {
+          m.set(it.host, it.osRelease);
+        }
+      }
+      osReleaseMap.value = m;
       // 清理已不存在的主机会话
       const names = new Set((h || []).map((x) => x.name));
       for (const n of Object.keys(hostSessions.value)) {
@@ -98,23 +134,78 @@ export const useAppStore = defineStore("app", () => {
     } finally {
       loading.value = false;
     }
-    // 异步刷新发行版图标数据（不阻塞 UI，失败静默）
-    void loadOsReleases();
+    void fillMissingIcons();
   }
 
-  /** 采集所有主机 osRelease，供侧栏/概览页匹配发行版图标 */
-  async function loadOsReleases() {
+  function applyIconResults(
+    list: { host?: string; osRelease?: string }[] | null | undefined
+  ) {
+    const m = new Map(osReleaseMap.value);
+    for (const it of list || []) {
+      if (it.host && it.osRelease) {
+        m.set(it.host, it.osRelease);
+      }
+    }
+    osReleaseMap.value = m;
+  }
+
+  /** 只补齐还没有记录的主机（轻量读 os-release，失败静默） */
+  async function fillMissingIcons() {
+    const names = hosts.value.map((h) => h.name);
+    const missing = names.filter((n) => !osReleaseMap.value.get(n));
+    if (missing.length === 0) return;
     try {
-      const data = await api.listGroupOverview();
-      const m = new Map<string, string>();
-      for (const g of data || []) {
-        for (const hst of g.hosts || []) {
-          m.set(hst.name, hst.overview?.osRelease || "");
+      const list = await api.refreshMissingHostIcons();
+      applyIconResults(list);
+    } catch {
+      /* 补齐失败不影响启动 */
+    }
+  }
+
+  /** 打开主机概览拿到 osRelease 后，立刻更新侧栏图标 */
+  function rememberOsRelease(host: string, osRelease: string) {
+    const name = (host || "").trim();
+    const os = (osRelease || "").trim();
+    if (!name || !os) return;
+    if (osReleaseMap.value.get(name) === os) return;
+    const m = new Map(osReleaseMap.value);
+    m.set(name, os);
+    osReleaseMap.value = m;
+  }
+
+  /** 强制重新探测一台主机的发行版图标 */
+  async function refreshHostIcon(name: string): Promise<string> {
+    const r = await api.refreshHostIcon(name);
+    if (r?.osRelease) {
+      rememberOsRelease(r.host || name, r.osRelease);
+    }
+    if (r?.error) {
+      throw new Error(r.error);
+    }
+    return r?.osRelease || "";
+  }
+
+  /** 强制检查并更新全部主机图标 */
+  async function refreshAllHostIcons(): Promise<{
+    ok: number;
+    failed: { host: string; error: string }[];
+  }> {
+    iconsRefreshing.value = true;
+    try {
+      const list = await api.refreshAllHostIcons();
+      applyIconResults(list);
+      const failed: { host: string; error: string }[] = [];
+      let ok = 0;
+      for (const it of list || []) {
+        if (it.error) {
+          failed.push({ host: it.host || "", error: it.error });
+        } else if (it.osRelease) {
+          ok += 1;
         }
       }
-      osReleaseMap.value = m;
-    } catch {
-      /* 采不到则保持原映射，图标回退默认 Linux */
+      return { ok, failed };
+    } finally {
+      iconsRefreshing.value = false;
     }
   }
 
@@ -249,6 +340,15 @@ export const useAppStore = defineStore("app", () => {
     if (!next || next === oldName) return;
     await api.renameHost(oldName, next);
 
+    // 图标记录随别名迁移，避免侧栏闪回默认企鹅
+    if (osReleaseMap.value.has(oldName)) {
+      const m = new Map(osReleaseMap.value);
+      const os = m.get(oldName) || "";
+      m.delete(oldName);
+      if (os) m.set(next, os);
+      osReleaseMap.value = m;
+    }
+
     // 迁移后台会话 / 激活态（后端会关旧 SSH 连接）
     const sess = hostSessions.value[oldName];
     if (sess) {
@@ -306,11 +406,18 @@ export const useAppStore = defineStore("app", () => {
     groupNodes,
     loading,
     osReleaseMap,
+    iconsRefreshing,
     pendingTerminalCmd,
     hostSessions,
     runningHosts,
     runningOrder,
+    sidebarOpen,
+    setSidebarOpen,
+    pendingCreateGroup,
     refresh,
+    rememberOsRelease,
+    refreshHostIcon,
+    refreshAllHostIcons,
     isRunning,
     openHostTab,
     openGroupTab,

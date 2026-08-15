@@ -36,6 +36,19 @@ body,
   -webkit-app-region: no-drag;
 }
 
+// ElMessageBox 确认弹窗在窗口内水平垂直居中（EP 默认偏上 15vh）
+.el-overlay-message-box {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+.el-overlay-message-box::after {
+  display: none !important;
+}
+.el-overlay-message-box .el-message-box {
+  margin: 0 !important;
+}
+
 // 1Panel 卡片间隔
 .card-interval {
   margin-top: 7px;
@@ -196,25 +209,21 @@ body,
   overflow: hidden;
 }
 
-.top-bar {
-  height: 48px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  /* 侧栏占左边时，顶栏无需给红绿灯让位 */
-  padding: 0 16px;
-  background: #fff;
-  border-bottom: var(--panel-border, 1px solid #f2f2f2);
-}
-
-/* 侧栏收起后，红绿灯让位转移到顶栏左侧 */
-.app-shell.sidebar-collapsed .top-bar {
+/* 侧栏收起后，红绿灯让位转移到合并顶栏（host-header）左侧 */
+.app-shell.sidebar-collapsed .host-header {
   padding-left: 78px;
 }
 
-html.dark .top-bar {
-  background: var(--panel-main-bg-color-9, #2e313d);
+/* 主机视图顶部拖拽条：默认细条；侧栏收起时增高以容纳红绿灯与展开按钮 */
+.top-drag-strip {
+  flex-shrink: 0;
+  height: 12px;
+}
+.app-shell.sidebar-collapsed .top-drag-strip {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding-left: 84px;
 }
 
 .monitor-tags {
