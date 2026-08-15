@@ -22,8 +22,8 @@ export interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  // 默认 1Panel 白蓝明亮风格
-  theme: "light",
+  // 默认跟随系统外观自动切换亮（1Panel 白蓝）/暗
+  theme: "auto",
   fontFamily:
     '"Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif',
   fontSize: 14,
@@ -83,7 +83,7 @@ export const THEME_OPTIONS: {
 }[] = [
   {
     key: "light",
-    name: "明亮（推荐）",
+    name: "明亮",
     description: "1Panel 白蓝：#f4f4f4 底 + #005eeb 主色",
     swatch: { bg: "#f4f4f4", fg: "#1f2329", accent: "#005eeb" },
   },
@@ -95,7 +95,7 @@ export const THEME_OPTIONS: {
   },
   {
     key: "auto",
-    name: "跟随系统",
+    name: "跟随系统（推荐）",
     description: "根据系统外观自动切换亮/暗",
     swatch: {
       bg: "linear-gradient(135deg, #f4f4f4 50%, #242633 50%)",
