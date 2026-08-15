@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,46 @@ func (c *Collector) CollectDocker(host string, opt sshd.ConnectOption) (DockerIn
 	statsOut, _ := c.mgr.Run(host, opt, statsCmd)
 	info.Stats = parseContainerStats(string(statsOut))
 	return info, nil
+}
+
+// CollectDockerInspect 按需查询单个容器的 docker inspect 原始 JSON（悬浮卡片触发，不随列表轮询）
+// container 允许容器名或 ID；先做白名单校验再拼命令，避免注入
+func (c *Collector) CollectDockerInspect(host, container string, opt sshd.ConnectOption) (string, error) {
+	if !isValidContainerRef(container) {
+		return "", fmt.Errorf("非法容器名: %s", container)
+	}
+	cmd := fmt.Sprintf("docker inspect '%s' 2>&1", container)
+	out, err := c.mgr.Run(host, opt, cmd)
+	if err != nil {
+		return "", err
+	}
+	s := strings.TrimSpace(string(out))
+	// 校验输出确实是 JSON 数组（"No such object" 之类的报错文本直接返回错误）
+	if !strings.HasPrefix(s, "[") || !json.Valid([]byte(s)) {
+		return "", fmt.Errorf("docker inspect 失败: %s", firstLine(s))
+	}
+	return s, nil
+}
+
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
+// isValidContainerRef 容器名/ID 仅允许字母数字与 . _ - 组合（docker 命名规范）
+func isValidContainerRef(s string) bool {
+	if s == "" || len(s) > 200 {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+			c == '.' || c == '_' || c == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 func parseContainerList(s string) []Container {
