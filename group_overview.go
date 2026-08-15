@@ -35,7 +35,7 @@ func (a *App) ListGroupOverview() ([]GroupOverview, error) {
 	}
 	out := make([]GroupOverview, 0, len(buckets))
 	for _, b := range buckets {
-		snapshots := collectHostSnapshotsParallel(a.collector, b.hosts, 5)
+		snapshots := collectHostSnapshotsParallel(a.collector, b.hosts, 5, a.rememberOS)
 		out = append(out, GroupOverview{
 			GroupID:   b.id,
 			GroupName: b.name,
@@ -56,7 +56,7 @@ func (a *App) ListOneGroupOverview(groupID string) (GroupOverview, error) {
 			return GroupOverview{
 				GroupID:   b.id,
 				GroupName: b.name,
-				Hosts:     collectHostSnapshotsParallel(a.collector, b.hosts, 5),
+				Hosts:     collectHostSnapshotsParallel(a.collector, b.hosts, 5, a.rememberOS),
 			}, nil
 		}
 	}
@@ -115,7 +115,7 @@ func (a *App) buildGroupBuckets() ([]groupBucket, error) {
 }
 
 // collectHostSnapshotsParallel 并发采集多台主机，sem 限制并发数
-func collectHostSnapshotsParallel(c *monitor.Collector, hosts []sshconfig.HostConfig, limit int) []HostOverviewSnapshot {
+func collectHostSnapshotsParallel(c *monitor.Collector, hosts []sshconfig.HostConfig, limit int, remember func(host, osRelease string)) []HostOverviewSnapshot {
 	if len(hosts) == 0 {
 		return []HostOverviewSnapshot{}
 	}
@@ -147,6 +147,9 @@ func collectHostSnapshotsParallel(c *monitor.Collector, hosts []sshconfig.HostCo
 				return
 			}
 			snap.Overview = ov
+			if remember != nil && ov.OSRelease != "" {
+				remember(host.Name, ov.OSRelease)
+			}
 			// 只取根分区（mount == "/"），用于卡片显示
 			disks, _ := c.CollectDisks(host.Name, opt)
 			for _, d := range disks {

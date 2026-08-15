@@ -7,6 +7,7 @@
     :fill="meta.color"
     role="img"
     :aria-label="meta.name"
+    :title="title || meta.name"
   >
     <path :d="meta.path" />
   </svg>
@@ -147,11 +148,13 @@ const props = withDefaults(
     osRelease?: string;
     size?: number;
     className?: string;
+    title?: string;
   }>(),
   {
     osRelease: "",
     size: 24,
     className: "",
+    title: "",
   }
 );
 

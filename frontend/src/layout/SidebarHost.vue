@@ -3,9 +3,30 @@
     class="panel-sidebar"
     :class="{ 'is-resizing': resizing, 'is-host-dragging': !!dragState }"
     :style="{ width: width + 'px' }"
+    @contextmenu="onBlankContext"
   >
-    <!-- 顶部 header：红绿灯（78px 让位）在左；右侧放搜索 + 收起按钮 -->
-    <div class="sidebar-header drag-region">
+    <!-- 顶部 header：红绿灯让位后紧挨收起 + 搜索（Cursor 同款左簇） -->
+    <div class="sidebar-header drag-region" @dblclick="WindowToggleMaximise()">
+      <el-button
+        text
+        class="sidebar-collapse-btn no-drag"
+        title="收起侧栏"
+        @click="emit('collapse')"
+      >
+        <el-icon>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M9 3v18" />
+          </svg>
+        </el-icon>
+      </el-button>
       <el-button
         text
         class="sidebar-search-btn no-drag"
@@ -14,26 +35,16 @@
         @click="toggleSearch"
       >
         <el-icon>
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-            />
-          </svg>
-        </el-icon>
-      </el-button>
-      <el-button
-        text
-        class="sidebar-collapse-btn no-drag"
-        title="收起侧栏"
-        @click="emit('collapse')"
-      >
-        <el-icon>
-          <svg viewBox="0 0 1024 1024" fill="currentColor">
-            <path
-              fill-rule="evenodd"
-              d="M192 128c-35 0-64 29-64 64v640c0 35 29 64 64 64h640c35 0 64-29 64-64V192c0-35-29-64-64-64H192zM320 192v640h384V192H320z"
-            />
-            <path d="M600 380L400 512l200 132V380z" />
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
         </el-icon>
       </el-button>
@@ -51,16 +62,33 @@
       >
         <template #prefix>
           <el-icon>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-              />
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
           </el-icon>
         </template>
       </el-input>
       </div>
     </transition>
+
+    <!-- 固定首页项：回全部主机概览（替代原顶栏 Logo 点击） -->
+    <button
+      type="button"
+      class="home-item"
+      :class="{ 'is-active': !app.activeTab }"
+      @click="app.goHome()"
+    >
+      <el-icon><Monitor /></el-icon>
+      <span>全部主机</span>
+    </button>
 
     <div class="menu-wrap" ref="menuWrapRef">
       <!-- 不用 unique-opened：多分组可同时展开 -->
@@ -154,6 +182,7 @@
               :os-release="app.osReleaseMap.get(h.name) || ''"
               :size="16"
               class="host-ico"
+              :title="app.osReleaseMap.get(h.name) || '未识别发行版，打开主机或右键更新图标'"
             />
             <span class="menu-title">{{ h.name }}</span>
             <span
@@ -170,23 +199,13 @@
     </div>
 
     <div class="sidebar-footer">
-      <el-button
-        class="create-btn"
-        plain
-        type="primary"
-        :icon="Plus"
-        style="width: 100%"
-        @click="onCreateGroup"
-      >
-        新建分组
-      </el-button>
       <div class="host-count">
         共 {{ app.hosts.length }} 台
         <template v-if="app.runningHosts.length">
           · 运行中 {{ app.runningHosts.length }}
         </template>
       </div>
-      <div class="drag-hint">拖拽主机到分组标题可调整分组</div>
+      <div class="drag-hint">拖拽主机到分组标题可调整分组 · 右键空白处可添加</div>
     </div>
 
     <div
@@ -235,6 +254,9 @@
         <button type="button" class="ctx-item" @click="onCtxEdit">
           编辑…
         </button>
+        <button type="button" class="ctx-item" @click="onCtxRefreshIcon">
+          更新图标
+        </button>
         <div
           class="ctx-item ctx-has-sub"
           @mouseenter="groupSubOpen = true"
@@ -273,10 +295,37 @@
           删除…
         </button>
         <template v-if="app.isRunning(ctxMenu.host)">
+          <div class="ctx-divider" />
+          <button type="button" class="ctx-item" @click="onCtxInitZsh">
+            初始化 zsh…
+          </button>
           <button type="button" class="ctx-item is-danger" @click="onCtxStop">
-            断开连接
+            停止会话
           </button>
         </template>
+      </div>
+    </Teleport>
+
+    <!-- 侧栏空白处右键菜单：添加主机 / 新建分组 -->
+    <Teleport to="body">
+      <div
+        v-if="blankCtx"
+        class="host-ctx-backdrop"
+        @mousedown="blankCtx = null"
+        @contextmenu.prevent="blankCtx = null"
+      />
+      <div
+        v-if="blankCtx"
+        class="host-ctx-menu"
+        :style="{ left: blankCtx.x + 'px', top: blankCtx.y + 'px' }"
+        @mousedown.stop
+      >
+        <button type="button" class="ctx-item" @click="onBlankAddHost">
+          添加主机…
+        </button>
+        <button type="button" class="ctx-item" @click="onBlankCreateGroup">
+          新建分组…
+        </button>
       </div>
     </Teleport>
 
@@ -337,12 +386,17 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { Folder, Monitor, Plus } from "@element-plus/icons-vue";
+import { WindowToggleMaximise } from "@wailsjs/runtime/runtime";
+import { Folder, Monitor } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import DistroLogo from "@/components/DistroLogo.vue";
 
-const emit = defineEmits<{ collapse: [] }>();
+const emit = defineEmits<{
+  collapse: [];
+  addHost: [];
+}>();
 
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 320;
@@ -714,7 +768,7 @@ function onHostContext(e: MouseEvent, name: string) {
   let x = e.clientX;
   let y = e.clientY;
   const approxW = 168;
-  const approxH = 160;
+  const approxH = 192;
   if (x + approxW > window.innerWidth - pad) x = window.innerWidth - approxW - pad;
   if (y + approxH > window.innerHeight - pad) y = window.innerHeight - approxH - pad;
   if (x < pad) x = pad;
@@ -774,6 +828,18 @@ function resetEditForm() {
   editForm.user = "root";
   editForm.password = "";
   editSaving.value = false;
+}
+
+async function onCtxRefreshIcon() {
+  const host = ctxMenu.value?.host;
+  closeCtxMenu();
+  if (!host) return;
+  try {
+    const os = await app.refreshHostIcon(host);
+    ElMessage.success(`${host}：${os || "图标已更新"}`);
+  } catch (err) {
+    ElMessage.error(`更新图标失败: ${formatErr(err)}`);
+  }
 }
 
 function onCtxEdit() {
@@ -869,25 +935,96 @@ async function onCtxStop() {
   if (!host || !app.isRunning(host)) return;
   try {
     await ElMessageBox.confirm(
-      `断开「${host}」的后台连接？切换回来将重新加载。`,
-      "断开连接",
+      `停止「${host}」的后台会话？重新打开将重新加载。`,
+      "停止会话",
       {
         type: "warning",
-        confirmButtonText: "断开",
+        confirmButtonText: "停止",
         cancelButtonText: "取消",
       }
     );
     app.stopHost(host);
-    ElMessage.success("已断开");
+    ElMessage.success("已停止");
   } catch {
     /* cancel */
   }
 }
 
-function onCtxKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape" && ctxMenu.value) {
-    closeCtxMenu();
+/** 右键「初始化 zsh」：上传内置脚本并在该主机终端自动执行（原顶栏按钮迁移至此） */
+async function onCtxInitZsh() {
+  const host = ctxMenu.value?.host;
+  closeCtxMenu();
+  if (!host || !app.isRunning(host)) return;
+  try {
+    await ElMessageBox.confirm(
+      `将在主机「${host}」上安装 zsh + Oh My Zsh(ys 主题)+ 代码高亮/历史提示插件。\n` +
+        `需要该用户具备 sudo 免密权限,耗时约 1~5 分钟,会在终端实时显示输出。`,
+      "初始化 zsh 环境",
+      { type: "warning", confirmButtonText: "开始", cancelButtonText: "取消" }
+    );
+  } catch {
+    return; // 用户取消
   }
+  try {
+    const remotePath = await api.bootstrapZsh(host);
+    app.openHostTab(host); // 从任意视图触发都先切到该主机
+    app.sendTerminalCmd(`bash ${remotePath}; rm -f ${remotePath}`);
+    app.setSubTab(host, "terminal");
+    ElMessage.success("脚本已上传,正在终端执行…");
+  } catch (e) {
+    ElMessage.error(`上传脚本失败: ${formatErr(e)}`);
+  }
+}
+
+function onCtxKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape") {
+    if (ctxMenu.value) closeCtxMenu();
+    blankCtx.value = null;
+  }
+}
+
+/** 侧栏空白处右键：添加主机 / 新建分组 */
+const blankCtx = ref<{ x: number; y: number } | null>(null);
+function onBlankContext(e: MouseEvent) {
+  // 命中主机行/分组标题/按钮/输入框等交互元素时不接管
+  const el = (e.target as HTMLElement).closest(
+    ".host-item, .el-sub-menu__title, button, input, .sidebar-resize-handle, .home-item"
+  );
+  if (el) return;
+  e.preventDefault();
+  blankCtx.value = { x: e.clientX, y: e.clientY };
+}
+function onBlankAddHost() {
+  blankCtx.value = null;
+  emit("addHost");
+}
+function onBlankCreateGroup() {
+  blankCtx.value = null;
+  void onCreateGroup();
+}
+
+// 系统菜单「主机 → 新建分组…」经 store 标志转发到此处弹窗
+watch(
+  () => app.pendingCreateGroup,
+  (v) => {
+    if (v) {
+      app.pendingCreateGroup = false;
+      void onCreateGroup();
+    }
+  }
+);
+
+/** Cmd/Ctrl + 1~9：按侧栏纵向卡片顺序直接打开对应主机 */
+function onNumSwitchKeydown(e: KeyboardEvent) {
+  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+  const n = Number(e.key);
+  if (!Number.isInteger(n) || n < 1 || n > 9) return;
+  // 用过滤后的列表：与当前看到的纵向卡片顺序一致（搜索时同样生效）
+  const list = filtered.value.flatMap((node) => node.hosts);
+  const host = list[n - 1];
+  if (!host) return;
+  e.preventDefault();
+  app.openHostTab(host.name);
 }
 
 /** / 键唤起搜索：仅当焦点不在输入框/终端时触发 */
@@ -926,6 +1063,7 @@ onMounted(() => {
   autoFitWidth();
   window.addEventListener("keydown", onCtxKeydown);
   window.addEventListener("keydown", onSearchKeydown);
+  window.addEventListener("keydown", onNumSwitchKeydown);
 });
 
 onBeforeUnmount(() => {
@@ -934,6 +1072,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("pointercancel", onHostPointerUp);
   window.removeEventListener("keydown", onCtxKeydown);
   window.removeEventListener("keydown", onSearchKeydown);
+  window.removeEventListener("keydown", onNumSwitchKeydown);
 });
 
 watch(
@@ -965,29 +1104,40 @@ watch(
 
 .sidebar-header {
   flex-shrink: 0;
-  height: 48px;
+  /* 与 macOS 隐藏标题栏红绿灯同一行（TitleBarHidden 红绿灯约在 28–32px 带内居中） */
+  height: 32px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  /* 78px 左留白给 macOS 红绿灯按钮 */
+  justify-content: flex-start;
+  gap: 4px;
   padding: 0 8px 0 78px;
-  /* 透明：继承 .panel-sidebar 背景，避免半透明底色双层叠加造成与内容区色差 */
   background: transparent;
 }
 
-.sidebar-collapse-btn {
-  padding: 8px;
-  color: var(--el-text-color-secondary);
+.sidebar-collapse-btn,
+.sidebar-search-btn {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-regular);
+  --el-button-hover-text-color: var(--el-text-color-primary);
+  --el-button-hover-bg-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
+
+  :deep(.el-icon) {
+    font-size: 18px;
+  }
 }
 
-.sidebar-search-btn {
-  padding: 8px;
-  margin-right: 2px;
-  color: var(--el-text-color-secondary);
-
-  &.is-active {
-    color: var(--el-color-primary);
-  }
+.sidebar-search-btn.is-active {
+  color: var(--el-color-primary);
 }
 
 /* 搜索框展开/收起动画（配合 <transition name="search-slide">） */
@@ -1022,36 +1172,39 @@ watch(
   width: 100%;
 
   :deep(.el-input__wrapper) {
-    min-height: 36px;
-    padding: 4px 12px;
+    min-height: 34px;
+    padding: 4px 10px;
     border-radius: 8px;
-    box-shadow: 0 0 0 1px var(--el-border-color) inset;
-    background: var(--el-bg-color, #fff);
-    transition: box-shadow 0.15s ease;
+    background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
+    box-shadow: 0 0 0 1px
+      color-mix(in srgb, var(--el-color-primary) 14%, transparent) inset;
+    transition: box-shadow 0.15s ease, background 0.15s ease;
 
     &:hover {
-      box-shadow: 0 0 0 1px var(--el-color-primary-light-5) inset;
+      box-shadow: 0 0 0 1px
+        color-mix(in srgb, var(--el-color-primary) 28%, transparent) inset;
     }
     &.is-focus {
+      background: color-mix(in srgb, var(--el-color-primary) 12%, transparent);
       box-shadow: 0 0 0 1px var(--el-color-primary) inset;
     }
   }
 
   :deep(.el-input__inner) {
-    height: 28px;
-    line-height: 28px;
+    height: 26px;
+    line-height: 26px;
     font-size: 13px;
+    color: var(--el-text-color-primary);
   }
 
-  :deep(.el-input__prefix) {
-    font-size: 16px;
+  :deep(.el-input__inner::placeholder) {
     color: var(--el-text-color-secondary);
   }
-}
 
-html.dark .host-search {
-  :deep(.el-input__wrapper) {
-    background: var(--el-fill-color-blank, #1d1e1f);
+  :deep(.el-input__prefix),
+  :deep(.el-input__suffix) {
+    font-size: 16px;
+    color: var(--el-text-color-regular);
   }
 }
 
@@ -1199,8 +1352,31 @@ html.dark .host-search {
   }
 }
 
-.create-btn {
-  border-style: dashed !important;
+/* 固定首页项：视觉对齐 el-menu 的主机条目 */
+.home-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  width: calc(100% - 16px);
+  margin: 0 8px 4px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--el-fill-color-light);
+  }
+
+  &.is-active {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+    font-weight: 500;
+  }
 }
 
 .host-count {
