@@ -3,8 +3,12 @@
 # 供 CI 拉取后打包；build/bin/ 是产物，保持忽略。
 # appicon 的 icns/png/ico 由 appicon.svg 派生（wails build 每次重新生成），
 # 只入库 svg 源文件，生成物忽略，避免每次构建弄脏 git status。
-build/
+# 注意：须用 build/* 而非 build/，目录被整体排除时 ! 例外不生效
+build/*
 !build/appicon.svg
+!build/darwin/
+!build/windows/
+build/windows/icon.ico
 !build/darwin/
 !build/darwin/Info.plist
 !build/darwin/Info.dev.plist
