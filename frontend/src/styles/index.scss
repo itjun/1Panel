@@ -89,90 +89,108 @@ body,
   }
 }
 
-// 侧栏（对齐 1Panel Sidebar/index.scss；宽度可由组件 inline 覆盖，支持拖拽）
+// 侧栏：整体照搬 1Panel Sidebar/index.scss（宽度可由组件 inline 覆盖，支持拖拽）
 .panel-sidebar {
   width: var(--panel-menu-width, 180px);
   min-width: 180px;
   max-width: 320px;
   height: 100%;
-  background: var(--panel-menu-bg-color);
-  /* 半透明质感：背景带透明度 + 背景模糊（CSS 模拟毛玻璃）*/
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: var(--panel-menu-bg-color) no-repeat top;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   position: relative;
   box-sizing: border-box;
 
-  /* 侧栏顶部不再放品牌 Logo（已移至顶栏） */
   .menu-wrap {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: 2px 10px 0;
+    overflow-x: hidden;
   }
 
   .el-menu {
+    user-select: none;
+    background: none !important;
     border-right: none !important;
-    background: transparent !important;
     width: 100%;
+    padding: 0 7px;
 
-    .el-menu-item,
-    .el-sub-menu__title {
+    .el-menu-item {
       border-radius: 4px;
       background-color: var(--el-menu-item-bg-color) !important;
       margin: 7px 0;
       height: 42px !important;
-      line-height: 42px !important;
-      /* 与 panel-hover-card 一致：默认浅边框，悬停主色描边 */
-      border: 1px solid transparent;
       box-shadow: 0 0 4px rgba(0, 94, 235, 0.1);
       box-sizing: border-box;
-      color: var(--el-text-color-primary, #303133);
-      transition:
-        border-color 0.15s ease,
-        box-shadow 0.15s ease,
-        color 0.15s ease;
 
       &:hover {
-        color: var(--el-color-primary) !important;
-        border-color: var(--el-color-primary) !important;
-        box-shadow: 0 0 0 1px var(--el-color-primary);
         .el-icon {
-          color: var(--el-color-primary) !important;
+          color: var(--el-color-primary);
+        }
+
+        span {
+          color: var(--el-color-primary);
+        }
+      }
+
+      /* 选中：白色色块 + 主色内描边 + 左侧蓝竖线（1Panel 原版） */
+      &.is-active {
+        position: relative;
+        background-color: var(--el-menu-item-bg-color-active) !important;
+        box-shadow:
+          0 0 4px rgba(0, 94, 235, 0.1),
+          inset 0 0 0 2px var(--el-color-primary);
+
+        &::before {
+          position: absolute;
+          border-radius: 4px;
+          left: 12px;
+          width: 4px;
+          height: 14px;
+          content: "";
+          background: var(--el-color-primary);
         }
       }
     }
 
-    .el-menu-item.is-active {
-      background-color: var(--el-menu-item-bg-color-active) !important;
-      color: var(--el-color-primary) !important;
-      border-color: var(--el-color-primary) !important;
-      box-shadow: 0 0 0 1px var(--el-color-primary);
+    .el-sub-menu {
+      /* 分组下有主机被选中：仅分组标题文字/图标变主色（1Panel 原版） */
+      &.is-active .el-sub-menu__title {
+        span {
+          color: var(--el-color-primary);
+        }
 
-      &::before {
-        position: absolute;
+        .el-icon {
+          color: var(--el-color-primary);
+        }
+      }
+
+      .el-sub-menu__title {
+        background-color: var(--el-menu-item-bg-color) !important;
+        box-shadow: 0 0 4px rgba(0, 94, 235, 0.1);
+        margin-top: 7px;
+        height: 42px !important;
         border-radius: 4px;
-        left: 12px;
-        width: 4px;
-        height: 14px;
-        content: "";
-        background: var(--el-color-primary);
+
+        &:hover {
+          .el-icon {
+            color: var(--el-color-primary);
+          }
+
+          span {
+            color: var(--el-color-primary);
+          }
+        }
       }
 
-      /* 已选中再悬停：保持主色描边，不回退 */
-      &:hover {
-        border-color: var(--el-color-primary) !important;
-        box-shadow: 0 0 0 1px var(--el-color-primary);
-      }
-    }
+      .el-menu {
+        padding: 0;
 
-    .el-sub-menu .el-menu {
-      background: transparent !important;
-      .el-menu-item {
-        /* 嵌套主机项同样保留可悬停的边框 */
-        padding-left: 35px !important;
+        .el-menu-item {
+          box-shadow: none;
+          padding-left: 35px !important;
+        }
       }
     }
   }
