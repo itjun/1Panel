@@ -1,23 +1,22 @@
 <template>
   <div class="tab-root" v-loading="loading && !rows.length">
     <EnlargableCard title="进程">
-    <div class="toolbar">
-      <el-radio-group v-model="view" size="large">
-        <el-radio-button value="all">全部进程</el-radio-button>
-        <el-radio-button v-for="t in RUNTIME_TABS" :key="t.value" :value="t.value">
-          {{ t.label }}
-        </el-radio-button>
-      </el-radio-group>
-      <el-input
-        v-model="filter"
-        size="large"
-        clearable
-        class="filter"
-        :placeholder="view === 'all' ? '按命令/用户/PID 过滤...' : '按入口/命令/用户/PID 过滤...'"
-      />
-      <el-button size="large" @click="refresh">刷新</el-button>
-      <span class="count">{{ filtered.length }} 个</span>
-    </div>
+    <!-- 三级视图标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
+    <el-card class="tag-search-card">
+      <div class="tag-search-row">
+        <TagButton v-model="view" :buttons="viewButtons" />
+        <div class="tag-tools">
+          <el-input
+            v-model="filter"
+            clearable
+            class="filter"
+            :placeholder="view === 'all' ? '按命令/用户/PID 过滤...' : '按入口/命令/用户/PID 过滤...'"
+          />
+          <span class="count">{{ filtered.length }} 个</span>
+          <el-button :icon="Refresh" @click="refresh" />
+        </div>
+      </div>
+    </el-card>
     <el-alert v-if="error && !rows.length" type="error" :title="error" show-icon />
 
     <!-- 全部进程视图 -->
@@ -264,9 +263,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import TagButton from "@/components/TagButton.vue";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatDuration, formatDurationLong } from "@/utils/format";
 
@@ -320,6 +321,11 @@ const RUNTIME_TABS = [
 type RuntimeView = (typeof RUNTIME_TABS)[number]["value"];
 
 const view = ref<"all" | RuntimeView>("all");
+/** RouterButton 的按钮列表：全部进程 + 各运行时 */
+const viewButtons = [
+  { value: "all", label: "全部进程" },
+  ...RUNTIME_TABS,
+];
 const viewLabel = computed(() =>
   RUNTIME_TABS.find((t) => t.value === view.value)?.label || ""
 );
@@ -585,18 +591,27 @@ async function copyArgs() {
   min-height: 0;
   gap: 8px;
 }
-.toolbar {
+/* 三级标签卡：照搬 1Panel LayoutContent content-container__search（--el-card-padding: 8px 12px） */
+.tag-search-card {
+  --el-card-padding: 8px 12px;
+  flex-shrink: 0;
+}
+.tag-search-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-shrink: 0;
+}
+.tag-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .filter {
   width: 240px;
 }
 .count {
-  margin-left: auto;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }

@@ -1,47 +1,39 @@
 <template>
   <div class="tab-root">
     <EnlargableCard title="日志">
-    <div class="toolbar">
-      <el-radio-group v-model="currentLogType" size="large" @change="loadLog">
-        <el-radio-button
-          v-for="t in logTypes"
-          :key="t.key"
-          :value="t.key"
-        >
-          {{ t.label }}
-        </el-radio-button>
-      </el-radio-group>
-      <div class="toolbar-right">
-        <el-select
-          v-model="lines"
-          size="large"
-          style="width: 110px"
-          @change="loadLog"
-        >
-          <el-option :value="100" label="100 行" />
-          <el-option :value="500" label="500 行" />
-          <el-option :value="1000" label="1000 行" />
-          <el-option :value="2000" label="2000 行" />
-        </el-select>
-        <el-input
-          v-model="search"
-          size="large"
-          placeholder="搜索过滤"
-          clearable
-          style="width: 180px"
-          :prefix-icon="Search"
+    <!-- 三级日志类型标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
+    <el-card class="tag-search-card">
+      <div class="tag-search-row">
+        <TagButton
+          :model-value="currentLogType"
+          :buttons="logTypeButtons"
+          @update:model-value="(v: string) => { currentLogType = v; loadLog(); }"
         />
-        <el-button
-          size="large"
-          type="primary"
-          :icon="Refresh"
-          :loading="loading"
-          @click="loadLog"
-        >
-          刷新
-        </el-button>
+        <div class="tag-tools">
+          <el-select v-model="lines" style="width: 110px" @change="loadLog">
+            <el-option :value="100" label="100 行" />
+            <el-option :value="500" label="500 行" />
+            <el-option :value="1000" label="1000 行" />
+            <el-option :value="2000" label="2000 行" />
+          </el-select>
+          <el-input
+            v-model="search"
+            placeholder="搜索过滤"
+            clearable
+            style="width: 180px"
+            :prefix-icon="Search"
+          />
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            :loading="loading"
+            @click="loadLog"
+          >
+            刷新
+          </el-button>
+        </div>
       </div>
-    </div>
+    </el-card>
     <el-alert
       v-if="error"
       type="error"
@@ -77,6 +69,7 @@ import { Refresh, Search } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { monitor } from "@/api";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import TagButton from "@/components/TagButton.vue";
 
 const props = defineProps<{ host: string }>();
 
@@ -87,6 +80,8 @@ const logTypes = [
   { key: "nginx_access", label: "Nginx 访问" },
   { key: "nginx_error", label: "Nginx 错误" },
 ] as const;
+/** RouterButton 的按钮列表 */
+const logTypeButtons = logTypes.map((t) => ({ value: t.key, label: t.label }));
 
 const currentLogType = ref<string>("system");
 const lines = ref(500);
@@ -150,18 +145,22 @@ watch(
   display: flex;
   flex-direction: column;
 }
-.toolbar {
+/* 三级标签卡：照搬 1Panel LayoutContent content-container__search */
+.tag-search-card {
+  --el-card-padding: 8px 12px;
+  flex-shrink: 0;
+}
+.tag-search-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 10px;
 }
-.toolbar-right {
+.tag-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 .log-body {
   flex: 1;

@@ -78,9 +78,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--el-bg-color, #fff);
   border: 1px solid var(--el-border-color-light, #e4e7ed);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 12px 16px;
   box-sizing: border-box;
+  /* 与 1Panel el-card 一致的品牌蓝浅阴影 */
+  box-shadow: var(--el-box-shadow-light, 0 0 4px rgba(0, 94, 235, 0.1));
 }
 .enl-head {
   flex-shrink: 0;

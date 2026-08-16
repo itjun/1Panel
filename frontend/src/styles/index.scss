@@ -89,6 +89,33 @@ body,
   }
 }
 
+// 顶部标签页（照搬 1Panel Tabs/index.vue：EP 原生 card 风格 + 选中项底部主色线）
+.common-tabs {
+  .el-tabs__header {
+    margin: 0;
+  }
+  .el-tabs__item.is-active {
+    border-bottom-color: var(--el-color-primary) !important;
+    border-bottom-width: 2px !important;
+  }
+}
+
+// 三级标签按钮（照搬 1Panel common.scss：选中 primary 实底，未选中纯文字；
+// 微调：未选中悬浮时显示主色边框，提示可点击）
+.tag-button {
+  margin-right: 10px;
+  &.no-active {
+    background: none;
+    /* 透明边框占位，避免悬浮出现边框时按钮抖动 */
+    border: 1px solid transparent;
+    &:hover {
+      border-color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
+    }
+  }
+}
+
 // 侧栏：整体照搬 1Panel Sidebar/index.scss（宽度可由组件 inline 覆盖，支持拖拽）
 .panel-sidebar {
   width: var(--panel-menu-width, 180px);
