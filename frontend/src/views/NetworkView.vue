@@ -38,7 +38,7 @@
           class="ip-card panel-hover-card"
           :class="{ 'is-empty': !privateIPv4List.length }"
         >
-          <div class="ip-card__head">
+          <div class="ip-card__head enl-head-zone">
             <span class="ip-card__dot ip-card__dot--private" />
             <span class="ip-card__title">内网 IP</span>
           </div>
@@ -70,7 +70,7 @@
             'is-empty': !publicIPv4List.length && !snap.egressPublicIP,
           }"
         >
-          <div class="ip-card__head">
+          <div class="ip-card__head enl-head-zone">
             <span class="ip-card__dot ip-card__dot--public" />
             <span class="ip-card__title">公网 / 外网 IP</span>
           </div>
@@ -125,7 +125,7 @@
           class="ip-card panel-hover-card"
           :class="{ 'is-empty': !dockerIPv4List.length }"
         >
-          <div class="ip-card__head">
+          <div class="ip-card__head enl-head-zone">
             <span class="ip-card__dot ip-card__dot--docker" />
             <span class="ip-card__title">Docker 网桥 IP</span>
           </div>
@@ -155,7 +155,7 @@
           class="ip-card panel-hover-card"
           :class="{ 'is-empty': !snap.defaultGateway }"
         >
-          <div class="ip-card__head">
+          <div class="ip-card__head enl-head-zone">
             <span class="ip-card__dot ip-card__dot--gw" />
             <span class="ip-card__title">默认网关</span>
           </div>
@@ -182,7 +182,7 @@
         @toggle="(v) => (ifacesEnlarged = v)"
       >
       <el-card shadow="never" class="mb block-card panel-hover-card">
-        <div class="block-title">网卡</div>
+        <div class="block-title enl-head-zone">网卡</div>
         <el-table
           :data="snap.interfaces || []"
           size="small"
@@ -231,7 +231,7 @@
         shadow="never"
         class="mb block-card slow-card panel-hover-card"
       >
-        <div class="block-title warn">
+        <div class="block-title warn enl-head-zone">
           疑似网络卡顿连接
           <span class="sub">Send-Q/Recv-Q 积压 ≥ 8KB 或 RTT ≥ 200ms（已建立连接）</span>
         </div>
@@ -262,7 +262,7 @@
       <!-- 全部连接 -->
       <EnlargableCard bare title="TCP 连接" class="flex-fill">
       <el-card shadow="never" class="block-card panel-hover-card" style="height: 100%">
-        <div class="block-head">
+        <div class="block-head enl-head-zone">
           <div class="block-title">TCP 连接</div>
           <el-input
             v-model="filter"

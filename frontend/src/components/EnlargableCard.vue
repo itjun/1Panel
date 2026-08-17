@@ -2,9 +2,10 @@
   <div
     ref="rootRef"
     :class="[bare ? 'enl-bare' : 'enl-card', { 'is-enlarged': enlarged }]"
+    @dblclick="onRootDblclick"
   >
-    <!-- 标题模式：卡片头（标题 + 放大按钮） -->
-    <div v-if="!bare" class="enl-head" @dblclick="toggle">
+    <!-- 标题模式：卡片头（标题 + 放大按钮），双击由根元素统一处理 -->
+    <div v-if="!bare" class="enl-head">
       <span class="enl-title">{{ title }}</span>
       <el-button
         link
@@ -55,6 +56,22 @@ function toggle() {
   emit("toggle", enlarged.value);
   // 容器尺寸变化后通知表格/ECharts 自适应
   nextTick(() => window.dispatchEvent(new Event("resize")));
+}
+
+// 双击卡片顶部空白处切换最大化：
+// 仅命中头部区域（标题模式的 .enl-head，或 bare 内容里带 enl-head-zone 标记的头部元素）；
+// 双击按钮/输入框等交互控件不触发（双击它们是选词、点按钮等原有操作）
+function onRootDblclick(e: MouseEvent) {
+  const target = e.target as HTMLElement;
+  if (
+    target.closest(
+      "button, input, .el-button, .el-input, .el-checkbox, .el-select, .el-tabs__item, .el-dropdown"
+    )
+  ) {
+    return;
+  }
+  if (!target.closest(".enl-head, .enl-head-zone")) return;
+  toggle();
 }
 
 function onKeydown(e: KeyboardEvent) {
