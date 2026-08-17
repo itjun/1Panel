@@ -7,6 +7,7 @@ import { computed, onMounted, ref, nextTick, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
+import { formatErr } from "@/utils/format";
 
 export interface FileEntry {
   name: string;
@@ -104,9 +105,9 @@ export function useFileNavigation(
       opts?.onLoaded?.();
       syncTabLabel();
     } catch (e) {
-      error.value = String(e);
+      error.value = formatErr(e);
       entries.value = [];
-      ElMessage.error(`加载失败: ${e}`);
+      ElMessage.error(`加载失败: ${formatErr(e)}`);
     } finally {
       loading.value = false;
     }

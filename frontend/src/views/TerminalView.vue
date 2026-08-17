@@ -128,6 +128,7 @@ import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
+import { formatErr } from "@/utils/format";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
@@ -577,7 +578,7 @@ async function handleFileDrop(_x: number, _y: number, paths: string[]) {
     uploadState.value.done = true;
     writeRemotePathsToTerm(paths);
   } catch (e) {
-    uploadState.value.error = String(e);
+    uploadState.value.error = formatErr(e);
   } finally {
     // 完成 / 失败后 1.5s 自动淡出浮层
     uploadToastTimer = setTimeout(() => {

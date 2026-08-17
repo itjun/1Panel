@@ -68,6 +68,7 @@ import { ref, computed, watch, nextTick } from "vue";
 import { Refresh, Search } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { monitor } from "@/api";
+import { formatErr } from "@/utils/format";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import TagButton from "@/components/TagButton.vue";
 
@@ -117,7 +118,7 @@ async function loadLog() {
       lines.value
     );
   } catch (e) {
-    error.value = String(e);
+    error.value = formatErr(e);
   } finally {
     loading.value = false;
     // 日志最新内容在末尾，自动滚到底部

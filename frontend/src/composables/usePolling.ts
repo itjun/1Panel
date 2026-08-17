@@ -1,4 +1,5 @@
 import { onBeforeUnmount, ref, watch, type Ref } from "vue";
+import { formatErr } from "@/utils/format";
 
 /**
  * 轻量轮询：intervalMs=0 时只在 mount/deps 变化时拉一次。
@@ -29,7 +30,7 @@ export function usePolling<T>(
       error.value = null;
     } catch (e) {
       if (my !== gen) return;
-      error.value = String(e);
+      error.value = formatErr(e);
     } finally {
       if (my === gen) loading.value = false;
     }
