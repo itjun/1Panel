@@ -249,7 +249,7 @@ import { ElNotification, ElProgress } from "element-plus";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
-import { formatBytes } from "@/utils/format";
+import { formatBytes, formatErr } from "@/utils/format";
 import type { monitor } from "@wailsjs/go/models";
 
 const props = defineProps<{
@@ -489,15 +489,6 @@ function shortOs(osRelease: string): string {
   if (!s) return "";
   const m = s.match(/^([A-Za-z]+)/);
   return m ? m[1] : s.slice(0, 16);
-}
-
-function formatErr(e: unknown): string {
-  if (e == null) return "未知错误";
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message || String(e);
-  const any = e as { message?: string };
-  if (any.message) return any.message;
-  return String(e);
 }
 
 async function load() {

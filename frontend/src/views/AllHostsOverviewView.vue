@@ -127,6 +127,7 @@ import { Picture, Refresh } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import { formatErr } from "@/utils/format";
 import type { sshconfig } from "@/api";
 
 const app = useAppStore();
@@ -190,15 +191,6 @@ function showPort(port?: string): boolean {
 
 function openHost(name: string) {
   app.openHostTab(name);
-}
-
-function formatErr(e: unknown): string {
-  if (e == null) return "未知错误";
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message || String(e);
-  const any = e as { message?: string };
-  if (any.message) return any.message;
-  return String(e);
 }
 
 async function onRefreshOneIcon(name: string) {
