@@ -98,6 +98,12 @@ export interface CertListResult {
   certs: CertInfo[];
 }
 
+/** WS 模式终端会话信息（对应后端 main.TermWSInfo）*/
+export interface TermWSInfo {
+  sessionId: string;
+  url: string;
+}
+
 /** 证书+私钥本地配对校验结果（对应后端 main.CertPairCheck）*/
 export interface CertPairCheck {
   certPath: string;
@@ -259,6 +265,12 @@ export const api = {
     cols: number,
     rows: number
   ): Promise<string> => OpenTerminal(host, eventName, cols, rows),
+  /** WS 模式终端（低延迟数据通道）；连接失败时调用方回退 openTerminal */
+  openTerminalWS: (
+    host: string,
+    cols: number,
+    rows: number
+  ): Promise<TermWSInfo> => wailsMain<TermWSInfo>("OpenTerminalWS", host, cols, rows),
   writeTerminal: (sessionID: string, data: string) =>
     WriteTerminal(sessionID, data),
   resizeTerminal: (sessionID: string, cols: number, rows: number) =>
