@@ -137,28 +137,7 @@ html.dark {
         color: var(--panel-main-bg-color-3);
     }
 
-    .el-menu-item:hover,
-    .el-sub-menu__title:hover {
-        background: var(--panel-main-bg-color-8) !important;
-        /* 与亮色一致：悬停主色描边 */
-        border-color: var(--el-color-primary) !important;
-        box-shadow: 0 0 0 1px var(--el-color-primary) !important;
-    }
-
-    .el-menu .el-menu-item {
-        border: 1px solid transparent;
-        box-shadow: 0 0 4px rgba(36, 38, 51, 0.72);
-    }
-
-    .el-menu .el-sub-menu__title {
-        border: 1px solid transparent;
-        box-shadow: 0 0 4px rgba(36, 38, 51, 0.72);
-    }
-
-    .el-menu .el-menu-item.is-active {
-        border-color: var(--el-color-primary) !important;
-        box-shadow: 0 0 0 1px var(--el-color-primary) !important;
-    }
+    /* 菜单亮/暗差异全部由上方 --el-menu-* 变量承载（对齐 1Panel 原版，无组件层覆盖） */
 
     .el-overlay {
         background-color: rgb(46 49 61 / 80%);

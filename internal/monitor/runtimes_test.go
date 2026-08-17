@@ -24,3 +24,24 @@ func TestParseRuntimes(t *testing.T) {
 		t.Fatalf("bun 未安装时 path 应为空: %s", m["bun"].Path)
 	}
 }
+
+func TestAssembleRuntimesPythonName(t *testing.T) {
+	s := "=python3=\npath=/usr/bin/python3\nver=Python 3.12.3\n=python=\npath=/usr/bin/python\nver=Python 3.12.3\n"
+	list := assembleRuntimes(parseRuntimes(s))
+	var py *RuntimeInfo
+	for i := range list {
+		if list[i].Name == "python" {
+			py = &list[i]
+			break
+		}
+		if list[i].Name == "python3" {
+			t.Fatal("展示名不应保留 python3")
+		}
+	}
+	if py == nil {
+		t.Fatal("缺少 python 条目")
+	}
+	if py.Path != "/usr/bin/python3" || py.Version != "3.12.3" {
+		t.Fatalf("应优先 python3 的路径与版本: %+v", py)
+	}
+}

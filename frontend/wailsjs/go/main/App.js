@@ -74,6 +74,10 @@ export function CollectProcesses(arg1, arg2) {
   return window['go']['main']['App']['CollectProcesses'](arg1, arg2);
 }
 
+export function CollectRuntimeCounts(arg1) {
+  return window['go']['main']['App']['CollectRuntimeCounts'](arg1);
+}
+
 export function CollectRuntimeProcs(arg1, arg2) {
   return window['go']['main']['App']['CollectRuntimeProcs'](arg1, arg2);
 }

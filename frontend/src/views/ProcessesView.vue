@@ -1,23 +1,22 @@
 <template>
   <div class="tab-root" v-loading="loading && !rows.length">
     <EnlargableCard title="进程">
-    <div class="toolbar">
-      <el-radio-group v-model="view" size="large">
-        <el-radio-button value="all">全部进程</el-radio-button>
-        <el-radio-button v-for="t in RUNTIME_TABS" :key="t.value" :value="t.value">
-          {{ t.label }}
-        </el-radio-button>
-      </el-radio-group>
-      <el-input
-        v-model="filter"
-        size="large"
-        clearable
-        class="filter"
-        :placeholder="view === 'all' ? '按命令/用户/PID 过滤...' : '按入口/命令/用户/PID 过滤...'"
-      />
-      <el-button size="large" @click="refresh">刷新</el-button>
-      <span class="count">{{ filtered.length }} 个</span>
-    </div>
+    <!-- 三级视图标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
+    <el-card class="tag-search-card">
+      <div class="tag-search-row">
+        <TagButton v-model="view" :buttons="viewButtons" />
+        <div class="tag-tools">
+          <el-input
+            v-model="filter"
+            clearable
+            class="filter"
+            :placeholder="view === 'all' ? '按命令/用户/PID 过滤...' : '按入口/命令/用户/PID 过滤...'"
+          />
+          <span class="count">{{ filtered.length }} 个</span>
+          <el-button :icon="Refresh" @click="refresh" />
+        </div>
+      </div>
+    </el-card>
     <el-alert v-if="error && !rows.length" type="error" :title="error" show-icon />
 
     <!-- 全部进程视图 -->
@@ -264,9 +263,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
+import type { RuntimeCounts } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import TagButton from "@/components/TagButton.vue";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatDuration, formatDurationLong } from "@/utils/format";
 
@@ -309,13 +311,13 @@ interface JavaProcDetail {
 
 const props = defineProps<{ host: string }>();
 
-/** 运行时视图定义（与后端 runtimeCommFilter 对应） */
+/** 运行时视图定义（与后端 runtimeCommFilter 对应）；顺序即标签展示顺序 */
 const RUNTIME_TABS = [
   { value: "java", label: "Java" },
-  { value: "go", label: "Go" },
-  { value: "node", label: "Node" },
   { value: "bun", label: "Bun" },
   { value: "python", label: "Python" },
+  { value: "node", label: "Node" },
+  { value: "go", label: "Go" },
 ] as const;
 type RuntimeView = (typeof RUNTIME_TABS)[number]["value"];
 
@@ -336,6 +338,26 @@ const { data, error, loading, refresh } = usePolling<ProcInfo[] | RuntimeProc[]>
 
 /** 运行时视图下表格行就是 RuntimeProc；all 视图的行不含扩展字段 */
 const rows = computed(() => data.value || []);
+
+/** 各运行时正在运行的进程数（标签徽标，慢速轮询；go 识别需扫描 /proc 稍重） */
+const { data: runtimeCounts } = usePolling<RuntimeCounts>(
+  () => api.collectRuntimeCounts(props.host) as Promise<RuntimeCounts>,
+  30000,
+  () => [props.host]
+);
+
+/** RouterButton 的按钮列表：全部进程 + 各运行时（带运行中数量徽标） */
+const viewButtons = computed(() => [
+  { value: "all", label: "全部进程" },
+  ...RUNTIME_TABS.map((t) => ({
+    ...t,
+    // 当前选中的运行时直接用列表行数（随 5s 轮询实时更新），其余用计数接口
+    count:
+      view.value === t.value
+        ? rows.value.length
+        : runtimeCounts.value?.[t.value],
+  })),
+]);
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase();
   if (!q) return rows.value;
@@ -585,18 +607,27 @@ async function copyArgs() {
   min-height: 0;
   gap: 8px;
 }
-.toolbar {
+/* 三级标签卡：照搬 1Panel LayoutContent content-container__search（--el-card-padding: 8px 12px） */
+.tag-search-card {
+  --el-card-padding: 8px 12px;
+  flex-shrink: 0;
+}
+.tag-search-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-shrink: 0;
+}
+.tag-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .filter {
   width: 240px;
 }
 .count {
-  margin-left: auto;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }

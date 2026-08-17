@@ -79,20 +79,14 @@
       </div>
     </transition>
 
-    <!-- 固定首页项：回全部主机概览（替代原顶栏 Logo 点击） -->
-    <button
-      type="button"
-      class="home-item"
-      :class="{ 'is-active': !app.activeTab }"
-      @click="app.goHome()"
-    >
-      <el-icon><Monitor /></el-icon>
-      <span>全部主机</span>
-    </button>
-
     <div class="menu-wrap" ref="menuWrapRef">
       <!-- 不用 unique-opened：多分组可同时展开 -->
       <el-menu :default-active="activeId" :default-openeds="openedGroups">
+        <!-- 固定首页项：回全部主机概览（与主机项同样走 el-menu 选中逻辑） -->
+        <el-menu-item index="__home__" @click="app.goHome()">
+          <el-icon><Monitor /></el-icon>
+          <span>全部主机</span>
+        </el-menu-item>
         <el-sub-menu
           v-for="(node, gIdx) in filtered"
           :key="node.group?.id || UNGROUPED_ID"
@@ -102,14 +96,12 @@
             'is-drop-target':
               dropTargetId === (node.group?.id || UNGROUPED_ID),
           }"
-          :style="groupCssVars(node.group?.id || UNGROUPED_ID, gIdx)"
         >
           <template #title>
             <!-- data-drop-group：指针拖放命中区（整行标题） -->
             <div
               class="group-title-row"
               :data-drop-group="node.group?.id || UNGROUPED_ID"
-              :style="groupCssVars(node.group?.id || UNGROUPED_ID, gIdx)"
             >
               <span
                 class="group-color-dot"
@@ -121,19 +113,11 @@
                   ).accent,
                 }"
               />
-              <el-icon
-                class="group-folder-ico"
-                :style="{
-                  color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
-                }"
-              >
+              <el-icon class="group-folder-ico">
                 <Folder />
               </el-icon>
               <span
                 class="menu-title group-name"
-                :style="{
-                  color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
-                }"
                 @click.stop="
                   openGroup(
                     node.group?.id || UNGROUPED_ID,
@@ -166,13 +150,6 @@
             :class="{
               'is-running': app.isRunning(h.name),
               'is-drag-source': dragState?.host === h.name,
-            }"
-            :style="{
-              ...groupCssVars(node.group?.id || UNGROUPED_ID, gIdx),
-              borderLeftColor: groupColor(
-                node.group?.id || UNGROUPED_ID,
-                gIdx
-              ).accent,
             }"
             @pointerdown="onHostPointerDown($event, h.name)"
             @click="onHostClick(h.name)"
@@ -442,16 +419,6 @@ function groupColor(groupId: string, index: number): GroupColor {
   return GROUP_PALETTE[index % GROUP_PALETTE.length];
 }
 
-/** CSS 变量：写到标题行 / 主机行，避免依赖 el-sub-menu 根节点继承 */
-function groupCssVars(groupId: string, index: number): Record<string, string> {
-  const c = groupColor(groupId, index);
-  return {
-    "--g-accent": c.accent,
-    "--g-soft": c.soft,
-    "--g-ink": c.ink,
-  };
-}
-
 const app = useAppStore();
 const query = ref("");
 /** 搜索框展开态：收起即清空 query（无残留过滤） */
@@ -476,7 +443,8 @@ interface DragState {
 }
 const dragState = ref<DragState | null>(null);
 
-const activeId = computed(() => app.activeTabId || "");
+/** 无激活主机时选中首页项（与主机项一样由 el-menu 驱动高亮） */
+const activeId = computed(() => app.activeTabId || "__home__");
 
 const openedGroups = computed(() =>
   app.groupNodes.map((n) => n.group?.id || UNGROUPED_ID)
@@ -988,7 +956,7 @@ const blankCtx = ref<{ x: number; y: number } | null>(null);
 function onBlankContext(e: MouseEvent) {
   // 命中主机行/分组标题/按钮/输入框等交互元素时不接管
   const el = (e.target as HTMLElement).closest(
-    ".host-item, .el-sub-menu__title, button, input, .sidebar-resize-handle, .home-item"
+    ".host-item, .el-menu-item, .el-sub-menu__title, button, input, .sidebar-resize-handle"
   );
   if (el) return;
   e.preventDefault();
@@ -1208,36 +1176,7 @@ watch(
   }
 }
 
-/* ---------- 分组分色（颜色以内联 style 为准，避免 EP/全局主色覆盖） ---------- */
-.group-sub {
-  /* 兜底，正常由 :style CSS 变量覆盖 */
-  --g-accent: #909399;
-  --g-soft: rgba(144, 147, 153, 0.12);
-  --g-ink: #606266;
-}
-
-/* 标题外层 li 上的 style 变量 → 作用于 title */
-.group-sub :deep(> .el-sub-menu__title) {
-  background: var(--g-soft) !important;
-  border: 1px solid transparent !important;
-  border-left: 3px solid var(--g-accent) !important;
-  box-shadow: none !important;
-  padding-left: 9px !important;
-}
-
-.group-sub :deep(> .el-sub-menu__title:hover) {
-  background: var(--g-soft) !important;
-  border-color: transparent !important;
-  border-left-color: var(--g-accent) !important;
-  box-shadow: none !important;
-  color: var(--g-ink) !important;
-}
-
-.group-sub :deep(> .el-sub-menu__title .el-sub-menu__icon-arrow) {
-  color: var(--g-ink) !important;
-  opacity: 0.9;
-}
-
+/* ---------- 分组标题行内容 ---------- */
 .group-title-row {
   display: flex;
   align-items: center;
@@ -1283,14 +1222,10 @@ watch(
   border-radius: 9px;
 }
 
-/* 主机项：左侧色条以内联 borderLeftColor 为准 */
+/* 主机项：仅保留拖拽与运行态标记，视觉完全走全局 panel-sidebar 样式 */
 .host-item {
   cursor: grab;
   touch-action: none;
-  border: 1px solid transparent !important;
-  border-left: 3px solid var(--g-accent, #909399) !important;
-  margin-left: 4px !important;
-  box-shadow: none !important;
 
   .host-ico {
     margin-right: 8px;
@@ -1308,23 +1243,6 @@ watch(
   &.is-drag-source {
     opacity: 0.45;
   }
-}
-
-/* 覆盖全局 panel-sidebar 的主色 hover/active 描边 */
-.group-sub :deep(.el-menu-item.host-item:hover) {
-  background: var(--g-soft) !important;
-  border-color: transparent !important;
-  border-left-color: var(--g-accent) !important;
-  box-shadow: none !important;
-  color: var(--g-ink) !important;
-}
-
-.group-sub :deep(.el-menu-item.host-item.is-active) {
-  background: var(--g-soft) !important;
-  border-color: transparent !important;
-  border-left-color: var(--g-accent) !important;
-  box-shadow: inset 0 0 0 1px var(--g-accent) !important;
-  color: var(--g-ink) !important;
 }
 
 .run-dot {
@@ -1349,33 +1267,6 @@ watch(
   .group-title-row {
     flex: 1;
     min-width: 0;
-  }
-}
-
-/* 固定首页项：视觉对齐 el-menu 的主机条目 */
-.home-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  width: calc(100% - 16px);
-  margin: 0 8px 4px;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-  cursor: pointer;
-
-  &:hover {
-    background: var(--el-fill-color-light);
-  }
-
-  &.is-active {
-    color: var(--el-color-primary);
-    background: var(--el-color-primary-light-9);
-    font-weight: 500;
   }
 }
 

@@ -42,6 +42,8 @@ export function CollectPackages(arg1:string):Promise<Array<monitor.AptPackage>>;
 
 export function CollectProcesses(arg1:string,arg2:number):Promise<Array<monitor.ProcInfo>>;
 
+export function CollectRuntimeCounts(arg1:string):Promise<monitor.RuntimeCounts>;
+
 export function CollectRuntimeProcs(arg1:string,arg2:string):Promise<Array<monitor.RuntimeProc>>;
 
 export function CollectRuntimes(arg1:string):Promise<Array<monitor.RuntimeInfo>>;

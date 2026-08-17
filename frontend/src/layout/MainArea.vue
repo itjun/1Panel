@@ -50,20 +50,12 @@
         </div>
 
         <div class="router-tabs">
-          <el-radio-group
+          <!-- 顶部一级标签：1Panel RouterButton 组件（照搬） -->
+          <RouterButton
             :model-value="sessionOf(hid)?.subTab || 'overview'"
-            size="large"
-            @change="(v: string | number | boolean | undefined) => onSubChange(hid, v)"
-          >
-            <el-radio-button
-              v-for="t in subTabs"
-              :key="t.value"
-              class="router-tab-btn"
-              :value="t.value"
-            >
-              {{ t.label }}
-            </el-radio-button>
-          </el-radio-group>
+            :buttons="subTabs"
+            @update:model-value="(v: string) => onSubChange(hid, v)"
+          />
         </div>
 
         <div
@@ -146,6 +138,7 @@ import LogsView from "@/views/LogsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
 import SidebarExpandBtn from "@/components/SidebarExpandBtn.vue";
+import RouterButton from "@/components/RouterButton.vue";
 
 const app = useAppStore();
 
@@ -231,57 +224,10 @@ function onSubChange(hid: string, v: string | number | boolean | undefined) {
     color: var(--el-text-color-secondary);
   }
 }
-/* 像素级对齐 1Panel RouterButton：按钮紧贴排列（无缝），容器零内边距，
-   整条高度 = 按钮高度 40px；按钮间距由各自 19px 横向内边距撑出 */
+/* 顶部一级标签容器：间距与 1Panel 一致（组件本体在 components/RouterButton.vue） */
 .router-tabs {
   flex-shrink: 0;
-  margin: 0 20px;
-  padding: 0;
-  background: var(--panel-button-active, #fff);
-  border-radius: 4px;
-  box-shadow: var(--el-box-shadow-light, 0 0 12px rgba(0, 0, 0, 0.12));
-
-  :deep(.el-radio-group) {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    /* 单行时与 1Panel 完全一致；标签多到换行时留出行距，避免两行贴死 */
-    row-gap: 8px;
-    padding: 0;
-  }
-
-  :deep(.router-tab-btn) {
-    flex: none;
-    margin: 0 !important;
-  }
-
-  :deep(.router-tab-btn .el-radio-button__inner) {
-    min-width: 100px;
-    height: 40px;
-    padding: 0 19px;
-    font-size: 14px;
-    /* EP 原生 inner 是 line-height:1 的 inline-block，清掉垂直 padding 后文字会顶在上方，
-       改用 flex 保证水平垂直居中；border-box 避免 2px 边框撑大选中按钮 */
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    background-color: var(--panel-button-active, #fff) !important;
-    box-shadow: none !important;
-    border: 2px solid transparent !important;
-    border-radius: 4px !important;
-    color: var(--el-text-color-regular) !important;
-    font-weight: 400;
-  }
-
-  :deep(.router-tab-btn .el-radio-button__original-radio:checked + .el-radio-button__inner),
-  :deep(.router-tab-btn.is-active .el-radio-button__inner) {
-    color: var(--panel-button-text-color, var(--el-color-primary)) !important;
-    background-color: var(--panel-button-bg-color, #fff) !important;
-    border-color: var(--panel-color-primary, var(--el-color-primary)) !important;
-    border-radius: 4px !important;
-    box-shadow: none !important;
-  }
+  margin: 0 20px 7px;
 }
 .content-pad {
   flex: 1;

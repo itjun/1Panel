@@ -371,7 +371,7 @@
             </div>
             <div class="rt-list">
               <div v-for="r in runtimes" :key="r.name" class="rt-row">
-                <span class="rt-chip" :class="'rt-' + r.name">{{ rtChip(r.name) }}</span>
+                <img class="rt-logo" :src="runtimeLogo(r.name)" :alt="r.name" />
                 <span class="rt-name">{{ r.name }}</span>
                 <el-tag v-if="r.version" size="small" type="success" effect="light">
                   {{ r.version }}
@@ -522,6 +522,11 @@ import {
 } from "@/utils/format";
 import VChartPie from "@/components/VChartPie.vue";
 import VChartLine from "@/components/VChartLine.vue";
+import javaLogo from "@/assets/runtime/java-original.svg";
+import goLogo from "@/assets/runtime/go-original.svg";
+import nodeLogo from "@/assets/runtime/nodejs-original.svg";
+import pythonLogo from "@/assets/runtime/python-original.svg";
+import bunLogo from "@/assets/runtime/bun-original.svg";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
@@ -540,22 +545,24 @@ const installedRuntimes = computed(
   () => runtimes.value.filter((r) => r.version).length
 );
 
-/** 从 python3 / python 等原始名映射展示名 */
-function rtChip(name: string): string {
-  switch (name) {
-    case "java":
-      return "J";
-    case "go":
-      return "Go";
-    case "python":
-      return "Py";
-    case "node":
-      return "Nx";
-    case "bun":
-      return "Bun";
-    default:
-      return name.slice(0, 2).toUpperCase();
+/** 运行环境 Logo（devicon 彩色版） */
+const RUNTIME_LOGOS: Record<string, string> = {
+  java: javaLogo,
+  go: goLogo,
+  node: nodeLogo,
+  python: pythonLogo,
+  python3: pythonLogo,
+  bun: bunLogo,
+};
+
+function runtimeLogo(name: string): string {
+  if (RUNTIME_LOGOS[name]) {
+    return RUNTIME_LOGOS[name];
   }
+  if (name.startsWith("python")) {
+    return pythonLogo;
+  }
+  return "";
 }
 
 async function loadRuntimes() {
@@ -1037,32 +1044,11 @@ onBeforeUnmount(() => {
     border-bottom: none;
   }
 }
-.rt-chip {
+.rt-logo {
   flex-shrink: 0;
   width: 34px;
-  height: 22px;
-  line-height: 22px;
-  border-radius: 4px;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: #fff;
-  background: var(--el-color-info);
-}
-.rt-chip.rt-java {
-  background: #e76f00;
-}
-.rt-chip.rt-go {
-  background: #00add8;
-}
-.rt-chip.rt-python {
-  background: #3776ab;
-}
-.rt-chip.rt-node {
-  background: #43853e;
-}
-.rt-chip.rt-bun {
-  background: #3d658f;
+  height: 24px;
+  object-fit: contain;
 }
 .rt-name {
   flex-shrink: 0;

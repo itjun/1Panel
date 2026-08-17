@@ -51,8 +51,11 @@ done'`
 		return nil, err
 	}
 	found := parseRuntimes(string(out))
+	return assembleRuntimes(found), nil
+}
 
-	// python：python3 优先，缺失时用 python；展示名统一为 python
+// assembleRuntimes 固定顺序输出 5 项；python3 优先于 python，展示名统一为 python
+func assembleRuntimes(found map[string]*RuntimeInfo) []RuntimeInfo {
 	py := found["python3"]
 	if py == nil {
 		py = found["python"]
@@ -62,7 +65,9 @@ done'`
 	for _, name := range []string{"java", "go", "python", "node", "bun"} {
 		if name == "python" {
 			if py != nil {
-				list = append(list, *py)
+				item := *py
+				item.Name = "python"
+				list = append(list, item)
 			} else {
 				list = append(list, RuntimeInfo{Name: "python"})
 			}
@@ -74,7 +79,7 @@ done'`
 			list = append(list, RuntimeInfo{Name: name})
 		}
 	}
-	return list, nil
+	return list
 }
 
 // parseRuntimes 解析 "=java=" 分段输出，返回 name -> 信息
