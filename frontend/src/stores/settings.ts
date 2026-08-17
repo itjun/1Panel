@@ -9,6 +9,8 @@ export interface AppSettings {
   fontSize: number; // UI 字号 px 12~18
   terminalFontSize: number; // 终端字号 px 11~20
   terminalFontFamily: string;
+  /** 同时后台挂起的主机会话数上限（4~24） */
+  maxRunningHosts: number;
 }
 
 export const FONT_OPTIONS: { label: string; value: string }[] = [
@@ -113,6 +115,7 @@ const DEFAULTS: AppSettings = {
   fontSize: 14,
   terminalFontSize: 13,
   terminalFontFamily: TERMINAL_FONT_OPTIONS[0].value,
+  maxRunningHosts: 12,
 };
 
 function load(): AppSettings {
@@ -138,6 +141,11 @@ function load(): AppSettings {
       ),
       terminalFontFamily:
         parsed.terminalFontFamily || DEFAULTS.terminalFontFamily,
+      maxRunningHosts: clamp(
+        Number(parsed.maxRunningHosts) || DEFAULTS.maxRunningHosts,
+        4,
+        24
+      ),
     };
   } catch {
     return { ...DEFAULTS };
@@ -155,6 +163,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const fontSize = ref(initial.fontSize);
   const terminalFontSize = ref(initial.terminalFontSize);
   const terminalFontFamily = ref(initial.terminalFontFamily);
+  const maxRunningHosts = ref(initial.maxRunningHosts);
 
   function persist() {
     const data: AppSettings = {
@@ -163,6 +172,7 @@ export const useSettingsStore = defineStore("settings", () => {
       fontSize: fontSize.value,
       terminalFontSize: terminalFontSize.value,
       terminalFontFamily: terminalFontFamily.value,
+      maxRunningHosts: maxRunningHosts.value,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem("ipannel.theme", theme.value);
@@ -240,12 +250,18 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  function setMaxRunningHosts(v: number) {
+    maxRunningHosts.value = clamp(v, 4, 24);
+    persist();
+  }
+
   function resetSettings() {
     theme.value = DEFAULTS.theme;
     fontFamily.value = DEFAULTS.fontFamily;
     fontSize.value = DEFAULTS.fontSize;
     terminalFontSize.value = DEFAULTS.terminalFontSize;
     terminalFontFamily.value = DEFAULTS.terminalFontFamily;
+    maxRunningHosts.value = DEFAULTS.maxRunningHosts;
     applyAll();
     persist();
   }
@@ -269,12 +285,14 @@ export const useSettingsStore = defineStore("settings", () => {
     fontSize,
     terminalFontSize,
     terminalFontFamily,
+    maxRunningHosts,
     setTheme,
     cycleTheme,
     setFontFamily,
     setFontSize,
     setTerminalFontSize,
     setTerminalFontFamily,
+    setMaxRunningHosts,
     resetSettings,
     applyAll,
   };

@@ -124,6 +124,25 @@
           root@host:~$ ls -la /var/log
         </div>
       </section>
+
+      <!-- 主机会话上限 -->
+      <section class="settings-section">
+        <div class="sec-row">
+          <h3 class="sec-title">主机会话上限</h3>
+          <span class="sec-value">{{ settings.maxRunningHosts }} 台</span>
+        </div>
+        <p class="sec-desc">
+          同时在后台挂起的主机数。超限时自动关闭最早打开的非激活会话。范围 4～24。
+        </p>
+        <el-slider
+          :model-value="settings.maxRunningHosts"
+          :min="4"
+          :max="24"
+          :step="2"
+          show-stops
+          @update:model-value="onMaxRunningHosts"
+        />
+      </section>
     </div>
 
     <template #footer>
@@ -171,6 +190,11 @@ function onFontSize(v: number | number[]) {
 function onTermFontSize(v: number | number[]) {
   const n = Array.isArray(v) ? v[0] : v;
   settings.setTerminalFontSize(n);
+}
+
+function onMaxRunningHosts(v: number | number[]) {
+  const n = Array.isArray(v) ? v[0] : v;
+  settings.setMaxRunningHosts(n);
 }
 </script>
 
