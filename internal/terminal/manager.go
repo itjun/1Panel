@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 
@@ -19,13 +20,18 @@ import (
 //   - 每个 Tab 创建一个 Session（基于 ssh.Client 的独立 channel/PTY）
 //   - 复用 sshd.Manager 的连接池，避免重复鉴权
 //   - 用 SSH 协议的 RequestPty 申请真正的伪终端，远程 shell 会正常回显输入
-//   - stdout 通过 Wails 事件推送给前端
+//   - 数据通道两种模式：WS 模式（localhost WebSocket 二进制帧，低延迟，见 ws.go）
+//     和 Events 模式（Wails 事件推送，作为 WS 不可用时的回退）
 //   - 关闭 Tab → 关 session → 远程 shell 收到 EOF 退出
 type Manager struct {
 	ctx      context.Context
 	sshMgr   *sshd.Manager
 	mu       sync.Mutex
 	sessions map[string]*Session
+
+	// WS 数据通道服务（懒启动，仅监听 127.0.0.1，见 ws.go）
+	wsMu   sync.Mutex
+	wsAddr string
 }
 
 // Session 一个终端会话，对应一个 SSH channel + PTY
@@ -37,6 +43,12 @@ type Session struct {
 	cancel  context.CancelFunc // 用于停止输出 goroutine
 	mu      sync.Mutex
 	closed  bool
+
+	// WS 模式字段（Events 模式下为零值，见 ws.go）
+	wsToken  string
+	wsStdout io.Reader       // 前端 attach 后才开始读取
+	wsConn   *websocket.Conn // attach 后填充
+	attached bool
 }
 
 // NewManager 创建终端管理器
@@ -53,15 +65,14 @@ func (m *Manager) Init(ctx context.Context) {
 	m.ctx = ctx
 }
 
-// Open 启动一个新终端会话
-// host 是目标主机别名，eventName 是前端用来接收输出的 Wails 事件名
+// openShell 建立 SSH 会话、申请 PTY 并启动远程登录 shell（Events / WS 两种模式共用）
 // cols/rows 必须是前端 fit 后的真实尺寸；错误尺寸会导致远程 shell 开局乱码（如一串 ]）
-func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, cols, rows int) (string, error) {
+func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int) (*ssh.Session, io.WriteCloser, io.Reader, error) {
 	if m.ctx == nil {
-		return "", fmt.Errorf("终端管理器未初始化")
+		return nil, nil, nil, fmt.Errorf("终端管理器未初始化")
 	}
 	if m.sshMgr == nil {
-		return "", fmt.Errorf("SSH 管理器未注入")
+		return nil, nil, nil, fmt.Errorf("SSH 管理器未注入")
 	}
 	if cols < 20 {
 		cols = 80
@@ -73,12 +84,12 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	// 复用 sshd.Manager 的连接池拿到 *ssh.Client
 	client, err := m.sshMgr.GetClient(host, opt)
 	if err != nil {
-		return "", fmt.Errorf("连接 %s 失败: %w", host, err)
+		return nil, nil, nil, fmt.Errorf("连接 %s 失败: %w", host, err)
 	}
 
 	session, err := client.NewSession()
 	if err != nil {
-		return "", fmt.Errorf("创建 SSH 会话失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("创建 SSH 会话失败: %w", err)
 	}
 
 	// 申请 PTY：这是终端能正常回显/补全/支持全屏程序的关键
@@ -86,29 +97,39 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	// RequestPty(term, h, w) = rows, cols
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
+		ssh.TTY_OP_ISPEED: 115200,
+		ssh.TTY_OP_OSPEED: 115200,
 	}
 	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("请求 PTY 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("请求 PTY 失败: %w", err)
 	}
 
 	stdin, err := session.StdinPipe()
 	if err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("获取 stdin 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("获取 stdin 失败: %w", err)
 	}
 	stdout, err := session.StdoutPipe()
 	if err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("获取 stdout 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("获取 stdout 失败: %w", err)
 	}
 
 	// 启动远程登录 shell
 	if err := session.Shell(); err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("启动 shell 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("启动 shell 失败: %w", err)
+	}
+	return session, stdin, stdout, nil
+}
+
+// Open 启动一个 Events 模式终端会话（WS 不可用时的回退路径）
+// host 是目标主机别名，eventName 是前端用来接收输出的 Wails 事件名
+func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, cols, rows int) (string, error) {
+	session, stdin, stdout, err := m.openShell(host, opt, cols, rows)
+	if err != nil {
+		return "", err
 	}
 
 	id := uuid.NewString()
@@ -223,13 +244,20 @@ func (m *Manager) CloseAll() {
 }
 
 // pumpToEvent 把远程 shell 的 stdout 读取并推送到 Wails 事件
-// 优化：shell 回显时会产生多次小碎片输出（每个按键可能触发多次 Read），
-// 如果每次 Read 都 EventsEmit 会让前端被高频 IPC 事件淹没，导致输入卡顿。
-// 这里用「reader + 定时器」双 goroutine 模型：
-//   - reader goroutine 持续读 stdout，把数据送入 readCh
-//   - 主循环 select：有新数据就攒进 batch；12ms 没有新数据就把攒的批量发出去
-// 这样碎片化输出被合并，IPC 频率从「每 Read 一次」降到「每 12ms 窗口一次」
+//
+// 延迟与吞吐的平衡（leading-edge 合并）：
+//   - 交互打字：回显是「空闲后到来的一小段数据」，必须立即发，任何合并窗口都是纯延迟；
+//   - 流式输出（cat 大文件）：读取会连续到来，此时才进入合并窗口，避免高频 IPC 淹没前端。
+//
+// 判断标准：batch 为空 且 距上次 flush 超过 idleThreshold → 视为交互回显，立即发；
+// 否则进入 coalesceWindow 合并，攒满 maxBatch 也立即发。
 func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) {
+	const (
+		idleThreshold  = 8 * time.Millisecond
+		coalesceWindow = 5 * time.Millisecond
+		maxBatch       = 16 * 1024
+	)
+
 	readCh := make(chan readResult, 1)
 	// reader goroutine：阻塞读 stdout，把结果送入 channel
 	go func() {
@@ -256,6 +284,7 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 	}()
 
 	var batch []byte
+	var lastFlush time.Time // 零值：首笔数据必然视为「空闲后首包」立即发
 
 	flush := func() {
 		if len(batch) == 0 {
@@ -267,14 +296,22 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 			"data": string(data),
 		})
 		batch = batch[:0]
+		lastFlush = time.Now()
 	}
 
-	// 12ms 刷新窗口定时器：把碎片化输出合并成更少的事件
-	flushTimer := time.NewTimer(12 * time.Millisecond)
+	flushTimer := time.NewTimer(coalesceWindow)
 	if !flushTimer.Stop() {
 		select {
 		case <-flushTimer.C:
 		default:
+		}
+	}
+	stopTimer := func() {
+		if !flushTimer.Stop() {
+			select {
+			case <-flushTimer.C:
+			default:
+			}
 		}
 	}
 
@@ -285,20 +322,17 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 			return
 		case res := <-readCh:
 			if len(res.data) > 0 {
+				// 空闲后的首包（典型：按键回显）→ 不等窗口，立即发
+				firstAfterIdle := len(batch) == 0 && time.Since(lastFlush) >= idleThreshold
 				batch = append(batch, res.data...)
-				// 攒够 16KB 立刻发（大输出如 cat 大文件）
-				if len(batch) >= 16*1024 {
-					if !flushTimer.Stop() {
-						select { case <-flushTimer.C: default: }
-					}
+				if firstAfterIdle || len(batch) >= maxBatch {
+					stopTimer()
 					flush()
-					continue
+				} else {
+					// 连续流：进入短合并窗口
+					stopTimer()
+					flushTimer.Reset(coalesceWindow)
 				}
-				// 有新数据就（重新）启动 12ms 窗口
-				if !flushTimer.Stop() {
-					select { case <-flushTimer.C: default: }
-				}
-				flushTimer.Reset(12 * time.Millisecond)
 			}
 			if res.err != nil {
 				flush()
@@ -306,7 +340,6 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 			}
 		case <-flushTimer.C:
 			flush()
-			flushTimer.Reset(12 * time.Millisecond)
 		}
 	}
 }
