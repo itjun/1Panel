@@ -55,6 +55,15 @@ export interface HostIcon {
   error?: string;
 }
 
+/** 各运行时正在运行的进程数（对应后端 monitor.RuntimeCounts）*/
+export interface RuntimeCounts {
+  java: number;
+  go: number;
+  node: number;
+  bun: number;
+  python: number;
+}
+
 /** 本地文件编码检测结果（对应后端 main.LocalTextCheck）*/
 export interface LocalTextCheck {
   path: string;
@@ -156,6 +165,9 @@ export const api = {
   /** 运行时进程列表（java/go/node/bun/python，含部署方式/端口/入口） */
   collectRuntimeProcs: (host: string, runtime: string) =>
     wailsMain<unknown[]>("CollectRuntimeProcs", host, runtime),
+  /** 各运行时正在运行的进程数（进程页标签数字徽标） */
+  collectRuntimeCounts: (host: string): Promise<RuntimeCounts> =>
+    wailsMain<RuntimeCounts>("CollectRuntimeCounts", host),
   /** 单个运行时进程补充详情（悬浮卡片：工作目录/exe 路径/磁盘 IO） */
   collectJavaDetail: (host: string, pid: number) =>
     CollectJavaProcDetail(host, pid),

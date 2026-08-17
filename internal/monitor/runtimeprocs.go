@@ -37,6 +37,39 @@ var runtimeCommFilter = map[string]string{
 	"python": `$8=="python" || $8 ~ /^python[0-9.]*$/`,
 }
 
+// RuntimeCounts 各运行时正在运行的进程数（进程页标签徽标）
+type RuntimeCounts struct {
+	Java   int `json:"java"`
+	Go     int `json:"go"`
+	Node   int `json:"node"`
+	Bun    int `json:"bun"`
+	Python int `json:"python"`
+}
+
+// CollectRuntimeCounts 统计各运行时正在运行的进程数：
+// java/node/bun/python 一条 ps+awk（comm 与 runtimeCommFilter 同规则）；
+// go 复用 scanGoProcs 识别 Go 二进制（读全部 /proc/*/exe，约几百毫秒）
+func (c *Collector) CollectRuntimeCounts(host string, opt sshd.ConnectOption) (RuntimeCounts, error) {
+	var rc RuntimeCounts
+	out, err := c.mgr.Run(host, opt,
+		`ps -eo comm= | awk '$1=="java"{j++} $1=="node"||$1=="nodejs"{n++} $1=="bun"||$1=="bun-debug"{b++} $1 ~ /^python[0-9.]*$/{p++} END{print j+0, n+0, b+0, p+0}'`)
+	if err != nil {
+		return rc, err
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 4 {
+		rc.Java, _ = strconv.Atoi(fields[0])
+		rc.Node, _ = strconv.Atoi(fields[1])
+		rc.Bun, _ = strconv.Atoi(fields[2])
+		rc.Python, _ = strconv.Atoi(fields[3])
+	}
+	// go 计数失败不影响其它运行时的结果
+	if goExe, err := c.scanGoProcs(host, opt); err == nil {
+		rc.Go = len(goExe)
+	}
+	return rc, nil
+}
+
 // CollectRuntimeProcs 采集指定运行时的所有进程（含部署方式 / 端口 / 入口）
 // java/node/bun/python 按 comm 过滤 ps 输出；
 // go 是编译型语言没有固定进程名，通过扫描 /proc/<pid>/exe 的 Go buildinf 标记识别。

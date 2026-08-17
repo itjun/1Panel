@@ -776,6 +776,26 @@ export namespace monitor {
 	        this.cmd = source["cmd"];
 	    }
 	}
+	export class RuntimeCounts {
+	    java: number;
+	    go: number;
+	    node: number;
+	    bun: number;
+	    python: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RuntimeCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.java = source["java"];
+	        this.go = source["go"];
+	        this.node = source["node"];
+	        this.bun = source["bun"];
+	        this.python = source["python"];
+	    }
+	}
 	export class RuntimeInfo {
 	    name: string;
 	    version: string;

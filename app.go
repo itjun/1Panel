@@ -407,6 +407,16 @@ func (a *App) CollectRuntimeProcs(host, runtime string) ([]monitor.RuntimeProc, 
 	return a.collector.CollectRuntimeProcs(host, runtime, opt)
 }
 
+// CollectRuntimeCounts 各运行时（java/go/node/bun/python）正在运行的进程数
+// 进程页顶部标签的数字徽标，轻量轮询
+func (a *App) CollectRuntimeCounts(host string) (monitor.RuntimeCounts, error) {
+	opt, err := a.connectOptionFor(host)
+	if err != nil {
+		return monitor.RuntimeCounts{}, err
+	}
+	return a.collector.CollectRuntimeCounts(host, opt)
+}
+
 // CollectJavaProcDetail 单个 Java 进程的补充详情（悬浮卡片按需查询）
 func (a *App) CollectJavaProcDetail(host string, pid uint32) (monitor.JavaProcDetail, error) {
 	opt, err := a.connectOptionFor(host)
