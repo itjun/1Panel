@@ -35,7 +35,7 @@ jobs:
       - name: Install wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.14.0
 
-      # 前端依赖:构建目录是 frontend/(Vue3),非 frontend-react/
+      # 前端依赖:构建目录是 frontend/(Vue3)
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci

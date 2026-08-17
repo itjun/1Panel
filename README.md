@@ -1,6 +1,6 @@
 # 1Pannel
 
-一个 macOS 原生的运维管理面板，基于 Wails v2（Go + React + TypeScript）。
+一个 macOS 原生的运维管理面板，基于 Wails v2（Go + Vue 3 + TypeScript）。
 
 读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）。
 
@@ -77,7 +77,7 @@ wails build -platform darwin/arm64 -clean
 ## 技术栈
 
 - **后端**：Go 1.21+、Wails v2、`golang.org/x/crypto/ssh`
-- **前端**：React 19、TypeScript、Tailwind CSS、shadcn/ui 风格组件、xterm.js、recharts、TanStack Table v8
+- **前端**：Vue 3、TypeScript、Element Plus（1Panel 风格主题）、Pinia、xterm.js、ECharts
 - **目标主机**：通过系统 `ssh` 二进制建立长连接，运行只读采集命令（`/proc/*`、`free`、`df`、`ps`、`systemctl`、`crontab -l`、`docker ps/stats` 等）
 
 ## 项目结构
@@ -96,16 +96,13 @@ wails build -platform darwin/arm64 -clean
 │   └── terminal/                 # 终端会话管理（spawn 系统 ssh）
 ├── frontend/
 │   └── src/
-│       ├── store/app.tsx         # 全局状态：hosts/groups/selection
-│       ├── components/
-│       │   ├── layout/           # TopBar/Sidebar/MainPane
-│       │   ├── overview/         # 概览/服务/定时/软件包 Tab
-│       │   ├── processes/        # 进程 Tab
-│       │   ├── docker/           # Docker Tab
-│       │   ├── terminal/         # 终端 Tab
-│       │   ├── group/            # 分组概览卡片网格
-│       │   └── common/           # DistroLogo 等公共组件
-│       └── hooks/usePolling.ts   # 轮询 Hook
+│       ├── stores/               # Pinia：app.ts（主机/分组/会话）、settings.ts（主题/字体）
+│       ├── api/index.ts          # Wails 绑定统一封装
+│       ├── layout/               # SidebarHost（侧栏树）、MainArea（多会话 Tab）
+│       ├── views/                # 概览/进程/网络/Docker/文件/服务/证书/定时/软件包/日志/终端
+│       ├── components/           # DistroLogo、图表封装等公共组件
+│       ├── composables/          # usePolling 等组合式函数
+│       └── utils/                # 格式化、剪贴板、echarts 按需注册
 └── build/bin/                    # 构建产物
 ```
 

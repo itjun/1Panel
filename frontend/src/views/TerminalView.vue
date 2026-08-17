@@ -97,7 +97,7 @@
 
 <script setup lang="ts">
 /**
- * 终端 Tab：移植自 frontend-react TerminalTab。
+ * 终端 Tab。
  * 后端 OpenTerminal / WriteTerminal / ResizeTerminal / CloseTerminal 已就绪；
  * 此处用 xterm.js + Wails EventsOn 接 PTY 输出。
  */
