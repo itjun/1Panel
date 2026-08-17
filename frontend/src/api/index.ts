@@ -1,6 +1,6 @@
 /**
  * Wails Go 绑定封装
- * 后端接口与原先 React 版一致
+ * 所有后端调用统一走 @wailsjs 生成的强类型绑定
  */
 import {
   CollectDisks,
@@ -17,12 +17,19 @@ import {
   CollectJava,
   CollectJavaProcDetail,
   CollectNetwork,
+  CollectRuntimeProcs,
+  CollectRuntimeCounts,
+  CollectCerts,
   AddHost,
   AssignHost,
   CloseTerminal,
   CopySSHID,
+  CheckCertPair,
+  CheckLocalPaths,
+  UploadCertPair,
   DeleteGroup,
   DeleteHost,
+  DeletePaths,
   DockerAction,
   DockerInspect,
   GetHomeDir,
@@ -33,6 +40,10 @@ import {
   ListHostsAll,
   ListGroupOverview,
   ListOneGroupOverview,
+  ListHostIcons,
+  RefreshAllHostIcons,
+  RefreshHostIcon,
+  RefreshMissingHostIcons,
   OpenTerminal,
   NormalizeFileToLinux,
   ReadFilePreview,
@@ -42,88 +53,22 @@ import {
   ResizeTerminal,
   TestConnection,
   UpdateHost,
+  UploadDir,
   UploadFile,
+  UploadPaths,
   UpsertGroup,
   WriteTerminal,
+  BootstrapZsh,
 } from "@wailsjs/go/main/App";
 import type { filetext, groups, main, monitor, sshconfig } from "@wailsjs/go/models";
 
-/** 主机发行版图标记录（对应后端 main.HostIcon）*/
-export interface HostIcon {
-  host: string;
-  osRelease: string;
-  error?: string;
-}
-
-/** 各运行时正在运行的进程数（对应后端 monitor.RuntimeCounts）*/
-export interface RuntimeCounts {
-  java: number;
-  go: number;
-  node: number;
-  bun: number;
-  python: number;
-}
-
-/** 本地文件编码检测结果（对应后端 main.LocalTextCheck）*/
-export interface LocalTextCheck {
-  path: string;
-  relPath: string;
-  name: string;
-  encoding: string;
-  lineEnding: string;
-  needsNormalize: boolean;
-  content: string;
-  normalized: string;
-  size: number;
-}
-
-/** 单张证书识别结果（对应后端 monitor.CertInfo，wailsjs 未生成类型故本地声明）*/
-export interface CertInfo {
-  name: string;
-  domains: string[];
-  issuer: string;
-  notAfter: number;
-  daysLeft: number;
-  selfSigned: boolean;
-  hasKey: boolean;
-  keyName: string;
-  size: number;
-  mtime: number;
-}
-
-/** /etc/nginx/cert 整体识别结果（对应后端 monitor.CertListResult）*/
-export interface CertListResult {
-  installed: boolean;
-  noOpenssl: boolean;
-  certs: CertInfo[];
-}
-
-/** 证书+私钥本地配对校验结果（对应后端 main.CertPairCheck）*/
-export interface CertPairCheck {
-  certPath: string;
-  keyPath: string;
-  domains: string[];
-  issuer: string;
-  notAfter: number;
-  daysLeft: number;
-  selfSigned: boolean;
-}
-
-// vue-tsc 对 wails 生成的新增绑定（UploadDir/UploadPaths/CheckLocalPaths）类型解析异常，
-// 这里直接走运行时 window 注入调用，绕过 .d.ts 解析问题。
-function wailsMain<T>(method: string, ...args: unknown[]): Promise<T> {
-  const fn = (
-    window as unknown as {
-      go?: {
-        main?: { App?: Record<string, (...a: unknown[]) => unknown> };
-      };
-    }
-  ).go?.main?.App?.[method];
-  if (typeof fn !== "function") {
-    return Promise.reject(new Error(`后端方法未就绪: ${method}`));
-  }
-  return fn(...args) as Promise<T>;
-}
+// 保留原有类型导出名，视图层零改动
+export type HostIcon = main.HostIcon;
+export type RuntimeCounts = monitor.RuntimeCounts;
+export type LocalTextCheck = main.LocalTextCheck;
+export type CertInfo = monitor.CertInfo;
+export type CertListResult = monitor.CertListResult;
+export type CertPairCheck = main.CertPairCheck;
 
 export const api = {
   listHosts: (): Promise<sshconfig.HostConfig[]> => ListHosts(),
@@ -146,16 +91,15 @@ export const api = {
     ListOneGroupOverview(groupID),
 
   /** 本地已记录的发行版图标，不访问远程 */
-  listHostIcons: (): Promise<HostIcon[]> => wailsMain<HostIcon[]>("ListHostIcons"),
+  listHostIcons: (): Promise<main.HostIcon[]> => ListHostIcons(),
   /** 强制远程探测一台主机并落盘 */
-  refreshHostIcon: (host: string): Promise<HostIcon> =>
-    wailsMain<HostIcon>("RefreshHostIcon", host),
+  refreshHostIcon: (host: string): Promise<main.HostIcon> =>
+    RefreshHostIcon(host),
   /** 只补齐没有记录的主机 */
-  refreshMissingHostIcons: (): Promise<HostIcon[]> =>
-    wailsMain<HostIcon[]>("RefreshMissingHostIcons"),
+  refreshMissingHostIcons: (): Promise<main.HostIcon[]> =>
+    RefreshMissingHostIcons(),
   /** 强制重新探测全部主机 */
-  refreshAllHostIcons: (): Promise<HostIcon[]> =>
-    wailsMain<HostIcon[]>("RefreshAllHostIcons"),
+  refreshAllHostIcons: (): Promise<main.HostIcon[]> => RefreshAllHostIcons(),
 
   collectOverview: (host: string) => CollectOverview(host),
   collectDisks: (host: string) => CollectDisks(host),
@@ -164,10 +108,10 @@ export const api = {
   collectJava: (host: string) => CollectJava(host),
   /** 运行时进程列表（java/go/node/bun/python，含部署方式/端口/入口） */
   collectRuntimeProcs: (host: string, runtime: string) =>
-    wailsMain<unknown[]>("CollectRuntimeProcs", host, runtime),
+    CollectRuntimeProcs(host, runtime),
   /** 各运行时正在运行的进程数（进程页标签数字徽标） */
-  collectRuntimeCounts: (host: string): Promise<RuntimeCounts> =>
-    wailsMain<RuntimeCounts>("CollectRuntimeCounts", host),
+  collectRuntimeCounts: (host: string): Promise<monitor.RuntimeCounts> =>
+    CollectRuntimeCounts(host),
   /** 单个运行时进程补充详情（悬浮卡片：工作目录/exe 路径/磁盘 IO） */
   collectJavaDetail: (host: string, pid: number) =>
     CollectJavaProcDetail(host, pid),
@@ -178,15 +122,15 @@ export const api = {
   collectServiceDetail: (host: string, name: string) =>
     CollectServiceDetail(host, name),
   collectCrons: (host: string) => CollectCrons(host),
-  /** 识别 /etc/nginx/cert 下的证书（走运行时绑定，与 ListHostIcons 同模式） */
-  collectCerts: (host: string): Promise<CertListResult> =>
-    wailsMain<CertListResult>("CollectCerts", host),
+  /** 识别 /etc/nginx/cert 下的证书 */
+  collectCerts: (host: string): Promise<monitor.CertListResult> =>
+    CollectCerts(host),
   /** 本地校验证书+私钥配对（不上传） */
-  checkCertPair: (localPaths: string[]): Promise<CertPairCheck> =>
-    wailsMain<CertPairCheck>("CheckCertPair", localPaths),
+  checkCertPair: (localPaths: string[]): Promise<main.CertPairCheck> =>
+    CheckCertPair(localPaths),
   /** 上传已配对的证书+私钥到远程 /etc/nginx/cert */
   uploadCertPair: (host: string, certPath: string, keyPath: string) =>
-    wailsMain<void>("UploadCertPair", host, certPath, keyPath),
+    UploadCertPair(host, certPath, keyPath),
   collectPackages: (host: string) => CollectPackages(host),
   collectLargestFiles: (
     host: string,
@@ -223,27 +167,19 @@ export const api = {
     localDir: string,
     remoteDir: string,
     normalize = false
-  ) => wailsMain<string>("UploadDir", host, localDir, remoteDir, normalize),
+  ) => UploadDir(host, localDir, remoteDir, normalize),
   /** 拖拽批量上传：localPaths 文件/文件夹混合；convertPaths 命中的文件转 UTF-8+LF */
   uploadPaths: (
     host: string,
     localPaths: string[],
     convertPaths: string[],
     remoteDir: string
-  ) =>
-    wailsMain<void>(
-      "UploadPaths",
-      host,
-      localPaths,
-      convertPaths,
-      remoteDir
-    ),
+  ) => UploadPaths(host, localPaths, convertPaths, remoteDir),
   /** 上传前检测本地路径（文件/文件夹），返回所有「非标准文本」文件清单 */
-  checkLocalPaths: (localPaths: string[]): Promise<LocalTextCheck[]> =>
-    wailsMain<LocalTextCheck[]>("CheckLocalPaths", localPaths),
+  checkLocalPaths: (localPaths: string[]): Promise<main.LocalTextCheck[]> =>
+    CheckLocalPaths(localPaths),
   /** 删除远程文件/目录（递归，不可恢复） */
-  deletePaths: (host: string, paths: string[]) =>
-    wailsMain<string>("DeletePaths", host, paths),
+  deletePaths: (host: string, paths: string[]) => DeletePaths(host, paths),
 
   killProcess: (host: string, pid: number, force: boolean) =>
     KillProcess(host, pid, force),
@@ -265,9 +201,8 @@ export const api = {
     ResizeTerminal(sessionID, cols, rows),
   closeTerminal: (sessionID: string) => CloseTerminal(sessionID),
 
-  // 走 wailsMain 运行时调用(Wails 新增绑定的 .d.ts 类型解析不稳,与 UploadDir 等同模式)
-  bootstrapZsh: (host: string): Promise<string> =>
-    wailsMain<string>("BootstrapZsh", host),
+  /** 初始化远程 zsh 环境 */
+  bootstrapZsh: (host: string): Promise<string> => BootstrapZsh(host),
   copySSHID: (input: main.CopyIDInput) => CopySSHID(input),
 };
 
