@@ -207,81 +207,13 @@
       </div>
     </Teleport>
 
-    <!-- 主机右键菜单 -->
-    <Teleport to="body">
-      <div
-        v-if="ctxMenu"
-        class="host-ctx-backdrop"
-        @mousedown="closeCtxMenu"
-        @contextmenu.prevent="closeCtxMenu"
-      />
-      <div
-        v-if="ctxMenu"
-        ref="ctxMenuRef"
-        class="host-ctx-menu"
-        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
-        @mousedown.stop
-      >
-        <button type="button" class="ctx-item" @click="onCtxOpen">
-          打开
-        </button>
-        <button type="button" class="ctx-item" @click="onCtxRename">
-          重命名
-        </button>
-        <button type="button" class="ctx-item" @click="onCtxEdit">
-          编辑…
-        </button>
-        <button type="button" class="ctx-item" @click="onCtxRefreshIcon">
-          更新图标
-        </button>
-        <div
-          class="ctx-item ctx-has-sub"
-          @mouseenter="groupSubOpen = true"
-          @mouseleave="groupSubOpen = false"
-        >
-          <span>迁移分组</span>
-          <span class="ctx-arrow">›</span>
-          <div v-show="groupSubOpen" class="ctx-sub">
-            <button
-              type="button"
-              class="ctx-item"
-              :class="{ 'is-current': currentGroupIdOf(ctxMenu.host) === '' }"
-              @click="onCtxMove('')"
-            >
-              未分组
-            </button>
-            <button
-              v-for="g in app.groupList"
-              :key="g.id"
-              type="button"
-              class="ctx-item"
-              :class="{
-                'is-current': currentGroupIdOf(ctxMenu.host) === g.id,
-              }"
-              @click="onCtxMove(g.id)"
-            >
-              {{ g.name }}
-            </button>
-            <div v-if="app.groupList.length === 0" class="ctx-empty">
-              暂无分组，请先新建
-            </div>
-          </div>
-        </div>
-        <div class="ctx-divider" />
-        <button type="button" class="ctx-item is-danger" @click="onCtxDelete">
-          删除…
-        </button>
-        <template v-if="app.isRunning(ctxMenu.host)">
-          <div class="ctx-divider" />
-          <button type="button" class="ctx-item" @click="onCtxInitZsh">
-            初始化 zsh…
-          </button>
-          <button type="button" class="ctx-item is-danger" @click="onCtxStop">
-            停止会话
-          </button>
-        </template>
-      </div>
-    </Teleport>
+    <!-- 主机右键菜单（打开/重命名/编辑/删除/迁移分组等在子组件内处理） -->
+    <HostContextMenu
+      :menu="ctxMenu"
+      @close="closeCtxMenu"
+      @edit="(host) => editRef?.openFor(host)"
+      @move="onCtxMove"
+    />
 
     <!-- 侧栏空白处右键菜单：添加主机 / 新建分组 -->
     <Teleport to="body">
@@ -306,142 +238,54 @@
       </div>
     </Teleport>
 
-    <!-- 编辑主机：改 IP/用户，须密码验连后保存 -->
-    <el-dialog
-      v-model="editOpen"
-      title="编辑主机"
-      width="440px"
-      append-to-body
-      destroy-on-close
-      :close-on-click-modal="!editSaving"
-      @closed="resetEditForm"
-    >
-      <p class="edit-host-hint">
-        保存前会用密码测试 SSH 连通性，通过后更新
-        <code>~/.ssh/config</code> 并推送本机公钥。别名请用「重命名」。
-      </p>
-      <el-form label-width="80px" @submit.prevent="onEditSave">
-        <el-form-item label="别名">
-          <el-input :model-value="editForm.name" disabled />
-        </el-form-item>
-        <el-form-item label="地址" required>
-          <el-input
-            v-model="editForm.hostName"
-            placeholder="IP 或域名"
-            :disabled="editSaving"
-          />
-        </el-form-item>
-        <el-form-item label="用户" required>
-          <el-input
-            v-model="editForm.user"
-            placeholder="root"
-            :disabled="editSaving"
-          />
-        </el-form-item>
-        <el-form-item label="密码" required>
-          <el-input
-            v-model="editForm.password"
-            type="password"
-            show-password
-            placeholder="用于测试连接，不落盘"
-            :disabled="editSaving"
-            @keyup.enter="onEditSave"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button :disabled="editSaving" @click="editOpen = false">
-          取消
-        </el-button>
-        <el-button type="primary" :loading="editSaving" @click="onEditSave">
-          {{ editSaving ? "验证并保存…" : "测试并保存" }}
-        </el-button>
-      </template>
-    </el-dialog>
+    <!-- 编辑主机弹窗 -->
+    <EditHostDialog ref="editRef" />
   </aside>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+/**
+ * 侧栏：主机/分组树、搜索、拖拽分组、右键菜单、宽度调整。
+ * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
+ */
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { WindowToggleMaximise } from "@wailsjs/runtime/runtime";
 import { Folder, Monitor } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox } from "element-plus";
-import { api } from "@/api";
+import { ElMessageBox, ElMessage } from "element-plus";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import DistroLogo from "@/components/DistroLogo.vue";
+import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
+import HostContextMenu, {
+  type CtxMenuState,
+} from "@/components/sidebar/HostContextMenu.vue";
+import { groupColor } from "@/components/sidebar/groupColors";
+import { useHostDrag } from "@/composables/useHostDrag";
+import { useSidebarResize } from "@/composables/useSidebarResize";
 
 const emit = defineEmits<{
   collapse: [];
   addHost: [];
 }>();
 
-const SIDEBAR_MIN_WIDTH = 180;
-const SIDEBAR_MAX_WIDTH = 320;
-const HOST_ROW_CHROME = 80;
-const STORAGE_KEY = "ipannel.sidebarWidth";
-/** 移动超过该像素才算拖拽，避免误触 */
-const DRAG_THRESHOLD = 6;
-
-/**
- * 分组色板：统一在 1Panel 主色蓝附近的冷色阶梯
- * 相邻组可区分，但整体同一色系（无橙/红/高饱和撞色）
- * accent=色条/圆点，soft=浅底，ink=文字/图标
- */
-const GROUP_PALETTE = [
-  { accent: "#005eeb", soft: "rgba(0, 94, 235, 0.12)", ink: "#005eeb" }, // 主蓝
-  { accent: "#3375f6", soft: "rgba(51, 117, 246, 0.12)", ink: "#2a62d4" }, // 亮蓝
-  { accent: "#1a7fd4", soft: "rgba(26, 127, 212, 0.12)", ink: "#176bae" }, // 天蓝
-  { accent: "#3d8bfd", soft: "rgba(61, 139, 253, 0.12)", ink: "#2f6fd4" }, // 浅蓝
-  { accent: "#4c6ef5", soft: "rgba(76, 110, 245, 0.12)", ink: "#3b5bdb" }, // 靛蓝
-  { accent: "#5c7cfa", soft: "rgba(92, 124, 250, 0.12)", ink: "#4c6ef5" }, // 柔靛
-  { accent: "#228be6", soft: "rgba(34, 139, 230, 0.12)", ink: "#1c7ed6" }, // 青蓝
-  { accent: "#15aabf", soft: "rgba(21, 170, 191, 0.12)", ink: "#1098ad" }, // 青蓝绿（仍冷色）
-  { accent: "#4263eb", soft: "rgba(66, 99, 235, 0.12)", ink: "#364fc7" }, // 深紫蓝
-  { accent: "#748ffc", soft: "rgba(116, 143, 252, 0.12)", ink: "#5c7cfa" }, // 淡蓝紫
-] as const;
-
-/** 未分组：同色系低饱和灰蓝，不抢戏 */
-const UNGROUPED_COLOR = {
-  accent: "#868e96",
-  soft: "rgba(134, 142, 150, 0.12)",
-  ink: "#495057",
-} as const;
-
-type GroupColor = {
-  accent: string;
-  soft: string;
-  ink: string;
-};
-
-/** 按列表下标取色（最直观、相邻必不同）；未分组固定灰 */
-function groupColor(groupId: string, index: number): GroupColor {
-  if (groupId === UNGROUPED_ID) return UNGROUPED_COLOR;
-  return GROUP_PALETTE[index % GROUP_PALETTE.length];
-}
-
 const app = useAppStore();
 const query = ref("");
 /** 搜索框展开态：收起即清空 query（无残留过滤） */
 const searchActive = ref(false);
 const searchInputRef = ref<{ focus: () => void } | null>(null);
-const resizing = ref(false);
-const width = ref(loadStoredWidth());
-const dropTargetId = ref<string | null>(null);
 const menuWrapRef = ref<HTMLElement | null>(null);
 
-/** 抑制 pointer 拖拽结束后的 click */
-let suppressClick = false;
+const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
 
-interface DragState {
-  host: string;
-  startX: number;
-  startY: number;
-  x: number;
-  y: number;
-  active: boolean;
-  pointerId: number;
-}
-const dragState = ref<DragState | null>(null);
+const {
+  dragState,
+  dropTargetId,
+  suppressClick,
+  onHostPointerDown,
+  cancelDrag,
+  moveHostToGroup,
+} = useHostDrag({ isBlocked: () => resizing.value });
+
+const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
 
 /** 无激活主机时选中首页项（与主机项一样由 el-menu 驱动高亮） */
 const activeId = computed(() => app.activeTabId || "__home__");
@@ -465,219 +309,8 @@ const filtered = computed(() => {
     .filter((n) => n.hosts.length > 0 || !!n.group);
 });
 
-function clampWidth(w: number): number {
-  return Math.max(
-    SIDEBAR_MIN_WIDTH,
-    Math.min(SIDEBAR_MAX_WIDTH, Math.round(w))
-  );
-}
-
-function loadStoredWidth(): number {
-  try {
-    const n = Number(localStorage.getItem(STORAGE_KEY));
-    if (Number.isFinite(n) && n > 0) return clampWidth(n);
-  } catch {
-    /* ignore */
-  }
-  return SIDEBAR_MIN_WIDTH;
-}
-
-function saveWidth(w: number) {
-  try {
-    localStorage.setItem(STORAGE_KEY, String(w));
-  } catch {
-    /* ignore */
-  }
-}
-
-function measureNeededWidth(): number {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return SIDEBAR_MIN_WIDTH;
-  ctx.font =
-    "400 14px Helvetica Neue, PingFang SC, Microsoft YaHei, sans-serif";
-  let maxText = 0;
-  for (const h of app.hosts) {
-    if (!h.name) continue;
-    maxText = Math.max(maxText, ctx.measureText(h.name).width);
-  }
-  for (const node of app.groupNodes) {
-    const name = node.group?.name || "未分组";
-    maxText = Math.max(maxText, ctx.measureText(name).width);
-  }
-  return clampWidth(Math.ceil(maxText + HOST_ROW_CHROME));
-}
-
-function autoFitWidth() {
-  if (app.hosts.length === 0 && app.groupNodes.length === 0) return;
-  const needed = measureNeededWidth();
-  if (needed > width.value) {
-    width.value = needed;
-    saveWidth(needed);
-  }
-}
-
-function onResizeDblClick(e: MouseEvent) {
-  e.preventDefault();
-  e.stopPropagation();
-  const needed = measureNeededWidth();
-  if (needed === width.value) return;
-  width.value = needed;
-  saveWidth(needed);
-}
-
-function onResizeStart(e: PointerEvent) {
-  e.preventDefault();
-  e.stopPropagation();
-  const startX = e.clientX;
-  const startW = width.value;
-  resizing.value = true;
-  const prevCursor = document.body.style.cursor;
-  const prevSelect = document.body.style.userSelect;
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-  const onMove = (ev: PointerEvent) => {
-    width.value = clampWidth(startW + (ev.clientX - startX));
-  };
-  const onUp = () => {
-    resizing.value = false;
-    document.body.style.cursor = prevCursor;
-    document.body.style.userSelect = prevSelect;
-    saveWidth(width.value);
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    window.removeEventListener("pointercancel", onUp);
-  };
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onUp);
-  window.addEventListener("pointercancel", onUp);
-}
-
 function openGroup(id: string, name: string) {
   app.openGroupTab(id, name);
-}
-
-// ---------- 指针拖拽主机到分组（不依赖 HTML5 DnD） ----------
-
-function onHostPointerDown(e: PointerEvent, hostName: string) {
-  // 只响应主键；侧栏调宽时不抢
-  if (e.button !== 0 || resizing.value) return;
-  // 不 preventDefault，以便仍可滚动；拖起来后再禁选中
-  dragState.value = {
-    host: hostName,
-    startX: e.clientX,
-    startY: e.clientY,
-    x: e.clientX,
-    y: e.clientY,
-    active: false,
-    pointerId: e.pointerId,
-  };
-  window.addEventListener("pointermove", onHostPointerMove);
-  window.addEventListener("pointerup", onHostPointerUp);
-  window.addEventListener("pointercancel", onHostPointerUp);
-}
-
-function onHostPointerMove(e: PointerEvent) {
-  const st = dragState.value;
-  if (!st || e.pointerId !== st.pointerId) return;
-
-  st.x = e.clientX;
-  st.y = e.clientY;
-
-  if (!st.active) {
-    const dx = e.clientX - st.startX;
-    const dy = e.clientY - st.startY;
-    if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-    st.active = true;
-    suppressClick = true;
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "grabbing";
-  }
-
-  // 命中分组标题
-  const gid = hitTestDropGroup(e.clientX, e.clientY);
-  dropTargetId.value = gid;
-}
-
-async function onHostPointerUp(e: PointerEvent) {
-  const st = dragState.value;
-  if (!st || e.pointerId !== st.pointerId) return;
-
-  window.removeEventListener("pointermove", onHostPointerMove);
-  window.removeEventListener("pointerup", onHostPointerUp);
-  window.removeEventListener("pointercancel", onHostPointerUp);
-  document.body.style.userSelect = "";
-  document.body.style.cursor = "";
-
-  const host = st.host;
-  const wasActive = st.active;
-  const target = dropTargetId.value;
-
-  dragState.value = null;
-  dropTargetId.value = null;
-
-  if (!wasActive) {
-    // 纯点击，交给 click 处理 openHostTab
-    return;
-  }
-
-  // 拖拽结束：若落在分组上则分配
-  if (target != null) {
-    await moveHostToGroup(host, target);
-  }
-
-  // 吞掉随后的 click
-  setTimeout(() => {
-    suppressClick = false;
-  }, 0);
-}
-
-/** 从坐标向上找带 data-drop-group 的节点 */
-function hitTestDropGroup(x: number, y: number): string | null {
-  const stack = document.elementsFromPoint(x, y);
-  for (const el of stack) {
-    if (!(el instanceof HTMLElement)) continue;
-    // 幽灵自身忽略
-    if (el.classList.contains("host-drag-ghost")) continue;
-    const node = el.closest("[data-drop-group]") as HTMLElement | null;
-    if (node?.dataset.dropGroup) return node.dataset.dropGroup;
-    // Element Plus 标题栏：有时 data 在子节点，父级是 .el-sub-menu__title
-    if (el.classList.contains("el-sub-menu__title")) {
-      const inner = el.querySelector("[data-drop-group]") as HTMLElement | null;
-      if (inner?.dataset.dropGroup) return inner.dataset.dropGroup;
-    }
-  }
-  return null;
-}
-
-async function moveHostToGroup(host: string, groupId: string) {
-  const target = groupId === UNGROUPED_ID ? "" : groupId;
-  // 若已在该组则跳过
-  if (target) {
-    const g = app.groupList.find((x) => x.id === target);
-    if (g?.hosts?.includes(host)) {
-      ElMessage.info(`${host} 已在「${g.name}」中`);
-      return;
-    }
-  } else {
-    // 未分组：若当前不在任何组则跳过
-    const inAny = app.groupList.some((g) => (g.hosts || []).includes(host));
-    if (!inAny) {
-      ElMessage.info(`${host} 已在未分组`);
-      return;
-    }
-  }
-
-  try {
-    await app.assignHost(host, target);
-    const label =
-      groupId === UNGROUPED_ID
-        ? "未分组"
-        : app.groupList.find((g) => g.id === groupId)?.name || "分组";
-    ElMessage.success(`已将 ${host} 移至「${label}」`);
-  } catch (err) {
-    ElMessage.error(`移动失败: ${err}`);
-  }
 }
 
 /** 展开/收起搜索：展开时聚焦输入框，收起时清空 */
@@ -697,39 +330,23 @@ function closeSearch() {
 }
 
 function onHostClick(name: string) {
-  if (suppressClick) return;
+  if (suppressClick.value) return;
   app.openHostTab(name);
   // 打开主机即收起搜索、清空过滤（搜索目的达成）
   closeSearch();
 }
 
-// ---------- 主机右键菜单 ----------
+// ---------- 主机右键菜单（菜单体在 HostContextMenu） ----------
 
-interface CtxMenu {
-  host: string;
-  x: number;
-  y: number;
-}
-const ctxMenu = ref<CtxMenu | null>(null);
-const ctxMenuRef = ref<HTMLElement | null>(null);
-const groupSubOpen = ref(false);
+const ctxMenu = ref<CtxMenuState | null>(null);
 
 function closeCtxMenu() {
   ctxMenu.value = null;
-  groupSubOpen.value = false;
 }
 
 function onHostContext(e: MouseEvent, name: string) {
   // 先关掉拖拽态，避免右键后幽灵残留
-  if (dragState.value) {
-    window.removeEventListener("pointermove", onHostPointerMove);
-    window.removeEventListener("pointerup", onHostPointerUp);
-    window.removeEventListener("pointercancel", onHostPointerUp);
-    document.body.style.userSelect = "";
-    document.body.style.cursor = "";
-    dragState.value = null;
-    dropTargetId.value = null;
-  }
+  cancelDrag();
 
   // 预估菜单位置，避免贴边溢出（实际 DOM 挂载后再微调）
   const pad = 8;
@@ -742,213 +359,11 @@ function onHostContext(e: MouseEvent, name: string) {
   if (x < pad) x = pad;
   if (y < pad) y = pad;
 
-  groupSubOpen.value = false;
   ctxMenu.value = { host: name, x, y };
 }
 
-function currentGroupIdOf(host: string): string {
-  const g = app.groupList.find((x) => (x.hosts || []).includes(host));
-  return g?.id || "";
-}
-
-function onCtxOpen() {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (host) app.openHostTab(host);
-}
-
-async function onCtxRename() {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (!host) return;
-  try {
-    const { value } = await ElMessageBox.prompt("新的主机别名", "重命名", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputValue: host,
-      inputPattern: /^[^\s]+$/,
-      inputErrorMessage: "别名不能为空或包含空格",
-    });
-    const next = value.trim();
-    if (!next || next === host) return;
-    await app.renameHost(host, next);
-    ElMessage.success(`已重命名为 ${next}`);
-  } catch (err) {
-    if (err === "cancel" || err === "close") return;
-    ElMessage.error(`重命名失败: ${formatErr(err)}`);
-  }
-}
-
-// ---------- 编辑主机 ----------
-
-const editOpen = ref(false);
-const editSaving = ref(false);
-const editForm = reactive({
-  name: "",
-  hostName: "",
-  user: "root",
-  password: "",
-});
-
-function resetEditForm() {
-  editForm.name = "";
-  editForm.hostName = "";
-  editForm.user = "root";
-  editForm.password = "";
-  editSaving.value = false;
-}
-
-async function onCtxRefreshIcon() {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (!host) return;
-  try {
-    const os = await app.refreshHostIcon(host);
-    ElMessage.success(`${host}：${os || "图标已更新"}`);
-  } catch (err) {
-    ElMessage.error(`更新图标失败: ${formatErr(err)}`);
-  }
-}
-
-function onCtxEdit() {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (!host) return;
-  const h = app.hosts.find((x) => x.name === host);
-  editForm.name = host;
-  editForm.hostName = h?.hostName || "";
-  editForm.user = h?.user || "root";
-  editForm.password = "";
-  editOpen.value = true;
-}
-
-function formatErr(e: unknown): string {
-  if (e == null) return "未知错误";
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message || String(e);
-  const any = e as { message?: string };
-  if (any.message) return any.message;
-  return String(e);
-}
-
-async function onEditSave() {
-  const name = editForm.name.trim();
-  const hostName = editForm.hostName.trim();
-  const user = editForm.user.trim();
-  if (!name || !hostName || !user || !editForm.password) {
-    ElMessage.warning("地址、用户、密码均不能为空");
-    return;
-  }
-  editSaving.value = true;
-  try {
-    await app.updateHost({
-      name,
-      hostName,
-      user,
-      password: editForm.password,
-    });
-    ElMessage.success("已验证并保存");
-    editOpen.value = false;
-  } catch (e) {
-    ElMessage.error(formatErr(e));
-  } finally {
-    editSaving.value = false;
-  }
-}
-
-async function onCtxDelete() {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (!host) return;
-  try {
-    // 第一次确认
-    await ElMessageBox.confirm(
-      `确定删除主机「${host}」？此操作不可撤销。`,
-      "删除主机",
-      {
-        type: "warning",
-        confirmButtonText: "继续",
-        cancelButtonText: "取消",
-      }
-    );
-    // 第二次确认：明确写出将改写 ~/.ssh/config
-    await ElMessageBox.confirm(
-      `将从本机 ~/.ssh/config 中永久移除「${host}」条目，并清理分组引用。请再次确认。`,
-      "二次确认",
-      {
-        type: "error",
-        confirmButtonText: "确认删除",
-        cancelButtonText: "取消",
-        confirmButtonClass: "el-button--danger",
-      }
-    );
-    await app.deleteHost(host);
-    ElMessage.success(`已删除 ${host}`);
-  } catch (err) {
-    if (err === "cancel" || err === "close") return;
-    ElMessage.error(`删除失败: ${formatErr(err)}`);
-  }
-}
-
-async function onCtxMove(groupId: string) {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (!host) return;
+async function onCtxMove(host: string, groupId: string) {
   await moveHostToGroup(host, groupId || UNGROUPED_ID);
-}
-
-async function onCtxStop() {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (!host || !app.isRunning(host)) return;
-  try {
-    await ElMessageBox.confirm(
-      `停止「${host}」的后台会话？重新打开将重新加载。`,
-      "停止会话",
-      {
-        type: "warning",
-        confirmButtonText: "停止",
-        cancelButtonText: "取消",
-      }
-    );
-    app.stopHost(host);
-    ElMessage.success("已停止");
-  } catch {
-    /* cancel */
-  }
-}
-
-/** 右键「初始化 zsh」：上传内置脚本并在该主机终端自动执行（原顶栏按钮迁移至此） */
-async function onCtxInitZsh() {
-  const host = ctxMenu.value?.host;
-  closeCtxMenu();
-  if (!host || !app.isRunning(host)) return;
-  try {
-    await ElMessageBox.confirm(
-      `将在主机「${host}」上安装 zsh + Oh My Zsh(ys 主题)+ 代码高亮/历史提示插件。\n` +
-        `需要该用户具备 sudo 免密权限,耗时约 1~5 分钟,会在终端实时显示输出。`,
-      "初始化 zsh 环境",
-      { type: "warning", confirmButtonText: "开始", cancelButtonText: "取消" }
-    );
-  } catch {
-    return; // 用户取消
-  }
-  try {
-    const remotePath = await api.bootstrapZsh(host);
-    app.openHostTab(host); // 从任意视图触发都先切到该主机
-    app.sendTerminalCmd(`bash ${remotePath}; rm -f ${remotePath}`);
-    app.setSubTab(host, "terminal");
-    ElMessage.success("脚本已上传,正在终端执行…");
-  } catch (e) {
-    ElMessage.error(`上传脚本失败: ${formatErr(e)}`);
-  }
-}
-
-function onCtxKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape") {
-    if (ctxMenu.value) closeCtxMenu();
-    blankCtx.value = null;
-  }
 }
 
 /** 侧栏空白处右键：添加主机 / 新建分组 */
@@ -1011,6 +426,13 @@ function onSearchKeydown(e: KeyboardEvent) {
   nextTick(() => searchInputRef.value?.focus());
 }
 
+function onCtxKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape") {
+    if (ctxMenu.value) closeCtxMenu();
+    blankCtx.value = null;
+  }
+}
+
 async function onCreateGroup() {
   try {
     const { value } = await ElMessageBox.prompt("分组名称", "新建分组", {
@@ -1028,28 +450,16 @@ async function onCreateGroup() {
 }
 
 onMounted(() => {
-  autoFitWidth();
   window.addEventListener("keydown", onCtxKeydown);
   window.addEventListener("keydown", onSearchKeydown);
   window.addEventListener("keydown", onNumSwitchKeydown);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("pointermove", onHostPointerMove);
-  window.removeEventListener("pointerup", onHostPointerUp);
-  window.removeEventListener("pointercancel", onHostPointerUp);
   window.removeEventListener("keydown", onCtxKeydown);
   window.removeEventListener("keydown", onSearchKeydown);
   window.removeEventListener("keydown", onNumSwitchKeydown);
 });
-
-watch(
-  () => [app.hosts, app.groupNodes] as const,
-  () => {
-    autoFitWidth();
-  },
-  { deep: true }
-);
 </script>
 
 <style scoped lang="scss">
@@ -1284,19 +694,6 @@ watch(
   color: #c0c4cc;
 }
 
-.edit-host-hint {
-  margin: 0 0 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--el-text-color-secondary);
-}
-.edit-host-hint code {
-  padding: 0 4px;
-  border-radius: 3px;
-  background: var(--el-fill-color);
-  font-size: 11px;
-}
-
 .sidebar-resize-handle {
   position: absolute;
   top: 0;
@@ -1328,7 +725,7 @@ watch(
 </style>
 
 <style>
-/* 幽灵 / 右键菜单挂 body，非 scoped */
+/* 幽灵挂 body，非 scoped；右键菜单样式在 HostContextMenu.vue 中统一提供 */
 .host-drag-ghost {
   position: fixed;
   z-index: 99999;
@@ -1352,108 +749,5 @@ watch(
 html.dark .host-drag-ghost {
   background: #2e313d;
   color: #e5eaf3;
-}
-
-.host-ctx-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-}
-
-.host-ctx-menu {
-  position: fixed;
-  z-index: 100001;
-  min-width: 156px;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--el-bg-color-overlay, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  font-size: 13px;
-  color: var(--el-text-color-primary, #303133);
-  user-select: none;
-}
-
-.host-ctx-menu .ctx-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin: 0;
-  padding: 7px 12px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  box-sizing: border-box;
-  white-space: nowrap;
-}
-
-.host-ctx-menu .ctx-item:hover,
-.host-ctx-menu .ctx-item.is-current {
-  background: var(--el-fill-color-light, #f5f7fa);
-}
-
-.host-ctx-menu .ctx-item.is-current {
-  color: var(--el-color-primary, #005eeb);
-}
-
-.host-ctx-menu .ctx-item.is-danger {
-  color: var(--el-color-danger, #f56c6c);
-}
-
-.host-ctx-menu .ctx-item.is-danger:hover {
-  background: var(--el-color-danger-light-9, #fef0f0);
-}
-
-.host-ctx-menu .ctx-divider {
-  height: 1px;
-  margin: 4px 6px;
-  background: var(--el-border-color-lighter, #ebeef5);
-}
-
-.host-ctx-menu .ctx-has-sub {
-  position: relative;
-}
-
-.host-ctx-menu .ctx-arrow {
-  margin-left: 16px;
-  color: var(--el-text-color-secondary, #909399);
-  font-size: 14px;
-}
-
-.host-ctx-menu .ctx-sub {
-  position: absolute;
-  left: calc(100% + 2px);
-  top: -4px;
-  min-width: 140px;
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--el-bg-color-overlay, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-}
-
-.host-ctx-menu .ctx-empty {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-}
-
-html.dark .host-ctx-menu,
-html.dark .host-ctx-menu .ctx-sub {
-  background: #2e313d;
-  border-color: #414243;
-  color: #e5eaf3;
-}
-
-html.dark .host-ctx-menu .ctx-item:hover,
-html.dark .host-ctx-menu .ctx-item.is-current {
-  background: #3a3d4a;
 }
 </style>
