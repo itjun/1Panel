@@ -86,8 +86,8 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	// RequestPty(term, h, w) = rows, cols
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
+		ssh.TTY_OP_ISPEED: 115200,
+		ssh.TTY_OP_OSPEED: 115200,
 	}
 	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		_ = session.Close()
@@ -223,13 +223,20 @@ func (m *Manager) CloseAll() {
 }
 
 // pumpToEvent 把远程 shell 的 stdout 读取并推送到 Wails 事件
-// 优化：shell 回显时会产生多次小碎片输出（每个按键可能触发多次 Read），
-// 如果每次 Read 都 EventsEmit 会让前端被高频 IPC 事件淹没，导致输入卡顿。
-// 这里用「reader + 定时器」双 goroutine 模型：
-//   - reader goroutine 持续读 stdout，把数据送入 readCh
-//   - 主循环 select：有新数据就攒进 batch；12ms 没有新数据就把攒的批量发出去
-// 这样碎片化输出被合并，IPC 频率从「每 Read 一次」降到「每 12ms 窗口一次」
+//
+// 延迟与吞吐的平衡（leading-edge 合并）：
+//   - 交互打字：回显是「空闲后到来的一小段数据」，必须立即发，任何合并窗口都是纯延迟；
+//   - 流式输出（cat 大文件）：读取会连续到来，此时才进入合并窗口，避免高频 IPC 淹没前端。
+//
+// 判断标准：batch 为空 且 距上次 flush 超过 idleThreshold → 视为交互回显，立即发；
+// 否则进入 coalesceWindow 合并，攒满 maxBatch 也立即发。
 func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) {
+	const (
+		idleThreshold  = 8 * time.Millisecond
+		coalesceWindow = 5 * time.Millisecond
+		maxBatch       = 16 * 1024
+	)
+
 	readCh := make(chan readResult, 1)
 	// reader goroutine：阻塞读 stdout，把结果送入 channel
 	go func() {
@@ -256,6 +263,7 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 	}()
 
 	var batch []byte
+	var lastFlush time.Time // 零值：首笔数据必然视为「空闲后首包」立即发
 
 	flush := func() {
 		if len(batch) == 0 {
@@ -267,14 +275,22 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 			"data": string(data),
 		})
 		batch = batch[:0]
+		lastFlush = time.Now()
 	}
 
-	// 12ms 刷新窗口定时器：把碎片化输出合并成更少的事件
-	flushTimer := time.NewTimer(12 * time.Millisecond)
+	flushTimer := time.NewTimer(coalesceWindow)
 	if !flushTimer.Stop() {
 		select {
 		case <-flushTimer.C:
 		default:
+		}
+	}
+	stopTimer := func() {
+		if !flushTimer.Stop() {
+			select {
+			case <-flushTimer.C:
+			default:
+			}
 		}
 	}
 
@@ -285,20 +301,17 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 			return
 		case res := <-readCh:
 			if len(res.data) > 0 {
+				// 空闲后的首包（典型：按键回显）→ 不等窗口，立即发
+				firstAfterIdle := len(batch) == 0 && time.Since(lastFlush) >= idleThreshold
 				batch = append(batch, res.data...)
-				// 攒够 16KB 立刻发（大输出如 cat 大文件）
-				if len(batch) >= 16*1024 {
-					if !flushTimer.Stop() {
-						select { case <-flushTimer.C: default: }
-					}
+				if firstAfterIdle || len(batch) >= maxBatch {
+					stopTimer()
 					flush()
-					continue
+				} else {
+					// 连续流：进入短合并窗口
+					stopTimer()
+					flushTimer.Reset(coalesceWindow)
 				}
-				// 有新数据就（重新）启动 12ms 窗口
-				if !flushTimer.Stop() {
-					select { case <-flushTimer.C: default: }
-				}
-				flushTimer.Reset(12 * time.Millisecond)
 			}
 			if res.err != nil {
 				flush()
@@ -306,7 +319,6 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 			}
 		case <-flushTimer.C:
 			flush()
-			flushTimer.Reset(12 * time.Millisecond)
 		}
 	}
 }
