@@ -1,11 +1,15 @@
 # --- 构建产物 ---
 # build/ 下的构建资产（Info.plist、windows icon/manifest 等）需入库，
 # 供 CI 拉取后打包；build/bin/ 是产物，保持忽略。
-# appicon 的 icns/png/ico 由 appicon.svg 派生（wails build 每次重新生成），
-# 只入库 svg 源文件，生成物忽略，避免每次构建弄脏 git status。
+# 注意：Wails 打包器读取的是 appicon.png（不是 appicon.svg），且不会从 svg
+# 自动生成 png。因此 appicon.png 必须入库，否则 CI/全新 clone 会回退到 Wails
+# 默认图标。改 appicon.svg 后需手动重新导出 png：
+#   magick build/appicon.svg build/appicon.png
+# icns/ico 才是 wails build 生成的产物，保持忽略。
 # 注意：须用 build/* 而非 build/，目录被整体排除时 ! 例外不生效
 build/*
 !build/appicon.svg
+!build/appicon.png
 !build/darwin/
 !build/windows/
 build/windows/icon.ico
