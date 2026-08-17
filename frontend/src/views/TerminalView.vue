@@ -117,6 +117,8 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
+import { CanvasAddon } from "@xterm/addon-canvas";
 import "@xterm/xterm/css/xterm.css";
 import {
   EventsOff,
@@ -140,6 +142,28 @@ function resolveTermFontFamily(): string {
   const f = terminalFontFamily.value;
   if (!f || f === "inherit") return fontFamily.value;
   return f;
+}
+
+// GPU 渲染：优先 WebGL（性能最好），上下文丢失或不支持时回退 Canvas；
+// 两者都失败则保持 xterm 默认 DOM 渲染。必须在 term.open() 之后调用。
+function loadRenderer(term: XTerm) {
+  const loadCanvas = () => {
+    try {
+      term.loadAddon(new CanvasAddon());
+    } catch {
+      /* 回退 DOM 渲染 */
+    }
+  };
+  try {
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => {
+      webgl.dispose();
+      loadCanvas();
+    });
+    term.loadAddon(webgl);
+  } catch {
+    loadCanvas();
+  }
 }
 
 interface Session {
@@ -241,6 +265,9 @@ async function openNew() {
     fontSize: terminalFontSize.value || 13,
     fontFamily: resolveTermFontFamily(),
     rightClickSelectsWord: false,
+    // macOS：Option 键作为 Meta（Alt+b/f 跳词等 readline 快捷键可用）
+    macOptionIsMeta: true,
+    scrollback: 10000,
     theme: {
       background: "#0a0a0a",
       foreground: "#e4e4e7",
@@ -275,6 +302,7 @@ async function openNew() {
   container.innerHTML = "";
   container.appendChild(el);
   term.open(el);
+  loadRenderer(term);
 
   await new Promise<void>((r) => requestAnimationFrame(() => r()));
   try {
