@@ -22,10 +22,6 @@
 | `src/components/VChartLine.vue` | `frontend/src/components/v-charts/components/Line.vue` |
 | `src/assets/1panel-logo.svg` | `frontend/src/assets/images/1panel-logo.svg` |
 
-## 归档
-
-旧 React 实现保留在仓库根目录 `frontend-react/`，仅作参考，**不参与构建**。
-
 ## 命令
 
 ```bash

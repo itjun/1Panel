@@ -1,0 +1,274 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"diteng-pannel/internal/sshconfig"
+	"diteng-pannel/internal/sshd"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+)
+
+// ============ SSH 配置（主机增删改查 + ssh-copy-id 流程） ============
+
+// ListHosts 解析 ~/.ssh/config 返回所有 Host 条目
+// 默认过滤掉 Git 托管服务（github.com / gitee.com 等）
+// 这些通常不是用户想要管理的"服务器"
+func (a *App) ListHosts() ([]sshconfig.HostConfig, error) {
+	all, err := sshconfig.Parse()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]sshconfig.HostConfig, 0, len(all))
+	for _, h := range all {
+		if sshconfig.IsGitHost(h) {
+			continue
+		}
+		out = append(out, h)
+	}
+	return out, nil
+}
+
+// ListHostsAll 返回所有 Host 条目（包括 Git 服务）
+// 供前端「显示 Git 服务」开关使用
+func (a *App) ListHostsAll() ([]sshconfig.HostConfig, error) {
+	return sshconfig.Parse()
+}
+
+// AddHost 添加新主机：先校验别名不重复 → 用密码连一次验证 → 推送本机公钥 → 回写 ~/.ssh/config
+// 用户只需提供别名/IP/用户/密码 4 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
+// 验证通过并推送公钥后，后续对该主机即可免密登录
+// 契约：四项必填；只有连通性+凭据验证成功才会写 config（由 CopySSHID 内部完成）
+func (a *App) AddHost(input AddHostInput) error {
+	input.Name = strings.TrimSpace(input.Name)
+	input.HostName = strings.TrimSpace(input.HostName)
+	input.User = strings.TrimSpace(input.User)
+	// 密码不 trim，保留用户输入原样
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return fmt.Errorf("别名、IP、用户、密码均不能为空")
+	}
+	if strings.ContainsAny(input.Name, " \t*") {
+		return fmt.Errorf("别名不能包含空格或通配符 *")
+	}
+	// 校验别名是否已存在
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return fmt.Errorf("读取 ssh config 失败: %w", err)
+	}
+	for _, h := range hosts {
+		if h.Name == input.Name {
+			return fmt.Errorf("别名 %s 已存在，请换一个", input.Name)
+		}
+	}
+	// 复用 CopySSHID：密码连接 → 推送公钥 → 回写 config（含 IdentityFile）
+	// 密码连接本身就是一次验证；失败则不会写 config
+	_, err = a.CopySSHID(CopyIDInput{
+		Name:          input.Name,
+		HostName:      input.HostName,
+		User:          input.User,
+		Port:          "22",
+		Password:      input.Password,
+		PublicKeyFile: "~/.ssh/id_ed25519.pub",
+		IdentityFile:  "~/.ssh/id_ed25519",
+	})
+	return err
+}
+
+// TestConnection 用密码尝试 SSH 登录（执行 hostname），仅验证连通性与凭据是否正确
+// 不推送公钥、不写 config；测试完立即关闭连接，避免污染连接池
+// 成功返回包含远程主机名的提示信息
+// 四个字段（别名/IP/用户/密码）均必填，与前端「测试通过后才能保存」契约一致
+func (a *App) TestConnection(input AddHostInput) (string, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	input.HostName = strings.TrimSpace(input.HostName)
+	input.User = strings.TrimSpace(input.User)
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return "", fmt.Errorf("别名、IP、用户、密码均不能为空")
+	}
+	// 使用独立缓存 key，避免测试连接污染正式 Host 连接池
+	testKey := "__test__:" + input.Name
+	opt := sshd.ConnectOption{
+		Host:     input.Name,
+		HostName: input.HostName,
+		User:     input.User,
+		Port:     "22",
+		Password: input.Password,
+	}
+	// 无论成功失败都关闭测试连接
+	defer a.sshMgr.Close(testKey)
+
+	// 跑一条无害命令验证连通性，顺便取主机名
+	out, err := a.sshMgr.Run(testKey, opt, "hostname")
+	if err != nil {
+		return "", fmt.Errorf("连接失败: %w", err)
+	}
+	remoteHost := strings.TrimSpace(string(out))
+	return fmt.Sprintf("连接成功，远程主机: %s", remoteHost), nil
+}
+
+// RenameHost 修改 ~/.ssh/config 里 Host 的别名
+// 同时同步 groups.json 里的引用，并关闭旧名的 SSH 连接（避免连接池残留）
+func (a *App) RenameHost(oldName, newName string) error {
+	// 先校验 newName 不与已有别名重复
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return err
+	}
+	for _, h := range hosts {
+		if h.Name == newName {
+			return fmt.Errorf("别名 %s 已存在", newName)
+		}
+	}
+	// 改 ssh config
+	if err := sshconfig.RenameHost(oldName, newName); err != nil {
+		return err
+	}
+	// 同步分组引用
+	if a.groups != nil {
+		if err := a.groups.RenameHost(oldName, newName); err != nil {
+			runtime.LogWarningf(a.ctx, "同步分组引用失败: %v", err)
+		}
+	}
+	if a.hostIcons != nil {
+		if err := a.hostIcons.Rename(oldName, newName); err != nil {
+			runtime.LogWarningf(a.ctx, "同步主机图标失败: %v", err)
+		}
+	}
+	// 关闭旧连接，下次用新别名时重新建立
+	a.sshMgr.Close(oldName)
+	return nil
+}
+
+// UpdateHost 编辑主机：密码测试连通性 → 推送本机公钥 → 更新 ~/.ssh/config 中的 HostName/User
+// 别名不变；验证失败不写 config
+func (a *App) UpdateHost(input UpdateHostInput) error {
+	input.Name = strings.TrimSpace(input.Name)
+	input.HostName = strings.TrimSpace(input.HostName)
+	input.User = strings.TrimSpace(input.User)
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return fmt.Errorf("别名、IP、用户、密码均不能为空")
+	}
+
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return fmt.Errorf("读取 ssh config 失败: %w", err)
+	}
+	found := false
+	for _, h := range hosts {
+		if h.Name == input.Name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("未找到主机别名: %s", input.Name)
+	}
+
+	// 1) 密码验证连通性（不污染正式连接池）
+	if _, err := a.TestConnection(AddHostInput{
+		Name:     input.Name,
+		HostName: input.HostName,
+		User:     input.User,
+		Password: input.Password,
+	}); err != nil {
+		return err
+	}
+
+	// 2) 推送公钥，保证新 IP/用户下后续可免密
+	pub, err := readPublicKey("~/.ssh/id_ed25519.pub")
+	if err != nil {
+		return err
+	}
+	opt := sshd.ConnectOption{
+		Host:     "__update__:" + input.Name,
+		HostName: input.HostName,
+		User:     input.User,
+		Port:     "22",
+		Password: input.Password,
+	}
+	defer a.sshMgr.Close(opt.Host)
+	script := fmt.Sprintf(
+		`mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys`,
+		pub,
+	)
+	if _, err := a.sshMgr.Run(opt.Host, opt, script); err != nil {
+		return fmt.Errorf("安装公钥失败: %w", err)
+	}
+
+	// 3) 原地更新 config 字段（IdentityFile 等其它行保持不动）
+	if err := sshconfig.UpdateHostFields(input.Name, input.HostName, input.User); err != nil {
+		return err
+	}
+
+	// 关闭旧连接，下次用新参数重连
+	a.sshMgr.Close(input.Name)
+	return nil
+}
+
+// DeleteHost 从 ~/.ssh/config 删除主机别名，并清理分组引用与连接池
+func (a *App) DeleteHost(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("主机别名不能为空")
+	}
+	if err := sshconfig.DeleteHost(name); err != nil {
+		return err
+	}
+	// 从所有分组中移除
+	if a.groups != nil {
+		if err := a.groups.AssignHost(name, ""); err != nil {
+			runtime.LogWarningf(a.ctx, "清理分组引用失败: %v", err)
+		}
+	}
+	if a.hostIcons != nil {
+		if err := a.hostIcons.Delete(name); err != nil {
+			runtime.LogWarningf(a.ctx, "清理主机图标失败: %v", err)
+		}
+	}
+	a.sshMgr.Close(name)
+	return nil
+}
+
+// CopySSHID 把本机公钥安装到远程主机的 authorized_keys
+// 步骤：
+//  1. 读 ~/.ssh/id_ed25519.pub（不存在则提示用户先生成）
+//  2. 用密码连一次目标主机
+//  3. 执行 mkdir -p ~/.ssh && echo "$pubkey" >> authorized_keys && chmod 限制权限
+//  4. 关闭连接
+//  5. 回写 ~/.ssh/config（追加 Host 块）
+func (a *App) CopySSHID(input CopyIDInput) (string, error) {
+	if input.PublicKeyFile == "" {
+		return "", fmt.Errorf("公钥路径不能为空")
+	}
+	pub, err := readPublicKey(input.PublicKeyFile)
+	if err != nil {
+		return "", err
+	}
+	opt := sshd.ConnectOption{
+		Host:     input.Name,
+		HostName: input.HostName,
+		User:     input.User,
+		Port:     input.Port,
+		Password: input.Password,
+	}
+	// 安装公钥
+	script := fmt.Sprintf(`mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys`, pub)
+	if _, err := a.sshMgr.Run(input.Name, opt, script); err != nil {
+		return "", fmt.Errorf("安装公钥失败: %w", err)
+	}
+	// 关闭密码连接，避免后续用密钥时复用错误的连接
+	a.sshMgr.Close(input.Name)
+
+	// 回写 ~/.ssh/config
+	cfg := sshconfig.HostConfig{
+		Name:         input.Name,
+		HostName:     input.HostName,
+		User:         input.User,
+		Port:         input.Port,
+		IdentityFile: input.IdentityFile,
+	}
+	if err := sshconfig.AppendHost(cfg); err != nil {
+		return "", fmt.Errorf("公钥已安装但回写 ssh config 失败: %w", err)
+	}
+	return "ok", nil
+}

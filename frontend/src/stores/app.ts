@@ -2,11 +2,9 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "@/api";
 import type { groups, sshconfig } from "@/api";
+import { useSettingsStore } from "@/stores/settings";
 
 export const UNGROUPED_ID = "__ungrouped__";
-
-/** 同时后台挂起的主机数上限，避免连接与轮询过多 */
-export const MAX_RUNNING_HOSTS = 12;
 
 export type SubTab =
   | "overview"
@@ -224,8 +222,9 @@ export const useAppStore = defineStore("app", () => {
       return existing;
     }
 
-    // 超上限：挤掉最早打开且非当前激活的
-    if (runningOrder.value.length >= MAX_RUNNING_HOSTS) {
+    // 超上限：挤掉最早打开且非当前激活的（上限可在设置里调）
+    const settings = useSettingsStore();
+    if (runningOrder.value.length >= settings.maxRunningHosts) {
       const victim =
         runningOrder.value.find((n) => n !== activeView.value?.id) ||
         runningOrder.value[0];

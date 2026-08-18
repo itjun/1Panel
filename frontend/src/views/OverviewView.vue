@@ -512,6 +512,7 @@ import { Close, FullScreen, Refresh } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { monitor } from "@/api";
+import { formatErr } from "@/utils/format";
 import { SetTrafficLightsHidden } from "@wailsjs/go/main/App";
 import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
@@ -706,7 +707,7 @@ async function loadOverview() {
     pushTraffic(data);
     pushDiskIO(data);
   } catch (e) {
-    error.value = String(e);
+    error.value = formatErr(e);
   }
 }
 

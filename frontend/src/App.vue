@@ -61,6 +61,7 @@ import { api } from "@/api";
 import { EventsOff, EventsOn } from "@wailsjs/runtime/runtime";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
+import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
 import MainArea from "@/layout/MainArea.vue";
 import SettingsDialog from "@/components/SettingsDialog.vue";
@@ -92,16 +93,6 @@ function onGlobalKeydown(e: KeyboardEvent) {
     e.preventDefault();
     openSettings();
   }
-}
-
-function formatErr(e: unknown): string {
-  if (e == null) return "未知错误";
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message || String(e);
-  // Wails 部分环境 reject 的是带 message 的普通对象
-  const any = e as { message?: string };
-  if (any.message) return any.message;
-  return String(e);
 }
 
 async function onRefreshAllIcons() {

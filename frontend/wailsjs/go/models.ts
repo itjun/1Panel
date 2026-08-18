@@ -237,6 +237,20 @@ export namespace main {
 	        this.size = source["size"];
 	    }
 	}
+	export class TermWSInfo {
+	    sessionId: string;
+	    url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TermWSInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessionId = source["sessionId"];
+	        this.url = source["url"];
+	    }
+	}
 	export class UpdateHostInput {
 	    name: string;
 	    hostName: string;

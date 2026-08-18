@@ -159,6 +159,7 @@ import { OnFileDrop, OnFileDropOff } from "@wailsjs/runtime/runtime";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { CertInfo, CertListResult, CertPairCheck } from "@/api";
+import { formatErr } from "@/utils/format";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 
 const props = defineProps<{ host: string }>();
@@ -218,7 +219,7 @@ async function loadCerts() {
     result.value = await api.collectCerts(props.host);
     list.value = result.value?.certs || [];
   } catch (e) {
-    error.value = String(e);
+    error.value = formatErr(e);
   } finally {
     loading.value = false;
     loaded.value = true;
@@ -333,7 +334,7 @@ async function checkPair(paths: string[]) {
   try {
     pair.value = await api.checkCertPair(paths);
   } catch (e) {
-    pairError.value = String(e).replace(/^Error:\s*/, "");
+    pairError.value = formatErr(e);
   } finally {
     pairChecking.value = false;
   }
@@ -352,7 +353,7 @@ async function doUpload() {
     uploadVisible.value = false;
     loadCerts();
   } catch (e) {
-    ElMessage.error(`上传失败: ${String(e).replace(/^Error:\s*/, "")}`);
+    ElMessage.error(`上传失败: ${formatErr(e)}`);
   } finally {
     uploading.value = false;
   }

@@ -1,3 +1,13 @@
+/** 把 unknown 错误（string / Error / 带 message 对象）格式化为可展示文本 */
+export function formatErr(e: unknown): string {
+  if (e == null) return "未知错误";
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message || String(e);
+  const any = e as { message?: string };
+  if (any.message) return any.message;
+  return String(e);
+}
+
 export function formatBytes(bytes: number, decimals = 1): string {
   if (!bytes || bytes <= 0) return "0 B";
   const k = 1024;
