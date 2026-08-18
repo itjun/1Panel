@@ -627,6 +627,15 @@ const lastDisk = ref<{ read: number; write: number; count: number; ts: number } 
 
 let timer: number | undefined;
 
+// 终端正在使用时暂停后台轮询：本组件对所有已打开主机都保活挂载（v-show），
+// 隐藏状态下每 3s 的 SSH 采集 + ECharts 重绘会占用 WebView 主线程，
+// 直接造成终端输入/回显卡顿。离开终端后 watch 会立即补一次刷新。
+const terminalActive = computed(() => {
+  const t = app.activeTab;
+  if (t?.kind !== "host") return false;
+  return app.hostSessions[t.id]?.subTab === "terminal";
+});
+
 const rootDisk = computed(() => {
   if (!disks.value?.length) return null;
   return (
@@ -865,12 +874,20 @@ watch(
   }
 );
 
+// 终端占用结束后立即补一次刷新，避免切回概览时数据陈旧
+watch(terminalActive, (active) => {
+  if (!active) void loadOverview();
+});
+
 onMounted(async () => {
   resetHostState();
   loading.value = true;
   await refreshAll();
   loading.value = false;
-  timer = window.setInterval(loadOverview, 3000);
+  timer = window.setInterval(() => {
+    if (terminalActive.value) return;
+    void loadOverview();
+  }, 3000);
   window.addEventListener("keydown", onEnlargeKeydown);
 });
 
