@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 
@@ -19,13 +20,18 @@ import (
 //   - 每个 Tab 创建一个 Session（基于 ssh.Client 的独立 channel/PTY）
 //   - 复用 sshd.Manager 的连接池，避免重复鉴权
 //   - 用 SSH 协议的 RequestPty 申请真正的伪终端，远程 shell 会正常回显输入
-//   - stdout 通过 Wails 事件推送给前端
+//   - 数据通道两种模式：WS 模式（localhost WebSocket 二进制帧，低延迟，见 ws.go）
+//     和 Events 模式（Wails 事件推送，作为 WS 不可用时的回退）
 //   - 关闭 Tab → 关 session → 远程 shell 收到 EOF 退出
 type Manager struct {
 	ctx      context.Context
 	sshMgr   *sshd.Manager
 	mu       sync.Mutex
 	sessions map[string]*Session
+
+	// WS 数据通道服务（懒启动，仅监听 127.0.0.1，见 ws.go）
+	wsMu   sync.Mutex
+	wsAddr string
 }
 
 // Session 一个终端会话，对应一个 SSH channel + PTY
@@ -37,6 +43,12 @@ type Session struct {
 	cancel  context.CancelFunc // 用于停止输出 goroutine
 	mu      sync.Mutex
 	closed  bool
+
+	// WS 模式字段（Events 模式下为零值，见 ws.go）
+	wsToken  string
+	wsStdout io.Reader       // 前端 attach 后才开始读取
+	wsConn   *websocket.Conn // attach 后填充
+	attached bool
 }
 
 // NewManager 创建终端管理器
@@ -53,15 +65,14 @@ func (m *Manager) Init(ctx context.Context) {
 	m.ctx = ctx
 }
 
-// Open 启动一个新终端会话
-// host 是目标主机别名，eventName 是前端用来接收输出的 Wails 事件名
+// openShell 建立 SSH 会话、申请 PTY 并启动远程登录 shell（Events / WS 两种模式共用）
 // cols/rows 必须是前端 fit 后的真实尺寸；错误尺寸会导致远程 shell 开局乱码（如一串 ]）
-func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, cols, rows int) (string, error) {
+func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int) (*ssh.Session, io.WriteCloser, io.Reader, error) {
 	if m.ctx == nil {
-		return "", fmt.Errorf("终端管理器未初始化")
+		return nil, nil, nil, fmt.Errorf("终端管理器未初始化")
 	}
 	if m.sshMgr == nil {
-		return "", fmt.Errorf("SSH 管理器未注入")
+		return nil, nil, nil, fmt.Errorf("SSH 管理器未注入")
 	}
 	if cols < 20 {
 		cols = 80
@@ -73,12 +84,12 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	// 复用 sshd.Manager 的连接池拿到 *ssh.Client
 	client, err := m.sshMgr.GetClient(host, opt)
 	if err != nil {
-		return "", fmt.Errorf("连接 %s 失败: %w", host, err)
+		return nil, nil, nil, fmt.Errorf("连接 %s 失败: %w", host, err)
 	}
 
 	session, err := client.NewSession()
 	if err != nil {
-		return "", fmt.Errorf("创建 SSH 会话失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("创建 SSH 会话失败: %w", err)
 	}
 
 	// 申请 PTY：这是终端能正常回显/补全/支持全屏程序的关键
@@ -91,24 +102,34 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	}
 	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("请求 PTY 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("请求 PTY 失败: %w", err)
 	}
 
 	stdin, err := session.StdinPipe()
 	if err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("获取 stdin 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("获取 stdin 失败: %w", err)
 	}
 	stdout, err := session.StdoutPipe()
 	if err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("获取 stdout 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("获取 stdout 失败: %w", err)
 	}
 
 	// 启动远程登录 shell
 	if err := session.Shell(); err != nil {
 		_ = session.Close()
-		return "", fmt.Errorf("启动 shell 失败: %w", err)
+		return nil, nil, nil, fmt.Errorf("启动 shell 失败: %w", err)
+	}
+	return session, stdin, stdout, nil
+}
+
+// Open 启动一个 Events 模式终端会话（WS 不可用时的回退路径）
+// host 是目标主机别名，eventName 是前端用来接收输出的 Wails 事件名
+func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, cols, rows int) (string, error) {
+	session, stdin, stdout, err := m.openShell(host, opt, cols, rows)
+	if err != nil {
+		return "", err
 	}
 
 	id := uuid.NewString()

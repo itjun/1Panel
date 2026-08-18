@@ -162,6 +162,10 @@ export function OpenTerminal(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenTerminal'](arg1, arg2, arg3, arg4);
 }
 
+export function OpenTerminalWS(arg1, arg2, arg3) {
+  return window['go']['main']['App']['OpenTerminalWS'](arg1, arg2, arg3);
+}
+
 export function ReadFilePreview(arg1, arg2) {
   return window['go']['main']['App']['ReadFilePreview'](arg1, arg2);
 }

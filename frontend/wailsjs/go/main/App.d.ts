@@ -86,6 +86,8 @@ export function NormalizeFileToLinux(arg1:string,arg2:string):Promise<filetext.P
 
 export function OpenTerminal(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
 
+export function OpenTerminalWS(arg1:string,arg2:number,arg3:number):Promise<main.TermWSInfo>;
+
 export function ReadFilePreview(arg1:string,arg2:string):Promise<filetext.Preview>;
 
 export function ReadFileText(arg1:string,arg2:string):Promise<string>;

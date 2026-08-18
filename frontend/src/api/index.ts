@@ -45,6 +45,7 @@ import {
   RefreshHostIcon,
   RefreshMissingHostIcons,
   OpenTerminal,
+  OpenTerminalWS,
   NormalizeFileToLinux,
   ReadFilePreview,
   ReadFileText,
@@ -195,6 +196,9 @@ export const api = {
     cols: number,
     rows: number
   ): Promise<string> => OpenTerminal(host, eventName, cols, rows),
+  /** WS 模式终端（低延迟数据通道）；连接失败时调用方回退 openTerminal */
+  openTerminalWS: (host: string, cols: number, rows: number) =>
+    OpenTerminalWS(host, cols, rows),
   writeTerminal: (sessionID: string, data: string) =>
     WriteTerminal(sessionID, data),
   resizeTerminal: (sessionID: string, cols: number, rows: number) =>
