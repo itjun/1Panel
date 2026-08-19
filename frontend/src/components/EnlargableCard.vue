@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Close, FullScreen } from "@element-plus/icons-vue";
-import { SetTrafficLightsHidden } from "@wailsjs/go/main/App";
+import { api } from "@/api";
 
 withDefaults(defineProps<{ title?: string; bare?: boolean }>(), {
   title: "",
@@ -52,7 +52,7 @@ const enlarged = ref(false);
 function toggle() {
   enlarged.value = !enlarged.value;
   // 最大化期间隐藏 macOS 红绿灯，退出时恢复
-  SetTrafficLightsHidden(enlarged.value).catch(() => {});
+  api.setTrafficLightsHidden(enlarged.value).catch(() => {});
   emit("toggle", enlarged.value);
   // 容器尺寸变化后通知表格/ECharts 自适应
   nextTick(() => window.dispatchEvent(new Event("resize")));

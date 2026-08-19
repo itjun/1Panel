@@ -15,16 +15,18 @@ import (
 	"github.com/pkg/sftp"
 )
 
+// ============ 远程文本预览 / 规范化 / 本地编码检测 ============
+
 const maxTextPreviewBytes = 512 * 1024
 
-// ReadFilePreview 读取远程文本文件：返回编码/换行检测 + UTF-8 内容
+// ReadFilePreview（Files 服务）读取远程文本文件：返回编码/换行检测 + UTF-8 内容
 // 比 ReadFileText 更完整，供预览抽屉状态栏与「转 Linux 标准」使用
-func (a *App) ReadFilePreview(host, file string) (filetext.Preview, error) {
-	opt, err := a.connectOptionFor(host)
+func (s *Files) ReadFilePreview(host, file string) (filetext.Preview, error) {
+	opt, err := connectOptionFor(host)
 	if err != nil {
 		return filetext.Preview{}, err
 	}
-	raw, name, err := readRemoteFileBytes(a.sshMgr, host, opt, file, maxTextPreviewBytes)
+	raw, name, err := readRemoteFileBytes(s.sshMgr, host, opt, file, maxTextPreviewBytes)
 	if err != nil {
 		return filetext.Preview{}, err
 	}
@@ -34,12 +36,12 @@ func (a *App) ReadFilePreview(host, file string) (filetext.Preview, error) {
 // NormalizeFileToLinux 将远程文本文件规范为 UTF-8（无 BOM）+ LF
 // 写前自动备份为 <file>.bak.YYYYMMDD-HHMMSS
 // 成功后返回新的预览结果（needsNormalize=false）
-func (a *App) NormalizeFileToLinux(host, file string) (filetext.Preview, error) {
-	opt, err := a.connectOptionFor(host)
+func (s *Files) NormalizeFileToLinux(host, file string) (filetext.Preview, error) {
+	opt, err := connectOptionFor(host)
 	if err != nil {
 		return filetext.Preview{}, err
 	}
-	raw, name, err := readRemoteFileBytes(a.sshMgr, host, opt, file, maxTextPreviewBytes)
+	raw, name, err := readRemoteFileBytes(s.sshMgr, host, opt, file, maxTextPreviewBytes)
 	if err != nil {
 		return filetext.Preview{}, err
 	}
@@ -51,11 +53,11 @@ func (a *App) NormalizeFileToLinux(host, file string) (filetext.Preview, error) 
 		return prev, nil
 	}
 	normalized := filetext.NormalizeLinux(prev.Content)
-	if err := writeRemoteFileWithBackup(a.sshMgr, host, opt, file, []byte(normalized)); err != nil {
+	if err := writeRemoteFileWithBackup(s.sshMgr, host, opt, file, []byte(normalized)); err != nil {
 		return filetext.Preview{}, err
 	}
 	// 再读一遍确认
-	raw2, _, err := readRemoteFileBytes(a.sshMgr, host, opt, file, maxTextPreviewBytes)
+	raw2, _, err := readRemoteFileBytes(s.sshMgr, host, opt, file, maxTextPreviewBytes)
 	if err != nil {
 		// 写成功但回读失败：仍返回规范化后的预览
 		return filetext.Preview{
@@ -170,7 +172,7 @@ type LocalTextCheck struct {
 
 // CheckLocalPaths 检测本地路径（文件/文件夹混合），返回所有「非 Linux 标准」的文本文件清单
 // 二进制 / 标准 UTF-8+LF / 超大文件 均跳过（不需用户决策）
-func (a *App) CheckLocalPaths(localPaths []string) ([]LocalTextCheck, error) {
+func (s *Files) CheckLocalPaths(localPaths []string) ([]LocalTextCheck, error) {
 	out := make([]LocalTextCheck, 0)
 	for _, p := range localPaths {
 		info, err := os.Stat(p)

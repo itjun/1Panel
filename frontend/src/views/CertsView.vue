@@ -36,7 +36,7 @@
       </el-table-column>
       <el-table-column label="域名" min-width="220" show-overflow-tooltip>
         <template #default="{ row }">
-          <span class="mono">{{ row.domains.join(", ") || "—" }}</span>
+          <span class="mono">{{ (row.domains ?? []).join(", ") || "—" }}</span>
         </template>
       </el-table-column>
       <el-table-column label="颁发者" min-width="140" show-overflow-tooltip>
@@ -128,7 +128,7 @@
         </div>
         <div class="pair-row">
           <span class="pair-label">域名</span>
-          <span class="mono">{{ pair.domains.join(", ") || "—" }}</span>
+          <span class="mono">{{ (pair.domains ?? []).join(", ") || "—" }}</span>
         </div>
         <div class="pair-row">
           <span class="pair-label">有效期至</span>
@@ -155,7 +155,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from "vue";
 import { FolderRemove, Plus, Refresh, UploadFilled } from "@element-plus/icons-vue";
-import { OnFileDrop, OnFileDropOff } from "@wailsjs/runtime/runtime";
+import { registerFileDrop } from "@/utils/fileDrop";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { CertInfo, CertListResult, CertPairCheck } from "@/api";
@@ -188,7 +188,7 @@ interface CertGroup {
 const groups = computed<CertGroup[]>(() => {
   const map = new Map<string, CertGroup>();
   for (const c of list.value) {
-    const key = `${c.domains.join(",")}|${c.issuer}|${c.notAfter}`;
+    const key = `${(c.domains ?? []).join(",")}|${c.issuer}|${c.notAfter}`;
     const g = map.get(key);
     if (g) {
       g.names.push(c.name);
@@ -199,7 +199,7 @@ const groups = computed<CertGroup[]>(() => {
     } else {
       map.set(key, {
         names: [c.name],
-        domains: c.domains,
+        domains: c.domains ?? [],
         issuer: c.issuer,
         notAfter: c.notAfter,
         daysLeft: c.daysLeft,
@@ -290,15 +290,20 @@ const pairError = ref<string | null>(null);
 const pairChecking = ref(false);
 const uploading = ref(false);
 
+let offDrop: (() => void) | null = null;
+
 function openUpload() {
   pair.value = null;
   pairError.value = null;
   uploadVisible.value = true;
-  OnFileDrop(handleUploadDrop, false);
+  // 上传弹窗打开期间接收全页拖放（LIFO 栈顶）
+  offDrop?.();
+  offDrop = registerFileDrop(handleUploadDrop);
 }
 
 function closeUpload() {
-  OnFileDropOff();
+  offDrop?.();
+  offDrop = null;
 }
 
 function onDragEnter() {
@@ -320,7 +325,7 @@ function onDropFallback() {
   dragCounter = 0;
 }
 
-function handleUploadDrop(_x: number, _y: number, paths: string[]) {
+function handleUploadDrop(paths: string[]) {
   dropHover.value = false;
   dragCounter = 0;
   if (!paths?.length) return;
@@ -361,7 +366,8 @@ async function doUpload() {
 
 onUnmounted(() => {
   // 弹窗未关但组件被卸载时兜底注销拖放监听
-  OnFileDropOff();
+  offDrop?.();
+  offDrop = null;
 });
 
 watch(() => props.host, () => loadCerts(), { immediate: true });

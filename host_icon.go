@@ -1,12 +1,13 @@
 package main
 
 import (
-	"strings"
 	"sync"
 
 	"diteng-pannel/internal/sshconfig"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// Icons 主机发行版图标服务
+type Icons App
 
 // HostIcon 一台主机的发行版图标记录（给前端侧栏/概览用）
 type HostIcon struct {
@@ -16,11 +17,11 @@ type HostIcon struct {
 }
 
 // ListHostIcons 读取本地已落盘的发行版记录，不访问远程
-func (a *App) ListHostIcons() []HostIcon {
-	if a.hostIcons == nil {
+func (s *Icons) ListHostIcons() []HostIcon {
+	if s.hostIcons == nil {
 		return []HostIcon{}
 	}
-	list := a.hostIcons.List()
+	list := s.hostIcons.List()
 	out := make([]HostIcon, 0, len(list))
 	for _, r := range list {
 		out = append(out, HostIcon{Host: r.Host, OSRelease: r.OSRelease})
@@ -29,34 +30,34 @@ func (a *App) ListHostIcons() []HostIcon {
 }
 
 // RefreshHostIcon 远程探测一台主机的发行版并落盘（强制更新）
-func (a *App) RefreshHostIcon(host string) (HostIcon, error) {
-	osr, err := a.detectOSRelease(host)
+func (s *Icons) RefreshHostIcon(host string) (HostIcon, error) {
+	osr, err := s.detectOSRelease(host)
 	if err != nil {
 		return HostIcon{Host: host, Error: err.Error()}, err
 	}
-	a.rememberOS(host, osr)
+	rememberOS(s.hostIcons, host, osr)
 	return HostIcon{Host: host, OSRelease: osr}, nil
 }
 
 // RefreshMissingHostIcons 只探测还没有图标记录的主机，已有记录直接返回
-func (a *App) RefreshMissingHostIcons() []HostIcon {
-	return a.refreshHostIcons(true)
+func (s *Icons) RefreshMissingHostIcons() []HostIcon {
+	return s.refreshHostIcons(true)
 }
 
 // RefreshAllHostIcons 强制重新探测全部主机并更新记录
-func (a *App) RefreshAllHostIcons() []HostIcon {
-	return a.refreshHostIcons(false)
+func (s *Icons) RefreshAllHostIcons() []HostIcon {
+	return s.refreshHostIcons(false)
 }
 
-func (a *App) refreshHostIcons(onlyMissing bool) []HostIcon {
-	hosts, err := a.ListHosts()
+func (s *Icons) refreshHostIcons(onlyMissing bool) []HostIcon {
+	hosts, err := listNonGitHosts()
 	if err != nil {
 		return []HostIcon{{Error: err.Error()}}
 	}
 
 	existing := map[string]string{}
-	if a.hostIcons != nil {
-		for _, r := range a.hostIcons.List() {
+	if s.hostIcons != nil {
+		for _, r := range s.hostIcons.List() {
 			if r.OSRelease != "" {
 				existing[r.Host] = r.OSRelease
 			}
@@ -75,7 +76,7 @@ func (a *App) refreshHostIcons(onlyMissing bool) []HostIcon {
 		todo = append(todo, h)
 	}
 
-	detected := detectOSReleaseParallel(a, todo, 5)
+	detected := detectOSReleaseParallel(s, todo, 5)
 	for _, it := range detected {
 		if it.OSRelease == "" {
 			if old, ok := existing[it.Host]; ok && it.Error != "" {
@@ -88,38 +89,15 @@ func (a *App) refreshHostIcons(onlyMissing bool) []HostIcon {
 	return out
 }
 
-func (a *App) detectOSRelease(host string) (string, error) {
-	opt, err := a.connectOptionFor(host)
+func (s *Icons) detectOSRelease(host string) (string, error) {
+	opt, err := connectOptionFor(host)
 	if err != nil {
 		return "", err
 	}
-	return a.collector.DetectOSRelease(host, opt)
+	return s.collector.DetectOSRelease(host, opt)
 }
 
-// rememberOS 把发行版写入本地记录，并通知前端即时换图标
-func (a *App) rememberOS(host, osRelease string) {
-	host = strings.TrimSpace(host)
-	osRelease = strings.TrimSpace(osRelease)
-	if host == "" || osRelease == "" {
-		return
-	}
-	if a.hostIcons != nil {
-		if existing, ok := a.hostIcons.Get(host); ok && existing.OSRelease == osRelease {
-			return
-		}
-		if err := a.hostIcons.Put(host, osRelease); err != nil && a.ctx != nil {
-			runtime.LogWarningf(a.ctx, "保存主机图标失败 %s: %v", host, err)
-		}
-	}
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "host-icon-updated", HostIcon{
-			Host:      host,
-			OSRelease: osRelease,
-		})
-	}
-}
-
-func detectOSReleaseParallel(a *App, hosts []sshconfig.HostConfig, limit int) []HostIcon {
+func detectOSReleaseParallel(s *Icons, hosts []sshconfig.HostConfig, limit int) []HostIcon {
 	if len(hosts) == 0 {
 		return []HostIcon{}
 	}
@@ -135,13 +113,13 @@ func detectOSReleaseParallel(a *App, hosts []sshconfig.HostConfig, limit int) []
 		go func(idx int, host sshconfig.HostConfig) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			osr, err := a.detectOSRelease(host.Name)
+			osr, err := s.detectOSRelease(host.Name)
 			it := HostIcon{Host: host.Name, OSRelease: osr}
 			if err != nil {
 				it.Error = err.Error()
 			} else if osr != "" {
 				// 探测成功立刻落盘并通知前端，首启补齐时图标会逐台出现
-				a.rememberOS(host.Name, osr)
+				rememberOS(s.hostIcons, host.Name, osr)
 			}
 			results[idx] = it
 		}(i, h)
@@ -149,3 +127,4 @@ func detectOSReleaseParallel(a *App, hosts []sshconfig.HostConfig, limit int) []
 	wg.Wait()
 	return results
 }
+

@@ -9,11 +9,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 
 	"diteng-pannel/internal/sshd"
 )
+
+// EmitFunc 把事件推送给前端（由上层注入，Events 模式下使用）
+// 返回是否被取消（语义与 wails v3 application.Event.Emit 对齐）
+type EmitFunc func(eventName string, data ...any) bool
 
 // Manager 管理终端会话
 // 设计：
@@ -28,6 +31,8 @@ type Manager struct {
 	sshMgr   *sshd.Manager
 	mu       sync.Mutex
 	sessions map[string]*Session
+
+	emit EmitFunc // Events 模式事件推送（注入，可空则跳过）
 
 	// WS 数据通道服务（懒启动，仅监听 127.0.0.1，见 ws.go）
 	wsMu   sync.Mutex
@@ -60,9 +65,14 @@ func NewManager(sshMgr *sshd.Manager) *Manager {
 	}
 }
 
-// Init 在 Wails 启动时注入 context（用于发事件）
-func (m *Manager) Init(ctx context.Context) {
+// Init 设置事件推送函数（Events 模式用）与基础 context
+// 由上层在应用启动时注入
+func (m *Manager) Init(ctx context.Context, emit EmitFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	m.ctx = ctx
+	m.emit = emit
 }
 
 // openShell 建立 SSH 会话、申请 PTY 并启动远程登录 shell（Events / WS 两种模式共用）
@@ -133,7 +143,11 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	}
 
 	id := uuid.NewString()
-	ctx, cancel := context.WithCancel(m.ctx)
+	parentCtx := m.ctx
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
 	s := &Session{
 		ID:      id,
 		Host:    host,
@@ -143,7 +157,7 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	}
 
 	// 把远程 shell 的输出流推送给前端
-	go pumpToEvent(ctx, stdout, eventName, id)
+	go pumpToEvent(ctx, stdout, eventName, id, m.emit)
 
 	// 进程结束时通知前端 + 清理。
 	// 区分断开原因：正常退出（exit 命令）reason=exit，异常断开（网络等）reason=error，
@@ -156,10 +170,12 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 				reason = "error"
 			}
 		}
-		runtime.EventsEmit(m.ctx, eventName+":exit", map[string]any{
-			"sessionId": id,
-			"reason":   reason,
-		})
+		if m.emit != nil {
+			m.emit(eventName+":exit", map[string]any{
+				"sessionId": id,
+				"reason":    reason,
+			})
+		}
 		m.mu.Lock()
 		delete(m.sessions, id)
 		m.mu.Unlock()
@@ -251,7 +267,7 @@ func (m *Manager) CloseAll() {
 //
 // 判断标准：batch 为空 且 距上次 flush 超过 idleThreshold → 视为交互回显，立即发；
 // 否则进入 coalesceWindow 合并，攒满 maxBatch 也立即发。
-func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) {
+func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string, emit EmitFunc) {
 	const (
 		idleThreshold  = 8 * time.Millisecond
 		coalesceWindow = 5 * time.Millisecond
@@ -290,9 +306,14 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string) 
 		if len(batch) == 0 {
 			return
 		}
+		if emit == nil {
+			batch = batch[:0]
+			lastFlush = time.Now()
+			return
+		}
 		data := make([]byte, len(batch))
 		copy(data, batch)
-		runtime.EventsEmit(ctx, eventName, map[string]any{
+		emit(eventName, map[string]any{
 			"data": string(data),
 		})
 		batch = batch[:0]

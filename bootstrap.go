@@ -7,6 +7,10 @@ import (
 	"github.com/pkg/sftp"
 )
 
+// System 系统服务：内置脚本上传 / 窗口控制等
+// SetTrafficLightsHidden 见 system.go
+type System App
+
 // bootstrapZshScript 是内置的 zsh 环境初始化脚本,编译期嵌入二进制。
 // 脚本本体维护在 scripts/bootstrap-zsh.sh,可独立 scp 使用,也供此方法复用。
 //
@@ -15,12 +19,12 @@ var bootstrapZshScript []byte
 
 // BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
 // 实际执行交给前端终端(实时显示输出),执行完由终端命令清理临时脚本。
-func (a *App) BootstrapZsh(host string) (string, error) {
-	opt, err := a.connectOptionFor(host)
+func (s *System) BootstrapZsh(host string) (string, error) {
+	opt, err := connectOptionFor(host)
 	if err != nil {
 		return "", err
 	}
-	client, err := a.sshMgr.GetClient(host, opt)
+	client, err := s.sshMgr.GetClient(host, opt)
 	if err != nil {
 		return "", fmt.Errorf("连接失败: %w", err)
 	}

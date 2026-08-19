@@ -41,10 +41,10 @@ func writeTestCertPair(t *testing.T, dir string, cn string) (certPath, keyPath s
 func TestCheckCertPairMatch(t *testing.T) {
 	dir := t.TempDir()
 	certPath, keyPath := writeTestCertPair(t, dir, "example.com")
-	a := &App{}
+	s := &Certs{}
 
 	// 顺序打乱也应正确识别
-	res, err := a.CheckCertPair([]string{keyPath, certPath})
+	res, err := s.CheckCertPair([]string{keyPath, certPath})
 	if err != nil {
 		t.Fatalf("配对校验失败: %v", err)
 	}
@@ -66,17 +66,17 @@ func TestCheckCertPairMismatch(t *testing.T) {
 	dir := t.TempDir()
 	cert1, key1 := writeTestCertPair(t, dir, "a.com")
 	_, key2 := writeTestCertPair(t, dir, "b.com")
-	a := &App{}
+	s := &Certs{}
 
-	if _, err := a.CheckCertPair([]string{cert1, key2}); err == nil {
+	if _, err := s.CheckCertPair([]string{cert1, key2}); err == nil {
 		t.Fatal("不匹配的私钥不应通过校验")
 	}
 	// 只传证书不传私钥
-	if _, err := a.CheckCertPair([]string{cert1}); err == nil {
+	if _, err := s.CheckCertPair([]string{cert1}); err == nil {
 		t.Fatal("缺少私钥不应通过校验")
 	}
 	// 只传私钥
-	if _, err := a.CheckCertPair([]string{key1}); err == nil {
+	if _, err := s.CheckCertPair([]string{key1}); err == nil {
 		t.Fatal("缺少证书不应通过校验")
 	}
 }

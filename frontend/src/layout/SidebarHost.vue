@@ -6,7 +6,7 @@
     @contextmenu="onBlankContext"
   >
     <!-- 顶部 header：红绿灯让位后紧挨收起 + 搜索（Cursor 同款左簇） -->
-    <div class="sidebar-header drag-region" @dblclick="WindowToggleMaximise()">
+    <div class="sidebar-header drag-region" @dblclick="Window.ToggleMaximise()">
       <el-button
         text
         class="sidebar-collapse-btn no-drag"
@@ -85,7 +85,13 @@
         <!-- 固定首页项：回全部主机概览（与主机项同样走 el-menu 选中逻辑） -->
         <el-menu-item index="__home__" @click="app.goHome()">
           <el-icon><Monitor /></el-icon>
-          <span>全部主机</span>
+          <span class="menu-title">全部主机</span>
+          <span
+            class="menu-count home-count"
+            :title="`已打开 ${openedCount(app.hosts)} / 共 ${app.hosts.length} 台`"
+          >
+            {{ countLabel(app.hosts) }}
+          </span>
         </el-menu-item>
         <el-sub-menu
           v-for="(node, gIdx) in filtered"
@@ -95,6 +101,8 @@
           :class="{
             'is-drop-target':
               dropTargetId === (node.group?.id || UNGROUPED_ID),
+            'is-group-active':
+              activeId === (node.group?.id || UNGROUPED_ID),
           }"
         >
           <template #title>
@@ -129,6 +137,7 @@
               </span>
               <span
                 class="menu-count"
+                :title="`已打开 ${openedCount(node.hosts)} / 共 ${node.hosts.length} 台`"
                 :style="{
                   color: groupColor(node.group?.id || UNGROUPED_ID, gIdx).ink,
                   backgroundColor: groupColor(
@@ -137,7 +146,7 @@
                   ).soft,
                 }"
               >
-                {{ node.hosts.length }}
+                {{ countLabel(node.hosts) }}
               </span>
             </div>
           </template>
@@ -176,13 +185,14 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="host-count">
-        共 {{ app.hosts.length }} 台
-        <template v-if="app.runningHosts.length">
-          · 运行中 {{ app.runningHosts.length }}
+      <div class="my-egress" :title="egressTitle">
+        <span v-if="egressLoading" class="egress-loading">检测中…</span>
+        <template v-else-if="egress && egress.ip">
+          <span class="egress-ip">{{ egress.ip }}</span>
+          <span v-if="egress.location" class="egress-loc">{{ egress.location }}</span>
         </template>
+        <span v-else class="egress-empty">出口 IP 未知</span>
       </div>
-      <div class="drag-hint">拖拽主机到分组标题可调整分组 · 右键空白处可添加</div>
     </div>
 
     <div
@@ -249,11 +259,13 @@
  * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { WindowToggleMaximise } from "@wailsjs/runtime/runtime";
+import { Window } from "@wailsio/runtime";
 import { Folder, Monitor } from "@element-plus/icons-vue";
 import { ElMessageBox, ElMessage } from "element-plus";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import DistroLogo from "@/components/DistroLogo.vue";
+import { api } from "@/api";
+import type { monitor } from "@/api";
 import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
 import HostContextMenu, {
   type CtxMenuState,
@@ -311,6 +323,17 @@ const filtered = computed(() => {
 
 function openGroup(id: string, name: string) {
   app.openGroupTab(id, name);
+}
+
+/** 已打开（后台保持会话）的主机数 */
+function openedCount(list: { name: string }[]): number {
+  return list.filter((h) => app.isRunning(h.name)).length;
+}
+
+/** 计数标记文案：有已打开时显示「已打开/总数」，否则仅总数 */
+function countLabel(list: { name: string }[]): string {
+  const opened = openedCount(list);
+  return opened > 0 ? `${opened}/${list.length}` : `${list.length}`;
 }
 
 /** 展开/收起搜索：展开时聚焦输入框，收起时清空 */
@@ -449,10 +472,40 @@ async function onCreateGroup() {
   }
 }
 
+// ---------- 侧栏底部：本机出口 IP 与归属地（应用启动时获取一次） ----------
+
+const egress = ref<monitor.EgressInfo | null>(null);
+const egressLoading = ref(false);
+
+const egressTitle = computed(() => {
+  if (egressLoading.value) return "正在查询 myip.ipip.net…";
+  if (!egress.value || !egress.value.ip) return "本机出口公网 IP";
+  return `${egress.value.ip}${egress.value.location ? " · " + egress.value.location : ""}\n来源：myip.ipip.net`;
+});
+
+async function refreshEgress() {
+  if (egressLoading.value) return;
+  egressLoading.value = true;
+  try {
+    const r = await api.getMyEgress();
+    if (r && r.ip) {
+      egress.value = r;
+    } else {
+      // 静默失败：保留旧值或显示「未识别」
+      if (!egress.value) egress.value = r ?? null;
+    }
+  } catch {
+    /* 启动期查询失败静默，避免弹窗打扰 */
+  } finally {
+    egressLoading.value = false;
+  }
+}
+
 onMounted(() => {
   window.addEventListener("keydown", onCtxKeydown);
   window.addEventListener("keydown", onSearchKeydown);
   window.addEventListener("keydown", onNumSwitchKeydown);
+  void refreshEgress();
 });
 
 onBeforeUnmount(() => {
@@ -632,6 +685,12 @@ onBeforeUnmount(() => {
   border-radius: 9px;
 }
 
+/* 「全部主机」汇总计数：主色系，区别于各分组色 */
+.home-count {
+  color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 12%, transparent);
+}
+
 /* 主机项：仅保留拖拽与运行态标记，视觉完全走全局 panel-sidebar 样式 */
 .host-item {
   cursor: grab;
@@ -672,6 +731,30 @@ onBeforeUnmount(() => {
   border-radius: 4px;
 }
 
+/* 分组被打开为当前页：与「全部主机」选中一致的白底 + 主色描边 + 左竖线 */
+:deep(.el-sub-menu.is-group-active > .el-sub-menu__title) {
+  position: relative;
+  background-color: var(--el-menu-item-bg-color-active) !important;
+  box-shadow:
+    0 0 4px rgba(0, 94, 235, 0.1),
+    inset 0 0 0 2px var(--el-color-primary) !important;
+
+  &::before {
+    position: absolute;
+    border-radius: 4px;
+    left: 8px;
+    width: 4px;
+    height: 14px;
+    content: "";
+    background: var(--el-color-primary);
+  }
+
+  .group-name,
+  .group-folder-ico {
+    color: var(--el-color-primary);
+  }
+}
+
 /* 让标题行内 data-drop-group 区域尽量铺满 */
 :deep(.el-sub-menu__title) {
   .group-title-row {
@@ -692,6 +775,39 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 10px;
   color: #c0c4cc;
+}
+
+/* 侧栏底部：本机出口 IP 与归属地（无卡片底色，直接融入侧栏，仅展示） */
+.my-egress {
+  margin: 8px 14px 6px;
+  padding: 2px 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.egress-ip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  flex-shrink: 0;
+}
+.egress-loc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.egress-empty,
+.egress-loading {
+  color: var(--el-text-color-placeholder);
+  font-style: italic;
+  flex: 1;
 }
 
 .sidebar-resize-handle {

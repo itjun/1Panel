@@ -15,6 +15,9 @@ import (
 	"diteng-pannel/internal/monitor"
 )
 
+// Certs 证书服务：本地证书/私钥配对校验与上传
+type Certs App
+
 // CertPairCheck 本地「证书 + 私钥」配对校验结果（不上传、不触网）
 type CertPairCheck struct {
 	CertPath   string   `json:"certPath"` // 识别出的证书文件路径
@@ -30,7 +33,7 @@ type CertPairCheck struct {
 // localPaths: 用户拖入的文件（任意顺序，自动识别哪个是证书、哪个是私钥；
 // 也支持单个文件里同时包含证书和私钥两个 PEM 块）
 // 只有两者公钥完全一致才返回结果，否则返回错误
-func (a *App) CheckCertPair(localPaths []string) (CertPairCheck, error) {
+func (s *Certs) CheckCertPair(localPaths []string) (CertPairCheck, error) {
 	var cert *x509.Certificate
 	var certPath string
 	var key any
@@ -100,7 +103,7 @@ func (a *App) CheckCertPair(localPaths []string) (CertPairCheck, error) {
 }
 
 // UploadCertPair 把已校验配对的证书+私钥上传到远程 /etc/nginx/cert
-func (a *App) UploadCertPair(host, certPath, keyPath string) error {
+func (s *Certs) UploadCertPair(host, certPath, keyPath string) error {
 	var total int64
 	for _, p := range []string{certPath, keyPath} {
 		info, err := os.Stat(p)
@@ -110,7 +113,7 @@ func (a *App) UploadCertPair(host, certPath, keyPath string) error {
 		total += info.Size()
 	}
 
-	sc, err := a.openSFTP(host)
+	sc, err := openSFTP(s.sshMgr, host)
 	if err != nil {
 		return err
 	}
@@ -119,7 +122,7 @@ func (a *App) UploadCertPair(host, certPath, keyPath string) error {
 	// uploadFileSc 内部会 MkdirAll，远端没有 /etc/nginx/cert 也能自动创建
 	prog := &progressTracker{total: total}
 	for _, p := range []string{certPath, keyPath} {
-		if _, err := a.uploadFileSc(sc, p, monitor.CertDir, false, prog); err != nil {
+		if _, err := uploadFileSc(sc, p, monitor.CertDir, false, prog); err != nil {
 			return fmt.Errorf("上传 %s 失败: %w", p, err)
 		}
 	}

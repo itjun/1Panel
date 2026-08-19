@@ -57,7 +57,11 @@ func (m *Manager) OpenWS(host string, opt sshd.ConnectOption, cols, rows int) (s
 	token := hex.EncodeToString(tokenBytes)
 
 	id := uuid.NewString()
-	_, cancel := context.WithCancel(m.ctx)
+	parentCtx := m.ctx
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	_, cancel := context.WithCancel(parentCtx)
 	s := &Session{
 		ID:       id,
 		Host:     host,

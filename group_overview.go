@@ -9,6 +9,9 @@ import (
 	"diteng-pannel/internal/sshd"
 )
 
+// Overview 分组概览服务
+type Overview App
+
 // HostOverviewSnapshot 一台主机的概览快照
 type HostOverviewSnapshot struct {
 	Name     string             `json:"name"`     // Host 别名
@@ -28,14 +31,14 @@ type GroupOverview struct {
 
 // ListGroupOverview 采集所有分组的所有主机概览（较慢，慎用）
 // 并发上限 5；单台失败不拖垮其它主机
-func (a *App) ListGroupOverview() ([]GroupOverview, error) {
-	buckets, err := a.buildGroupBuckets()
+func (s *Overview) ListGroupOverview() ([]GroupOverview, error) {
+	buckets, err := s.buildGroupBuckets()
 	if err != nil {
 		return nil, err
 	}
 	out := make([]GroupOverview, 0, len(buckets))
 	for _, b := range buckets {
-		snapshots := collectHostSnapshotsParallel(a.collector, b.hosts, 5, a.rememberOS)
+		snapshots := collectHostSnapshotsParallel(s.collector, b.hosts, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) })
 		out = append(out, GroupOverview{
 			GroupID:   b.id,
 			GroupName: b.name,
@@ -46,8 +49,8 @@ func (a *App) ListGroupOverview() ([]GroupOverview, error) {
 }
 
 // ListOneGroupOverview 只采集指定分组，避免「打开一个分组却扫全库」导致长时间加载中
-func (a *App) ListOneGroupOverview(groupID string) (GroupOverview, error) {
-	buckets, err := a.buildGroupBuckets()
+func (s *Overview) ListOneGroupOverview(groupID string) (GroupOverview, error) {
+	buckets, err := s.buildGroupBuckets()
 	if err != nil {
 		return GroupOverview{}, err
 	}
@@ -56,7 +59,7 @@ func (a *App) ListOneGroupOverview(groupID string) (GroupOverview, error) {
 			return GroupOverview{
 				GroupID:   b.id,
 				GroupName: b.name,
-				Hosts:     collectHostSnapshotsParallel(a.collector, b.hosts, 5, a.rememberOS),
+				Hosts:     collectHostSnapshotsParallel(s.collector, b.hosts, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) }),
 			}, nil
 		}
 	}
@@ -69,7 +72,7 @@ type groupBucket struct {
 	hosts []sshconfig.HostConfig
 }
 
-func (a *App) buildGroupBuckets() ([]groupBucket, error) {
+func (s *Overview) buildGroupBuckets() ([]groupBucket, error) {
 	hosts, err := sshconfig.Parse()
 	if err != nil {
 		return nil, err
@@ -86,8 +89,8 @@ func (a *App) buildGroupBuckets() ([]groupBucket, error) {
 	}
 
 	var gs []groups.Group
-	if a.groups != nil {
-		gs = a.groups.List()
+	if s.groups != nil {
+		gs = s.groups.List()
 	}
 
 	var buckets []groupBucket

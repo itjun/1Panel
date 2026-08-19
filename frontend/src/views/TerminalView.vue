@@ -106,6 +106,7 @@ import {
   nextTick,
   onActivated,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   ref,
   shallowRef,
@@ -118,19 +119,14 @@ import EnlargableCard from "@/components/EnlargableCard.vue";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { CanvasAddon } from "@xterm/addon-canvas";
 import "@xterm/xterm/css/xterm.css";
-import {
-  EventsOff,
-  EventsOn,
-  OnFileDrop,
-  OnFileDropOff,
-} from "@wailsjs/runtime/runtime";
+import { Events } from "@wailsio/runtime";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
 import { formatErr } from "@/utils/format";
+import { registerFileDrop } from "@/utils/fileDrop";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
@@ -145,25 +141,19 @@ function resolveTermFontFamily(): string {
   return f;
 }
 
-// GPU 渲染：优先 WebGL（性能最好），上下文丢失或不支持时回退 Canvas；
-// 两者都失败则保持 xterm 默认 DOM 渲染。必须在 term.open() 之后调用。
+// GPU 渲染：优先 WebGL（性能最好），上下文丢失或不支持时回退
+// xterm 6 内置的 Canvas 默认渲染器（6.0 起 canvas 即默认，DOM 渲染器已移除）。
+// 必须在 term.open() 之后调用。
 function loadRenderer(term: XTerm) {
-  const loadCanvas = () => {
-    try {
-      term.loadAddon(new CanvasAddon());
-    } catch {
-      /* 回退 DOM 渲染 */
-    }
-  };
   try {
     const webgl = new WebglAddon();
     webgl.onContextLoss(() => {
       webgl.dispose();
-      loadCanvas();
+      // 卸载 WebGL addon 后 xterm 自动回到内置 Canvas 渲染器
     });
     term.loadAddon(webgl);
   } catch {
-    loadCanvas();
+    // WebGL 不可用：保持内置 Canvas 渲染器
   }
 }
 
@@ -178,6 +168,9 @@ interface Session {
   el: HTMLDivElement;
   /** WS 模式下关闭数据通道（销毁会话时调用） */
   closeWs?: () => void;
+  /** v3 Events.On 返回的退订函数（销毁会话时调用） */
+  offData?: () => void;
+  offExit?: () => void;
 }
 
 interface ReconnectCtl {
@@ -219,6 +212,9 @@ const uploadState = ref({
   total: 0,
 });
 let uploadToastTimer: ReturnType<typeof setTimeout> | null = null;
+// v3 全局事件订阅的退订函数（组件卸载时调用）
+let offDrop: (() => void) | null = null;
+let offProgress: (() => void) | null = null;
 const pct = computed(() => {
   const t = uploadState.value.total;
   if (!t) return 0;
@@ -443,10 +439,11 @@ async function openNew() {
     }
   }
 
-  EventsOn(eventName, (payload: { data?: string }) => {
-    if (payload?.data) term.write(payload.data);
+  tab.offData = Events.On(eventName, (ev: { data?: { data?: string } }) => {
+    if (ev?.data?.data) term.write(ev.data.data);
   });
-  EventsOn(`${eventName}:exit`, (payload: { reason?: string }) => {
+  tab.offExit = Events.On(`${eventName}:exit`, (ev: { data?: { reason?: string } }) => {
+    const payload = ev?.data;
     if (ctl.stopped) return;
     if (payload?.reason === "error") {
       // 异常断开：提示 + 通知 + 自动重连
@@ -533,8 +530,8 @@ async function destroySession(t: Session) {
     }
   }
   t.closeWs?.();
-  EventsOff(t.eventName);
-  EventsOff(`${t.eventName}:exit`);
+  t.offData?.();
+  t.offExit?.();
   try {
     t.term.dispose();
   } catch {
@@ -655,8 +652,8 @@ function onDropFallback() {
   dragCounter = 0;
 }
 
-// Wails OnFileDrop 回调：拿到本地绝对路径 → 上传到 /tmp → 回填远程路径到光标
-async function handleFileDrop(_x: number, _y: number, paths: string[]) {
+// 文件拖放：v3 由后端 "file:drop" 事件提供本地绝对路径 → 上传到 /tmp → 回填远程路径到光标
+async function handleFileDrop(paths: string[]) {
   dragOver.value = false;
   dragCounter = 0;
   if (!paths?.length) return;
@@ -789,14 +786,20 @@ onMounted(() => {
   setTimeout(() => {
     if (sessions.value.length === 0) void openNew();
   }, 50);
-  // useDropTarget=false：整页均可接收拖放，不要求目标元素带 --wails-drop-target 样式
-  OnFileDrop(handleFileDrop, false);
-  EventsOn("upload:progress", onUploadProgress);
+  // v3：拖放经 LIFO 分发器，仅在终端页激活时注册（KeepAlive 失活即出栈）；
+  // 上传进度各自订阅
+  offProgress = Events.On(
+    "upload:progress",
+    (ev: { data?: { uploaded?: number; total?: number; current?: string } }) => {
+      if (ev?.data) onUploadProgress(ev.data);
+    }
+  );
 });
 
 // KeepAlive 重新激活（从其他子页签切回终端）时重新适配尺寸：
 // 隐藏期间容器尺寸变化不会触发任何事件，需要显式 fit
 onActivated(() => {
+  if (!offDrop) offDrop = registerFileDrop(handleFileDrop);
   const active = sessions.value.find((x) => x.id === activeId.value);
   if (!active) return;
   void nextTick(() => {
@@ -815,11 +818,18 @@ onActivated(() => {
   });
 });
 
+// KeepAlive 失活（切到其它子页签）：退出拖放栈，避免拦截文件页拖拽
+onDeactivated(() => {
+  offDrop?.();
+  offDrop = null;
+});
+
 onBeforeUnmount(() => {
   window.removeEventListener("resize", onWinResize);
   window.removeEventListener("click", onDocClick);
-  OnFileDropOff();
-  EventsOff("upload:progress");
+  offDrop?.();
+  offDrop = null;
+  offProgress?.();
   if (uploadToastTimer) {
     clearTimeout(uploadToastTimer);
     uploadToastTimer = null;

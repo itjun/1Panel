@@ -513,7 +513,6 @@ import { ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { monitor } from "@/api";
 import { formatErr } from "@/utils/format";
-import { SetTrafficLightsHidden } from "@wailsjs/go/main/App";
 import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
 import {
@@ -844,14 +843,14 @@ const enlargeStyle = computed(() => ({
 function openEnlarge(key: string) {
   enlargedKey.value = key;
   // 最大化期间隐藏 macOS 红绿灯
-  SetTrafficLightsHidden(true).catch(() => {});
+  api.setTrafficLightsHidden(true).catch(() => {});
   // 容器尺寸变化后通知 ECharts resize
   nextTick(() => window.dispatchEvent(new Event("resize")));
 }
 
 function closeEnlarge() {
   enlargedKey.value = null;
-  SetTrafficLightsHidden(false).catch(() => {});
+  api.setTrafficLightsHidden(false).catch(() => {});
   nextTick(() => window.dispatchEvent(new Event("resize")));
 }
 

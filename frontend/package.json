@@ -9,25 +9,26 @@
     "type-check": "vue-tsc --noEmit",
     "preview": "vite preview",
     "verify:shell": "node scripts/verify-shell.mjs",
-    "test:helpers": "node scripts/test-helpers.mjs"
+    "test:helpers": "node scripts/test-helpers.mjs",
+    "build:dev": "vite build --minify false --mode development"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.1",
-    "@xterm/addon-canvas": "^0.7.0",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/addon-web-links": "^0.11.0",
-    "@xterm/addon-webgl": "^0.18.0",
-    "@xterm/xterm": "^5.5.0",
-    "echarts": "^5.6.0",
-    "element-plus": "^2.9.0",
-    "pinia": "^2.3.0",
-    "vue": "^3.5.13"
+    "@element-plus/icons-vue": "^2.3.2",
+    "@wailsio/runtime": "3.0.0-beta.9",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "echarts": "^6.1.0",
+    "element-plus": "^2.14.4",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.41"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.2.1",
-    "sass": "^1.83.0",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.0",
-    "vue-tsc": "^2.1.10"
+    "@vitejs/plugin-vue": "^6.0.8",
+    "sass": "^1.102.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.1",
+    "vue-tsc": "^3.3.10"
   }
 }

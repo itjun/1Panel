@@ -1,6 +1,6 @@
 # 1Pannel
 
-一个 macOS 原生的运维管理面板，基于 Wails v2（Go + Vue 3 + TypeScript）。
+一个 macOS/Windows 原生的运维管理面板，基于 Wails v3（Go + Vue 3 + TypeScript）。
 
 读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）。
 
@@ -20,20 +20,21 @@
 
 ## 开发
 
-依赖：Go 1.21+、Node 18+、Wails CLI v2。
+依赖：Go 1.26+、Node 22+（Vite 8 要求）、Wails v3 CLI 与 task CLI。
 
 ```bash
 # 安装 Wails CLI（首次）
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.9
+go install github.com/go-task/task/v3/cmd/task@latest
 
 # 开发模式（热重载）
-wails dev
+task dev
 
-# 构建 .app（仅 Apple Silicon）
-wails build -platform darwin/arm64 -clean
+# 构建 + 打包 .app（macOS 通用包 = task darwin:package:universal）
+task darwin:package
 ```
 
-构建产物：`build/bin/1Pannel.app`。
+构建产物：`build/bin/1Pannel.app`（macOS）/ `build/bin/1Pannel.exe`（Windows）。
 
 ## 分发
 
@@ -76,7 +77,7 @@ wails build -platform darwin/arm64 -clean
 
 ## 技术栈
 
-- **后端**：Go 1.21+、Wails v2、`golang.org/x/crypto/ssh`
+- **后端**：Go 1.26+、Wails v3、`golang.org/x/crypto/ssh`
 - **前端**：Vue 3、TypeScript、Element Plus（1Panel 风格主题）、Pinia、xterm.js、ECharts
 - **目标主机**：通过系统 `ssh` 二进制建立长连接，运行只读采集命令（`/proc/*`、`free`、`df`、`ps`、`systemctl`、`crontab -l`、`docker ps/stats` 等）
 
@@ -84,20 +85,21 @@ wails build -platform darwin/arm64 -clean
 
 ```
 .
-├── main.go                       # Wails 应用入口
-├── app.go                        # 后端 API 绑定（前端可调用）
-├── group_overview.go             # ListGroupOverview API（分组概览并发采集）
+├── main.go                       # Wails v3 应用入口
+├── app.go                        # 应用核心（窗口/菜单/拖放/服务装配）
+├── groups.go                     # Groups 服务（分组增删改查/分配）
+├── group_overview.go             # Overview 服务（分组概览并发采集）
 ├── helpers.go                    # CopyIDInput 等辅助类型
 ├── internal/
 │   ├── sshconfig/                # ~/.ssh/config 解析与回写
 │   ├── groups/                   # 分组本地存储（~/Library/Application Support/ServerPanel/groups.json）
 │   ├── sshd/                     # SSH 长连接管理
 │   ├── monitor/                  # 监控采集（overview/disks/processes/docker/services）
-│   └── terminal/                 # 终端会话管理（spawn 系统 ssh）
+│   └── terminal/                 # 终端会话管理（SSH PTY + WS/Events 双通道）
 ├── frontend/
 │   └── src/
 │       ├── stores/               # Pinia：app.ts（主机/分组/会话）、settings.ts（主题/字体）
-│       ├── api/index.ts          # Wails 绑定统一封装
+│       ├── api/index.ts          # Wails v3 绑定统一封装（bindings/ 自动生成）
 │       ├── layout/               # SidebarHost（侧栏树）、MainArea（多会话 Tab）
 │       ├── views/                # 概览/进程/网络/Docker/文件/服务/证书/定时/软件包/日志/终端
 │       ├── components/           # DistroLogo、图表封装等公共组件

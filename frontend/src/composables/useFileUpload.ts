@@ -7,12 +7,8 @@ import { computed, onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
 import type { LocalTextCheck } from "@/api";
-import {
-  EventsOff,
-  EventsOn,
-  OnFileDrop,
-  OnFileDropOff,
-} from "@wailsjs/runtime/runtime";
+import { Events } from "@wailsio/runtime";
+import { registerFileDrop } from "@/utils/fileDrop";
 
 export function useFileUpload(
   host: () => string,
@@ -54,8 +50,8 @@ export function useFileUpload(
     dragCounter = 0;
   }
 
-  // Wails OnFileDrop 回调：拿到本地路径 → 先检测编码
-  function handleFileDrop(_x: number, _y: number, paths: string[]) {
+  // 文件拖放：v3 由后端窗口事件转发为 "file:drop" 自定义事件（payload = 本地绝对路径数组）
+  function handleFileDrop(paths: string[]) {
     dragOver.value = false;
     dragCounter = 0;
     if (!paths?.length) return;
@@ -107,15 +103,15 @@ export function useFileUpload(
     }
   }
 
-  function onUploadProgress(ev: {
+  function onUploadProgress(payload: {
     uploaded: number;
     total: number;
     current: string;
   }) {
     uploadProg.value = {
-      uploaded: ev.uploaded || 0,
-      total: ev.total || 0,
-      current: ev.current || "",
+      uploaded: payload.uploaded || 0,
+      total: payload.total || 0,
+      current: payload.current || "",
     };
   }
 
@@ -150,15 +146,21 @@ export function useFileUpload(
     input.value = "";
   }
 
+  // v3：拖放经 LIFO 分发器（最活跃视图接收）；进度事件各自订阅
+  let offDrop: (() => void) | null = null;
+  let offProgress: (() => void) | null = null;
   onMounted(() => {
-    // useDropTarget=false：不要求 drop 目标元素带 --wails-drop-target 样式，
-    // 文件管理整页均可接收拖放（否则 drop 落在无该样式的元素上会被 Wails 静默丢弃）
-    OnFileDrop(handleFileDrop, false);
-    EventsOn("upload:progress", onUploadProgress);
+    offDrop = registerFileDrop(handleFileDrop);
+    offProgress = Events.On(
+      "upload:progress",
+      (ev: { data?: { uploaded: number; total: number; current: string } }) => {
+        if (ev?.data) onUploadProgress(ev.data);
+      }
+    );
   });
   onBeforeUnmount(() => {
-    OnFileDropOff();
-    EventsOff("upload:progress");
+    offDrop?.();
+    offProgress?.();
   });
 
   return {

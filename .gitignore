@@ -1,32 +1,36 @@
-# --- 构建产物 ---
-# build/ 下的构建资产（Info.plist、windows icon/manifest 等）需入库，
-# 供 CI 拉取后打包；build/bin/ 是产物，保持忽略。
+# --- 构建产物（Wails v3：产物在项目根 bin/） ---
+bin/
+
+# build/ 下的构建资产需入库，供 CI 拉取后打包：
+# v3 体系 = build/config.yml + Taskfile 体系 + 平台资产（Info.plist 等由
+# `wails3 task common:update:build-assets` 从 config.yml 生成）。
 # 注意：Wails 打包器读取的是 appicon.png（不是 appicon.svg），且不会从 svg
-# 自动生成 png。因此 appicon.png 必须入库，否则 CI/全新 clone 会回退到 Wails
-# 默认图标。改 appicon.svg 后需手动重新导出 png：
+# 自动生成 png。因此 appicon.png 必须入库。改 appicon.svg 后需手动重新导出：
 #   magick build/appicon.svg build/appicon.png
-# icns/ico 才是 wails build 生成的产物，保持忽略。
+# icns/ico/Assets.car 是 `wails3 generate icons` 生成的产物，保持忽略。
 # 注意：须用 build/* 而非 build/，目录被整体排除时 ! 例外不生效
 build/*
+!build/config.yml
+!build/Taskfile.yml
+!build/README.md
 !build/appicon.svg
 !build/appicon.png
 !build/darwin/
-!build/windows/
-build/windows/icon.ico
-!build/darwin/
+!build/darwin/Taskfile.yml
 !build/darwin/Info.plist
 !build/darwin/Info.dev.plist
 !build/windows/
-!build/windows/info.json
-!build/windows/wails.exe.manifest
-!build/windows/installer/
-!build/windows/installer/*
-!build/README.md
+!build/windows/Taskfile.yml
+!build/linux/
+!build/linux/Taskfile.yml
+build/darwin/icons.icns
+build/darwin/Assets.car
+build/windows/icon.ico
+build/ios/
 **/dist/
 *.app
 *.app.dSYM/
 ServerPanel
-bin/
 *.syso
 *.dmg
 *.pkg
@@ -37,9 +41,6 @@ bin/
 # --- 前端本地/生成 ---
 frontend/dist/
 frontend/node_modules/
-# Wails 绑定校验哈希会随 package.json 变，保留提交更稳；若本地乱生成可取消下行注释
-# frontend/package.json.md5
-
 # --- 日志 / 编辑器 / OS ---
 *.log
 *.DS_Store
@@ -95,3 +96,6 @@ Desktop.ini
 *.zip
 *.tar.gz
 !docs/**/*.md
+
+# task 缓存
+.task/

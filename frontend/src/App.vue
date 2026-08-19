@@ -6,6 +6,14 @@
       @add-host="addHostOpen = true"
     />
 
+    <!-- 侧栏收起时的浮层展开按钮（原在 MainArea 顶部 host-header，移除后保留入口）。
+         host 视图由 MainArea 顶部 top-drag-strip 内的展开按钮承担，不重复显示 -->
+    <SidebarExpandBtn
+      v-if="!app.sidebarOpen && app.activeTab?.kind !== 'host'"
+      class="floating-expand-btn"
+      @expand="app.setSidebarOpen(true)"
+    />
+
     <div class="main-column">
       <MainArea />
     </div>
@@ -58,11 +66,12 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
-import { EventsOff, EventsOn } from "@wailsjs/runtime/runtime";
+import { Events } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
+import SidebarExpandBtn from "@/components/SidebarExpandBtn.vue";
 import MainArea from "@/layout/MainArea.vue";
 import SettingsDialog from "@/components/SettingsDialog.vue";
 
@@ -137,32 +146,34 @@ async function onAddHost() {
   }
 }
 
+/** v3 事件订阅：Events.On 返回退订函数，逐个保存后统一释放 */
+const eventOffs: (() => void)[] = [];
+
 onMounted(async () => {
   window.addEventListener("keydown", onGlobalKeydown, true);
   // macOS 应用菜单「设置…」点击事件 → 打开设置弹窗
-  EventsOn("open-settings", () => openSettings());
+  eventOffs.push(Events.On("open-settings", () => openSettings()));
   // 系统菜单「主机」子菜单：添加主机 / 新建分组
-  EventsOn("open-add-host", () => (addHostOpen.value = true));
-  EventsOn("open-create-group", () => (app.pendingCreateGroup = true));
+  eventOffs.push(Events.On("open-add-host", () => (addHostOpen.value = true)));
+  eventOffs.push(Events.On("open-create-group", () => (app.pendingCreateGroup = true)));
   // 系统菜单「1Pannel」子菜单：刷新 / 检查并更新全部图标（原侧栏齿轮菜单）
-  EventsOn("app-refresh", () => void app.refresh());
-  EventsOn("app-refresh-icons", () => void onRefreshAllIcons());
-  EventsOn("host-icon-updated", (it: { host?: string; osRelease?: string }) => {
-    if (it?.host && it?.osRelease) {
-      app.rememberOsRelease(it.host, it.osRelease);
-    }
-  });
+  eventOffs.push(Events.On("app-refresh", () => void app.refresh()));
+  eventOffs.push(Events.On("app-refresh-icons", () => void onRefreshAllIcons()));
+  eventOffs.push(
+    Events.On("host-icon-updated", (ev: { data?: { host?: string; osRelease?: string } }) => {
+      const it = ev?.data;
+      if (it?.host && it?.osRelease) {
+        app.rememberOsRelease(it.host, it.osRelease);
+      }
+    })
+  );
   await app.refresh();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown, true);
-  EventsOff("open-settings");
-  EventsOff("open-add-host");
-  EventsOff("open-create-group");
-  EventsOff("app-refresh");
-  EventsOff("app-refresh-icons");
-  EventsOff("host-icon-updated");
+  eventOffs.forEach((off) => off());
+  eventOffs.length = 0;
 });
 </script>
 
@@ -178,5 +189,12 @@ onBeforeUnmount(() => {
   border-radius: 3px;
   background: var(--el-fill-color);
   font-size: 11px;
+}
+/* 侧栏收起时的浮层展开按钮：固定在窗口左上角，避开红绿灯区（x≈7-70px，让位与 top-drag-strip 一致） */
+.floating-expand-btn {
+  position: fixed;
+  top: 8px;
+  left: 84px;
+  z-index: 100;
 }
 </style>

@@ -1,19 +1,10 @@
 <template>
-  <div v-loading="loading && !group" class="group-overview">
-    <el-alert
-      v-if="error && !group"
-      type="error"
-      :title="error"
-      show-icon
-      class="mb"
-    />
-
-    <template v-if="group">
-      <!-- ===== 日常模式工具栏 ===== -->
+  <div class="group-overview">
+    <template v-if="hosts.length">
       <div class="summary-bar">
         <div class="summary-left">
-          <span class="panel-section-title">主机监控</span>
-          <span class="meta">共 {{ hosts.length }} 台</span>
+          <span class="panel-section-title">{{ groupName || "分组" }}</span>
+          <span class="meta">共 {{ hosts.length }} 台 · 已打开 {{ openedCount }}</span>
           <el-tag size="small" type="success" effect="dark">
             正常 {{ okCount }}
           </el-tag>
@@ -59,33 +50,29 @@
             link
             type="primary"
             :icon="Refresh"
-            :loading="loading"
-            @click="load"
+            :loading="refreshing"
+            @click="refreshAll"
           >
             刷新
           </el-button>
         </div>
       </div>
 
-      <el-empty
-        v-if="hosts.length === 0"
-        description="该分组暂无主机，可将侧栏主机拖入分组"
-      />
-
-      <!-- ===== 日常：卡片 ===== -->
-      <div v-else-if="viewMode === 'card'" class="host-grid">
+      <!-- 卡片视图 -->
+      <div v-if="viewMode === 'card'" class="host-grid">
         <div
           v-for="h in hosts"
           :key="'c-' + h.name"
           class="host-card panel-hover-card"
-          :class="cardClass(h)"
+          :class="cardClass(h.name)"
           @click="openHost(h.name)"
+          @dblclick="openHost(h.name)"
         >
-          <HostCardBody :host="h" />
+          <HostCardBody :host="h" :snap="hostState(h.name)" />
         </div>
       </div>
 
-      <!-- ===== 日常：列表 ===== -->
+      <!-- 列表视图 -->
       <div v-else class="host-list-wrap panel-hover-card">
         <el-table
           :data="hosts"
@@ -93,17 +80,17 @@
           stripe
           class="host-list-table"
           :row-class-name="tableRowClass"
-          @row-dblclick="(row: HostSnap) => openHost(row.name)"
+          @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
         >
           <el-table-column label="状态" width="78" fixed>
             <template #default="{ row }">
               <el-tag
                 size="small"
-                :type="statusTagType(row)"
+                :type="statusTagType(row.name)"
                 effect="light"
                 round
               >
-                {{ statusLabel(row) }}
+                {{ statusLabel(row.name) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -116,12 +103,12 @@
             <template #default="{ row }">
               <div class="list-host-name">
                 <span class="list-os-ico">
-                  <el-icon v-if="row.error" :size="18" color="#f56c6c">
+                  <el-icon v-if="hostState(row.name).error" :size="18" color="#f56c6c">
                     <WarningFilled />
                   </el-icon>
                   <DistroLogo
                     v-else
-                    :os-release="row.overview?.osRelease || ''"
+                    :os-release="hostState(row.name).overview?.osRelease || ''"
                     :size="20"
                   />
                 </span>
@@ -141,84 +128,92 @@
           </el-table-column>
           <el-table-column label="系统" min-width="120" show-overflow-tooltip>
             <template #default="{ row }">
-              <template v-if="row.error">—</template>
+              <template v-if="hostState(row.name).error">—</template>
               <div v-else class="list-os-cell">
                 <DistroLogo
-                  :os-release="row.overview?.osRelease || ''"
+                  :os-release="hostState(row.name).overview?.osRelease || ''"
                   :size="16"
                 />
                 <span>{{
-                  shortOs(row.overview?.osRelease || "") || "Linux"
+                  shortOs(hostState(row.name).overview?.osRelease || "") || "Linux"
                 }}</span>
               </div>
             </template>
           </el-table-column>
           <el-table-column label="CPU 核" width="78" align="right">
             <template #default="{ row }">
-              <template v-if="row.error || !row.overview">—</template>
-              <template v-else>{{ row.overview.cpuCount || 0 }}</template>
+              <MetricCell
+                :snap="hostState(row.name)"
+                field="cpuCount"
+                :fallback="0"
+              />
             </template>
           </el-table-column>
           <el-table-column label="内存总量" width="100" align="right">
             <template #default="{ row }">
-              <template v-if="row.error || !row.overview">—</template>
-              <template v-else>
-                {{ formatBytes(row.overview.memTotal || 0) }}
-              </template>
+              <MetricCell
+                :snap="hostState(row.name)"
+                field="memTotal"
+                :format="formatBytes"
+              />
             </template>
           </el-table-column>
           <el-table-column label="CPU" min-width="150">
             <template #default="{ row }">
-              <template v-if="row.error || !row.overview">
-                <span class="err-text list-err" :title="row.error">{{
-                  row.error || "—"
-                }}</span>
-              </template>
-              <ListMetric
-                v-else
-                :percent="row.overview.cpuPercent || 0"
-                :alert="(row.overview.cpuPercent || 0) >= THRESHOLDS.cpu"
-                :text="`${(row.overview.cpuPercent || 0).toFixed(1)}%`"
+              <MetricCell
+                :snap="hostState(row.name)"
+                field="cpuPercent"
+                :percent="true"
+                :alert-threshold="THRESHOLDS.cpu"
+                suffix="%"
               />
             </template>
           </el-table-column>
           <el-table-column label="内存" min-width="170">
             <template #default="{ row }">
-              <template v-if="row.error || !row.overview">—</template>
-              <ListMetric
-                v-else
-                :percent="row.overview.memPercent || 0"
-                :alert="(row.overview.memPercent || 0) > THRESHOLDS.mem"
-                :text="`${(row.overview.memPercent || 0).toFixed(1)}%`"
-                :sub="memUsage(row)"
+              <MetricCell
+                :snap="hostState(row.name)"
+                field="memPercent"
+                :percent="true"
+                :alert-threshold="THRESHOLDS.mem"
+                :alert-op="'gt'"
+                suffix="%"
+                :sub="memUsage(hostState(row.name).overview)"
               />
             </template>
           </el-table-column>
           <el-table-column label="磁盘 /" min-width="170">
             <template #default="{ row }">
-              <template v-if="row.error">—</template>
-              <ListMetric
-                v-else
-                :percent="diskPercent(row)"
-                :alert="diskPercent(row) > THRESHOLDS.disk"
-                :text="`${diskPercent(row).toFixed(1)}%`"
-                :sub="diskUsage(row) || '—'"
+              <MetricCell
+                :snap="hostState(row.name)"
+                field="diskPercent"
+                :percent="true"
+                :disks="hostState(row.name).disks"
+                :alert-threshold="THRESHOLDS.disk"
+                suffix="%"
+                :sub="diskUsage(hostState(row.name).disks) || '—'"
               />
             </template>
           </el-table-column>
           <el-table-column label="负载" min-width="120" align="right">
             <template #default="{ row }">
-              <template v-if="row.error || !row.overview">—</template>
+              <el-skeleton
+                v-if="hostState(row.name).loading && !hostState(row.name).overview"
+                :rows="1"
+                animated
+                style="width: 80%"
+              >
+                <template #template><el-skeleton-item variant="text" style="width: 100%" /></template>
+              </el-skeleton>
+              <template v-else-if="!hostState(row.name).overview">—</template>
               <span
                 v-else
                 class="load-cell"
-                :class="{ 'is-alert': isLoadAlert(row) }"
+                :class="{ 'is-alert': isLoadAlert(hostState(row.name).overview!) }"
               >
-                <span class="mono">{{
-                  (row.overview.load1 || 0).toFixed(2)
-                }}</span>
+                <span class="mono">{{ (hostState(row.name).overview!.load1 || 0).toFixed(2) }}</span>
                 <span class="load-sep">/</span>
-                <span class="load-cores">{{ row.overview.cpuCount || 0 }}</span>
+                <span class="load-cores">{{ hostState(row.name).overview!.cpuCount || 0 }}</span>
               </span>
             </template>
           </el-table-column>
@@ -226,6 +221,7 @@
       </div>
     </template>
 
+    <el-empty v-else description="该分组暂无主机，可将侧栏主机拖入分组" />
   </div>
 </template>
 
@@ -235,7 +231,6 @@ import {
   defineComponent,
   h,
   onBeforeUnmount,
-  onMounted,
   ref,
   watch,
 } from "vue";
@@ -245,12 +240,12 @@ import {
   Refresh,
   WarningFilled,
 } from "@element-plus/icons-vue";
-import { ElNotification, ElProgress } from "element-plus";
+import { ElNotification, ElProgress, ElSkeleton, ElSkeletonItem } from "element-plus";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
-import { useAppStore } from "@/stores/app";
+import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { formatBytes, formatErr } from "@/utils/format";
-import type { monitor } from "@wailsjs/go/models";
+import type { monitor, sshconfig } from "@/api";
 
 const props = defineProps<{
   groupId: string;
@@ -260,7 +255,6 @@ const props = defineProps<{
 const app = useAppStore();
 
 const THRESHOLDS = {
-  /** CPU ≥ 90% 才告警（原先 80% 过敏感） */
   cpu: 90,
   mem: 85,
   disk: 90,
@@ -271,19 +265,12 @@ const VIEW_KEY = "ipannel.groupViewMode";
 
 type ViewMode = "card" | "list";
 
+/** 单主机面板状态：标题/地址来自 store（同步），指标通过 per-host 异步加载 */
 interface HostSnap {
-  name: string;
-  hostName: string;
-  user: string;
-  overview: monitor.Overview;
-  disks: monitor.DiskInfo[];
+  loading: boolean;
+  overview?: monitor.Overview;
+  disks?: monitor.DiskInfo[];
   error?: string;
-}
-
-interface GroupSnap {
-  groupId: string;
-  groupName: string;
-  hosts: HostSnap[];
 }
 
 function loadViewMode(): ViewMode {
@@ -297,23 +284,98 @@ function loadViewMode(): ViewMode {
 }
 
 const viewMode = ref<ViewMode>(loadViewMode());
-const group = ref<GroupSnap | null>(null);
-const loading = ref(false);
-const error = ref("");
+const refreshing = ref(false);
 
-let timer: ReturnType<typeof setInterval> | null = null;
-let seq = 0;
+/** 当前组内主机列表（来自 store 的 groups.json + hosts.json：同步可用，立即渲染） */
+const hosts = computed<sshconfig.HostConfig[]>(() => {
+  const node = app.groupNodes.find(
+    (n) => (n.group?.id ?? UNGROUPED_ID) === props.groupId
+  );
+  return node?.hosts ?? [];
+});
+
+/** 组内已打开（后台保持会话）的主机数 */
+const openedCount = computed(
+  () => hosts.value.filter((h) => app.isRunning(h.name)).length
+);
+
+/** 每主机独立的指标状态：key=host.name */
+const hostStates = ref<Record<string, HostSnap>>({});
+
+/** 当前活跃组 id，防止旧组请求覆盖新组 */
+let activeGroupId = props.groupId;
+const inFlight = new Set<string>();
 let prevAlertKeys = new Set<string>();
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-const hosts = computed(() => group.value?.hosts || []);
+function hostState(name: string): HostSnap {
+  let s = hostStates.value[name];
+  if (!s) {
+    s = { loading: true };
+    hostStates.value[name] = s;
+  }
+  return s;
+}
+
+function openHost(name: string) {
+  app.openHostTab(name);
+}
+
+// ---------- 指标 / 告警 ----------
+
+function diskPercent(disks?: monitor.DiskInfo[]): number {
+  return disks?.[0]?.percent ?? 0;
+}
+
+function memUsage(ov: monitor.Overview | undefined): string {
+  if (!ov) return "—";
+  return `${formatBytes(ov.memUsed || 0)} / ${formatBytes(ov.memTotal || 0)}`;
+}
+
+function diskUsage(disks?: monitor.DiskInfo[]): string | undefined {
+  const d = disks?.[0];
+  if (!d) return undefined;
+  return `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`;
+}
+
+function loadBar(ov: monitor.Overview): number {
+  const n = ov.cpuCount || 0;
+  const load1 = ov.load1 || 0;
+  if (n <= 0) return 0;
+  return Math.min(100, (load1 / n) * 50);
+}
+
+function isLoadAlert(ov: monitor.Overview): boolean {
+  const n = ov.cpuCount || 0;
+  const load1 = ov.load1 || 0;
+  return n > 0 && load1 / n > THRESHOLDS.loadRatio;
+}
+
+function isHostAlert(s: HostSnap): boolean {
+  if (s.error || !s.overview) return false;
+  const ov = s.overview;
+  if ((ov.cpuPercent || 0) >= THRESHOLDS.cpu) return true;
+  if ((ov.memPercent || 0) > THRESHOLDS.mem) return true;
+  if (diskPercent(s.disks) > THRESHOLDS.disk) return true;
+  if (isLoadAlert(ov)) return true;
+  return false;
+}
 
 const okCount = computed(
-  () => hosts.value.filter((h) => !h.error && !isHostAlert(h)).length
+  () => hosts.value.filter((h) => {
+    const s = hostState(h.name);
+    return !!s.overview && !s.error && !isHostAlert(s);
+  }).length
 );
 const alertCount = computed(
-  () => hosts.value.filter((h) => !h.error && isHostAlert(h)).length
+  () => hosts.value.filter((h) => {
+    const s = hostState(h.name);
+    return !s.error && isHostAlert(s);
+  }).length
 );
-const errCount = computed(() => hosts.value.filter((h) => !!h.error).length);
+const errCount = computed(
+  () => hosts.value.filter((h) => !!hostState(h.name).error).length
+);
 
 function persistViewMode() {
   try {
@@ -323,122 +385,90 @@ function persistViewMode() {
   }
 }
 
-function openHost(name: string) {
-  app.openHostTab(name);
-}
+// ---------- 单主机加载（独立，互不阻塞）----------
 
-// ---------- 指标 / 告警 ----------
-
-function diskPercent(h: HostSnap): number {
-  return h.disks?.[0]?.percent ?? 0;
-}
-
-/** 内存：已用 / 总量 */
-function memUsage(h: HostSnap): string {
-  const ov = h.overview;
-  if (!ov) return "—";
-  return `${formatBytes(ov.memUsed || 0)} / ${formatBytes(ov.memTotal || 0)}`;
-}
-
-/** 磁盘：已用 / 总量 */
-function diskUsage(h: HostSnap): string | undefined {
-  const d = h.disks?.[0];
-  if (!d) return undefined;
-  return `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`;
-}
-
-function loadBar(h: HostSnap): number {
-  const n = h.overview?.cpuCount || 0;
-  const load1 = h.overview?.load1 || 0;
-  if (n <= 0) return 0;
-  return Math.min(100, (load1 / n) * 50);
-}
-
-function isLoadAlert(h: HostSnap): boolean {
-  const n = h.overview?.cpuCount || 0;
-  const load1 = h.overview?.load1 || 0;
-  return n > 0 && load1 / n > THRESHOLDS.loadRatio;
-}
-
-function isHostAlert(h: HostSnap): boolean {
-  if (h.error) return false;
-  const ov = h.overview;
-  if (!ov) return false;
-  if ((ov.cpuPercent || 0) >= THRESHOLDS.cpu) return true;
-  if ((ov.memPercent || 0) > THRESHOLDS.mem) return true;
-  if (diskPercent(h) > THRESHOLDS.disk) return true;
-  if (isLoadAlert(h)) return true;
-  return false;
-}
-
-function collectHostAlerts(h: HostSnap): { key: string; line: string }[] {
-  if (h.error) {
-    return [
-      {
-        key: `${h.name}|conn`,
-        line: `「${h.name}」连接失败：${h.error}`,
-      },
-    ];
+async function loadOne(name: string, showSkeleton: boolean) {
+  if (inFlight.has(name)) return;
+  if (activeGroupId !== props.groupId) return;
+  inFlight.add(name);
+  if (showSkeleton) {
+    hostStates.value[name] = { loading: true };
   }
-  const ov = h.overview;
+  try {
+    const [ov, disks] = await Promise.all([
+      api.collectOverview(name),
+      api.collectDisks(name),
+    ]);
+    if (activeGroupId !== props.groupId) return;
+    hostStates.value[name] = { loading: false, overview: ov, disks: disks ?? [], error: undefined };
+    notifyAllAlerts();
+  } catch (e) {
+    if (activeGroupId !== props.groupId) return;
+    hostStates.value[name] = { loading: false, error: formatErr(e) };
+  } finally {
+    inFlight.delete(name);
+  }
+}
+
+/** 手动刷新（按钮）：静默重载（按钮自身有 loading 转圈）。
+ *  不走骨架路径：骨架会先抹掉已有数据，逐台恢复期间告警键反复进出
+ *  去重集合，导致仍存在的告警被当新告警重复弹窗 */
+async function refreshAll() {
+  refreshing.value = true;
+  try {
+    await Promise.allSettled(hosts.value.map((h) => loadOne(h.name, false)));
+  } finally {
+    refreshing.value = false;
+  }
+}
+
+// ---------- 告警通知 ----------
+
+function collectHostAlerts(name: string): { key: string; line: string }[] {
+  const s = hostStates.value[name];
+  if (!s) return [];
+  if (s.error) {
+    return [{ key: `${name}|conn`, line: `「${name}」连接失败：${s.error}` }];
+  }
+  const ov = s.overview;
   if (!ov) return [];
   const out: { key: string; line: string }[] = [];
   const cpu = ov.cpuPercent || 0;
   if (cpu >= THRESHOLDS.cpu) {
-    out.push({
-      key: `${h.name}|cpu`,
-      line: `「${h.name}」CPU ${cpu.toFixed(1)}% ≥ ${THRESHOLDS.cpu}%`,
-    });
+    out.push({ key: `${name}|cpu`, line: `「${name}」CPU ${cpu.toFixed(1)}% ≥ ${THRESHOLDS.cpu}%` });
   }
   const mem = ov.memPercent || 0;
   if (mem > THRESHOLDS.mem) {
-    out.push({
-      key: `${h.name}|mem`,
-      line: `「${h.name}」内存 ${mem.toFixed(1)}% 超过 ${THRESHOLDS.mem}%`,
-    });
+    out.push({ key: `${name}|mem`, line: `「${name}」内存 ${mem.toFixed(1)}% 超过 ${THRESHOLDS.mem}%` });
   }
-  const disk = diskPercent(h);
+  const disk = diskPercent(s.disks);
   if (disk > THRESHOLDS.disk) {
-    out.push({
-      key: `${h.name}|disk`,
-      line: `「${h.name}」磁盘 ${disk.toFixed(1)}% 超过 ${THRESHOLDS.disk}%`,
-    });
+    out.push({ key: `${name}|disk`, line: `「${name}」磁盘 ${disk.toFixed(1)}% 超过 ${THRESHOLDS.disk}%` });
   }
-  if (isLoadAlert(h)) {
-    const cores = ov.cpuCount || 0;
-    const load1 = ov.load1 || 0;
+  if (isLoadAlert(ov)) {
     out.push({
-      key: `${h.name}|load`,
-      line: `「${h.name}」负载 ${load1.toFixed(2)} / ${cores} 核 超过警戒`,
+      key: `${name}|load`,
+      line: `「${name}」负载 ${ov.load1.toFixed(2)} / ${ov.cpuCount} 核 超过警戒`,
     });
   }
   return out;
 }
 
-function notifyNewAlerts(list: HostSnap[]) {
+function notifyAllAlerts() {
   const next = new Set<string>();
   const newLines: string[] = [];
-  for (const h of list) {
-    for (const a of collectHostAlerts(h)) {
+  for (const h of hosts.value) {
+    for (const a of collectHostAlerts(h.name)) {
       next.add(a.key);
-      if (!prevAlertKeys.has(a.key)) {
-        newLines.push(a.line);
-      }
+      if (!prevAlertKeys.has(a.key)) newLines.push(a.line);
     }
   }
   prevAlertKeys = next;
-  // 仅在新出现的告警时弹窗
   if (newLines.length === 0) return;
-
-  const title =
-    newLines.length === 1
-      ? "主机告警"
-      : `主机告警（${newLines.length} 项）`;
-  const body =
-    newLines.length <= 6
-      ? newLines.join("\n")
-      : `${newLines.slice(0, 6).join("\n")}\n…另有 ${newLines.length - 6} 项`;
-
+  const title = newLines.length === 1 ? "主机告警" : `主机告警（${newLines.length} 项）`;
+  const body = newLines.length <= 6
+    ? newLines.join("\n")
+    : `${newLines.slice(0, 6).join("\n")}\n…另有 ${newLines.length - 6} 项`;
   ElNotification({
     type: "error",
     title,
@@ -451,36 +481,31 @@ function notifyNewAlerts(list: HostSnap[]) {
   });
 }
 
-function applyHostData(data: GroupSnap) {
-  const list = data.hosts || [];
-  group.value = {
-    groupId: data.groupId,
-    groupName: data.groupName,
-    hosts: list,
-  };
-  notifyNewAlerts(list);
-}
-
-function statusLabel(h: HostSnap): string {
-  if (h.error) return "失败";
-  if (isHostAlert(h)) return "告警";
+function statusLabel(name: string): string {
+  const s = hostState(name);
+  if (s.error) return "失败";
+  if (!s.overview) return "—";
+  if (isHostAlert(s)) return "告警";
   return "正常";
 }
 
-function statusTagType(h: HostSnap): "success" | "danger" {
-  if (h.error || isHostAlert(h)) return "danger";
+function statusTagType(name: string): "success" | "danger" {
+  const s = hostState(name);
+  if (!s.overview || s.error || isHostAlert(s)) return "danger";
   return "success";
 }
 
-function cardClass(h: HostSnap) {
+function cardClass(name: string) {
+  const s = hostState(name);
   return {
-    "is-error": !!h.error,
-    "is-alert": !h.error && isHostAlert(h),
+    "is-error": !!s.error,
+    "is-alert": !s.error && isHostAlert(s),
   };
 }
 
-function tableRowClass({ row }: { row: HostSnap }) {
-  if (row.error || isHostAlert(row)) return "host-list-row is-danger-row";
+function tableRowClass({ row }: { row: sshconfig.HostConfig }) {
+  const s = hostState(row.name);
+  if (s.error || isHostAlert(s)) return "host-list-row is-danger-row";
   return "host-list-row";
 }
 
@@ -491,92 +516,168 @@ function shortOs(osRelease: string): string {
   return m ? m[1] : s.slice(0, 16);
 }
 
-async function load() {
-  if (!props.groupId) return;
-  const my = ++seq;
-  loading.value = true;
-  try {
-    const data = (await api.listOneGroupOverview(props.groupId)) as GroupSnap;
-    if (my !== seq) return;
-    applyHostData(data);
-    error.value = "";
-  } catch (e) {
-    if (my !== seq) return;
-    error.value = formatErr(e);
-  } finally {
-    if (my === seq) loading.value = false;
-  }
-}
+// ---------- 轮询 ----------
 
 function startPoll() {
   stopPoll();
-  timer = setInterval(() => {
-    void loadQuiet();
+  pollTimer = setInterval(() => {
+    if (activeGroupId !== props.groupId) return;
+    // 静默轮询：不切 loading（避免卡片跳动）
+    for (const h of hosts.value) {
+      void loadOne(h.name, false);
+    }
   }, POLL_MS);
 }
 
-async function loadQuiet() {
-  if (!props.groupId) return;
-  const my = ++seq;
-  try {
-    const data = (await api.listOneGroupOverview(props.groupId)) as GroupSnap;
-    if (my !== seq) return;
-    applyHostData(data);
-    error.value = "";
-  } catch {
-    /* 静默 */
+function stopPoll() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 }
 
-function stopPoll() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
+// ---------- 切换组 / 卸载 ----------
+
+watch(
+  hosts,
+  (h) => {
+    activeGroupId = props.groupId;
+    const fresh: Record<string, HostSnap> = {};
+    for (const host of h) {
+      const existing = hostStates.value[host.name];
+      fresh[host.name] = existing ?? { loading: true };
+    }
+    hostStates.value = fresh;
+    // 注意：不重置 prevAlertKeys（store 刷新频繁触发本 watch，
+    // 清空会导致仍存在的告警被当新告警重复弹窗）；仅切组时重置。
+    // 已有数据的主机静默刷新，避免 Cmd+R 时全组闪骨架
+    for (const host of h) {
+      void loadOne(host.name, !fresh[host.name].overview);
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => props.groupId,
+  () => {
+    activeGroupId = props.groupId;
+    hostStates.value = {};
+    prevAlertKeys = new Set();
+    stopPoll();
+    startPoll();
   }
-}
+);
+
+onBeforeUnmount(() => {
+  stopPoll();
+  activeGroupId = ""; // 取消所有 in-flight
+});
+
+// ---------- 子组件：单元格（骨架 + 数值）----------
+
+const MetricCell = defineComponent({
+  name: "MetricCell",
+  props: {
+    snap: { type: Object as () => HostSnap, required: true },
+    field: { type: String, required: true },
+    fallback: { type: [String, Number], default: "—" },
+    format: { type: Function, default: (v: any) => v },
+    percent: { type: Boolean, default: false },
+    disks: { type: Array as () => monitor.DiskInfo[] | undefined, default: undefined },
+    "alert-threshold": { type: Number, default: 0 },
+    "alert-op": { type: String, default: "ge" }, // "ge" or "gt"
+    suffix: { type: String, default: "" },
+    sub: { type: String, default: "" },
+  },
+  setup(p) {
+    return () => {
+      const s = p.snap;
+      const loading = s.loading && !s.overview;
+      const err = !!s.error || !s.overview;
+      if (loading) {
+        return h(ElSkeleton, { rows: 1, animated: true, style: { width: "100%" } }, {
+          template: () => h(ElSkeletonItem, { variant: "text", style: { width: "100%" } }),
+        });
+      }
+      if (err) return h("span", null, "—");
+      const ov = s.overview!;
+      let value: any;
+      let display: any;
+      let alert = false;
+      if (p.field === "diskPercent") {
+        const d = (p.disks && p.disks[0]?.percent) ?? 0;
+        value = d;
+        display = `${d.toFixed(1)}%`;
+        alert = p["alert-op"] === "gt" ? d > p["alert-threshold"] : d >= p["alert-threshold"];
+      } else {
+        const raw = (ov as any)[p.field] ?? 0;
+        if (p.percent) {
+          value = raw;
+          display = `${raw.toFixed(1)}${p.suffix}`;
+          alert = p["alert-op"] === "gt" ? raw > p["alert-threshold"] : raw >= p["alert-threshold"];
+        } else {
+          display = p.format(raw);
+        }
+      }
+      if (p.percent) {
+        return h("div", { class: "list-metric" }, [
+          h("div", { class: "list-metric-bar" }, h(ElProgress, {
+            percentage: Math.min(100, Math.max(0, value || 0)),
+            strokeWidth: 8,
+            showText: false,
+            color: alert ? "var(--el-color-danger)" : "var(--el-color-primary)",
+          })),
+          h("div", { class: "list-metric-nums" }, [
+            h("span", { class: ["list-metric-val", alert ? "is-alert" : ""] }, display),
+            p.sub ? h("span", { class: "list-metric-sub" }, p.sub) : null,
+          ]),
+        ]);
+      }
+      return h("span", null, display);
+    };
+  },
+});
 
 // ---------- 子组件：卡片内容 ----------
 
 const HostCardBody = defineComponent({
   name: "HostCardBody",
   props: {
-    host: { type: Object as () => HostSnap, required: true },
-    large: { type: Boolean, default: false },
+    host: { type: Object as () => sshconfig.HostConfig, required: true },
+    snap: { type: Object as () => HostSnap, required: true },
   },
   setup(p) {
     return () => {
       const hst = p.host;
-      const alert = !!hst.error || isHostAlert(hst);
-      const ov = hst.overview;
+      const snap = p.snap;
+      const alert = !!snap.error || isHostAlert(snap);
+      const ov = snap.overview;
+      const loadingInitial = snap.loading && !ov;
       return h(
         "div",
-        { class: ["hcb", p.large ? "hcb--large" : "", alert ? "hcb--alarm" : ""] },
+        { class: ["hcb", alert ? "hcb--alarm" : ""] },
         [
           h("span", {
             class: [
               "status-dot",
-              hst.error ? "err" : alert ? "alert" : "ok",
+              snap.error ? "err" : loadingInitial ? "loading" : alert ? "alert" : "ok",
             ],
-            title: hst.error
+            title: snap.error
               ? "连接失败"
-              : alert
-                ? "存在告警"
-                : "正常",
+              : loadingInitial
+                ? "加载中"
+                : alert
+                  ? "存在告警"
+                  : "正常",
           }),
           h("div", { class: "card-top" }, [
             h(
               "div",
-              { class: ["avatar", hst.error ? "err" : ""] },
-              hst.error
-                ? h(
-                    "span",
-                    { class: "avatar-warn" },
-                    h(WarningFilled, { style: { width: "22px", height: "22px" } })
-                  )
-                : h(DistroLogo, {
-                    osRelease: ov?.osRelease || "",
-                    size: p.large ? 30 : 26,
-                  })
+              { class: ["avatar", snap.error ? "err" : ""] },
+              snap.error
+                ? h("span", { class: "avatar-warn" }, h(WarningFilled, { style: { width: "22px", height: "22px" } }))
+                : h(DistroLogo, { osRelease: ov?.osRelease || "", size: 26 })
             ),
             h("div", { class: "id-block" }, [
               h("div", { class: "host-name", title: hst.name }, hst.name),
@@ -584,156 +685,90 @@ const HostCardBody = defineComponent({
                 "div",
                 {
                   class: "host-sub",
-                  title: hst.error
-                    ? hst.error
-                    : `${hst.user || "?"}@${hst.hostName || "?"}`,
+                  title: snap.error ? snap.error : `${hst.user || "?"}@${hst.hostName || "?"}`,
                 },
-                hst.error
-                  ? h("span", { class: "err-text" }, hst.error)
+                snap.error
+                  ? h("span", { class: "err-text" }, snap.error)
                   : `${hst.user || "?"}@${hst.hostName || "?"}`
               ),
-              !hst.error && ov
-                ? h(
-                    "div",
-                    { class: "host-meta" },
-                    `${ov.cpuCount || 0} 核 · ${formatBytes(ov.memTotal || 0)}${
-                      ov.osRelease ? ` · ${shortOs(ov.osRelease)}` : ""
-                    }`
-                  )
-                : null,
+              snap.error
+                ? null
+                : loadingInitial
+                  ? h(ElSkeleton, { rows: 1, animated: true, style: { width: "70%", marginTop: "2px" } }, {
+                      template: () => h(ElSkeletonItem, { variant: "text", style: { width: "100%" } }),
+                    })
+                  : ov
+                    ? h(
+                        "div",
+                        { class: "host-meta" },
+                        `${ov.cpuCount || 0} 核 · ${formatBytes(ov.memTotal || 0)}${
+                          ov.osRelease ? ` · ${shortOs(ov.osRelease)}` : ""
+                        }`
+                      )
+                    : null,
             ]),
           ]),
-          !hst.error && ov
-            ? h("div", { class: "metrics" }, [
-                metricRow(
-                  "CPU",
-                  ov.cpuPercent || 0,
-                  (ov.cpuPercent || 0) >= THRESHOLDS.cpu,
-                  `${(ov.cpuPercent || 0).toFixed(1)}%`
-                ),
-                metricRow(
-                  "MEM",
-                  ov.memPercent || 0,
-                  (ov.memPercent || 0) > THRESHOLDS.mem,
-                  `${(ov.memPercent || 0).toFixed(1)}%`,
-                  memUsage(hst)
-                ),
-                metricRow(
-                  "DISK",
-                  diskPercent(hst),
-                  diskPercent(hst) > THRESHOLDS.disk,
-                  `${diskPercent(hst).toFixed(1)}%`,
-                  diskUsage(hst)
-                ),
-                metricRow(
-                  "LOAD",
-                  loadBar(hst),
-                  isLoadAlert(hst),
-                  (ov.load1 || 0).toFixed(2),
-                  `/ ${ov.cpuCount || 0}`
-                ),
-              ])
-            : hst.error
-              ? h(
-                  "div",
-                  { class: "card-footer-hint" },
-                  p.large ? "双击打开后可重试连接" : "点击打开后可重试连接"
-                )
-              : null,
+          renderCardMetrics(snap, ov),
         ]
       );
     };
   },
 });
 
-function metricRow(
-  label: string,
-  percent: number,
-  alert: boolean,
-  display: string,
-  sub?: string
-) {
-  return h("div", { class: ["metric-row", alert ? "is-alert" : ""] }, [
-    h("span", { class: "m-label" }, label),
-    h(
-      "span",
-      { class: "m-bar" },
-      h(ElProgress, {
-        percentage: Math.min(100, Math.max(0, percent || 0)),
-        strokeWidth: 6,
-        showText: false,
-        color: alert ? "var(--el-color-danger)" : "var(--el-color-primary)",
-      })
-    ),
-    h("span", { class: ["m-val", alert ? "is-alert" : ""] }, display),
-    sub
-      ? h("span", { class: "m-sub" }, sub)
-      : h("span", { class: "m-sub empty" }, ""),
+function renderCardMetrics(snap: HostSnap, ov: monitor.Overview | undefined) {
+  if (snap.error) {
+    return h("div", { class: "card-footer-hint" }, "点击打开主机后可重试连接");
+  }
+  if (!ov) {
+    return h("div", { class: "metrics" }, [
+      cardMetricSkeleton("CPU"),
+      cardMetricSkeleton("MEM"),
+      cardMetricSkeleton("DISK"),
+      cardMetricSkeleton("LOAD"),
+    ]);
+  }
+  return h("div", { class: "metrics" }, [
+    cardMetricRow("CPU", ov.cpuPercent || 0, (ov.cpuPercent || 0) >= THRESHOLDS.cpu, `${(ov.cpuPercent || 0).toFixed(1)}%`),
+    cardMetricRow("MEM", ov.memPercent || 0, (ov.memPercent || 0) > THRESHOLDS.mem, `${(ov.memPercent || 0).toFixed(1)}%`, memUsage(ov)),
+    cardMetricRow("DISK", diskPercent(snap.disks), diskPercent(snap.disks) > THRESHOLDS.disk, `${diskPercent(snap.disks).toFixed(1)}%`, diskUsage(snap.disks)),
+    cardMetricRow("LOAD", loadBar(ov), isLoadAlert(ov), (ov.load1 || 0).toFixed(2), `/ ${ov.cpuCount || 0}`),
   ]);
 }
 
-const ListMetric = defineComponent({
-  name: "ListMetric",
-  props: {
-    percent: { type: Number, required: true },
-    alert: { type: Boolean, default: false },
-    text: { type: String, required: true },
-    sub: { type: String, default: undefined },
-  },
-  setup(p) {
-    return () =>
-      h("div", { class: "list-metric" }, [
-        h(
-          "div",
-          { class: "list-metric-bar" },
-          h(ElProgress, {
-            percentage: Math.min(100, Math.max(0, p.percent || 0)),
-            strokeWidth: 8,
-            showText: false,
-            color: p.alert
-              ? "var(--el-color-danger)"
-              : "var(--el-color-primary)",
-          })
-        ),
-        h("div", { class: "list-metric-nums" }, [
-          h(
-            "span",
-            { class: ["list-metric-val", p.alert ? "is-alert" : ""] },
-            p.text
-          ),
-          p.sub ? h("span", { class: "list-metric-sub" }, p.sub) : null,
-        ]),
-      ]);
-  },
-});
+function cardMetricRow(label: string, percent: number, alert: boolean, display: string, sub?: string) {
+  return h("div", { class: ["metric-row", alert ? "is-alert" : ""] }, [
+    h("span", { class: "m-label" }, label),
+    h("span", { class: "m-bar" }, h(ElProgress, {
+      percentage: Math.min(100, Math.max(0, percent || 0)),
+      strokeWidth: 6,
+      showText: false,
+      color: alert ? "var(--el-color-danger)" : "var(--el-color-primary)",
+    })),
+    h("span", { class: ["m-val", alert ? "is-alert" : ""] }, display),
+    sub ? h("span", { class: "m-sub" }, sub) : h("span", { class: "m-sub empty" }, ""),
+  ]);
+}
 
-onMounted(() => {
-  void load().then(startPoll);
-});
+function cardMetricSkeleton(label: string) {
+  return h("div", { class: "metric-row metric-row--skeleton" }, [
+    h("span", { class: "m-label" }, label),
+    h("span", { class: "m-bar" }, h(ElSkeleton, { rows: 1, animated: true }, {
+      template: () => h(ElSkeletonItem, { variant: "rect", style: { height: "6px", borderRadius: "3px" } }),
+    })),
+    h(ElSkeleton, { rows: 1, animated: true, style: { width: "44px" } }, {
+      template: () => h(ElSkeletonItem, { variant: "text", style: { width: "100%" } }),
+    }),
+    h("span", { class: "m-sub empty" }, ""),
+  ]);
+}
 
-onBeforeUnmount(() => {
-  stopPoll();
-  seq++;
-});
-
-watch(
-  () => props.groupId,
-  () => {
-    group.value = null;
-    error.value = "";
-    prevAlertKeys = new Set();
-    void load().then(startPoll);
-  }
-);
+startPoll();
 </script>
 
 <style scoped lang="scss">
 .group-overview {
   min-height: 200px;
   box-sizing: border-box;
-}
-.mb {
-  margin-bottom: 12px;
 }
 .summary-bar {
   display: flex;
@@ -767,7 +802,6 @@ watch(
   padding: 6px 12px;
 }
 
-/* ---------- 日常卡片 ---------- */
 .host-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -788,8 +822,6 @@ watch(
     box-shadow: 0 0 0 1px var(--el-color-danger);
   }
 }
-
-/* HostCardBody */
 :deep(.hcb) {
   position: relative;
 }
@@ -809,6 +841,15 @@ watch(
     background: #f56c6c;
     box-shadow: 0 0 0 2px rgba(245, 108, 108, 0.25);
   }
+  &.loading {
+    background: #909399;
+    box-shadow: 0 0 0 2px rgba(144, 153, 153, 0.2);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 :deep(.card-top) {
   display: flex;
@@ -880,6 +921,9 @@ watch(
   gap: 8px;
   font-size: 11px;
 }
+:deep(.metric-row--skeleton) {
+  opacity: 0.85;
+}
 :deep(.m-label) {
   width: 34px;
   flex-shrink: 0;
@@ -917,25 +961,7 @@ watch(
     visibility: hidden;
   }
 }
-:deep(.hcb--large .host-name) {
-  font-size: 16px;
-}
-:deep(.hcb--large .host-sub) {
-  font-size: 12px;
-}
-:deep(.hcb--large .avatar) {
-  width: 52px;
-  height: 52px;
-}
-:deep(.hcb--large .metric-row) {
-  font-size: 12px;
-}
-:deep(.hcb--large .m-val) {
-  width: 52px;
-  font-size: 13px;
-}
 
-/* ---------- 列表 ---------- */
 .host-list-wrap {
   background: var(--el-bg-color, #fff);
   border-radius: 4px;

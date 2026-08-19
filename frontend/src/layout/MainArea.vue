@@ -1,15 +1,6 @@
 <template>
   <div class="main-container">
     <template v-if="!app.activeTab">
-      <div class="host-header drag-region" @dblclick="toggleMaximise">
-        <div class="header-left no-drag">
-          <SidebarExpandBtn v-if="!app.sidebarOpen" @expand="app.setSidebarOpen(true)" />
-          <div>
-            <div class="name">全部主机</div>
-            <div class="sub">全部主机概览</div>
-          </div>
-        </div>
-      </div>
       <div class="content-pad">
         <AllHostsOverviewView />
       </div>
@@ -17,15 +8,6 @@
 
     <!-- 分组视图：展示组内全部主机监控卡片 -->
     <template v-else-if="app.activeTab?.kind === 'group'">
-      <div class="host-header drag-region" @dblclick="toggleMaximise">
-        <div class="header-left no-drag">
-          <SidebarExpandBtn v-if="!app.sidebarOpen" @expand="app.setSidebarOpen(true)" />
-          <div>
-            <div class="name">{{ app.activeTab.title }}</div>
-            <div class="sub">分组概览 · 组内全部主机</div>
-          </div>
-        </div>
-      </div>
       <div class="content-pad">
         <GroupOverviewView
           :group-id="app.activeTab.id"
@@ -122,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { WindowToggleMaximise } from "@wailsjs/runtime/runtime";
+import { Window } from "@wailsio/runtime";
 import { useAppStore, type SubTab } from "@/stores/app";
 import OverviewView from "@/views/OverviewView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
@@ -144,7 +126,7 @@ const app = useAppStore();
 
 /** 双击顶部拖拽区：最大化 / 还原 */
 function toggleMaximise() {
-  WindowToggleMaximise();
+  Window.ToggleMaximise();
 }
 
 const subTabs: { value: SubTab; label: string }[] = [
@@ -235,13 +217,13 @@ function onSubChange(hid: string, v: string | number | boolean | undefined) {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 10px 20px 16px;
+  padding: 12px 20px 16px;
   box-sizing: border-box;
 
   &--fill {
     display: flex;
     flex-direction: column;
-    padding: 10px 20px 16px;
+    padding: 12px 20px 16px;
     overflow: hidden;
     /* 终端等全高视图：子组件必须能吃掉剩余高度 */
     > * {

@@ -1,7 +1,7 @@
 /**
  * 可靠复制文本到剪贴板（优先 Wails 原生 API，兼容浏览器）
  */
-import { ClipboardSetText } from "@wailsjs/runtime/runtime";
+import { Clipboard } from "@wailsio/runtime";
 
 export async function copyText(text: string): Promise<void> {
   const t = text ?? "";
@@ -11,10 +11,8 @@ export async function copyText(text: string): Promise<void> {
 
   // 1) Wails 桌面运行时
   try {
-    if (typeof window !== "undefined" && (window as any).runtime?.ClipboardSetText) {
-      const ok = await ClipboardSetText(t);
-      if (ok !== false) return;
-    }
+    await Clipboard.SetText(t);
+    return;
   } catch {
     /* fall through */
   }

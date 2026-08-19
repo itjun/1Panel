@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -9,10 +8,14 @@ import (
 	"path/filepath"
 
 	"diteng-pannel/internal/filetext"
+	"diteng-pannel/internal/sshd"
 
 	"github.com/pkg/sftp"
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+// Files 文件服务：上传（SFTP）+ 进度 + 可选编码规范化
+type Files App
 
 // ============ 文件上传（SFTP）+ 进度 + 可选编码规范化 ============
 
@@ -36,8 +39,8 @@ type progressTracker struct {
 
 func (p *progressTracker) add(n int64) { p.uploaded += n }
 
-func (p *progressTracker) emit(ctx context.Context, current string) {
-	wailsRuntime.EventsEmit(ctx, uploadProgressEvent, UploadProgress{
+func (p *progressTracker) emit(current string) {
+	application.Get().Event.Emit(uploadProgressEvent, UploadProgress{
 		Uploaded: p.uploaded,
 		Total:    p.total,
 		Current:  current,
@@ -49,21 +52,21 @@ func (p *progressTracker) emit(ctx context.Context, current string) {
 // remoteDir: 远程目标目录（绝对路径，会自动创建）
 // normalize: true 时若文件是「非标准文本」则转为 UTF-8(无BOM)+LF 后再上传
 // 返回上传后的完整远程路径
-func (a *App) UploadFile(host, localPath, remoteDir string, normalize bool) (string, error) {
+func (s *Files) UploadFile(host, localPath, remoteDir string, normalize bool) (string, error) {
 	info, err := os.Stat(localPath)
 	if err != nil {
 		return "", fmt.Errorf("本地文件不存在: %w", err)
 	}
-	sc, err := a.openSFTP(host)
+	sc, err := openSFTP(s.sshMgr, host)
 	if err != nil {
 		return "", err
 	}
 	defer sc.Close()
 
 	prog := &progressTracker{total: info.Size()}
-	remote, err := a.uploadFileSc(sc, localPath, remoteDir, normalize, prog)
+	remote, err := uploadFileSc(sc, localPath, remoteDir, normalize, prog)
 	// 无论成败发 done，让前端进度条归位
-	wailsRuntime.EventsEmit(a.ctx, uploadProgressEvent, UploadProgress{
+	application.Get().Event.Emit(uploadProgressEvent, UploadProgress{
 		Uploaded: prog.total, Total: prog.total, Done: true,
 	})
 	return remote, err
@@ -73,7 +76,7 @@ func (a *App) UploadFile(host, localPath, remoteDir string, normalize bool) (str
 // localDir: 本地文件夹绝对路径
 // remoteDir: 远程目标目录（绝对路径，会自动创建）
 // normalize: true 时对其中「非标准文本」文件转为 UTF-8(无BOM)+LF
-func (a *App) UploadDir(host, localDir, remoteDir string, normalize bool) (string, error) {
+func (s *Files) UploadDir(host, localDir, remoteDir string, normalize bool) (string, error) {
 	if info, err := os.Stat(localDir); err != nil || !info.IsDir() {
 		return "", fmt.Errorf("本地目录不存在: %s", localDir)
 	}
@@ -85,7 +88,7 @@ func (a *App) UploadDir(host, localDir, remoteDir string, normalize bool) (strin
 		}
 		return nil
 	})
-	sc, err := a.openSFTP(host)
+	sc, err := openSFTP(s.sshMgr, host)
 	if err != nil {
 		return "", err
 	}
@@ -106,10 +109,10 @@ func (a *App) UploadDir(host, localDir, remoteDir string, normalize bool) (strin
 		if info.IsDir() {
 			return sc.MkdirAll(target)
 		}
-		_, e := a.uploadFileSc(sc, p, path.Dir(target), normalize, prog)
+		_, e := uploadFileSc(sc, p, path.Dir(target), normalize, prog)
 		return e
 	})
-	wailsRuntime.EventsEmit(a.ctx, uploadProgressEvent, UploadProgress{
+	application.Get().Event.Emit(uploadProgressEvent, UploadProgress{
 		Uploaded: prog.total, Total: prog.total, Done: true,
 	})
 	return remoteDir, err
@@ -118,7 +121,7 @@ func (a *App) UploadDir(host, localDir, remoteDir string, normalize bool) (strin
 // UploadPaths 批量上传多个本地路径（文件/文件夹混合）到远程目录，用于拖拽上传。
 // convertPaths: 需要「转 UTF-8(无BOM)+LF」的本地文件绝对路径集合（来自编码检查弹窗勾选）；
 // 文件夹内的文件按其绝对路径是否命中 convertPaths 决定是否转换。
-func (a *App) UploadPaths(host string, localPaths []string, convertPaths []string, remoteDir string) error {
+func (s *Files) UploadPaths(host string, localPaths []string, convertPaths []string, remoteDir string) error {
 	convertSet := make(map[string]bool, len(convertPaths))
 	for _, p := range convertPaths {
 		convertSet[p] = true
@@ -133,7 +136,7 @@ func (a *App) UploadPaths(host string, localPaths []string, convertPaths []strin
 			return nil
 		})
 	}
-	sc, err := a.openSFTP(host)
+	sc, err := openSFTP(s.sshMgr, host)
 	if err != nil {
 		return err
 	}
@@ -141,7 +144,7 @@ func (a *App) UploadPaths(host string, localPaths []string, convertPaths []strin
 
 	prog := &progressTracker{total: total}
 	finish := func() {
-		wailsRuntime.EventsEmit(a.ctx, uploadProgressEvent, UploadProgress{
+		application.Get().Event.Emit(uploadProgressEvent, UploadProgress{
 			Uploaded: prog.total, Total: prog.total, Done: true,
 		})
 	}
@@ -165,7 +168,7 @@ func (a *App) UploadPaths(host string, localPaths []string, convertPaths []strin
 				if fi.IsDir() {
 					return sc.MkdirAll(target)
 				}
-				_, e := a.uploadFileSc(sc, fp, path.Dir(target), convertSet[fp], prog)
+				_, e := uploadFileSc(sc, fp, path.Dir(target), convertSet[fp], prog)
 				return e
 			})
 			if werr != nil {
@@ -173,7 +176,7 @@ func (a *App) UploadPaths(host string, localPaths []string, convertPaths []strin
 				return werr
 			}
 		} else {
-			if _, e := a.uploadFileSc(sc, p, remoteDir, convertSet[p], prog); e != nil {
+			if _, e := uploadFileSc(sc, p, remoteDir, convertSet[p], prog); e != nil {
 				finish()
 				return e
 			}
@@ -184,12 +187,12 @@ func (a *App) UploadPaths(host string, localPaths []string, convertPaths []strin
 }
 
 // openSFTP 建立一次 SFTP 会话（复用 sshd.Manager 的 SSH 长连接）
-func (a *App) openSFTP(host string) (*sftp.Client, error) {
-	opt, err := a.connectOptionFor(host)
+func openSFTP(mgr *sshd.Manager, host string) (*sftp.Client, error) {
+	opt, err := connectOptionFor(host)
 	if err != nil {
 		return nil, err
 	}
-	client, err := a.sshMgr.GetClient(host, opt)
+	client, err := mgr.GetClient(host, opt)
 	if err != nil {
 		return nil, fmt.Errorf("连接失败: %w", err)
 	}
@@ -201,7 +204,7 @@ func (a *App) openSFTP(host string) (*sftp.Client, error) {
 }
 
 // uploadFileSc 上传单个文件（已建立 SFTP 会话）；normalize 时对非标准文本做内存转换后写
-func (a *App) uploadFileSc(sc *sftp.Client, localPath, remoteDir string, normalize bool, prog *progressTracker) (string, error) {
+func uploadFileSc(sc *sftp.Client, localPath, remoteDir string, normalize bool, prog *progressTracker) (string, error) {
 	if err := sc.MkdirAll(remoteDir); err != nil {
 		return "", fmt.Errorf("创建远程目录失败: %w", err)
 	}
@@ -223,7 +226,7 @@ func (a *App) uploadFileSc(sc *sftp.Client, localPath, remoteDir string, normali
 				return "", fmt.Errorf("写入失败: %w", err)
 			}
 			prog.add(int64(len(data)))
-			prog.emit(a.ctx, current)
+			prog.emit(current)
 			return remotePath, nil
 		}
 		// ok=false：二进制 / 标准 / 超限 → 走流式原样上传
@@ -243,7 +246,7 @@ func (a *App) uploadFileSc(sc *sftp.Client, localPath, remoteDir string, normali
 				return "", fmt.Errorf("写入失败: %w", werr)
 			}
 			prog.add(int64(n))
-			prog.emit(a.ctx, current)
+			prog.emit(current)
 		}
 		if rerr == io.EOF {
 			break
