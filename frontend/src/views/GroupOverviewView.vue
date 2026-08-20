@@ -27,6 +27,15 @@
         </div>
         <div class="summary-right">
           <span class="dblclick-hint">双击主机打开</span>
+          <el-button
+            link
+            type="primary"
+            :loading="batchBusy"
+            title="向本组全部主机安装/更新 spanel-agent"
+            @click="batchInstallAgent"
+          >
+            批量部署 Agent
+          </el-button>
           <el-radio-group
             v-model="viewMode"
             size="small"
@@ -119,6 +128,13 @@
           <el-table-column label="地址" min-width="130" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="mono">{{ row.hostName || "—" }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Agent" width="110">
+            <template #default="{ row }">
+              <el-tag size="small" :type="agentTagOf(row.name).type as any" effect="plain">
+                {{ agentTagOf(row.name).text }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="用户" width="88" show-overflow-tooltip>
@@ -240,12 +256,12 @@ import {
   Refresh,
   WarningFilled,
 } from "@element-plus/icons-vue";
-import { ElNotification, ElProgress, ElSkeleton, ElSkeletonItem } from "element-plus";
+import { ElMessageBox, ElNotification, ElProgress, ElSkeleton, ElSkeletonItem } from "element-plus";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { formatBytes, formatErr } from "@/utils/format";
-import type { monitor, sshconfig } from "@/api";
+import type { agentcli, monitor, sshconfig } from "@/api";
 
 const props = defineProps<{
   groupId: string;
@@ -261,7 +277,8 @@ const THRESHOLDS = {
   loadRatio: 1.0,
 };
 const POLL_MS = 5000;
-const VIEW_KEY = "ipannel.groupViewMode";
+// v2：默认视图从卡片改为列表时升级了键，让旧的默认偏好记录失效一次
+const VIEW_KEY = "ipannel.groupViewMode.v2";
 
 type ViewMode = "card" | "list";
 
@@ -280,7 +297,8 @@ function loadViewMode(): ViewMode {
   } catch {
     /* ignore */
   }
-  return "card";
+  // 默认列表展示（用户手动切换后记住其选择）
+  return "list";
 }
 
 const viewMode = ref<ViewMode>(loadViewMode());
@@ -538,6 +556,75 @@ function stopPoll() {
 
 // ---------- 切换组 / 卸载 ----------
 
+// ---------- Agent 状态与批量安装 ----------
+/** 每主机 agent 状态（后端 30s 缓存，徽章列显示） */
+const agentStatuses = ref<Record<string, agentcli.Status>>({});
+const latestAgentVersion = ref("");
+const batchBusy = ref(false);
+
+async function loadAgentStatuses() {
+  const names = hosts.value.map((h) => h.name);
+  await Promise.all(
+    names.map(async (n) => {
+      try {
+        agentStatuses.value[n] = await api.agentStatus(n);
+      } catch {
+        /* 徽章显示离线即可 */
+      }
+    })
+  );
+  if (!latestAgentVersion.value) {
+    try {
+      latestAgentVersion.value = await api.agentLatestVersion();
+    } catch {
+      /* 忽略 */
+    }
+  }
+}
+
+function agentTagOf(name: string): { type: string; text: string } {
+  const st = agentStatuses.value[name];
+  if (!st?.ok) return { type: "info", text: "未装/离线" };
+  if (latestAgentVersion.value && st.version !== latestAgentVersion.value) {
+    return { type: "warning", text: `v${st.version} 可更新` };
+  }
+  return { type: "success", text: `v${st.version}` };
+}
+
+/** 批量安装/更新：逐台执行、单台失败不影响其余，完成后汇总报告 */
+async function batchInstallAgent() {
+  if (batchBusy.value) return;
+  const names = hosts.value.map((h) => h.name);
+  try {
+    await ElMessageBox.confirm(
+      `将向本组 ${names.length} 台主机批量部署/更新 spanel-agent（内置 v${latestAgentVersion.value || "?"}，历史数据保留）。逐台执行，单台失败不影响其余。`,
+      "批量安装 / 更新 Agent",
+      { confirmButtonText: "开始", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  batchBusy.value = true;
+  try {
+    const results = await api.batchInstallAgent(names);
+    const ok = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    let report = `成功 ${ok.length} 台` + (failed.length ? `，失败 ${failed.length} 台` : "");
+    if (failed.length) {
+      report += "\n\n失败明细：\n" + failed.map((r) => `· ${r.host}：${r.error}`).join("\n");
+    }
+    await ElMessageBox.alert(report, "批量部署结果", {
+      type: failed.length ? "warning" : "success",
+      customStyle: { whiteSpace: "pre-line" } as any,
+    });
+    await loadAgentStatuses();
+  } catch (e) {
+    ElNotification.error({ title: "批量部署失败", message: formatErr(e), duration: 5000 });
+  } finally {
+    batchBusy.value = false;
+  }
+}
+
 watch(
   hosts,
   (h) => {
@@ -554,6 +641,7 @@ watch(
     for (const host of h) {
       void loadOne(host.name, !fresh[host.name].overview);
     }
+    void loadAgentStatuses();
   },
   { immediate: true }
 );

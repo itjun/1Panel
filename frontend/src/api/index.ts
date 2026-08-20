@@ -6,6 +6,7 @@ import * as Hosts from "../../bindings/diteng-pannel/hosts";
 import * as Groups from "../../bindings/diteng-pannel/groups";
 import * as Overview from "../../bindings/diteng-pannel/overview";
 import * as Monitor from "../../bindings/diteng-pannel/monitor";
+import * as Agent from "../../bindings/diteng-pannel/agent";
 import * as Files from "../../bindings/diteng-pannel/files";
 import * as TerminalSvc from "../../bindings/diteng-pannel/terminalsvc";
 import * as Certs from "../../bindings/diteng-pannel/certs";
@@ -14,12 +15,15 @@ import * as System from "../../bindings/diteng-pannel/system";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
+export * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
 export * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 export * as main from "../../bindings/diteng-pannel/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
+import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
+import type * as agentinstall from "../../bindings/diteng-pannel/internal/agentinstall/models";
 import type * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 import type * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 import type * as main from "../../bindings/diteng-pannel/models";
@@ -92,6 +96,34 @@ export const api = {
   refreshMissingHostIcons: () => arr(Icons.RefreshMissingHostIcons()),
   /** 强制重新探测全部主机 */
   refreshAllHostIcons: () => arr(Icons.RefreshAllHostIcons()),
+
+  // ============ Agent（状态与历史数据，来自目标主机上的 spanel-agent） ============
+  agentStatus: (host: string, force = false): Promise<agentcli.Status> =>
+    must(Agent.AgentStatus(host, force)),
+  agentCurrent: (host: string): Promise<agentcli.CurrentResponse> =>
+    must(Agent.AgentCurrent(host)),
+  agentRange: (
+    host: string,
+    from: number,
+    to: number,
+    src = "auto"
+  ): Promise<agentcli.RangeResponse> => must(Agent.AgentRange(host, from, to, src)),
+  agentSummary: (host: string): Promise<agentcli.SummaryRange[]> =>
+    arr(Agent.AgentSummary(host)),
+  agentEvents: (host: string): Promise<agentcli.AgentEvent[]> =>
+    arr(Agent.AgentEvents(host)),
+  agentProbeInfo: (host: string): Promise<agentinstall.ProbeInfo> =>
+    must(Agent.AgentProbeInfo(host)),
+  agentLatestVersion: (): Promise<string> => str(Agent.AgentLatestVersion()),
+  installAgent: async (host: string): Promise<void> => {
+    await Agent.InstallAgent(host);
+  },
+  batchInstallAgent: async (
+    hosts: string[] | null
+  ): Promise<main.AgentBatchResult[]> => arr(Agent.AgentBatchInstall(hosts)),
+  uninstallAgent: async (host: string, keepData: boolean): Promise<void> => {
+    await Agent.UninstallAgent(host, keepData);
+  },
 
   collectOverview: (host: string): Promise<monitor.Overview> =>
     must(Monitor.CollectOverview(host)),

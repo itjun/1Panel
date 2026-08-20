@@ -51,7 +51,17 @@ export function usePolling<T>(
     }
   };
 
-  watch(deps, () => start(), { immediate: true });
+  watch(
+    deps,
+    () => {
+      // 查询条件变化时清空上一轮数据：新请求失败时宁可显示空/错误，
+      // 也不能把上一个条件的数据当成当前条件的结果（如进程页切运行时标签）
+      data.value = null;
+      error.value = null;
+      start();
+    },
+    { immediate: true }
+  );
   onBeforeUnmount(stop);
 
   return { data, error, loading, refresh };

@@ -226,6 +226,44 @@
                   <el-radio-button value="network">流量</el-radio-button>
                   <el-radio-button value="io">磁盘 IO</el-radio-button>
                 </el-radio-group>
+                <el-radio-group v-model="rangeMode" size="small" class="range-group">
+                  <el-radio-button value="live">实时</el-radio-button>
+                  <el-radio-button value="1h">1时</el-radio-button>
+                  <el-radio-button value="6h">6时</el-radio-button>
+                  <el-radio-button value="24h">24时</el-radio-button>
+                  <el-radio-button value="7d">7天</el-radio-button>
+                </el-radio-group>
+                <el-dropdown v-if="agentInfo?.ok" trigger="click" @command="onAgentCommand">
+                  <el-tag
+                    :type="agentUpdatable ? 'warning' : 'success'"
+                    effect="plain"
+                    size="small"
+                    class="agent-tag agent-tag-btn"
+                  >
+                    {{ agentUpdatable ? `Agent ${agentInfo.version}（可更新）` : `Agent ${agentInfo.version}` }}
+                  </el-tag>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item v-if="agentUpdatable" command="upgrade">
+                        更新到 {{ latestAgentVersion }}
+                      </el-dropdown-item>
+                      <el-dropdown-item command="uninstall" divided>
+                        卸载 Agent
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+                <el-tag
+                  v-else
+                  type="info"
+                  effect="plain"
+                  size="small"
+                  class="agent-tag agent-tag-btn"
+                  title="点击安装 spanel-agent"
+                  @click="onAgentCommand('install')"
+                >
+                  安装 Agent
+                </el-tag>
               </div>
               <el-button
                 link
@@ -236,25 +274,36 @@
               />
             </div>
             <div v-if="chartMode === 'network'" class="monitor-tags">
-              <el-tag type="primary" effect="light">
-                上行: {{ formatBytes(rates.upBps) }}/s
-              </el-tag>
-              <el-tag type="primary" effect="light">
-                下行: {{ formatBytes(rates.downBps) }}/s
-              </el-tag>
+              <template v-if="rangeMode === 'live'">
+                <el-tag type="primary" effect="light">
+                  上行: {{ formatBytes(rates.upBps) }}/s
+                </el-tag>
+                <el-tag type="primary" effect="light">
+                  下行: {{ formatBytes(rates.downBps) }}/s
+                </el-tag>
+              </template>
             </div>
             <div v-else class="monitor-tags">
-              <el-tag type="primary" effect="light">
-                读: {{ formatBytes(ioRates.readBps) }}/s
-              </el-tag>
-              <el-tag type="primary" effect="light">
-                写: {{ formatBytes(ioRates.writeBps) }}/s
-              </el-tag>
-              <el-tag type="warning" effect="light">
-                IOPS: {{ ioRates.iops }}/s
-              </el-tag>
+              <template v-if="rangeMode === 'live'">
+                <el-tag type="primary" effect="light">
+                  读: {{ formatBytes(ioRates.readBps) }}/s
+                </el-tag>
+                <el-tag type="primary" effect="light">
+                  写: {{ formatBytes(ioRates.writeBps) }}/s
+                </el-tag>
+                <el-tag type="warning" effect="light">
+                  IOPS: {{ ioRates.iops }}/s
+                </el-tag>
+              </template>
+            </div>
+            <div
+              v-if="rangeMode !== 'live' && !historyLoading && !history.length"
+              class="history-empty"
+            >
+              该区间暂无数据（agent 需运行一段时间，或未安装）
             </div>
             <VChartLine
+              v-else
               height="280px"
               :option="chartMode === 'network' ? lineOption : ioLineOption"
             />
@@ -509,9 +558,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Close, FullScreen, Refresh } from "@element-plus/icons-vue";
-import { ElMessageBox } from "element-plus";
+import { ElMessageBox, ElNotification } from "element-plus";
 import { api } from "@/api";
-import type { monitor } from "@/api";
+import type { agentcli, monitor } from "@/api";
 import { formatErr } from "@/utils/format";
 import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
@@ -619,6 +668,165 @@ const traffic = ref<{ time: string; up: number; down: number }[]>([]);
 const rates = ref({ upBps: 0, downBps: 0 });
 const lastNet = ref<{ rx: number; tx: number; ts: number } | null>(null);
 
+// ---------- Agent 历史曲线（数据来自目标主机 SQLite，离线期间也不缺） ----------
+/** agent 状态徽章（在线版本 / 不可达） */
+const agentInfo = ref<agentcli.Status | null>(null);
+/** 面板内置 agent 版本（比对显示「可更新」） */
+const latestAgentVersion = ref("");
+/** 历史区间：live=实时（前端差分），其余为 agent 落库历史 */
+const rangeMode = ref<"live" | "1h" | "6h" | "24h" | "7d">("live");
+const RANGE_SPAN: Record<string, number> = {
+  "1h": 3600,
+  "6h": 6 * 3600,
+  "24h": 24 * 3600,
+  "7d": 7 * 86400,
+};
+const history = ref<agentcli.RangePoint[]>([]);
+const historyLoading = ref(false);
+
+async function loadAgentStatus() {
+  try {
+    agentInfo.value = await api.agentStatus(props.host);
+  } catch {
+    agentInfo.value = null;
+  }
+  try {
+    latestAgentVersion.value = await api.agentLatestVersion();
+  } catch {
+    latestAgentVersion.value = "";
+  }
+}
+
+// ---------- 打开主机时的 agent 安装检测（只提示，绝不自动安装） ----------
+/** 本会话内已检测/提示过的主机，避免切换主机反复弹通知 */
+const agentCheckedHosts = new Set<string>();
+
+async function checkAgentInstalled() {
+  const host = props.host;
+  if (agentCheckedHosts.has(host)) return;
+  agentCheckedHosts.add(host);
+
+  let online = false;
+  try {
+    online = (await api.agentStatus(host, true))?.ok === true;
+  } catch {
+    online = false;
+  }
+  if (online) return;
+
+  // agent 不在线：SSH 探测精确区分「未安装」与「已安装未运行」（一次性管理操作）
+  try {
+    const info = await api.agentProbeInfo(host);
+    if (!info.HasBinary) {
+      ElNotification.info({
+        title: "未安装 spanel-agent",
+        message: `${host} 尚未安装 spanel-agent，监控数据不可用。如需使用，请点击监控卡片右上角的「安装 Agent」手动安装（不会自动安装）。`,
+        duration: 8000,
+      });
+    } else if (info.ServiceState !== "active") {
+      ElNotification.warning({
+        title: "spanel-agent 未运行",
+        message: `${host} 的 spanel-agent 服务状态为 ${info.ServiceState}，监控数据暂不可用。可在目标机执行 systemctl restart spanel-agent 恢复。`,
+        duration: 8000,
+      });
+    }
+  } catch {
+    // SSH 也不通时连接错误已有其它展示，这里不再叠加提示
+  }
+}
+
+/** agent 在线且版本低于面板内置 → 可更新 */
+const agentUpdatable = computed(
+  () =>
+    !!agentInfo.value?.ok &&
+    !!latestAgentVersion.value &&
+    agentInfo.value.version !== latestAgentVersion.value
+);
+
+/** 安装 / 更新 / 卸载（install 与 upgrade 走同一幂等接口） */
+const agentBusy = ref(false);
+async function onAgentCommand(cmd: string) {
+  if (agentBusy.value) return;
+  const host = props.host;
+  if (cmd === "install" || cmd === "upgrade") {
+    const action = cmd === "install" ? "安装" : `更新到 v${latestAgentVersion.value}`;
+    try {
+      await ElMessageBox.confirm(
+        `将向 ${host} 部署 spanel-agent（systemd 服务，约 10MB）。更新时历史数据保留。`,
+        `${action} Agent`,
+        { confirmButtonText: action, cancelButtonText: "取消" }
+      );
+    } catch {
+      return;
+    }
+    agentBusy.value = true;
+    try {
+      await api.installAgent(host);
+      await loadAgentStatus();
+      ElMessageBox.alert(`${action}完成`, { type: "success" }).catch(() => {});
+    } catch (e) {
+      ElMessageBox.alert(formatErr(e), { type: "error" }).catch(() => {});
+    } finally {
+      agentBusy.value = false;
+    }
+    return;
+  }
+  if (cmd === "uninstall") {
+    let keep = true;
+    try {
+      await ElMessageBox.confirm(
+        "卸载后该主机将无法采集监控历史。是否保留已落库的数据（重装后可继续查看）？",
+        "卸载 Agent",
+        {
+          confirmButtonText: "卸载并保留数据",
+          cancelButtonText: "卸载并删除数据",
+          distinguishCancelAndClose: true,
+        }
+      );
+    } catch (action) {
+      if (action === "close") return;
+      keep = false;
+    }
+    agentBusy.value = true;
+    try {
+      await api.uninstallAgent(host, keep);
+      await loadAgentStatus();
+    } catch (e) {
+      ElMessageBox.alert(formatErr(e), { type: "error" }).catch(() => {});
+    } finally {
+      agentBusy.value = false;
+    }
+  }
+}
+
+async function loadHistory() {
+  const span = RANGE_SPAN[rangeMode.value];
+  if (!span) return;
+  historyLoading.value = true;
+  try {
+    const to = Math.floor(Date.now() / 1000);
+    const r = await api.agentRange(props.host, to - span, to, "auto");
+    history.value = r.points || [];
+  } catch {
+    history.value = [];
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+watch(rangeMode, () => void loadHistory());
+
+/** 历史点的横轴标签：24h 内显示 HH:mm，更长显示 MM-dd HH:mm */
+function historyTimeLabel(ts: number): string {
+  const d = new Date(ts * 1000);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  if (rangeMode.value === "7d") {
+    return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${hh}:${mm}`;
+  }
+  return `${hh}:${mm}`;
+}
+
 // 监控卡片：流量 / 磁盘 IO 切换
 const chartMode = ref<"network" | "io">("network");
 const ioTraffic = ref<{ time: string; read: number; write: number }[]>([]);
@@ -626,6 +834,7 @@ const ioRates = ref({ readBps: 0, writeBps: 0, iops: 0 });
 const lastDisk = ref<{ read: number; write: number; count: number; ts: number } | null>(null);
 
 let timer: number | undefined;
+let historyTimer: number | undefined;
 
 // 终端正在使用时暂停后台轮询：本组件对所有已打开主机都保活挂载（v-show），
 // 隐藏状态下每 3s 的 SSH 采集 + ECharts 重绘会占用 WebView 主线程，
@@ -677,23 +886,48 @@ const stats = computed(() => [
   },
 ]);
 
-const lineOption = computed(() => ({
-  xData: traffic.value.map((t) => t.time),
-  yData: [
-    { name: "上行", data: traffic.value.map((t) => t.up) },
-    { name: "下行", data: traffic.value.map((t) => t.down) },
-  ],
-  formatStr: "KB/s",
-}));
+const lineOption = computed(() => {
+  // 历史模式：直接用 agent 预计算的速率（KB/s）
+  if (rangeMode.value !== "live") {
+    return {
+      xData: history.value.map((p) => historyTimeLabel(p.ts)),
+      yData: [
+        { name: "上行", data: history.value.map((p) => p.netTxKBps) },
+        { name: "下行", data: history.value.map((p) => p.netRxKBps) },
+      ],
+      formatStr: "KB/s",
+    };
+  }
+  return {
+    xData: traffic.value.map((t) => t.time),
+    yData: [
+      { name: "上行", data: traffic.value.map((t) => t.up) },
+      { name: "下行", data: traffic.value.map((t) => t.down) },
+    ],
+    formatStr: "KB/s",
+  };
+});
 
-const ioLineOption = computed(() => ({
-  xData: ioTraffic.value.map((t) => t.time),
-  yData: [
-    { name: "读", data: ioTraffic.value.map((t) => t.read) },
-    { name: "写", data: ioTraffic.value.map((t) => t.write) },
-  ],
-  formatStr: "KB/s",
-}));
+const ioLineOption = computed(() => {
+  if (rangeMode.value !== "live") {
+    return {
+      xData: history.value.map((p) => historyTimeLabel(p.ts)),
+      yData: [
+        { name: "读", data: history.value.map((p) => p.diskReadKBps) },
+        { name: "写", data: history.value.map((p) => p.diskWriteKBps) },
+      ],
+      formatStr: "KB/s",
+    };
+  }
+  return {
+    xData: ioTraffic.value.map((t) => t.time),
+    yData: [
+      { name: "读", data: ioTraffic.value.map((t) => t.read) },
+      { name: "写", data: ioTraffic.value.map((t) => t.write) },
+    ],
+    formatStr: "KB/s",
+  };
+});
 
 async function loadOverview() {
   try {
@@ -827,6 +1061,9 @@ function resetHostState() {
   ioTraffic.value = [];
   ioRates.value = { readBps: 0, writeBps: 0, iops: 0 };
   lastDisk.value = null;
+  agentInfo.value = null;
+  history.value = [];
+  rangeMode.value = "live";
 }
 
 // ---------- 卡片放大（全窗口覆盖置顶，盖住侧栏/标签栏） ----------
@@ -871,6 +1108,7 @@ watch(
     loading.value = true;
     await refreshAll();
     loading.value = false;
+    void checkAgentInstalled();
   }
 );
 
@@ -884,15 +1122,22 @@ onMounted(async () => {
   loading.value = true;
   await refreshAll();
   loading.value = false;
+  void loadAgentStatus();
+  void checkAgentInstalled();
   timer = window.setInterval(() => {
     if (terminalActive.value) return;
     void loadOverview();
   }, 3000);
+  // 历史模式低频刷新（落库数据 5s/5min 一档，60s 足够）
+  historyTimer = window.setInterval(() => {
+    if (rangeMode.value !== "live") void loadHistory();
+  }, 60000);
   window.addEventListener("keydown", onEnlargeKeydown);
 });
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
+  if (historyTimer) clearInterval(historyTimer);
   window.removeEventListener("keydown", onEnlargeKeydown);
 });
 </script>
@@ -916,6 +1161,26 @@ onBeforeUnmount(() => {
     max-width: 100%;
   }
 }
+
+/* 监控卡片：时间范围选择与 agent 徽章 */
+.range-group {
+  margin-left: 8px;
+}
+.agent-tag {
+  margin-left: 8px;
+}
+.agent-tag-btn {
+  cursor: pointer;
+}
+.history-empty {
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
 .home-card {
   border: 1px solid var(--el-border-color-light, #e4e7ed) !important;
   border-radius: 4px;

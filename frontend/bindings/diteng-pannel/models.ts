@@ -28,6 +28,20 @@ export interface AddHostInput {
 }
 
 /**
+ * AgentBatchResult 批量安装/更新单台结果
+ */
+export interface AgentBatchResult {
+    "host": string;
+    "ok": boolean;
+
+    /**
+     * 成功时安装到的版本
+     */
+    "version": string;
+    "error"?: string;
+}
+
+/**
  * CertPairCheck 本地「证书 + 私钥」配对校验结果（不上传、不触网）
  */
 export interface CertPairCheck {

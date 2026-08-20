@@ -351,10 +351,11 @@ const viewButtons = computed(() => [
   { value: "all", label: "全部进程" },
   ...RUNTIME_TABS.map((t) => ({
     ...t,
-    // 当前选中的运行时直接用列表行数（随 5s 轮询实时更新），其余用计数接口
+    // 当前选中的运行时优先用列表行数（随 5s 轮询实时更新）；
+    // 列表加载中/失败时回退计数接口，避免徽标闪 0 或空白
     count:
       view.value === t.value
-        ? rows.value.length
+        ? rows.value.length || runtimeCounts.value?.[t.value]
         : runtimeCounts.value?.[t.value],
   })),
 ]);
