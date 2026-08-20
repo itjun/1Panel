@@ -12,6 +12,7 @@
  */
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from "vue";
 import echarts from "@/utils/echarts";
+import { useChartVisibility } from "@/composables/useChartVisibility";
 import { formatBytes, formatRateKBps } from "@/utils/format";
 
 export interface LineOption {
@@ -36,6 +37,13 @@ const props = withDefaults(
 
 const el = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
+
+// 隐藏时数据更新只记账不重绘；恢复显示自动补渲染 + 容器尺寸变化自动 resize
+const { renderWhenVisible } = useChartVisibility(
+  el,
+  () => initChart(),
+  () => chart?.resize()
+);
 
 function isDark() {
   return document.documentElement.classList.contains("dark");
@@ -160,25 +168,15 @@ function initChart() {
   );
 }
 
-function onResize() {
-  chart?.resize();
-}
-
-watch(
-  () => props.option,
-  () => nextTick(initChart),
-  { deep: true }
-);
+// option 是 computed 每次返回新引用，浅比较足够
+watch(() => props.option, () => nextTick(renderWhenVisible));
 
 onMounted(() => {
-  nextTick(() => {
-    initChart();
-    window.addEventListener("resize", onResize);
-  });
+  // 挂载时若处于隐藏（v-show 藏起）则不 init，等恢复显示由 RO 触发
+  nextTick(renderWhenVisible);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("resize", onResize);
   chart?.dispose();
   chart = null;
 });
