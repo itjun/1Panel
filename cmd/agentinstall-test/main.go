@@ -49,8 +49,8 @@ func main() {
 	// ---- 3) 全新安装 ----
 	fmt.Println("[install] 全新安装 ...")
 	start := time.Now()
-	must(ins.Install(host, opt, bin, sum), "install")
-	must(ins.WaitHealthy(host, opt, 30*time.Second), "waitHealthy")
+	must(ins.Install(host, opt, bin, sum, nil), "install")
+	must(ins.WaitHealthy(host, opt, 30*time.Second, nil), "waitHealthy")
 	fmt.Printf("[install] 完成，耗时 %s\n", time.Since(start).Round(time.Millisecond))
 
 	// 隧道验证版本 + 历史数据延续
@@ -69,15 +69,15 @@ func main() {
 
 	// ---- 4) 幂等更新（同版本重装）----
 	fmt.Println("[update] 幂等重装 ...")
-	must(ins.Install(host, opt, bin, sum), "reinstall")
-	must(ins.WaitHealthy(host, opt, 30*time.Second), "waitHealthy 2")
+	must(ins.Install(host, opt, bin, sum, nil), "reinstall")
+	must(ins.WaitHealthy(host, opt, 30*time.Second, nil), "waitHealthy 2")
 	fmt.Println("[update] OK")
 
 	// ---- 5) 坏二进制 → 自动回滚 ----
 	fmt.Println("[rollback] 注入坏二进制验证自动回滚 ...")
 	bad := []byte("not a real binary\n")
-	must(ins.Install(host, opt, bad, sha256of(bad)), "install bad")
-	if err := ins.WaitHealthy(host, opt, 8*time.Second); err == nil {
+	must(ins.Install(host, opt, bad, sha256of(bad), nil), "install bad")
+	if err := ins.WaitHealthy(host, opt, 8*time.Second, nil); err == nil {
 		fmt.Println("!! 坏二进制竟然健康了，跳过回滚验证")
 	} else {
 		fmt.Println("[rollback] 健康检查失败如预期:", err)
@@ -96,8 +96,8 @@ func main() {
 
 	// ---- 6) 收尾：重装回 正式版 ----
 	fmt.Println("[final] 重装正式版 ...")
-	must(ins.Install(host, opt, bin, sum), "final install")
-	must(ins.WaitHealthy(host, opt, 30*time.Second), "final waitHealthy")
+	must(ins.Install(host, opt, bin, sum, nil), "final install")
+	must(ins.WaitHealthy(host, opt, 30*time.Second, nil), "final waitHealthy")
 	fmt.Println("\n安装/更新/回滚链路全部验证完成")
 }
 

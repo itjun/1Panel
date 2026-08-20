@@ -59,6 +59,7 @@
     </el-dialog>
 
     <SettingsDialog v-model="settingsOpen" />
+    <AgentInstallDialog />
     <BackupImportDialog ref="backupImportRef" />
   </div>
 </template>
@@ -75,6 +76,7 @@ import SidebarHost from "@/layout/SidebarHost.vue";
 import SidebarExpandBtn from "@/components/SidebarExpandBtn.vue";
 import MainArea from "@/layout/MainArea.vue";
 import SettingsDialog from "@/components/SettingsDialog.vue";
+import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import BackupImportDialog from "@/components/BackupImportDialog.vue";
 
 const app = useAppStore();

@@ -30,34 +30,6 @@
           <el-button
             link
             type="primary"
-            :loading="batchBusy"
-            title="向本组全部主机安装/更新 spanel-agent"
-            @click="batchInstallAgent"
-          >
-            批量部署 Agent
-          </el-button>
-          <el-radio-group
-            v-model="viewMode"
-            size="small"
-            class="view-switch"
-            @change="persistViewMode"
-          >
-            <el-radio-button value="card">
-              <span class="view-opt">
-                <el-icon><Grid /></el-icon>
-                卡片
-              </span>
-            </el-radio-button>
-            <el-radio-button value="list">
-              <span class="view-opt">
-                <el-icon><List /></el-icon>
-                列表
-              </span>
-            </el-radio-button>
-          </el-radio-group>
-          <el-button
-            link
-            type="primary"
             :icon="Refresh"
             :loading="refreshing"
             @click="refreshAll"
@@ -67,22 +39,7 @@
         </div>
       </div>
 
-      <!-- 卡片视图 -->
-      <div v-if="viewMode === 'card'" class="host-grid">
-        <div
-          v-for="h in hosts"
-          :key="'c-' + h.name"
-          class="host-card panel-hover-card"
-          :class="cardClass(h.name)"
-          @click="openHost(h.name)"
-          @dblclick="openHost(h.name)"
-        >
-          <HostCardBody :host="h" :snap="hostState(h.name)" />
-        </div>
-      </div>
-
-      <!-- 列表视图 -->
-      <div v-else class="host-list-wrap panel-hover-card">
+      <div class="host-list-wrap panel-hover-card">
         <el-table
           :data="hosts"
           size="default"
@@ -112,7 +69,12 @@
             <template #default="{ row }">
               <div class="list-host-name">
                 <span class="list-os-ico">
-                  <el-icon v-if="hostState(row.name).error" :size="18" color="#f56c6c">
+                  <el-icon
+                    v-if="hostState(row.name).error"
+                    :size="18"
+                    color="#f56c6c"
+                    :title="withErrTime(hostState(row.name).error!, hostState(row.name).errorAt)"
+                  >
                     <WarningFilled />
                   </el-icon>
                   <DistroLogo
@@ -247,20 +209,15 @@ import {
   defineComponent,
   h,
   onBeforeUnmount,
-  onMounted,
   ref,
   watch,
 } from "vue";
-import {
-  Grid,
-  List,
-  Refresh,
-  WarningFilled,
-} from "@element-plus/icons-vue";
-import { ElMessageBox, ElNotification, ElProgress, ElSkeleton, ElSkeletonItem } from "element-plus";
+import { Refresh, WarningFilled } from "@element-plus/icons-vue";
+import { ElNotification, ElProgress, ElSkeleton, ElSkeletonItem } from "element-plus";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import { useAgentInstallStore } from "@/stores/agentInstall";
 import { formatBytes, formatErr } from "@/utils/format";
 import type { agentcli, monitor, sshconfig } from "@/api";
 
@@ -270,6 +227,7 @@ const props = defineProps<{
 }>();
 
 const app = useAppStore();
+const agentInstall = useAgentInstallStore();
 
 const THRESHOLDS = {
   cpu: 90,
@@ -278,10 +236,6 @@ const THRESHOLDS = {
   loadRatio: 1.0,
 };
 const POLL_MS = 5000;
-// v2：默认视图从卡片改为列表时升级了键，让旧的默认偏好记录失效一次
-const VIEW_KEY = "ipannel.groupViewMode.v2";
-
-type ViewMode = "card" | "list";
 
 /** 单主机面板状态：标题/地址来自 store（同步），指标通过 per-host 异步加载 */
 interface HostSnap {
@@ -289,20 +243,26 @@ interface HostSnap {
   overview?: monitor.Overview;
   disks?: monitor.DiskInfo[];
   error?: string;
+  /** 错误发生时刻（展示新鲜度用；成功刷新时随 error 一并清除） */
+  errorAt?: number;
 }
 
-function loadViewMode(): ViewMode {
-  try {
-    const v = localStorage.getItem(VIEW_KEY);
-    if (v === "list" || v === "card") return v;
-  } catch {
-    /* ignore */
+/** 错误时间后缀（HH:MM），无时间返回空串 */
+function errTimeSuffix(at?: number): string {
+  if (!at) {
+    return "";
   }
-  // 默认列表展示（用户手动切换后记住其选择）
-  return "list";
+  const t = new Date(at);
+  const hh = String(t.getHours()).padStart(2, "0");
+  const mm = String(t.getMinutes()).padStart(2, "0");
+  return `（${hh}:${mm}）`;
 }
 
-const viewMode = ref<ViewMode>(loadViewMode());
+/** 错误文案补发生时间，便于区分「刚失败」与「陈旧错误」 */
+function withErrTime(err: string, at?: number): string {
+  return at ? err + errTimeSuffix(at) : err;
+}
+
 const refreshing = ref(false);
 
 /** 当前组内主机列表（来自 store 的 groups.json + hosts.json：同步可用，立即渲染） */
@@ -357,13 +317,6 @@ function diskUsage(disks?: monitor.DiskInfo[]): string | undefined {
   return `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`;
 }
 
-function loadBar(ov: monitor.Overview): number {
-  const n = ov.cpuCount || 0;
-  const load1 = ov.load1 || 0;
-  if (n <= 0) return 0;
-  return Math.min(100, (load1 / n) * 50);
-}
-
 function isLoadAlert(ov: monitor.Overview): boolean {
   const n = ov.cpuCount || 0;
   const load1 = ov.load1 || 0;
@@ -396,14 +349,6 @@ const errCount = computed(
   () => hosts.value.filter((h) => !!hostState(h.name).error).length
 );
 
-function persistViewMode() {
-  try {
-    localStorage.setItem(VIEW_KEY, viewMode.value);
-  } catch {
-    /* ignore */
-  }
-}
-
 // ---------- 单主机加载（独立，互不阻塞）----------
 
 async function loadOne(name: string, showSkeleton: boolean) {
@@ -423,7 +368,11 @@ async function loadOne(name: string, showSkeleton: boolean) {
     notifyAllAlerts();
   } catch (e) {
     if (activeGroupId !== props.groupId) return;
-    hostStates.value[name] = { loading: false, error: formatErr(e) };
+    hostStates.value[name] = {
+      loading: false,
+      error: formatErr(e),
+      errorAt: Date.now(),
+    };
   } finally {
     inFlight.delete(name);
   }
@@ -447,7 +396,12 @@ function collectHostAlerts(name: string): { key: string; line: string }[] {
   const s = hostStates.value[name];
   if (!s) return [];
   if (s.error) {
-    return [{ key: `${name}|conn`, line: `「${name}」连接失败：${s.error}` }];
+    return [
+      {
+        key: `${name}|conn`,
+        line: `「${name}」连接失败${errTimeSuffix(s.errorAt)}：${s.error}`,
+      },
+    ];
   }
   const ov = s.overview;
   if (!ov) return [];
@@ -514,14 +468,6 @@ function statusTagType(name: string): "success" | "danger" {
   return "success";
 }
 
-function cardClass(name: string) {
-  const s = hostState(name);
-  return {
-    "is-error": !!s.error,
-    "is-alert": !s.error && isHostAlert(s),
-  };
-}
-
 function tableRowClass({ row }: { row: sshconfig.HostConfig }) {
   const s = hostState(row.name);
   if (s.error || isHostAlert(s)) return "host-list-row is-danger-row";
@@ -541,7 +487,7 @@ function startPoll() {
   stopPoll();
   pollTimer = setInterval(() => {
     if (activeGroupId !== props.groupId) return;
-    // 静默轮询：不切 loading（避免卡片跳动）
+    // 静默轮询：不切 loading（避免列表跳动）
     for (const h of hosts.value) {
       void loadOne(h.name, false);
     }
@@ -557,11 +503,10 @@ function stopPoll() {
 
 // ---------- 切换组 / 卸载 ----------
 
-// ---------- Agent 状态与批量安装 ----------
+// ---------- Agent 状态 ----------
 /** 每主机 agent 状态（后端 30s 缓存，徽章列显示） */
 const agentStatuses = ref<Record<string, agentcli.Status>>({});
 const latestAgentVersion = ref("");
-const batchBusy = ref(false);
 
 async function loadAgentStatuses() {
   const names = hosts.value.map((h) => h.name);
@@ -590,40 +535,6 @@ function agentTagOf(name: string): { type: string; text: string } {
     return { type: "warning", text: `v${st.version} 可更新` };
   }
   return { type: "success", text: `v${st.version}` };
-}
-
-/** 批量安装/更新：逐台执行、单台失败不影响其余，完成后汇总报告 */
-async function batchInstallAgent() {
-  if (batchBusy.value) return;
-  const names = hosts.value.map((h) => h.name);
-  try {
-    await ElMessageBox.confirm(
-      `将向本组 ${names.length} 台主机批量部署/更新 spanel-agent（内置 v${latestAgentVersion.value || "?"}，历史数据保留）。逐台执行，单台失败不影响其余。`,
-      "批量安装 / 更新 Agent",
-      { confirmButtonText: "开始", cancelButtonText: "取消" }
-    );
-  } catch {
-    return;
-  }
-  batchBusy.value = true;
-  try {
-    const results = await api.batchInstallAgent(names);
-    const ok = results.filter((r) => r.ok);
-    const failed = results.filter((r) => !r.ok);
-    let report = `成功 ${ok.length} 台` + (failed.length ? `，失败 ${failed.length} 台` : "");
-    if (failed.length) {
-      report += "\n\n失败明细：\n" + failed.map((r) => `· ${r.host}：${r.error}`).join("\n");
-    }
-    await ElMessageBox.alert(report, "批量部署结果", {
-      type: failed.length ? "warning" : "success",
-      customStyle: { whiteSpace: "pre-line" } as any,
-    });
-    await loadAgentStatuses();
-  } catch (e) {
-    ElNotification.error({ title: "批量部署失败", message: formatErr(e), duration: 5000 });
-  } finally {
-    batchBusy.value = false;
-  }
 }
 
 watch(
@@ -658,18 +569,18 @@ watch(
   }
 );
 
-/** 侧栏右键「安装 Agent」成功后（HostContextMenu 广播），刷新本组 Agent 状态列 */
-function onAgentInstalled() {
-  void loadAgentStatuses();
-}
-onMounted(() => {
-  window.addEventListener("spanel:agent-installed", onAgentInstalled);
-});
+watch(
+  () => agentInstall.lastInstalled,
+  (info) => {
+    if (info && hosts.value.some((h) => h.name === info.host)) {
+      void loadAgentStatuses();
+    }
+  }
+);
 
 onBeforeUnmount(() => {
   stopPoll();
   activeGroupId = ""; // 取消所有 in-flight
-  window.removeEventListener("spanel:agent-installed", onAgentInstalled);
 });
 
 // ---------- 子组件：单元格（骨架 + 数值）----------
@@ -737,129 +648,6 @@ const MetricCell = defineComponent({
   },
 });
 
-// ---------- 子组件：卡片内容 ----------
-
-const HostCardBody = defineComponent({
-  name: "HostCardBody",
-  props: {
-    host: { type: Object as () => sshconfig.HostConfig, required: true },
-    snap: { type: Object as () => HostSnap, required: true },
-  },
-  setup(p) {
-    return () => {
-      const hst = p.host;
-      const snap = p.snap;
-      const alert = !!snap.error || isHostAlert(snap);
-      const ov = snap.overview;
-      const loadingInitial = snap.loading && !ov;
-      return h(
-        "div",
-        { class: ["hcb", alert ? "hcb--alarm" : ""] },
-        [
-          h("span", {
-            class: [
-              "status-dot",
-              snap.error ? "err" : loadingInitial ? "loading" : alert ? "alert" : "ok",
-            ],
-            title: snap.error
-              ? "连接失败"
-              : loadingInitial
-                ? "加载中"
-                : alert
-                  ? "存在告警"
-                  : "正常",
-          }),
-          h("div", { class: "card-top" }, [
-            h(
-              "div",
-              { class: ["avatar", snap.error ? "err" : ""] },
-              snap.error
-                ? h("span", { class: "avatar-warn" }, h(WarningFilled, { style: { width: "22px", height: "22px" } }))
-                : h(DistroLogo, { osRelease: ov?.osRelease || "", size: 26 })
-            ),
-            h("div", { class: "id-block" }, [
-              h("div", { class: "host-name", title: hst.name }, hst.name),
-              h(
-                "div",
-                {
-                  class: "host-sub",
-                  title: snap.error ? snap.error : `${hst.user || "?"}@${hst.hostName || "?"}`,
-                },
-                snap.error
-                  ? h("span", { class: "err-text" }, snap.error)
-                  : `${hst.user || "?"}@${hst.hostName || "?"}`
-              ),
-              snap.error
-                ? null
-                : loadingInitial
-                  ? h(ElSkeleton, { rows: 1, animated: true, style: { width: "70%", marginTop: "2px" } }, {
-                      template: () => h(ElSkeletonItem, { variant: "text", style: { width: "100%" } }),
-                    })
-                  : ov
-                    ? h(
-                        "div",
-                        { class: "host-meta" },
-                        `${ov.cpuCount || 0} 核 · ${formatBytes(ov.memTotal || 0)}${
-                          ov.osRelease ? ` · ${shortOs(ov.osRelease)}` : ""
-                        }`
-                      )
-                    : null,
-            ]),
-          ]),
-          renderCardMetrics(snap, ov),
-        ]
-      );
-    };
-  },
-});
-
-function renderCardMetrics(snap: HostSnap, ov: monitor.Overview | undefined) {
-  if (snap.error) {
-    return h("div", { class: "card-footer-hint" }, "点击打开主机后可重试连接");
-  }
-  if (!ov) {
-    return h("div", { class: "metrics" }, [
-      cardMetricSkeleton("CPU"),
-      cardMetricSkeleton("MEM"),
-      cardMetricSkeleton("DISK"),
-      cardMetricSkeleton("LOAD"),
-    ]);
-  }
-  return h("div", { class: "metrics" }, [
-    cardMetricRow("CPU", ov.cpuPercent || 0, (ov.cpuPercent || 0) >= THRESHOLDS.cpu, `${(ov.cpuPercent || 0).toFixed(1)}%`),
-    cardMetricRow("MEM", ov.memPercent || 0, (ov.memPercent || 0) > THRESHOLDS.mem, `${(ov.memPercent || 0).toFixed(1)}%`, memUsage(ov)),
-    cardMetricRow("DISK", diskPercent(snap.disks), diskPercent(snap.disks) > THRESHOLDS.disk, `${diskPercent(snap.disks).toFixed(1)}%`, diskUsage(snap.disks)),
-    cardMetricRow("LOAD", loadBar(ov), isLoadAlert(ov), (ov.load1 || 0).toFixed(2), `/ ${ov.cpuCount || 0}`),
-  ]);
-}
-
-function cardMetricRow(label: string, percent: number, alert: boolean, display: string, sub?: string) {
-  return h("div", { class: ["metric-row", alert ? "is-alert" : ""] }, [
-    h("span", { class: "m-label" }, label),
-    h("span", { class: "m-bar" }, h(ElProgress, {
-      percentage: Math.min(100, Math.max(0, percent || 0)),
-      strokeWidth: 6,
-      showText: false,
-      color: alert ? "var(--el-color-danger)" : "var(--el-color-primary)",
-    })),
-    h("span", { class: ["m-val", alert ? "is-alert" : ""] }, display),
-    sub ? h("span", { class: "m-sub" }, sub) : h("span", { class: "m-sub empty" }, ""),
-  ]);
-}
-
-function cardMetricSkeleton(label: string) {
-  return h("div", { class: "metric-row metric-row--skeleton" }, [
-    h("span", { class: "m-label" }, label),
-    h("span", { class: "m-bar" }, h(ElSkeleton, { rows: 1, animated: true }, {
-      template: () => h(ElSkeletonItem, { variant: "rect", style: { height: "6px", borderRadius: "3px" } }),
-    })),
-    h(ElSkeleton, { rows: 1, animated: true, style: { width: "44px" } }, {
-      template: () => h(ElSkeletonItem, { variant: "text", style: { width: "100%" } }),
-    }),
-    h("span", { class: "m-sub empty" }, ""),
-  ]);
-}
-
 startPoll();
 </script>
 
@@ -890,174 +678,6 @@ startPoll();
 .dblclick-hint {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-}
-.view-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.view-switch :deep(.el-radio-button__inner) {
-  padding: 6px 12px;
-}
-
-.host-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-}
-.host-card {
-  position: relative;
-  padding: 14px 14px 12px;
-  background: var(--el-bg-color, #fff);
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  &:hover {
-    transform: translateY(-1px);
-  }
-  &.is-error,
-  &.is-alert {
-    border-color: var(--el-color-danger) !important;
-    box-shadow: 0 0 0 1px var(--el-color-danger);
-  }
-}
-:deep(.hcb) {
-  position: relative;
-}
-:deep(.status-dot) {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  &.ok {
-    background: #67c23a;
-    box-shadow: 0 0 0 2px rgba(103, 194, 58, 0.2);
-  }
-  &.alert,
-  &.err {
-    background: #f56c6c;
-    box-shadow: 0 0 0 2px rgba(245, 108, 108, 0.25);
-  }
-  &.loading {
-    background: #909399;
-    box-shadow: 0 0 0 2px rgba(144, 153, 153, 0.2);
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-:deep(.card-top) {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  min-width: 0;
-  padding-right: 14px;
-}
-:deep(.avatar) {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--el-color-primary-light-9, #ecf5ff);
-  color: var(--el-color-primary);
-  &.err {
-    background: var(--el-color-danger-light-9, #fef0f0);
-    color: var(--el-color-danger);
-  }
-}
-:deep(.avatar-warn) {
-  display: flex;
-  color: var(--el-color-danger);
-}
-:deep(.id-block) {
-  min-width: 0;
-  flex: 1;
-}
-:deep(.host-name) {
-  font-size: 14px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.host-sub) {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.err-text) {
-  color: var(--el-color-danger);
-}
-:deep(.host-meta) {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--el-text-color-placeholder, #a8abb2);
-}
-:deep(.metrics) {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-:deep(.card-footer-hint) {
-  margin-top: 12px;
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-}
-:deep(.metric-row) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-}
-:deep(.metric-row--skeleton) {
-  opacity: 0.85;
-}
-:deep(.m-label) {
-  width: 34px;
-  flex-shrink: 0;
-  color: var(--el-text-color-secondary);
-}
-:deep(.metric-row.is-alert .m-label) {
-  color: var(--el-color-danger);
-  font-weight: 600;
-}
-:deep(.m-bar) {
-  flex: 1;
-  min-width: 0;
-}
-:deep(.m-val) {
-  width: 44px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  &.is-alert {
-    color: var(--el-color-danger) !important;
-    font-weight: 700;
-  }
-}
-:deep(.m-sub) {
-  width: 96px;
-  text-align: right;
-  font-size: 10px;
-  color: var(--el-text-color-placeholder);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  &.empty {
-    visibility: hidden;
-  }
 }
 
 .host-list-wrap {
@@ -1159,7 +779,6 @@ startPoll();
   white-space: nowrap;
 }
 
-html.dark .host-card,
 html.dark .host-list-wrap {
   background: var(--panel-main-bg-color-9, #2e313d);
 }

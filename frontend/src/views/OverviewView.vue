@@ -563,6 +563,7 @@ import type { agentcli, monitor } from "@/api";
 import { formatErr } from "@/utils/format";
 import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
+import { useAgentInstallStore } from "@/stores/agentInstall";
 import {
   bytesToKBps,
   formatBytes,
@@ -578,6 +579,7 @@ import bunLogo from "@/assets/runtime/bun-original.svg";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
+const agentInstall = useAgentInstallStore();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -756,11 +758,9 @@ async function onAgentCommand(cmd: string) {
     }
     agentBusy.value = true;
     try {
-      await api.installAgent(host);
-      await loadAgentStatus();
-      ElMessageBox.alert(`${action}完成`, { type: "success" }).catch(() => {});
-    } catch (e) {
-      ElMessageBox.alert(formatErr(e), { type: "error" }).catch(() => {});
+      // 进度对话框内展示各阶段步骤与失败详情
+      const ok = await agentInstall.start(host);
+      if (ok) await loadAgentStatus();
     } finally {
       agentBusy.value = false;
     }
@@ -1136,11 +1136,12 @@ watch(
   }
 );
 
-/** 侧栏右键「安装 Agent」成功后（HostContextMenu 广播），刷新本机 agent 状态 */
-function onAgentInstalled(e: Event) {
-  const host = (e as CustomEvent).detail?.host;
-  if (host === props.host) void loadAgentStatus();
-}
+watch(
+  () => agentInstall.lastInstalled,
+  (info) => {
+    if (info?.host === props.host) void loadAgentStatus();
+  }
+);
 
 // 终端占用结束后立即补一次刷新，避免切回概览时数据陈旧
 watch(terminalActive, (active) => {
@@ -1155,7 +1156,6 @@ onMounted(async () => {
   void seedLiveCurves();
   void loadAgentStatus();
   void checkAgentInstalled();
-  window.addEventListener("spanel:agent-installed", onAgentInstalled);
   // 数据全时轮询保持常热（终端激活时暂停见 terminalActive）；
   // 隐藏时的图表重绘开销由 useChartVisibility 承担（隐藏跳过重绘）
   timer = window.setInterval(() => {
@@ -1180,7 +1180,6 @@ onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
   if (historyTimer) clearInterval(historyTimer);
   if (slowTimer) clearInterval(slowTimer);
-  window.removeEventListener("spanel:agent-installed", onAgentInstalled);
   window.removeEventListener("keydown", onEnlargeKeydown);
 });
 </script>

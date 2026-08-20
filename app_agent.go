@@ -153,23 +153,46 @@ func (s *Agent) AgentBatchInstall(hosts []string) ([]AgentBatchResult, error) {
 	return results, nil
 }
 
-// installAgentOn 在单台主机上执行完整安装流程，成功返回安装到的版本号
+// AgentInstallEvent 单台安装进度事件（事件名 agent-install-progress），
+// 前端安装对话框据此刷新步骤条。step 取 probe/upload/replace/start/verify/done/error。
+type AgentInstallEvent struct {
+	Host    string `json:"host"`
+	Step    string `json:"step"`
+	Percent int    `json:"percent"` // 0~100；不确定时 -1
+	Text    string `json:"text,omitempty"`
+}
+
+// installAgentOn 在单台主机上执行完整安装流程，成功返回安装到的版本号。
+// 各阶段经 agent-install-progress 事件推送进度，供前端安装对话框展示。
 func (s *Agent) installAgentOn(host string) (string, error) {
-	opt, err := connectOptionFor(host)
-	if err != nil {
-		return "", err
+	emit := func(step, text string, percent int) {
+		s.app.Event.Emit("agent-install-progress", AgentInstallEvent{
+			Host: host, Step: step, Percent: percent, Text: text,
+		})
 	}
-	info, err := s.installer.Probe(host, opt)
-	if err != nil {
-		return "", err
-	}
-	bin, sum, err := agentres.Binary(info.Arch)
-	if err != nil {
+	fail := func(err error) (string, error) {
+		emit("error", err.Error(), -1)
 		return "", err
 	}
 
-	if err := s.installer.Install(host, opt, bin, sum); err != nil {
-		return "", err
+	emit("probe", "探测主机状态", -1)
+	opt, err := connectOptionFor(host)
+	if err != nil {
+		return fail(err)
+	}
+	info, err := s.installer.Probe(host, opt)
+	if err != nil {
+		return fail(err)
+	}
+	bin, sum, err := agentres.Binary(info.Arch)
+	if err != nil {
+		return fail(err)
+	}
+
+	if err := s.installer.Install(host, opt, bin, sum, func(step string, percent int, text string) {
+		emit(step, text, percent)
+	}); err != nil {
+		return fail(err)
 	}
 	// 全新安装后 token 由 agent 生成，面板缓存的旧 token 必须失效
 	if cli, err := s.agentPool.GetWithOpt(host, opt); err == nil {
@@ -177,26 +200,30 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 	}
 
 	// 健康检查：远端端口就绪 + 隧道版本号一致
-	if err := s.installer.WaitHealthy(host, opt, 30*time.Second); err != nil {
+	if err := s.installer.WaitHealthy(host, opt, 30*time.Second, func(step string, percent int, text string) {
+		emit(step, text, percent)
+	}); err != nil {
 		_ = s.installer.Rollback(host, opt)
-		return "", fmt.Errorf("%w（已回滚旧版本）", err)
+		return fail(fmt.Errorf("%w（已回滚旧版本）", err))
 	}
+	emit("verify", "验证版本一致性", -1)
 	cli, err := s.agentPool.GetWithOpt(host, opt)
 	if err != nil {
-		return "", err
+		return fail(err)
 	}
 	var h agentcli.Health
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := cli.GetJSON(ctx, "/health", &h); err != nil {
 		_ = s.installer.Rollback(host, opt)
-		return "", fmt.Errorf("健康检查失败: %v（已回滚旧版本）", err)
+		return fail(fmt.Errorf("健康检查失败: %v（已回滚旧版本）", err))
 	}
 	if h.Version != agentres.AgentVersion {
 		_ = s.installer.Rollback(host, opt)
-		return "", fmt.Errorf("远端版本 %s 与内置 %s 不一致（已回滚）", h.Version, agentres.AgentVersion)
+		return fail(fmt.Errorf("远端版本 %s 与内置 %s 不一致（已回滚）", h.Version, agentres.AgentVersion))
 	}
 	s.agentPool.InvalidateStatus(host)
+	emit("done", "安装完成 v"+h.Version, -1)
 	return h.Version, nil
 }
 

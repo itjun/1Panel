@@ -50,6 +50,10 @@ type Installer struct {
 	mgr *sshd.Manager
 }
 
+// ProgressFn 安装过程进度回调：step 阶段（upload/replace）、percent 进度百分比
+// （不确定时为 -1）、text 展示文案。允许为 nil。
+type ProgressFn func(step string, percent int, text string)
+
 func New(mgr *sshd.Manager) *Installer {
 	return &Installer{mgr: mgr}
 }
@@ -89,8 +93,8 @@ func (i *Installer) Probe(host string, opt sshd.ConnectOption) (ProbeInfo, error
 
 // Install 安装或更新（幂等）。流程：sftp 上传 → sha256 校验 → 备份旧版 → 原子替换
 // → 确保 systemd unit → 启动。健康检查由调用方（app_agent）走 agentcli 隧道完成，
-// 失败时调用 Rollback。
-func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wantSHA string) error {
+// 失败时调用 Rollback。prog 可为 nil；上传阶段回调 0~100 百分比，校验替换阶段回调 -1。
+func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wantSHA string, prog ProgressFn) error {
 	info, err := i.Probe(host, opt)
 	if err != nil {
 		return err
@@ -100,7 +104,7 @@ func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wan
 	}
 
 	// 1) 上传 + 校验
-	if err := i.upload(host, opt, bin); err != nil {
+	if err := i.upload(host, opt, bin, prog); err != nil {
 		return err
 	}
 	sumOut, err := i.mgr.Run(host, opt, "sha256sum "+remoteBinNew)
@@ -114,6 +118,9 @@ func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wan
 
 	// 2) 原子替换 + unit + 启动（组合命令一次往返）
 	// 清理可能的异常残留：上次中断可能把 bin 留成目录形态（会挡住 mv 并导致 203/EXEC）
+	if prog != nil {
+		prog("replace", -1, "校验并替换二进制、启动服务")
+	}
 	script := fmt.Sprintf(`set -e
 mkdir -p %[6]s && chmod 700 %[6]s
 [ -d %[1]s ] && rm -rf %[1]s || true
@@ -161,8 +168,9 @@ systemctl daemon-reload
 	return nil
 }
 
-// upload sftp 上传二进制到远端临时路径（0644，安装命令再 chmod 755）
-func (i *Installer) upload(host string, opt sshd.ConnectOption, bin []byte) error {
+// upload sftp 上传二进制到远端临时路径（0644，安装命令再 chmod 755）。
+// 分块写入并按 ~2% 步进回调上传百分比（prog 可为 nil）。
+func (i *Installer) upload(host string, opt sshd.ConnectOption, bin []byte, prog ProgressFn) error {
 	client, err := i.mgr.GetClient(host, opt)
 	if err != nil {
 		return fmt.Errorf("建立 SSH 连接失败: %w", err)
@@ -177,9 +185,23 @@ func (i *Installer) upload(host string, opt sshd.ConnectOption, bin []byte) erro
 	if err != nil {
 		return fmt.Errorf("创建远端临时文件失败: %w", err)
 	}
-	if _, err := f.Write(bin); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("上传失败: %w", err)
+	const chunk = 512 * 1024
+	total := len(bin)
+	nextAt := 0 // 下次回调的百分比阈值（约每 2% 一次）
+	for off := 0; off < total; off += chunk {
+		end := off + chunk
+		if end > total {
+			end = total
+		}
+		if _, err := f.Write(bin[off:end]); err != nil {
+			_ = f.Close()
+			return fmt.Errorf("上传失败: %w", err)
+		}
+		pct := end * 100 / total
+		if prog != nil && pct >= nextAt {
+			prog("upload", pct, fmt.Sprintf("上传 Agent 二进制 %d%%", pct))
+			nextAt = pct + 2
+		}
 	}
 	if err := f.Chmod(0o644); err != nil {
 		_ = f.Close()
@@ -192,8 +214,11 @@ func (i *Installer) upload(host string, opt sshd.ConnectOption, bin []byte) erro
 // 只依赖 systemctl（Probe 已确保存在），不依赖 curl 等外部工具——无 curl 的
 // 最小化系统上 curl 探测会 exit 127 导致安装被误判失败；真正的 HTTP/版本
 // 校验由调用方经隧道 GetJSON /health 完成，失败走回滚。
-func (i *Installer) WaitHealthy(host string, opt sshd.ConnectOption, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+// prog 可为 nil；按已等待时长回调 0~100 百分比。
+func (i *Installer) WaitHealthy(host string, opt sshd.ConnectOption, timeout time.Duration, prog ProgressFn) error {
+	start := time.Now()
+	deadline := start.Add(timeout)
+	nextAt := 0
 	// active 后再稳定等 1s，给 HTTP 监听一点就绪余量
 	for time.Now().Before(deadline) {
 		out, err := i.mgr.Run(host, opt, "systemctl is-active spanel-agent 2>/dev/null",
@@ -201,6 +226,13 @@ func (i *Installer) WaitHealthy(host string, opt sshd.ConnectOption, timeout tim
 		if err == nil && strings.TrimSpace(string(out)) == "active" {
 			time.Sleep(1 * time.Second)
 			return nil
+		}
+		if prog != nil {
+			elapsed := int(time.Since(start).Seconds() * 100 / timeout.Seconds())
+			if elapsed >= nextAt {
+				prog("start", elapsed, "等待 agent 服务就绪…")
+				nextAt = elapsed + 5
+			}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}

@@ -85,6 +85,7 @@ import { ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
+import { useAgentInstallStore } from "@/stores/agentInstall";
 import { formatErr } from "@/utils/format";
 
 export interface CtxMenuState {
@@ -102,6 +103,7 @@ const emit = defineEmits<{
 }>();
 
 const app = useAppStore();
+const agentInstall = useAgentInstallStore();
 const groupSubOpen = ref(false);
 
 watch(
@@ -168,7 +170,7 @@ function onMove(groupId: string) {
   if (host) emit("move", host, groupId);
 }
 
-/** 右键「安装 Agent」：单台安装的唯一入口（批量部署在分组页工具栏）；幂等，已装时更新到内置版本，历史数据保留 */
+/** 右键「安装 Agent」：单台安装入口；幂等，已装时更新到内置版本，历史数据保留 */
 async function onInstallAgent() {
   const host = props.menu?.host;
   emit("close");
@@ -182,16 +184,8 @@ async function onInstallAgent() {
   } catch {
     return; // 用户取消
   }
-  try {
-    await api.installAgent(host);
-    // 广播给已打开的概览页，即时刷新该主机的 agent 状态
-    window.dispatchEvent(
-      new CustomEvent("spanel:agent-installed", { detail: { host } })
-    );
-    ElMessageBox.alert("安装完成", { type: "success" }).catch(() => {});
-  } catch (e) {
-    ElMessageBox.alert(formatErr(e), { type: "error" }).catch(() => {});
-  }
+  // 进度对话框内展示各阶段步骤；成功后 store.lastInstalled 通知概览/分组页刷新
+  await agentInstall.start(host);
 }
 
 async function onDelete() {
