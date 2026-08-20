@@ -99,3 +99,6 @@ Desktop.ini
 
 # task 缓存
 .task/
+
+# 内置 agent 二进制（task agent:build 产物）
+internal/agentres/bin/spanel-agent-*

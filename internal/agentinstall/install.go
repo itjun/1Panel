@@ -1,0 +1,215 @@
+// Package agentinstall 面板侧的 spanel-agent 安装/更新/卸载。
+// 全部经既有 SSH 通道完成（sftp 传二进制 + 一次性管理命令），与数据面（agent HTTP）解耦。
+package agentinstall
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"diteng-pannel/internal/sshd"
+
+	"github.com/pkg/sftp"
+)
+
+// 部署路径常量（与 agent 默认值一致）
+const (
+	remoteBin     = "/usr/local/bin/spanel-agent"
+	remoteBinNew  = "/tmp/spanel-agent.new"
+	remoteBinOld  = "/usr/local/bin/spanel-agent.old"
+	remoteDataDir = "/var/lib/spanel-agent"
+	remoteUnit    = "/etc/systemd/system/spanel-agent.service"
+)
+
+// systemd unit：含资源硬限制（宁可 agent 降级/退出，也不挤压业务）
+const unitContent = `[Unit]
+Description=SPanel Agent (server metrics collector)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=` + remoteBin + `
+Restart=always
+RestartSec=3
+Nice=10
+# 按需采集（进程/Docker 等）会 fork ps/ss/docker 等子进程，都在本 cgroup 内；
+# 25% 上限足够按需命令秒回，同时仍是防失控硬顶（持续采集本身 <0.1% CPU）
+CPUQuota=25%
+CPUWeight=50
+IOWeight=50
+MemoryMax=96M
+OOMScoreAdjust=500
+Environment=GOMEMLIMIT=64MiB
+
+[Install]
+WantedBy=multi-user.target
+`
+
+// Installer 经 SSH 管理目标主机上的 agent
+type Installer struct {
+	mgr *sshd.Manager
+}
+
+func New(mgr *sshd.Manager) *Installer {
+	return &Installer{mgr: mgr}
+}
+
+// ProbeInfo 安装前探测
+type ProbeInfo struct {
+	Arch         string // uname -m
+	HasSystemd   bool   // 是否有 systemctl
+	HasBinary    bool   // /usr/local/bin/spanel-agent 是否存在
+	ServiceState string // active / inactive / not-found（not-found = 未安装服务）
+}
+
+// Probe 探测主机架构与 agent 安装状态
+func (i *Installer) Probe(host string, opt sshd.ConnectOption) (ProbeInfo, error) {
+	var info ProbeInfo
+	out, err := i.mgr.Run(host, opt, `echo "=ARCH=$(uname -m)"; command -v systemctl >/dev/null 2>&1 && echo "=SYSTEMD=1" || echo "=SYSTEMD=0"; [ -f /usr/local/bin/spanel-agent ] && echo "=BIN=1" || echo "=BIN=0"; systemctl is-active spanel-agent 2>/dev/null || true`)
+	if err != nil {
+		return info, fmt.Errorf("探测失败: %w", err)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if v, ok := strings.CutPrefix(line, "=ARCH="); ok {
+			info.Arch = v
+		} else if v, ok := strings.CutPrefix(line, "=SYSTEMD="); ok {
+			info.HasSystemd = v == "1"
+		} else if v, ok := strings.CutPrefix(line, "=BIN="); ok {
+			info.HasBinary = v == "1"
+		} else if line == "active" || line == "inactive" || line == "failed" {
+			info.ServiceState = line
+		}
+	}
+	if info.ServiceState == "" {
+		info.ServiceState = "not-found"
+	}
+	return info, nil
+}
+
+// Install 安装或更新（幂等）。流程：sftp 上传 → sha256 校验 → 备份旧版 → 原子替换
+// → 确保 systemd unit → 启动。健康检查由调用方（app_agent）走 agentcli 隧道完成，
+// 失败时调用 Rollback。
+func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wantSHA string) error {
+	info, err := i.Probe(host, opt)
+	if err != nil {
+		return err
+	}
+	if !info.HasSystemd {
+		return fmt.Errorf("目标主机无 systemd，暂不支持安装")
+	}
+
+	// 1) 上传 + 校验
+	if err := i.upload(host, opt, bin); err != nil {
+		return err
+	}
+	sumOut, err := i.mgr.Run(host, opt, "sha256sum "+remoteBinNew)
+	if err != nil {
+		return fmt.Errorf("校验失败: %w", err)
+	}
+	got := strings.Fields(strings.TrimSpace(string(sumOut)))
+	if len(got) == 0 || got[0] != wantSHA {
+		return fmt.Errorf("sha256 不匹配（远端 %s）", firstOr(got, "空"))
+	}
+
+	// 2) 原子替换 + unit + 启动（组合命令一次往返）
+	// 清理可能的异常残留：上次中断可能把 bin 留成目录形态（会挡住 mv 并导致 203/EXEC）
+	script := fmt.Sprintf(`set -e
+mkdir -p %[6]s && chmod 700 %[6]s
+[ -d %[1]s ] && rm -rf %[1]s || true
+[ -f %[1]s ] && mv %[1]s %[2]s || true
+mv %[3]s %[1]s
+chmod 755 %[1]s
+if [ ! -f %[4]s ]; then
+cat > %[4]s <<'UNIT'
+%[5]sUNIT
+fi
+systemctl daemon-reload
+systemctl enable spanel-agent >/dev/null 2>&1
+systemctl restart spanel-agent
+`, remoteBin, remoteBinOld, remoteBinNew, remoteUnit, unitContent, remoteDataDir)
+	if out, err := i.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 60 * time.Second}); err != nil {
+		return fmt.Errorf("安装命令失败: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// Rollback 健康检查失败后恢复旧版（无旧版时停止服务并报错）
+func (i *Installer) Rollback(host string, opt sshd.ConnectOption) error {
+	script := fmt.Sprintf(`if [ -f %[1]s ]; then mv -f %[1]s %[2]s && systemctl restart spanel-agent; else systemctl stop spanel-agent 2>/dev/null || true; fi`,
+		remoteBinOld, remoteBin)
+	out, err := i.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 30 * time.Second})
+	if err != nil {
+		return fmt.Errorf("回滚失败: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// Uninstall 卸载 agent；keepData=true 保留 /var/lib/spanel-agent（重装可续看历史）
+func (i *Installer) Uninstall(host string, opt sshd.ConnectOption, keepData bool) error {
+	script := fmt.Sprintf(`systemctl disable --now spanel-agent 2>/dev/null || true
+rm -f %[1]s %[2]s %[3]s %[4]s
+systemctl daemon-reload
+`, remoteUnit, remoteBin, remoteBinOld, remoteBinNew)
+	if !keepData {
+		script += fmt.Sprintf("rm -rf %s\n", remoteDataDir)
+	}
+	out, err := i.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 30 * time.Second})
+	if err != nil {
+		return fmt.Errorf("卸载失败: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// upload sftp 上传二进制到远端临时路径（0644，安装命令再 chmod 755）
+func (i *Installer) upload(host string, opt sshd.ConnectOption, bin []byte) error {
+	client, err := i.mgr.GetClient(host, opt)
+	if err != nil {
+		return fmt.Errorf("建立 SSH 连接失败: %w", err)
+	}
+	sc, err := sftp.NewClient(client)
+	if err != nil {
+		return fmt.Errorf("建立 sftp 通道失败: %w", err)
+	}
+	defer sc.Close()
+
+	f, err := sc.Create(remoteBinNew)
+	if err != nil {
+		return fmt.Errorf("创建远端临时文件失败: %w", err)
+	}
+	if _, err := f.Write(bin); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("上传失败: %w", err)
+	}
+	if err := f.Chmod(0o644); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// WaitHealthy 轮询远端 systemd 直到 agent 服务 active（安装后拉起需要一点时间）。
+// 只依赖 systemctl（Probe 已确保存在），不依赖 curl 等外部工具——无 curl 的
+// 最小化系统上 curl 探测会 exit 127 导致安装被误判失败；真正的 HTTP/版本
+// 校验由调用方经隧道 GetJSON /health 完成，失败走回滚。
+func (i *Installer) WaitHealthy(host string, opt sshd.ConnectOption, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	// active 后再稳定等 1s，给 HTTP 监听一点就绪余量
+	for time.Now().Before(deadline) {
+		out, err := i.mgr.Run(host, opt, "systemctl is-active spanel-agent 2>/dev/null",
+			sshd.RunOptions{Timeout: 5 * time.Second})
+		if err == nil && strings.TrimSpace(string(out)) == "active" {
+			time.Sleep(1 * time.Second)
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("agent 服务未在 %s 内进入 active", timeout)
+}
+
+func firstOr(ss []string, def string) string {
+	if len(ss) > 0 {
+		return ss[0]
+	}
+	return def
+}
