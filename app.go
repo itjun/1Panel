@@ -146,6 +146,9 @@ func NewApp() *application.App {
 		}
 	})
 
+	// 后台预热全部主机的 SSH 连接与 agent 隧道（见 app_prewarm.go）
+	core.prewarmHostsLater()
+
 	return app
 }
 
