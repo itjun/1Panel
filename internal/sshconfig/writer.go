@@ -79,12 +79,24 @@ func renderHostBlock(cfg HostConfig) string {
 		b.WriteString(cfg.ProxyJump)
 		b.WriteString("\n")
 	}
+	if cfg.HostKeyAlgos != "" {
+		b.WriteString("    HostKeyAlgorithms ")
+		b.WriteString(cfg.HostKeyAlgos)
+		b.WriteString("\n")
+	}
 	return b.String()
 }
 
 func backup(path string) error {
 	ts := time.Now().Format("20060102-150405")
 	dst := fmt.Sprintf("%s.bak.%s", path, ts)
+	// 同秒内多次写盘时（如备份导入批量回写）追加序号，避免备份互相覆盖
+	for seq := 1; ; seq++ {
+		if _, err := os.Stat(dst); os.IsNotExist(err) {
+			break
+		}
+		dst = fmt.Sprintf("%s.bak.%s.%d", path, ts, seq)
+	}
 	src, err := os.Open(path)
 	if err != nil {
 		return err

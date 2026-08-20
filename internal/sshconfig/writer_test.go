@@ -112,3 +112,37 @@ func TestDeleteHostFile_NotFound(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestRenderHostBlock_HostKeyAlgos(t *testing.T) {
+	got := renderHostBlock(HostConfig{Name: "legacy", HostName: "1.2.3.4", HostKeyAlgos: "+ssh-rsa"})
+	if !strings.Contains(got, "    HostKeyAlgorithms +ssh-rsa\n") {
+		t.Fatalf("HostKeyAlgorithms not rendered:\n%s", got)
+	}
+}
+
+func TestBackupSameSecondNoOverwrite(t *testing.T) {
+	path := writeTempConfig(t, "Host a\n    HostName 1.1.1.1\n")
+	if err := backup(path); err != nil {
+		t.Fatal(err)
+	}
+	// 模拟导入覆盖流程：同秒内再次写盘并备份，两份备份都应保留
+	if err := os.WriteFile(path, []byte("Host b\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := backup(path); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	baks := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "config.bak.") {
+			baks++
+		}
+	}
+	if baks != 2 {
+		t.Fatalf("同秒备份不应互相覆盖，期望 2 个 bak 文件，实际 %d", baks)
+	}
+}
