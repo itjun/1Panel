@@ -3,11 +3,14 @@ import { formatErr } from "@/utils/format";
 
 /**
  * 轻量轮询：intervalMs=0 时只在 mount/deps 变化时拉一次。
+ * active（可选）：子页常驻后，切回该子页时立即补刷一次（保留旧数据覆盖，
+ * 无清空闪烁）。interval 轮询不受影响——后台也继续，保持数据常热。
  */
 export function usePolling<T>(
   fetcher: () => Promise<T>,
   intervalMs: number,
-  deps: () => unknown
+  deps: () => unknown,
+  active?: () => boolean
 ): {
   data: Ref<T | null>;
   error: Ref<string | null>;
@@ -62,6 +65,12 @@ export function usePolling<T>(
     },
     { immediate: true }
   );
+  if (active) {
+    watch(active, (now, prev) => {
+      // 从非激活变激活：立即补刷，切回子页数据即时最新
+      if (now && !prev) void refresh();
+    });
+  }
   onBeforeUnmount(stop);
 
   return { data, error, loading, refresh };

@@ -69,6 +69,7 @@ import { Refresh, Search } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { monitor } from "@/api";
 import { formatErr } from "@/utils/format";
+import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import TagButton from "@/components/TagButton.vue";
 
@@ -128,7 +129,8 @@ async function loadLog() {
   }
 }
 
-// 首次进入 / 切换主机时自动加载
+// 首次进入 / 切换主机时自动加载；子页常驻后切回时补刷一次（日志滚动到最新）
+const app = useAppStore();
 watch(
   () => props.host,
   () => {
@@ -136,6 +138,12 @@ watch(
     loadLog();
   },
   { immediate: true }
+);
+watch(
+  () => app.isHostSubActive(props.host, "logs"),
+  (now, prev) => {
+    if (now && !prev) void loadLog();
+  }
 );
 </script>
 

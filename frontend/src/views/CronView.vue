@@ -33,6 +33,7 @@
 import { computed } from "vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 
 interface Cron {
@@ -48,10 +49,13 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 const props = defineProps<{ host: string }>();
+const app = useAppStore();
 const { data, error, loading, refresh } = usePolling<Cron[]>(
   () => api.collectCrons(props.host) as Promise<Cron[]>,
   0,
-  () => props.host
+  () => props.host,
+  // 子页常驻后切回补刷一次
+  () => app.isHostSubActive(props.host, "cron")
 );
 
 const list = computed(() => data.value || []);

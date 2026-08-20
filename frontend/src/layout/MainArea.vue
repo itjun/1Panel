@@ -1,20 +1,20 @@
 <template>
   <div class="main-container">
-    <template v-if="!app.activeTab">
-      <div class="content-pad">
-        <AllHostsOverviewView />
-      </div>
-    </template>
+    <!-- 全部主机首页：常驻（v-show 切换，零销毁零重载） -->
+    <div v-show="!app.activeTab" class="content-pad">
+      <AllHostsOverviewView />
+    </div>
 
-    <!-- 分组视图：展示组内全部主机监控卡片 -->
-    <template v-else-if="app.activeTab?.kind === 'group'">
-      <div class="content-pad">
-        <GroupOverviewView
-          :group-id="app.activeTab.id"
-          :group-name="app.activeTab.title"
-        />
-      </div>
-    </template>
+    <!-- 分组视图：访问过的分组全部常驻，仅 v-show 切换；
+         组内主机监控由 GroupOverviewView 自带 5s 轮询保持常热 -->
+    <div
+      v-for="gid in app.visitedGroupIds"
+      :key="gid"
+      v-show="app.activeTab?.kind === 'group' && app.activeTab.id === gid"
+      class="content-pad"
+    >
+      <GroupOverviewView :group-id="gid" :group-name="app.groupNameOf(gid)" />
+    </div>
 
     <!-- 多主机会话：已打开的全部挂载，仅用 v-show 切换，避免销毁重载 -->
     <template v-for="hid in app.runningHosts" :key="hid">
@@ -46,47 +46,56 @@
             'content-pad--fill': isFillSub(sessionOf(hid)?.subTab),
           }"
         >
-          <!-- 各子页按会话 subTab 挂载；非当前子页用 v-show 藏起也可保留状态。
-               为控制内存：非 overview 的子页仅在选中该 subTab 时挂载；
-               overview 始终挂载以便后台轮询。 -->
+          <!-- 各子页按会话 subTab 切换；访问过的子页常驻挂载（v-if 首挂 + v-show 切换），
+               切回零加载零销毁——资源换速度。终端例外：KeepAlive 缓存已够快且
+               PTY/拖放钩子依赖 activate/deactivate 生命周期，不并入常驻。 -->
           <OverviewView
             v-show="(sessionOf(hid)?.subTab || 'overview') === 'overview'"
             :host="hid"
           />
           <ProcessesView
-            v-if="sessionOf(hid)?.subTab === 'processes'"
+            v-if="visitedSub(hid, 'processes')"
+            v-show="sessionOf(hid)?.subTab === 'processes'"
             :host="hid"
           />
           <NetworkView
-            v-if="sessionOf(hid)?.subTab === 'network'"
+            v-if="visitedSub(hid, 'network')"
+            v-show="sessionOf(hid)?.subTab === 'network'"
             :host="hid"
           />
           <DockerView
-            v-if="sessionOf(hid)?.subTab === 'docker'"
+            v-if="visitedSub(hid, 'docker')"
+            v-show="sessionOf(hid)?.subTab === 'docker'"
             :host="hid"
           />
           <FilesView
-            v-if="sessionOf(hid)?.subTab === 'files'"
+            v-if="visitedSub(hid, 'files')"
+            v-show="sessionOf(hid)?.subTab === 'files'"
             :host="hid"
           />
           <ServicesView
-            v-if="sessionOf(hid)?.subTab === 'services'"
+            v-if="visitedSub(hid, 'services')"
+            v-show="sessionOf(hid)?.subTab === 'services'"
             :host="hid"
           />
           <CertsView
-            v-if="sessionOf(hid)?.subTab === 'certs'"
+            v-if="visitedSub(hid, 'certs')"
+            v-show="sessionOf(hid)?.subTab === 'certs'"
             :host="hid"
           />
           <CronView
-            v-if="sessionOf(hid)?.subTab === 'cron'"
+            v-if="visitedSub(hid, 'cron')"
+            v-show="sessionOf(hid)?.subTab === 'cron'"
             :host="hid"
           />
           <PackagesView
-            v-if="sessionOf(hid)?.subTab === 'packages'"
+            v-if="visitedSub(hid, 'packages')"
+            v-show="sessionOf(hid)?.subTab === 'packages'"
             :host="hid"
           />
           <LogsView
-            v-if="sessionOf(hid)?.subTab === 'logs'"
+            v-if="visitedSub(hid, 'logs')"
+            v-show="sessionOf(hid)?.subTab === 'logs'"
             :host="hid"
           />
           <!-- KeepAlive：切到其他子页签时终端只停用不卸载，
@@ -157,6 +166,11 @@ const FILL_SUBS: SubTab[] = [
 
 function sessionOf(hid: string) {
   return app.hostSessions[hid];
+}
+
+/** 该子页是否访问过（首挂条件；访问后常驻，v-show 切换） */
+function visitedSub(hid: string, sub: SubTab) {
+  return (sessionOf(hid)?.visited || []).includes(sub);
 }
 
 function isFillSub(sub?: SubTab) {

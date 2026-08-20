@@ -105,6 +105,7 @@ import { computed, reactive, ref } from "vue";
 import { Loading } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 
 interface Service {
@@ -132,10 +133,13 @@ interface ServiceDetail {
 }
 
 const props = defineProps<{ host: string }>();
+const app = useAppStore();
 const { data, error, loading, refresh } = usePolling<Service[]>(
   () => api.collectServices(props.host) as Promise<Service[]>,
   30_000,
-  () => props.host
+  () => props.host,
+  // 30s 间隔较长：切回子页时立即补刷
+  () => app.isHostSubActive(props.host, "services")
 );
 const list = computed(() => data.value || []);
 

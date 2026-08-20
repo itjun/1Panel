@@ -35,6 +35,8 @@ export interface HostSession {
   subtitle: string;
   subTab: SubTab;
   openedAt: number;
+  /** 访问过的子页（常驻保活：v-if 用它决定首挂，v-show 负责切换） */
+  visited: SubTab[];
 }
 
 export interface GroupNode {
@@ -79,6 +81,8 @@ export const useAppStore = defineStore("app", () => {
   /** 后台常挂的主机会话（按打开顺序） */
   const hostSessions = ref<Record<string, HostSession>>({});
   const runningOrder = ref<string[]>([]);
+  /** 访问过的分组页（常驻保活，按打开顺序） */
+  const visitedGroupIds = ref<string[]>([]);
 
   /** 兼容旧命名：主区/侧栏仍可能读 activeTab */
   const activeTab = computed(() => activeView.value);
@@ -237,6 +241,7 @@ export const useAppStore = defineStore("app", () => {
       subtitle: `${host.user || "?"}@${host.hostName || "?"}`,
       subTab: "overview",
       openedAt: Date.now(),
+      visited: ["overview"],
     };
     hostSessions.value = { ...hostSessions.value, [name]: sess };
     runningOrder.value = [...runningOrder.value, name];
@@ -279,6 +284,16 @@ export const useAppStore = defineStore("app", () => {
       kind: "group",
       subTab: "overview",
     };
+    // 分组页常驻保活：记录访问过的分组，MainArea 据此 v-show 切换
+    if (!visitedGroupIds.value.includes(id)) {
+      visitedGroupIds.value = [...visitedGroupIds.value, id];
+    }
+  }
+
+  /** 分组显示名（常驻分组页的 group-name 派生源，改名后自动更新） */
+  function groupNameOf(id: string): string {
+    if (id === UNGROUPED_ID) return "未分组";
+    return groupList.value.find((g) => g.id === id)?.name || id;
   }
 
   /** 返回全部主机概览（保留后台运行的主机会话） */
@@ -292,11 +307,19 @@ export const useAppStore = defineStore("app", () => {
     activeView.value = { ...activeView.value, subTab: sub };
     const sess = hostSessions.value[name];
     if (sess) {
+      // 记录访问过的子页：MainArea 据此常驻挂载，切回零加载
+      const visited = sess.visited.includes(sub) ? sess.visited : [...sess.visited, sub];
       hostSessions.value = {
         ...hostSessions.value,
-        [name]: { ...sess, subTab: sub },
+        [name]: { ...sess, subTab: sub, visited },
       };
     }
+  }
+
+  /** 某主机的某子页当前是否正被查看（常驻子页激活时补刷用） */
+  function isHostSubActive(host: string, sub: SubTab): boolean {
+    const t = activeView.value;
+    return t?.kind === "host" && t.id === host && t.subTab === sub;
   }
 
   function sendTerminalCmd(cmd: string) {
@@ -409,6 +432,7 @@ export const useAppStore = defineStore("app", () => {
     hostSessions,
     runningHosts,
     runningOrder,
+    visitedGroupIds,
     sidebarOpen,
     setSidebarOpen,
     pendingCreateGroup,
@@ -419,8 +443,10 @@ export const useAppStore = defineStore("app", () => {
     isRunning,
     openHostTab,
     openGroupTab,
+    groupNameOf,
     goHome,
     setSubTab,
+    isHostSubActive,
     stopHost,
     sendTerminalCmd,
     clearTerminalCmd,

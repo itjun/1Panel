@@ -160,6 +160,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { CertInfo, CertListResult, CertPairCheck } from "@/api";
 import { formatErr } from "@/utils/format";
+import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 
 const props = defineProps<{ host: string }>();
@@ -371,6 +372,15 @@ onUnmounted(() => {
 });
 
 watch(() => props.host, () => loadCerts(), { immediate: true });
+
+// 子页常驻后切回时补刷一次（证书有效期随时间变化）
+const app = useAppStore();
+watch(
+  () => app.isHostSubActive(props.host, "certs"),
+  (now, prev) => {
+    if (now && !prev) void loadCerts();
+  }
+);
 </script>
 
 <style scoped>
