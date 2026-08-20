@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"sync"
+	"time"
 
+	"diteng-pannel/internal/agentcli"
 	"diteng-pannel/internal/sshconfig"
 )
 
@@ -89,7 +92,17 @@ func (s *Icons) refreshHostIcons(onlyMissing bool) []HostIcon {
 	return out
 }
 
+// detectOSRelease 探测主机发行版（用于图标）。已装 agent 的主机走 agent 隧道
+//（零 SSH 命令）；agent 不可达（未安装/未运行）时回退原有 SSH 探测。
 func (s *Icons) detectOSRelease(host string) (string, error) {
+	if cli, err := s.agentPool.Get(host); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+		var cur agentcli.CurrentResponse
+		if err := cli.GetJSON(ctx, "/metrics/current", &cur); err == nil && cur.Info.OSRelease != "" {
+			return cur.Info.OSRelease, nil
+		}
+	}
 	opt, err := connectOptionFor(host)
 	if err != nil {
 		return "", err

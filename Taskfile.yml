@@ -8,6 +8,8 @@ vars:
   # Target OS for build/package/run. Defaults to the host OS, and is overridden
   # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation.
   GOOS: '{{.GOOS | default OS}}'
+  # 面板与 agent 共用版本号（agent:build 注入二进制；正式构建时也应注入 agentres.AgentVersion）
+  VERSION: '{{.VERSION | default "0.1.3"}}'
 
 includes:
   common: ./build/Taskfile.yml
@@ -19,7 +21,23 @@ tasks:
   build:
     summary: Builds the application
     cmds:
+      # 先交叉编译 agent 产物：面板 go:embed 内嵌它，版本号与面板一致
+      - task: agent:build
       - task: "{{.GOOS}}:build"
+
+  agent:build:
+    summary: 交叉编译 spanel-agent（linux/amd64+arm64）到 internal/agentres/bin 供面板内嵌
+    cmds:
+      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version={{.VERSION}}" -o internal/agentres/bin/spanel-agent-linux-amd64 ./cmd/spanel-agent
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version={{.VERSION}}" -o internal/agentres/bin/spanel-agent-linux-arm64 ./cmd/spanel-agent
+      - echo "spanel-agent {{.VERSION}} 构建完成（amd64 + arm64）"
+
+  agent:test:
+    summary: 构建 agent 并部署到 cdcp-beta 联调（原子替换运行中二进制后重启）
+    cmds:
+      - task: agent:build
+      - scp -q internal/agentres/bin/spanel-agent-linux-amd64 cdcp-beta:/tmp/spanel-agent.new
+      - ssh cdcp-beta "mv /tmp/spanel-agent.new /usr/local/bin/spanel-agent && chmod 755 /usr/local/bin/spanel-agent && systemctl restart spanel-agent && sleep 1 && systemctl is-active spanel-agent"
 
   package:
     summary: Packages a production build of the application

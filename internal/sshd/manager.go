@@ -104,6 +104,40 @@ func (m *Manager) GetClient(host string, opt ConnectOption) (*ssh.Client, error)
 	return m.Get(host, opt)
 }
 
+// Dial 经 host 的 SSH 连接建立 direct-tcpip 通道，返回等效的 TCP 连接。
+// 与本地端口转发（ssh -L）等价，但不开本地端口、复用连接池与 keepalive。
+// 用于访问目标主机上的 agent（127.0.0.1:39190）等回环服务。
+//
+// 错误分级（与 Run 的 errSessionCreate 原则一致，只对连接级故障重建）：
+//   - "connect failed"：目标端口未监听被 sshd 拒绝，SSH 连接本身健康——
+//     直接返回错误，绝不能删缓存重建（否则健康连接被反复丢弃泄漏，
+//     keepalive 永不失败导致连接与 goroutine 无界累积）
+//   - 其余错误（网络断/对端 sshd 死）：连接级故障，重建后重试一次
+func (m *Manager) Dial(host string, opt ConnectOption, addr string) (net.Conn, error) {
+	client, err := m.Get(host, opt)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := client.Dial("tcp", addr)
+	if err == nil {
+		return conn, nil
+	}
+	if strings.Contains(err.Error(), "connect failed") {
+		return nil, err
+	}
+	// 连接级失败：从缓存移除（不 Close，保护终端 session），重建后重试一次
+	m.mu.Lock()
+	if e, ok := m.conns[host]; ok && e.client == client {
+		delete(m.conns, host)
+	}
+	m.mu.Unlock()
+	client2, err2 := m.Get(host, opt)
+	if err2 != nil {
+		return nil, err
+	}
+	return client2.Dial("tcp", addr)
+}
+
 // Close 释放指定 host 的连接
 func (m *Manager) Close(host string) {
 	m.mu.Lock()

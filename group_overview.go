@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"sync"
 
+	"diteng-pannel/internal/agentcli"
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/sshconfig"
@@ -38,7 +40,7 @@ func (s *Overview) ListGroupOverview() ([]GroupOverview, error) {
 	}
 	out := make([]GroupOverview, 0, len(buckets))
 	for _, b := range buckets {
-		snapshots := collectHostSnapshotsParallel(s.collector, b.hosts, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) })
+		snapshots := s.collectHostSnapshots(b.hosts, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) })
 		out = append(out, GroupOverview{
 			GroupID:   b.id,
 			GroupName: b.name,
@@ -59,7 +61,7 @@ func (s *Overview) ListOneGroupOverview(groupID string) (GroupOverview, error) {
 			return GroupOverview{
 				GroupID:   b.id,
 				GroupName: b.name,
-				Hosts:     collectHostSnapshotsParallel(s.collector, b.hosts, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) }),
+				Hosts:     s.collectHostSnapshots(b.hosts, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) }),
 			}, nil
 		}
 	}
@@ -117,8 +119,8 @@ func (s *Overview) buildGroupBuckets() ([]groupBucket, error) {
 	return buckets, nil
 }
 
-// collectHostSnapshotsParallel 并发采集多台主机，sem 限制并发数
-func collectHostSnapshotsParallel(c *monitor.Collector, hosts []sshconfig.HostConfig, limit int, remember func(host, osRelease string)) []HostOverviewSnapshot {
+// collectHostSnapshots 并发采集多台主机（经各自 agent 读库），sem 限制并发数
+func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int, remember func(host, osRelease string)) []HostOverviewSnapshot {
 	if len(hosts) == 0 {
 		return []HostOverviewSnapshot{}
 	}
@@ -142,19 +144,27 @@ func collectHostSnapshotsParallel(c *monitor.Collector, hosts []sshconfig.HostCo
 				HostName: host.HostName,
 				User:     host.User,
 			}
-			opt := connectOptionFromHostConfig(host)
-			ov, err := c.CollectOverview(host.Name, opt)
+			cli, err := s.agentPool.GetWithOpt(host.Name, connectOptionFromHostConfig(host))
 			if err != nil {
 				snap.Error = err.Error()
 				results[idx] = snap
 				return
 			}
+			ctx := context.Background()
+			var cur agentcli.CurrentResponse
+			if err := cli.GetJSON(ctx, "/metrics/current", &cur); err != nil {
+				snap.Error = err.Error()
+				results[idx] = snap
+				return
+			}
+			ov := overviewFromAgent(cur)
 			snap.Overview = ov
 			if remember != nil && ov.OSRelease != "" {
 				remember(host.Name, ov.OSRelease)
 			}
 			// 只取根分区（mount == "/"），用于卡片显示
-			disks, _ := c.CollectDisks(host.Name, opt)
+			var disks []monitor.DiskInfo
+			_ = cli.GetJSON(ctx, "/collect/disks", &disks, true)
 			for _, d := range disks {
 				if d.Mount == "/" {
 					snap.Disks = []monitor.DiskInfo{d}

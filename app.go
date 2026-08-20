@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"diteng-pannel/internal/agentcli"
+	"diteng-pannel/internal/agentinstall"
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/hosticon"
 	"diteng-pannel/internal/monitor"
@@ -29,6 +31,8 @@ import (
 type App struct {
 	sshMgr    *sshd.Manager
 	collector *monitor.Collector
+	agentPool *agentcli.Pool
+	installer *agentinstall.Installer
 	groups    *groups.Store
 	hostIcons *hosticon.Store
 	termMgr   *terminal.Manager
@@ -49,8 +53,10 @@ const RetryInterval = 30 * time.Second
 func NewApp() *application.App {
 	sshMgr := sshd.NewManager()
 	core := &App{
-		sshMgr:  sshMgr,
-		termMgr: terminal.NewManager(sshMgr),
+		sshMgr:    sshMgr,
+		termMgr:   terminal.NewManager(sshMgr),
+		agentPool: agentcli.NewPool(sshMgr, connectOptionFor),
+		installer: agentinstall.New(sshMgr),
 	}
 
 	app := application.New(application.Options{
@@ -61,6 +67,7 @@ func NewApp() *application.App {
 			application.NewService((*Groups)(core)),
 			application.NewService((*Overview)(core)),
 			application.NewService((*Monitor)(core)),
+			application.NewService((*Agent)(core)),
 			application.NewService((*Files)(core)),
 			application.NewService((*TerminalSvc)(core)),
 			application.NewService((*Certs)(core)),
