@@ -66,6 +66,9 @@ type NetConnection struct {
 const (
 	slowQueueBytes uint64  = 8192
 	slowRTTMs      float64 = 200
+	// egressCacheTTL 出口 IP 探测成功后的缓存时长；egressRetryDelay 失败后的重试间隔
+	egressCacheTTL   = 10 * time.Minute
+	egressRetryDelay = time.Minute
 )
 
 var (
@@ -80,15 +83,37 @@ var (
 	reIPv4Any = regexp.MustCompile(`\b((?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))\b`)
 )
 
-// CollectNetwork 采集网卡、IP 分类、连接与疑似卡顿连接
+// CollectNetwork 采集网卡、IP 分类、连接与疑似卡顿连接。
+// 本地信息（网卡/路由/连接）每次实时；出口公网 IP 段含外网请求（限时 3s），
+// 单独成命令并缓存 10 分钟——网络页轮询不再每次都打外网。
 func (c *Collector) CollectNetwork(host string, opt sshd.ConnectOption) (NetworkSnapshot, error) {
-	// 单脚本减少往返；外网 IP 统一走 myip.ipip.net（含归属地文案），限时 3s
-	script := `echo "=LINK="; ip -o link show 2>/dev/null; echo "=ADDR="; ip -o -4 addr show 2>/dev/null; echo "=ROUTE="; ip -4 route show default 2>/dev/null | head -n3; echo "=NETDEV="; cat /proc/net/dev 2>/dev/null; echo "=SS="; ss -Htanp 2>/dev/null | head -n 800; echo "=SSTI="; ss -Hti 2>/dev/null | head -n 400; echo "=EGRESS="; (curl -4 -sL --max-time 3 https://myip.ipip.net/ 2>/dev/null || wget -qO- --timeout=3 https://myip.ipip.net/ 2>/dev/null || true)`
-	out, err := c.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 30 * time.Second})
+	script := `echo "=LINK="; ip -o link show 2>/dev/null; echo "=ADDR="; ip -o -4 addr show 2>/dev/null; echo "=ROUTE="; ip -4 route show default 2>/dev/null | head -n3; echo "=NETDEV="; cat /proc/net/dev 2>/dev/null; echo "=SS="; ss -Htanp 2>/dev/null | head -n 800; echo "=SSTI="; ss -Hti 2>/dev/null | head -n 400`
+	out, err := c.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 15 * time.Second})
 	if err != nil {
 		return NetworkSnapshot{}, err
 	}
-	return parseNetworkSnapshot(string(out)), nil
+	egress := c.egressCached(host, opt)
+	return parseNetworkSnapshot(string(out) + "\n=EGRESS=\n" + egress), nil
+}
+
+// egressCached 出口 IP 探测（curl myip.ipip.net，含归属地）。
+// 成功缓存 10 分钟；失败保留旧值不清空（外网探测易瞬时抖动，清空会让出口 IP
+// 消失整个 TTL 周期），1 分钟后自动重试。
+func (c *Collector) egressCached(host string, opt sshd.ConnectOption) string {
+	c.egressMu.Lock()
+	defer c.egressMu.Unlock()
+	if time.Now().Before(c.egressNext) {
+		return c.egressOut
+	}
+	out, _ := c.mgr.Run(host, opt,
+		`curl -4 -sL --max-time 3 https://myip.ipip.net/ 2>/dev/null || wget -qO- --timeout=3 https://myip.ipip.net/ 2>/dev/null || true`,
+		sshd.RunOptions{Timeout: 8 * time.Second})
+	if strings.TrimSpace(string(out)) == "" {
+		c.egressNext = time.Now().Add(egressRetryDelay)
+	} else {
+		c.egressOut, c.egressNext = string(out), time.Now().Add(egressCacheTTL)
+	}
+	return c.egressOut
 }
 
 func parseNetworkSnapshot(raw string) NetworkSnapshot {

@@ -5,14 +5,22 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"diteng-pannel/internal/sshd"
+)
+
+// dockerStatsCacheTTL 容器 stats 缓存：docker stats --no-stream 需等一个完整
+// 采样周期（秒级），Docker 页 5s 轮询没必要每次真采；容器列表（启停）保持实时
+const (
+	dockerStatsCacheTTL   = 15 * time.Second
+	dockerStatsRetryDelay = 5 * time.Second
 )
 
 // CollectDocker 一次采集 Docker 容器列表 + 资源占用统计
 // 命令策略（Debian/Ubuntu）：
 //   - docker ps 用 --format '{{json .}}' 输出每行一个 JSON
-//   - docker stats --no-stream 用 --format '{{json .}}' 同样每行一个 JSON
+//   - docker stats --no-stream 用 --format '{{json .}}' 同样每行一个 JSON（15s 缓存）
 //   - 若命令不存在或无权限，返回 Available=false
 func (c *Collector) CollectDocker(host string, opt sshd.ConnectOption) (DockerInfo, error) {
 	info := DockerInfo{Available: false}
@@ -27,10 +35,27 @@ func (c *Collector) CollectDocker(host string, opt sshd.ConnectOption) (DockerIn
 	info.Available = true
 	info.Containers = parseContainerList(string(out))
 
-	statsCmd := `docker stats --no-stream --format '{{json .}}' 2>/dev/null`
-	statsOut, _ := c.mgr.Run(host, opt, statsCmd)
-	info.Stats = parseContainerStats(string(statsOut))
+	info.Stats = parseContainerStats(c.dockerStatsCached(host, opt))
 	return info, nil
+}
+
+// dockerStatsCached 容器资源采样（惰性缓存 dockerStatsCacheTTL）。
+// 采样失败保留旧值不清空（daemon 重启等瞬时抖动），短退避后重试。
+func (c *Collector) dockerStatsCached(host string, opt sshd.ConnectOption) string {
+	c.dockerStatsMu.Lock()
+	defer c.dockerStatsMu.Unlock()
+	if time.Now().Before(c.dockerStatsNext) {
+		return c.dockerStatsOut
+	}
+	out, _ := c.mgr.Run(host, opt, `docker stats --no-stream --format '{{json .}}' 2>/dev/null`,
+		sshd.RunOptions{Timeout: 20 * time.Second})
+	c.dockerStatsOut = string(out)
+	if len(out) == 0 {
+		c.dockerStatsNext = time.Now().Add(dockerStatsRetryDelay)
+	} else {
+		c.dockerStatsNext = time.Now().Add(dockerStatsCacheTTL)
+	}
+	return c.dockerStatsOut
 }
 
 // CollectDockerInspect 按需查询单个容器的 docker inspect 原始 JSON（悬浮卡片触发，不随列表轮询）

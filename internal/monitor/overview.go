@@ -6,19 +6,50 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"diteng-pannel/internal/sshd"
 )
 
-// Collector 监控数据采集器（依赖 sshd.Manager）
-// 维护每台主机的上次 CPU 时间片，用于差分计算瞬时使用率
-type Collector struct {
-	mu       sync.Mutex
-	mgr      *sshd.Manager
-	lastStat map[string][10]uint64 // host -> 上次 cpu 各列 jiffies
+// Runner 命令执行通道：面板侧由 sshd.Manager 实现（经 SSH 执行），
+// agent 侧由本地 exec 实现（见 internal/agent），采集脚本与解析逻辑两边共用
+type Runner interface {
+	Run(host string, opt sshd.ConnectOption, cmd string, runOpts ...sshd.RunOptions) ([]byte, error)
 }
 
-func NewCollector(mgr *sshd.Manager) *Collector {
+// Collector 监控数据采集器（依赖 Runner 执行通道）。
+// 使用约束：goScan/dockerPs/dockerStats/egress 四组缓存与 scanGoProcs 的本机直读
+// 均为「agent 单机场景」设计（每个 agent 进程一个实例、只管本机）。
+// 面板进程构造的多主机 Collector（app.go）只允许调用 DetectOSRelease——
+// 其余方法在面板侧已切换为 agent HTTP（见 app_monitor.go），勿在面板侧新增直调。
+// lastStat 仍按 host 分键，维护每台主机的上次 CPU 时间片用于差分。
+type Collector struct {
+	mu       sync.Mutex
+	mgr      Runner
+	lastStat map[string][10]uint64 // host -> 上次 cpu 各列 jiffies
+
+	// Go 进程扫描缓存（识别需遍历 /proc 读 buildinfo，轮询共享；见 runtimeprocs.go）
+	goScanMu   sync.Mutex
+	goScanAt   time.Time
+	goScanData map[uint32]string
+
+	// docker ps 容器映射缓存（classifyDeploy 用；Docker 管理页保持实时不走缓存）
+	dockerPsMu  sync.Mutex
+	dockerPsAt  time.Time
+	dockerPsOut []byte
+
+	// 容器 stats 采样缓存（docker stats --no-stream 秒级；Next 含失败退避）
+	dockerStatsMu   sync.Mutex
+	dockerStatsNext time.Time
+	dockerStatsOut  string
+
+	// 出口 IP 探测缓存（外网请求；Next 含失败退避）
+	egressMu   sync.Mutex
+	egressNext time.Time
+	egressOut  string
+}
+
+func NewCollector(mgr Runner) *Collector {
 	return &Collector{mgr: mgr, lastStat: map[string][10]uint64{}}
 }
 
@@ -207,19 +238,20 @@ func parseOverview(s string) (Overview, error) {
 		}
 	}
 	if netSec := sections["NET"]; netSec != "" {
-		o.NetRxBytes, o.NetTxBytes = parseNetDev(netSec, defDev)
+		o.NetRxBytes, o.NetTxBytes = ParseNetDev(netSec, defDev)
 	}
 	if dio := sections["DISKIO"]; dio != "" {
-		o.DiskReadBytes, o.DiskWriteBytes, o.DiskIOCount = parseDiskStats(dio)
+		o.DiskReadBytes, o.DiskWriteBytes, o.DiskIOCount = ParseDiskStats(dio)
 	}
 	return o, nil
 }
 
-// parseNetDev 解析 /proc/net/dev 的收发字节
+// ParseNetDev 解析 /proc/net/dev 的收发字节
 // defDev 非空时只统计该网卡（默认路由出口，即主机实际对外带宽）；
 // 为空或找不到该网卡时回退为合计除 lo 外所有网卡
 // 格式：Interface: rx_bytes rx_packets ... tx_bytes tx_packets ...
-func parseNetDev(s, defDev string) (rx, tx uint64) {
+// 面板与 agent 共用，保证两边网速口径一致
+func ParseNetDev(s, defDev string) (rx, tx uint64) {
 	if defDev != "" {
 		if r, t, ok := netDevIface(s, defDev); ok {
 			return r, t
@@ -271,13 +303,14 @@ func netDevIface(s, name string) (rx, tx uint64, ok bool) {
 // diskDevRe 匹配物理块设备名（排除分区 sda1/nvme0n1p1 和虚拟设备 loop/dm-0）
 var diskDevRe = regexp.MustCompile(`^(sd[a-z]+|nvme[0-9]+n[0-9]+|vd[a-z]+|hd[a-z]+|xvd[a-z]+|mmcblk[0-9]+)$`)
 
-// parseDiskStats 解析 /proc/diskstats，合计所有物理块设备的读写字节和操作次数
+// ParseDiskStats 解析 /proc/diskstats，合计所有物理块设备的读写字节和操作次数
 // 每行格式：major minor name reads_completed reads_merged sectors_read time_read_ms
 //
 //	writes_completed writes_merged sectors_written time_write_ms ...
 //
 // 扇区固定 512 字节（Linux 内核约定）
-func parseDiskStats(s string) (readBytes, writeBytes, ioCount uint64) {
+// 面板与 agent 共用，保证两边磁盘 IO 口径一致
+func ParseDiskStats(s string) (readBytes, writeBytes, ioCount uint64) {
 	for _, line := range strings.Split(s, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 11 {
