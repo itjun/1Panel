@@ -56,6 +56,9 @@
           </div>
         </div>
       </div>
+      <button type="button" class="ctx-item" @click="onInstallAgent">
+        安装 Agent…
+      </button>
       <div class="ctx-divider" />
       <button type="button" class="ctx-item is-danger" @click="onDelete">
         删除…
@@ -75,7 +78,7 @@
 
 <script setup lang="ts">
 /**
- * 主机右键菜单：打开/重命名/更新图标/迁移分组/删除/初始化 zsh/停止会话。
+ * 主机右键菜单：打开/重命名/更新图标/迁移分组/安装 Agent/删除/初始化 zsh/停止会话。
  * 「编辑…」与「迁移分组」通过事件回抛父组件（编辑弹窗与拖拽迁移逻辑在父级）。
  */
 import { ref, watch } from "vue";
@@ -163,6 +166,32 @@ function onMove(groupId: string) {
   const host = props.menu?.host;
   emit("close");
   if (host) emit("move", host, groupId);
+}
+
+/** 右键「安装 Agent」：单台安装的唯一入口（批量部署在分组页工具栏）；幂等，已装时更新到内置版本，历史数据保留 */
+async function onInstallAgent() {
+  const host = props.menu?.host;
+  emit("close");
+  if (!host) return;
+  try {
+    await ElMessageBox.confirm(
+      `将向 ${host} 部署 spanel-agent（systemd 服务，约 10MB）。已安装时更新到面板内置版本，历史数据保留。`,
+      "安装 Agent",
+      { confirmButtonText: "安装", cancelButtonText: "取消" }
+    );
+  } catch {
+    return; // 用户取消
+  }
+  try {
+    await api.installAgent(host);
+    // 广播给已打开的概览页，即时刷新该主机的 agent 状态
+    window.dispatchEvent(
+      new CustomEvent("spanel:agent-installed", { detail: { host } })
+    );
+    ElMessageBox.alert("安装完成", { type: "success" }).catch(() => {});
+  } catch (e) {
+    ElMessageBox.alert(formatErr(e), { type: "error" }).catch(() => {});
+  }
 }
 
 async function onDelete() {

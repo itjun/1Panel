@@ -258,11 +258,10 @@
                   type="info"
                   effect="plain"
                   size="small"
-                  class="agent-tag agent-tag-btn"
-                  title="点击安装 spanel-agent"
-                  @click="onAgentCommand('install')"
+                  class="agent-tag"
+                  title="未安装或未运行；在侧栏右键主机可安装 / 更新 Agent"
                 >
-                  安装 Agent
+                  Agent 离线
                 </el-tag>
               </div>
               <el-button
@@ -669,7 +668,7 @@ const rates = ref({ upBps: 0, downBps: 0 });
 const lastNet = ref<{ rx: number; tx: number; ts: number } | null>(null);
 
 // ---------- Agent 历史曲线（数据来自目标主机 SQLite，离线期间也不缺） ----------
-/** agent 状态徽章（在线版本 / 不可达） */
+/** agent 状态徽章（在线版本 / 离线提示；安装入口在主机右键菜单） */
 const agentInfo = ref<agentcli.Status | null>(null);
 /** 面板内置 agent 版本（比对显示「可更新」） */
 const latestAgentVersion = ref("");
@@ -714,16 +713,12 @@ async function checkAgentInstalled() {
   }
   if (online) return;
 
-  // agent 不在线：SSH 探测精确区分「未安装」与「已安装未运行」（一次性管理操作）
+  // agent 不在线时 SSH 探测：已安装但未运行才提示（带恢复命令）；
+  // 未安装不弹通知——卡片右上角的「Agent 离线」标签已可见，
+  // 安装入口在侧栏主机右键菜单
   try {
     const info = await api.agentProbeInfo(host);
-    if (!info.HasBinary) {
-      ElNotification.info({
-        title: "未安装 spanel-agent",
-        message: `${host} 尚未安装 spanel-agent，监控数据不可用。如需使用，请点击监控卡片右上角的「安装 Agent」手动安装（不会自动安装）。`,
-        duration: 8000,
-      });
-    } else if (info.ServiceState !== "active") {
+    if (info.HasBinary && info.ServiceState !== "active") {
       ElNotification.warning({
         title: "spanel-agent 未运行",
         message: `${host} 的 spanel-agent 服务状态为 ${info.ServiceState}，监控数据暂不可用。可在目标机执行 systemctl restart spanel-agent 恢复。`,
@@ -743,13 +738,13 @@ const agentUpdatable = computed(
     agentInfo.value.version !== latestAgentVersion.value
 );
 
-/** 安装 / 更新 / 卸载（install 与 upgrade 走同一幂等接口） */
+/** 更新 / 卸载（安装的入口在侧栏主机右键菜单，install 与 upgrade 走同一幂等接口） */
 const agentBusy = ref(false);
 async function onAgentCommand(cmd: string) {
   if (agentBusy.value) return;
   const host = props.host;
-  if (cmd === "install" || cmd === "upgrade") {
-    const action = cmd === "install" ? "安装" : `更新到 v${latestAgentVersion.value}`;
+  if (cmd === "upgrade") {
+    const action = `更新到 v${latestAgentVersion.value}`;
     try {
       await ElMessageBox.confirm(
         `将向 ${host} 部署 spanel-agent（systemd 服务，约 10MB）。更新时历史数据保留。`,
@@ -1117,6 +1112,12 @@ watch(terminalActive, (active) => {
   if (!active) void loadOverview();
 });
 
+/** 侧栏右键「安装 Agent」成功后（HostContextMenu 广播），刷新本机 agent 状态 */
+function onAgentInstalled(e: Event) {
+  const host = (e as CustomEvent).detail?.host;
+  if (host === props.host) void loadAgentStatus();
+}
+
 onMounted(async () => {
   resetHostState();
   loading.value = true;
@@ -1124,6 +1125,7 @@ onMounted(async () => {
   loading.value = false;
   void loadAgentStatus();
   void checkAgentInstalled();
+  window.addEventListener("spanel:agent-installed", onAgentInstalled);
   timer = window.setInterval(() => {
     if (terminalActive.value) return;
     void loadOverview();
@@ -1138,6 +1140,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
   if (historyTimer) clearInterval(historyTimer);
+  window.removeEventListener("spanel:agent-installed", onAgentInstalled);
   window.removeEventListener("keydown", onEnlargeKeydown);
 });
 </script>

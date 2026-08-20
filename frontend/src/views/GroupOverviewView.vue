@@ -247,6 +247,7 @@ import {
   defineComponent,
   h,
   onBeforeUnmount,
+  onMounted,
   ref,
   watch,
 } from "vue";
@@ -657,9 +658,18 @@ watch(
   }
 );
 
+/** 侧栏右键「安装 Agent」成功后（HostContextMenu 广播），刷新本组 Agent 状态列 */
+function onAgentInstalled() {
+  void loadAgentStatuses();
+}
+onMounted(() => {
+  window.addEventListener("spanel:agent-installed", onAgentInstalled);
+});
+
 onBeforeUnmount(() => {
   stopPoll();
   activeGroupId = ""; // 取消所有 in-flight
+  window.removeEventListener("spanel:agent-installed", onAgentInstalled);
 });
 
 // ---------- 子组件：单元格（骨架 + 数值）----------
