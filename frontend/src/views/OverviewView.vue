@@ -696,7 +696,7 @@ async function loadAgentStatus() {
   }
 }
 
-// ---------- 打开主机时的 agent 安装检测（只提示，绝不自动安装） ----------
+// ---------- 打开主机时的 agent 运行检测（只提示，绝不自动安装） ----------
 /** 本会话内已检测/提示过的主机，避免切换主机反复弹通知 */
 const agentCheckedHosts = new Set<string>();
 
@@ -811,6 +811,44 @@ async function loadHistory() {
 
 watch(rangeMode, () => void loadHistory());
 
+/** 首开曲线预取：agent SQLite 里现成有 5s 粒度的历史速率点，
+ * 直接灌入 live 曲线作为初始数据——打开页面即呈现最近 15 分钟曲线，
+ * 而不是从 1 个点开始逐秒积累。失败静默（退回逐点积累）。 */
+async function seedLiveCurves() {
+  if (traffic.value.length > 1) return; // 实时轮询已积累，无需预取
+  try {
+    const to = Math.floor(Date.now() / 1000);
+    const r = await api.agentRange(props.host, to - 15 * 60, to, "auto");
+    const pts = r.points || [];
+    if (!pts.length || traffic.value.length > 1) return;
+    // 只取最近 100 点：与 pushTraffic 的滑动窗口一致，
+    // 避免首次 push 时 slice(-100) 把曲线突然裁掉一段
+    const win = pts.slice(-100);
+    traffic.value = win.map((p) => ({
+      time: liveTimeLabel(p.ts * 1000),
+      up: p.netTxKBps,
+      down: p.netRxKBps,
+    }));
+    ioTraffic.value = win.map((p) => ({
+      time: liveTimeLabel(p.ts * 1000),
+      read: p.diskReadKBps,
+      write: p.diskWriteKBps,
+    }));
+  } catch {
+    /* agent 不可达或无历史：live 曲线退回逐点积累 */
+  }
+}
+
+/** live 曲线点的横轴标签（HH:mm:ss；首开预取与逐秒积累的点同格式） */
+function liveTimeLabel(ms: number): string {
+  return new Date(ms).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 /** 历史点的横轴标签：24h 内显示 HH:mm，更长显示 MM-dd HH:mm */
 function historyTimeLabel(ts: number): string {
   const d = new Date(ts * 1000);
@@ -830,10 +868,12 @@ const lastDisk = ref<{ read: number; write: number; count: number; ts: number } 
 
 let timer: number | undefined;
 let historyTimer: number | undefined;
+let slowTimer: number | undefined;
 
-// 终端正在使用时暂停后台轮询：本组件对所有已打开主机都保活挂载（v-show），
-// 隐藏状态下每 3s 的 SSH 采集 + ECharts 重绘会占用 WebView 主线程，
-// 直接造成终端输入/回显卡顿。离开终端后 watch 会立即补一次刷新。
+// 终端正在使用时暂停本机的 3s 采集轮询：隐藏状态下每 3s 的响应解析
+// 与 vdom patch 会占用 WebView 主线程，直接造成终端输入/回显卡顿
+// （图表重绘虽已被 useChartVisibility 挡住，采集开销仍在）。
+// 离开终端后 watch 会立即补一次刷新，常热数据不受影响。
 const terminalActive = computed(() => {
   const t = app.activeTab;
   if (t?.kind !== "host") return false;
@@ -953,13 +993,7 @@ function pushTraffic(data: monitor.Overview) {
     upBps: ((tx - prev.tx) / dt) * 1000,
     downBps: ((rx - prev.rx) / dt) * 1000,
   };
-  const time = new Date(now).toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  traffic.value = [...traffic.value, { time, up, down }].slice(-100);
+  traffic.value = [...traffic.value, { time: liveTimeLabel(now), up, down }].slice(-100);
 }
 
 // 磁盘 IO 速率：对累计值做差分，和网络流量同模式
@@ -979,13 +1013,10 @@ function pushDiskIO(data: monitor.Overview) {
     writeBps: ((write - prev.write) / dt) * 1000,
     iops: Math.round(((count - prev.count) / dt) * 1000),
   };
-  const time = new Date(now).toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  ioTraffic.value = [...ioTraffic.value, { time, read: readKBps, write: writeKBps }].slice(-100);
+  ioTraffic.value = [
+    ...ioTraffic.value,
+    { time: liveTimeLabel(now), read: readKBps, write: writeKBps },
+  ].slice(-100);
 }
 
 async function loadDisks() {
@@ -1074,16 +1105,13 @@ const enlargeStyle = computed(() => ({
 
 function openEnlarge(key: string) {
   enlargedKey.value = key;
-  // 最大化期间隐藏 macOS 红绿灯
+  // 最大化期间隐藏 macOS 红绿灯；图表 resize 由 ResizeObserver 自动处理
   api.setTrafficLightsHidden(true).catch(() => {});
-  // 容器尺寸变化后通知 ECharts resize
-  nextTick(() => window.dispatchEvent(new Event("resize")));
 }
 
 function closeEnlarge() {
   enlargedKey.value = null;
   api.setTrafficLightsHidden(false).catch(() => {});
-  nextTick(() => window.dispatchEvent(new Event("resize")));
 }
 
 function toggleEnlarge(key: string) {
@@ -1103,14 +1131,10 @@ watch(
     loading.value = true;
     await refreshAll();
     loading.value = false;
+    void seedLiveCurves();
     void checkAgentInstalled();
   }
 );
-
-// 终端占用结束后立即补一次刷新，避免切回概览时数据陈旧
-watch(terminalActive, (active) => {
-  if (!active) void loadOverview();
-});
 
 /** 侧栏右键「安装 Agent」成功后（HostContextMenu 广播），刷新本机 agent 状态 */
 function onAgentInstalled(e: Event) {
@@ -1118,14 +1142,22 @@ function onAgentInstalled(e: Event) {
   if (host === props.host) void loadAgentStatus();
 }
 
+// 终端占用结束后立即补一次刷新，避免切回概览时数据陈旧
+watch(terminalActive, (active) => {
+  if (!active) void loadOverview();
+});
+
 onMounted(async () => {
   resetHostState();
   loading.value = true;
   await refreshAll();
   loading.value = false;
+  void seedLiveCurves();
   void loadAgentStatus();
   void checkAgentInstalled();
   window.addEventListener("spanel:agent-installed", onAgentInstalled);
+  // 数据全时轮询保持常热（终端激活时暂停见 terminalActive）；
+  // 隐藏时的图表重绘开销由 useChartVisibility 承担（隐藏跳过重绘）
   timer = window.setInterval(() => {
     if (terminalActive.value) return;
     void loadOverview();
@@ -1134,12 +1166,20 @@ onMounted(async () => {
   historyTimer = window.setInterval(() => {
     if (rangeMode.value !== "live") void loadHistory();
   }, 60000);
+  // 低频保热：磁盘/应用/运行时数据 30s 轮询——切回概览页即最新，
+  // 无需等首开那批请求（资源换速度）
+  slowTimer = window.setInterval(() => {
+    void loadDisks();
+    void loadApps();
+    void loadRuntimes();
+  }, 30000);
   window.addEventListener("keydown", onEnlargeKeydown);
 });
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
   if (historyTimer) clearInterval(historyTimer);
+  if (slowTimer) clearInterval(slowTimer);
   window.removeEventListener("spanel:agent-installed", onAgentInstalled);
   window.removeEventListener("keydown", onEnlargeKeydown);
 });
