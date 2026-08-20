@@ -19,135 +19,40 @@
     </el-card>
     <el-alert v-if="error && !rows.length" type="error" :title="error" show-icon />
 
-    <!-- 全部进程视图 -->
-    <el-table
-      v-if="view === 'all'"
-      :data="filtered"
-      height="100%"
-      size="small"
-      stripe
-    >
-      <el-table-column prop="pid" label="PID" width="80" />
-      <el-table-column prop="user" label="用户" width="90" />
-      <el-table-column label="CPU%" width="80" sortable :sort-method="sortCpu">
-        <template #default="{ row }">
-          <span :class="cpuClass(row.cpu)">{{ Number(row.cpu || 0).toFixed(1) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="MEM%" width="80">
-        <template #default="{ row }">
-          <span :class="row.mem > 50 ? 'warn' : ''">{{
-            Number(row.mem || 0).toFixed(1)
-          }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="RSS" width="90">
-        <template #default="{ row }">{{ formatBytes(row.rss || 0) }}</template>
-      </el-table-column>
-      <el-table-column label="运行时长" width="90">
-        <template #default="{ row }">{{ formatDuration(row.elapsed || 0) }}</template>
-      </el-table-column>
-      <el-table-column
-        prop="cmd"
-        label="启动命令"
-        min-width="280"
-        show-overflow-tooltip
-      />
-      <el-table-column label="操作" width="72" align="right" fixed="right">
-        <template #default="{ row }">
-          <el-dropdown trigger="click">
-            <el-button size="small" text>⋯</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="copyCmd(row.cmd)">
-                  复制启动命令
-                </el-dropdown-item>
-                <el-dropdown-item divided @click="kill(row.pid, row.cmd, false)">
-                  结束进程 (TERM)
-                </el-dropdown-item>
-                <el-dropdown-item @click="kill(row.pid, row.cmd, true)">
-                  强制结束 (KILL)
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div ref="tableWrap" class="table-wrap">
+      <!-- 全部进程视图（虚拟化表格，只画可视区） -->
+      <el-table-v2
+        v-if="view === 'all' && size.width.value > 0"
+        :columns="allColumns"
+        :data="sortedRows"
+        :width="size.width.value"
+        :height="size.height.value"
+        :row-height="34"
+        :header-height="38"
+        :row-class="zebraRowClass"
+        :sort-by="sortBy"
+        @column-sort="onColumnSort"
+      >
+        <template #empty>暂无数据</template>
+      </el-table-v2>
 
-    <!-- 运行时进程视图（java/go/node/bun/python） -->
-    <el-table
-      v-else
-      :data="filtered"
-      height="100%"
-      size="small"
-      stripe
-      @cell-mouse-enter="onRowEnter"
-      @cell-mouse-leave="scheduleHide"
-      @cell-click="onCellClick"
-    >
-      <el-table-column prop="pid" label="PID" width="80" />
-      <el-table-column prop="user" label="用户" width="90" show-overflow-tooltip />
-      <el-table-column label="部署方式" width="100">
-        <template #default="{ row }">
-          <el-tag size="small" :type="deployTagType(row.deploy)">
-            {{ deployLabel(row) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="应用" min-width="200" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span :title="row.entry || appName(row)">{{ displayName(row) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="端口" width="130" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span class="mono">{{ (row.ports || []).join(" ") || "—" }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="CPU%" width="80" sortable :sort-method="sortCpu">
-        <template #default="{ row }">
-          <span :class="cpuClass(row.cpu)">
-            {{ Number(row.cpu || 0).toFixed(1) }}
-          </span>
-        </template>
-      </el-table-column>
-      <el-table-column label="内存" width="90">
-        <template #default="{ row }">{{ formatBytes(row.rss || 0) }}</template>
-      </el-table-column>
-      <el-table-column v-if="view === 'java'" label="堆内存 (Xms~Xmx)" width="150">
-        <template #default="{ row }">
-          <span class="mono" v-if="row.xms || row.xmx">
-            {{ row.xms ? formatBytes(row.xms) : "默认" }}~{{ row.xmx ? formatBytes(row.xmx) : "默认" }}
-          </span>
-          <span v-else class="dim">—</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="运行时长" width="110">
-        <template #default="{ row }">{{ formatDurationLong(row.elapsed || 0) }}</template>
-      </el-table-column>
-      <el-table-column prop="args" label="启动命令" min-width="260" show-overflow-tooltip />
-      <el-table-column label="操作" width="72" align="right" fixed="right">
-        <template #default="{ row }">
-          <el-dropdown trigger="click">
-            <el-button size="small" text>⋯</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="copyCmd(row.args)">
-                  复制命令行
-                </el-dropdown-item>
-                <el-dropdown-item divided @click="kill(row.pid, row.args, false)">
-                  结束进程 (TERM)
-                </el-dropdown-item>
-                <el-dropdown-item @click="kill(row.pid, row.args, true)">
-                  强制结束 (KILL)
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
-      </el-table-column>
-    </el-table>
+      <!-- 运行时进程视图（java/go/node/bun/python，虚拟化 + 行悬浮详情卡） -->
+      <el-table-v2
+        v-else-if="view !== 'all' && size.width.value > 0"
+        :columns="runtimeColumns"
+        :data="sortedRows"
+        :width="size.width.value"
+        :height="size.height.value"
+        :row-height="34"
+        :header-height="38"
+        :row-class="zebraRowClass"
+        :sort-by="sortBy"
+        :row-event-handlers="rowEventHandlers"
+        @column-sort="onColumnSort"
+      >
+        <template #empty>暂无数据</template>
+      </el-table-v2>
+    </div>
 
     <el-empty
       v-if="view !== 'all' && !loading && rows.length === 0 && !error"
@@ -261,12 +166,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { computed, h, reactive, ref, watch } from "vue";
+import {
+  ElButton,
+  ElDropdown,
+  ElDropdownItem,
+  ElDropdownMenu,
+  ElMessage,
+  ElMessageBox,
+  ElTag,
+} from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { RuntimeCounts } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import TagButton from "@/components/TagButton.vue";
 import { copyText } from "@/utils/clipboard";
@@ -374,20 +288,210 @@ const filtered = computed(() => {
   });
 });
 
-/** 切换视图时收起详情卡片（固定中的也一并取消） */
+/* ---------- 虚拟化表格（el-table-v2）：容器尺寸 + 列定义 + 排序 ---------- */
+
+const tableWrap = ref<HTMLDivElement | null>(null);
+const size = useContainerSize(tableWrap);
+
+/** 斑马纹按数据行号着色：虚拟滚动的渲染窗口起点随滚动漂移，
+ * nth-child 的兄弟序与数据索引不保证一致，滚动后条纹会翻转错行 */
+function zebraRowClass({ rowIndex }: { rowIndex: number }): string {
+  return rowIndex % 2 === 1 ? "zebra-row" : "";
+}
+
+/** 超长文本单元格：省略号 + 原生 title（对应原 show-overflow-tooltip） */
+const ellipsisCell = (text: string, cls = "") =>
+  h("span", { class: ["cell-ellipsis", cls], title: text || "" }, text || "");
+
+const cpuCell = ({ cellData }: { cellData: number }) =>
+  h("span", { class: cpuClass(cellData) }, Number(cellData || 0).toFixed(1));
+
+const memCell = ({ cellData }: { cellData: number }) =>
+  h("span", { class: cellData > 50 ? "warn" : "" }, Number(cellData || 0).toFixed(1));
+
+const bytesCell = ({ cellData }: { cellData: number }) => formatBytes(cellData || 0);
+
+/** java 视图的堆内存单元格：Xms~Xmx，未设置的一侧显示「默认」 */
+function heapCell({ rowData }: { rowData: RuntimeProc }) {
+  if (!rowData.xms && !rowData.xmx) {
+    return h("span", { class: "dim" }, "—");
+  }
+  const xms = rowData.xms ? formatBytes(rowData.xms) : "默认";
+  const xmx = rowData.xmx ? formatBytes(rowData.xmx) : "默认";
+  return h("span", { class: "mono" }, `${xms}~${xmx}`);
+}
+
+/** 操作列：复制命令 / TERM / KILL（两个视图仅文案与取命令字段不同） */
+function actionCell(copyLabel: string, getCmd: (row: ProcInfo | RuntimeProc) => string) {
+  return ({ rowData }: { rowData: ProcInfo | RuntimeProc }) =>
+    h(
+      ElDropdown,
+      { trigger: "click" },
+      {
+        default: () => h(ElButton, { size: "small", text: true }, () => "⋯"),
+        dropdown: () =>
+          h(ElDropdownMenu, () => [
+            h(
+              ElDropdownItem,
+              { onClick: () => copyCmd(getCmd(rowData)) },
+              () => copyLabel
+            ),
+            h(
+              ElDropdownItem,
+              { divided: true, onClick: () => kill(rowData.pid, getCmd(rowData), false) },
+              () => "结束进程 (TERM)"
+            ),
+            h(
+              ElDropdownItem,
+              { onClick: () => kill(rowData.pid, getCmd(rowData), true) },
+              () => "强制结束 (KILL)"
+            ),
+          ]),
+      }
+    );
+}
+
+/** 全部进程视图列 */
+const allColumns = [
+  { key: "pid", dataKey: "pid", title: "PID", width: 80 },
+  { key: "user", dataKey: "user", title: "用户", width: 90 },
+  { key: "cpu", dataKey: "cpu", title: "CPU%", width: 80, sortable: true, cellRenderer: cpuCell },
+  { key: "mem", dataKey: "mem", title: "MEM%", width: 80, cellRenderer: memCell },
+  { key: "rss", dataKey: "rss", title: "RSS", width: 90, cellRenderer: bytesCell },
+  {
+    key: "elapsed",
+    dataKey: "elapsed",
+    title: "运行时长",
+    width: 90,
+    cellRenderer: ({ cellData }: { cellData: number }) => formatDuration(cellData || 0),
+  },
+  {
+    key: "cmd",
+    dataKey: "cmd",
+    title: "启动命令",
+    width: 300,
+    flexGrow: 1,
+    flexShrink: 1,
+    cellRenderer: ({ cellData }: { cellData: string }) => ellipsisCell(cellData),
+  },
+  {
+    key: "actions",
+    title: "操作",
+    width: 72,
+    align: "right" as const,
+    fixed: "right" as const,
+    cellRenderer: actionCell("复制启动命令", (r) => (r as ProcInfo).cmd || ""),
+  },
+];
+
+/** 运行时视图列（java 多一列堆内存） */
+const runtimeColumns = computed(() => [
+  { key: "pid", dataKey: "pid", title: "PID", width: 80 },
+  {
+    key: "user",
+    dataKey: "user",
+    title: "用户",
+    width: 90,
+    cellRenderer: ({ cellData }: { cellData: string }) => ellipsisCell(cellData),
+  },
+  {
+    key: "deploy",
+    dataKey: "deploy",
+    title: "部署方式",
+    width: 100,
+    cellRenderer: ({ rowData }: { rowData: RuntimeProc }) =>
+      h(
+        ElTag,
+        { size: "small", type: deployTagType(rowData.deploy) },
+        () => deployLabel(rowData)
+      ),
+  },
+  {
+    key: "entry",
+    title: "应用",
+    width: 220,
+    flexGrow: 1,
+    flexShrink: 1,
+    cellRenderer: ({ rowData }: { rowData: RuntimeProc }) =>
+      ellipsisCell(displayName(rowData)),
+  },
+  {
+    key: "ports",
+    title: "端口",
+    width: 130,
+    cellRenderer: ({ rowData }: { rowData: RuntimeProc }) =>
+      ellipsisCell((rowData.ports || []).join(" ") || "—", "mono"),
+  },
+  { key: "cpu", dataKey: "cpu", title: "CPU%", width: 80, sortable: true, cellRenderer: cpuCell },
+  { key: "rss", dataKey: "rss", title: "内存", width: 90, cellRenderer: bytesCell },
+  ...(view.value === "java"
+    ? [
+        {
+          key: "heap",
+          title: "堆内存 (Xms~Xmx)",
+          width: 150,
+          cellRenderer: heapCell,
+        },
+      ]
+    : []),
+  {
+    key: "elapsed",
+    dataKey: "elapsed",
+    title: "运行时长",
+    width: 110,
+    cellRenderer: ({ cellData }: { cellData: number }) => formatDurationLong(cellData || 0),
+  },
+  {
+    key: "args",
+    dataKey: "args",
+    title: "启动命令",
+    width: 280,
+    flexGrow: 1,
+    flexShrink: 1,
+    cellRenderer: ({ cellData }: { cellData: string }) => ellipsisCell(cellData),
+  },
+  {
+    key: "actions",
+    title: "操作",
+    width: 72,
+    align: "right" as const,
+    fixed: "right" as const,
+    cellRenderer: actionCell("复制命令行", (r) => (r as RuntimeProc).args || ""),
+  },
+]);
+
+/** CPU 排序状态（原 sort-method 迁移为 computed 排序） */
+const sortBy = ref<{ key: string; order: string }>({ key: "", order: "asc" });
+function onColumnSort(by: { key: string; order: string }) {
+  sortBy.value = by;
+}
+const sortedRows = computed(() => {
+  if (sortBy.value.key !== "cpu") return filtered.value;
+  const dir = sortBy.value.order === "desc" ? -1 : 1;
+  return [...filtered.value].sort((a, b) => dir * ((a.cpu || 0) - (b.cpu || 0)));
+});
+
+/** 运行时视图行事件：悬浮详情卡 + 点击固定（对应原 cell-mouse-* / cell-click） */
+const rowEventHandlers = {
+  onMouseEnter: ({ rowData, event }: { rowData: RuntimeProc; event: MouseEvent }) =>
+    onRowEnter(rowData, event),
+  onMouseLeave: () => scheduleHide(),
+  onClick: ({ rowData, event }: { rowData: RuntimeProc; event: MouseEvent }) =>
+    onCellClick(rowData, event),
+};
+
+/** 切换视图时收起详情卡片（固定中的也一并取消）并重置排序 */
 watch(view, () => {
   clearTimeout(hideTimer);
   card.visible = false;
   card.pinned = false;
+  sortBy.value = { key: "", order: "asc" };
 });
 
 function cpuClass(cpu: number) {
   if (cpu > 80) return "danger";
   if (cpu > 30) return "warn";
   return "";
-}
-function sortCpu(a: ProcInfo, b: ProcInfo) {
-  return (a.cpu || 0) - (b.cpu || 0);
 }
 async function copyCmd(cmd: string) {
   const text = (cmd || "").trim();
@@ -468,7 +572,7 @@ function placeCard(e: MouseEvent) {
   card.x = x;
   card.y = y;
 }
-function onRowEnter(row: RuntimeProc, _col: unknown, _cell: unknown, e: MouseEvent) {
+function onRowEnter(row: RuntimeProc, e: MouseEvent) {
   if (card.pinned) return; // 固定期间不跟随不切换
   clearTimeout(hideTimer);
   card.proc = row;
@@ -476,14 +580,14 @@ function onRowEnter(row: RuntimeProc, _col: unknown, _cell: unknown, e: MouseEve
   card.visible = true;
   void detailOf(row.pid);
 }
-/** el-table 的 cell-mouse-leave 在行间移动时会触发，延迟隐藏避免闪烁 */
+/** 行间移动会连续触发 mouseleave，延迟隐藏避免闪烁 */
 function scheduleHide() {
   if (card.pinned) return;
   clearTimeout(hideTimer);
   hideTimer = window.setTimeout(() => (card.visible = false), 200);
 }
 /** 点击行：固定卡片（再点同一行取消固定，点其他行切换固定目标） */
-function onCellClick(row: RuntimeProc, _col: unknown, _cell: unknown, e: MouseEvent) {
+function onCellClick(row: RuntimeProc, e: MouseEvent) {
   if (card.pinned && card.proc?.pid === row.pid) {
     card.pinned = false;
     card.visible = false;
@@ -646,8 +750,23 @@ async function copyArgs() {
   color: var(--el-color-danger);
   font-weight: 600;
 }
-:deep(.el-table) {
+.table-wrap {
   flex: 1;
+  min-height: 0;
+}
+/* 虚拟化表格单元格：超长文本省略号 + 原生 title */
+.cell-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* el-table-v2 无内置斑马纹/hover：按 rowIndex 着色对齐原 el-table stripe 观感 */
+:deep(.el-table-v2__row.zebra-row) {
+  background: var(--el-table-tr-bg-color, transparent);
+}
+:deep(.el-table-v2__row:hover) {
+  background: var(--el-table-row-hover-bg-color, #f5f7fa);
 }
 </style>
 

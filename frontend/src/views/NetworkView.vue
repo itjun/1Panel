@@ -274,33 +274,18 @@
           <el-checkbox v-model="onlyEstab" size="large">仅 ESTAB</el-checkbox>
           <el-checkbox v-model="onlySlow" size="large">仅卡顿</el-checkbox>
         </div>
-        <div class="conn-table-wrap">
-          <el-table
+        <div ref="connWrap" class="conn-table-wrap">
+          <!-- 虚拟化表格：全量 TCP 连接可能数百条，只画可视区 -->
+          <el-table-v2
+            v-if="connSize.width.value > 0"
+            :columns="connColumns"
             :data="filteredConns"
-            size="small"
-            stripe
-            height="100%"
-            class="no-x-scroll-table"
-            :row-class-name="rowClass"
-          >
-            <el-table-column prop="state" label="状态" width="96" />
-            <el-table-column prop="process" label="进程" min-width="100" show-overflow-tooltip />
-            <el-table-column prop="pid" label="PID" width="72" />
-            <el-table-column prop="localAddr" label="本地地址" min-width="130" show-overflow-tooltip />
-            <el-table-column prop="remoteAddr" label="远端地址" min-width="130" show-overflow-tooltip />
-            <el-table-column prop="recvQ" label="Recv-Q" width="80" />
-            <el-table-column prop="sendQ" label="Send-Q" width="80" />
-            <el-table-column label="RTT" width="72">
-              <template #default="{ row }">
-                {{ row.rttMs ? row.rttMs.toFixed(1) + "ms" : "—" }}
-              </template>
-            </el-table-column>
-            <el-table-column label="标记" width="72">
-              <template #default="{ row }">
-                <el-tag v-if="row.slow" type="danger" size="small" effect="dark">卡顿</el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
+            :width="connSize.width.value"
+            :height="connSize.height.value"
+            :row-height="34"
+            :header-height="38"
+            :row-class="connRowClass"
+          />
         </div>
       </el-card>
       </EnlargableCard>
@@ -309,15 +294,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, h, reactive, ref } from "vue";
 
 /** 网卡/卡顿连接卡片是否处于最大化（放大时表格高度改为自适应填满） */
 const ifacesEnlarged = ref(false);
 const slowEnlarged = ref(false);
-import { ElMessage } from "element-plus";
+import { ElMessage, ElTag } from "element-plus";
 import { api } from "@/api";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import { usePolling } from "@/composables/usePolling";
+import { useContainerSize } from "@/composables/useContainerSize";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes } from "@/utils/format";
 
@@ -481,15 +467,48 @@ function kindLabel(k: string) {
   return m[k] || k || "—";
 }
 
-function kindTag(k: string) {
+function kindTag(k: string): "warning" | "success" | "info" | undefined {
   if (k === "docker") return "warning";
   if (k === "physical") return "success";
   if (k === "loopback") return "info";
-  return "";
+  return undefined;
 }
 
-function rowClass({ row }: { row: NetConnection }) {
-  return row.slow ? "slow-row" : "";
+// 虚拟化表格（el-table-v2）：容器尺寸 + 列定义
+const connWrap = ref<HTMLDivElement | null>(null);
+const connSize = useContainerSize(connWrap);
+
+const connColumns = [
+  { key: "state", dataKey: "state", title: "状态", width: 96 },
+  { key: "process", dataKey: "process", title: "进程", width: 150, flexGrow: 1, flexShrink: 1 },
+  { key: "pid", dataKey: "pid", title: "PID", width: 72 },
+  { key: "localAddr", dataKey: "localAddr", title: "本地地址", width: 150, flexGrow: 1, flexShrink: 1 },
+  { key: "remoteAddr", dataKey: "remoteAddr", title: "远端地址", width: 150, flexGrow: 1, flexShrink: 1 },
+  { key: "recvQ", dataKey: "recvQ", title: "Recv-Q", width: 80, align: "right" as const },
+  { key: "sendQ", dataKey: "sendQ", title: "Send-Q", width: 80, align: "right" as const },
+  {
+    key: "rtt",
+    dataKey: "rttMs",
+    title: "RTT",
+    width: 72,
+    cellRenderer: ({ cellData }: { cellData?: number }) =>
+      cellData ? cellData.toFixed(1) + "ms" : "—",
+  },
+  {
+    key: "slow",
+    dataKey: "slow",
+    title: "标记",
+    width: 72,
+    cellRenderer: ({ cellData }: { cellData: boolean }) =>
+      cellData
+        ? h(ElTag, { type: "danger", size: "small", effect: "dark" }, () => "卡顿")
+        : "",
+  },
+];
+
+/** el-table-v2 行类名（卡顿行标红，对应原 row-class-name） */
+function connRowClass({ rowData }: { rowData: NetConnection }) {
+  return rowData.slow ? "slow-row-v2" : "";
 }
 </script>
 
@@ -795,6 +814,10 @@ html.dark .ip-card {
   td {
     background: rgba(245, 108, 108, 0.12) !important;
   }
+}
+/* el-table-v2（TCP 连接虚拟表）的卡顿行：行是 div 不是 tr，单独适配 */
+:deep(.el-table-v2__row.slow-row-v2) {
+  background: rgba(245, 108, 108, 0.12);
 }
 .slow-card {
   border-color: rgba(245, 108, 108, 0.45);

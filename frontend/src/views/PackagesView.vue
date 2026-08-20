@@ -28,39 +28,32 @@
       v-if="!loading && !list.length && !error"
       description="点击刷新加载软件包列表（体积较大，按需拉取）"
     />
-    <el-table
-      v-else
-      v-loading="loading && !list.length"
-      :data="display"
-      height="100%"
-      size="small"
-      stripe
-      empty-text="无匹配软件包"
-    >
-      <el-table-column prop="name" label="包名" min-width="180" sortable />
-      <el-table-column prop="version" label="版本" min-width="160" sortable />
-      <el-table-column prop="depends" label="依赖数" width="100" align="right" sortable>
-        <template #default="{ row }">
-          <el-tag
-            size="small"
-            :type="row.depends >= 20 ? 'warning' : row.depends >= 10 ? 'primary' : 'info'"
-          >
-            {{ row.depends }}
-          </el-tag>
-        </template>
-      </el-table-column>
-    </el-table>
-    <div v-if="filtered.length > 500" class="hint">
-      只显示前 500 条（共 {{ filtered.length }} 条匹配），请用搜索缩小范围
+    <div v-else ref="tableWrap" v-loading="loading && !list.length" class="table-wrap">
+      <!-- 虚拟化表格：数千行 apt 包全量渲染，只画可视区 -->
+      <el-table-v2
+        v-if="size.width.value > 0"
+        :columns="pkgColumns"
+        :data="sorted"
+        :width="size.width.value"
+        :height="size.height.value"
+        :row-height="34"
+        :header-height="38"
+        :sort-by="sortBy"
+        @column-sort="onColumnSort"
+      >
+        <template #empty>无匹配软件包</template>
+      </el-table-v2>
     </div>
     </EnlargableCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, h, ref } from "vue";
+import { ElTag } from "element-plus";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import { useAppStore } from "@/stores/app";
 
@@ -77,7 +70,9 @@ const filter = ref("");
 const { data, error, loading, refresh } = usePolling<AptPackage[]>(
   () => api.collectPackages(props.host) as Promise<AptPackage[]>,
   0,
-  () => props.host
+  () => props.host,
+  // 子页常驻后切回补刷一次
+  () => app.isHostSubActive(props.host, "packages")
 );
 
 const list = computed(() => data.value || []);
@@ -89,7 +84,48 @@ const filtered = computed(() => {
       p.name.toLowerCase().includes(q) || (p.version || "").toLowerCase().includes(q)
   );
 });
-const display = computed(() => filtered.value.slice(0, 500));
+
+// 虚拟化表格（el-table-v2）：容器尺寸 + 列定义 + 排序状态
+const tableWrap = ref<HTMLDivElement | null>(null);
+const size = useContainerSize(tableWrap);
+
+const pkgColumns = [
+  { key: "name", dataKey: "name", title: "包名", width: 240, sortable: true, flexGrow: 1, flexShrink: 1 },
+  { key: "version", dataKey: "version", title: "版本", width: 200, sortable: true, flexGrow: 1, flexShrink: 1 },
+  {
+    key: "depends",
+    dataKey: "depends",
+    title: "依赖数",
+    width: 100,
+    align: "right" as const,
+    sortable: true,
+    cellRenderer: ({ cellData }: { cellData: number }) =>
+      h(
+        ElTag,
+        {
+          size: "small",
+          type: cellData >= 20 ? "warning" : cellData >= 10 ? "primary" : "info",
+        },
+        () => String(cellData)
+      ),
+  },
+];
+
+const sortBy = ref<{ key: string; order: string }>({ key: "", order: "asc" });
+function onColumnSort(by: { key: string; order: string }) {
+  sortBy.value = by;
+}
+const sorted = computed(() => {
+  const { key, order } = sortBy.value;
+  if (!key) return filtered.value;
+  const dir = order === "desc" ? -1 : 1;
+  return [...filtered.value].sort((a, b) => {
+    if (key === "depends") return dir * ((a.depends || 0) - (b.depends || 0));
+    return (
+      dir * String(a[key as "name" | "version"] || "").localeCompare(String(b[key as "name" | "version"] || ""))
+    );
+  });
+});
 const stats = computed(() => {
   if (!list.value.length) return null;
   let maxDeps = 0;
@@ -138,12 +174,8 @@ function runInTerminal(cmd: string) {
   width: 220px;
   margin-left: auto;
 }
-.hint {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  text-align: center;
-}
-:deep(.el-table) {
+.table-wrap {
   flex: 1;
+  min-height: 0;
 }
 </style>
