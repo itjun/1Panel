@@ -3,7 +3,16 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as groups$0 from "./internal/groups/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as hosticon$0 from "./internal/hosticon/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as monitor$0 from "./internal/monitor/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as sshconfig$0 from "./internal/sshconfig/models.js";
 
 /**
  * AddHostInput 是「添加主机」对话框的入参（用户只需填 4 项）
@@ -39,6 +48,18 @@ export interface AgentBatchResult {
      */
     "version": string;
     "error"?: string;
+}
+
+/**
+ * BackupData 备份文件内容：主机列表 + 分组 + 主机图标记录
+ * 注意：SSH 私钥不在备份内，换机恢复需另行保管 ~/.ssh/id_ed25519
+ */
+export interface BackupData {
+    "version": number;
+    "exportedAt": number;
+    "hosts": sshconfig$0.HostConfig[] | null;
+    "groups": groups$0.Group[] | null;
+    "icons": hosticon$0.Record[] | null;
 }
 
 /**
@@ -151,6 +172,36 @@ export interface HostOverviewSnapshot {
      */
     "disks": monitor$0.DiskInfo[] | null;
     "error"?: string;
+}
+
+/**
+ * ImportResult 导入结果统计
+ */
+export interface ImportResult {
+    /**
+     * 新增的主机别名
+     */
+    "added": string[] | null;
+
+    /**
+     * 覆盖的主机别名
+     */
+    "overwritten": string[] | null;
+
+    /**
+     * 跳过的已存在主机
+     */
+    "skipped": string[] | null;
+
+    /**
+     * 导入/合并的分组数
+     */
+    "groups": number;
+
+    /**
+     * 写入的图标记录数
+     */
+    "icons": number;
 }
 
 /**

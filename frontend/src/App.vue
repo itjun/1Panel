@@ -59,6 +59,7 @@
     </el-dialog>
 
     <SettingsDialog v-model="settingsOpen" />
+    <BackupImportDialog ref="backupImportRef" />
   </div>
 </template>
 
@@ -66,7 +67,7 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
-import { Events } from "@wailsio/runtime";
+import { Dialogs, Events } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
@@ -74,12 +75,14 @@ import SidebarHost from "@/layout/SidebarHost.vue";
 import SidebarExpandBtn from "@/components/SidebarExpandBtn.vue";
 import MainArea from "@/layout/MainArea.vue";
 import SettingsDialog from "@/components/SettingsDialog.vue";
+import BackupImportDialog from "@/components/BackupImportDialog.vue";
 
 const app = useAppStore();
 // 确保设置 store 初始化并应用主题/字体
 useSettingsStore();
 const addHostOpen = ref(false);
 const settingsOpen = ref(false);
+const backupImportRef = ref<InstanceType<typeof BackupImportDialog>>();
 const saving = ref(false);
 const form = reactive({
   name: "",
@@ -114,6 +117,23 @@ async function onRefreshAllIcons() {
     }
   } catch (e) {
     ElMessage.error(`检查图标失败: ${formatErr(e)}`);
+  }
+}
+
+/** 系统菜单「导出主机配置…」：选父目录 → 导出到其中的日期文件夹（同日覆盖） */
+async function onExportBackup() {
+  const dir = await Dialogs.OpenFile({
+    Title: "选择备份位置",
+    CanChooseDirectories: true,
+    CanChooseFiles: false,
+    CanCreateDirectories: true,
+  });
+  if (!dir) return;
+  try {
+    const msg = await api.exportBackup(dir);
+    ElMessage.success(msg);
+  } catch (e) {
+    ElMessage.error(formatErr(e));
   }
 }
 
@@ -153,9 +173,11 @@ onMounted(async () => {
   window.addEventListener("keydown", onGlobalKeydown, true);
   // macOS 应用菜单「设置…」点击事件 → 打开设置弹窗
   eventOffs.push(Events.On("open-settings", () => openSettings()));
-  // 系统菜单「主机」子菜单：添加主机 / 新建分组
+  // 系统菜单「主机」子菜单：添加主机 / 新建分组 / 导出 / 导入主机配置
   eventOffs.push(Events.On("open-add-host", () => (addHostOpen.value = true)));
   eventOffs.push(Events.On("open-create-group", () => (app.pendingCreateGroup = true)));
+  eventOffs.push(Events.On("open-export", () => void onExportBackup()));
+  eventOffs.push(Events.On("open-import", () => backupImportRef.value?.openFor()));
   // 系统菜单「1Pannel」子菜单：刷新 / 检查并更新全部图标（原侧栏齿轮菜单）
   eventOffs.push(Events.On("app-refresh", () => void app.refresh()));
   eventOffs.push(Events.On("app-refresh-icons", () => void onRefreshAllIcons()));

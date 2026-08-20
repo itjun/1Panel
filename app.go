@@ -26,7 +26,7 @@ import (
 
 // App 是应用核心对象：持有全部共享依赖。
 // 对外暴露的前端方法不再直接挂在 App 上，而是按域拆分为多个 v3 Service
-// （Hosts / Groups / Overview / Monitor / Files / TerminalSvc / Certs / Icons / System），
+// （Hosts / Groups / Overview / Monitor / Files / TerminalSvc / Certs / Icons / System / Backup），
 // 每个 Service 都是 App 的 defined type（字段共享，方法隔离）。
 type App struct {
 	sshMgr    *sshd.Manager
@@ -73,6 +73,7 @@ func NewApp() *application.App {
 			application.NewService((*Certs)(core)),
 			application.NewService((*Icons)(core)),
 			application.NewService((*System)(core)),
+			application.NewService((*Backup)(core)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -204,13 +205,19 @@ func (a *App) buildAppMenu(app *application.App) {
 	appSub.Add("退出 1Pannel").SetAccelerator("CmdOrCtrl+Q").OnClick(func(*application.Context) {
 		app.Quit()
 	})
-	// 主机子菜单：与侧栏空白处右键菜单同源
+	// 主机子菜单：添加/新建与侧栏空白处右键菜单同源，另含主机配置导出导入
 	hostSub := m.AddSubmenu("主机")
 	hostSub.Add("添加主机…").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
 		app.Event.Emit("open-add-host")
 	})
 	hostSub.Add("新建分组…").OnClick(func(*application.Context) {
 		app.Event.Emit("open-create-group")
+	})
+	hostSub.Add("导出主机配置…").OnClick(func(*application.Context) {
+		app.Event.Emit("open-export")
+	})
+	hostSub.Add("导入主机配置…").OnClick(func(*application.Context) {
+		app.Event.Emit("open-import")
 	})
 	m.AddRole(application.EditMenu)
 	m.AddRole(application.WindowMenu)

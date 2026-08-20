@@ -12,6 +12,7 @@ import * as TerminalSvc from "../../bindings/diteng-pannel/terminalsvc";
 import * as Certs from "../../bindings/diteng-pannel/certs";
 import * as Icons from "../../bindings/diteng-pannel/icons";
 import * as System from "../../bindings/diteng-pannel/system";
+import * as Backup from "../../bindings/diteng-pannel/backup";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -242,4 +243,13 @@ export const api = {
   setTrafficLightsHidden: async (hidden: boolean): Promise<void> => {
     await System.SetTrafficLightsHidden(hidden);
   },
+
+  // ============ 备份与恢复（主机配置） ============
+  /** 导出到 dir 下的日期文件夹，返回摘要文案 */
+  exportBackup: (dir: string): Promise<string> => str(Backup.ExportBackup(dir)),
+  /** 读取备份文件（导入预览用） */
+  readBackup: (path: string): Promise<main.BackupData> => must(Backup.ReadBackup(path)),
+  /** 从备份文件恢复；overwrite=true 时已存在主机以备份为准 */
+  importBackup: (path: string, overwrite: boolean): Promise<main.ImportResult> =>
+    must(Backup.ImportBackup(path, overwrite)),
 };

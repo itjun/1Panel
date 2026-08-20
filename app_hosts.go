@@ -16,7 +16,7 @@ type Hosts App
 // ============ SSH 配置（主机增删改查 + ssh-copy-id 流程） ============
 
 // listNonGitHosts 解析 ~/.ssh/config，过滤 Git 托管服务（github.com / gitee.com 等）
-// 供 Hosts.ListHosts 与 Icons.refreshHostIcons 共用
+// 供 Hosts.ListHosts、Icons.refreshHostIcons 与 Backup.ExportBackup 共用
 func listNonGitHosts() ([]sshconfig.HostConfig, error) {
 	all, err := sshconfig.Parse()
 	if err != nil {
