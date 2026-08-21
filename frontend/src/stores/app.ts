@@ -8,10 +8,8 @@ export const UNGROUPED_ID = "__ungrouped__";
 
 export type SubTab =
   | "overview"
-  | "apps"
   | "processes"
   | "network"
-  | "docker"
   | "files"
   | "services"
   | "certs"

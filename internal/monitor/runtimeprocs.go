@@ -50,11 +50,13 @@ type RuntimeCounts struct {
 	Node   int `json:"node"`
 	Bun    int `json:"bun"`
 	Python int `json:"python"`
+	Docker int `json:"docker"` // 容器数（含已停止；无 docker / 无权限时为 0）
 }
 
 // CollectRuntimeCounts 统计各运行时正在运行的进程数：
 // java/node/bun/python 一条 ps+awk（comm 与 runtimeCommFilter 同规则）；
-// go 复用 scanGoProcs 识别 Go 二进制（读全部 /proc/*/exe，约几百毫秒）
+// go 复用 scanGoProcs 识别 Go 二进制（读全部 /proc/*/exe，约几百毫秒）；
+// docker 用 docker ps -aq 计容器数（含已停止；无 docker 时为 0）
 func (c *Collector) CollectRuntimeCounts(host string, opt sshd.ConnectOption) (RuntimeCounts, error) {
 	var rc RuntimeCounts
 	out, err := c.mgr.Run(host, opt,
@@ -69,8 +71,10 @@ func (c *Collector) CollectRuntimeCounts(host string, opt sshd.ConnectOption) (R
 		rc.Bun, _ = strconv.Atoi(fields[2])
 		rc.Python, _ = strconv.Atoi(fields[3])
 	}
-	// go 计数失败不影响其它运行时的结果
+	// go / docker 计数失败不影响其它运行时的结果
 	rc.Go = len(c.scanGoProcs())
+	dout, _ := c.mgr.Run(host, opt, `docker ps -aq 2>/dev/null | wc -l`)
+	rc.Docker, _ = strconv.Atoi(strings.TrimSpace(string(dout)))
 	return rc, nil
 }
 

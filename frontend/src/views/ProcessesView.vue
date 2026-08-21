@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root" v-loading="loading && !rows.length">
+  <div class="tab-root" v-loading="view !== 'docker' && loading && !rows.length">
     <EnlargableCard title="进程">
     <!-- 三级视图标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
     <el-card class="tag-search-card">
@@ -10,19 +10,28 @@
             v-model="filter"
             clearable
             class="filter"
-            :placeholder="view === 'all' ? '按命令/用户/PID 过滤...' : '按入口/命令/用户/PID 过滤...'"
+            :placeholder="filterPlaceholder"
           />
-          <span class="count">{{ filtered.length }} 个</span>
-          <el-button :icon="Refresh" @click="refresh" />
+          <span class="count">{{ view === "docker" ? dockerFilteredCount : filtered.length }} 个</span>
+          <el-button :icon="Refresh" @click="onRefresh" />
         </div>
       </div>
     </el-card>
-    <el-alert v-if="error && !rows.length" type="error" :title="error" show-icon />
+    <el-alert v-if="view !== 'docker' && error && !rows.length" type="error" :title="error" show-icon />
 
     <div ref="tableWrap" class="table-wrap">
+      <!-- Docker：沿用原 Docker 标签页的卡片 + inspect 浮层 -->
+      <DockerView
+        v-if="view === 'docker'"
+        ref="dockerViewRef"
+        :host="host"
+        :filter="filter"
+        @update:count="dockerFilteredCount = $event"
+      />
+
       <!-- 全部进程视图（虚拟化表格，只画可视区） -->
       <el-table-v2
-        v-if="view === 'all' && size.width.value > 0"
+        v-else-if="view === 'all' && size.width.value > 0"
         :columns="allColumns"
         :data="sortedRows"
         :width="size.width.value"
@@ -56,7 +65,7 @@
     </div>
 
     <el-empty
-      v-if="view !== 'all' && !loading && rows.length === 0 && !error"
+      v-if="view !== 'all' && view !== 'docker' && !loading && rows.length === 0 && !error"
       :description="`未发现运行中的 ${viewLabel} 进程`"
     />
     </EnlargableCard>
@@ -65,7 +74,7 @@
          悬浮时不参与鼠标事件，点击行固定（pinned）后可交互、可选择文本、可复制 -->
     <Teleport to="body">
       <div
-        v-if="card.visible && card.proc"
+        v-if="card.visible && card.proc && view !== 'docker'"
         class="java-hover-card"
         :class="{ pinned: card.pinned }"
         :style="{ left: card.x + 'px', top: card.y + 'px' }"
@@ -186,6 +195,7 @@ import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import TagButton from "@/components/TagButton.vue";
+import DockerView from "@/views/DockerView.vue";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatDurationCompact, formatDurationLong } from "@/utils/format";
 
@@ -238,20 +248,35 @@ const RUNTIME_TABS = [
 ] as const;
 type RuntimeView = (typeof RUNTIME_TABS)[number]["value"];
 
-const view = ref<"all" | RuntimeView>("all");
-const viewLabel = computed(() =>
-  RUNTIME_TABS.find((t) => t.value === view.value)?.label || ""
-);
+type ViewKind = "all" | RuntimeView | "docker";
+const view = ref<ViewKind>("all");
+const viewLabel = computed(() => {
+  if (view.value === "docker") return "Docker";
+  return RUNTIME_TABS.find((t) => t.value === view.value)?.label || "";
+});
 const filter = ref("");
+const dockerFilteredCount = ref(0);
+const dockerViewRef = ref<{ refresh: () => Promise<void> } | null>(null);
 
 const { data, error, loading, refresh } = usePolling<ProcInfo[] | RuntimeProc[]>(
-  () =>
-    view.value === "all"
-      ? (api.collectProcesses(props.host, 100) as Promise<ProcInfo[]>)
-      : (api.collectRuntimeProcs(props.host, view.value) as Promise<RuntimeProc[]>),
+  () => {
+    if (view.value === "docker") return Promise.resolve([]);
+    if (view.value === "all") {
+      return api.collectProcesses(props.host, 100) as Promise<ProcInfo[]>;
+    }
+    return api.collectRuntimeProcs(props.host, view.value) as Promise<RuntimeProc[]>;
+  },
   5000,
   () => [props.host, view.value]
 );
+
+function onRefresh() {
+  if (view.value === "docker") {
+    void dockerViewRef.value?.refresh();
+    return;
+  }
+  void refresh();
+}
 
 /** 运行时视图下表格行就是 RuntimeProc；all 视图的行不含扩展字段 */
 const rows = computed(() => data.value || []);
@@ -263,7 +288,7 @@ const { data: runtimeCounts } = usePolling<RuntimeCounts>(
   () => [props.host]
 );
 
-/** RouterButton 的按钮列表：全部进程 + 各运行时（带运行中数量徽标） */
+/** 标签按钮：全部进程 + 各运行时 + Docker（带数量徽标） */
 const viewButtons = computed(() => [
   { value: "all", label: "全部进程" },
   ...RUNTIME_TABS.map((t) => ({
@@ -275,7 +300,20 @@ const viewButtons = computed(() => [
         ? rows.value.length || runtimeCounts.value?.[t.value]
         : runtimeCounts.value?.[t.value],
   })),
+  {
+    value: "docker",
+    label: "Docker",
+    count:
+      view.value === "docker"
+        ? dockerFilteredCount.value || runtimeCounts.value?.docker
+        : runtimeCounts.value?.docker,
+  },
 ]);
+const filterPlaceholder = computed(() => {
+  if (view.value === "all") return "按命令/用户/PID 过滤...";
+  if (view.value === "docker") return "按名称/镜像/状态/端口过滤...";
+  return "按入口/命令/用户/PID 过滤...";
+});
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase();
   if (!q) return rows.value;
@@ -353,9 +391,22 @@ function actionCell(copyLabel: string, getCmd: (row: ProcInfo | RuntimeProc) => 
   return ({ rowData }: { rowData: ProcInfo | RuntimeProc }) =>
     h(
       ElDropdown,
-      { trigger: "click" },
+      { trigger: "click", class: "proc-actions" },
       {
-        default: () => h(ElButton, { size: "small", text: true }, () => "⋯"),
+        default: () =>
+          h(
+            ElButton,
+            {
+              size: "small",
+              text: true,
+              // 拦住冒泡：否则行 onClick 会把详情卡钉住，和菜单叠在一起
+              onClick: (e: MouseEvent) => {
+                e.stopPropagation();
+                hideProcCard();
+              },
+            },
+            () => "⋯"
+          ),
         dropdown: () =>
           h(ElDropdownMenu, () => [
             h(
@@ -540,6 +591,12 @@ const allRowEventHandlers = {
     onCellClick(procAsCard(rowData), event),
 };
 
+function isActionEvent(e: MouseEvent) {
+  const t = e.target as HTMLElement | null;
+  if (!t) return false;
+  return !!t.closest(".proc-actions, .el-dropdown, .el-dropdown-menu, .el-button");
+}
+
 /** 切换视图时收起详情卡片（固定中的也一并取消）并重置排序 */
 watch(view, () => {
   clearTimeout(hideTimer);
@@ -634,6 +691,7 @@ function placeCard(e: MouseEvent) {
 }
 function onRowEnter(row: RuntimeProc, e: MouseEvent) {
   if (card.pinned) return; // 固定期间不跟随不切换
+  if (isActionEvent(e)) return;
   clearTimeout(hideTimer);
   card.proc = row;
   placeCard(e);
@@ -648,6 +706,7 @@ function scheduleHide() {
 }
 /** 点击行：固定卡片（再点同一行取消固定，点其他行切换固定目标） */
 function onCellClick(row: RuntimeProc, e: MouseEvent) {
+  if (isActionEvent(e)) return;
   if (card.pinned && card.proc?.pid === row.pid) {
     card.pinned = false;
     card.visible = false;
@@ -659,9 +718,13 @@ function onCellClick(row: RuntimeProc, e: MouseEvent) {
   card.visible = true;
   void detailOf(row.pid);
 }
-function unpin() {
+function hideProcCard() {
+  clearTimeout(hideTimer);
   card.pinned = false;
   card.visible = false;
+}
+function unpin() {
+  hideProcCard();
 }
 
 /** 运行时视图列展示辅助 */
@@ -811,6 +874,12 @@ async function copyArgs() {
   font-weight: 600;
 }
 .table-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.table-wrap > :deep(.tab-root) {
   flex: 1;
   min-height: 0;
 }

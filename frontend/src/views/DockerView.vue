@@ -1,18 +1,13 @@
 <template>
   <div class="tab-root" v-loading="loading && !data">
-    <EnlargableCard title="Docker 容器">
     <el-alert v-if="error && !data" type="error" :title="error" show-icon />
     <template v-else-if="data && !data.available">
       <el-empty description="目标机未安装 Docker，或当前用户没有 docker 权限" />
     </template>
     <template v-else-if="data">
-      <div class="toolbar">
-        <span class="muted">共 {{ (data.containers || []).length }} 个容器</span>
-        <el-button size="large" @click="refresh">刷新</el-button>
-      </div>
       <div class="grid">
         <EnlargableCard
-          v-for="c in data.containers || []"
+          v-for="c in filteredContainers"
           :key="c.id"
           bare
           :title="c.name"
@@ -48,7 +43,10 @@
               </template>
             </el-dropdown>
           </div>
-          <div class="image muted">{{ c.image }}</div>
+          <div class="image muted" :title="c.image">{{ c.image }}</div>
+          <div class="ports muted" :title="c.ports || ''">
+            {{ c.ports ? shortPorts(c.ports) : "无端口映射" }}
+          </div>
           <div class="row">
             <span class="muted">CPU</span>
             <span class="mono">{{ (statOf(c.name)?.cpuPercent || 0).toFixed(2) }}%</span>
@@ -69,13 +67,12 @@
         </el-card>
         </EnlargableCard>
         <el-empty
-          v-if="!(data.containers || []).length"
+          v-if="!filteredContainers.length"
           class="full"
-          description="没有容器"
+          :description="(data.containers || []).length ? '没有匹配的容器' : '没有容器'"
         />
       </div>
     </template>
-    </EnlargableCard>
 
     <!-- 悬浮详情卡片：贴在容器卡片右侧（空间不够翻到左侧），可交互（复制/查看按钮） -->
     <Teleport to="body">
@@ -214,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
 import { api } from "@/api";
@@ -240,6 +237,7 @@ interface Container {
   image: string;
   status: string;
   state: string;
+  ports: string;
 }
 interface DockerInfo {
   available: boolean;
@@ -291,7 +289,8 @@ interface InspectData {
   };
 }
 
-const props = defineProps<{ host: string }>();
+const props = defineProps<{ host: string; filter?: string }>();
+const emit = defineEmits<{ (e: "update:count", n: number): void }>();
 const busy = ref<string | null>(null);
 
 const { data, error, loading, refresh } = usePolling<DockerInfo>(
@@ -299,6 +298,34 @@ const { data, error, loading, refresh } = usePolling<DockerInfo>(
   5000,
   () => props.host
 );
+
+const filteredContainers = computed(() => {
+  const list = data.value?.containers || [];
+  const q = (props.filter || "").trim().toLowerCase();
+  if (!q) return list;
+  return list.filter((c) => {
+    const blob = [c.name, c.image, c.state, c.status, c.ports, c.id]
+      .join("\n")
+      .toLowerCase();
+    return blob.includes(q);
+  });
+});
+watch(
+  filteredContainers,
+  (list) => emit("update:count", list.length),
+  { immediate: true }
+);
+
+defineExpose({ refresh });
+
+/** docker ps 端口串压成卡片短文案：0.0.0.0:3030->3030/tcp → 3030→3030/tcp */
+function shortPorts(ports: string): string {
+  return ports
+    .replace(/0\.0\.0\.0:/g, "")
+    .replace(/\[::\]:/g, "")
+    .replace(/:::/g, "")
+    .replace(/->/g, "→");
+}
 
 const statMap = computed(() => {
   const m = new Map<string, ContainerStat>();
@@ -503,12 +530,6 @@ async function copyJson(name: string) {
   min-height: 0;
   overflow: auto;
 }
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -542,12 +563,18 @@ async function copyJson(name: string) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.image {
+.image,
+.ports {
   font-size: 11px;
-  margin-bottom: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.image {
+  margin-bottom: 4px;
+}
+.ports {
+  margin-bottom: 8px;
 }
 .row {
   display: flex;

@@ -462,6 +462,11 @@ export interface RuntimeCounts {
     "node": number;
     "bun": number;
     "python": number;
+
+    /**
+     * 容器数（含已停止；无 docker / 无权限时为 0）
+     */
+    "docker": number;
 }
 
 /**

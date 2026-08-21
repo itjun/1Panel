@@ -42,11 +42,6 @@
             v-show="(sessionOf(hid)?.subTab || 'overview') === 'overview'"
             :host="hid"
           />
-          <AppsView
-            v-if="visitedSub(hid, 'apps')"
-            v-show="sessionOf(hid)?.subTab === 'apps'"
-            :host="hid"
-          />
           <ProcessesView
             v-if="visitedSub(hid, 'processes')"
             v-show="sessionOf(hid)?.subTab === 'processes'"
@@ -55,11 +50,6 @@
           <NetworkView
             v-if="visitedSub(hid, 'network')"
             v-show="sessionOf(hid)?.subTab === 'network'"
-            :host="hid"
-          />
-          <DockerView
-            v-if="visitedSub(hid, 'docker')"
-            v-show="sessionOf(hid)?.subTab === 'docker'"
             :host="hid"
           />
           <FilesView
@@ -110,11 +100,9 @@
 import { useAppStore, type SubTab } from "@/stores/app";
 import RouterButton from "@/components/RouterButton.vue";
 import OverviewView from "@/views/OverviewView.vue";
-import AppsView from "@/views/AppsView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
-import DockerView from "@/views/DockerView.vue";
 import FilesView from "@/views/FilesView.vue";
 import ServicesView from "@/views/ServicesView.vue";
 import CertsView from "@/views/CertsView.vue";
@@ -128,10 +116,8 @@ const app = useAppStore();
 
 const subTabs: { value: SubTab; label: string }[] = [
   { value: "overview", label: "概览" },
-  { value: "apps", label: "应用" },
   { value: "processes", label: "进程" },
   { value: "network", label: "网络" },
-  { value: "docker", label: "Docker" },
   { value: "files", label: "文件" },
   { value: "services", label: "服务" },
   { value: "certs", label: "证书" },
@@ -145,9 +131,7 @@ const FILL_SUBS: SubTab[] = [
   "terminal",
   "files",
   "processes",
-  "apps",
   "network",
-  "docker",
   "services",
   "certs",
   "cron",
