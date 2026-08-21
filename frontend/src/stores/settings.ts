@@ -110,7 +110,7 @@ export const THEME_OPTIONS: {
 const STORAGE_KEY = "ipannel.settings.v1";
 
 const DEFAULTS: AppSettings = {
-  theme: "light",
+  theme: "auto",
   fontFamily: FONT_OPTIONS[0].value,
   fontSize: 14,
   terminalFontSize: 13,
