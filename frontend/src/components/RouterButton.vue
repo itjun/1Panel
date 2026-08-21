@@ -1,7 +1,7 @@
 <template>
   <!-- 照搬 1Panel components/router-button/index.vue：
        白底页头卡包一排大号 radio 按钮，选中项白底 + 品牌蓝字 + 2px 品牌蓝边框 -->
-  <el-card class="router_card">
+  <el-card class="router_card" :class="{ compact }">
     <div class="router-nav">
       <el-radio-group
         :model-value="modelValue"
@@ -26,10 +26,14 @@
 
 <script setup lang="ts">
 /** 与 1Panel RouterButton 同构：buttons 驱动，v-model 双向绑定当前项 */
-defineProps<{
-  modelValue: string;
-  buttons: { value: string; label: string }[];
-}>();
+withDefaults(
+  defineProps<{
+    modelValue: string;
+    buttons: { value: string; label: string }[];
+    compact?: boolean;
+  }>(),
+  { compact: false }
+);
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 </script>
 
@@ -41,15 +45,21 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
   :deep(.el-card__body) {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
   }
 }
 
 .router-nav {
   display: flex;
   width: 100%;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+}
+
+.router-nav :deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .router-actions {
@@ -60,7 +70,7 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 .router_card_button {
   :deep(.el-radio-button__inner) {
     min-width: 100px;
-    height: 100%;
+    height: 40px;
     background-color: var(--panel-button-active) !important;
     box-shadow: none !important;
     outline: none !important;
@@ -79,6 +89,36 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
     background-color: var(--panel-button-bg-color) !important;
     border-color: var(--panel-color-primary) !important;
     border-radius: 4px;
+  }
+}
+
+.router_card.compact {
+  display: inline-flex;
+  width: max-content;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+
+  :deep(.el-card__body) {
+    padding: 0;
+  }
+
+  .router-nav {
+    width: max-content;
+  }
+
+  :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: nowrap;
+  }
+
+  .router_card_button :deep(.el-radio-button__inner) {
+    min-width: 64px;
+    height: 28px;
+    padding: 0 12px;
+    font-size: 13px;
+    line-height: 24px;
+    background-color: transparent !important;
   }
 }
 </style>

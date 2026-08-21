@@ -3,7 +3,6 @@
     <template v-if="hosts.length">
       <div class="summary-bar">
         <div class="summary-left">
-          <span class="panel-section-title">{{ groupName || "分组" }}</span>
           <span class="meta">共 {{ hosts.length }} 台 · 已打开 {{ openedCount }}</span>
           <el-tag size="small" type="success" effect="dark">
             正常 {{ okCount }}

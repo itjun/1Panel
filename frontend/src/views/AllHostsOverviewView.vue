@@ -3,7 +3,6 @@
     <!-- 顶栏 -->
     <div class="summary-bar">
       <div class="summary-left">
-        <span class="panel-section-title">全部主机</span>
         <span class="meta">共 {{ app.hosts.length }} 台</span>
         <el-tag
           v-if="app.runningHosts.length"

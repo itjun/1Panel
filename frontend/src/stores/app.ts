@@ -60,7 +60,7 @@ export const useAppStore = defineStore("app", () => {
   /** 系统菜单请求「新建分组」弹窗（跨组件通知 SidebarHost 处理） */
   const pendingCreateGroup = ref(false);
 
-  /** 侧栏开/关（App 外壳与 MainArea 展开按钮共享，持久化到 localStorage） */
+  /** 侧栏开/关（⌘B 切换，持久化到 localStorage） */
   function loadSidebarOpen(): boolean {
     try {
       const v = localStorage.getItem("ipannel.sidebarOpen");
@@ -77,6 +77,21 @@ export const useAppStore = defineStore("app", () => {
     } catch {
       /* ignore */
     }
+  }
+  function toggleSidebar() {
+    const next = !sidebarOpen.value;
+    setSidebarOpen(next);
+    if (!next) sidebarSearchOpen.value = false;
+  }
+
+  /** 侧栏搜索框：按钮在通栏，输入框在侧栏；打开搜索时若侧栏收起则一并展开 */
+  const sidebarSearchOpen = ref(false);
+  function setSidebarSearchOpen(v: boolean) {
+    if (v && !sidebarOpen.value) setSidebarOpen(true);
+    sidebarSearchOpen.value = v;
+  }
+  function toggleSidebarSearch() {
+    setSidebarSearchOpen(!sidebarSearchOpen.value);
   }
 
   /** 后台常挂的主机会话（按打开顺序） */
@@ -436,6 +451,10 @@ export const useAppStore = defineStore("app", () => {
     visitedGroupIds,
     sidebarOpen,
     setSidebarOpen,
+    toggleSidebar,
+    sidebarSearchOpen,
+    setSidebarSearchOpen,
+    toggleSidebarSearch,
     pendingCreateGroup,
     refresh,
     rememberOsRelease,

@@ -143,6 +143,11 @@ body,
     width: 100%;
     padding: 0 7px;
 
+    /* 顶贴通栏底沿（蓝/灰分界），不要空出一条蓝边 */
+    > .el-menu-item:first-child {
+      margin-top: 0;
+    }
+
     .el-menu-item {
       border-radius: 4px;
       background-color: var(--el-menu-item-bg-color) !important;
@@ -217,6 +222,8 @@ body,
         .el-menu-item {
           box-shadow: none;
           padding-left: 35px !important;
+          /* 只留上边距：分组标题→第一台、主机之间都是 7px，避免 7+7 叠成 14 */
+          margin: 7px 0 0;
         }
       }
     }
@@ -229,19 +236,53 @@ body,
 }
 
 .app-shell {
-  /* 横向布局：侧栏（全高左）+ 主列（顶栏 + 主区域）*/
   display: flex;
+  flex-direction: column;
   height: 100%;
   background: var(--panel-main-bg-color-9, #f4f4f4);
+}
+
+.app-chrome {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 40px 1fr;
+  grid-template-columns: auto 1fr;
+  overflow: hidden;
+  background: var(--panel-menu-bg-color);
+}
+
+.app-chrome > .titlebar-left {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.app-chrome > .titlebar-right {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.app-chrome > .panel-sidebar {
+  grid-row: 2;
+  grid-column: 1;
+  min-height: 0;
+  height: auto;
+  background: transparent;
+}
+
+.app-chrome > .main-column {
+  grid-row: 2;
+  grid-column: 2;
 }
 
 .main-column {
   display: flex;
   flex-direction: column;
-  flex: 1;
   min-width: 0;
   min-height: 0;
-  overflow: hidden; /* 禁止整壳横向/纵向被内容撑出滚动条 */
+  overflow: hidden;
+  background: var(--panel-main-bg-color-9, #f4f4f4);
 }
 
 .main-container {
@@ -252,23 +293,6 @@ body,
   flex-direction: column;
   background: var(--panel-main-bg-color-9, #f4f4f4);
   overflow: hidden;
-}
-
-/* 侧栏收起后，红绿灯让位转移到合并顶栏（host-header）左侧 */
-.app-shell.sidebar-collapsed .host-header {
-  padding-left: 78px;
-}
-
-/* 主机视图顶部拖拽条：默认细条；侧栏收起时增高以容纳红绿灯与展开按钮 */
-.top-drag-strip {
-  flex-shrink: 0;
-  height: 12px;
-}
-.app-shell.sidebar-collapsed .top-drag-strip {
-  height: 40px;
-  display: flex;
-  align-items: center;
-  padding-left: 84px;
 }
 
 .monitor-tags {

@@ -5,53 +5,8 @@
     :style="{ width: width + 'px' }"
     @contextmenu="onBlankContext"
   >
-    <!-- 顶部 header：红绿灯让位后紧挨收起 + 搜索（Cursor 同款左簇） -->
-    <div class="sidebar-header drag-region" @dblclick="Window.ToggleMaximise()">
-      <el-button
-        text
-        class="sidebar-collapse-btn no-drag"
-        title="收起侧栏"
-        @click="emit('collapse')"
-      >
-        <el-icon>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.75"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M9 3v18" />
-          </svg>
-        </el-icon>
-      </el-button>
-      <el-button
-        text
-        class="sidebar-search-btn no-drag"
-        :class="{ 'is-active': searchActive }"
-        :title="searchActive ? '收起搜索' : '搜索主机'"
-        @click="toggleSearch"
-      >
-        <el-icon>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.75"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-        </el-icon>
-      </el-button>
-    </div>
-
     <transition name="search-slide">
-      <div v-show="searchActive" class="search-box">
+      <div v-show="app.sidebarSearchOpen" class="search-box">
       <el-input
         ref="searchInputRef"
         v-model="query"
@@ -179,7 +134,7 @@
           </el-menu-item>
         </el-sub-menu>
       </el-menu>
-      <div v-if="searchActive && query && filtered.length === 0" class="search-empty">
+      <div v-if="app.sidebarSearchOpen && query && filtered.length === 0" class="search-empty">
         无匹配主机
       </div>
     </div>
@@ -255,11 +210,11 @@
 
 <script setup lang="ts">
 /**
- * 侧栏：主机/分组树、搜索、拖拽分组、右键菜单、宽度调整。
+ * 侧栏：主机/分组树、搜索输入、拖拽分组、右键菜单、宽度调整。
+ * 搜索按钮与侧栏开关在 App 通栏，不在本组件。
  * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Window } from "@wailsio/runtime";
 import { Folder, Monitor } from "@element-plus/icons-vue";
 import { ElMessageBox, ElMessage } from "element-plus";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
@@ -275,14 +230,11 @@ import { useHostDrag } from "@/composables/useHostDrag";
 import { useSidebarResize } from "@/composables/useSidebarResize";
 
 const emit = defineEmits<{
-  collapse: [];
   addHost: [];
 }>();
 
 const app = useAppStore();
 const query = ref("");
-/** 搜索框展开态：收起即清空 query（无残留过滤） */
-const searchActive = ref(false);
 const searchInputRef = ref<{ focus: () => void } | null>(null);
 const menuWrapRef = ref<HTMLElement | null>(null);
 
@@ -336,21 +288,22 @@ function countLabel(list: { name: string }[]): string {
   return opened > 0 ? `${opened}/${list.length}` : `${list.length}`;
 }
 
-/** 展开/收起搜索：展开时聚焦输入框，收起时清空 */
-function toggleSearch() {
-  if (searchActive.value) {
-    closeSearch();
-  } else {
-    searchActive.value = true;
-    nextTick(() => searchInputRef.value?.focus());
-  }
-}
-
 /** 收起搜索并清空 query（收起即重置） */
 function closeSearch() {
-  searchActive.value = false;
+  app.setSidebarSearchOpen(false);
   query.value = "";
 }
+
+watch(
+  () => app.sidebarSearchOpen,
+  (open) => {
+    if (open) {
+      nextTick(() => searchInputRef.value?.focus());
+    } else {
+      query.value = "";
+    }
+  }
+);
 
 function onHostClick(name: string) {
   if (suppressClick.value) return;
@@ -435,7 +388,7 @@ function onNumSwitchKeydown(e: KeyboardEvent) {
 
 /** / 键唤起搜索：仅当焦点不在输入框/终端时触发 */
 function onSearchKeydown(e: KeyboardEvent) {
-  if (e.key !== "/" || searchActive.value) return;
+  if (e.key !== "/" || app.sidebarSearchOpen) return;
   const el = document.activeElement;
   if (!el) return;
   const tag = el.tagName;
@@ -445,8 +398,7 @@ function onSearchKeydown(e: KeyboardEvent) {
   // 焦点在终端（xterm）：放行（终端输入 /）
   if (el.closest(".xterm-helper-textarea, .terminal-wrap")) return;
   e.preventDefault();
-  searchActive.value = true;
-  nextTick(() => searchInputRef.value?.focus());
+  app.setSidebarSearchOpen(true);
 }
 
 function onCtxKeydown(e: KeyboardEvent) {
@@ -531,44 +483,6 @@ onBeforeUnmount(() => {
     transition: none;
     user-select: none;
   }
-}
-
-.sidebar-header {
-  flex-shrink: 0;
-  /* 与 macOS 隐藏标题栏红绿灯同一行（TitleBarHidden 红绿灯约在 28–32px 带内居中） */
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  padding: 0 8px 0 78px;
-  background: transparent;
-}
-
-.sidebar-collapse-btn,
-.sidebar-search-btn {
-  width: 24px;
-  height: 24px;
-  min-height: 24px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--el-text-color-regular);
-  --el-button-hover-text-color: var(--el-text-color-primary);
-  --el-button-hover-bg-color: color-mix(
-    in srgb,
-    var(--el-color-primary) 10%,
-    transparent
-  );
-
-  :deep(.el-icon) {
-    font-size: 18px;
-  }
-}
-
-.sidebar-search-btn.is-active {
-  color: var(--el-color-primary);
 }
 
 /* 搜索框展开/收起动画（配合 <transition name="search-slide">） */

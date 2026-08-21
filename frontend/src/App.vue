@@ -1,21 +1,62 @@
 <template>
-  <div class="app-shell" :class="{ 'sidebar-collapsed': !app.sidebarOpen }">
-    <SidebarHost
-      v-show="app.sidebarOpen"
-      @collapse="app.setSidebarOpen(false)"
-      @add-host="addHostOpen = true"
-    />
-
-    <!-- 侧栏收起时的浮层展开按钮（原在 MainArea 顶部 host-header，移除后保留入口）。
-         host 视图由 MainArea 顶部 top-drag-strip 内的展开按钮承担，不重复显示 -->
-    <SidebarExpandBtn
-      v-if="!app.sidebarOpen && app.activeTab?.kind !== 'host'"
-      class="floating-expand-btn"
-      @expand="app.setSidebarOpen(true)"
-    />
-
-    <div class="main-column">
-      <MainArea />
+  <div class="app-shell">
+    <!-- 两列：竖线贯穿通栏。左列红绿灯+开关/搜索+侧栏，右列标题+主区 -->
+    <div class="app-chrome" :class="{ 'sidebar-collapsed': !app.sidebarOpen }">
+      <div class="titlebar-left drag-region" @dblclick="toggleMaximise">
+        <div class="titlebar-tools no-drag">
+          <el-button
+            text
+            class="titlebar-btn"
+            :title="app.sidebarOpen ? '收起侧栏 (⌘B)' : '展开侧栏 (⌘B)'"
+            @click="app.toggleSidebar()"
+          >
+            <el-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 3v18" />
+              </svg>
+            </el-icon>
+          </el-button>
+          <el-button
+            text
+            class="titlebar-btn"
+            :class="{ 'is-active': app.sidebarSearchOpen }"
+            title="搜索主机"
+            @click="app.toggleSidebarSearch()"
+          >
+            <el-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </el-icon>
+          </el-button>
+        </div>
+      </div>
+      <div class="titlebar-right drag-region" @dblclick="toggleMaximise">
+        <span class="titlebar-title no-drag">{{ titlebarTitle }}</span>
+      </div>
+      <SidebarHost
+        v-show="app.sidebarOpen"
+        @add-host="addHostOpen = true"
+      />
+      <div class="main-column">
+        <MainArea />
+      </div>
     </div>
 
     <el-dialog
@@ -65,15 +106,14 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
-import { Dialogs, Events } from "@wailsio/runtime";
+import { Dialogs, Events, Window } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
-import SidebarExpandBtn from "@/components/SidebarExpandBtn.vue";
 import MainArea from "@/layout/MainArea.vue";
 import SettingsDialog from "@/components/SettingsDialog.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
@@ -97,15 +137,29 @@ function openSettings() {
   settingsOpen.value = true;
 }
 
-/** macOS 传统：⌘, 打开设置 */
+function toggleMaximise() {
+  Window.ToggleMaximise();
+}
+
+const titlebarTitle = computed(() => {
+  const tab = app.activeTab;
+  if (!tab) return "全部主机";
+  if (tab.kind === "group") return app.groupNameOf(tab.id);
+  return app.hostSessions[tab.id]?.title || tab.title || tab.id;
+});
+
+/** ⌘, 打开设置；⌘B 切换侧栏 */
 function onGlobalKeydown(e: KeyboardEvent) {
-  // Meta=, 或 Meta+,（不同键盘布局）
-  const isComma =
-    e.key === "," || e.code === "Comma" || e.key === "，";
-  if ((e.metaKey || e.ctrlKey) && isComma && !e.shiftKey && !e.altKey) {
-    // 输入框内也允许（系统偏好设置行为）
+  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+  const isComma = e.key === "," || e.code === "Comma" || e.key === "，";
+  if (isComma) {
     e.preventDefault();
     openSettings();
+    return;
+  }
+  if (e.code === "KeyB") {
+    e.preventDefault();
+    app.toggleSidebar();
   }
 }
 
@@ -202,6 +256,61 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.titlebar-left,
+.titlebar-right {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+.titlebar-left {
+  padding-left: 78px;
+  padding-right: 8px;
+}
+.titlebar-right {
+  min-width: 0;
+  padding: 0 20px;
+}
+.sidebar-collapsed .titlebar-right {
+  padding-left: 8px;
+}
+.titlebar-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+}
+.titlebar-btn {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-regular);
+  --el-button-hover-text-color: var(--el-text-color-primary);
+  --el-button-hover-bg-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
+}
+.titlebar-btn :deep(.el-icon) {
+  font-size: 18px;
+}
+.titlebar-btn.is-active {
+  color: var(--el-color-primary);
+}
+.titlebar-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 28px;
+}
 .add-host-hint {
   margin: 0 0 12px;
   font-size: 12px;
@@ -213,12 +322,5 @@ onBeforeUnmount(() => {
   border-radius: 3px;
   background: var(--el-fill-color);
   font-size: 11px;
-}
-/* 侧栏收起时的浮层展开按钮：固定在窗口左上角，避开红绿灯区（x≈7-70px，让位与 top-drag-strip 一致） */
-.floating-expand-btn {
-  position: fixed;
-  top: 8px;
-  left: 84px;
-  z-index: 100;
 }
 </style>

@@ -22,24 +22,13 @@
         v-show="app.activeTab?.kind === 'host' && app.activeTab.id === hid"
         class="host-shell"
       >
-        <!-- 顶部仅保留拖拽条；侧栏收起时增高，容纳红绿灯让位与展开按钮 -->
-        <div class="top-drag-strip drag-region" @dblclick="toggleMaximise">
-          <SidebarExpandBtn
-            v-if="!app.sidebarOpen"
-            class="no-drag"
-            @expand="app.setSidebarOpen(true)"
-          />
-        </div>
-
         <div class="router-tabs">
-          <!-- 顶部一级标签：1Panel RouterButton 组件（照搬） -->
           <RouterButton
             :model-value="sessionOf(hid)?.subTab || 'overview'"
             :buttons="subTabs"
             @update:model-value="(v: string) => onSubChange(hid, v)"
           />
         </div>
-
         <div
           class="content-pad"
           :class="{
@@ -58,7 +47,7 @@
             v-show="sessionOf(hid)?.subTab === 'apps'"
             :host="hid"
           />
-          <ProcessesView>
+          <ProcessesView
             v-if="visitedSub(hid, 'processes')"
             v-show="sessionOf(hid)?.subTab === 'processes'"
             :host="hid"
@@ -118,8 +107,8 @@
 </template>
 
 <script setup lang="ts">
-import { Window } from "@wailsio/runtime";
 import { useAppStore, type SubTab } from "@/stores/app";
+import RouterButton from "@/components/RouterButton.vue";
 import OverviewView from "@/views/OverviewView.vue";
 import AppsView from "@/views/AppsView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
@@ -134,15 +123,8 @@ import PackagesView from "@/views/PackagesView.vue";
 import LogsView from "@/views/LogsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
-import SidebarExpandBtn from "@/components/SidebarExpandBtn.vue";
-import RouterButton from "@/components/RouterButton.vue";
 
 const app = useAppStore();
-
-/** 双击顶部拖拽区：最大化 / 还原 */
-function toggleMaximise() {
-  Window.ToggleMaximise();
-}
 
 const subTabs: { value: SubTab; label: string }[] = [
   { value: "overview", label: "概览" },
@@ -185,9 +167,7 @@ function isFillSub(sub?: SubTab) {
   return !!sub && FILL_SUBS.includes(sub);
 }
 
-function onSubChange(hid: string, v: string | number | boolean | undefined) {
-  if (typeof v !== "string") return;
-  // 确保当前激活的是这台主机（用户点的是可见 shell 的 tabs）
+function onSubChange(hid: string, v: string) {
   if (app.activeTabId !== hid) app.openHostTab(hid);
   app.setSubTab(hid, v as SubTab);
 }
@@ -201,37 +181,19 @@ function onSubChange(hid: string, v: string | number | boolean | undefined) {
   display: flex;
   flex-direction: column;
 }
-.host-header {
-  height: 48px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  background: transparent;
-  border-bottom: none;
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-  .name {
-    font-size: 14px;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .sub {
-    font-size: 11px;
-    color: var(--el-text-color-secondary);
-  }
-}
-/* 顶部一级标签容器：间距与 1Panel 一致（组件本体在 components/RouterButton.vue） */
 .router-tabs {
   flex-shrink: 0;
   margin: 0 20px 7px;
+
+  :deep(.el-card__body) {
+    min-height: 42px;
+    align-items: center;
+  }
+
+  :deep(.el-radio-button__inner) {
+    height: 42px;
+    box-sizing: border-box;
+  }
 }
 .content-pad {
   flex: 1;
