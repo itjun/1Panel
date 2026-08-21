@@ -31,6 +31,7 @@
         :header-height="38"
         :row-class="zebraRowClass"
         :sort-by="sortBy"
+        :row-event-handlers="allRowEventHandlers"
         @column-sort="onColumnSort"
       >
         <template #empty>暂无数据</template>
@@ -88,28 +89,30 @@
             <span class="k">用户</span>
             <span class="v mono">{{ card.proc.user || "—" }}</span>
           </div>
-          <div class="d-row">
-            <span class="k">部署方式</span>
-            <span class="v">{{ deployLabel(card.proc) }}</span>
-          </div>
-          <div class="d-row" v-if="card.proc.service">
-            <span class="k">systemd</span>
-            <span class="v mono">{{ card.proc.service }}</span>
-          </div>
-          <div class="d-row" v-if="card.proc.container">
-            <span class="k">容器</span>
-            <span class="v mono">
-              {{ card.proc.container }}（{{ card.proc.image || "镜像未知" }}）
-            </span>
-          </div>
-          <div class="d-row">
-            <span class="k">{{ view === "java" ? "jar 包" : "入口" }}</span>
-            <span class="v mono break">{{ entryText(card.proc) }}</span>
-          </div>
-          <div class="d-row">
-            <span class="k">监听端口</span>
-            <span class="v mono">{{ (card.proc.ports || []).join("、") || "—" }}</span>
-          </div>
+          <template v-if="view !== 'all'">
+            <div class="d-row">
+              <span class="k">部署方式</span>
+              <span class="v">{{ deployLabel(card.proc) }}</span>
+            </div>
+            <div class="d-row" v-if="card.proc.service">
+              <span class="k">systemd</span>
+              <span class="v mono">{{ card.proc.service }}</span>
+            </div>
+            <div class="d-row" v-if="card.proc.container">
+              <span class="k">容器</span>
+              <span class="v mono">
+                {{ card.proc.container }}（{{ card.proc.image || "镜像未知" }}）
+              </span>
+            </div>
+            <div class="d-row">
+              <span class="k">{{ view === "java" ? "jar 包" : "入口" }}</span>
+              <span class="v mono break">{{ entryText(card.proc) }}</span>
+            </div>
+            <div class="d-row">
+              <span class="k">监听端口</span>
+              <span class="v mono">{{ (card.proc.ports || []).join("、") || "—" }}</span>
+            </div>
+          </template>
           <div class="d-row">
             <span class="k">CPU / 内存</span>
             <span class="v mono">
@@ -131,26 +134,26 @@
             <span class="k">已运行</span>
             <span class="v">{{ formatDurationLong(card.proc.elapsed || 0) }}</span>
           </div>
-          <div class="d-row" v-if="detailOf(card.proc.pid)">
-            <div class="d-row" style="padding: 0">
+          <template v-if="detailOf(card.proc.pid)">
+            <div class="d-row">
               <span class="k">工作目录</span>
               <span class="v mono break">{{ detailOf(card.proc.pid)?.workDir || "—（无权限）" }}</span>
             </div>
-            <div class="d-row" style="padding: 0">
+            <div class="d-row">
               <span class="k">可执行路径</span>
               <span class="v mono break">{{ detailOf(card.proc.pid)?.exePath || "—（无权限）" }}</span>
             </div>
-            <div class="d-row" style="padding: 0">
+            <div class="d-row">
               <span class="k">磁盘 IO</span>
               <span class="v mono">
                 <template v-if="detailOf(card.proc.pid)?.readBytes || detailOf(card.proc.pid)?.writeBytes">
-                  读{{ formatBytes(detailOf(card.proc.pid)!.readBytes) }}
-                  写{{ formatBytes(detailOf(card.proc.pid)!.writeBytes) }}（累计）
+                  读 {{ formatBytes(detailOf(card.proc.pid)!.readBytes) }}
+                  / 写 {{ formatBytes(detailOf(card.proc.pid)!.writeBytes) }}（累计）
                 </template>
                 <template v-else>—（无 /proc/io 读取权限）</template>
               </span>
             </div>
-          </div>
+          </template>
           <div class="d-row">
             <span class="k">命令行</span>
             <span class="v mono break">{{ card.proc.args || "—" }}</span>
@@ -184,7 +187,7 @@ import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import TagButton from "@/components/TagButton.vue";
 import { copyText } from "@/utils/clipboard";
-import { formatBytes, formatDuration, formatDurationLong } from "@/utils/format";
+import { formatBytes, formatDurationCompact, formatDurationLong } from "@/utils/format";
 
 interface ProcInfo {
   pid: number;
@@ -299,9 +302,33 @@ function zebraRowClass({ rowIndex }: { rowIndex: number }): string {
   return rowIndex % 2 === 1 ? "zebra-row" : "";
 }
 
-/** 超长文本单元格：省略号 + 原生 title（对应原 show-overflow-tooltip） */
-const ellipsisCell = (text: string, cls = "") =>
-  h("span", { class: ["cell-ellipsis", cls], title: text || "" }, text || "");
+/** 超长文本单元格：单行截断。width/minWidth 必须写死，flex 单元格默认 min-width:auto 会把整段命令撑出来换行 */
+const ELLIPSIS_STYLE: Record<string, string> = {
+  display: "block",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  minWidth: "0",
+  width: "100%",
+  lineHeight: "22px",
+};
+const ellipsisCell = (text: string, cls = "", title?: string) =>
+  h(
+    "span",
+    {
+      class: ["cell-ellipsis", cls],
+      style: ELLIPSIS_STYLE,
+      title: title || text || "",
+    },
+    text || ""
+  );
+
+const elapsedCell = ({ cellData }: { cellData: number }) =>
+  ellipsisCell(
+    formatDurationCompact(cellData || 0),
+    "mono",
+    formatDurationLong(cellData || 0)
+  );
 
 const cpuCell = ({ cellData }: { cellData: number }) =>
   h("span", { class: cpuClass(cellData) }, Number(cellData || 0).toFixed(1));
@@ -362,14 +389,16 @@ const allColumns = [
     key: "elapsed",
     dataKey: "elapsed",
     title: "运行时长",
-    width: 90,
-    cellRenderer: ({ cellData }: { cellData: number }) => formatDuration(cellData || 0),
+    width: 110,
+    flexShrink: 0,
+    cellRenderer: elapsedCell,
   },
   {
     key: "cmd",
     dataKey: "cmd",
     title: "启动命令",
     width: 300,
+    minWidth: 160,
     flexGrow: 1,
     flexShrink: 1,
     cellRenderer: ({ cellData }: { cellData: string }) => ellipsisCell(cellData),
@@ -439,13 +468,15 @@ const runtimeColumns = computed(() => [
     dataKey: "elapsed",
     title: "运行时长",
     width: 110,
-    cellRenderer: ({ cellData }: { cellData: number }) => formatDurationLong(cellData || 0),
+    flexShrink: 0,
+    cellRenderer: elapsedCell,
   },
   {
     key: "args",
     dataKey: "args",
     title: "启动命令",
     width: 280,
+    minWidth: 160,
     flexGrow: 1,
     flexShrink: 1,
     cellRenderer: ({ cellData }: { cellData: string }) => ellipsisCell(cellData),
@@ -471,6 +502,27 @@ const sortedRows = computed(() => {
   return [...filtered.value].sort((a, b) => dir * ((a.cpu || 0) - (b.cpu || 0)));
 });
 
+/** 全部进程行：补齐卡片所需字段，命令放在 args 里 */
+function procAsCard(p: ProcInfo): RuntimeProc {
+  return {
+    pid: p.pid,
+    user: p.user,
+    cpu: p.cpu,
+    mem: p.mem,
+    rss: p.rss,
+    elapsed: p.elapsed,
+    args: p.cmd,
+    entry: "",
+    xms: 0,
+    xmx: 0,
+    ports: [],
+    deploy: "",
+    service: "",
+    container: "",
+    image: "",
+  };
+}
+
 /** 运行时视图行事件：悬浮详情卡 + 点击固定（对应原 cell-mouse-* / cell-click） */
 const rowEventHandlers = {
   onMouseEnter: ({ rowData, event }: { rowData: RuntimeProc; event: MouseEvent }) =>
@@ -478,6 +530,14 @@ const rowEventHandlers = {
   onMouseLeave: () => scheduleHide(),
   onClick: ({ rowData, event }: { rowData: RuntimeProc; event: MouseEvent }) =>
     onCellClick(rowData, event),
+};
+
+const allRowEventHandlers = {
+  onMouseEnter: ({ rowData, event }: { rowData: ProcInfo; event: MouseEvent }) =>
+    onRowEnter(procAsCard(rowData), event),
+  onMouseLeave: () => scheduleHide(),
+  onClick: ({ rowData, event }: { rowData: ProcInfo; event: MouseEvent }) =>
+    onCellClick(procAsCard(rowData), event),
 };
 
 /** 切换视图时收起详情卡片（固定中的也一并取消）并重置排序 */
@@ -754,12 +814,26 @@ async function copyArgs() {
   flex: 1;
   min-height: 0;
 }
-/* 虚拟化表格单元格：超长文本省略号 + 原生 title */
+/* 虚拟化表格：行高固定 34px，超长命令必须裁切，不能换行叠到下一行 */
 .cell-ellipsis {
   display: block;
+  min-width: 0;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 22px;
+}
+:deep(.el-table-v2__row) {
+  overflow: hidden;
+}
+:deep(.el-table-v2__row-cell) {
+  overflow: hidden;
+  min-width: 0;
+}
+:deep(.el-table-v2__row-cell > *) {
+  min-width: 0;
+  max-width: 100%;
 }
 /* el-table-v2 无内置斑马纹/hover：按 rowIndex 着色对齐原 el-table stripe 观感 */
 :deep(.el-table-v2__row.zebra-row) {
@@ -824,10 +898,15 @@ async function copyArgs() {
   font-size: 11px;
   color: var(--el-text-color-secondary);
 }
+.java-hover-card .detail-rows {
+  display: flex;
+  flex-direction: column;
+}
 .java-hover-card .d-row {
   display: flex;
+  align-items: flex-start;
   gap: 12px;
-  padding: 3px 0;
+  padding: 4px 0;
   line-height: 1.5;
 }
 .java-hover-card .k {
@@ -838,7 +917,8 @@ async function copyArgs() {
 .java-hover-card .v {
   flex: 1;
   min-width: 0;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .java-hover-card .v.mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

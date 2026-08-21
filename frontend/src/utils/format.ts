@@ -39,6 +39,19 @@ export function formatDurationLong(seconds: number): string {
   return parts.join(" ");
 }
 
+/** 表格单行用：最多两段，避免「15天 22小时 45分钟 13秒」撑破列宽换行 */
+export function formatDurationCompact(seconds: number): string {
+  if (!seconds || seconds <= 0) return "—";
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (d > 0) return `${d}天 ${h}小时`;
+  if (h > 0) return `${h}小时 ${m}分`;
+  if (m > 0) return `${m}分钟`;
+  return `${s}秒`;
+}
+
 export function bytesToKBps(deltaBytes: number, deltaMs: number): number {
   if (deltaMs <= 0 || deltaBytes < 0) return 0;
   return deltaBytes / 1024 / (deltaMs / 1000);
