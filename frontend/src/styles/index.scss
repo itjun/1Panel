@@ -276,6 +276,10 @@ body,
   grid-column: 2;
 }
 
+.app-chrome.sidebar-collapsed > .main-column {
+  grid-column: 1 / -1;
+}
+
 .main-column {
   display: flex;
   flex-direction: column;

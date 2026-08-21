@@ -183,7 +183,8 @@ function onSubChange(hid: string, v: string) {
 }
 .router-tabs {
   flex-shrink: 0;
-  margin: 0 20px 7px;
+  /* 与通栏（标题栏）留出间距，避免标签条顶贴蓝底 */
+  margin: 12px 20px 7px;
 
   :deep(.el-card__body) {
     min-height: 42px;
