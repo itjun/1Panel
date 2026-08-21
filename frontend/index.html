@@ -1,10 +1,47 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="light">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>1Pannel</title>
     <link rel="icon" type="image/svg+xml" href="/src/assets/1panel-favicon.svg" />
+    <style>
+      html,
+      body,
+      #app {
+        margin: 0;
+        height: 100%;
+        background: #f4f4f4;
+      }
+      html.dark,
+      html.dark body,
+      html.dark #app {
+        background: #242633;
+      }
+    </style>
+    <script>
+      (function () {
+        try {
+          var t = "auto";
+          var raw = localStorage.getItem("ipannel.settings.v1");
+          if (raw) {
+            var p = JSON.parse(raw);
+            if (p && p.theme) t = p.theme;
+          } else {
+            var old = localStorage.getItem("ipannel.theme");
+            if (old) t = old;
+          }
+          if (t === "auto") {
+            t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.className = t === "dark" ? "dark" : "light";
+        } catch (e) {
+          document.documentElement.className = matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

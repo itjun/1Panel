@@ -9,6 +9,7 @@ import (
 	goruntime "runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"diteng-pannel/internal/agentcli"
@@ -40,8 +41,10 @@ type App struct {
 	app        *application.App
 	mainWindow *application.WebviewWindow
 
-	// sized 标记主屏自适应已完成（幂等，见 fitWindowToPrimaryScreen）
-	sized bool
+	showMu  sync.Mutex
+	sized   bool // 已按主屏算好尺寸（隐藏时完成，避免先小窗再拉伸）
+	uiReady bool // 前端首屏已画完
+	shown   bool // 已 Show，幂等
 }
 
 // 按 grilling 时定下的策略：
@@ -85,7 +88,8 @@ func NewApp() *application.App {
 	})
 	core.app = app
 
-	// 主窗口：隐藏标题栏（红绿灯保留，Obsidian/Notion 风格）+ 白色背景图标
+	// 主窗口：隐藏标题栏（红绿灯保留，Obsidian/Notion 风格）。
+	// Hidden：等前端首屏画完再 Show，避免 WebView 加载 2MB+ JS 期间白屏闪一下。
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:                      "main",
 		Title:                     "1Pannel",
@@ -93,7 +97,9 @@ func NewApp() *application.App {
 		Height:                    800,
 		MinWidth:                  1100,
 		MinHeight:                 700,
-		BackgroundColour:          application.NewRGB(24, 24, 27),
+		BackgroundColour:          application.NewRGB(244, 244, 244),
+		Hidden:                    true,
+		InitialPosition:           application.WindowCentered,
 		EnableFileDrop:            true,
 		DefaultContextMenuDisabled: true,
 		UseApplicationMenu:        true,
@@ -106,19 +112,26 @@ func NewApp() *application.App {
 	})
 	core.mainWindow = win
 
-	// 按主屏分辨率计算 16:10 尺寸（v2 startup 行为）。
-	// v3 的 Screen 缓存在 ApplicationDidFinishLaunching 平台钩子里才填充，
-	// 因此这里同步调用很可能拿不到主屏；注册两个兜底时机：
-	//   1) 应用启动完成事件（Common.ApplicationStarted）
-	//   2) 窗口显示事件（Common.WindowShow）
-	// fitWindowToPrimaryScreen 幂等（sized 标志），任一时机屏幕就绪即生效。
+	// 按主屏算 16:10 尺寸必须在 Hidden 期间完成，再 Show。
+	// 若先 Show 再 SetSize，用户会看到小窗被拽大（卡顿/撕裂）。
+	// v3 的 Screen 缓存在 ApplicationDidFinishLaunching 才填充，创建窗口时多半拿不到。
 	core.fitWindowToPrimaryScreen()
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		core.fitWindowToPrimaryScreen()
+		core.maybeShowMainWindow()
 	})
-	win.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
+	app.Event.On("ui-ready", func(*application.CustomEvent) {
+		core.markUIReady()
 		core.fitWindowToPrimaryScreen()
+		core.maybeShowMainWindow()
 	})
+	// 兜底：前端没发 ui-ready 或屏幕一直未就绪，3 秒后仍显示
+	go func() {
+		time.Sleep(3 * time.Second)
+		core.markUIReady()
+		core.fitWindowToPrimaryScreen()
+		core.forceShowMainWindow()
+	}()
 
 	// 初始化本地存储与采集器
 	if store, err := groups.NewStore("ServerPanel"); err != nil {
@@ -157,10 +170,39 @@ func (a *App) shutdown() {
 	a.termMgr.CloseAll()
 }
 
+func (a *App) markUIReady() {
+	a.showMu.Lock()
+	a.uiReady = true
+	a.showMu.Unlock()
+}
+
+// maybeShowMainWindow 仅在「已按主屏定好尺寸 + 前端已画完」时 Show，避免小窗闪一下再拉伸。
+func (a *App) maybeShowMainWindow() {
+	a.showMu.Lock()
+	defer a.showMu.Unlock()
+	if a.shown || a.mainWindow == nil || !a.sized || !a.uiReady {
+		return
+	}
+	a.mainWindow.Show()
+	a.shown = true
+}
+
+func (a *App) forceShowMainWindow() {
+	a.showMu.Lock()
+	defer a.showMu.Unlock()
+	if a.shown || a.mainWindow == nil {
+		return
+	}
+	a.mainWindow.Show()
+	a.shown = true
+}
+
 // fitWindowToPrimaryScreen 按主屏分辨率计算 16:10 的窗口尺寸：
 // 高度取屏幕的 80%，过宽时按屏幕宽度的 90% 反推（与 v2 startup 行为一致）。
-// 幂等：成功设置一次后不再重复（避免覆盖用户后续的手动调整）。
+// 必须在 Hidden 期间调用；成功后不再重复（避免覆盖用户后续的手动调整）。
 func (a *App) fitWindowToPrimaryScreen() {
+	a.showMu.Lock()
+	defer a.showMu.Unlock()
 	if a.sized {
 		return
 	}
@@ -169,7 +211,6 @@ func (a *App) fitWindowToPrimaryScreen() {
 	}
 	screen := a.app.Screen.GetPrimary()
 	if screen == nil || screen.Size.Width <= 0 || screen.Size.Height <= 0 {
-		// 屏幕尚未就绪：静默等待下一个时机（ApplicationStarted / WindowShow）
 		return
 	}
 	screenW, screenH := screen.Size.Width, screen.Size.Height
