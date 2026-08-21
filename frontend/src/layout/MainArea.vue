@@ -53,7 +53,12 @@
             v-show="(sessionOf(hid)?.subTab || 'overview') === 'overview'"
             :host="hid"
           />
-          <ProcessesView
+          <AppsView
+            v-if="visitedSub(hid, 'apps')"
+            v-show="sessionOf(hid)?.subTab === 'apps'"
+            :host="hid"
+          />
+          <ProcessesView>
             v-if="visitedSub(hid, 'processes')"
             v-show="sessionOf(hid)?.subTab === 'processes'"
             :host="hid"
@@ -116,6 +121,7 @@
 import { Window } from "@wailsio/runtime";
 import { useAppStore, type SubTab } from "@/stores/app";
 import OverviewView from "@/views/OverviewView.vue";
+import AppsView from "@/views/AppsView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
@@ -140,6 +146,7 @@ function toggleMaximise() {
 
 const subTabs: { value: SubTab; label: string }[] = [
   { value: "overview", label: "概览" },
+  { value: "apps", label: "应用" },
   { value: "processes", label: "进程" },
   { value: "network", label: "网络" },
   { value: "docker", label: "Docker" },
@@ -156,6 +163,7 @@ const FILL_SUBS: SubTab[] = [
   "terminal",
   "files",
   "processes",
+  "apps",
   "network",
   "docker",
   "services",

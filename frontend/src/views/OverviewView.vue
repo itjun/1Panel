@@ -233,36 +233,6 @@
                   <el-radio-button value="24h">24时</el-radio-button>
                   <el-radio-button value="7d">7天</el-radio-button>
                 </el-radio-group>
-                <el-dropdown v-if="agentInfo?.ok" trigger="click" @command="onAgentCommand">
-                  <el-tag
-                    :type="agentUpdatable ? 'warning' : 'success'"
-                    effect="plain"
-                    size="small"
-                    class="agent-tag agent-tag-btn"
-                  >
-                    {{ agentUpdatable ? `Agent ${agentInfo.version}（可更新）` : `Agent ${agentInfo.version}` }}
-                  </el-tag>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item v-if="agentUpdatable" command="upgrade">
-                        更新到 {{ latestAgentVersion }}
-                      </el-dropdown-item>
-                      <el-dropdown-item command="uninstall" divided>
-                        卸载 Agent
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-                <el-tag
-                  v-else
-                  type="info"
-                  effect="plain"
-                  size="small"
-                  class="agent-tag"
-                  title="未安装或未运行；在侧栏右键主机可安装 / 更新 Agent"
-                >
-                  Agent 离线
-                </el-tag>
               </div>
               <el-button
                 link
@@ -401,6 +371,73 @@
           <el-card
             shadow="never"
             class="home-card card-interval"
+            :class="{ 'is-enlarged': enlargedKey === 'agent' }"
+            :style="enlargedKey === 'agent' ? enlargeStyle : undefined"
+          >
+            <div class="card-header" @dblclick="openEnlarge('agent')">
+              <span class="panel-section-title">Agent</span>
+              <div class="card-actions">
+                <el-dropdown v-if="agentInfo?.ok" trigger="click" @command="onAgentCommand">
+                  <el-tag
+                    :type="agentUpdatable ? 'warning' : 'success'"
+                    effect="plain"
+                    size="small"
+                    class="agent-tag-btn"
+                  >
+                    {{ agentUpdatable ? "可更新" : "在线" }}
+                  </el-tag>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item v-if="agentUpdatable" command="upgrade">
+                        更新到 {{ latestAgentVersion }}
+                      </el-dropdown-item>
+                      <el-dropdown-item command="uninstall" :divided="agentUpdatable">
+                        卸载 Agent
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+                <el-tag
+                  v-else
+                  type="info"
+                  effect="plain"
+                  size="small"
+                  title="未安装或未运行；在侧栏右键主机可安装 / 更新 Agent"
+                >
+                  离线
+                </el-tag>
+                <el-button
+                  link
+                  class="card-icon-btn card-toggle"
+                  :icon="enlargedKey === 'agent' ? Close : FullScreen"
+                  :title="enlargedKey === 'agent' ? '退出放大' : '放大'"
+                  @click="toggleEnlarge('agent')"
+                />
+              </div>
+            </div>
+            <el-descriptions :column="1" border size="small" class="sys-desc">
+              <el-descriptions-item label="当前版本">
+                {{ agentInfo?.ok ? agentInfo.version || "—" : "—" }}
+              </el-descriptions-item>
+              <el-descriptions-item label="面板内置">
+                {{ latestAgentVersion || "—" }}
+              </el-descriptions-item>
+              <el-descriptions-item label="内存占用">
+                {{
+                  agentInfo?.ok && agentInfo.rssKB
+                    ? formatBytes(agentInfo.rssKB * 1024)
+                    : "—"
+                }}
+              </el-descriptions-item>
+            </el-descriptions>
+            <div v-if="!agentInfo?.ok" class="empty-tip agent-offline-hint">
+              在侧栏右键主机可安装 Agent
+            </div>
+          </el-card>
+
+          <el-card
+            shadow="never"
+            class="home-card card-interval"
             :class="{ 'is-enlarged': enlargedKey === 'runtimes' }"
             :style="enlargedKey === 'runtimes' ? enlargeStyle : undefined"
           >
@@ -436,101 +473,6 @@
                   </el-button>
                 </template>
                 <span class="rt-path" :title="r.detail || r.path">{{ r.path || "—" }}</span>
-              </div>
-            </div>
-          </el-card>
-
-          <!-- 应用：先 Java，再 Docker -->
-          <el-card
-            shadow="never"
-            class="home-card card-interval"
-            :class="{ 'is-enlarged': enlargedKey === 'java' }"
-            :style="enlargedKey === 'java' ? enlargeStyle : undefined"
-          >
-            <div class="card-header" @dblclick="openEnlarge('java')">
-              <span class="panel-section-title">应用</span>
-              <div class="card-actions">
-                <span class="hint">Java · {{ javaList.length }}</span>
-                <el-button
-                  link
-                  class="card-icon-btn card-toggle"
-                  :icon="enlargedKey === 'java' ? Close : FullScreen"
-                  :title="enlargedKey === 'java' ? '退出放大' : '放大'"
-                  @click="toggleEnlarge('java')"
-                />
-              </div>
-            </div>
-            <div class="app-scroll">
-              <div v-if="appsLoading" class="empty-tip">加载中…</div>
-              <div v-else-if="!javaList.length" class="empty-tip">暂无 Java 进程</div>
-              <div
-                v-for="p in javaList"
-                :key="'j-' + p.pid"
-                class="app-row"
-              >
-                <div class="app-meta">
-                  <div class="app-name" :title="p.cmd">
-                    {{ javaAppTitle(p.cmd) }}
-                  </div>
-                  <div class="app-img">
-                    PID {{ p.pid }} · CPU {{ (p.cpu || 0).toFixed(1) }}% ·
-                    {{ formatBytes(Number(p.rss) || 0) }}
-                  </div>
-                </div>
-                <el-tag size="small" type="warning">Java</el-tag>
-              </div>
-            </div>
-          </el-card>
-
-          <el-card
-            shadow="never"
-            class="home-card card-interval"
-            :class="{ 'is-enlarged': enlargedKey === 'docker' }"
-            :style="enlargedKey === 'docker' ? enlargeStyle : undefined"
-          >
-            <div class="card-header" @dblclick="openEnlarge('docker')">
-              <span class="panel-section-title">应用</span>
-              <div class="card-actions">
-                <span class="hint">
-                  Docker ·
-                  {{ docker?.available ? dockerList.length : "—" }}
-                </span>
-                <el-button
-                  link
-                  class="card-icon-btn card-toggle"
-                  :icon="enlargedKey === 'docker' ? Close : FullScreen"
-                  :title="enlargedKey === 'docker' ? '退出放大' : '放大'"
-                  @click="toggleEnlarge('docker')"
-                />
-              </div>
-            </div>
-            <div class="app-scroll">
-              <div v-if="appsLoading" class="empty-tip">加载中…</div>
-              <div v-else-if="!docker?.available" class="empty-tip">
-                未检测到 Docker
-              </div>
-              <div v-else-if="!dockerList.length" class="empty-tip">
-                暂无容器
-              </div>
-              <div
-                v-for="c in dockerList"
-                :key="c.id || c.name"
-                class="app-row"
-              >
-                <div class="app-meta">
-                  <div class="app-name">{{ c.name || c.id }}</div>
-                  <div class="app-img">{{ c.image || c.status }}</div>
-                </div>
-                <el-tag
-                  size="small"
-                  :type="
-                    (c.state || '').toLowerCase() === 'running'
-                      ? 'success'
-                      : 'info'
-                  "
-                >
-                  {{ c.state || "—" }}
-                </el-tag>
               </div>
             </div>
           </el-card>
@@ -586,8 +528,6 @@ const error = ref<string | null>(null);
 const overview = ref<monitor.Overview | null>(null);
 const disks = ref<monitor.DiskInfo[]>([]);
 const docker = ref<monitor.DockerInfo | null>(null);
-const javaList = ref<monitor.ProcInfo[]>([]);
-const appsLoading = ref(false);
 
 /** 运行环境识别：java / go / python / node / bun */
 const runtimes = ref<monitor.RuntimeInfo[]>([]);
@@ -660,10 +600,6 @@ async function confirmInstallRuntime(name: string) {
     app.setSubTab(app.activeTabId, "terminal");
   }
 }
-
-const dockerList = computed(
-  () => (docker.value?.containers || []) as monitor.Container[]
-);
 
 const traffic = ref<{ time: string; up: number; down: number }[]>([]);
 const rates = ref({ upBps: 0, downBps: 0 });
@@ -1035,43 +971,23 @@ function openLargestFiles(d: monitor.DiskInfo) {
   largestFilesOpen.value = true;
 }
 
-async function loadApps() {
-  appsLoading.value = true;
+async function loadDocker() {
   try {
-    const [dj, dd] = await Promise.all([
-      api.collectJava(props.host).catch(() => [] as monitor.ProcInfo[]),
-      api.collectDocker(props.host).catch(() => null),
-    ]);
-    javaList.value = (dj || []) as monitor.ProcInfo[];
-    docker.value = dd as monitor.DockerInfo | null;
-  } finally {
-    appsLoading.value = false;
+    docker.value = await api.collectDocker(props.host);
+  } catch {
+    docker.value = null;
   }
-}
-
-/** 从 java 命令行提取可读标题：优先 -jar 包名，其次疑似主类 */
-function javaAppTitle(cmd: string): string {
-  if (!cmd) return "java";
-  const jar = cmd.match(/-jar\s+(\S+\.jar)/i);
-  if (jar?.[1]) {
-    const base = jar[1].split(/[/\\]/).pop() || jar[1];
-    return base;
-  }
-  // 常见主类：com.xxx.Main / org.springframework.boot.loader...
-  const tokens = cmd.split(/\s+/);
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    const t = tokens[i];
-    if (/^[a-zA-Z_][\w.]*\.[A-Z][\w$]*$/.test(t) && !t.includes("/")) {
-      return t;
-    }
-  }
-  // 截断过长命令行
-  return cmd.length > 48 ? cmd.slice(0, 46) + "…" : cmd;
 }
 
 async function refreshAll() {
   loading.value = true;
-  await Promise.all([loadOverview(), loadDisks(), loadApps(), loadRuntimes()]);
+  await Promise.all([
+    loadOverview(),
+    loadDisks(),
+    loadDocker(),
+    loadRuntimes(),
+    loadAgentStatus(),
+  ]);
   loading.value = false;
 }
 
@@ -1079,7 +995,6 @@ function resetHostState() {
   overview.value = null;
   disks.value = [];
   docker.value = null;
-  javaList.value = [];
   runtimes.value = [];
   traffic.value = [];
   rates.value = { upBps: 0, downBps: 0 };
@@ -1154,7 +1069,6 @@ onMounted(async () => {
   await refreshAll();
   loading.value = false;
   void seedLiveCurves();
-  void loadAgentStatus();
   void checkAgentInstalled();
   // 数据全时轮询保持常热（终端激活时暂停见 terminalActive）；
   // 隐藏时的图表重绘开销由 useChartVisibility 承担（隐藏跳过重绘）
@@ -1166,12 +1080,12 @@ onMounted(async () => {
   historyTimer = window.setInterval(() => {
     if (rangeMode.value !== "live") void loadHistory();
   }, 60000);
-  // 低频保热：磁盘/应用/运行时数据 30s 轮询——切回概览页即最新，
-  // 无需等首开那批请求（资源换速度）
+  // 低频保热：磁盘/Docker 计数/运行时/Agent 30s 轮询——切回概览即最新
   slowTimer = window.setInterval(() => {
     void loadDisks();
-    void loadApps();
+    void loadDocker();
     void loadRuntimes();
+    void loadAgentStatus();
   }, 30000);
   window.addEventListener("keydown", onEnlargeKeydown);
 });
@@ -1204,15 +1118,15 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 监控卡片：时间范围选择与 agent 徽章 */
+/* 监控卡片：时间范围选择 */
 .range-group {
-  margin-left: 8px;
-}
-.agent-tag {
   margin-left: 8px;
 }
 .agent-tag-btn {
   cursor: pointer;
+}
+.agent-offline-hint {
+  padding: 10px 0 0;
 }
 .history-empty {
   height: 280px;
@@ -1254,11 +1168,6 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-  }
-  .app-scroll {
-    max-height: none;
-    flex: 1 1 auto;
-    min-height: 0;
   }
 }
 .enlarge-mask {
@@ -1349,10 +1258,6 @@ onBeforeUnmount(() => {
   font-size: 13px;
   padding: 20px 0;
 }
-.app-scroll {
-  max-height: 300px;
-  overflow-y: auto;
-}
 /* 运行环境卡片 */
 .rt-list {
   display: flex;
@@ -1385,40 +1290,6 @@ onBeforeUnmount(() => {
   min-width: 0;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.app-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--el-border-color-extra-light, #f2f6fc);
-  &:last-of-type {
-    border-bottom: none;
-  }
-}
-.app-meta {
-  flex: 1;
-  min-width: 0;
-}
-.app-name {
-  font-size: 13px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.app-more {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  text-align: center;
-}
-.app-img {
-  font-size: 11px;
   color: var(--el-text-color-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
