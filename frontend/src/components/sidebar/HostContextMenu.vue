@@ -16,6 +16,7 @@
       <button type="button" class="ctx-item" @click="onOpen">
         打开
       </button>
+      <div class="ctx-divider" />
       <button type="button" class="ctx-item" @click="onRename">
         重命名
       </button>
@@ -56,29 +57,37 @@
           </div>
         </div>
       </div>
+      <div class="ctx-divider" />
       <button type="button" class="ctx-item" @click="onInstallAgent">
         安装 Agent…
       </button>
+      <button
+        v-if="app.isRunning(menu.host)"
+        type="button"
+        class="ctx-item"
+        @click="onInitZsh"
+      >
+        初始化 zsh…
+      </button>
       <div class="ctx-divider" />
+      <button
+        v-if="app.isRunning(menu.host)"
+        type="button"
+        class="ctx-item is-danger"
+        @click="onStop"
+      >
+        停止会话
+      </button>
       <button type="button" class="ctx-item is-danger" @click="onDelete">
         删除…
       </button>
-      <template v-if="app.isRunning(menu.host)">
-        <div class="ctx-divider" />
-        <button type="button" class="ctx-item" @click="onInitZsh">
-          初始化 zsh…
-        </button>
-        <button type="button" class="ctx-item is-danger" @click="onStop">
-          停止会话
-        </button>
-      </template>
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
 /**
- * 主机右键菜单：打开/重命名/更新图标/迁移分组/安装 Agent/删除/初始化 zsh/停止会话。
+ * 主机右键菜单分组：打开 → 编辑整理 → 环境安装 → 危险操作。
  * 「编辑…」与「迁移分组」通过事件回抛父组件（编辑弹窗与拖拽迁移逻辑在父级）。
  */
 import { ref, watch } from "vue";
