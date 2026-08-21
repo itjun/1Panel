@@ -19,6 +19,8 @@ const props = defineProps<{
   id?: string;
   height?: string;
   option: { title: string; data: number };
+  /** 告警态：圆环与中心百分比改用危险色 */
+  danger?: boolean;
 }>();
 
 const el = ref<HTMLDivElement | null>(null);
@@ -50,6 +52,14 @@ function getThemeColors() {
     backgroundStyleColor: isDark()
       ? "rgba(255, 255, 255, 0.05)"
       : "rgba(0, 94, 235, 0.05)",
+    danger:
+      root.getPropertyValue("--el-color-danger").trim() || "#f56c6c",
+    dangerLight:
+      root.getPropertyValue("--el-color-danger-light-3").trim() || "#f89898",
+    dangerShadow: "rgba(245, 108, 108, 0.15)",
+    dangerBg: isDark()
+      ? "rgba(245, 108, 108, 0.12)"
+      : "rgba(245, 108, 108, 0.08)",
   };
 }
 
@@ -59,6 +69,8 @@ function initChart() {
   const v = Math.max(0, Math.min(100, Number(props.option.data) || 0));
   const percentText = v.toFixed(2).split(".");
   const c = getThemeColors();
+  const ringFrom = props.danger ? c.dangerLight : c.primaryLight2;
+  const ringTo = props.danger ? c.danger : c.primaryLight1;
   chart.setOption(
     {
       title: [
@@ -69,7 +81,7 @@ function initChart() {
               a: { fontSize: "22" },
               b: { fontSize: "14", padding: [5, 0, 0, 0] },
             },
-            color: c.textColor,
+            color: props.danger ? c.danger : c.textColor,
             lineHeight: 25,
             fontWeight: 500,
           },
@@ -96,11 +108,13 @@ function initChart() {
           barWidth: 30,
           showBackground: true,
           coordinateSystem: "polar",
-          backgroundStyle: { color: c.backgroundStyleColor },
+          backgroundStyle: {
+            color: props.danger ? c.dangerBg : c.backgroundStyleColor,
+          },
           color: [
             new echarts.graphic.LinearGradient(0, 1, 0, 0, [
-              { offset: 0, color: c.primaryLight2 },
-              { offset: 1, color: c.primaryLight1 },
+              { offset: 0, color: ringFrom },
+              { offset: 1, color: ringTo },
             ]),
           ],
           label: { show: false },
@@ -115,7 +129,10 @@ function initChart() {
           data: [
             {
               value: 0,
-              itemStyle: { shadowColor: c.shadowColor, shadowBlur: 5 },
+              itemStyle: {
+                shadowColor: props.danger ? c.dangerShadow : c.shadowColor,
+                shadowBlur: 5,
+              },
             },
           ],
         },
@@ -125,7 +142,10 @@ function initChart() {
   );
 }
 
-watch(() => props.option, () => nextTick(renderWhenVisible));
+watch(
+  () => [props.option, props.danger],
+  () => nextTick(renderWhenVisible)
+);
 
 onMounted(() => {
   // 挂载时若处于隐藏（v-show 藏起）则不 init，等恢复显示由 RO 触发

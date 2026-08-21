@@ -166,7 +166,6 @@
                 field="diskPercent"
                 :percent="true"
                 :disks="hostState(row.name).disks"
-                :alert-threshold="THRESHOLDS.disk"
                 suffix="%"
                 :sub="diskUsage(hostState(row.name).disks) || '—'"
               />
@@ -218,6 +217,15 @@ import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 import { formatBytes, formatErr } from "@/utils/format";
+import {
+  ALERT,
+  diskLowMessage,
+  isCpuAlert,
+  isDiskLow,
+  isLoadAlert,
+  isMemAlert,
+  pickRootDisk,
+} from "@/utils/alerts";
 import type { agentcli, monitor, sshconfig } from "@/api";
 
 const props = defineProps<{
@@ -228,12 +236,7 @@ const props = defineProps<{
 const app = useAppStore();
 const agentInstall = useAgentInstallStore();
 
-const THRESHOLDS = {
-  cpu: 90,
-  mem: 85,
-  disk: 90,
-  loadRatio: 1.0,
-};
+const THRESHOLDS = ALERT;
 const POLL_MS = 5000;
 
 /** 单主机面板状态：标题/地址来自 store（同步），指标通过 per-host 异步加载 */
@@ -302,7 +305,7 @@ function openHost(name: string) {
 // ---------- 指标 / 告警 ----------
 
 function diskPercent(disks?: monitor.DiskInfo[]): number {
-  return disks?.[0]?.percent ?? 0;
+  return pickRootDisk(disks)?.percent ?? 0;
 }
 
 function memUsage(ov: monitor.Overview | undefined): string {
@@ -311,24 +314,16 @@ function memUsage(ov: monitor.Overview | undefined): string {
 }
 
 function diskUsage(disks?: monitor.DiskInfo[]): string | undefined {
-  const d = disks?.[0];
+  const d = pickRootDisk(disks);
   if (!d) return undefined;
   return `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`;
-}
-
-function isLoadAlert(ov: monitor.Overview): boolean {
-  const n = ov.cpuCount || 0;
-  const load1 = ov.load1 || 0;
-  return n > 0 && load1 / n > THRESHOLDS.loadRatio;
 }
 
 function isHostAlert(s: HostSnap): boolean {
   if (s.error || !s.overview) return false;
   const ov = s.overview;
-  if ((ov.cpuPercent || 0) >= THRESHOLDS.cpu) return true;
-  if ((ov.memPercent || 0) > THRESHOLDS.mem) return true;
-  if (diskPercent(s.disks) > THRESHOLDS.disk) return true;
-  if (isLoadAlert(ov)) return true;
+  if (isCpuAlert(ov) || isMemAlert(ov) || isLoadAlert(ov)) return true;
+  if (isDiskLow(s.disks)) return true;
   return false;
 }
 
@@ -413,9 +408,8 @@ function collectHostAlerts(name: string): { key: string; line: string }[] {
   if (mem > THRESHOLDS.mem) {
     out.push({ key: `${name}|mem`, line: `「${name}」内存 ${mem.toFixed(1)}% 超过 ${THRESHOLDS.mem}%` });
   }
-  const disk = diskPercent(s.disks);
-  if (disk > THRESHOLDS.disk) {
-    out.push({ key: `${name}|disk`, line: `「${name}」磁盘 ${disk.toFixed(1)}% 超过 ${THRESHOLDS.disk}%` });
+  if (isDiskLow(s.disks)) {
+    out.push({ key: `${name}|disk`, line: diskLowMessage(name, s.disks) });
   }
   if (isLoadAlert(ov)) {
     out.push({
@@ -614,10 +608,10 @@ const MetricCell = defineComponent({
       let display: any;
       let alert = false;
       if (p.field === "diskPercent") {
-        const d = (p.disks && p.disks[0]?.percent) ?? 0;
+        const d = pickRootDisk(p.disks)?.percent ?? 0;
         value = d;
         display = `${d.toFixed(1)}%`;
-        alert = p["alert-op"] === "gt" ? d > p["alert-threshold"] : d >= p["alert-threshold"];
+        alert = isDiskLow(p.disks);
       } else {
         const raw = (ov as any)[p.field] ?? 0;
         if (p.percent) {
@@ -638,7 +632,9 @@ const MetricCell = defineComponent({
           })),
           h("div", { class: "list-metric-nums" }, [
             h("span", { class: ["list-metric-val", alert ? "is-alert" : ""] }, display),
-            p.sub ? h("span", { class: "list-metric-sub" }, p.sub) : null,
+            p.sub
+              ? h("span", { class: ["list-metric-sub", alert ? "is-alert" : ""] }, p.sub)
+              : null,
           ]),
         ]);
       }
@@ -776,6 +772,9 @@ startPoll();
   font-size: 12px;
   color: var(--el-text-color-secondary);
   white-space: nowrap;
+  &.is-alert {
+    color: var(--el-color-danger);
+  }
 }
 
 html.dark .host-list-wrap {

@@ -59,7 +59,7 @@
             <el-row :gutter="8">
               <el-col :span="6" align="center">
                 <el-popover trigger="hover" placement="bottom" :width="200">
-                  <div class="ring-popover">
+                  <div class="ring-popover" :class="{ 'is-danger': loadAlert }">
                     <div class="ring-pop-row">
                       <span>1 分钟</span>
                       <span class="num">{{ overview.load1.toFixed(2) }}</span>
@@ -76,6 +76,7 @@
                   <template #reference>
                     <VChartPie
                       height="160px"
+                      :danger="loadAlert"
                       :option="{ title: '负载', data: loadPercent }"
                     />
                   </template>
@@ -84,7 +85,7 @@
               </el-col>
               <el-col :span="6" align="center">
                 <el-popover trigger="hover" placement="bottom" :width="280">
-                  <div class="ring-popover">
+                  <div class="ring-popover" :class="{ 'is-danger': cpuAlert }">
                     <div class="ring-pop-row">
                       <span class="ring-pop-label">型号</span>
                       <span
@@ -106,6 +107,7 @@
                   <template #reference>
                     <VChartPie
                       height="160px"
+                      :danger="cpuAlert"
                       :option="{ title: 'CPU', data: overview.cpuPercent }"
                     />
                   </template>
@@ -117,7 +119,7 @@
               </el-col>
               <el-col :span="6" align="center">
                 <el-popover trigger="hover" placement="bottom" :width="300">
-                  <div class="ring-popover">
+                  <div class="ring-popover" :class="{ 'is-danger': memAlert }">
                     <div class="ring-pop-grid">
                       <div class="ring-pop-col">
                         <div class="ring-pop-title">内存</div>
@@ -162,6 +164,7 @@
                   <template #reference>
                     <VChartPie
                       height="160px"
+                      :danger="memAlert"
                       :option="{ title: '内存', data: overview.memPercent }"
                     />
                   </template>
@@ -173,7 +176,7 @@
               </el-col>
               <el-col :span="6" align="center">
                 <el-popover trigger="hover" placement="bottom" :width="240">
-                  <div class="ring-popover">
+                  <div class="ring-popover" :class="{ 'is-danger': diskLow }">
                     <div class="ring-pop-row">
                       <span>挂载点</span>
                       <span class="num">{{ rootDisk?.mount || '/' }}</span>
@@ -198,6 +201,7 @@
                   <template #reference>
                     <VChartPie
                       height="160px"
+                      :danger="diskLow"
                       :option="{
                         title: rootDisk?.mount || '/',
                         data: rootDisk?.percent || 0,
@@ -205,7 +209,11 @@
                     />
                   </template>
                 </el-popover>
-                <div class="input-help" v-if="rootDisk">
+                <div
+                  class="input-help"
+                  :class="{ 'is-danger': diskLow }"
+                  v-if="rootDisk"
+                >
                   {{ formatBytes(rootDisk.used) }} /
                   {{ formatBytes(rootDisk.total) }}
                 </div>
@@ -511,6 +519,15 @@ import {
   formatBytes,
   formatDurationLong,
 } from "@/utils/format";
+import {
+  ALERT,
+  diskLowMessage,
+  isCpuAlert,
+  isDiskLow,
+  isLoadAlert,
+  isMemAlert,
+  pickRootDisk,
+} from "@/utils/alerts";
 import VChartPie from "@/components/VChartPie.vue";
 import VChartLine from "@/components/VChartLine.vue";
 import javaLogo from "@/assets/runtime/java-original.svg";
@@ -816,13 +833,62 @@ const terminalActive = computed(() => {
   return app.hostSessions[t.id]?.subTab === "terminal";
 });
 
-const rootDisk = computed(() => {
-  if (!disks.value?.length) return null;
-  return (
-    disks.value.find((d) => d.mount === "/") ||
-    [...disks.value].sort((a, b) => b.total - a.total)[0]
-  );
+const rootDisk = computed(() => pickRootDisk(disks.value));
+const diskLow = computed(() => isDiskLow(disks.value));
+const cpuAlert = computed(() => isCpuAlert(overview.value));
+const memAlert = computed(() => isMemAlert(overview.value));
+const loadAlert = computed(() => isLoadAlert(overview.value));
+
+const alertLines = computed(() => {
+  const ov = overview.value;
+  if (!ov) return [] as { key: string; line: string }[];
+  const host = props.host;
+  const out: { key: string; line: string }[] = [];
+  if (cpuAlert.value) {
+    out.push({
+      key: "cpu",
+      line: `「${host}」CPU ${ov.cpuPercent.toFixed(1)}% ≥ ${ALERT.cpu}%`,
+    });
+  }
+  if (memAlert.value) {
+    out.push({
+      key: "mem",
+      line: `「${host}」内存 ${ov.memPercent.toFixed(1)}% 超过 ${ALERT.mem}%`,
+    });
+  }
+  if (diskLow.value) {
+    out.push({ key: "disk", line: diskLowMessage(host, disks.value) });
+  }
+  if (loadAlert.value) {
+    out.push({
+      key: "load",
+      line: `「${host}」负载 ${ov.load1.toFixed(2)} / ${ov.cpuCount} 核 超过警戒`,
+    });
+  }
+  return out;
 });
+
+let prevAlertKeys = new Set<string>();
+watch(
+  alertLines,
+  (lines) => {
+    const next = new Set(lines.map((l) => l.key));
+    const newLines = lines
+      .filter((l) => !prevAlertKeys.has(l.key))
+      .map((l) => l.line);
+    prevAlertKeys = next;
+    if (!newLines.length) return;
+    ElNotification({
+      type: "error",
+      title: newLines.length === 1 ? "主机告警" : `主机告警（${newLines.length} 项）`,
+      message: newLines.join("\n"),
+      duration: 10000,
+      position: "top-right",
+      showClose: true,
+    });
+  },
+  { deep: true }
+);
 
 const loadPercent = computed(() => {
   if (!overview.value?.cpuCount) return 0;
@@ -1223,6 +1289,10 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #646a73;
   margin-top: 2px;
+
+  &.is-danger {
+    color: var(--el-color-danger);
+  }
 }
 .disk-row {
   display: flex;
@@ -1324,6 +1394,10 @@ onBeforeUnmount(() => {
       color: var(--el-color-primary);
       white-space: nowrap;
     }
+  }
+
+  &.is-danger .num {
+    color: var(--el-color-danger);
   }
 
   /* CPU 型号行：标签固定宽，值截断 */
