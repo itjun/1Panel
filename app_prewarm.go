@@ -2,7 +2,6 @@ package main
 
 import (
 	"sync"
-	"time"
 
 	"diteng-pannel/internal/sshconfig"
 )
@@ -14,22 +13,14 @@ import (
 // agent HTTP 往返（毫秒级），冷主机首开从秒级降到毫秒级。
 // 尽力而为：失败静默（离线主机本就不可连），绝不阻塞启动。
 
-// prewarmHostsLater 延迟 1s 启动预热，避开首屏主机列表/分组/图标三连调高峰
-func (a *App) prewarmHostsLater() {
-	go func() {
-		time.Sleep(time.Second)
-		a.prewarmHosts()
-	}()
-}
-
-// prewarmHosts 对 ssh config 全部主机（过滤 Git 服务）并发预热，
-// 信号量限流的模式与 AgentBatchInstall 相同（那边并发 3，预热更轻量取 5）。
+// prewarmHosts 只预热已经装了 agent 的主机。
+// 未安装的 Status 会记住 NotInstalled，之后不再 SSH 探活（安装成功会 InvalidateStatus）。
 func (a *App) prewarmHosts() {
 	parsed, err := sshconfig.Parse()
 	if err != nil {
 		return
 	}
-	sem := make(chan struct{}, 5)
+	sem := make(chan struct{}, 16)
 	var wg sync.WaitGroup
 	for _, h := range parsed {
 		if sshconfig.IsGitHost(h) {
@@ -40,10 +31,10 @@ func (a *App) prewarmHosts() {
 		go func(name string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			// Status 内部完成整条链路：Client 创建 → token 缓存 →
-			// SSH 建连 → direct-tcpip 隧道 → /health → 状态缓存（30s TTL）。
-			// 结果无需理会，离线主机静默跳过。
-			_ = a.agentPool.Status(name, true)
+			st := a.agentPool.Status(name, false)
+			if st.NotInstalled || !st.OK {
+				return
+			}
 		}(h.Name)
 	}
 	wg.Wait()

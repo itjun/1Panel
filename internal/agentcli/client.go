@@ -126,11 +126,12 @@ type AgentEvent struct {
 
 // Status 缓存的 agent 状态（主机列表徽章用）
 type Status struct {
-	OK         bool      `json:"ok"`
-	Version    string    `json:"version"`
-	RSSKB      int64     `json:"rssKB"`
-	Error      string    `json:"error,omitempty"` // OK=false 时的原因摘要
-	CheckedAt  time.Time `json:"checkedAt"`
+	OK           bool      `json:"ok"`
+	Version      string    `json:"version"`
+	RSSKB        int64     `json:"rssKB"`
+	Error        string    `json:"error,omitempty"` // OK=false 时的原因摘要
+	NotInstalled bool      `json:"notInstalled,omitempty"`
+	CheckedAt    time.Time `json:"checkedAt"`
 }
 
 // Client 单个主机的 agent 访问客户端（懒建 HTTP 连接，按主机缓存 token）
@@ -201,12 +202,19 @@ func (p *Pool) GetWithOpt(host string, opt sshd.ConnectOption) (*Client, error) 
 }
 
 // Status 探测（或读缓存）agent 状态；force 时跳过缓存。
+// 未安装一旦确认，除非 force / InvalidateStatus，不再 SSH 探活。
 func (p *Pool) Status(host string, force bool) Status {
 	p.mu.Lock()
 	if !force {
-		if st, ok := p.statuses[host]; ok && time.Since(st.CheckedAt) < statusCacheTTL {
-			p.mu.Unlock()
-			return st
+		if st, ok := p.statuses[host]; ok {
+			if st.NotInstalled {
+				p.mu.Unlock()
+				return st
+			}
+			if time.Since(st.CheckedAt) < statusCacheTTL {
+				p.mu.Unlock()
+				return st
+			}
 		}
 	}
 	p.mu.Unlock()
@@ -234,11 +242,12 @@ func (p *Pool) probe(host string) Status {
 	defer cancel()
 	var h Health
 	if err := c.GetJSON(ctx, "/health", &h); err != nil {
-		msg := err.Error()
+		st := Status{Error: err.Error(), CheckedAt: time.Now()}
 		if errors.Is(err, ErrAgentUnreachable) || errors.Is(err, ErrNotInstalled) {
-			msg = ErrAgentUnreachable.Error()
+			st.NotInstalled = true
+			st.Error = ErrNotInstalled.Error()
 		}
-		return Status{Error: msg, CheckedAt: time.Now()}
+		return st
 	}
 	return Status{OK: true, Version: h.Version, RSSKB: h.RSSKB, CheckedAt: time.Now()}
 }

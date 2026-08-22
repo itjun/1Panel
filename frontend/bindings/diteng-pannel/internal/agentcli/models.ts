@@ -107,6 +107,7 @@ export interface Status {
      * OK=false 时的原因摘要
      */
     "error"?: string;
+    "notInstalled"?: boolean;
     "checkedAt": string;
 }
 

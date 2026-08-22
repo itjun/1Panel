@@ -15,8 +15,13 @@ import (
 // 面板不再经 SSH 频繁执行采集命令；方法签名与返回结构与历史版本保持一致，前端零改动。
 type Monitor App
 
-// agentClient 取主机的 agent 客户端（连接配置错误时直接报错）
+// agentClient 取主机的 agent 客户端（连接配置错误时直接报错）。
+// 已确认未安装的主机直接返回，避免分组轮询反复 SSH。
 func (s *Monitor) agentClient(host string) (*agentcli.Client, error) {
+	st := s.agentPool.Status(host, false)
+	if st.NotInstalled {
+		return nil, agentcli.ErrNotInstalled
+	}
 	return s.agentPool.Get(host)
 }
 

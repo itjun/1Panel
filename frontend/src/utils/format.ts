@@ -8,6 +8,12 @@ export function formatErr(e: unknown): string {
   return String(e);
 }
 
+/** agent 未安装 / 不可达：只应探一次，不当成持续连接告警 */
+export function isAgentMissing(err: unknown): boolean {
+  const s = formatErr(err);
+  return s.includes("agent 未安装") || s.includes("agent 不可达");
+}
+
 export function formatBytes(bytes: number, decimals = 1): string {
   if (!bytes || bytes <= 0) return "0 B";
   const k = 1024;

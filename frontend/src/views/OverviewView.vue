@@ -510,7 +510,7 @@ import { Close, FullScreen, Refresh } from "@element-plus/icons-vue";
 import { ElMessageBox, ElNotification } from "element-plus";
 import { api } from "@/api";
 import type { agentcli, monitor } from "@/api";
-import { formatErr } from "@/utils/format";
+import { formatErr, isAgentMissing } from "@/utils/format";
 import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
@@ -838,8 +838,12 @@ const diskLow = computed(() => isDiskLow(disks.value));
 const cpuAlert = computed(() => isCpuAlert(overview.value));
 const memAlert = computed(() => isMemAlert(overview.value));
 const loadAlert = computed(() => isLoadAlert(overview.value));
+const agentMissing = computed(
+  () => isAgentMissing(error.value) || !!agentInfo.value?.notInstalled
+);
 
 const alertLines = computed(() => {
+  if (agentMissing.value) return [] as { key: string; line: string }[];
   const ov = overview.value;
   if (!ov) return [] as { key: string; line: string }[];
   const host = props.host;
@@ -1106,12 +1110,10 @@ function onEnlargeKeydown(e: KeyboardEvent) {
 
 watch(
   () => props.host,
-  async () => {
+  () => {
     resetHostState();
     enlargedKey.value = null;
-    loading.value = true;
-    await refreshAll();
-    loading.value = false;
+    void refreshAll();
     void seedLiveCurves();
     void checkAgentInstalled();
   }
@@ -1120,7 +1122,11 @@ watch(
 watch(
   () => agentInstall.lastInstalled,
   (info) => {
-    if (info?.host === props.host) void loadAgentStatus();
+    if (info?.host === props.host) {
+      error.value = null;
+      void loadAgentStatus();
+      void refreshAll();
+    }
   }
 );
 
@@ -1129,30 +1135,25 @@ watch(terminalActive, (active) => {
   if (!active) void loadOverview();
 });
 
-onMounted(async () => {
+onMounted(() => {
   resetHostState();
-  loading.value = true;
-  await refreshAll();
-  loading.value = false;
+  void refreshAll();
   void seedLiveCurves();
   void checkAgentInstalled();
-  // 数据全时轮询保持常热（终端激活时暂停见 terminalActive）；
-  // 隐藏时的图表重绘开销由 useChartVisibility 承担（隐藏跳过重绘）
   timer = window.setInterval(() => {
-    if (terminalActive.value) return;
+    if (terminalActive.value || agentMissing.value) return;
     void loadOverview();
-  }, 3000);
-  // 历史模式低频刷新（落库数据 5s/5min 一档，60s 足够）
+  }, 2000);
   historyTimer = window.setInterval(() => {
     if (rangeMode.value !== "live") void loadHistory();
-  }, 60000);
-  // 低频保热：磁盘/Docker 计数/运行时/Agent 30s 轮询——切回概览即最新
+  }, 30000);
   slowTimer = window.setInterval(() => {
+    if (agentMissing.value) return;
     void loadDisks();
     void loadDocker();
     void loadRuntimes();
     void loadAgentStatus();
-  }, 30000);
+  }, 10000);
   window.addEventListener("keydown", onEnlargeKeydown);
 });
 

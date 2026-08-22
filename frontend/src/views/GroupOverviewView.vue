@@ -216,7 +216,7 @@ import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
-import { formatBytes, formatErr } from "@/utils/format";
+import { formatBytes, formatErr, isAgentMissing } from "@/utils/format";
 import {
   ALERT,
   diskLowMessage,
@@ -237,7 +237,7 @@ const app = useAppStore();
 const agentInstall = useAgentInstallStore();
 
 const THRESHOLDS = ALERT;
-const POLL_MS = 5000;
+const POLL_MS = 2000;
 
 /** 单主机面板状态：标题/地址来自 store（同步），指标通过 per-host 异步加载 */
 interface HostSnap {
@@ -340,7 +340,11 @@ const alertCount = computed(
   }).length
 );
 const errCount = computed(
-  () => hosts.value.filter((h) => !!hostState(h.name).error).length
+  () =>
+    hosts.value.filter((h) => {
+      const e = hostState(h.name).error;
+      return !!e && !isAgentMissing(e);
+    }).length
 );
 
 // ---------- 单主机加载（独立，互不阻塞）----------
@@ -348,6 +352,8 @@ const errCount = computed(
 async function loadOne(name: string, showSkeleton: boolean) {
   if (inFlight.has(name)) return;
   if (activeGroupId !== props.groupId) return;
+  const prev = hostStates.value[name];
+  if (prev?.error && isAgentMissing(prev.error)) return;
   inFlight.add(name);
   if (showSkeleton) {
     hostStates.value[name] = { loading: true };
@@ -390,6 +396,7 @@ function collectHostAlerts(name: string): { key: string; line: string }[] {
   const s = hostStates.value[name];
   if (!s) return [];
   if (s.error) {
+    if (isAgentMissing(s.error)) return [];
     return [
       {
         key: `${name}|conn`,
@@ -449,7 +456,7 @@ function notifyAllAlerts() {
 
 function statusLabel(name: string): string {
   const s = hostState(name);
-  if (s.error) return "失败";
+  if (s.error) return isAgentMissing(s.error) ? "未装" : "失败";
   if (!s.overview) return "—";
   if (isHostAlert(s)) return "告警";
   return "正常";
@@ -566,6 +573,9 @@ watch(
   () => agentInstall.lastInstalled,
   (info) => {
     if (info && hosts.value.some((h) => h.name === info.host)) {
+      const cur = hostStates.value[info.host];
+      if (cur) hostStates.value[info.host] = { ...cur, error: undefined, errorAt: undefined };
+      void loadOne(info.host, false);
       void loadAgentStatuses();
     }
   }
