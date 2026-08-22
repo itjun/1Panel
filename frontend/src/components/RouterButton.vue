@@ -1,6 +1,5 @@
 <template>
-  <!-- 照搬 1Panel components/router-button/index.vue：
-       白底页头卡包一排大号 radio 按钮，选中项白底 + 品牌蓝字 + 2px 品牌蓝边框 -->
+  <!-- 详情页一级标签：选中主色实底白字；未选中纯文字，悬停才出主色描边 -->
   <el-card class="router_card" :class="{ compact }">
     <div class="router-nav">
       <el-radio-group
@@ -85,10 +84,15 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
   }
 
   :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-    color: var(--panel-button-text-color) !important;
-    background-color: var(--panel-button-bg-color) !important;
+    color: #fff !important;
+    background-color: var(--panel-color-primary) !important;
     border-color: var(--panel-color-primary) !important;
     border-radius: 4px;
+    &:hover {
+      color: #fff !important;
+      background-color: var(--panel-color-primary) !important;
+      border-color: var(--panel-color-primary) !important;
+    }
   }
 }
 
