@@ -41,10 +41,10 @@ type App struct {
 	app        *application.App
 	mainWindow *application.WebviewWindow
 
-	showMu  sync.Mutex
-	sized   bool // 已按主屏算好尺寸（隐藏时完成，避免先小窗再拉伸）
-	uiReady bool // 前端首屏已画完
-	shown   bool // 已 Show，幂等
+	showMu      sync.Mutex
+	sized       bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
+	shown       bool
+	resizeSave  *time.Timer
 }
 
 // 按 grilling 时定下的策略：
@@ -88,15 +88,20 @@ func NewApp() *application.App {
 	})
 	core.app = app
 
-	// 主窗口：隐藏标题栏（红绿灯保留，Obsidian/Notion 风格）。
-	// Hidden：等前端首屏画完再 Show，避免 WebView 加载 2MB+ JS 期间白屏闪一下。
+	// 主窗口：隐藏标题栏。Hidden 只等到「尺寸已确定」，立刻 Show 出 HTML 骨架，
+	// 不再等 Vue 跑完（那会让 Dock 图标亮了窗口却迟迟不出来）。
+	winW, winH := 1280, 800
+	if sw, sh, ok := loadWindowGeom(); ok {
+		winW, winH = sw, sh
+		core.sized = true
+	}
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:                      "main",
 		Title:                     "1Pannel",
-		Width:                     1280,
-		Height:                    800,
-		MinWidth:                  1100,
-		MinHeight:                 700,
+		Width:                     winW,
+		Height:                    winH,
+		MinWidth:                  windowMinW,
+		MinHeight:                 windowMinH,
 		BackgroundColour:          application.NewRGB(244, 244, 244),
 		Hidden:                    true,
 		InitialPosition:           application.WindowCentered,
@@ -112,23 +117,19 @@ func NewApp() *application.App {
 	})
 	core.mainWindow = win
 
-	// 按主屏算 16:10 尺寸必须在 Hidden 期间完成，再 Show。
-	// 若先 Show 再 SetSize，用户会看到小窗被拽大（卡顿/撕裂）。
-	// v3 的 Screen 缓存在 ApplicationDidFinishLaunching 才填充，创建窗口时多半拿不到。
+	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
+	// 没有：按主屏算完再 Show，仍然不等 Vue。
 	core.fitWindowToPrimaryScreen()
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
 	})
-	app.Event.On("ui-ready", func(*application.CustomEvent) {
-		core.markUIReady()
-		core.fitWindowToPrimaryScreen()
-		core.maybeShowMainWindow()
+	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
+		core.enforceMinSize()
+		core.scheduleSaveGeom()
 	})
-	// 兜底：前端没发 ui-ready 或屏幕一直未就绪，3 秒后仍显示
 	go func() {
-		time.Sleep(3 * time.Second)
-		core.markUIReady()
+		time.Sleep(800 * time.Millisecond)
 		core.fitWindowToPrimaryScreen()
 		core.forceShowMainWindow()
 	}()
@@ -159,42 +160,81 @@ func NewApp() *application.App {
 		}
 	})
 
-	// 后台预热全部主机的 SSH 连接与 agent 隧道（见 app_prewarm.go）
-	core.prewarmHostsLater()
+	// 启动即预热全部主机 SSH / agent，不避让首屏
+	go core.prewarmHosts()
 
 	return app
 }
 
 func (a *App) shutdown() {
+	if a.mainWindow != nil {
+		w, h := a.mainWindow.Size()
+		saveWindowGeom(w, h)
+	}
 	a.sshMgr.CloseAll()
 	a.termMgr.CloseAll()
 }
 
-func (a *App) markUIReady() {
+func (a *App) scheduleSaveGeom() {
 	a.showMu.Lock()
-	a.uiReady = true
+	if a.resizeSave != nil {
+		a.resizeSave.Stop()
+	}
+	win := a.mainWindow
+	a.resizeSave = time.AfterFunc(200*time.Millisecond, func() {
+		if win == nil {
+			return
+		}
+		w, h := win.Size()
+		saveWindowGeom(w, h)
+	})
 	a.showMu.Unlock()
 }
 
-// maybeShowMainWindow 仅在「已按主屏定好尺寸 + 前端已画完」时 Show，避免小窗闪一下再拉伸。
+// maybeShowMainWindow 尺寸已确定就立刻 Show（HTML 骨架先上屏，不等 Vue）。
 func (a *App) maybeShowMainWindow() {
 	a.showMu.Lock()
-	defer a.showMu.Unlock()
-	if a.shown || a.mainWindow == nil || !a.sized || !a.uiReady {
+	if a.shown || a.mainWindow == nil || !a.sized {
+		a.showMu.Unlock()
 		return
 	}
-	a.mainWindow.Show()
+	win := a.mainWindow
 	a.shown = true
+	a.showMu.Unlock()
+	win.SetMinSize(windowMinW, windowMinH)
+	win.Center()
+	win.Show()
 }
 
 func (a *App) forceShowMainWindow() {
 	a.showMu.Lock()
-	defer a.showMu.Unlock()
 	if a.shown || a.mainWindow == nil {
+		a.showMu.Unlock()
 		return
 	}
-	a.mainWindow.Show()
+	win := a.mainWindow
 	a.shown = true
+	a.showMu.Unlock()
+	win.SetMinSize(windowMinW, windowMinH)
+	win.Show()
+}
+
+func (a *App) enforceMinSize() {
+	if a.mainWindow == nil {
+		return
+	}
+	w, h := a.mainWindow.Size()
+	nw, nh := w, h
+	if nw < windowMinW {
+		nw = windowMinW
+	}
+	if nh < windowMinH {
+		nh = windowMinH
+	}
+	if nw != w || nh != h {
+		a.mainWindow.SetMinSize(windowMinW, windowMinH)
+		a.mainWindow.SetSize(nw, nh)
+	}
 }
 
 // fitWindowToPrimaryScreen 按主屏分辨率计算 16:10 的窗口尺寸：
@@ -202,15 +242,13 @@ func (a *App) forceShowMainWindow() {
 // 必须在 Hidden 期间调用；成功后不再重复（避免覆盖用户后续的手动调整）。
 func (a *App) fitWindowToPrimaryScreen() {
 	a.showMu.Lock()
-	defer a.showMu.Unlock()
-	if a.sized {
-		return
-	}
-	if a.mainWindow == nil || a.app == nil {
+	if a.sized || a.mainWindow == nil || a.app == nil {
+		a.showMu.Unlock()
 		return
 	}
 	screen := a.app.Screen.GetPrimary()
 	if screen == nil || screen.Size.Width <= 0 || screen.Size.Height <= 0 {
+		a.showMu.Unlock()
 		return
 	}
 	screenW, screenH := screen.Size.Width, screen.Size.Height
@@ -220,9 +258,12 @@ func (a *App) fitWindowToPrimaryScreen() {
 		w = screenW * 9 / 10
 		h = w * 10 / 16
 	}
-	a.mainWindow.SetSize(w, h)
-	a.mainWindow.Center()
+	win := a.mainWindow
 	a.sized = true
+	a.showMu.Unlock()
+	win.SetSize(w, h)
+	win.Center()
+	saveWindowGeom(w, h)
 	a.app.Logger.Info("窗口按主屏自适应", "width", w, "height", h)
 }
 

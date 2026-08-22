@@ -122,6 +122,7 @@ import BackupImportDialog from "@/components/BackupImportDialog.vue";
 const app = useAppStore();
 // 确保设置 store 初始化并应用主题/字体
 useSettingsStore();
+void app.refresh();
 const addHostOpen = ref(false);
 const settingsOpen = ref(false);
 const backupImportRef = ref<InstanceType<typeof BackupImportDialog>>();
@@ -225,7 +226,7 @@ async function onAddHost() {
 /** v3 事件订阅：Events.On 返回退订函数，逐个保存后统一释放 */
 const eventOffs: (() => void)[] = [];
 
-onMounted(async () => {
+onMounted(() => {
   window.addEventListener("keydown", onGlobalKeydown, true);
   // macOS 应用菜单「设置…」点击事件 → 打开设置弹窗
   eventOffs.push(Events.On("open-settings", () => openSettings()));
@@ -245,7 +246,6 @@ onMounted(async () => {
       }
     })
   );
-  await app.refresh();
 });
 
 onBeforeUnmount(() => {
