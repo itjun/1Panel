@@ -244,14 +244,6 @@ export interface LocalTextCheck {
 }
 
 /**
- * TermWSInfo OpenTerminalWS 的返回值：前端用 URL 建立 WebSocket 数据通道
- */
-export interface TermWSInfo {
-    "sessionId": string;
-    "url": string;
-}
-
-/**
  * UpdateHostInput 是「编辑主机」对话框的入参
  * 别名不可在此接口修改（请用 RenameHost）；须带密码做连通性验证，通过后才写 config
  */

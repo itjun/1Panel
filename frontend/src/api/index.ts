@@ -220,9 +220,6 @@ export const api = {
     cols: number,
     rows: number
   ): Promise<string> => str(TerminalSvc.OpenTerminal(host, eventName, cols, rows)),
-  /** WS 模式终端（低延迟数据通道）；连接失败时调用方回退 openTerminal */
-  openTerminalWS: (host: string, cols: number, rows: number): Promise<main.TermWSInfo> =>
-    must(TerminalSvc.OpenTerminalWS(host, cols, rows)),
   writeTerminal: async (sessionID: string, data: string): Promise<void> => {
     await TerminalSvc.WriteTerminal(sessionID, data);
   },

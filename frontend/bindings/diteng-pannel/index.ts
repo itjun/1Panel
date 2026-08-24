@@ -37,6 +37,5 @@ export type {
     HostOverviewSnapshot,
     ImportResult,
     LocalTextCheck,
-    TermWSInfo,
     UpdateHostInput
 } from "./models.js";

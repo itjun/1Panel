@@ -104,6 +104,13 @@ func (m *Manager) GetClient(host string, opt ConnectOption) (*ssh.Client, error)
 	return m.Get(host, opt)
 }
 
+// DialNew 建立一条独立 SSH 连接（不进连接池、不 keepalive）。
+// 供终端 PTY 等需要与面板采集隔离的长会话使用，避免共享连接时互相反压。
+// 调用方负责在会话结束时 Close 释放连接。
+func (m *Manager) DialNew(opt ConnectOption) (*ssh.Client, error) {
+	return m.dial(opt)
+}
+
 // Dial 经 host 的 SSH 连接建立 direct-tcpip 通道，返回等效的 TCP 连接。
 // 与本地端口转发（ssh -L）等价，但不开本地端口、复用连接池与 keepalive。
 // 用于访问目标主机上的 agent（127.0.0.1:39190）等回环服务。

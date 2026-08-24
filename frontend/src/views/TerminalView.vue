@@ -166,8 +166,6 @@ interface Session {
   closed: boolean;
   reconnecting: boolean;
   el: HTMLDivElement;
-  /** WS 模式下关闭数据通道（销毁会话时调用） */
-  closeWs?: () => void;
   /** v3 Events.On 返回的退订函数（销毁会话时调用） */
   offData?: () => void;
   offExit?: () => void;
@@ -310,18 +308,6 @@ async function openNew() {
     /* ignore */
   }
 
-  // WS 数据通道（低延迟主路径）；null 表示当前为 Events 回退模式
-  let ws: WebSocket | null = null;
-  const closeWs = () => {
-    if (ws) {
-      try {
-        ws.close();
-      } catch {
-        /* ignore */
-      }
-      ws = null;
-    }
-  };
 
   // 先登记 tab，sessionID 待连接成功后填充（重连会更新它）
   const tab: Session = {
@@ -333,7 +319,6 @@ async function openNew() {
     closed: false,
     reconnecting: false,
     el,
-    closeWs,
   };
   sessions.value = [...sessions.value, tab];
   activeId.value = id;
@@ -346,65 +331,15 @@ async function openNew() {
   const ctl: ReconnectCtl = { timer: null, attempt: 0, stopped: false };
   reconnectMap.set(id, ctl);
 
-  // 建立 WS 数据通道：成功返回 sessionID，任一步失败返回 null（调用方回退 Events 模式）
-  async function connectWS(c: number, r: number): Promise<string | null> {
-    let info: { sessionId: string; url: string };
-    try {
-      info = await api.openTerminalWS(props.host, c, r);
-    } catch {
-      return null;
-    }
-    const sock = new WebSocket(info.url);
-    sock.binaryType = "arraybuffer";
-    const opened = await new Promise<boolean>((resolve) => {
-      const t = setTimeout(() => resolve(false), 3000);
-      sock.addEventListener("open", () => { clearTimeout(t); resolve(true); }, { once: true });
-      sock.addEventListener("error", () => { clearTimeout(t); resolve(false); }, { once: true });
-    });
-    if (!opened) {
-      try {
-        sock.close();
-      } catch {
-        /* ignore */
-      }
-      api.closeTerminal(info.sessionId).catch(() => {});
-      return null;
-    }
-    sock.onmessage = (ev) => {
-      if (typeof ev.data === "string") term.write(ev.data);
-      else term.write(new Uint8Array(ev.data as ArrayBuffer));
-    };
-    // 关闭帧 reason 由后端给出：exit=正常退出（不重连），其余视为异常断开 → 自动重连
-    sock.onclose = (ev) => {
-      if (ws === sock) ws = null;
-      if (ctl.stopped) return;
-      if (ev.code === 1000 && ev.reason === "exit") {
-        term.write("\r\n\x1b[33m[连接已关闭]\x1b[0m\r\n");
-        patchSession(id, { closed: true });
-      } else {
-        term.write("\r\n\x1b[33m[连接已断开，正在自动重连…]\x1b[0m\r\n");
-        patchSession(id, { closed: true, reconnecting: true, sessionID: "" });
-        notifyDisconnect();
-        ctl.attempt = 0;
-        void connect(false);
-      }
-    };
-    ws = sock;
-    return info.sessionId;
-  }
 
   // 连接（首次 + 自动重连复用）：成功填充 sessionID，失败指数退避重试
   async function connect(first: boolean) {
     const c = term.cols || 80;
     const r = term.rows || 24;
     try {
-      // 优先 WS 数据通道（接近原生的延迟），不可用时回退 Wails Events 模式
-      let sid = await connectWS(c, r);
-      if (sid === null) {
-        sid = await api.openTerminal(props.host, eventName, c, r);
-      }
+      // 数据通道：独立 SSH 连接 + Wails 事件推送
+      const sid = await api.openTerminal(props.host, eventName, c, r);
       if (ctl.stopped) {
-        closeWs();
         if (sid) api.closeTerminal(sid).catch(() => {});
         return;
       }
@@ -459,33 +394,10 @@ async function openNew() {
     }
   });
 
-  // 输入（Events 回退模式）：普通按键合并，控制字符立即发
-  let inputBuf = "";
-  let flushScheduled = false;
-  const flushInput = () => {
-    flushScheduled = false;
-    const sid = currentSid();
-    if (inputBuf && sid) {
-      api.writeTerminal(sid, inputBuf).catch(() => {});
-      inputBuf = "";
-    }
-  };
+  // 输入：每个字符直接发送（对齐 uniterm，无合并、无 setTimeout，保证输入连贯）
   term.onData((d) => {
-    // WS 模式：本地回环开销极低，每次按键直接发送，不做任何合并
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(d);
-      return;
-    }
-    if (!currentSid()) return;
-    inputBuf += d;
-    if (!flushScheduled) {
-      flushScheduled = true;
-      if (d === "\r" || d === "\n" || d.charCodeAt(0) < 32) {
-        flushInput();
-      } else {
-        setTimeout(flushInput, 0);
-      }
-    }
+    const sid = currentSid();
+    if (sid) api.writeTerminal(sid, d).catch(() => {});
   });
 
   // 窗口尺寸变化：用当前 sessionID 同步 PTY（重连后仍是此回调）
@@ -529,7 +441,6 @@ async function destroySession(t: Session) {
       /* ignore */
     }
   }
-  t.closeWs?.();
   t.offData?.();
   t.offExit?.();
   try {

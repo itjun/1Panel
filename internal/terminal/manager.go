@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 
 	"diteng-pannel/internal/sshd"
@@ -20,41 +19,32 @@ type EmitFunc func(eventName string, data ...any) bool
 
 // Manager 管理终端会话
 // 设计：
-//   - 每个 Tab 创建一个 Session（基于 ssh.Client 的独立 channel/PTY）
-//   - 复用 sshd.Manager 的连接池，避免重复鉴权
+//   - 每个 Tab 创建一个 Session，每个 Session 用独立 SSH 连接（不复用连接池），
+//     与面板采集的 agent 隧道隔离，避免共享连接互相反压导致输入卡顿
 //   - 用 SSH 协议的 RequestPty 申请真正的伪终端，远程 shell 会正常回显输入
-//   - 数据通道两种模式：WS 模式（localhost WebSocket 二进制帧，低延迟，见 ws.go）
-//     和 Events 模式（Wails 事件推送，作为 WS 不可用时的回退）
-//   - 关闭 Tab → 关 session → 远程 shell 收到 EOF 退出
+//   - 数据通道走 Wails 事件推送（异步非阻塞，见 pumpToEvent）
+//   - 关闭 Tab → 关 session + 关独立连接 → 远程 shell 收到 EOF 退出
 type Manager struct {
 	ctx      context.Context
 	sshMgr   *sshd.Manager
 	mu       sync.Mutex
 	sessions map[string]*Session
 
-	emit EmitFunc // Events 模式事件推送（注入，可空则跳过）
-
-	// WS 数据通道服务（懒启动，仅监听 127.0.0.1，见 ws.go）
-	wsMu   sync.Mutex
-	wsAddr string
+	emit EmitFunc // 事件推送（注入，可空则跳过）
 }
 
-// Session 一个终端会话，对应一个 SSH channel + PTY
+// Session 一个终端会话，对应一条独立 SSH 连接上的 channel + PTY
 type Session struct {
 	ID      string
 	Host    string
+	client  *ssh.Client  // 会话独占的 SSH 连接，Close 时释放
 	session *ssh.Session
 	stdin   io.WriteCloser
 	cancel  context.CancelFunc // 用于停止输出 goroutine
 	mu      sync.Mutex
 	closed  bool
-
-	// WS 模式字段（Events 模式下为零值，见 ws.go）
-	wsToken  string
-	wsStdout io.Reader       // 前端 attach 后才开始读取
-	wsConn   *websocket.Conn // attach 后填充
-	attached bool
 }
+
 
 // NewManager 创建终端管理器
 // sshMgr 由 App 注入，用于复用 SSH 连接池
@@ -75,14 +65,15 @@ func (m *Manager) Init(ctx context.Context, emit EmitFunc) {
 	m.emit = emit
 }
 
-// openShell 建立 SSH 会话、申请 PTY 并启动远程登录 shell（Events / WS 两种模式共用）
+// openShell 建立独立 SSH 连接、申请 PTY 并启动远程登录 shell。
+// 每个终端会话独占一条连接，与面板采集隔离，避免共享连接互相反压导致输入卡顿。
 // cols/rows 必须是前端 fit 后的真实尺寸；错误尺寸会导致远程 shell 开局乱码（如一串 ]）
-func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int) (*ssh.Client, *ssh.Session, io.WriteCloser, io.Reader, error) {
 	if m.ctx == nil {
-		return nil, nil, nil, fmt.Errorf("终端管理器未初始化")
+		return nil, nil, nil, nil, fmt.Errorf("终端管理器未初始化")
 	}
 	if m.sshMgr == nil {
-		return nil, nil, nil, fmt.Errorf("SSH 管理器未注入")
+		return nil, nil, nil, nil, fmt.Errorf("SSH 管理器未注入")
 	}
 	if cols < 20 {
 		cols = 80
@@ -91,15 +82,20 @@ func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int)
 		rows = 24
 	}
 
-	// 复用 sshd.Manager 的连接池拿到 *ssh.Client
-	client, err := m.sshMgr.GetClient(host, opt)
+	// 独立连接：不复用连接池，与面板采集的 agent 隧道隔离
+	client, err := m.sshMgr.DialNew(opt)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("连接 %s 失败: %w", host, err)
+		return nil, nil, nil, nil, fmt.Errorf("连接 %s 失败: %w", host, err)
+	}
+	// 后续任一失败都关掉独立连接，避免泄漏
+	closeOnErr := func() {
+		_ = client.Close()
 	}
 
 	session, err := client.NewSession()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("创建 SSH 会话失败: %w", err)
+		closeOnErr()
+		return nil, nil, nil, nil, fmt.Errorf("创建 SSH 会话失败: %w", err)
 	}
 
 	// 申请 PTY：这是终端能正常回显/补全/支持全屏程序的关键
@@ -112,32 +108,36 @@ func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int)
 	}
 	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		_ = session.Close()
-		return nil, nil, nil, fmt.Errorf("请求 PTY 失败: %w", err)
+		closeOnErr()
+		return nil, nil, nil, nil, fmt.Errorf("请求 PTY 失败: %w", err)
 	}
 
 	stdin, err := session.StdinPipe()
 	if err != nil {
 		_ = session.Close()
-		return nil, nil, nil, fmt.Errorf("获取 stdin 失败: %w", err)
+		closeOnErr()
+		return nil, nil, nil, nil, fmt.Errorf("获取 stdin 失败: %w", err)
 	}
 	stdout, err := session.StdoutPipe()
 	if err != nil {
 		_ = session.Close()
-		return nil, nil, nil, fmt.Errorf("获取 stdout 失败: %w", err)
+		closeOnErr()
+		return nil, nil, nil, nil, fmt.Errorf("获取 stdout 失败: %w", err)
 	}
 
 	// 启动远程登录 shell
 	if err := session.Shell(); err != nil {
 		_ = session.Close()
-		return nil, nil, nil, fmt.Errorf("启动 shell 失败: %w", err)
+		closeOnErr()
+		return nil, nil, nil, nil, fmt.Errorf("启动 shell 失败: %w", err)
 	}
-	return session, stdin, stdout, nil
+	return client, session, stdin, stdout, nil
 }
 
-// Open 启动一个 Events 模式终端会话（WS 不可用时的回退路径）
+// Open 启动一个终端会话（独立 SSH 连接 + Wails 事件推送）
 // host 是目标主机别名，eventName 是前端用来接收输出的 Wails 事件名
 func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, cols, rows int) (string, error) {
-	session, stdin, stdout, err := m.openShell(host, opt, cols, rows)
+	client, session, stdin, stdout, err := m.openShell(host, opt, cols, rows)
 	if err != nil {
 		return "", err
 	}
@@ -151,6 +151,7 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	s := &Session{
 		ID:      id,
 		Host:    host,
+		client:  client,
 		session: session,
 		stdin:   stdin,
 		cancel:  cancel,
@@ -224,7 +225,7 @@ func (m *Manager) Resize(sessionID string, cols, rows int) error {
 	return s.session.WindowChange(rows, cols)
 }
 
-// Close 关闭一个终端会话（关 stdin + 关 session，远程 shell 收到 EOF 退出）
+// Close 关闭一个终端会话（关 stdin + 关 session + 关独立连接，远程 shell 收到 EOF 退出）
 func (m *Manager) Close(sessionID string) error {
 	m.mu.Lock()
 	s, ok := m.sessions[sessionID]
@@ -243,6 +244,9 @@ func (m *Manager) Close(sessionID string) error {
 	s.cancel()
 	_ = s.stdin.Close()
 	_ = s.session.Close()
+	if s.client != nil {
+		_ = s.client.Close()
+	}
 	return nil
 }
 

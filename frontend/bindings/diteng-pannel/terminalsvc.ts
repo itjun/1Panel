@@ -10,29 +10,17 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
-import * as $models from "./models.js";
-
 export function CloseTerminal(sessionID: string): $CancellablePromise<void> {
     return $Call.ByID(1583452746, sessionID);
 }
 
 /**
- * OpenTerminal 打开一个终端会话（Events 模式，作为 WS 通道不可用时的回退）
+ * OpenTerminal 打开一个终端会话（独立 SSH 连接 + Wails 事件推送）
  * eventName 是前端订阅输出的 Wails 事件名
  * cols/rows 为 xterm fit 后的真实行列，开 PTY 时就用正确尺寸，避免开局乱码
  */
 export function OpenTerminal(host: string, eventName: string, cols: number, rows: number): $CancellablePromise<string> {
     return $Call.ByID(2917989910, host, eventName, cols, rows);
-}
-
-/**
- * OpenTerminalWS 打开一个 WS 模式终端会话（低延迟数据通道）
- * 输入输出走 localhost WebSocket 二进制帧；Resize / Close 频率低，仍走绑定方法
- */
-export function OpenTerminalWS(host: string, cols: number, rows: number): $CancellablePromise<$models.TermWSInfo> {
-    return $Call.ByID(2531311616, host, cols, rows);
 }
 
 /**

@@ -2,15 +2,16 @@ package main
 
 // 终端验证脚本（go run ./cmd/tterm）
 //
-// 本脚本走与 terminal.Manager.Open 完全相同的 SSH 代码路径来验证终端回显：
-//   sshd.Manager.GetClient → client.NewSession → session.RequestPty → session.Shell
+// 走与 terminal.Manager.openShell 完全相同的 SSH 代码路径来验证终端：
+//   sshd.Manager.DialNew（独立连接，不进连接池）→ client.NewSession
+//   → session.RequestPty → session.Shell
 //   → stdin.Write（用户输入）→ stdout.Read（远程回显+输出）
 //
 // manager.go 因为依赖 Wails runtime 无法独立运行，所以这里复制相同的调用序列。
 // 验证点：
-//   1. RequestPty 成功 → 远程 shell 在真正的 PTY 上运行
-//   2. 发送 echo 命令后，stdout 里能看到命令的回显（输入的字符被远程 shell 原样返回）
-//   3. 能看到命令的执行结果
+//   1. 独立连接 RequestPty 成功 → 远程 shell 在真正的 PTY 上运行
+//   2. 单条 echo 命令回显 + 执行结果
+//   3. 【核心】连续快速输入 N 条命令，全部回显 + 执行无丢失（对应「连续输入不卡顿/丢字」）
 //   4. WindowChange（resize）不报错
 
 import (
@@ -24,6 +25,9 @@ import (
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 )
+
+// batchCount 连续输入的命令条数（用户验收「连续输入很多命令」）
+const batchCount = 50
 
 func main() {
 	// 1. 从 ssh config 找 cdcp-beta
@@ -45,9 +49,8 @@ func main() {
 	}
 	fmt.Printf("== cdcp-beta: %s@%s ==\n\n", beta.User, beta.HostName)
 
-	// 2. 用 sshd.Manager 拿 *ssh.Client（与 terminal.Manager.Open 相同）
+	// 2. 用 DialNew 建立独立连接（与 terminal.Manager.openShell 相同，不复用连接池）
 	mgr := sshd.NewManager()
-	defer mgr.CloseAll()
 	opt := sshd.ConnectOption{
 		Host:         beta.Name,
 		HostName:     beta.HostName,
@@ -55,14 +58,15 @@ func main() {
 		Port:         beta.Port,
 		IdentityFile: beta.IdentityFile,
 	}
-	client, err := mgr.GetClient(beta.Name, opt)
+	client, err := mgr.DialNew(opt)
 	if err != nil {
-		fmt.Println("✗ GetClient 失败:", err)
+		fmt.Println("✗ DialNew 失败:", err)
 		os.Exit(1)
 	}
-	fmt.Println("✓ ssh.Client 已获取（复用 sshd.Manager 连接池）")
+	defer client.Close()
+	fmt.Println("✓ 独立 ssh.Client 已建立（DialNew，不进连接池，与面板采集隔离）")
 
-	// 3. 开 session + RequestPty + Shell（与 terminal.Manager.Open 完全一致）
+	// 3. 开 session + RequestPty + Shell（与 terminal.Manager.openShell 完全一致）
 	session, err := client.NewSession()
 	if err != nil {
 		fmt.Println("✗ NewSession 失败:", err)
@@ -72,8 +76,8 @@ func main() {
 
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
+		ssh.TTY_OP_ISPEED: 115200,
+		ssh.TTY_OP_OSPEED: 115200,
 	}
 	if err := session.RequestPty("xterm-256color", 30, 100, modes); err != nil {
 		fmt.Println("✗ RequestPty 失败:", err)
@@ -137,11 +141,10 @@ func main() {
 	fmt.Println("✓ 收到 shell 提示符")
 	time.Sleep(300 * time.Millisecond)
 
-	// 6. 发送 echo 命令，验证回显 + 执行结果
-	fmt.Println("\n--- 发送 'echo TTERM_ECHO_VERIFY_123' ---")
+	// 6. 单条 echo 命令：验证回显 + 执行结果
+	fmt.Println("\n--- 发送单条 'echo TTERM_ECHO_VERIFY_123' ---")
 	buf = nil
 	stdin.Write([]byte("echo TTERM_ECHO_VERIFY_123\n"))
-
 	t2 := time.After(3 * time.Second)
 	for {
 		select {
@@ -150,7 +153,6 @@ func main() {
 				goto EVAL
 			}
 			buf = append(buf, data...)
-			// 等到执行结果行出现（echo 输出 + 下一个提示符）
 			if strings.Count(string(buf), "TTERM_ECHO_VERIFY_123") >= 2 {
 				goto EVAL
 			}
@@ -162,20 +164,84 @@ func main() {
 EVAL:
 	echoed := strings.Contains(string(buf), "echo TTERM_ECHO_VERIFY_123")
 	resulted := strings.Count(string(buf), "TTERM_ECHO_VERIFY_123") >= 2
-	fmt.Printf("\n收到输出（可读化，去除 ANSI）:\n%s\n", stripANSI(string(buf)))
-	fmt.Println()
 	if echoed {
-		fmt.Println("✓ 回显正常：输出中看到了输入的命令 'echo TTERM_ECHO_VERIFY_123'")
+		fmt.Println("✓ 单条回显正常")
 	} else {
-		fmt.Println("✗ 回显失败：没看到输入的命令被回显")
+		fmt.Println("✗ 单条回显失败")
 	}
 	if resulted {
-		fmt.Println("✓ 执行正常：看到了命令的输出结果")
+		fmt.Println("✓ 单条执行结果正常")
 	} else {
-		fmt.Println("✗ 执行结果未确认")
+		fmt.Println("✗ 单条执行结果未确认")
 	}
 
-	// 7. 测试 WindowChange（resize）
+	// 7. 【核心】连续快速输入 batchCount 条命令，验证回显完整、无丢失、无卡顿
+	unique := fmt.Sprintf("%d", time.Now().UnixNano())
+	expect := make([]string, 0, batchCount)
+	var batch strings.Builder
+	for i := range batchCount {
+		token := fmt.Sprintf("BATCH_%02d_%s", i, unique)
+		batch.WriteString("echo ")
+		batch.WriteString(token)
+		batch.WriteByte('\n')
+		expect = append(expect, token)
+	}
+	fmt.Printf("\n--- 连续快速输入 %d 条命令（不逐条等待）---\n", batchCount)
+
+	buf = nil
+	writeStart := time.Now()
+	// 分 5 批快速写入，模拟「连续输入很多命令」的节奏
+	payload := batch.String()
+	step := len(payload) / 5
+	for i := range 5 {
+		end := (i + 1) * step
+		if i == 4 {
+			end = len(payload)
+		}
+		if _, err := stdin.Write([]byte(payload[i*step : end])); err != nil {
+			fmt.Println("✗ stdin.Write 失败:", err)
+			os.Exit(1)
+		}
+	}
+	lastToken := expect[batchCount-1]
+
+	// 等最后一条命令的执行结果出现（回显 + 结果 = 2 次），即全部命令已顺序执行完
+	t3 := time.After(20 * time.Second)
+	for {
+		select {
+		case data, ok := <-output:
+			if !ok {
+				goto BATCH_EVAL
+			}
+			buf = append(buf, data...)
+			if strings.Count(string(buf), lastToken) >= 2 {
+				goto BATCH_EVAL
+			}
+		case <-t3:
+			goto BATCH_EVAL
+		}
+	}
+
+BATCH_EVAL:
+	elapsed := time.Since(writeStart)
+	all := string(buf)
+	var lost []string
+	for _, token := range expect {
+		// 回显（命令本身）+ 执行结果（echo 输出），至少 2 次
+		if strings.Count(all, token) < 2 {
+			lost = append(lost, token)
+		}
+	}
+	okCount := batchCount - len(lost)
+	fmt.Printf("\n连续输入结果：%d/%d 条命令完整回显+执行，耗时 %v\n", okCount, batchCount, elapsed.Round(time.Millisecond))
+	if len(lost) > 0 {
+		fmt.Printf("✗ 丢失 %d 条：%v\n", len(lost), lost)
+	} else {
+		fmt.Println("✓ 全部命令回显 + 执行完整，无丢失")
+	}
+	batchOK := len(lost) == 0
+
+	// 8. 测试 WindowChange（resize）
 	fmt.Println("\n--- 测试 WindowChange(40, 120) ---")
 	if err := session.WindowChange(40, 120); err != nil {
 		fmt.Println("✗ WindowChange 失败:", err)
@@ -184,7 +250,7 @@ EVAL:
 	}
 	time.Sleep(300 * time.Millisecond)
 
-	// 8. 退出
+	// 9. 退出
 	fmt.Println("\n--- 发送 exit ---")
 	stdin.Write([]byte("exit\n"))
 	exitT := time.After(3 * time.Second)
@@ -202,10 +268,9 @@ DONE:
 	session.Wait()
 
 	fmt.Println("\n========== 结论 ==========")
-	if echoed && resulted {
-		fmt.Println("✅ 终端完全正常：PTY 回显 + 命令执行 + WindowChange + 干净退出")
-		fmt.Println("✅ 走的是与 terminal.Manager.Open 完全相同的 SSH 代码路径")
-		fmt.Println("✅ 之前「看不到输入命令」的核心 Bug 已修复")
+	if echoed && resulted && batchOK {
+		fmt.Println("✅ 终端完全正常：PTY 回显 + 命令执行 + 连续输入无丢失 + WindowChange + 干净退出")
+		fmt.Println("✅ 走的是与 terminal.Manager.openShell 完全相同的独立连接代码路径（DialNew）")
 		os.Exit(0)
 	}
 	fmt.Println("❌ 终端仍有问题")
@@ -227,7 +292,7 @@ func stripANSI(s string) string {
 			continue
 		}
 		if in {
-			if r == 'm' || r == 'K' || r == 'H' || r == 'J' || (r >= 'A' && r <= 'G') {
+			if r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' {
 				in = false
 			}
 			continue
