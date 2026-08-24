@@ -33,14 +33,35 @@ export function formatDuration(seconds: number): string {
 
 export function formatDurationLong(seconds: number): string {
   if (!seconds || seconds <= 0) return "—";
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
+  const secPerDay = 86400;
+  const secPerYear = 365 * secPerDay;
+  const secPerMonth = 30 * secPerDay;
+
+  let remain = Math.floor(seconds);
+  const years = Math.floor(remain / secPerYear);
+  remain = remain % secPerYear;
+
+  let months = 0;
+  if (years > 0) {
+    months = Math.floor(remain / secPerMonth);
+    remain = remain % secPerMonth;
+  }
+
+  const d = Math.floor(remain / secPerDay);
+  const h = Math.floor((remain % secPerDay) / 3600);
+  const m = Math.floor((remain % 3600) / 60);
+  const s = Math.floor(remain % 60);
+
   const parts: string[] = [];
-  if (d > 0) parts.push(`${d}天`);
-  if (h > 0 || d > 0) parts.push(`${h}小时`);
-  if (m > 0 || h > 0 || d > 0) parts.push(`${m}分钟`);
+  if (years > 0) {
+    parts.push(`${years}年`);
+    parts.push(`${months}月`);
+    parts.push(`${d}天`);
+  } else if (d > 0) {
+    parts.push(`${d}天`);
+  }
+  if (h > 0 || d > 0 || years > 0) parts.push(`${h}小时`);
+  if (m > 0 || h > 0 || d > 0 || years > 0) parts.push(`${m}分钟`);
   parts.push(`${s}秒`);
   return parts.join(" ");
 }
