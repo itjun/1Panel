@@ -161,7 +161,10 @@ func NewApp() *application.App {
 	})
 
 	// 启动即预热全部主机 SSH / agent，不避让首屏
-	go core.prewarmHosts()
+	go func() {
+		sshd.TriggerLocalNetworkPrivacy()
+		core.prewarmHosts()
+	}()
 
 	return app
 }

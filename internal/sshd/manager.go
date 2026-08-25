@@ -259,10 +259,13 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 	}
 	addr := net.JoinHostPort(opt.HostName, port)
 
-	// 手写 Dial：给整段握手设绝对截止时间，避免代理/防火墙半开连接永久挂死
-	raw, err := net.DialTimeout("tcp", addr, tcpConnectTimeout)
+	raw, err := dialTCPOnce(addr)
+	if err != nil && shouldRetryLAN(addr, err) {
+		TriggerLocalNetworkPrivacy()
+		raw, err = retryDialTCP(addr)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("连接 %s 失败: %w", addr, err)
+		return nil, wrapDialErr(addr, err)
 	}
 	_ = raw.SetDeadline(time.Now().Add(handshakeTimeout))
 
