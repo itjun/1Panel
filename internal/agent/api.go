@@ -56,6 +56,7 @@ type Server struct {
 	infoMu    sync.Mutex
 	info      HostInfo
 	collector *monitor.Collector
+	watcher   *Watcher
 }
 
 // NewServer token 为空串表示关闭 Bearer 鉴权
@@ -70,6 +71,10 @@ func NewServer(store *Store, mc *MetricCollector, retention Retention, version, 
 		collector: monitor.NewCollector(localRunner{}),
 		info:      CollectHostInfo(mc.procRoot),
 	}
+}
+
+func (s *Server) SetWatcher(w *Watcher) {
+	s.watcher = w
 }
 
 // collectFunc 按需采集处理函数：拿到共享的 Collector 和本次请求的 query
@@ -101,6 +106,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /metrics/range", s.handleRange)
 	mux.HandleFunc("GET /metrics/summary", s.handleSummary)
 	mux.HandleFunc("GET /events", s.handleEvents)
+	mux.HandleFunc("GET /watch/status", s.handleWatchStatus)
+	mux.HandleFunc("GET /watch/range", s.handleWatchRange)
+	mux.HandleFunc("GET /watch/events", s.handleWatchEvents)
+	mux.HandleFunc("GET /admin/watch", s.handleAdminWatchGet)
+	mux.HandleFunc("POST /admin/watch", s.handleAdminWatchPost)
 
 	// 按需采集：与面板 monitor.Collector 方法 1:1，本地执行
 	var local = sshd.ConnectOption{}
@@ -302,6 +312,81 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, evs)
+}
+
+func (s *Server) handleWatchStatus(w http.ResponseWriter, _ *http.Request) {
+	if s.watcher == nil {
+		writeJSON(w, http.StatusOK, []WatchStatus{})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.watcher.StatusSnapshot())
+}
+
+func (s *Server) handleWatchRange(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	from, err1 := strconv.ParseInt(q.Get("from"), 10, 64)
+	to, err2 := strconv.ParseInt(q.Get("to"), 10, 64)
+	if err1 != nil || err2 != nil || from <= 0 {
+		writeErr(w, http.StatusBadRequest, "from/to 需为 Unix 秒")
+		return
+	}
+	pts, err := s.store.QueryJarRange(from, to, q.Get("service"))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"points": pts})
+}
+
+func (s *Server) handleWatchEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	from, _ := strconv.ParseInt(q.Get("from"), 10, 64)
+	if from <= 0 {
+		from = time.Now().Add(-24 * time.Hour).Unix()
+	}
+	to, _ := strconv.ParseInt(q.Get("to"), 10, 64)
+	if to <= 0 {
+		to = time.Now().Add(time.Hour).Unix()
+	}
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	evs, err := s.store.QueryWatchEvents(from, to, q.Get("service"), limit)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, evs)
+}
+
+func (s *Server) handleAdminWatchGet(w http.ResponseWriter, _ *http.Request) {
+	if s.watcher == nil {
+		writeErr(w, http.StatusNotFound, "监视未启用")
+		return
+	}
+	b, err := os.ReadFile(watchPath(s.watcher.dataDir))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"yaml": string(b)})
+}
+
+func (s *Server) handleAdminWatchPost(w http.ResponseWriter, r *http.Request) {
+	if s.watcher == nil {
+		writeErr(w, http.StatusNotFound, "监视未启用")
+		return
+	}
+	var req struct {
+		YAML string `json:"yaml"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.YAML) == "" {
+		writeErr(w, http.StatusBadRequest, "需要 yaml 字段")
+		return
+	}
+	if err := s.watcher.ReplaceYAML([]byte(req.YAML)); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // ============ 按需采集：无 Collector 对应方法的特殊端点 ============

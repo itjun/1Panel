@@ -230,6 +230,81 @@ func (st *Store) Events(from, to int64, limit int) ([]Event, error) {
 	return evs, rows.Err()
 }
 
+// JarRangePoint JAR 时间序列
+type JarRangePoint struct {
+	TS         int64   `json:"ts"`
+	Service    string  `json:"service"`
+	PID        int     `json:"pid"`
+	Port       int     `json:"port"`
+	RSS        uint64  `json:"rss"`
+	CPUPercent float64 `json:"cpuPercent"`
+	HeapUsed   uint64  `json:"heapUsed"`
+	HeapMax    uint64  `json:"heapMax"`
+	GCPauseMs  float64 `json:"gcPauseMs"`
+	HealthOK   bool    `json:"healthOk"`
+}
+
+// QueryJarRange 按服务查 jar_samples
+func (st *Store) QueryJarRange(from, to int64, service string) ([]JarRangePoint, error) {
+	if from >= to {
+		return nil, fmt.Errorf("时间范围无效")
+	}
+	q := `SELECT ts, service, pid, port, rss, cpu_pct, heap_used, heap_max, gc_pause_ms, health_ok
+		FROM jar_samples WHERE ts >= ? AND ts <= ?`
+	args := []any{from, to}
+	if service != "" {
+		q += ` AND service = ?`
+		args = append(args, service)
+	}
+	q += ` ORDER BY ts`
+	rows, err := st.reader.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var pts []JarRangePoint
+	for rows.Next() {
+		var p JarRangePoint
+		var ok int
+		if err := rows.Scan(&p.TS, &p.Service, &p.PID, &p.Port, &p.RSS, &p.CPUPercent,
+			&p.HeapUsed, &p.HeapMax, &p.GCPauseMs, &ok); err != nil {
+			return nil, err
+		}
+		p.HealthOK = ok != 0
+		pts = append(pts, p)
+	}
+	return pts, rows.Err()
+}
+
+// QueryWatchEvents 分层探活事件
+func (st *Store) QueryWatchEvents(from, to int64, service string, limit int) ([]WatchEvent, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 200
+	}
+	q := `SELECT ts, service, layer, kind, msg FROM watch_events WHERE ts >= ? AND ts <= ?`
+	args := []any{from, to}
+	if service != "" {
+		q += ` AND service = ?`
+		args = append(args, service)
+	}
+	q += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := st.reader.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var evs []WatchEvent
+	for rows.Next() {
+		var e WatchEvent
+		if err := rows.Scan(&e.TS, &e.Service, &e.Layer, &e.Kind, &e.Msg); err != nil {
+			return nil, err
+		}
+		evs = append(evs, e)
+	}
+	return evs, rows.Err()
+}
+
 // TableStats /admin/stats 的行数信息
 type TableStats struct {
 	RawCount   int64 `json:"rawCount"`

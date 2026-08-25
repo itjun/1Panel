@@ -38,13 +38,13 @@
 ## 开发
 
 ```bash
-task agent:build   # 交叉编译 amd64+arm64 到 internal/agentres/bin（面板 go:embed 内嵌）
+task agent:build   # 源码有改则自动升补丁号，再交叉编译到 internal/agentres/bin
 task agent:test    # 构建并部署到 cdcp-beta 联调
 go run ./cmd/agenttest cdcp-beta            # 数据面全链路验证（隧道+全部端点）
 go run ./cmd/agentinstall-test cdcp-beta    # 安装/更新/回滚链路验证
 ```
 
-注意：`internal/agentres.AgentVersion` 与 agent 二进制的 `main.version` 必须同版本号注入（Taskfile 的 `VERSION` 变量），否则安装后健康检查会判定版本不一致并回滚。
+版本号单一来源：`internal/agentres/VERSION`。改 `cmd/spanel-agent` / `internal/agent` 后跑 `task agent:build` 会按源码哈希升补丁号（若已手动改过 VERSION 则不重复加）。`go test ./internal/agentres` 会检查 `SOURCE.sha256` 是否跟上。需要大版本时直接改 `VERSION` 再 build。
 ## 关键设计
 
 - **WAL**：`journal_mode=WAL` + `synchronous=NORMAL` + `busy_timeout=5000`（DSN 每连接生效）；`auto_vacuum=INCREMENTAL` 建库前设置；writer 独占单连接 + reader 只读连接。

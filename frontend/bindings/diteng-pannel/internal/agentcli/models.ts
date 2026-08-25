@@ -74,6 +74,22 @@ export interface HostInfo {
 }
 
 /**
+ * JarRangePoint /watch/range 点
+ */
+export interface JarRangePoint {
+    "ts": number;
+    "service": string;
+    "pid": number;
+    "port": number;
+    "rss": number;
+    "cpuPercent": number;
+    "heapUsed": number;
+    "heapMax": number;
+    "gcPauseMs": number;
+    "healthOk": boolean;
+}
+
+/**
  * RangePoint /metrics/range 数据点
  */
 export interface RangePoint {
@@ -120,4 +136,42 @@ export interface SummaryRange {
     "cpuMax": number;
     "load1Max": number;
     "memUsedMax": number;
+}
+
+/**
+ * WatchEventRow /watch/events
+ */
+export interface WatchEventRow {
+    "ts": number;
+    "service": string;
+    "layer": string;
+    "kind": string;
+    "msg": string;
+}
+
+/**
+ * WatchRangeResponse /watch/range
+ */
+export interface WatchRangeResponse {
+    "points": JarRangePoint[] | null;
+}
+
+/**
+ * WatchStatus /watch/status 单服务
+ */
+export interface WatchStatus {
+    "service": string;
+    "runtime": string;
+    "processUp": boolean;
+    "healthUp": boolean;
+    "ingressUp": boolean;
+    "ingressOn": boolean;
+    "instances": number;
+}
+
+/**
+ * WatchYAML /admin/watch
+ */
+export interface WatchYAML {
+    "yaml": string;
 }

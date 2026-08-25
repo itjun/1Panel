@@ -143,6 +143,15 @@
           @update:model-value="onMaxRunningHosts"
         />
       </section>
+
+      <section class="settings-section">
+        <h3 class="sec-title">应用监视</h3>
+        <p class="sec-desc">
+          分层探活与企微 Webhook 写在目标机
+          <code>/var/lib/spanel-agent/watch.yml</code>。在主机「应用」页拉取/下发；Webhook
+          不要提交到 git。验证请用 cdcp-beta，不要动生产 main/nginx。
+        </p>
+      </section>
     </div>
 
     <template #footer>

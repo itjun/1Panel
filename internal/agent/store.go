@@ -16,7 +16,8 @@ import (
 )
 
 // Schema 版本号：只增不改，升级时按 user_version 逐级迁移
-const schemaVersion = 1
+// 2: jar_samples / watch_events
+const schemaVersion = 2
 
 // 磁盘水位保护默认阈值：数据目录所在分区剩余比例低于该值时停写（保业务），恢复后续写
 const diskWatermarkPct = 5.0
@@ -42,8 +43,33 @@ type Store struct {
 
 // writeOp 写通道统一载荷：采样或事件（事件量极少，与样本共用单写协程）
 type writeOp struct {
-	sample *Sample
-	event  *Event
+	sample     *Sample
+	event      *Event
+	jarSample  *JarSample
+	watchEvent *WatchEvent
+}
+
+// JarSample 一次 JAR/JVM 采样（jar_samples）
+type JarSample struct {
+	TS         int64
+	Service    string
+	PID        int
+	Port       int
+	RSS        uint64  // bytes
+	CPUPercent float64 // 单核占比
+	HeapUsed   uint64  // bytes；拉不到为 0
+	HeapMax    uint64
+	GCPauseMs  float64 // micrometer MAX，秒转毫秒
+	HealthOK   bool
+}
+
+// WatchEvent 分层探活状态变化
+type WatchEvent struct {
+	TS      int64  `json:"ts"`
+	Service string `json:"service"`
+	Layer   string `json:"layer"` // process / health / ingress
+	Kind    string `json:"kind"`  // down / up
+	Msg     string `json:"msg"`
 }
 
 // Event agent 生命周期事件（events 表）
@@ -59,7 +85,7 @@ func OpenStore(dir string) (*Store, error) {
 	st := &Store{
 		dbPath:       dbPath,
 		dir:          dir,
-		ch:           make(chan writeOp, 64),
+		ch:           make(chan writeOp, 256),
 		watermarkPct: diskWatermarkPct,
 	}
 
@@ -160,11 +186,57 @@ func (st *Store) initSchema() error {
 			return fmt.Errorf("初始化建库: %w", err)
 		}
 	}
-	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
-		_ = tx.Rollback()
-		return fmt.Errorf("写 user_version: %w", err)
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("初始化建库: %w", err)
 	}
-	return tx.Commit()
+	return st.migrate()
+}
+
+func (st *Store) migrate() error {
+	var ver int
+	if err := st.writer.QueryRow(`PRAGMA user_version`).Scan(&ver); err != nil {
+		return fmt.Errorf("读 user_version: %w", err)
+	}
+	if ver < 2 {
+		stmts := []string{
+			`CREATE TABLE IF NOT EXISTS jar_samples (
+				id           INTEGER PRIMARY KEY,
+				ts           INTEGER NOT NULL,
+				service      TEXT NOT NULL,
+				pid          INTEGER NOT NULL,
+				port         INTEGER NOT NULL,
+				rss          INTEGER NOT NULL,
+				cpu_pct      REAL NOT NULL,
+				heap_used    INTEGER NOT NULL,
+				heap_max     INTEGER NOT NULL,
+				gc_pause_ms  REAL NOT NULL,
+				health_ok    INTEGER NOT NULL
+			)`,
+			`CREATE INDEX IF NOT EXISTS idx_jar_ts ON jar_samples(service, ts)`,
+			`CREATE TABLE IF NOT EXISTS watch_events (
+				id       INTEGER PRIMARY KEY,
+				ts       INTEGER NOT NULL,
+				service  TEXT NOT NULL,
+				layer    TEXT NOT NULL,
+				kind     TEXT NOT NULL,
+				msg      TEXT NOT NULL
+			)`,
+			`CREATE INDEX IF NOT EXISTS idx_watch_ts ON watch_events(ts)`,
+		}
+		for _, s := range stmts {
+			if _, err := st.writer.Exec(s); err != nil {
+				return fmt.Errorf("迁移 schema 2: %w", err)
+			}
+		}
+		if _, err := st.writer.Exec(`PRAGMA user_version = 2`); err != nil {
+			return err
+		}
+		ver = 2
+	}
+	if ver > schemaVersion {
+		return fmt.Errorf("数据库 schema %d 新于 agent %d，请升级面板 agent", ver, schemaVersion)
+	}
+	return nil
 }
 
 // EnqueueWrite 非阻塞投递一条采样：通道满时直接丢弃并计数，采集路径绝不等待
@@ -230,7 +302,19 @@ func (st *Store) apply(op writeOp) {
 		}
 		st.WrittenSamples.Add(1)
 		st.LastWriteErr.Store("")
-	} else if op.event != nil {
+		return
+	}
+	if op.jarSample != nil {
+		if err := st.insertJarSample(op.jarSample); err != nil {
+			st.LastWriteErr.Store(err.Error())
+		}
+		return
+	}
+	if op.watchEvent != nil {
+		st.insertWatchEvent(op.watchEvent)
+		return
+	}
+	if op.event != nil {
 		st.insertEvent(op)
 	}
 }
@@ -254,6 +338,37 @@ func (st *Store) insertSample(s *Sample) error {
 func (st *Store) insertEvent(op writeOp) {
 	_, _ = st.writer.Exec(`INSERT INTO events (ts, level, msg) VALUES (?,?,?)`,
 		op.event.TS, op.event.Level, op.event.Msg)
+}
+
+func (st *Store) insertJarSample(s *JarSample) error {
+	health := 0
+	if s.HealthOK {
+		health = 1
+	}
+	_, err := st.writer.Exec(`INSERT INTO jar_samples
+		(ts, service, pid, port, rss, cpu_pct, heap_used, heap_max, gc_pause_ms, health_ok)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		s.TS, s.Service, s.PID, s.Port, s.RSS, s.CPUPercent,
+		s.HeapUsed, s.HeapMax, s.GCPauseMs, health)
+	return err
+}
+
+func (st *Store) insertWatchEvent(e *WatchEvent) {
+	_, _ = st.writer.Exec(`INSERT INTO watch_events (ts, service, layer, kind, msg) VALUES (?,?,?,?,?)`,
+		e.TS, e.Service, e.Layer, e.Kind, e.Msg)
+}
+
+// EnqueueJar 非阻塞投递 JAR 采样
+func (st *Store) EnqueueJar(s *JarSample) {
+	st.enqueue(writeOp{jarSample: s})
+}
+
+// WriteWatchEvent 分层探活事件
+func (st *Store) WriteWatchEvent(e WatchEvent) {
+	if e.TS == 0 {
+		e.TS = time.Now().Unix()
+	}
+	st.enqueue(writeOp{watchEvent: &e})
 }
 
 // WriteEvent 供各组件记事件（经通道串行写入）

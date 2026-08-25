@@ -76,6 +76,8 @@ func main() {
 		Events: *retentionEvents,
 	}
 	srv := agent.NewServer(store, mc, retention, version, token)
+	watcher := agent.NewWatcher(store, *dataDir)
+	srv.SetWatcher(watcher)
 
 	// 采集循环：tick → 采样 → 非阻塞投递，永不等待网络/磁盘
 	go func() {
@@ -105,6 +107,7 @@ func main() {
 	go store.RunLoop(ctx)
 	go agent.NewAggregator(store).Run(ctx)
 	go agent.NewCleanup(store, retention).Run(ctx)
+	go watcher.Run(ctx)
 
 	// HTTP 服务
 	httpSrv := &http.Server{

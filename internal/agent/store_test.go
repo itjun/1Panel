@@ -175,6 +175,21 @@ func TestCleanupBatched(t *testing.T) {
 	}
 }
 
+func TestJarSampleRoundtrip(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Now().Unix()
+	if err := st.insertJarSample(&JarSample{
+		TS: now, Service: "std", PID: 12, Port: 8301, RSS: 100, CPUPercent: 3.2,
+		HeapUsed: 50, HeapMax: 200, GCPauseMs: 12, HealthOK: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pts, err := st.QueryJarRange(now-10, now+10, "std")
+	if err != nil || len(pts) != 1 || !pts[0].HealthOK || pts[0].Port != 8301 {
+		t.Fatalf("jar range: %+v %v", pts, err)
+	}
+}
+
 func TestEvents(t *testing.T) {
 	st := newTestStore(t)
 	st.WriteEvent("info", "hello")

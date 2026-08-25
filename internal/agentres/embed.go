@@ -9,10 +9,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"strings"
 )
 
-// AgentVersion 内置 agent 的版本号；构建时由 ldflags 注入（与面板版本一致）
-var AgentVersion = "dev"
+//go:embed VERSION
+var versionFile string
+
+// AgentVersion 内置 agent 版本，来自 VERSION 文件（task agent:build 在源码变动时会升号）。
+var AgentVersion = strings.TrimSpace(versionFile)
 
 // all: 前缀确保包含以点开头的占位文件，未构建产物时包也能编译
 //

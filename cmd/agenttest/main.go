@@ -71,6 +71,19 @@ func main() {
 	must(ctx, cli.GetJSON(ctx, "/events", &evs), "events")
 	fmt.Printf("[events] %d 条（最新: %s）\n", len(evs), lastMsg(evs))
 
+	var wst []agentcli.WatchStatus
+	if err := cli.GetJSON(ctx, "/watch/status", &wst); err != nil {
+		fmt.Printf("[watch/status] %v\n", err)
+	} else {
+		fmt.Printf("[watch/status] %d 个服务\n", len(wst))
+	}
+	var wyml agentcli.WatchYAML
+	if err := cli.GetJSON(ctx, "/admin/watch", &wyml); err != nil {
+		fmt.Printf("[admin/watch] %v\n", err)
+	} else {
+		fmt.Printf("[admin/watch] yaml %d bytes\n", len(wyml.YAML))
+	}
+
 	// 6) 全部 /collect 端点（面板各视图同链路）
 	type ep struct {
 		name string

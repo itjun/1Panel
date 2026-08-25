@@ -96,7 +96,9 @@ func (c *Cleanup) cleanup(ctx context.Context, total *int64) error {
 		cut     int64
 	}{
 		{"raw_metrics", "id", "ts", now.Add(-c.retention.Raw).Unix()},
+		{"jar_samples", "id", "ts", now.Add(-c.retention.Raw).Unix()},
 		{"events", "id", "ts", now.Add(-c.retention.Events).Unix()},
+		{"watch_events", "id", "ts", now.Add(-c.retention.Events).Unix()},
 		{"agg_metrics", "bucket", "bucket", now.Add(-c.retention.Agg).Unix()},
 	}
 	for _, t := range tables {

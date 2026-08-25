@@ -22,8 +22,8 @@ const AgentPort = "127.0.0.1:39190"
 
 // 请求超时：概览轮询等读库端点要快；按需采集（包列表等）允许更久
 const (
-	fastTimeout   = 5 * time.Second
-	slowTimeout   = 45 * time.Second
+	fastTimeout    = 5 * time.Second
+	slowTimeout    = 45 * time.Second
 	statusCacheTTL = 30 * time.Second
 )
 
@@ -122,6 +122,50 @@ type AgentEvent struct {
 	TS    int64  `json:"ts"`
 	Level string `json:"level"`
 	Msg   string `json:"msg"`
+}
+
+// WatchStatus /watch/status 单服务
+type WatchStatus struct {
+	Service   string `json:"service"`
+	Runtime   string `json:"runtime"`
+	ProcessUp bool   `json:"processUp"`
+	HealthUp  bool   `json:"healthUp"`
+	IngressUp bool   `json:"ingressUp"`
+	IngressOn bool   `json:"ingressOn"`
+	Instances int    `json:"instances"`
+}
+
+// JarRangePoint /watch/range 点
+type JarRangePoint struct {
+	TS         int64   `json:"ts"`
+	Service    string  `json:"service"`
+	PID        int     `json:"pid"`
+	Port       int     `json:"port"`
+	RSS        uint64  `json:"rss"`
+	CPUPercent float64 `json:"cpuPercent"`
+	HeapUsed   uint64  `json:"heapUsed"`
+	HeapMax    uint64  `json:"heapMax"`
+	GCPauseMs  float64 `json:"gcPauseMs"`
+	HealthOK   bool    `json:"healthOk"`
+}
+
+// WatchRangeResponse /watch/range
+type WatchRangeResponse struct {
+	Points []JarRangePoint `json:"points"`
+}
+
+// WatchEventRow /watch/events
+type WatchEventRow struct {
+	TS      int64  `json:"ts"`
+	Service string `json:"service"`
+	Layer   string `json:"layer"`
+	Kind    string `json:"kind"`
+	Msg     string `json:"msg"`
+}
+
+// WatchYAML /admin/watch
+type WatchYAML struct {
+	YAML string `json:"yaml"`
 }
 
 // Status 缓存的 agent 状态（主机列表徽章用）

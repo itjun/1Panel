@@ -113,6 +113,26 @@ export const api = {
     arr(Agent.AgentSummary(host)),
   agentEvents: (host: string): Promise<agentcli.AgentEvent[]> =>
     arr(Agent.AgentEvents(host)),
+  agentWatchStatus: (host: string) => arr(Agent.AgentWatchStatus(host)),
+  agentWatchRange: (
+    host: string,
+    service: string,
+    from: number,
+    to: number
+  ): Promise<agentcli.WatchRangeResponse> =>
+    must(Agent.AgentWatchRange(host, service, from, to)),
+  agentWatchEvents: (
+    host: string,
+    service: string,
+    from: number,
+    to: number
+  ) => arr(Agent.AgentWatchEvents(host, service, from, to)),
+  agentGetWatch: (host: string): Promise<agentcli.WatchYAML> =>
+    must(Agent.AgentGetWatch(host)),
+  agentPutWatch: async (host: string, yamlText: string): Promise<void> => {
+    await Agent.AgentPutWatch(host, yamlText);
+  },
+
   agentProbeInfo: (host: string): Promise<agentinstall.ProbeInfo> =>
     must(Agent.AgentProbeInfo(host)),
   agentLatestVersion: (): Promise<string> => str(Agent.AgentLatestVersion()),

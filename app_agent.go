@@ -81,6 +81,78 @@ func (s *Agent) AgentEvents(host string) ([]agentcli.AgentEvent, error) {
 	return r, err
 }
 
+// AgentWatchStatus 分层探活卡片
+func (s *Agent) AgentWatchStatus(host string) ([]agentcli.WatchStatus, error) {
+	cli, err := s.agentPool.Get(host)
+	if err != nil {
+		return nil, err
+	}
+	var r []agentcli.WatchStatus
+	err = cli.GetJSON(context.Background(), "/watch/status", &r, true)
+	return r, err
+}
+
+// AgentWatchRange JAR 采样序列
+func (s *Agent) AgentWatchRange(host, service string, from, to int64) (agentcli.WatchRangeResponse, error) {
+	cli, err := s.agentPool.Get(host)
+	if err != nil {
+		return agentcli.WatchRangeResponse{}, err
+	}
+	q := url.Values{"from": {strconv.FormatInt(from, 10)}, "to": {strconv.FormatInt(to, 10)}}
+	if service != "" {
+		q.Set("service", service)
+	}
+	var r agentcli.WatchRangeResponse
+	err = cli.GetJSON(context.Background(), "/watch/range?"+q.Encode(), &r, true)
+	return r, err
+}
+
+// AgentWatchEvents 分层探活事件
+func (s *Agent) AgentWatchEvents(host, service string, from, to int64) ([]agentcli.WatchEventRow, error) {
+	cli, err := s.agentPool.Get(host)
+	if err != nil {
+		return nil, err
+	}
+	q := url.Values{}
+	if from > 0 {
+		q.Set("from", strconv.FormatInt(from, 10))
+	}
+	if to > 0 {
+		q.Set("to", strconv.FormatInt(to, 10))
+	}
+	if service != "" {
+		q.Set("service", service)
+	}
+	path := "/watch/events"
+	if enc := q.Encode(); enc != "" {
+		path += "?" + enc
+	}
+	var r []agentcli.WatchEventRow
+	err = cli.GetJSON(context.Background(), path, &r, true)
+	return r, err
+}
+
+// AgentGetWatch 拉取 watch.yml
+func (s *Agent) AgentGetWatch(host string) (agentcli.WatchYAML, error) {
+	cli, err := s.agentPool.Get(host)
+	if err != nil {
+		return agentcli.WatchYAML{}, err
+	}
+	var r agentcli.WatchYAML
+	err = cli.GetJSON(context.Background(), "/admin/watch", &r)
+	return r, err
+}
+
+// AgentPutWatch 下发并热加载 watch.yml
+func (s *Agent) AgentPutWatch(host, yamlText string) error {
+	cli, err := s.agentPool.Get(host)
+	if err != nil {
+		return err
+	}
+	var out map[string]any
+	return cli.PostJSON(context.Background(), "/admin/watch", map[string]string{"yaml": yamlText}, &out)
+}
+
 // ============ 安装 / 更新 / 卸载（SSH 管理面，一次性命令） ============
 
 // AgentProbeInfo 探测目标主机（架构/systemd/安装状态）

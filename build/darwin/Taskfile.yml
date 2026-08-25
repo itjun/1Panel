@@ -6,6 +6,9 @@ includes:
 vars:
   # Docker image for cross-compilation (used when building on non-macOS)
   CROSS_IMAGE: wails-cross
+  # 本机只认这一份；仓库 bin/*.app 会进 Launch Services / 本地网络权限列表
+  INSTALL_APP: '/Applications/{{.APP_NAME}}.app'
+  LSREGISTER: '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
 
 tasks:
   build:
@@ -168,6 +171,31 @@ tasks:
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
       - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents"
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
+      - task: '{{if eq OS "darwin"}}unregister:repo:apps{{else}}codesign:skip{{end}}'
+
+  unregister:repo:apps:
+    summary: 把仓库里的 .app 从 Launch Services 注销，避免「本地网络」里堆出多份 1Pannel
+    internal: true
+    platforms: [darwin]
+    cmds:
+      - |
+        for p in "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"; do
+          if [ -e "$p" ]; then
+            abs="$(cd "$(dirname "$p")" && pwd)/$(basename "$p")"
+            {{.LSREGISTER}} -u "$abs" || true
+          fi
+        done
+
+  install:
+    summary: 安装到 /Applications 并删掉仓库里的 .app，只保留这一份
+    deps:
+      - task: package
+    platforms: [darwin]
+    cmds:
+      - ditto "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.INSTALL_APP}}"
+      - '{{.LSREGISTER}} -f {{.INSTALL_APP}}'
+      - task: unregister:repo:apps
+      - rm -rf "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
 
   codesign:adhoc:
     summary: Ad-hoc signs the app bundle (macOS only)
@@ -182,18 +210,22 @@ tasks:
       - 'echo "Skipping codesign (not available on {{OS}}). Sign the .app on macOS before distribution."'
 
   run:
+    summary: 覆盖安装到 /Applications 后启动（不在仓库里再注册一份 .app）
+    platforms: [darwin]
     cmds:
-      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
-      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
-      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
+      - mkdir -p "{{.INSTALL_APP}}/Contents/MacOS"
+      - mkdir -p "{{.INSTALL_APP}}/Contents/Resources"
+      - cp build/darwin/icons.icns "{{.INSTALL_APP}}/Contents/Resources"
       - |
         if [ -f build/darwin/Assets.car ]; then
-          cp build/darwin/Assets.car "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
+          cp build/darwin/Assets.car "{{.INSTALL_APP}}/Contents/Resources"
         fi
-      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
-      - cp "build/darwin/Info.dev.plist" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Info.plist"
-      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
-      - '"{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"'
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.INSTALL_APP}}/Contents/MacOS"
+      - cp "build/darwin/Info.dev.plist" "{{.INSTALL_APP}}/Contents/Info.plist"
+      - codesign --force --deep --sign - "{{.INSTALL_APP}}"
+      - task: unregister:repo:apps
+      - rm -rf "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
+      - '"{{.INSTALL_APP}}/Contents/MacOS/{{.APP_NAME}}"'
 
   sign:
     summary: Signs the application bundle with Developer ID

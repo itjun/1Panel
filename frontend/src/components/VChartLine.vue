@@ -24,7 +24,9 @@ export interface LineOption {
    * - 默认（不传）：用 formatRateKBps，适合网卡速率（KB/s）
    * - "bytes"：把原始值当字节，格式化为 B/KB/MB/GB，适合内存/堆
    */
-  unit?: "bytes" | "rate";
+  unit?: "bytes" | "rate" | "raw";
+  /** 与 xData 标签对齐的垂线（探活/进程事件） */
+  markLines?: { name: string; x: string }[];
 }
 
 const props = withDefaults(
@@ -108,6 +110,18 @@ function initChart() {
       item.data?.length > 0
         ? item.data
         : Array.from({ length: 20 }, () => null),
+    markLine:
+      index === 0 && (props.option.markLines?.length || 0) > 0
+        ? {
+            symbol: "none",
+            label: { formatter: "{b}", color: secondaryText },
+            lineStyle: { type: "dashed", color: "#f56c6c" },
+            data: (props.option.markLines || []).map((m) => ({
+              name: m.name,
+              xAxis: m.x,
+            })),
+          }
+        : undefined,
   }));
 
   chart.setOption(
@@ -123,7 +137,11 @@ function initChart() {
           for (const item of datas) {
             const n = typeof item.data === "number" ? item.data : 0;
             const formatted =
-              props.option.unit === "bytes" ? formatBytes(n) : formatRateKBps(n);
+              props.option.unit === "bytes"
+                ? formatBytes(n)
+                : props.option.unit === "raw"
+                  ? String(Math.round(n * 10) / 10)
+                  : formatRateKBps(n);
             res +=
               item.marker +
               " " +

@@ -23,6 +23,8 @@
             <string>true</string>
         <key>NSHumanReadableCopyright</key>
             <string>(c) 2026, 黄荣君</string>
+        <key>NSLocalNetworkUsageDescription</key>
+            <string>需要访问局域网中的服务器，以便通过 SSH 连接并管理主机。</string>
         <key>NSAppTransportSecurity</key>
         <dict>
             <key>NSAllowsLocalNetworking</key>

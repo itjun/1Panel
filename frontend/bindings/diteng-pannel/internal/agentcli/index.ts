@@ -7,8 +7,13 @@ export type {
     CurrentResponse,
     Health,
     HostInfo,
+    JarRangePoint,
     RangePoint,
     RangeResponse,
     Status,
-    SummaryRange
+    SummaryRange,
+    WatchEventRow,
+    WatchRangeResponse,
+    WatchStatus,
+    WatchYAML
 } from "./models.js";

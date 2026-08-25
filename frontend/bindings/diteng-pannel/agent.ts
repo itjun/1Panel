@@ -51,6 +51,13 @@ export function AgentEvents(host: string): $CancellablePromise<agentcli$0.AgentE
 }
 
 /**
+ * AgentGetWatch 拉取 watch.yml
+ */
+export function AgentGetWatch(host: string): $CancellablePromise<agentcli$0.WatchYAML> {
+    return $Call.ByID(1625487767, host);
+}
+
+/**
  * AgentHealth agent 健康/自身资源（含版本、RSS、丢弃计数）
  */
 export function AgentHealth(host: string): $CancellablePromise<agentcli$0.Health> {
@@ -72,6 +79,13 @@ export function AgentProbeInfo(host: string): $CancellablePromise<agentinstall$0
 }
 
 /**
+ * AgentPutWatch 下发并热加载 watch.yml
+ */
+export function AgentPutWatch(host: string, yamlText: string): $CancellablePromise<void> {
+    return $Call.ByID(2980397716, host, yamlText);
+}
+
+/**
  * AgentRange 历史时间序列（from/to 为 Unix 秒；src: auto/raw/agg）
  */
 export function AgentRange(host: string, $from: number, to: number, src: string): $CancellablePromise<agentcli$0.RangeResponse> {
@@ -90,6 +104,27 @@ export function AgentStatus(host: string, force: boolean): $CancellablePromise<a
  */
 export function AgentSummary(host: string): $CancellablePromise<agentcli$0.SummaryRange[] | null> {
     return $Call.ByID(2670964336, host);
+}
+
+/**
+ * AgentWatchEvents 分层探活事件
+ */
+export function AgentWatchEvents(host: string, service: string, $from: number, to: number): $CancellablePromise<agentcli$0.WatchEventRow[] | null> {
+    return $Call.ByID(3687297638, host, service, $from, to);
+}
+
+/**
+ * AgentWatchRange JAR 采样序列
+ */
+export function AgentWatchRange(host: string, service: string, $from: number, to: number): $CancellablePromise<agentcli$0.WatchRangeResponse> {
+    return $Call.ByID(504806680, host, service, $from, to);
+}
+
+/**
+ * AgentWatchStatus 分层探活卡片
+ */
+export function AgentWatchStatus(host: string): $CancellablePromise<agentcli$0.WatchStatus[] | null> {
+    return $Call.ByID(4273578357, host);
 }
 
 /**
