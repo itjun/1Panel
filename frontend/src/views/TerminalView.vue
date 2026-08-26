@@ -2,6 +2,8 @@
   <EnlargableCard bare title="终端" class="term-enl">
   <div
     class="term-root"
+    data-file-drop-target
+    :class="{ 'is-dragover': dragOver }"
     @dragenter.prevent="onDragEnter"
     @dragover.prevent
     @dragleave.prevent="onDragLeave"
@@ -47,8 +49,8 @@
       @contextmenu.prevent
     />
 
-    <!-- 拖拽上传遮罩：仅 UI 反馈，真正的本地路径来自 Wails OnFileDrop -->
-    <div v-if="dragOver" class="term-drop-overlay">
+    <!-- 拖拽上传遮罩：仅 UI 反馈；路径来自 Wails file:drop（需 data-file-drop-target） -->
+    <div class="term-drop-overlay">
       <el-icon class="term-drop-icon"><UploadFilled /></el-icon>
       <div class="term-drop-text">松开以上传到 /tmp</div>
     </div>
@@ -774,6 +776,7 @@ onBeforeUnmount(() => {
   /* 与概览卡片一致的圆角，外层 content-pad 留白后呈卡片形态 */
   border-radius: 6px;
   overflow: hidden;
+  position: relative; /* 拖拽遮罩定位基准 */
 }
 
 .term-bar {
@@ -929,7 +932,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   z-index: 50;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -938,6 +941,10 @@ onBeforeUnmount(() => {
   border: 2px dashed var(--el-color-primary, #005eeb);
   border-radius: 6px;
   pointer-events: none;
+}
+.term-root.is-dragover .term-drop-overlay,
+.term-root.file-drop-target-active .term-drop-overlay {
+  display: flex;
 }
 .term-drop-icon {
   font-size: 56px;

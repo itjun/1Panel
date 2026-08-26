@@ -1,23 +1,26 @@
 /**
  * 文件管理页的上传逻辑：
- * 拖拽上传（Wails OnFileDrop）、上传前编码检查、上传进度事件、文件选择器兜底。
+ * 拖拽上传（Wails WindowFilesDropped → file:drop）、上传前编码检查、
+ * 上传进度事件、系统文件对话框选择上传。
  * 从 FilesView.vue 抽出，行为保持不变。
  */
-import { computed, onBeforeUnmount, onMounted, ref, type Ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from "vue";
 import { ElMessage } from "element-plus";
+import { Dialogs, Events } from "@wailsio/runtime";
 import { api } from "@/api";
 import type { LocalTextCheck } from "@/api";
-import { Events } from "@wailsio/runtime";
 import { registerFileDrop } from "@/utils/fileDrop";
+import { useAppStore } from "@/stores/app";
 
 export function useFileUpload(
   host: () => string,
   cwd: Ref<string>,
   reload: () => void
 ) {
+  const app = useAppStore();
   const dragOver = ref(false);
   let dragCounter = 0;
-  let pendingPaths: string[] = []; // 拖入待上传的本地路径（文件/文件夹混合）
+  let pendingPaths: string[] = []; // 拖入 / 对话框选出的本地路径（文件/文件夹混合）
 
   const encodeVisible = ref(false);
   const encodeItems = ref<LocalTextCheck[]>([]);
@@ -30,8 +33,6 @@ export function useFileUpload(
     return Math.min(100, Math.round((uploadProg.value.uploaded / t) * 100));
   });
 
-  const fileInputRef = ref<HTMLInputElement | null>(null);
-
   function onDragEnter() {
     dragCounter++;
     dragOver.value = true;
@@ -43,14 +44,15 @@ export function useFileUpload(
       dragCounter = 0;
     }
   }
-  // drop 兜底：无论 Wails OnFileDrop 是否回调，webview 的 drop 触发时先复位遮罩，
+  // drop 兜底：无论 Wails 是否回调，webview 的 drop 触发时先复位遮罩，
   // 避免拖放后 dragCounter 失衡或回调未触发导致遮罩卡死
   function onDropFallback() {
     dragOver.value = false;
     dragCounter = 0;
   }
 
-  // 文件拖放：v3 由后端窗口事件转发为 "file:drop" 自定义事件（payload = 本地绝对路径数组）
+  // 文件拖放：v3 由后端窗口事件转发为 "file:drop"（payload = 本地绝对路径数组）
+  // 前提：放置目标元素带 data-file-drop-target（见 FilesView 根节点）
   function handleFileDrop(paths: string[]) {
     dragOver.value = false;
     dragCounter = 0;
@@ -115,42 +117,48 @@ export function useFileUpload(
     };
   }
 
-  function triggerUpload() {
-    fileInputRef.value?.click();
+  /** 系统文件对话框选路径（可多选、可选文件夹），再走与拖拽相同的编码检查/上传 */
+  async function triggerUpload() {
+    try {
+      const result = await Dialogs.OpenFile({
+        Title: "选择要上传的文件或文件夹",
+        AllowsMultipleSelection: true,
+        CanChooseFiles: true,
+        CanChooseDirectories: true,
+      });
+      const paths = Array.isArray(result)
+        ? result.filter(Boolean)
+        : result
+          ? [result]
+          : [];
+      if (!paths.length) return;
+      pendingPaths = paths;
+      void startEncodeCheck(paths);
+    } catch (e) {
+      ElMessage.error(`选择文件失败: ${e}`);
+    }
   }
 
-  async function onFilePicked(ev: Event) {
-    const input = ev.target as HTMLInputElement;
-    const files = input.files;
-    if (!files?.length) return;
-    // Wails 桌面端通常需要本地绝对路径；浏览器 file input 只有 blob。
-    // 若环境支持 path 属性（Electron/Wails 扩展），则上传。
-    let uploaded = 0;
-    for (const f of Array.from(files)) {
-      const any = f as File & { path?: string };
-      if (!any.path) {
-        ElMessage.warning("当前环境无法读取本地路径，请使用拖拽上传（桌面端）");
-        break;
-      }
-      try {
-        await api.uploadFile(host(), any.path, cwd.value);
-        uploaded++;
-      } catch (e) {
-        ElMessage.error(`上传失败 ${f.name}: ${e}`);
-      }
-    }
-    if (uploaded) {
-      ElMessage.success(`已上传 ${uploaded} 个文件`);
-      reload();
-    }
-    input.value = "";
-  }
-
-  // v3：拖放经 LIFO 分发器（最活跃视图接收）；进度事件各自订阅
+  // 仅当前主机「文件」子页可见时入栈，避免多主机常驻 FilesView 抢拖放
   let offDrop: (() => void) | null = null;
   let offProgress: (() => void) | null = null;
+
+  watch(
+    () => app.isHostSubActive(host(), "files"),
+    (active) => {
+      if (active) {
+        if (!offDrop) offDrop = registerFileDrop(handleFileDrop);
+      } else {
+        offDrop?.();
+        offDrop = null;
+        dragOver.value = false;
+        dragCounter = 0;
+      }
+    },
+    { immediate: true }
+  );
+
   onMounted(() => {
-    offDrop = registerFileDrop(handleFileDrop);
     offProgress = Events.On(
       "upload:progress",
       (ev: { data?: { uploaded: number; total: number; current: string } }) => {
@@ -160,6 +168,7 @@ export function useFileUpload(
   });
   onBeforeUnmount(() => {
     offDrop?.();
+    offDrop = null;
     offProgress?.();
   });
 
@@ -170,7 +179,6 @@ export function useFileUpload(
     uploading,
     uploadProg,
     uploadPercent,
-    fileInputRef,
     onDragEnter,
     onDragLeave,
     onDropFallback,
@@ -178,6 +186,5 @@ export function useFileUpload(
     uploadAllRaw,
     uploadWithConvert,
     triggerUpload,
-    onFilePicked,
   };
 }

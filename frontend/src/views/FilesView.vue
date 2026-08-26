@@ -2,6 +2,7 @@
   <EnlargableCard bare title="文件" class="files-enl">
   <div
     class="file-management-page"
+    data-file-drop-target
     :class="{ 'is-dragover': dragOver }"
     @dragenter.prevent="onDragEnter"
     @dragover.prevent
@@ -201,16 +202,8 @@
 
     <FilePreviewDrawer ref="previewRef" :host="props.host" />
 
-    <input
-      ref="fileInputRef"
-      type="file"
-      multiple
-      class="hidden-input"
-      @change="onFilePicked"
-    />
-
-    <!-- 拖拽上传遮罩 -->
-    <div v-if="dragOver" class="drop-overlay">
+    <!-- 拖拽上传遮罩：HTML5 dragOver 或 Wails file-drop-target-active 任一即可显示 -->
+    <div class="drop-overlay">
       <el-icon class="drop-icon"><UploadFilled /></el-icon>
       <div class="drop-text">松开以上传到当前目录</div>
       <div class="drop-cwd">{{ cwd }}</div>
@@ -316,7 +309,6 @@ const {
   uploading,
   uploadProg,
   uploadPercent,
-  fileInputRef,
   onDragEnter,
   onDragLeave,
   onDropFallback,
@@ -324,7 +316,6 @@ const {
   uploadAllRaw,
   uploadWithConvert,
   triggerUpload,
-  onFilePicked,
 } = useFileUpload(() => props.host, cwd, reload);
 
 // 切换主机时清空搜索与选择（目录/历史由 useFileNavigation 内部重置）
@@ -454,11 +445,12 @@ function toTerminal() {
 }
 
 /* ---- 拖拽上传遮罩 ---- */
+/* Wails v3 拖过 data-file-drop-target 时会加 file-drop-target-active */
 .drop-overlay {
   position: absolute;
   inset: 0;
   z-index: 100;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -467,6 +459,10 @@ function toTerminal() {
   border: 2px dashed var(--el-color-primary);
   border-radius: 6px;
   pointer-events: none;
+}
+.file-management-page.is-dragover .drop-overlay,
+.file-management-page.file-drop-target-active .drop-overlay {
+  display: flex;
 }
 .drop-icon {
   font-size: 56px;
@@ -690,10 +686,6 @@ html.dark .file-layout {
 .summary {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-}
-
-.hidden-input {
-  display: none;
 }
 
 @media (max-width: 1100px) {

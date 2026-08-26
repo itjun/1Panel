@@ -97,6 +97,7 @@
     >
       <div
         class="dropzone"
+        data-file-drop-target
         :class="{ hover: dropHover, checking: pairChecking }"
         @dragenter="onDragEnter"
         @dragleave="onDragLeave"
@@ -444,7 +445,8 @@ watch(
   color: var(--el-text-color-secondary);
   transition: border-color 0.2s;
 }
-.dropzone.hover {
+.dropzone.hover,
+.dropzone.file-drop-target-active {
   border-color: var(--el-color-primary);
   color: var(--el-color-primary);
 }
