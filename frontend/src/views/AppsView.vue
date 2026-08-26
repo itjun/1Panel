@@ -49,7 +49,9 @@
     </el-card>
 
     <el-dialog v-model="cfgOpen" title="下发 watch.yml" width="720px" append-to-body>
-      <p class="sec-desc">企业微信 Webhook 写在 yaml 的 wecomWebhook，不会进 git。保存后 agent 热加载。</p>
+      <p class="sec-desc">
+        服务清单与探活路径在此编辑。企微通知总开关 / 地址请到「设置 → 通知」配置并下发。
+      </p>
       <el-input v-model="yamlText" type="textarea" :rows="18" class="yaml-box" />
       <template #footer>
         <el-button @click="cfgOpen = false">取消</el-button>
@@ -66,9 +68,12 @@ import { api } from "@/api";
 import type { agentcli } from "@/api";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import { useAppStore } from "@/stores/app";
+import { useSettingsStore } from "@/stores/settings";
+import { patchWatchNotify } from "@/utils/watchYaml";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
+const settings = useSettingsStore();
 
 const error = ref("");
 const status = ref<agentcli.WatchStatus[]>([]);
@@ -200,7 +205,11 @@ async function openCfg() {
 async function saveCfg() {
   saving.value = true;
   try {
-    await api.agentPutWatch(props.host, yamlText.value);
+    const merged = patchWatchNotify(yamlText.value, {
+      wecomWebhook: settings.effectiveWecomWebhook(),
+    });
+    yamlText.value = merged;
+    await api.agentPutWatch(props.host, merged);
     ElMessage.success("已下发");
     cfgOpen.value = false;
     await loadAll();

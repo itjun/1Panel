@@ -24,3 +24,34 @@ func TestParseTCPListenAndMerge(t *testing.T) {
 		t.Fatalf("merge %+v", got)
 	}
 }
+
+func TestServerPortFromArg(t *testing.T) {
+	if serverPortFromArg("--server.port=8301") != 8301 {
+		t.Fatal("--server.port")
+	}
+	if serverPortFromArg("-Dserver.port=8101") != 8101 {
+		t.Fatal("-Dserver.port")
+	}
+	if serverPortFromArg("-jar") != 0 {
+		t.Fatal("非端口参数")
+	}
+}
+
+func TestPortsFromCmdlineDashD(t *testing.T) {
+	got := portsFromCmdline("java -Dserver.port=8101 -jar app.jar")
+	if len(got) != 1 || got[0] != 8101 {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestPickPort(t *testing.T) {
+	if pickPort([]int{39665, 8011}, 8011, 8019) != 8011 {
+		t.Fatal("应优先区间内端口")
+	}
+	if pickPort([]int{39665}, 8011, 8019) != 39665 {
+		t.Fatal("单监听口应回退使用")
+	}
+	if pickPort([]int{1, 2}, 8011, 8019) != 0 {
+		t.Fatal("多口且都不在区间应放弃")
+	}
+}

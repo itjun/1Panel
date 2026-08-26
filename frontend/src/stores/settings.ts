@@ -11,6 +11,10 @@ export interface AppSettings {
   terminalFontFamily: string;
   /** 同时后台挂起的主机会话数上限（4~24） */
   maxRunningHosts: number;
+  /** 企微通知总开关（关则下发空 webhook） */
+  notifyEnabled: boolean;
+  /** 企微机器人 Webhook 完整 URL 或 key */
+  wecomWebhook: string;
 }
 
 export const FONT_OPTIONS: { label: string; value: string }[] = [
@@ -116,6 +120,8 @@ const DEFAULTS: AppSettings = {
   terminalFontSize: 13,
   terminalFontFamily: TERMINAL_FONT_OPTIONS[0].value,
   maxRunningHosts: 12,
+  notifyEnabled: true,
+  wecomWebhook: "",
 };
 
 function load(): AppSettings {
@@ -146,6 +152,14 @@ function load(): AppSettings {
         4,
         24
       ),
+      notifyEnabled:
+        typeof parsed.notifyEnabled === "boolean"
+          ? parsed.notifyEnabled
+          : DEFAULTS.notifyEnabled,
+      wecomWebhook:
+        typeof parsed.wecomWebhook === "string"
+          ? parsed.wecomWebhook
+          : DEFAULTS.wecomWebhook,
     };
   } catch {
     return { ...DEFAULTS };
@@ -164,6 +178,8 @@ export const useSettingsStore = defineStore("settings", () => {
   const terminalFontSize = ref(initial.terminalFontSize);
   const terminalFontFamily = ref(initial.terminalFontFamily);
   const maxRunningHosts = ref(initial.maxRunningHosts);
+  const notifyEnabled = ref(initial.notifyEnabled);
+  const wecomWebhook = ref(initial.wecomWebhook);
 
   function persist() {
     const data: AppSettings = {
@@ -173,6 +189,8 @@ export const useSettingsStore = defineStore("settings", () => {
       terminalFontSize: terminalFontSize.value,
       terminalFontFamily: terminalFontFamily.value,
       maxRunningHosts: maxRunningHosts.value,
+      notifyEnabled: notifyEnabled.value,
+      wecomWebhook: wecomWebhook.value,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem("ipannel.theme", theme.value);
@@ -255,6 +273,22 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  function setNotifyEnabled(v: boolean) {
+    notifyEnabled.value = v;
+    persist();
+  }
+
+  function setWecomWebhook(v: string) {
+    wecomWebhook.value = v.trim();
+    persist();
+  }
+
+  /** 下发到 agent 时实际写入的 webhook（总开关关则空） */
+  function effectiveWecomWebhook(): string {
+    if (!notifyEnabled.value) return "";
+    return wecomWebhook.value.trim();
+  }
+
   function resetSettings() {
     theme.value = DEFAULTS.theme;
     fontFamily.value = DEFAULTS.fontFamily;
@@ -262,6 +296,8 @@ export const useSettingsStore = defineStore("settings", () => {
     terminalFontSize.value = DEFAULTS.terminalFontSize;
     terminalFontFamily.value = DEFAULTS.terminalFontFamily;
     maxRunningHosts.value = DEFAULTS.maxRunningHosts;
+    notifyEnabled.value = DEFAULTS.notifyEnabled;
+    wecomWebhook.value = DEFAULTS.wecomWebhook;
     applyAll();
     persist();
   }
@@ -286,6 +322,8 @@ export const useSettingsStore = defineStore("settings", () => {
     terminalFontSize,
     terminalFontFamily,
     maxRunningHosts,
+    notifyEnabled,
+    wecomWebhook,
     setTheme,
     cycleTheme,
     setFontFamily,
@@ -293,6 +331,9 @@ export const useSettingsStore = defineStore("settings", () => {
     setTerminalFontSize,
     setTerminalFontFamily,
     setMaxRunningHosts,
+    setNotifyEnabled,
+    setWecomWebhook,
+    effectiveWecomWebhook,
     resetSettings,
     applyAll,
   };

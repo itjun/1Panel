@@ -4,15 +4,17 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type javaProc struct {
-	PID      int
-	Comm     string
-	Cmdline  string
-	RSS      uint64
-	CPUTicks uint64
-	Ports    []int
+	PID       int
+	Comm      string
+	Cmdline   string
+	RSS       uint64
+	CPUTicks  uint64
+	Ports     []int
+	StartedAt time.Time // 进程启动时间（尽量从 /proc 推算）
 }
 
 func scanJavaProcs(procRoot string) []javaProc {
@@ -46,8 +48,12 @@ func scanJavaProcs(procRoot string) []javaProc {
 		if err != nil {
 			continue
 		}
-		cmd := strings.ReplaceAll(string(cmdb), "\x00", " ")
-		p := javaProc{PID: pid, Comm: name, Cmdline: cmd, RSS: readRSS(base+"/status") * 1024, CPUTicks: readCPUTicks(base + "/stat")}
+		cmd := strings.Join(splitCmdline(cmdb), " ")
+		p := javaProc{
+			PID: pid, Comm: name, Cmdline: cmd,
+			RSS: readRSS(base+"/status") * 1024, CPUTicks: readCPUTicks(base + "/stat"),
+			StartedAt: readProcStartTime(procRoot, base+"/stat"),
+		}
 		p.Ports = mergePorts(portsFromCmdline(cmd), portsFromFDs(base+"/fd", listen))
 		out = append(out, p)
 	}
@@ -172,15 +178,84 @@ func readCPUTicks(statPath string) uint64 {
 	return ut + st
 }
 
-func portsFromCmdline(cmd string) []int {
-	var ports []int
-	for _, f := range strings.Fields(cmd) {
-		if v, ok := strings.CutPrefix(f, "--server.port="); ok {
-			n, err := strconv.Atoi(v)
-			if err == nil && n > 0 {
-				ports = append(ports, n)
+// readProcStartTime 用 /proc/stat 的 btime + /proc/<pid>/stat 的 starttime（字段 22，HZ=100）
+func readProcStartTime(procRoot, statPath string) time.Time {
+	b, err := os.ReadFile(statPath)
+	if err != nil {
+		return time.Time{}
+	}
+	s := string(b)
+	i := strings.LastIndex(s, ")")
+	if i < 0 || i+2 > len(s) {
+		return time.Time{}
+	}
+	fields := strings.Fields(s[i+2:])
+	// after ")": state ... starttime is index 19 (man proc: field 22 overall = 22-3 = 19 after state at 1?)
+	// /proc/pid/stat: (comm) then fields[0]=state, [1]=ppid, ... [19]=starttime (22nd field)
+	if len(fields) < 20 {
+		return time.Time{}
+	}
+	startTicks, err := strconv.ParseUint(fields[19], 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	btime := readBootTime(procRoot + "/stat")
+	if btime <= 0 {
+		return time.Time{}
+	}
+	const hz = 100
+	return time.Unix(btime+int64(startTicks/hz), 0)
+}
+
+func readBootTime(statPath string) int64 {
+	b, err := os.ReadFile(statPath)
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(line, "btime "); ok {
+			n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+			if err == nil {
+				return n
 			}
 		}
 	}
+	return 0
+}
+
+func portsFromCmdline(cmd string) []int {
+	var ports []int
+	for _, f := range strings.Fields(cmd) {
+		if n := serverPortFromArg(f); n > 0 {
+			ports = append(ports, n)
+		}
+	}
 	return ports
+}
+
+// serverPortFromArg 解析 --server.port=N / -Dserver.port=N
+func serverPortFromArg(a string) int {
+	for _, prefix := range []string{"--server.port=", "-Dserver.port="} {
+		if v, ok := strings.CutPrefix(a, prefix); ok {
+			n, err := strconv.Atoi(v)
+			if err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+func splitCmdline(b []byte) []string {
+	var argv []string
+	start := 0
+	for i := 0; i <= len(b); i++ {
+		if i == len(b) || b[i] == 0 {
+			if i > start {
+				argv = append(argv, string(b[start:i]))
+			}
+			start = i + 1
+		}
+	}
+	return argv
 }

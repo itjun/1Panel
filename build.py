@@ -34,10 +34,12 @@ def run(cmd):
 # 构建产物与缓存目录：每次打包前清理，确保从头构建、旧内容不污染新产物
 CLEAN_PATHS = [
     BIN_DIR,                            # Go 二进制 + .app bundle（含旧 dev.app）
-    "internal/agentres/bin",            # 内嵌 spanel-agent 交叉编译产物
     "frontend/dist",                    # 前端 vite 构建产物
     "frontend/node_modules/.vite",      # vite 依赖预构建缓存
 ]
+
+# go:embed all:bin 要求目录始终存在；只清交叉编译产物，再留占位文件
+AGENTRES_BIN = "internal/agentres/bin"
 
 
 def clean():
@@ -46,6 +48,16 @@ def clean():
         if os.path.exists(path):
             shutil.rmtree(path, ignore_errors=True)
             print(f"    删除 {path}/")
+    # agent 产物：删文件但保留目录（否则 go run ./cmd/agentversion 因 embed 失败）
+    if os.path.isdir(AGENTRES_BIN):
+        for name in os.listdir(AGENTRES_BIN):
+            os.remove(os.path.join(AGENTRES_BIN, name))
+        print(f"    清空 {AGENTRES_BIN}/")
+    os.makedirs(AGENTRES_BIN, exist_ok=True)
+    placeholder = os.path.join(AGENTRES_BIN, ".gitkeep")
+    if not os.path.exists(placeholder):
+        open(placeholder, "a").close()
+        print(f"    保留 {placeholder}")
 
 
 def build():

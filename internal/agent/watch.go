@@ -32,6 +32,14 @@ type layerState struct {
 	seen           bool
 }
 
+// svcSeen 上次见到存活实例时的快照（告警时补端口/入口等）
+type svcSeen struct {
+	Port      int
+	Runtime   string
+	Entry     string
+	StartedAt time.Time
+}
+
 // Watcher 应用分层探活 + Actuator 采样
 type Watcher struct {
 	store   *Store
@@ -44,6 +52,7 @@ type Watcher struct {
 	cpu  map[int]cpuPrev
 	st   map[string]*layerState // service/layer
 	inst map[string]int
+	seen map[string]svcSeen // service → lastSeen
 	http *http.Client
 
 	host string
@@ -64,6 +73,7 @@ func NewWatcher(store *Store, dataDir string) *Watcher {
 		cpu:     map[int]cpuPrev{},
 		st:      map[string]*layerState{},
 		inst:    map[string]int{},
+		seen:    map[string]svcSeen{},
 		http:    &http.Client{Timeout: cfg.probeTimeout(), CheckRedirect: noFollowRedirect},
 		host:    h,
 	}
@@ -133,9 +143,13 @@ func (w *Watcher) tick() {
 				inst = append(inst, p)
 			}
 		}
+		// 进程层：仅实例数==0 告警；>=1 不告（整组视角）
 		w.mu.Lock()
 		w.inst[svc.Name] = len(inst)
 		w.mu.Unlock()
+		if len(inst) > 0 {
+			w.rememberSeen(svc, inst)
+		}
 		w.applyLayer(cfg, svc.Name, layerProcess, len(inst) > 0,
 			fmt.Sprintf("%s 进程层：%d 个实例", svc.Name, len(inst)))
 
@@ -156,10 +170,11 @@ func (w *Watcher) tick() {
 					healthAny = true
 				}
 				if pause >= cfg.GCPauseMarkMs && pause > 0 {
+					detail := fmt.Sprintf("%s GC pause %.0fms pid=%d", svc.Name, pause, p.PID)
 					w.store.WriteWatchEvent(WatchEvent{
-						TS: now.Unix(), Service: svc.Name, Layer: "gc", Kind: "spike",
-						Msg: fmt.Sprintf("%s GC pause %.0fms pid=%d", svc.Name, pause, p.PID),
+						TS: now.Unix(), Service: svc.Name, Layer: "gc", Kind: "spike", Msg: detail,
 					})
+					w.notifyGC(cfg, svc, port, p, detail, now)
 				}
 			}
 			cp := hs
@@ -189,7 +204,8 @@ func pickPort(ports []int, from, to int) int {
 			return p
 		}
 	}
-	if len(ports) > 0 {
+	// 配置区间可能过时（端口由配置中心下发）；单监听口时直接用，避免误取到其它无关端口
+	if len(ports) == 1 {
 		return ports[0]
 	}
 	return 0
@@ -360,9 +376,125 @@ func (w *Watcher) transition(cfg WatchConfig, service, layer, kind, detail strin
 		return
 	}
 	*last = now
-	if err := notifyWecom(cfg.WecomWebhook, msg); err != nil {
+
+	n := w.buildNotify(cfg, service, layer, kind, detail, now)
+	md := formatWatchMarkdown(n)
+	if err := notifyWecom(cfg.WecomWebhook, md); err != nil {
 		log.Printf("[watch] 企微: %v", err)
 		w.store.WriteEvent("warn", "企微发送失败: "+err.Error())
+	}
+}
+
+func (w *Watcher) rememberSeen(svc ServiceWatch, inst []javaProc) {
+	if len(inst) == 0 {
+		return
+	}
+	// 取第一个实例的端口/入口；多实例时端口取配置区间内的
+	p := inst[0]
+	port := pickPort(p.Ports, svc.PortFrom, svc.PortTo)
+	rt := svc.Runtime
+	if rt == "" {
+		rt = "java"
+	}
+	snap := svcSeen{
+		Port:      port,
+		Runtime:   rt,
+		Entry:     entryFromCmdline(p.Cmdline),
+		StartedAt: p.StartedAt,
+	}
+	// 若第一个没端口，试试其它实例
+	if snap.Port <= 0 {
+		for _, x := range inst[1:] {
+			if pt := pickPort(x.Ports, svc.PortFrom, svc.PortTo); pt > 0 {
+				snap.Port = pt
+				if snap.Entry == "" {
+					snap.Entry = entryFromCmdline(x.Cmdline)
+				}
+				if snap.StartedAt.IsZero() {
+					snap.StartedAt = x.StartedAt
+				}
+				break
+			}
+		}
+	}
+	w.mu.Lock()
+	w.seen[svc.Name] = snap
+	w.mu.Unlock()
+}
+
+func (w *Watcher) lookupSeen(service string) svcSeen {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.seen[service]
+}
+
+func (w *Watcher) buildNotify(cfg WatchConfig, service, layer, kind, detail string, now time.Time) WatchNotify {
+	snap := w.lookupSeen(service)
+	rt := snap.Runtime
+	if rt == "" {
+		for _, s := range cfg.Services {
+			if s.Name == service {
+				rt = s.Runtime
+				break
+			}
+		}
+		if rt == "" {
+			rt = "java"
+		}
+	}
+	n := WatchNotify{
+		Category:      layer,
+		Host:          w.host,
+		Service:       service,
+		Runtime:       rt,
+		Port:          snap.Port,
+		Entry:         snap.Entry,
+		Kind:          kind,
+		Detail:        detail,
+		NotifyAt:      now,
+		ProcStartedAt: snap.StartedAt,
+		TitleSuffix:   layerName(layer) + kindName(kind),
+	}
+	if kind == "up" {
+		n.Level = "ok"
+	} else {
+		n.Level = "critical"
+	}
+	return n
+}
+
+func (w *Watcher) notifyGC(cfg WatchConfig, svc ServiceWatch, port int, p javaProc, detail string, now time.Time) {
+	rt := svc.Runtime
+	if rt == "" {
+		rt = "java"
+	}
+	n := WatchNotify{
+		Level:         "warning",
+		Category:      "gc",
+		Host:          w.host,
+		Service:       svc.Name,
+		Runtime:       rt,
+		Port:          port,
+		Entry:         entryFromCmdline(p.Cmdline),
+		Kind:          "spike",
+		TitleSuffix:   "GC 尖峰",
+		Detail:        detail,
+		NotifyAt:      now,
+		ProcStartedAt: p.StartedAt,
+	}
+	// GC 也走 dedup：复用 health 层的 down 时间戳不合适；用独立 key 存 st
+	key := svc.Name + "/gc"
+	st := w.st[key]
+	if st == nil {
+		st = &layerState{}
+		w.st[key] = st
+	}
+	if !st.lastNotifyDown.IsZero() && now.Sub(st.lastNotifyDown) < time.Duration(cfg.DedupSec)*time.Second {
+		return
+	}
+	st.lastNotifyDown = now
+	if err := notifyWecom(cfg.WecomWebhook, formatWatchMarkdown(n)); err != nil {
+		log.Printf("[watch] 企微 GC: %v", err)
 	}
 }
 
