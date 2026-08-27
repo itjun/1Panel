@@ -143,6 +143,31 @@ export interface GroupOverview {
 }
 
 /**
+ * HostConnNotify 面板侧主机连接告警（停机 / 恢复）入参
+ */
+export interface HostConnNotify {
+    /**
+     * 企微 webhook URL 或 key；空则跳过
+     */
+    "webhook": string;
+
+    /**
+     * 主机别名
+     */
+    "host": string;
+
+    /**
+     * down | up
+     */
+    "kind": string;
+
+    /**
+     * 错误原文或恢复说明
+     */
+    "detail": string;
+}
+
+/**
  * HostIcon 一台主机的发行版图标记录（给前端侧栏/概览用）
  */
 export interface HostIcon {

@@ -15,6 +15,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as monitor$0 from "./internal/monitor/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
 /**
  * BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
  * 实际执行交给前端终端(实时显示输出),执行完由终端命令清理临时脚本。
@@ -29,6 +33,14 @@ export function BootstrapZsh(host: string): $CancellablePromise<string> {
  */
 export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
     return $Call.ByID(772990904);
+}
+
+/**
+ * NotifyHostConn 面板检测到主机连接失败 / 恢复时发送企微告警。
+ * 与 agent 侧 jar 探活告警共用同一 webhook 与 markdown 版式。
+ */
+export function NotifyHostConn($in: $models.HostConnNotify): $CancellablePromise<void> {
+    return $Call.ByID(1135117834, $in);
 }
 
 /**

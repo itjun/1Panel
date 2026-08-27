@@ -216,6 +216,7 @@ import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
+import { useSettingsStore } from "@/stores/settings";
 import { formatBytes, formatErr, isAgentMissing } from "@/utils/format";
 import {
   ALERT,
@@ -235,6 +236,7 @@ const props = defineProps<{
 
 const app = useAppStore();
 const agentInstall = useAgentInstallStore();
+const settings = useSettingsStore();
 
 const THRESHOLDS = ALERT;
 const POLL_MS = 2000;
@@ -373,6 +375,7 @@ async function loadOne(name: string, showSkeleton: boolean) {
       error: formatErr(e),
       errorAt: Date.now(),
     };
+    notifyAllAlerts();
   } finally {
     inFlight.delete(name);
   }
@@ -430,28 +433,76 @@ function collectHostAlerts(name: string): { key: string; line: string }[] {
 function notifyAllAlerts() {
   const next = new Set<string>();
   const newLines: string[] = [];
+  const connDowns: { host: string; detail: string }[] = [];
   for (const h of hosts.value) {
     for (const a of collectHostAlerts(h.name)) {
       next.add(a.key);
-      if (!prevAlertKeys.has(a.key)) newLines.push(a.line);
+      if (!prevAlertKeys.has(a.key)) {
+        newLines.push(a.line);
+        if (a.key.endsWith("|conn")) {
+          const s = hostStates.value[h.name];
+          connDowns.push({ host: h.name, detail: s?.error || a.line });
+        }
+      }
+    }
+  }
+  const recovered: string[] = [];
+  for (const key of prevAlertKeys) {
+    if (key.endsWith("|conn") && !next.has(key)) {
+      recovered.push(key.slice(0, -"|conn".length));
     }
   }
   prevAlertKeys = next;
-  if (newLines.length === 0) return;
-  const title = newLines.length === 1 ? "主机告警" : `主机告警（${newLines.length} 项）`;
-  const body = newLines.length <= 6
-    ? newLines.join("\n")
-    : `${newLines.slice(0, 6).join("\n")}\n…另有 ${newLines.length - 6} 项`;
-  ElNotification({
-    type: "error",
-    title,
-    message: body,
-    duration: 10000,
-    position: "top-right",
-    showClose: true,
-    zIndex: 50000,
-    customClass: "group-alert-notify",
-  });
+  if (newLines.length > 0) {
+    const title = newLines.length === 1 ? "主机告警" : `主机告警（${newLines.length} 项）`;
+    const body = newLines.length <= 6
+      ? newLines.join("\n")
+      : `${newLines.slice(0, 6).join("\n")}\n…另有 ${newLines.length - 6} 项`;
+    ElNotification({
+      type: "error",
+      title,
+      message: body,
+      duration: 10000,
+      position: "top-right",
+      showClose: true,
+      zIndex: 50000,
+      customClass: "group-alert-notify",
+    });
+  }
+  void sendHostConnWecom(connDowns, recovered);
+}
+
+/** 主机停机 / 恢复 → 企微（与 agent jar 探活共用 webhook；失败静默） */
+async function sendHostConnWecom(
+  downs: { host: string; detail: string }[],
+  recovered: string[]
+) {
+  const webhook = settings.effectiveWecomWebhook();
+  if (!webhook) return;
+  for (const d of downs) {
+    try {
+      await api.notifyHostConn({
+        webhook,
+        host: d.host,
+        kind: "down",
+        detail: d.detail,
+      });
+    } catch {
+      /* 企微失败不影响面板轮询 */
+    }
+  }
+  for (const host of recovered) {
+    try {
+      await api.notifyHostConn({
+        webhook,
+        host,
+        kind: "up",
+        detail: "连接已恢复",
+      });
+    } catch {
+      /* 同上 */
+    }
+  }
 }
 
 function statusLabel(name: string): string {

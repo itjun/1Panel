@@ -256,6 +256,11 @@ export const api = {
   /** 本机出口公网 IP 与归属地（来自 myip.ipip.net） */
   getMyEgress: (): Promise<monitor.EgressInfo> => must(System.GetMyEgress()),
 
+  /** 面板侧主机连接失败 / 恢复 → 企微告警（webhook 空则跳过） */
+  notifyHostConn: async (input: main.HostConnNotify): Promise<void> => {
+    await System.NotifyHostConn(input);
+  },
+
   /** 隐藏/恢复 macOS 窗口红绿灯（卡片最大化时使用，v3 原生按钮状态 API） */
   setTrafficLightsHidden: async (hidden: boolean): Promise<void> => {
     await System.SetTrafficLightsHidden(hidden);

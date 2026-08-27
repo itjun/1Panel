@@ -163,7 +163,7 @@
               <div>
                 <h3 class="sec-title">启用企微通知</h3>
                 <p class="sec-desc sec-desc--inline">
-                  总开关。关闭后下发空 Webhook，目标机不再推送告警。
+                  总开关。关闭后不推送：含目标机 jar 探活，以及面板侧主机停机告警。
                 </p>
               </div>
               <el-switch
@@ -177,7 +177,8 @@
             <h3 class="sec-title">通知地址</h3>
             <p class="sec-desc">
               企业微信群机器人 Webhook 完整 URL，或只填
-              <code>key=</code> 后面的 UUID。不会写入 git。改完后点「下发」写入选中主机。
+              <code>key=</code> 后面的 UUID。不会写入 git。改完后点「下发」写入选中主机；
+              面板侧主机停机告警直接使用此处地址，无需下发。
             </p>
             <el-input
               :model-value="settings.wecomWebhook"

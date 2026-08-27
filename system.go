@@ -1,6 +1,10 @@
 package main
 
 import (
+	"strings"
+	"time"
+
+	"diteng-pannel/internal/agent"
 	"diteng-pannel/internal/monitor"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -27,4 +31,39 @@ func (s *System) SetTrafficLightsHidden(hidden bool) {
 // 用于侧栏底部显示。不依赖任何主机。
 func (s *System) GetMyEgress() (monitor.EgressInfo, error) {
 	return monitor.FetchEgress()
+}
+
+// NotifyHostConn 面板检测到主机连接失败 / 恢复时发送企微告警。
+// 与 agent 侧 jar 探活告警共用同一 webhook 与 markdown 版式。
+func (s *System) NotifyHostConn(in HostConnNotify) error {
+	webhook := strings.TrimSpace(in.Webhook)
+	if webhook == "" {
+		return nil
+	}
+	host := strings.TrimSpace(in.Host)
+	if host == "" {
+		return nil
+	}
+	kind := strings.TrimSpace(in.Kind)
+	n := agent.WatchNotify{
+		Host:     host,
+		Kind:     kind,
+		Detail:   strings.TrimSpace(in.Detail),
+		NotifyAt: time.Now(),
+	}
+	if kind == "up" {
+		n.Level = "ok"
+		n.TitleSuffix = "主机已恢复"
+		if n.Detail == "" {
+			n.Detail = "连接已恢复"
+		}
+	} else {
+		n.Level = "critical"
+		n.TitleSuffix = "主机连接失败"
+		n.Kind = "down"
+		if n.Detail == "" {
+			n.Detail = "连接失败"
+		}
+	}
+	return agent.NotifyWecom(webhook, agent.FormatWatchMarkdown(n))
 }

@@ -36,6 +36,14 @@ type UpdateHostInput struct {
 	Password string `json:"password"` // 仅本次使用，不落盘
 }
 
+// HostConnNotify 面板侧主机连接告警（停机 / 恢复）入参
+type HostConnNotify struct {
+	Webhook string `json:"webhook"` // 企微 webhook URL 或 key；空则跳过
+	Host    string `json:"host"`    // 主机别名
+	Kind    string `json:"kind"`    // down | up
+	Detail  string `json:"detail"`  // 错误原文或恢复说明
+}
+
 // readPublicKey 读公钥文件内容（去掉末尾换行）
 func readPublicKey(path string) (string, error) {
 	path = expandTilde(path)

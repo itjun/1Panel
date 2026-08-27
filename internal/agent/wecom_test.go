@@ -71,6 +71,24 @@ func TestFormatWatchMarkdownUp(t *testing.T) {
 	}
 }
 
+func TestFormatWatchMarkdownHostDown(t *testing.T) {
+	at := time.Date(2026, 8, 27, 8, 51, 0, 0, time.Local)
+	md := FormatWatchMarkdown(WatchNotify{
+		Level:       "critical",
+		Host:        "cdcp-beta",
+		Kind:        "down",
+		TitleSuffix: "主机连接失败",
+		Detail:      `连接 198.51.100.10:22 失败: ssh: handshake failed: EOF`,
+		NotifyAt:    at,
+	})
+	want := "### <font color=\"red\">[严重]</font> cdcp-beta · 主机连接失败\n" +
+		">时间: 2026-08-27 08:51:00\n" +
+		">内容: 连接 198.51.100.10:22 失败: ssh: handshake failed: EOF\n"
+	if md != want {
+		t.Fatalf("got:\n%q\nwant:\n%q", md, want)
+	}
+}
+
 func TestEntryFromCmdline(t *testing.T) {
 	got := entryFromCmdline("java -jar /root/workspace/diteng-oss-202409.01.jar --server.port=1")
 	if got != "diteng-oss-202409.01.jar" {

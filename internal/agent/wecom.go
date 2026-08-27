@@ -26,6 +26,16 @@ type WatchNotify struct {
 	ProcStartedAt time.Time // zero = 省略
 }
 
+// NotifyWecom 向企业微信群机器人发送 markdown；webhook 为空则跳过。
+func NotifyWecom(webhook, markdown string) error {
+	return notifyWecom(webhook, markdown)
+}
+
+// FormatWatchMarkdown 格式化企微告警 markdown（agent 探活与面板主机告警共用）。
+func FormatWatchMarkdown(n WatchNotify) string {
+	return formatWatchMarkdown(n)
+}
+
 func notifyWecom(webhook, markdown string) error {
 	if webhook == "" {
 		return nil
