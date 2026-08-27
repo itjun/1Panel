@@ -16,7 +16,7 @@
         <div class="encode-head">
           <el-checkbox
             :model-value="checked.has(item.path)"
-            @change="(v: boolean) => toggleChecked(item.path, v)"
+            @change="(v) => toggleChecked(item.path, Boolean(v))"
           >
             <span class="encode-name">{{ item.relPath }}</span>
           </el-checkbox>

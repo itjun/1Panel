@@ -40,8 +40,8 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/wailsapp/wails/v3 v3.0.0-beta.10 h1:xF8iGQrs7QPdP6KQ5/dQABAKOzjCuxitkI2TZGcIYAg=
-github.com/wailsapp/wails/v3 v3.0.0-beta.10/go.mod h1:zKZYhB3WjrN5LhJWbnOAVMN0Xf8qTozbw2nf5micKl4=
+github.com/wailsapp/wails/v3 v3.0.0-beta.14 h1:g4VR4Ha1KZdwCi5Kt/pMjPSuYCx1R2Ui4AkKPDQ+LRM=
+github.com/wailsapp/wails/v3 v3.0.0-beta.14/go.mod h1:zKZYhB3WjrN5LhJWbnOAVMN0Xf8qTozbw2nf5micKl4=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
 golang.org/x/crypto v0.55.0/go.mod h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=

@@ -238,36 +238,41 @@ function formatTime(unix: number): string {
 /** 即将过期阈值（天），与 1Panel 保持一致 */
 const EXPIRE_SOON = 30;
 
-function statusText(row: CertGroup): string {
-  if (row.daysLeft < 0) return "已过期";
-  if (row.daysLeft <= EXPIRE_SOON) return "即将过期";
+function statusText(row: CertGroup | Record<string, unknown>): string {
+  const g = row as CertGroup;
+  if (g.daysLeft < 0) return "已过期";
+  if (g.daysLeft <= EXPIRE_SOON) return "即将过期";
   return "有效";
 }
 
-function statusType(row: CertGroup): "success" | "warning" | "danger" {
-  if (row.daysLeft < 0) return "danger";
-  if (row.daysLeft <= EXPIRE_SOON) return "warning";
+function statusType(row: CertGroup | Record<string, unknown>): "success" | "warning" | "danger" {
+  const g = row as CertGroup;
+  if (g.daysLeft < 0) return "danger";
+  if (g.daysLeft <= EXPIRE_SOON) return "warning";
   return "success";
 }
 
-function daysText(row: CertGroup): string {
-  if (row.daysLeft < 0) return `已过期 ${-row.daysLeft} 天`;
-  return `剩余 ${row.daysLeft} 天`;
+function daysText(row: CertGroup | Record<string, unknown>): string {
+  const g = row as CertGroup;
+  if (g.daysLeft < 0) return `已过期 ${-g.daysLeft} 天`;
+  return `剩余 ${g.daysLeft} 天`;
 }
 
-function daysClass(row: CertGroup): string {
-  if (row.daysLeft < 0) return "danger";
-  if (row.daysLeft <= EXPIRE_SOON) return "warning";
+function daysClass(row: CertGroup | Record<string, unknown>): string {
+  const g = row as CertGroup;
+  if (g.daysLeft < 0) return "danger";
+  if (g.daysLeft <= EXPIRE_SOON) return "warning";
   return "ok";
 }
 
-async function removeGroup(row: CertGroup) {
-  const paths = row.names.map((n) => `${CERT_DIR}/${n}`);
-  if (row.hasKey) paths.push(`${CERT_DIR}/${row.keyName}`);
-  const tip = row.hasKey ? `及其私钥 ${row.keyName}` : "";
+async function removeGroup(row: CertGroup | Record<string, unknown>) {
+  const g = row as CertGroup;
+  const paths = g.names.map((n) => `${CERT_DIR}/${n}`);
+  if (g.hasKey) paths.push(`${CERT_DIR}/${g.keyName}`);
+  const tip = g.hasKey ? `及其私钥 ${g.keyName}` : "";
   try {
     await ElMessageBox.confirm(
-      `将删除证书 ${row.names.join("、")}${tip}，删除后不可恢复，确定继续吗？`,
+      `将删除证书 ${g.names.join("、")}${tip}，删除后不可恢复，确定继续吗？`,
       "删除证书",
       { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
     );
@@ -276,7 +281,7 @@ async function removeGroup(row: CertGroup) {
   }
   try {
     await api.deletePaths(props.host, paths);
-    ElMessage.success(`已删除 ${row.names.join("、")}`);
+    ElMessage.success(`已删除 ${g.names.join("、")}`);
     loadCerts();
   } catch (e) {
     ElMessage.error(`删除失败: ${e}`);

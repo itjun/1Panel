@@ -50,7 +50,8 @@
 
 <script setup lang="ts">
 import { computed, h, ref } from "vue";
-import { ElTag } from "element-plus";
+import { ElTag, TableV2SortOrder } from "element-plus";
+import type { ColumnSortParams, SortBy } from "element-plus";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
@@ -111,14 +112,14 @@ const pkgColumns = [
   },
 ];
 
-const sortBy = ref<{ key: string; order: string }>({ key: "", order: "asc" });
-function onColumnSort(by: { key: string; order: string }) {
-  sortBy.value = by;
+const sortBy = ref<SortBy>({ key: "", order: TableV2SortOrder.ASC });
+function onColumnSort(by: ColumnSortParams<any>) {
+  sortBy.value = { key: by.key, order: by.order };
 }
 const sorted = computed(() => {
   const { key, order } = sortBy.value;
   if (!key) return filtered.value;
-  const dir = order === "desc" ? -1 : 1;
+  const dir = order === TableV2SortOrder.DESC ? -1 : 1;
   return [...filtered.value].sort((a, b) => {
     if (key === "depends") return dir * ((a.depends || 0) - (b.depends || 0));
     return (

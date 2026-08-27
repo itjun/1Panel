@@ -1,5 +1,6 @@
 <template>
-  <div class="app-shell">
+  <el-config-provider :locale="zhCn" size="default">
+    <div class="app-shell">
     <!-- 两列：竖线贯穿通栏。左列红绿灯+开关/搜索+侧栏，右列标题+主区 -->
     <div class="app-chrome" :class="{ 'sidebar-collapsed': !app.sidebarOpen }">
       <div class="titlebar-left drag-region" @dblclick="toggleMaximise">
@@ -102,12 +103,14 @@
     <SettingsDialog v-model="settingsOpen" />
     <AgentInstallDialog />
     <BackupImportDialog ref="backupImportRef" />
-  </div>
+    </div>
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
+import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
 import { Dialogs, Events, Window } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";

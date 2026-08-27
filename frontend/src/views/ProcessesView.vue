@@ -187,6 +187,14 @@ import {
   ElMessage,
   ElMessageBox,
   ElTag,
+  TableV2SortOrder,
+  TableV2FixedDir,
+} from "element-plus";
+import type {
+  Column,
+  ColumnSortParams,
+  RowEventHandlers,
+  SortBy,
 } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
@@ -374,7 +382,8 @@ const cpuCell = ({ cellData }: { cellData: number }) =>
 const memCell = ({ cellData }: { cellData: number }) =>
   h("span", { class: cellData > 50 ? "warn" : "" }, Number(cellData || 0).toFixed(1));
 
-const bytesCell = ({ cellData }: { cellData: number }) => formatBytes(cellData || 0);
+const bytesCell = ({ cellData }: { cellData: number }) =>
+  h("span", { class: "mono" }, formatBytes(cellData || 0));
 
 /** java 视图的堆内存单元格：Xms~Xmx，未设置的一侧显示「默认」 */
 function heapCell({ rowData }: { rowData: RuntimeProc }) {
@@ -430,7 +439,7 @@ function actionCell(copyLabel: string, getCmd: (row: ProcInfo | RuntimeProc) => 
 }
 
 /** 全部进程视图列 */
-const allColumns = [
+const allColumns: Column<any>[] = [
   { key: "pid", dataKey: "pid", title: "PID", width: 80 },
   { key: "user", dataKey: "user", title: "用户", width: 90 },
   { key: "cpu", dataKey: "cpu", title: "CPU%", width: 80, sortable: true, cellRenderer: cpuCell },
@@ -459,13 +468,13 @@ const allColumns = [
     title: "操作",
     width: 72,
     align: "right" as const,
-    fixed: "right" as const,
+    fixed: TableV2FixedDir.RIGHT,
     cellRenderer: actionCell("复制启动命令", (r) => (r as ProcInfo).cmd || ""),
   },
 ];
 
 /** 运行时视图列（java 多一列堆内存） */
-const runtimeColumns = computed(() => [
+const runtimeColumns = computed((): Column<any>[] => [
   { key: "pid", dataKey: "pid", title: "PID", width: 80 },
   {
     key: "user",
@@ -537,19 +546,19 @@ const runtimeColumns = computed(() => [
     title: "操作",
     width: 72,
     align: "right" as const,
-    fixed: "right" as const,
+    fixed: TableV2FixedDir.RIGHT,
     cellRenderer: actionCell("复制命令行", (r) => (r as RuntimeProc).args || ""),
   },
 ]);
 
 /** CPU 排序状态（原 sort-method 迁移为 computed 排序） */
-const sortBy = ref<{ key: string; order: string }>({ key: "", order: "asc" });
-function onColumnSort(by: { key: string; order: string }) {
-  sortBy.value = by;
+const sortBy = ref<SortBy>({ key: "", order: TableV2SortOrder.ASC });
+function onColumnSort(by: ColumnSortParams<any>) {
+  sortBy.value = { key: by.key, order: by.order };
 }
 const sortedRows = computed(() => {
   if (sortBy.value.key !== "cpu") return filtered.value;
-  const dir = sortBy.value.order === "desc" ? -1 : 1;
+  const dir = sortBy.value.order === TableV2SortOrder.DESC ? -1 : 1;
   return [...filtered.value].sort((a, b) => dir * ((a.cpu || 0) - (b.cpu || 0)));
 });
 
@@ -575,20 +584,20 @@ function procAsCard(p: ProcInfo): RuntimeProc {
 }
 
 /** 运行时视图行事件：悬浮详情卡 + 点击固定（对应原 cell-mouse-* / cell-click） */
-const rowEventHandlers = {
-  onMouseEnter: ({ rowData, event }: { rowData: RuntimeProc; event: MouseEvent }) =>
-    onRowEnter(rowData, event),
-  onMouseLeave: () => scheduleHide(),
-  onClick: ({ rowData, event }: { rowData: RuntimeProc; event: MouseEvent }) =>
-    onCellClick(rowData, event),
+const rowEventHandlers: RowEventHandlers = {
+  onMouseenter: ({ rowData, event }) =>
+    onRowEnter(rowData as RuntimeProc, event as MouseEvent),
+  onMouseleave: () => scheduleHide(),
+  onClick: ({ rowData, event }) =>
+    onCellClick(rowData as RuntimeProc, event as MouseEvent),
 };
 
-const allRowEventHandlers = {
-  onMouseEnter: ({ rowData, event }: { rowData: ProcInfo; event: MouseEvent }) =>
-    onRowEnter(procAsCard(rowData), event),
-  onMouseLeave: () => scheduleHide(),
-  onClick: ({ rowData, event }: { rowData: ProcInfo; event: MouseEvent }) =>
-    onCellClick(procAsCard(rowData), event),
+const allRowEventHandlers: RowEventHandlers = {
+  onMouseenter: ({ rowData, event }) =>
+    onRowEnter(procAsCard(rowData as ProcInfo), event as MouseEvent),
+  onMouseleave: () => scheduleHide(),
+  onClick: ({ rowData, event }) =>
+    onCellClick(procAsCard(rowData as ProcInfo), event as MouseEvent),
 };
 
 function isActionEvent(e: MouseEvent) {
@@ -602,7 +611,7 @@ watch(view, () => {
   clearTimeout(hideTimer);
   card.visible = false;
   card.pinned = false;
-  sortBy.value = { key: "", order: "asc" };
+  sortBy.value = { key: "", order: TableV2SortOrder.ASC };
 });
 
 function cpuClass(cpu: number) {

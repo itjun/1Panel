@@ -10,9 +10,9 @@
       row-key="path"
       empty-text="空目录"
       table-layout="auto"
-      @selection-change="(v: FileEntry[]) => emit('selection-change', v)"
-      @row-dblclick="(row: FileEntry) => emit('open', row)"
-      @sort-change="(p: SortPayload) => emit('sort-change', p)"
+      @selection-change="onSelectionChange"
+      @row-dblclick="onOpen"
+      @sort-change="onSortChange"
     >
       <el-table-column type="selection" width="42" />
       <el-table-column
@@ -25,7 +25,7 @@
         <template #default="{ row }">
           <div class="file-row">
             <FileFolderIcon :is-dir="row.isDir" />
-            <span class="table-link" @click="emit('open', row)">{{ row.name }}</span>
+            <span class="table-link" @click="onOpen(row)">{{ row.name }}</span>
           </div>
         </template>
       </el-table-column>
@@ -80,7 +80,7 @@
       <el-table-column label="操作" width="150" align="right">
         <template #default="{ row }">
           <div class="ops-cell">
-            <el-button type="primary" link size="small" @click="emit('open', row)">
+            <el-button type="primary" link size="small" @click="onOpen(row)">
               打开
             </el-button>
             <el-button
@@ -88,7 +88,7 @@
               type="primary"
               link
               size="small"
-              @click="emit('preview', row)"
+              @click="onPreview(row)"
             >
               预览
             </el-button>
@@ -121,11 +121,30 @@ type SortPayload = { prop: string; order: "" | "ascending" | "descending" };
 defineProps<{ rows: FileEntry[] }>();
 
 const emit = defineEmits<{
-  (e: "open", row: FileEntry): void;
-  (e: "preview", row: FileEntry): void;
-  (e: "selection-change", rows: FileEntry[]): void;
-  (e: "sort-change", payload: SortPayload): void;
+  open: [row: FileEntry];
+  preview: [row: FileEntry];
+  "selection-change": [rows: FileEntry[]];
+  "sort-change": [payload: SortPayload];
 }>();
+
+function onOpen(row: FileEntry | Record<string, unknown>) {
+  emit("open", row as FileEntry);
+}
+function onPreview(row: FileEntry | Record<string, unknown>) {
+  emit("preview", row as FileEntry);
+}
+function onSelectionChange(rows: FileEntry[]) {
+  emit("selection-change", rows);
+}
+function onSortChange(data: {
+  prop?: string | null;
+  order?: "" | "ascending" | "descending" | null;
+}) {
+  emit("sort-change", {
+    prop: data.prop || "",
+    order: data.order || "",
+  });
+}
 </script>
 
 <style scoped lang="scss">

@@ -1,9 +1,7 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
-import ElementPlus from "element-plus";
-import zhCn from "element-plus/es/locale/lang/zh-cn";
-import * as ElementPlusIconsVue from "@element-plus/icons-vue";
-import "element-plus/dist/index.css";
+// 暗色模式 CSS 变量（按需组件不带 dark css-vars）
+import "element-plus/theme-chalk/dark/css-vars.css";
 import "@/styles/index.scss";
 import App from "./App.vue";
 
@@ -18,12 +16,5 @@ document.addEventListener(
 );
 
 const app = createApp(App);
-const pinia = createPinia();
-
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component);
-}
-
-app.use(pinia);
-app.use(ElementPlus, { locale: zhCn, size: "default" });
+app.use(createPinia());
 app.mount("#app");

@@ -63,14 +63,16 @@ import { useAgentInstallStore } from "@/stores/agentInstall";
 
 const store = useAgentInstallStore();
 
-const EL_STATUS: Record<InstallStepState, string> = {
+type ElStepStatus = "" | "error" | "success" | "wait" | "process" | "finish";
+
+const EL_STATUS: Record<InstallStepState, ElStepStatus> = {
   pending: "wait",
   running: "process",
   error: "error",
   done: "success",
 };
 
-function elStatus(state: InstallStepState) {
+function elStatus(state: InstallStepState): ElStepStatus {
   return EL_STATUS[state];
 }
 </script>

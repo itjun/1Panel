@@ -300,6 +300,7 @@ import { computed, h, reactive, ref } from "vue";
 const ifacesEnlarged = ref(false);
 const slowEnlarged = ref(false);
 import { ElMessage, ElTag } from "element-plus";
+import type { Column } from "element-plus";
 import { api } from "@/api";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import { usePolling } from "@/composables/usePolling";
@@ -478,7 +479,7 @@ function kindTag(k: string): "warning" | "success" | "info" | undefined {
 const connWrap = ref<HTMLDivElement | null>(null);
 const connSize = useContainerSize(connWrap);
 
-const connColumns = [
+const connColumns: Column<any>[] = [
   { key: "state", dataKey: "state", title: "状态", width: 96 },
   { key: "process", dataKey: "process", title: "进程", width: 150, flexGrow: 1, flexShrink: 1 },
   { key: "pid", dataKey: "pid", title: "PID", width: 72 },
@@ -492,7 +493,7 @@ const connColumns = [
     title: "RTT",
     width: 72,
     cellRenderer: ({ cellData }: { cellData?: number }) =>
-      cellData ? cellData.toFixed(1) + "ms" : "—",
+      h("span", {}, cellData ? cellData.toFixed(1) + "ms" : "—"),
   },
   {
     key: "slow",
@@ -502,7 +503,7 @@ const connColumns = [
     cellRenderer: ({ cellData }: { cellData: boolean }) =>
       cellData
         ? h(ElTag, { type: "danger", size: "small", effect: "dark" }, () => "卡顿")
-        : "",
+        : h("span", {}, ""),
   },
 ];
 
