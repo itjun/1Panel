@@ -81,6 +81,7 @@ tmp/
 .claude/settings.local.json
 .agents/
 .codex/
+.mimosa/
 
 # --- 本地冒烟/截图产物（可选手动提交 docs 正文）---
 docs/*-smoke-report.html
