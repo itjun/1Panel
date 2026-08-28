@@ -19,6 +19,7 @@
           type="primary"
           :icon="Refresh"
           :loading="app.loading"
+          :title="isMac ? '刷新 (⌘R)' : '刷新 (Ctrl+R)'"
           @click="app.refresh()"
         >
           刷新
@@ -37,7 +38,7 @@
 
     <el-empty
       v-if="app.hosts.length === 0"
-      description="暂无主机，右键侧栏空白处或菜单「主机 → 添加主机…」"
+      description="暂无主机，右键侧栏空白处可添加主机或新建分组"
     />
 
     <!-- 按分组分段 -->
@@ -130,6 +131,7 @@ import { formatErr } from "@/utils/format";
 import type { sshconfig } from "@/api";
 
 const app = useAppStore();
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 /**
  * 分组色板：与 SidebarHost 保持一致，概览页分组色与侧栏呼应。

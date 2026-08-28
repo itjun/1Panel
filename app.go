@@ -41,17 +41,17 @@ type App struct {
 	app        *application.App
 	mainWindow *application.WebviewWindow
 
-	showMu      sync.Mutex
-	sized       bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
-	shown       bool
-	resizeSave  *time.Timer
+	showMu     sync.Mutex
+	sized      bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
+	shown      bool
+	resizeSave *time.Timer
 }
 
 // 按 grilling 时定下的策略：
 //   - 错误处理静默失败 + 红色徽章 + 断线 30s 才重试
 const RetryInterval = 30 * time.Second
 
-// NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 菜单 / 文件拖放 / 生命周期。
+// NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
 // 返回的 *application.App 由 main.go 调用 Run。
 func NewApp() *application.App {
 	sshMgr := sshd.NewManager()
@@ -95,26 +95,33 @@ func NewApp() *application.App {
 		winW, winH = sw, sh
 		core.sized = true
 	}
-	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:                      "main",
-		Title:                     "1Pannel",
-		Width:                     winW,
-		Height:                    winH,
-		MinWidth:                  windowMinW,
-		MinHeight:                 windowMinH,
-		BackgroundColour:          application.NewRGB(244, 244, 244),
-		Hidden:                    true,
-		InitialPosition:           application.WindowCentered,
-		EnableFileDrop:            true,
+	winOpts := application.WebviewWindowOptions{
+		Name:                       "main",
+		Title:                      "1Pannel",
+		Width:                      winW,
+		Height:                     winH,
+		MinWidth:                   windowMinW,
+		MinHeight:                  windowMinH,
+		BackgroundColour:           application.NewRGB(244, 244, 244),
+		Hidden:                     true,
+		InitialPosition:            application.WindowCentered,
+		EnableFileDrop:             true,
 		DefaultContextMenuDisabled: true,
-		UseApplicationMenu:        true,
 		Mac: application.MacWindow{
-			TitleBar:               application.MacTitleBarHidden,
+			TitleBar:                application.MacTitleBarHidden,
 			InvisibleTitleBarHeight: 32,
-			Backdrop:               application.MacBackdropNormal,
+			Backdrop:                application.MacBackdropNormal,
 		},
 		URL: "/",
-	})
+	}
+	// Windows/Linux：无系统标题栏/菜单，窗口按钮画在应用内标题栏。
+	// macOS 继续隐藏系统标题栏、保留左上红绿灯（不走 Frameless，否则红绿灯会被藏掉）。
+	if goruntime.GOOS != "darwin" {
+		winOpts.Frameless = true
+		winOpts.Windows.DisableMenu = true
+		winOpts.Windows.NonClientRegionSupport = true
+	}
+	win := app.Window.NewWithOptions(winOpts)
 	core.mainWindow = win
 
 	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
@@ -148,8 +155,14 @@ func NewApp() *application.App {
 	core.collector = monitor.NewCollector(sshMgr)
 	core.termMgr.Init(context.Background(), app.Event.Emit)
 
-	// macOS 应用菜单（设置… / 刷新 / 重启 / 退出 + 主机子菜单）
-	core.buildAppMenu(app)
+	// 应用内「重启应用」：前端确认后再发事件
+	app.Event.On("app-restart", func(*application.CustomEvent) {
+		core.restartApp()
+	})
+
+	// 必须显式设菜单：Wails 在 nil 时会装 DefaultApplicationMenu（含 View→Reload），
+	// 会抢走 ⌘R。macOS 只留系统应用菜单（隐藏/退出）；不设 File/Edit/View/Window。
+	core.installMinimalMenu(app)
 
 	// 文件拖放：v2 的 OnFileDrop 回调 → v3 窗口事件 → 转发为前端自定义事件
 	// 前端 useFileUpload / TerminalView / CertsView 订阅 "file:drop"
@@ -270,67 +283,35 @@ func (a *App) fitWindowToPrimaryScreen() {
 	a.app.Logger.Info("窗口按主屏自适应", "width", w, "height", h)
 }
 
-// ============ 应用菜单 ============
-
-// buildAppMenu 构造 macOS 应用菜单（第一个子菜单会被 macOS 当作应用菜单）
-// 菜单回调通过 Event.Emit 桥接到前端（与 v2 行为一致）
-func (a *App) buildAppMenu(app *application.App) {
+// installMinimalMenu 避免 Wails 默认菜单（View→Reload 会抢走 ⌘R）。
+func (a *App) installMinimalMenu(app *application.App) {
 	m := app.Menu.New()
-	appSub := m.AddSubmenu("1Pannel")
-	appSub.Add("设置…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) {
-		app.Event.Emit("open-settings")
-	})
-	appSub.Add("刷新").SetAccelerator("CmdOrCtrl+R").OnClick(func(*application.Context) {
-		app.Event.Emit("app-refresh")
-	})
-	appSub.Add("检查并更新全部图标").OnClick(func(*application.Context) {
-		app.Event.Emit("app-refresh-icons")
-	})
-	appSub.Add("重启应用").OnClick(func(*application.Context) {
-		a.restartApp()
-	})
-	appSub.AddSeparator()
-	appSub.Add("退出 1Pannel").SetAccelerator("CmdOrCtrl+Q").OnClick(func(*application.Context) {
-		app.Quit()
-	})
-	// 主机子菜单：添加/新建与侧栏空白处右键菜单同源，另含主机配置导出导入
-	hostSub := m.AddSubmenu("主机")
-	hostSub.Add("添加主机…").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
-		app.Event.Emit("open-add-host")
-	})
-	hostSub.Add("新建分组…").OnClick(func(*application.Context) {
-		app.Event.Emit("open-create-group")
-	})
-	hostSub.Add("导出主机配置…").OnClick(func(*application.Context) {
-		app.Event.Emit("open-export")
-	})
-	hostSub.Add("导入主机配置…").OnClick(func(*application.Context) {
-		app.Event.Emit("open-import")
-	})
-	m.AddRole(application.EditMenu)
-	m.AddRole(application.WindowMenu)
+	if goruntime.GOOS == "darwin" {
+		m.AddRole(application.AppMenu)
+	}
 	app.Menu.SetApplicationMenu(m)
 }
 
 // restartApp 杀掉当前进程并重新启动应用：
-// 先在后台 detach 一个「sleep 1; open <bundle>」(1 秒后起新实例),
-// 然后当前进程 os.Exit(0) 自杀。子进程 fork 后由系统接管,不受父进程退出影响。
+// 先在后台拉起新实例，再 os.Exit(0)。子进程 fork 后由系统接管。
 func (a *App) restartApp() {
-	exe, err := os.Executable() // .../1Pannel.app/Contents/MacOS/1Pannel 或 .../1Pannel.exe
+	exe, err := os.Executable()
 	if err != nil {
 		if a.app != nil {
 			a.app.Quit()
 		}
 		return
 	}
-	if goruntime.GOOS == "windows" {
-		// Windows: 直接重新拉起自己的 exe
+	switch goruntime.GOOS {
+	case "windows":
 		_ = exec.Command(exe).Start()
-	} else {
-		bundle := filepath.Clean(filepath.Join(exe, "..", "..", "..")) // → .../1Pannel.app
+	case "darwin":
+		bundle := filepath.Clean(filepath.Join(exe, "..", "..", ".."))
 		_ = exec.Command("sh", "-c", "sleep 1; open "+strconv.Quote(bundle)).Start()
+	default:
+		_ = exec.Command("sh", "-c", "sleep 1; exec "+strconv.Quote(exe)).Start()
 	}
-	os.Exit(0) // 自杀
+	os.Exit(0)
 }
 
 // ============ 共享辅助 ============
@@ -375,4 +356,3 @@ func rememberOS(store *hosticon.Store, host, osRelease string) {
 		OSRelease: osRelease,
 	})
 }
-

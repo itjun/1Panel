@@ -303,6 +303,12 @@ async function onInitZsh() {
   user-select: none;
 }
 
+.host-ctx-menu .ctx-kbd {
+  margin-left: 16px;
+  color: var(--el-text-color-secondary, #909399);
+  font-size: 12px;
+}
+
 .host-ctx-menu .ctx-item {
   display: flex;
   align-items: center;

@@ -56,9 +56,6 @@ export const useAppStore = defineStore("app", () => {
   /** 软件包等模块切到终端时希望自动执行的命令 */
   const pendingTerminalCmd = ref<string | null>(null);
 
-  /** 系统菜单请求「新建分组」弹窗（跨组件通知 SidebarHost 处理） */
-  const pendingCreateGroup = ref(false);
-
   /** 侧栏开/关（⌘B 切换，持久化到 localStorage） */
   function loadSidebarOpen(): boolean {
     try {
@@ -78,19 +75,13 @@ export const useAppStore = defineStore("app", () => {
     }
   }
   function toggleSidebar() {
-    const next = !sidebarOpen.value;
-    setSidebarOpen(next);
-    if (!next) sidebarSearchOpen.value = false;
+    setSidebarOpen(!sidebarOpen.value);
   }
 
-  /** 侧栏搜索框：按钮在通栏，输入框在侧栏；打开搜索时若侧栏收起则一并展开 */
+  /** ⌘F / Ctrl+F 打开窗口居中搜索 */
   const sidebarSearchOpen = ref(false);
   function setSidebarSearchOpen(v: boolean) {
-    if (v && !sidebarOpen.value) setSidebarOpen(true);
     sidebarSearchOpen.value = v;
-  }
-  function toggleSidebarSearch() {
-    setSidebarSearchOpen(!sidebarSearchOpen.value);
   }
 
   /** 后台常挂的主机会话（按打开顺序） */
@@ -453,8 +444,6 @@ export const useAppStore = defineStore("app", () => {
     toggleSidebar,
     sidebarSearchOpen,
     setSidebarSearchOpen,
-    toggleSidebarSearch,
-    pendingCreateGroup,
     refresh,
     rememberOsRelease,
     refreshHostIcon,

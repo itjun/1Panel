@@ -1,14 +1,17 @@
 <template>
   <el-config-provider :locale="zhCn" size="default">
     <div class="app-shell">
-    <!-- 两列：竖线贯穿通栏。左列红绿灯+开关/搜索+侧栏，右列标题+主区 -->
-    <div class="app-chrome" :class="{ 'sidebar-collapsed': !app.sidebarOpen }">
+    <!-- 两列：竖线贯穿通栏。左列（mac 红绿灯+）侧栏开关；右列标题+齿轮（非 mac 再加窗口按钮） -->
+    <div
+      class="app-chrome"
+      :class="{ 'sidebar-collapsed': !app.sidebarOpen, 'is-mac': isMac }"
+    >
       <div class="titlebar-left drag-region" @dblclick="toggleMaximise">
-        <div class="titlebar-tools no-drag">
+        <div class="titlebar-tools no-drag" @dblclick.stop>
           <el-button
             text
             class="titlebar-btn"
-            :title="app.sidebarOpen ? '收起侧栏 (⌘B)' : '展开侧栏 (⌘B)'"
+            :title="app.sidebarOpen ? `收起侧栏 (${kbd('B')})` : `展开侧栏 (${kbd('B')})`"
             @click="app.toggleSidebar()"
           >
             <el-icon>
@@ -25,31 +28,84 @@
               </svg>
             </el-icon>
           </el-button>
-          <el-button
-            text
-            class="titlebar-btn"
-            :class="{ 'is-active': app.sidebarSearchOpen }"
-            title="搜索主机"
-            @click="app.toggleSidebarSearch()"
-          >
-            <el-icon>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </el-icon>
-          </el-button>
         </div>
       </div>
       <div class="titlebar-right drag-region" @dblclick="toggleMaximise">
         <span class="titlebar-title no-drag">{{ titlebarTitle }}</span>
+        <div class="titlebar-tools no-drag" @dblclick.stop>
+          <el-dropdown trigger="click" @command="onAppTool">
+            <el-button text class="titlebar-btn" title="应用">
+              <el-icon>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"
+                  />
+                </svg>
+              </el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="settings">
+                  <span class="dd-row">
+                    设置
+                    <span class="titlebar-kbd">{{ kbd(",") }}</span>
+                  </span>
+                </el-dropdown-item>
+                <el-dropdown-item command="export" divided>
+                  导出主机配置…
+                </el-dropdown-item>
+                <el-dropdown-item command="import">导入主机配置…</el-dropdown-item>
+                <el-dropdown-item command="restart" divided>
+                  重启应用
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+        <div v-if="!isMac" class="win-controls no-drag" @dblclick.stop>
+          <button
+            type="button"
+            class="win-btn"
+            title="最小化"
+            @click="minimiseWin"
+          >
+            <svg viewBox="0 0 12 12">
+              <path d="M2 6h8" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="win-btn"
+            :title="maximised ? '还原' : '最大化'"
+            @click="toggleMaximise"
+          >
+            <svg v-if="!maximised" viewBox="0 0 12 12">
+              <rect x="2.5" y="2.5" width="7" height="7" rx="0.5" />
+            </svg>
+            <svg v-else viewBox="0 0 12 12">
+              <path d="M4 3.5h4.5V8" />
+              <rect x="2.5" y="4.5" width="5.5" height="4.5" rx="0.4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="win-btn win-btn-close"
+            :title="`关闭 (${kbd('Q')})`"
+            @click="quitApp"
+          >
+            <svg viewBox="0 0 12 12">
+              <path d="M3 3l6 6M9 3l-6 6" />
+            </svg>
+          </button>
+        </div>
       </div>
       <SidebarHost
         v-show="app.sidebarOpen"
@@ -109,10 +165,10 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
-import { Dialogs, Events, Window } from "@wailsio/runtime";
+import { Application, Dialogs, Events, Window } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
@@ -137,12 +193,48 @@ const form = reactive({
   password: "",
 });
 
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+function kbd(key: string): string {
+  return isMac ? `⌘${key}` : `Ctrl+${key}`;
+}
+
+const maximised = ref(false);
+
 function openSettings() {
   settingsOpen.value = true;
 }
 
-function toggleMaximise() {
-  Window.ToggleMaximise();
+async function toggleMaximise() {
+  await Window.ToggleMaximise();
+  maximised.value = await Window.IsMaximised();
+}
+
+function minimiseWin() {
+  void Window.Minimise();
+}
+
+function quitApp() {
+  void Application.Quit();
+}
+
+function onAppTool(cmd: string) {
+  if (cmd === "settings") openSettings();
+  if (cmd === "export") void onExportBackup();
+  if (cmd === "import") backupImportRef.value?.openFor();
+  if (cmd === "restart") void onRestart();
+}
+
+async function onRestart() {
+  try {
+    await ElMessageBox.confirm(
+      "将断开所有主机连接并重启 1Pannel",
+      "重启应用",
+      { confirmButtonText: "重启", cancelButtonText: "取消", type: "warning" }
+    );
+  } catch {
+    return;
+  }
+  void Events.Emit("app-restart");
 }
 
 const titlebarTitle = computed(() => {
@@ -152,7 +244,7 @@ const titlebarTitle = computed(() => {
   return app.hostSessions[tab.id]?.title || tab.title || tab.id;
 });
 
-/** ⌘, 打开设置；⌘B 切换侧栏 */
+/** 设置 / 侧栏 / 添加主机 / 搜索 / 刷新 / 退出（tooltip 按平台写 ⌘ 或 Ctrl） */
 function onGlobalKeydown(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
   const isComma = e.key === "," || e.code === "Comma" || e.key === "，";
@@ -164,23 +256,30 @@ function onGlobalKeydown(e: KeyboardEvent) {
   if (e.code === "KeyB") {
     e.preventDefault();
     app.toggleSidebar();
+    return;
+  }
+  if (e.code === "KeyN") {
+    e.preventDefault();
+    addHostOpen.value = true;
+    return;
+  }
+  if (e.code === "KeyF") {
+    e.preventDefault();
+    app.setSidebarSearchOpen(true);
+    return;
+  }
+  if (e.code === "KeyR") {
+    e.preventDefault();
+    void app.refresh();
+    return;
+  }
+  if (e.code === "KeyQ") {
+    e.preventDefault();
+    quitApp();
   }
 }
 
-async function onRefreshAllIcons() {
-  try {
-    const r = await app.refreshAllHostIcons();
-    if (r.failed.length > 0) {
-      ElMessage.warning(`已更新 ${r.ok} 台，失败 ${r.failed.length} 台`);
-    } else {
-      ElMessage.success(`已检查并更新 ${r.ok} 台主机图标`);
-    }
-  } catch (e) {
-    ElMessage.error(`检查图标失败: ${formatErr(e)}`);
-  }
-}
-
-/** 系统菜单「导出主机配置…」：选父目录 → 导出到其中的日期文件夹（同日覆盖） */
+/** 导出主机配置：选父目录 → 导出到其中的日期文件夹（同日覆盖） */
 async function onExportBackup() {
   const dir = await Dialogs.OpenFile({
     Title: "选择备份位置",
@@ -231,16 +330,24 @@ const eventOffs: (() => void)[] = [];
 
 onMounted(() => {
   window.addEventListener("keydown", onGlobalKeydown, true);
-  // macOS 应用菜单「设置…」点击事件 → 打开设置弹窗
-  eventOffs.push(Events.On("open-settings", () => openSettings()));
-  // 系统菜单「主机」子菜单：添加主机 / 新建分组 / 导出 / 导入主机配置
-  eventOffs.push(Events.On("open-add-host", () => (addHostOpen.value = true)));
-  eventOffs.push(Events.On("open-create-group", () => (app.pendingCreateGroup = true)));
-  eventOffs.push(Events.On("open-export", () => void onExportBackup()));
-  eventOffs.push(Events.On("open-import", () => backupImportRef.value?.openFor()));
-  // 系统菜单「1Pannel」子菜单：刷新 / 检查并更新全部图标（原侧栏齿轮菜单）
-  eventOffs.push(Events.On("app-refresh", () => void app.refresh()));
-  eventOffs.push(Events.On("app-refresh-icons", () => void onRefreshAllIcons()));
+  void Window.IsMaximised().then((v) => {
+    maximised.value = v;
+  });
+  eventOffs.push(
+    Events.On(Events.Types.Common.WindowMaximise, () => {
+      maximised.value = true;
+    })
+  );
+  eventOffs.push(
+    Events.On(Events.Types.Common.WindowUnMaximise, () => {
+      maximised.value = false;
+    })
+  );
+  eventOffs.push(
+    Events.On(Events.Types.Common.WindowRestore, () => {
+      maximised.value = false;
+    })
+  );
   eventOffs.push(
     Events.On("host-icon-updated", (ev: { data?: { host?: string; osRelease?: string } }) => {
       const it = ev?.data;
@@ -266,12 +373,18 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 .titlebar-left {
-  padding-left: 78px;
+  padding-left: 8px;
   padding-right: 8px;
+}
+.is-mac .titlebar-left {
+  padding-left: 78px;
 }
 .titlebar-right {
   min-width: 0;
-  padding: 0 20px;
+  padding: 0 8px 0 20px;
+}
+.is-mac .titlebar-right {
+  padding-right: 20px;
 }
 .sidebar-collapsed .titlebar-right {
   padding-left: 8px;
@@ -313,6 +426,50 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 28px;
+}
+.dd-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  justify-content: space-between;
+}
+.titlebar-kbd {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.win-controls {
+  display: flex;
+  align-items: stretch;
+  height: 40px;
+  margin-right: -8px;
+}
+.win-btn {
+  width: 46px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.win-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+.win-btn:hover {
+  background: color-mix(in srgb, var(--el-text-color-primary) 8%, transparent);
+}
+.win-btn-close:hover {
+  background: #e81123;
+  color: #fff;
 }
 .add-host-hint {
   margin: 0 0 12px;

@@ -5,35 +5,6 @@
     :style="{ width: width + 'px' }"
     @contextmenu="onBlankContext"
   >
-    <transition name="search-slide">
-      <div v-show="app.sidebarSearchOpen" class="search-box">
-      <el-input
-        ref="searchInputRef"
-        v-model="query"
-        clearable
-        class="host-search"
-        placeholder="搜索主机..."
-        @keydown.esc="closeSearch"
-      >
-        <template #prefix>
-          <el-icon>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.75"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </el-icon>
-        </template>
-      </el-input>
-      </div>
-    </transition>
-
     <div class="menu-wrap" ref="menuWrapRef">
       <!-- 不用 unique-opened：多分组可同时展开 -->
       <el-menu :default-active="activeId" :default-openeds="openedGroups">
@@ -49,7 +20,7 @@
           </span>
         </el-menu-item>
         <el-sub-menu
-          v-for="(node, gIdx) in filtered"
+          v-for="(node, gIdx) in app.groupNodes"
           :key="node.group?.id || UNGROUPED_ID"
           :index="node.group?.id || UNGROUPED_ID"
           class="group-sub"
@@ -134,9 +105,6 @@
           </el-menu-item>
         </el-sub-menu>
       </el-menu>
-      <div v-if="app.sidebarSearchOpen && query && filtered.length === 0" class="search-empty">
-        无匹配主机
-      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -196,6 +164,7 @@
       >
         <button type="button" class="ctx-item" @click="onBlankAddHost">
           添加主机…
+          <span class="ctx-kbd">{{ isMac ? "⌘N" : "Ctrl+N" }}</span>
         </button>
         <button type="button" class="ctx-item" @click="onBlankCreateGroup">
           新建分组…
@@ -205,18 +174,97 @@
 
     <!-- 编辑主机弹窗 -->
     <EditHostDialog ref="editRef" />
+
+    <el-dialog
+      v-model="createGroupOpen"
+      title="新建分组"
+      width="440px"
+      append-to-body
+      destroy-on-close
+      @opened="onCreateGroupOpened"
+    >
+      <el-form label-width="80px" @submit.prevent="submitCreateGroup">
+        <el-form-item label="分组名称">
+          <el-input
+            ref="createGroupInputRef"
+            v-model="newGroupName"
+            placeholder="如 prod"
+            @keyup.enter="submitCreateGroup"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createGroupOpen = false">取消</el-button>
+        <el-button type="primary" @click="submitCreateGroup">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ⌘F / Ctrl+F：与添加主机 / 新建分组同一套 Dialog -->
+    <el-dialog
+      :model-value="app.sidebarSearchOpen"
+      title="搜索主机"
+      width="440px"
+      append-to-body
+      destroy-on-close
+      @update:model-value="onSearchVisible"
+      @opened="onSearchOpened"
+    >
+      <el-input
+        ref="searchInputRef"
+        v-model="query"
+        clearable
+        placeholder="主机名或地址"
+        @keydown.enter="openFirstHit"
+      >
+        <template #prefix>
+          <el-icon>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          </el-icon>
+        </template>
+      </el-input>
+      <div v-if="query.trim() && searchHits.length === 0" class="search-empty">
+        无匹配主机
+      </div>
+      <div v-else-if="searchHits.length" class="search-hits">
+        <button
+          v-for="h in searchHits"
+          :key="h.name"
+          type="button"
+          class="search-hit"
+          @click="onHostClick(h.name)"
+        >
+          <DistroLogo
+            :os-release="app.osReleaseMap.get(h.name) || ''"
+            :size="16"
+            class="host-ico"
+          />
+          <span class="search-hit-name">{{ h.name }}</span>
+          <span class="search-hit-addr">{{ h.hostName }}</span>
+        </button>
+      </div>
+    </el-dialog>
   </aside>
 </template>
 
 <script setup lang="ts">
 /**
  * 侧栏：主机/分组树、搜索输入、拖拽分组、右键菜单、宽度调整。
- * 搜索按钮与侧栏开关在 App 通栏，不在本组件。
+ * 侧栏开关在 App 通栏；⌘F 搜索在窗口正中弹出。
  * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Folder, Monitor } from "@element-plus/icons-vue";
-import { ElMessageBox, ElMessage } from "element-plus";
+import { ElMessage } from "element-plus";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
@@ -235,7 +283,11 @@ const emit = defineEmits<{
 
 const app = useAppStore();
 const query = ref("");
-const searchInputRef = ref<{ focus: () => void } | null>(null);
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const searchInputRef = ref<{ focus: () => void; select: () => void } | null>(null);
+const createGroupInputRef = ref<{ focus: () => void } | null>(null);
+const createGroupOpen = ref(false);
+const newGroupName = ref("");
 const menuWrapRef = ref<HTMLElement | null>(null);
 
 const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
@@ -258,20 +310,28 @@ const openedGroups = computed(() =>
   app.groupNodes.map((n) => n.group?.id || UNGROUPED_ID)
 );
 
-const filtered = computed(() => {
+const searchHits = computed(() => {
   const q = query.value.trim().toLowerCase();
-  if (!q) return app.groupNodes;
-  return app.groupNodes
-    .map((n) => ({
-      ...n,
-      hosts: n.hosts.filter(
-        (h) =>
-          h.name.toLowerCase().includes(q) ||
-          (h.hostName || "").toLowerCase().includes(q)
-      ),
-    }))
-    .filter((n) => n.hosts.length > 0 || !!n.group);
+  if (!q) return [];
+  const out: { name: string; hostName: string }[] = [];
+  for (const n of app.groupNodes) {
+    for (const h of n.hosts) {
+      if (
+        h.name.toLowerCase().includes(q) ||
+        (h.hostName || "").toLowerCase().includes(q)
+      ) {
+        out.push({ name: h.name, hostName: h.hostName || "" });
+      }
+    }
+  }
+  return out;
 });
+
+function openFirstHit() {
+  const first = searchHits.value[0];
+  if (!first) return;
+  onHostClick(first.name);
+}
 
 function openGroup(id: string, name: string) {
   app.openGroupTab(id, name);
@@ -294,16 +354,17 @@ function closeSearch() {
   query.value = "";
 }
 
-watch(
-  () => app.sidebarSearchOpen,
-  (open) => {
-    if (open) {
-      nextTick(() => searchInputRef.value?.focus());
-    } else {
-      query.value = "";
-    }
-  }
-);
+function onSearchVisible(v: boolean) {
+  if (v) app.setSidebarSearchOpen(true);
+  else closeSearch();
+}
+
+function onSearchOpened() {
+  nextTick(() => {
+    searchInputRef.value?.focus();
+    searchInputRef.value?.select();
+  });
+}
 
 function onHostClick(name: string) {
   if (suppressClick.value) return;
@@ -359,68 +420,49 @@ function onBlankAddHost() {
 }
 function onBlankCreateGroup() {
   blankCtx.value = null;
-  void onCreateGroup();
+  newGroupName.value = "";
+  createGroupOpen.value = true;
 }
 
-// 系统菜单「主机 → 新建分组…」经 store 标志转发到此处弹窗
-watch(
-  () => app.pendingCreateGroup,
-  (v) => {
-    if (v) {
-      app.pendingCreateGroup = false;
-      void onCreateGroup();
-    }
+function onCreateGroupOpened() {
+  nextTick(() => createGroupInputRef.value?.focus());
+}
+
+async function submitCreateGroup() {
+  const name = newGroupName.value.trim();
+  if (!name) {
+    ElMessage.warning("名称不能为空");
+    return;
   }
-);
+  const id = await app.createGroup(name);
+  ElMessage.success("已创建");
+  createGroupOpen.value = false;
+  newGroupName.value = "";
+  app.openGroupTab(id, name);
+}
 
 /** Cmd/Ctrl + 1~9：按侧栏纵向卡片顺序直接打开对应主机 */
 function onNumSwitchKeydown(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
   const n = Number(e.key);
   if (!Number.isInteger(n) || n < 1 || n > 9) return;
-  // 用过滤后的列表：与当前看到的纵向卡片顺序一致（搜索时同样生效）
-  const list = filtered.value.flatMap((node) => node.hosts);
+  const list = app.groupNodes.flatMap((node) => node.hosts);
   const host = list[n - 1];
   if (!host) return;
   e.preventDefault();
   app.openHostTab(host.name);
 }
 
-/** / 键唤起搜索：仅当焦点不在输入框/终端时触发 */
-function onSearchKeydown(e: KeyboardEvent) {
-  if (e.key !== "/" || app.sidebarSearchOpen) return;
-  const el = document.activeElement;
-  if (!el) return;
-  const tag = el.tagName;
-  // 焦点在输入类元素：放行（正常输入 /）
-  if (tag === "INPUT" || tag === "TEXTAREA") return;
-  if (el instanceof HTMLElement && el.isContentEditable) return;
-  // 焦点在终端（xterm）：放行（终端输入 /）
-  if (el.closest(".xterm-helper-textarea, .terminal-wrap")) return;
-  e.preventDefault();
-  app.setSidebarSearchOpen(true);
-}
-
-function onCtxKeydown(e: KeyboardEvent) {
+function onWindowKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.code === "KeyF" && app.sidebarSearchOpen) {
+    searchInputRef.value?.focus();
+    searchInputRef.value?.select();
+    return;
+  }
   if (e.key === "Escape") {
+    if (app.sidebarSearchOpen) closeSearch();
     if (ctxMenu.value) closeCtxMenu();
     blankCtx.value = null;
-  }
-}
-
-async function onCreateGroup() {
-  try {
-    const { value } = await ElMessageBox.prompt("分组名称", "新建分组", {
-      confirmButtonText: "创建",
-      cancelButtonText: "取消",
-      inputPattern: /\S+/,
-      inputErrorMessage: "名称不能为空",
-    });
-    const id = await app.createGroup(value.trim());
-    ElMessage.success("已创建");
-    app.openGroupTab(id, value.trim());
-  } catch {
-    /* cancel */
   }
 }
 
@@ -454,15 +496,13 @@ async function refreshEgress() {
 }
 
 onMounted(() => {
-  window.addEventListener("keydown", onCtxKeydown);
-  window.addEventListener("keydown", onSearchKeydown);
+  window.addEventListener("keydown", onWindowKeydown);
   window.addEventListener("keydown", onNumSwitchKeydown);
   void refreshEgress();
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("keydown", onCtxKeydown);
-  window.removeEventListener("keydown", onSearchKeydown);
+  window.removeEventListener("keydown", onWindowKeydown);
   window.removeEventListener("keydown", onNumSwitchKeydown);
 });
 </script>
@@ -485,72 +525,46 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 搜索框展开/收起动画（配合 <transition name="search-slide">） */
-.search-slide-enter-active,
-.search-slide-leave-active {
-  transition: max-height 0.15s ease, opacity 0.15s ease;
-}
-.search-slide-enter-from,
-.search-slide-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
-
 .search-empty {
-  padding: 20px 12px;
+  padding: 16px 0 4px;
   text-align: center;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--el-text-color-secondary);
 }
 
-.search-box {
-  flex-shrink: 0;
-  /* 与顶栏约 48px 视觉对齐：更大内边距 + 默认尺寸输入框 */
-  padding: 12px 12px 10px;
-  box-sizing: border-box;
-  /* 配合 search-slide 动画：max-height 可过渡 */
-  max-height: 100px;
-  overflow: hidden;
+.search-hits {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow: auto;
 }
 
-.host-search {
+.search-hit {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-primary);
+  text-align: left;
+  cursor: pointer;
+}
 
-  :deep(.el-input__wrapper) {
-    min-height: 34px;
-    padding: 4px 10px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
-    box-shadow: 0 0 0 1px
-      color-mix(in srgb, var(--el-color-primary) 14%, transparent) inset;
-    transition: box-shadow 0.15s ease, background 0.15s ease;
+.search-hit:hover {
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+}
 
-    &:hover {
-      box-shadow: 0 0 0 1px
-        color-mix(in srgb, var(--el-color-primary) 28%, transparent) inset;
-    }
-    &.is-focus {
-      background: color-mix(in srgb, var(--el-color-primary) 12%, transparent);
-      box-shadow: 0 0 0 1px var(--el-color-primary) inset;
-    }
-  }
+.search-hit-name {
+  font-size: 13px;
+  font-weight: 500;
+}
 
-  :deep(.el-input__inner) {
-    height: 26px;
-    line-height: 26px;
-    font-size: 13px;
-    color: var(--el-text-color-primary);
-  }
-
-  :deep(.el-input__inner::placeholder) {
-    color: var(--el-text-color-secondary);
-  }
-
-  :deep(.el-input__prefix),
-  :deep(.el-input__suffix) {
-    font-size: 16px;
-    color: var(--el-text-color-regular);
-  }
+.search-hit-addr {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 /* ---------- 分组标题行内容 ---------- */

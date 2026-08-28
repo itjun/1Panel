@@ -99,7 +99,17 @@ html {
     position: relative !important;
     margin: 0 !important;
     flex-shrink: 0;
+    width: 440px !important;
+    max-width: calc(100% - 32px) !important;
+    padding: 16px;
+    border-radius: 5px;
     background-color: var(--el-bg-color, #ffffff) !important;
+    box-sizing: border-box;
+}
+
+.el-overlay-message-box .el-message-box__title {
+    font-size: 17px;
+    font-weight: 500;
 }
 
 /* 仅淡入淡出，避免 overlay transform 破坏 flex 居中 */
@@ -270,6 +280,7 @@ html {
     .el-dialog__header {
         .el-dialog__title {
             font-size: 17px;
+            font-weight: 500;
         }
     }
 }
