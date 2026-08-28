@@ -53,8 +53,9 @@ type Watcher struct {
 
 	cpu  map[int]cpuPrev
 	st   map[string]*layerState // service/layer
-	inst map[string]int
-	seen map[string]svcSeen // service → lastSeen
+	inst      map[string]int
+	seen      map[string]svcSeen // service → lastSeen
+	instances []JavaAppInstance
 	http *http.Client
 
 	host string
@@ -137,6 +138,7 @@ func (w *Watcher) tick() {
 	}
 	procs := scanJavaProcs(w.proc)
 	now := time.Now()
+	instHealth := map[string]bool{}
 
 	for _, svc := range cfg.Services {
 		var inst []javaProc
@@ -165,6 +167,7 @@ func (w *Watcher) tick() {
 			if port > 0 && svc.HealthPath != "" {
 				ok, heapUsed, heapMax, pause := w.scrape(cfg, port, svc)
 				hs.HealthOK = ok
+				instHealth[fmt.Sprintf("%s/%d", svc.Name, p.PID)] = ok
 				hs.HeapUsed = heapUsed
 				hs.HeapMax = heapMax
 				hs.GCPauseMs = pause
@@ -198,6 +201,7 @@ func (w *Watcher) tick() {
 			w.applyLayer(cfg, svc.Name, layerIngress, ok, msg)
 		}
 	}
+	w.rebuildInstances(cfg, procs, instHealth)
 }
 
 func pickPort(ports []int, from, to int) int {

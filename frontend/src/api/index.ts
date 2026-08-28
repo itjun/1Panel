@@ -114,6 +114,11 @@ export const api = {
   agentEvents: (host: string): Promise<agentcli.AgentEvent[]> =>
     arr(Agent.AgentEvents(host)),
   agentWatchStatus: (host: string) => arr(Agent.AgentWatchStatus(host)),
+  agentWatchInstances: (host: string) => arr(Agent.AgentWatchInstances(host)),
+  agentAppShutdown: (
+    host: string,
+    req: agentcli.AppShutdownReq
+  ): Promise<agentcli.AppShutdownResult> => must(Agent.AgentAppShutdown(host, req)),
   agentWatchRange: (
     host: string,
     service: string,

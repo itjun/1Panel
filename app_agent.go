@@ -92,6 +92,28 @@ func (s *Agent) AgentWatchStatus(host string) ([]agentcli.WatchStatus, error) {
 	return r, err
 }
 
+// AgentWatchInstances Java 应用实例表
+func (s *Agent) AgentWatchInstances(host string) ([]agentcli.JavaAppInstance, error) {
+	cli, err := s.agentPool.Get(host)
+	if err != nil {
+		return nil, err
+	}
+	var r []agentcli.JavaAppInstance
+	err = cli.GetJSON(context.Background(), "/watch/instances", &r, true)
+	return r, err
+}
+
+// AgentAppShutdown 下线单个 Java 实例（SIGTERM → 轮询 → SIGKILL → screen quit）
+func (s *Agent) AgentAppShutdown(host string, req agentcli.AppShutdownReq) (agentcli.AppShutdownResult, error) {
+	cli, err := s.agentPool.Get(host)
+	if err != nil {
+		return agentcli.AppShutdownResult{}, err
+	}
+	var r agentcli.AppShutdownResult
+	err = cli.PostJSON(context.Background(), "/op/app-shutdown", req, &r)
+	return r, err
+}
+
 // AgentWatchRange JAR 采样序列
 func (s *Agent) AgentWatchRange(host, service string, from, to int64) (agentcli.WatchRangeResponse, error) {
 	cli, err := s.agentPool.Get(host)

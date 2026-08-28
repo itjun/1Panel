@@ -3,11 +3,14 @@
 
 export type {
     AgentEvent,
+    AppShutdownReq,
+    AppShutdownResult,
     CurrentPoint,
     CurrentResponse,
     Health,
     HostInfo,
     JarRangePoint,
+    JavaAppInstance,
     RangePoint,
     RangeResponse,
     Status,

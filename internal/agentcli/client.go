@@ -168,6 +168,39 @@ type WatchYAML struct {
 	YAML string `json:"yaml"`
 }
 
+// JavaAppInstance /watch/instances 单 Java 实例
+type JavaAppInstance struct {
+	Service   string `json:"service"`
+	Runtime   string `json:"runtime"`
+	PID       int    `json:"pid"`
+	Port      int    `json:"port"`
+	DeployVer string `json:"deployVer"`
+	StartTime string `json:"startTime"`
+	Screen    string `json:"screen"`
+	JarPath   string `json:"jarPath"`
+	HealthUp  bool   `json:"healthUp"`
+	ProcessUp bool   `json:"processUp"`
+	IngressUp bool   `json:"ingressUp"`
+	IngressOn bool   `json:"ingressOn"`
+	Status    string `json:"status"`
+	Group     string `json:"group"`
+}
+
+// AppShutdownReq POST /op/app-shutdown
+type AppShutdownReq struct {
+	Service string `json:"service"`
+	PID     int    `json:"pid"`
+	Port    int    `json:"port"`
+	Screen  string `json:"screen"`
+}
+
+// AppShutdownResult POST /op/app-shutdown 响应
+type AppShutdownResult struct {
+	OK      bool   `json:"ok"`
+	Stopped bool   `json:"stopped"`
+	Msg     string `json:"msg"`
+}
+
 // Status 缓存的 agent 状态（主机列表徽章用）
 type Status struct {
 	OK           bool      `json:"ok"`

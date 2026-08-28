@@ -11,6 +11,25 @@ export interface AgentEvent {
 }
 
 /**
+ * AppShutdownReq POST /op/app-shutdown
+ */
+export interface AppShutdownReq {
+    "service": string;
+    "pid": number;
+    "port": number;
+    "screen": string;
+}
+
+/**
+ * AppShutdownResult POST /op/app-shutdown 响应
+ */
+export interface AppShutdownResult {
+    "ok": boolean;
+    "stopped": boolean;
+    "msg": string;
+}
+
+/**
  * CurrentPoint 最新采样
  */
 export interface CurrentPoint {
@@ -87,6 +106,26 @@ export interface JarRangePoint {
     "heapMax": number;
     "gcPauseMs": number;
     "healthOk": boolean;
+}
+
+/**
+ * JavaAppInstance /watch/instances 单 Java 实例
+ */
+export interface JavaAppInstance {
+    "service": string;
+    "runtime": string;
+    "pid": number;
+    "port": number;
+    "deployVer": string;
+    "startTime": string;
+    "screen": string;
+    "jarPath": string;
+    "healthUp": boolean;
+    "processUp": boolean;
+    "ingressUp": boolean;
+    "ingressOn": boolean;
+    "status": string;
+    "group": string;
 }
 
 /**

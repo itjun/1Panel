@@ -47,6 +47,11 @@
             v-show="sessionOf(hid)?.subTab === 'apps'"
             :host="hid"
           />
+          <NginxView
+            v-if="visitedSub(hid, 'nginx')"
+            v-show="sessionOf(hid)?.subTab === 'nginx'"
+            :host="hid"
+          />
           <ProcessesView
             v-if="visitedSub(hid, 'processes')"
             v-show="sessionOf(hid)?.subTab === 'processes'"
@@ -106,6 +111,7 @@ import { useAppStore, type SubTab } from "@/stores/app";
 import RouterButton from "@/components/RouterButton.vue";
 import OverviewView from "@/views/OverviewView.vue";
 import AppsView from "@/views/AppsView.vue";
+import NginxView from "@/views/NginxView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
@@ -123,6 +129,7 @@ const app = useAppStore();
 const subTabs: { value: SubTab; label: string }[] = [
   { value: "overview", label: "概览" },
   { value: "apps", label: "应用" },
+  { value: "nginx", label: "Nginx" },
   { value: "processes", label: "进程" },
   { value: "network", label: "网络" },
   { value: "files", label: "文件" },
@@ -139,6 +146,7 @@ const FILL_SUBS: SubTab[] = [
   "files",
   "processes",
   "apps",
+  "nginx",
   "network",
   "services",
   "certs",

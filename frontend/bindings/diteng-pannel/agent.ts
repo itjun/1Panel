@@ -22,6 +22,13 @@ import * as agentinstall$0 from "./internal/agentinstall/models.js";
 import * as $models from "./models.js";
 
 /**
+ * AgentAppShutdown 下线单个 Java 实例（SIGTERM → 轮询 → SIGKILL → screen quit）
+ */
+export function AgentAppShutdown(host: string, req: agentcli$0.AppShutdownReq): $CancellablePromise<agentcli$0.AppShutdownResult> {
+    return $Call.ByID(3323290985, host, req);
+}
+
+/**
  * AgentBatchInstall 批量安装/更新（幂等，逐台并发 3；单台失败不影响其余）。
  * hosts 为空时自动覆盖 ssh config 里的全部主机。
  */
@@ -111,6 +118,13 @@ export function AgentSummary(host: string): $CancellablePromise<agentcli$0.Summa
  */
 export function AgentWatchEvents(host: string, service: string, $from: number, to: number): $CancellablePromise<agentcli$0.WatchEventRow[] | null> {
     return $Call.ByID(3687297638, host, service, $from, to);
+}
+
+/**
+ * AgentWatchInstances Java 应用实例表
+ */
+export function AgentWatchInstances(host: string): $CancellablePromise<agentcli$0.JavaAppInstance[] | null> {
+    return $Call.ByID(464726025, host);
 }
 
 /**

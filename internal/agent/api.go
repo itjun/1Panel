@@ -165,6 +165,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /metrics/summary", s.handleSummary)
 	mux.HandleFunc("GET /events", s.handleEvents)
 	mux.HandleFunc("GET /watch/status", s.handleWatchStatus)
+	mux.HandleFunc("GET /watch/instances", s.handleWatchInstances)
 	mux.HandleFunc("GET /watch/range", s.handleWatchRange)
 	mux.HandleFunc("GET /watch/events", s.handleWatchEvents)
 	mux.HandleFunc("GET /admin/watch", s.handleAdminWatchGet)
@@ -241,6 +242,7 @@ func (s *Server) Handler() http.Handler {
 
 	// 操作类
 	mux.HandleFunc("POST /op/kill", s.handleKill)
+	mux.HandleFunc("POST /op/app-shutdown", s.handleAppShutdown)
 	mux.HandleFunc("POST /op/docker", s.handleDockerAction)
 	mux.HandleFunc("POST /op/delete-paths", s.handleDeletePaths)
 
@@ -380,6 +382,14 @@ func (s *Server) handleWatchStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.watcher.StatusSnapshot())
 }
 
+func (s *Server) handleWatchInstances(w http.ResponseWriter, _ *http.Request) {
+	if s.watcher == nil {
+		writeJSON(w, http.StatusOK, []JavaAppInstance{})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.watcher.InstancesSnapshot())
+}
+
 func (s *Server) handleWatchRange(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	from, err1 := strconv.ParseInt(q.Get("from"), 10, 64)
@@ -490,6 +500,54 @@ func (s *Server) handleKill(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.WriteEvent("info", fmt.Sprintf("面板请求结束进程 pid=%d sig=%s", req.PID, sig))
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+type appShutdownReq struct {
+	Service string `json:"service"`
+	PID     int    `json:"pid"`
+	Port    int    `json:"port"`
+	Screen  string `json:"screen"`
+}
+
+func (s *Server) handleAppShutdown(w http.ResponseWriter, r *http.Request) {
+	if s.watcher == nil {
+		writeErr(w, http.StatusNotFound, "监视未启用")
+		return
+	}
+	var req appShutdownReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "参数无效")
+		return
+	}
+	cfg := s.watcher.Config()
+	svc, ok := serviceInWatch(cfg, req.Service)
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "未知服务")
+		return
+	}
+	if !portInService(svc, req.Port) {
+		writeErr(w, http.StatusBadRequest, "端口不在 watch.yml 配置区间")
+		return
+	}
+	if !validScreenName(req.Screen) {
+		writeErr(w, http.StatusBadRequest, "非法 screen 名")
+		return
+	}
+	stopped, err := stopAppInstance(req.Port, req.PID, req.Screen)
+	msg := fmt.Sprintf("下架 %s pid=%d port=%d screen=%s stopped=%v", req.Service, req.PID, req.Port, req.Screen, stopped)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.store.WriteWatchEvent(WatchEvent{
+		TS:      time.Now().Unix(),
+		Service: req.Service,
+		Layer:   "process",
+		Kind:    "shutdown",
+		Msg:     msg,
+	})
+	s.store.WriteEvent("info", msg)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "stopped": stopped, "msg": msg})
 }
 
 type dockerReq struct {
