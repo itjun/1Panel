@@ -61,7 +61,7 @@ func (c *Collector) dockerStatsCached(host string, opt sshd.ConnectOption) strin
 // CollectDockerInspect 按需查询单个容器的 docker inspect 原始 JSON（悬浮卡片触发，不随列表轮询）
 // container 允许容器名或 ID；先做白名单校验再拼命令，避免注入
 func (c *Collector) CollectDockerInspect(host, container string, opt sshd.ConnectOption) (string, error) {
-	if !isValidContainerRef(container) {
+	if !IsValidContainerRef(container) {
 		return "", fmt.Errorf("非法容器名: %s", container)
 	}
 	cmd := fmt.Sprintf("docker inspect '%s' 2>&1", container)
@@ -84,8 +84,9 @@ func firstLine(s string) string {
 	return s
 }
 
-// isValidContainerRef 容器名/ID 仅允许字母数字与 . _ - 组合（docker 命名规范）
-func isValidContainerRef(s string) bool {
+// IsValidContainerRef 容器名/ID 仅允许字母数字与 . _ - 组合（docker 命名规范）。
+// 导出供 agent 侧 /op/docker 复用同一校验。
+func IsValidContainerRef(s string) bool {
 	if s == "" || len(s) > 200 {
 		return false
 	}

@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -304,12 +303,20 @@ func (a *App) restartApp() {
 	}
 	switch goruntime.GOOS {
 	case "windows":
-		_ = exec.Command(exe).Start()
+		// exe 来自 os.Executable（运行时信任来源），不经 shell 直接拉起新实例
+		if p, err := os.StartProcess(exe, []string{exe}, &os.ProcAttr{}); err == nil {
+			_ = p.Release()
+		}
 	case "darwin":
 		bundle := filepath.Clean(filepath.Join(exe, "..", "..", ".."))
-		_ = exec.Command("sh", "-c", "sleep 1; open "+strconv.Quote(bundle)).Start()
+		// 路径经环境变量传入，脚本串保持全字面量，杜绝命令拼接
+		c := exec.Command("sh", "-c", `sleep 1; open "$RESTART_TARGET"`)
+		c.Env = append(os.Environ(), "RESTART_TARGET="+bundle)
+		_ = c.Start()
 	default:
-		_ = exec.Command("sh", "-c", "sleep 1; exec "+strconv.Quote(exe)).Start()
+		c := exec.Command("sh", "-c", `sleep 1; exec "$RESTART_TARGET"`)
+		c.Env = append(os.Environ(), "RESTART_TARGET="+exe)
+		_ = c.Start()
 	}
 	os.Exit(0)
 }

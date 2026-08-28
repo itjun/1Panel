@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -29,18 +31,74 @@ func (localRunner) Run(_ string, _ sshd.ConnectOption, cmd string, runOpts ...ss
 	if len(runOpts) > 0 && runOpts[0].Timeout > 0 {
 		timeout = runOpts[0].Timeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	c := exec.CommandContext(ctx, "sh", "-c", cmd)
-	// 独立进程组：超时时杀整组，避免 sh 的子进程残留
-	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	c.Cancel = func() error {
-		if c.Process != nil {
-			return syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
-		}
-		return nil
+	return runShellCombined(cmd, timeout)
+}
+
+// runShellCombined 用 sh 执行脚本并返回 stdout+stderr 合并输出，
+// 语义等价 exec.Command(sh, -c, script).CombinedOutput()：
+// 脚本经 stdin 管道传入（不进 argv）；独立进程组，超时杀整组，
+// 避免 sh 的子进程残留；读取与写入并发进行，防管道缓冲死锁。
+func runShellCombined(script string, timeout time.Duration) ([]byte, error) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		return nil, err
 	}
-	return c.CombinedOutput()
+	stdinR, stdinW, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		stdinR.Close()
+		stdinW.Close()
+		return nil, err
+	}
+	proc, err := os.StartProcess(sh, []string{"sh"}, &os.ProcAttr{
+		Files: []*os.File{stdinR, outW, outW},
+		Sys:   &syscall.SysProcAttr{Setpgid: true},
+	})
+	// 子进程已继承句柄副本，父进程侧立即关闭，否则管道永不见 EOF
+	stdinR.Close()
+	outW.Close()
+	if err != nil {
+		stdinW.Close()
+		outR.Close()
+		return nil, err
+	}
+
+	// 先起读取协程再写脚本：输出超过管道缓冲时 sh 会阻塞在写侧
+	outCh := make(chan struct{})
+	out := []byte(nil)
+	readErr := error(nil)
+	go func() {
+		out, readErr = io.ReadAll(outR)
+		close(outCh)
+	}()
+	go func() {
+		_, _ = stdinW.WriteString(script)
+		stdinW.Close()
+	}()
+
+	var timedOut atomic.Bool
+	timer := time.AfterFunc(timeout, func() {
+		timedOut.Store(true)
+		_ = syscall.Kill(-proc.Pid, syscall.SIGKILL)
+	})
+	state, waitErr := proc.Wait()
+	timer.Stop()
+	<-outCh
+	outR.Close()
+
+	if waitErr == nil && timedOut.Load() {
+		waitErr = context.DeadlineExceeded
+	}
+	if waitErr == nil && state != nil && !state.Success() {
+		waitErr = fmt.Errorf("exit status %d", state.ExitCode())
+	}
+	if waitErr != nil {
+		return out, waitErr
+	}
+	return out, readErr
 }
 
 // Server agent 本地 HTTP 服务（只绑 127.0.0.1）
@@ -449,6 +507,11 @@ func (s *Server) handleDockerAction(w http.ResponseWriter, r *http.Request) {
 	case "start", "stop", "restart", "pause", "unpause":
 	default:
 		writeErr(w, http.StatusBadRequest, "不支持的 docker 操作: "+req.Action)
+		return
+	}
+	// 容器名与面板侧 monitor.CollectDockerInspect 同一白名单，阻断拼注入
+	if !monitor.IsValidContainerRef(req.Container) {
+		writeErr(w, http.StatusBadRequest, "非法容器名")
 		return
 	}
 	out, err := (localRunner{}).Run("", sshd.ConnectOption{},
