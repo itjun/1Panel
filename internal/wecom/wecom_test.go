@@ -1,4 +1,4 @@
-package agent
+package wecom
 
 import (
 	"strings"
@@ -8,7 +8,7 @@ import (
 
 func TestFormatWatchMarkdownDown(t *testing.T) {
 	at := time.Date(2026, 8, 26, 16, 8, 0, 0, time.Local)
-	md := formatWatchMarkdown(WatchNotify{
+	md := FormatWatchMarkdown(WatchNotify{
 		Level:       "critical",
 		Category:    "process",
 		Host:        "cdcp-beta",
@@ -34,7 +34,7 @@ func TestFormatWatchMarkdownDown(t *testing.T) {
 }
 
 func TestFormatWatchMarkdownWarningOrange(t *testing.T) {
-	md := formatWatchMarkdown(WatchNotify{
+	md := FormatWatchMarkdown(WatchNotify{
 		Level:       "warning",
 		Category:    "gc",
 		Host:        "cdcp-beta",
@@ -52,7 +52,7 @@ func TestFormatWatchMarkdownWarningOrange(t *testing.T) {
 }
 
 func TestFormatWatchMarkdownUp(t *testing.T) {
-	md := formatWatchMarkdown(WatchNotify{
+	md := FormatWatchMarkdown(WatchNotify{
 		Level:       "ok",
 		Category:    "health",
 		Host:        "cdcp-beta",
@@ -90,11 +90,11 @@ func TestFormatWatchMarkdownHostDown(t *testing.T) {
 }
 
 func TestEntryFromCmdline(t *testing.T) {
-	got := entryFromCmdline("java -jar /root/workspace/diteng-oss-202409.01.jar --server.port=1")
+	got := EntryFromCmdline("java -jar /root/workspace/diteng-oss-202409.01.jar --server.port=1")
 	if got != "diteng-oss-202409.01.jar" {
 		t.Fatal(got)
 	}
-	got2 := entryFromCmdline("bun run /root/ai-agent/src/server.ts")
+	got2 := EntryFromCmdline("bun run /root/ai-agent/src/server.ts")
 	if got2 != "server.ts" {
 		t.Fatal(got2)
 	}

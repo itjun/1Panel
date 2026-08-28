@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"diteng-pannel/internal/agent"
 	"diteng-pannel/internal/monitor"
+	"diteng-pannel/internal/wecom"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -45,7 +45,7 @@ func (s *System) NotifyHostConn(in HostConnNotify) error {
 		return nil
 	}
 	kind := strings.TrimSpace(in.Kind)
-	n := agent.WatchNotify{
+	n := wecom.WatchNotify{
 		Host:     host,
 		Kind:     kind,
 		Detail:   strings.TrimSpace(in.Detail),
@@ -65,5 +65,5 @@ func (s *System) NotifyHostConn(in HostConnNotify) error {
 			n.Detail = "连接失败"
 		}
 	}
-	return agent.NotifyWecom(webhook, agent.FormatWatchMarkdown(n))
+	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
 }

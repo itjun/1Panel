@@ -1,4 +1,8 @@
-package agent
+// Package wecom 提供企微群机器人 markdown 告警的构造与发送。
+// 从 internal/agent 抽出为独立跨平台包：面板侧主机停机告警（system.go）
+// 与 agent 侧探活告警共用同一 webhook 与版式，而面板不能依赖 Linux-only
+// 的 agent 运行时包（含 Setpgid/Statfs 等 Unix 系统调用，Windows 编不过）。
+package wecom
 
 import (
 	"bytes"
@@ -12,8 +16,8 @@ import (
 
 // WatchNotify 企微 markdown 结构化字段（缺省字段不输出）
 type WatchNotify struct {
-	Level         string    // critical / ok / warning
-	Category      string    // process / health / ingress / gc
+	Level         string // critical / ok / warning
+	Category      string // process / health / ingress / gc
 	Host          string
 	Service       string
 	Runtime       string
@@ -28,15 +32,6 @@ type WatchNotify struct {
 
 // NotifyWecom 向企业微信群机器人发送 markdown；webhook 为空则跳过。
 func NotifyWecom(webhook, markdown string) error {
-	return notifyWecom(webhook, markdown)
-}
-
-// FormatWatchMarkdown 格式化企微告警 markdown（agent 探活与面板主机告警共用）。
-func FormatWatchMarkdown(n WatchNotify) string {
-	return formatWatchMarkdown(n)
-}
-
-func notifyWecom(webhook, markdown string) error {
 	if webhook == "" {
 		return nil
 	}
@@ -71,7 +66,8 @@ func notifyWecom(webhook, markdown string) error {
 	return nil
 }
 
-func formatWatchMarkdown(n WatchNotify) string {
+// FormatWatchMarkdown 格式化企微告警 markdown（agent 探活与面板主机告警共用）。
+func FormatWatchMarkdown(n WatchNotify) string {
 	// 标题：`[严重] 主机 的 服务 · 后缀`；正文只保留时间、内容。
 	// 严重用 red，普通告警用 warning（橙），恢复用 info。
 	badge := "[" + levelLabelCN(n.Level) + "]"
@@ -129,7 +125,8 @@ func appendQuote(b *strings.Builder, key, val string) {
 	fmt.Fprintf(b, ">%s: %s\n", key, val)
 }
 
-func entryFromCmdline(cmdline string) string {
+// EntryFromCmdline 从进程命令行提取入口（-jar 的 jar 名 / 脚本名），供告警展示。
+func EntryFromCmdline(cmdline string) string {
 	fields := strings.Fields(cmdline)
 	for i, f := range fields {
 		if f == "-jar" && i+1 < len(fields) {

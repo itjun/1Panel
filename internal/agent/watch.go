@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"diteng-pannel/internal/wecom"
 )
 
 const (
@@ -378,8 +380,8 @@ func (w *Watcher) transition(cfg WatchConfig, service, layer, kind, detail strin
 	*last = now
 
 	n := w.buildNotify(cfg, service, layer, kind, detail, now)
-	md := formatWatchMarkdown(n)
-	if err := notifyWecom(cfg.WecomWebhook, md); err != nil {
+	md := wecom.FormatWatchMarkdown(n)
+	if err := wecom.NotifyWecom(cfg.WecomWebhook, md); err != nil {
 		log.Printf("[watch] 企微: %v", err)
 		w.store.WriteEvent("warn", "企微发送失败: "+err.Error())
 	}
@@ -399,7 +401,7 @@ func (w *Watcher) rememberSeen(svc ServiceWatch, inst []javaProc) {
 	snap := svcSeen{
 		Port:      port,
 		Runtime:   rt,
-		Entry:     entryFromCmdline(p.Cmdline),
+		Entry:     wecom.EntryFromCmdline(p.Cmdline),
 		StartedAt: p.StartedAt,
 	}
 	// 若第一个没端口，试试其它实例
@@ -408,7 +410,7 @@ func (w *Watcher) rememberSeen(svc ServiceWatch, inst []javaProc) {
 			if pt := pickPort(x.Ports, svc.PortFrom, svc.PortTo); pt > 0 {
 				snap.Port = pt
 				if snap.Entry == "" {
-					snap.Entry = entryFromCmdline(x.Cmdline)
+					snap.Entry = wecom.EntryFromCmdline(x.Cmdline)
 				}
 				if snap.StartedAt.IsZero() {
 					snap.StartedAt = x.StartedAt
@@ -428,7 +430,7 @@ func (w *Watcher) lookupSeen(service string) svcSeen {
 	return w.seen[service]
 }
 
-func (w *Watcher) buildNotify(cfg WatchConfig, service, layer, kind, detail string, now time.Time) WatchNotify {
+func (w *Watcher) buildNotify(cfg WatchConfig, service, layer, kind, detail string, now time.Time) wecom.WatchNotify {
 	snap := w.lookupSeen(service)
 	rt := snap.Runtime
 	if rt == "" {
@@ -442,7 +444,7 @@ func (w *Watcher) buildNotify(cfg WatchConfig, service, layer, kind, detail stri
 			rt = "java"
 		}
 	}
-	n := WatchNotify{
+	n := wecom.WatchNotify{
 		Category:      layer,
 		Host:          w.host,
 		Service:       service,
@@ -468,14 +470,14 @@ func (w *Watcher) notifyGC(cfg WatchConfig, svc ServiceWatch, port int, p javaPr
 	if rt == "" {
 		rt = "java"
 	}
-	n := WatchNotify{
+	n := wecom.WatchNotify{
 		Level:         "warning",
 		Category:      "gc",
 		Host:          w.host,
 		Service:       svc.Name,
 		Runtime:       rt,
 		Port:          port,
-		Entry:         entryFromCmdline(p.Cmdline),
+		Entry:         wecom.EntryFromCmdline(p.Cmdline),
 		Kind:          "spike",
 		TitleSuffix:   "GC 尖峰",
 		Detail:        detail,
@@ -493,7 +495,7 @@ func (w *Watcher) notifyGC(cfg WatchConfig, svc ServiceWatch, port int, p javaPr
 		return
 	}
 	st.lastNotifyDown = now
-	if err := notifyWecom(cfg.WecomWebhook, formatWatchMarkdown(n)); err != nil {
+	if err := wecom.NotifyWecom(cfg.WecomWebhook, wecom.FormatWatchMarkdown(n)); err != nil {
 		log.Printf("[watch] 企微 GC: %v", err)
 	}
 }
