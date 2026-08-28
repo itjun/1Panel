@@ -69,7 +69,7 @@ def build():
 
 
 def stop_running():
-    # 停止正在运行的 1Pannel（覆盖安装前必须，避免进程占用旧二进制）
+    # 先停掉正在运行的 1Pannel，再编译/覆盖安装，避免占用旧二进制
     proc = subprocess.run(
         ["pkill", "-f", f"{APP_NAME}.app/Contents/MacOS"], capture_output=True
     )
@@ -107,10 +107,11 @@ def main():
         choice = input("请选择 [1/2]: ").strip()
 
     if choice == "1":
-        build()
         stop_running()
+        build()
         launch(APP_BUNDLE)
     elif choice == "2":
+        stop_running()
         build()
         stop_running()
         install()

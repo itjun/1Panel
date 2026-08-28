@@ -699,12 +699,12 @@ async function onAgentCommand(cmd: string) {
   if (agentBusy.value) return;
   const host = props.host;
   if (cmd === "upgrade") {
-    const action = `更新到 v${latestAgentVersion.value}`;
+    const version = latestAgentVersion.value;
     try {
       await ElMessageBox.confirm(
         `将向 ${host} 部署 spanel-agent（systemd 服务，约 10MB）。更新时历史数据保留。`,
-        `${action} Agent`,
-        { confirmButtonText: action, cancelButtonText: "取消" }
+        "更新 Agent",
+        { confirmButtonText: `更新到 ${version}`, cancelButtonText: "取消" }
       );
     } catch {
       return;

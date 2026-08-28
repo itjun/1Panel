@@ -71,23 +71,54 @@ html {
     z-index: 99999 !important;
 }
 
-/* Wails/WKWebView 下弹窗的 fixed + inline-block(:after)/flex 居中偶发失效（弹窗会跑到左上/侧栏区域），
-   统一改用「绝对定位 + 50% + translate(-50%,-50%)」兜底：不依赖父容器高度、兼容性最好，
-   保证弹窗在整个应用窗口水平垂直居中；遮罩层级提到 toast 之下的最高层保证置顶 */
+/* 遮罩置顶（低于 toast）；Wails 标题栏拖拽区上的点击要落到弹窗 */
 .el-overlay {
     z-index: 99998 !important;
+    -webkit-app-region: no-drag;
 }
 
-/* message-box（重命名 / 删除确认 / 新建分组等）绝对居中 */
+/* message-box 相对遮罩铺满后 flex 居中。
+   不用 fixed + :after 的 vertical-align：Wails/WKWebView 下偶发失效，弹窗会跑到侧栏/左上。
+   不用子元素 absolute+transform：会与 EP 入场动画的 overlay transform 叠加，宽度塌陷。 */
+.el-overlay-message-box {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 16px !important;
+    box-sizing: border-box;
+    overflow: auto;
+}
+
 .el-overlay-message-box::after {
     display: none !important;
 }
 
 .el-overlay-message-box .el-message-box {
-    position: absolute !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
+    position: relative !important;
+    margin: 0 !important;
+    flex-shrink: 0;
+    background-color: var(--el-bg-color, #ffffff) !important;
+}
+
+/* 仅淡入淡出，避免 overlay transform 破坏 flex 居中 */
+.fade-in-linear-enter-active .el-overlay-message-box {
+    animation: msgbox-overlay-fade-in var(--el-transition-duration);
+}
+
+.fade-in-linear-leave-active .el-overlay-message-box {
+    animation: msgbox-overlay-fade-in var(--el-transition-duration) reverse;
+}
+
+@keyframes msgbox-overlay-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 /* el-dialog（编辑主机 / 添加主机 / 设置等）绝对居中 */

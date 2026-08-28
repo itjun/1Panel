@@ -36,19 +36,6 @@ body,
   -webkit-app-region: no-drag;
 }
 
-// ElMessageBox 确认弹窗在窗口内水平垂直居中（EP 默认偏上 15vh）
-.el-overlay-message-box {
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-}
-.el-overlay-message-box::after {
-  display: none !important;
-}
-.el-overlay-message-box .el-message-box {
-  margin: 0 !important;
-}
-
 // 1Panel 卡片间隔
 .card-interval {
   margin-top: 7px;
