@@ -375,21 +375,19 @@ async function syncToHost() {
 .settings-layout {
   display: flex;
   gap: 0;
-  min-height: min(62vh, 480px);
-  max-height: min(70vh, 560px);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
+  min-height: min(58vh, 460px);
+  max-height: min(68vh, 540px);
   overflow: hidden;
+  background: var(--m3-surface-container-lowest);
 }
 
 .settings-nav {
-  flex: 0 0 132px;
+  flex: 0 0 148px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px 8px;
-  background: var(--el-fill-color-lighter);
-  border-right: 1px solid var(--el-border-color-lighter);
+  gap: 4px;
+  padding: 4px 8px 12px 0;
+  background: transparent;
 }
 
 .nav-item {
@@ -397,20 +395,20 @@ async function syncToHost() {
   border: none;
   background: transparent;
   text-align: left;
-  padding: 9px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
+  padding: 10px 16px;
+  border-radius: var(--m3-shape-full);
+  font: var(--m3-label-large);
+  color: var(--m3-on-surface-variant);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background-color var(--m3-motion-state), color var(--m3-motion-state);
 
   &:hover {
-    background: var(--el-fill-color);
-    color: var(--el-text-color-primary);
+    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
+    color: var(--m3-on-surface);
   }
   &.active {
-    background: var(--el-color-primary);
-    color: #fff;
+    background: var(--m3-primary-container);
+    color: var(--m3-primary);
     font-weight: 600;
   }
 }
@@ -419,10 +417,11 @@ async function syncToHost() {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 16px 18px 18px;
+  padding: 4px 0 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 28px;
+  background: transparent;
 }
 
 .settings-section {
@@ -431,30 +430,35 @@ async function syncToHost() {
 
 .sec-title {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font: var(--m3-title-medium);
+  font-weight: 500;
+  color: var(--m3-on-surface);
 }
 
 .sec-desc {
-  margin: 4px 0 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.45;
+  margin: 6px 0 14px;
+  font: var(--m3-body-medium);
+  color: var(--m3-on-surface-variant);
+  line-height: 1.5;
 
   &--inline {
     margin-bottom: 0;
+    font: var(--m3-body-small);
   }
 
   code {
-    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: var(--m3-shape-xs);
+    background: var(--m3-surface-container);
+    font-family: var(--m3-font-mono);
+    font-size: 12px;
   }
 }
 
 .sec-hint {
   margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
 }
 
 .sec-row {
@@ -465,9 +469,10 @@ async function syncToHost() {
 }
 
 .sec-value {
-  font-size: 12px;
+  font: var(--m3-label-large);
   font-variant-numeric: tabular-nums;
-  color: var(--el-text-color-secondary);
+  color: var(--m3-primary);
+  font-weight: 600;
 }
 
 .notify-actions {
@@ -479,83 +484,93 @@ async function syncToHost() {
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 12px;
 }
 
 .theme-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  background: var(--el-bg-color);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-m);
+  background: var(--m3-surface-container-lowest);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--m3-motion-select), background-color var(--m3-motion-state);
 
   &:hover {
-    border-color: var(--el-color-primary-light-5);
+    border-color: color-mix(in srgb, var(--m3-primary) 28%, var(--m3-outline-variant));
   }
   &.active {
-    border-color: var(--el-color-primary);
-    box-shadow: 0 0 0 1px var(--el-color-primary);
+    border-color: var(--m3-primary);
+    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
   }
 }
 
 .theme-swatch {
-  height: 48px;
-  border-radius: 6px;
-  border: 1px solid var(--el-border-color-lighter);
+  height: 56px;
+  border-radius: var(--m3-shape-s);
+  border: 1px solid var(--m3-outline-variant);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .theme-aa {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: var(--m3-shape-full);
+  font: var(--m3-label-medium);
   font-weight: 600;
 }
 
 .theme-name {
-  font-size: 12px;
+  font: var(--m3-title-small);
   font-weight: 600;
+  color: var(--m3-on-surface);
 }
 
 .theme-desc {
   margin-top: 2px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.35;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  line-height: 1.4;
 }
 
 .theme-check {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  color: var(--el-color-primary);
-  font-size: 16px;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--m3-shape-full);
+  background: var(--m3-primary);
+  color: var(--m3-on-primary) !important;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preview-box {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  border: 1px dashed var(--el-border-color);
-  background: var(--el-fill-color-lighter);
-  color: var(--el-text-color-regular);
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: var(--m3-shape-s);
+  border: 1px solid var(--m3-outline-variant);
+  background: var(--m3-surface-container);
+  color: var(--m3-on-surface);
+  font: var(--m3-body-medium);
   line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   &--term {
-    background: #0d0d0d;
-    color: #d1d5db;
-    border-color: #2a2a2a;
+    background: #272822;
+    color: #f8f8f2;
+    border-color: #49483e;
+    font-family: var(--m3-font-mono);
     font-variant-numeric: tabular-nums;
   }
 }

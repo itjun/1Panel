@@ -1,30 +1,29 @@
 <template>
-  <!-- 详情页一级标签：选中主色实底白字；未选中纯文字，悬停才出主色描边 -->
-  <el-card class="router_card" :class="{ compact }">
-    <div class="router-nav">
-      <el-radio-group
-        :model-value="modelValue"
-        @change="(v: string | number | boolean | undefined) => emit('update:modelValue', v as string)"
-      >
-        <el-radio-button
+  <!-- M3 Segmented：灰底上描边胶囊，选中 primary-container -->
+  <div class="router_card" :class="{ compact }">
+    <div class="router-nav" role="tablist">
+      <div class="router-tabs-scroll">
+        <button
           v-for="b in buttons"
           :key="b.value"
-          class="router_card_button"
-          :value="b.value"
-          size="large"
+          type="button"
+          role="tab"
+          class="router-tab"
+          :class="{ 'is-active': modelValue === b.value }"
+          :aria-selected="modelValue === b.value"
+          @click="emit('update:modelValue', b.value)"
         >
-          <span>{{ b.label }}</span>
-        </el-radio-button>
-      </el-radio-group>
-      <div class="router-actions">
+          <span class="router-tab__label">{{ b.label }}</span>
+        </button>
+      </div>
+      <div v-if="$slots['route-button']" class="router-actions">
         <slot name="route-button"></slot>
       </div>
     </div>
-  </el-card>
+  </div>
 </template>
 
 <script setup lang="ts">
-/** 与 1Panel RouterButton 同构：buttons 驱动，v-model 双向绑定当前项 */
 withDefaults(
   defineProps<{
     modelValue: string;
@@ -37,92 +36,112 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 </script>
 
 <style lang="scss" scoped>
-/* 以下样式与 1Panel router-button/index.vue 一致（tailwind 类翻译为普通 CSS） */
 .router_card {
-  --el-card-padding: 0;
-
-  :deep(.el-card__body) {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
+  width: 100%;
+  min-width: 0;
 }
 
 .router-nav {
-  display: flex;
-  width: 100%;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: inline-flex;
+  max-width: 100%;
+  align-items: stretch;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-full);
+  background: var(--m3-surface-container-lowest);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.router-nav :deep(.el-radio-group) {
+.router-tabs-scroll {
   display: flex;
-  flex-wrap: wrap;
-  width: 100%;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.router-tab {
+  /* 等宽段：按最长文案「定时任务」定宽，文字居中，视觉整齐 */
+  flex: 0 0 80px;
+  width: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 6px;
+  height: 36px;
+  border: none;
+  border-radius: 0;
+  border-left: 1px solid var(--m3-outline-variant);
+  background: transparent;
+  color: var(--m3-on-surface);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--m3-motion-state), color var(--m3-motion-state);
+
+  &:first-child {
+    border-left: none;
+  }
+
+  &:hover:not(.is-active) {
+    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
+  }
+
+  &.is-active {
+    color: var(--m3-primary);
+    background: var(--m3-primary-container);
+
+    .router-tab__label {
+      font-weight: 600;
+    }
+  }
+}
+
+.router-tab__label {
+  font: var(--m3-label-large);
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
 }
 
 .router-actions {
   display: flex;
+  flex-shrink: 0;
+  align-items: center;
   gap: 8px;
-}
-
-.router_card_button {
-  :deep(.el-radio-button__inner) {
-    min-width: 100px;
-    height: 40px;
-    background-color: var(--panel-button-active) !important;
-    box-shadow: none !important;
-    outline: none !important;
-    border: 2px solid transparent !important;
-    color: var(--el-text-color-regular) !important;
-
-    /* 微调：悬浮显示主色边框，提示可点击（2px 透明边框已占位，不抖动） */
-    &:hover {
-      border-color: var(--panel-color-primary) !important;
-      color: var(--panel-color-primary) !important;
-    }
-  }
-
-  :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-    color: #fff !important;
-    background-color: var(--panel-color-primary) !important;
-    border-color: var(--panel-color-primary) !important;
-    border-radius: 4px;
-    &:hover {
-      color: #fff !important;
-      background-color: var(--panel-color-primary) !important;
-      border-color: var(--panel-color-primary) !important;
-    }
-  }
+  padding: 0 8px 0 10px;
+  border-left: 1px solid var(--m3-outline-variant);
 }
 
 .router_card.compact {
   display: inline-flex;
   width: max-content;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-
-  :deep(.el-card__body) {
-    padding: 0;
-  }
 
   .router-nav {
     width: max-content;
   }
 
-  :deep(.el-radio-group) {
-    display: flex;
-    flex-wrap: nowrap;
+  .router-tab {
+    flex: 0 0 64px;
+    width: 64px;
+    padding: 0 4px;
+    height: 28px;
   }
 
-  .router_card_button :deep(.el-radio-button__inner) {
-    min-width: 64px;
-    height: 28px;
-    padding: 0 12px;
-    font-size: 13px;
-    line-height: 24px;
-    background-color: transparent !important;
+  .router-tab__label {
+    font: var(--m3-label-medium);
   }
 }
 </style>

@@ -32,17 +32,38 @@ func listNonGitHosts() ([]sshconfig.HostConfig, error) {
 	return out, nil
 }
 
+// attachHostNotes 把本机备注合并进 HostConfig.Note（不改 ssh config）
+func (s *Hosts) attachHostNotes(hosts []sshconfig.HostConfig) []sshconfig.HostConfig {
+	if s.hostMeta == nil || len(hosts) == 0 {
+		return hosts
+	}
+	out := make([]sshconfig.HostConfig, len(hosts))
+	copy(out, hosts)
+	for i := range out {
+		out[i].Note = s.hostMeta.Get(out[i].Name)
+	}
+	return out
+}
+
 // ListHosts 解析 ~/.ssh/config 返回所有 Host 条目
 // 默认过滤掉 Git 托管服务（github.com / gitee.com 等）
 // 这些通常不是用户想要管理的"服务器"
 func (s *Hosts) ListHosts() ([]sshconfig.HostConfig, error) {
-	return listNonGitHosts()
+	hosts, err := listNonGitHosts()
+	if err != nil {
+		return nil, err
+	}
+	return s.attachHostNotes(hosts), nil
 }
 
 // ListHostsAll 返回所有 Host 条目（包括 Git 服务）
 // 供前端「显示 Git 服务」开关使用
 func (s *Hosts) ListHostsAll() ([]sshconfig.HostConfig, error) {
-	return sshconfig.Parse()
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return nil, err
+	}
+	return s.attachHostNotes(hosts), nil
 }
 
 // AddHost 添加新主机：先校验别名不重复 → 用密码连一次验证 → 推送本机公钥 → 回写 ~/.ssh/config
@@ -81,7 +102,15 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 		PublicKeyFile: "~/.ssh/id_ed25519.pub",
 		IdentityFile:  "~/.ssh/id_ed25519",
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if s.hostMeta != nil {
+		if err := s.hostMeta.Set(input.Name, input.Note); err != nil {
+			application.Get().Logger.Warn("保存主机备注失败", "error", err)
+		}
+	}
+	return nil
 }
 
 // TestConnection 用密码尝试 SSH 登录（执行 hostname），仅验证连通性与凭据是否正确
@@ -142,6 +171,11 @@ func (s *Hosts) RenameHost(oldName, newName string) error {
 	if s.hostIcons != nil {
 		if err := s.hostIcons.Rename(oldName, newName); err != nil {
 			application.Get().Logger.Warn("同步主机图标失败", "error", err)
+		}
+	}
+	if s.hostMeta != nil {
+		if err := s.hostMeta.Rename(oldName, newName); err != nil {
+			application.Get().Logger.Warn("同步主机备注失败", "error", err)
 		}
 	}
 	// 关闭旧连接，下次用新别名时重新建立
@@ -212,7 +246,24 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 
 	// 关闭旧连接，下次用新参数重连
 	s.sshMgr.Close(input.Name)
+	if s.hostMeta != nil {
+		if err := s.hostMeta.Set(input.Name, input.Note); err != nil {
+			application.Get().Logger.Warn("保存主机备注失败", "error", err)
+		}
+	}
 	return nil
+}
+
+// SetHostNote 仅更新本机备注（不改 ssh config、不验连）
+func (s *Hosts) SetHostNote(name, note string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("主机别名不能为空")
+	}
+	if s.hostMeta == nil {
+		return fmt.Errorf("主机备注存储未初始化")
+	}
+	return s.hostMeta.Set(name, note)
 }
 
 // DeleteHost 从 ~/.ssh/config 删除主机别名，并清理分组引用与连接池
@@ -233,6 +284,11 @@ func (s *Hosts) DeleteHost(name string) error {
 	if s.hostIcons != nil {
 		if err := s.hostIcons.Delete(name); err != nil {
 			application.Get().Logger.Warn("清理主机图标失败", "error", err)
+		}
+	}
+	if s.hostMeta != nil {
+		if err := s.hostMeta.Delete(name); err != nil {
+			application.Get().Logger.Warn("清理主机备注失败", "error", err)
 		}
 	}
 	s.sshMgr.Close(name)

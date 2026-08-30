@@ -51,6 +51,11 @@ func (s *Backup) ExportBackup(dir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("读取 ssh config 失败: %w", err)
 	}
+	if s.hostMeta != nil {
+		for i := range hosts {
+			hosts[i].Note = s.hostMeta.Get(hosts[i].Name)
+		}
+	}
 	hostSet := make(map[string]bool, len(hosts))
 	for _, h := range hosts {
 		hostSet[h.Name] = true
@@ -156,11 +161,14 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 		if strings.ContainsAny(h.Name, " \t*") {
 			return nil, fmt.Errorf("备份中主机别名 %q 含空格或通配符 *，无法导入", h.Name)
 		}
-		for _, v := range []string{h.Name, h.HostName, h.User, h.Port, h.IdentityFile, h.ProxyJump, h.HostKeyAlgos} {
+		for _, v := range []string{h.Name, h.HostName, h.User, h.Port, h.IdentityFile, h.ProxyJump, h.HostKeyAlgos, h.Note} {
 			if strings.ContainsAny(v, "\n\r") {
 				return nil, fmt.Errorf("备份中主机 %q 的字段含换行符，无法导入", h.Name)
 			}
 		}
+		note := strings.TrimSpace(h.Note)
+		// Note 不写入 ssh config，AppendHost 前清空，导入后再写 host_meta
+		h.Note = ""
 		if !existing[h.Name] {
 			if err := sshconfig.AppendHost(h); err != nil {
 				return nil, fmt.Errorf("写入主机 %s 失败: %w", h.Name, err)
@@ -168,6 +176,11 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 			existing[h.Name] = true
 			localByName[h.Name] = h
 			res.Added = append(res.Added, h.Name)
+			if s.hostMeta != nil {
+				if err := s.hostMeta.Set(h.Name, note); err != nil {
+					return nil, fmt.Errorf("写入主机备注 %s 失败: %w", h.Name, err)
+				}
+			}
 			continue
 		}
 		if !overwrite || sshconfig.IsGitHost(localByName[h.Name]) {
@@ -184,6 +197,11 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 		// 关旧连接，下次用备份里的参数重连
 		s.sshMgr.Close(h.Name)
 		res.Overwritten = append(res.Overwritten, h.Name)
+		if s.hostMeta != nil {
+			if err := s.hostMeta.Set(h.Name, note); err != nil {
+				return nil, fmt.Errorf("写入主机备注 %s 失败: %w", h.Name, err)
+			}
+		}
 	}
 
 	if s.groups != nil {

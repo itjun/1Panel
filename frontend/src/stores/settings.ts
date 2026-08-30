@@ -90,21 +90,21 @@ export const THEME_OPTIONS: {
   {
     key: "light",
     name: "明亮",
-    description: "1Panel 白蓝风格",
+    description: "M3 亮色方案",
     swatch: { bg: "#f4f4f4", fg: "#1f2329", accent: "#005eeb" },
   },
   {
     key: "dark",
     name: "暗黑",
-    description: "深色界面，护眼",
-    swatch: { bg: "#242633", fg: "#e3e6f3", accent: "#3d8eff" },
+    description: "M3 深色方案，护眼",
+    swatch: { bg: "#141820", fg: "#e4e7ed", accent: "#669ef3" },
   },
   {
     key: "auto",
     name: "跟随系统",
     description: "按系统亮/暗自动切换",
     swatch: {
-      bg: "linear-gradient(135deg, #f4f4f4 50%, #242633 50%)",
+      bg: "linear-gradient(135deg, #f4f4f4 50%, #141820 50%)",
       fg: "#888",
       accent: "#005eeb",
     },

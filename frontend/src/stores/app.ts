@@ -403,12 +403,13 @@ export const useAppStore = defineStore("app", () => {
     await refresh();
   }
 
-  /** 编辑主机 IP/用户（后端会密码验连 + 推公钥 + 写 config） */
+  /** 编辑主机 IP/用户/备注（后端会密码验连 + 推公钥 + 写 config；备注写本机） */
   async function updateHost(input: {
     name: string;
     hostName: string;
     user: string;
     password: string;
+    note?: string;
   }) {
     await api.updateHost(input);
     // 关旧会话参数：若正在跑，停掉让用户重新打开

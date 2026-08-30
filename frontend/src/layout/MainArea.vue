@@ -180,35 +180,34 @@ function onSubChange(hid: string, v: string) {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  padding: 12px 20px 20px;
+  box-sizing: border-box;
 }
+
+/* 子页标签：Segmented 直接浮在灰画布，无白卡外框 */
 .router-tabs {
   flex-shrink: 0;
-  /* 与通栏（标题栏）留出间距，避免标签条顶贴蓝底 */
-  margin: 12px 20px 7px;
-
-  :deep(.el-card__body) {
-    min-height: 42px;
-    align-items: center;
-  }
-
-  :deep(.el-radio-button__inner) {
-    height: 42px;
-    box-sizing: border-box;
-  }
+  margin-bottom: 12px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-sizing: border-box;
 }
+
 .content-pad {
   flex: 1;
   min-width: 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px 20px 16px;
+  padding: 12px 20px 20px;
   box-sizing: border-box;
+  background: transparent;
 
   &--fill {
     display: flex;
     flex-direction: column;
-    padding: 12px 20px 16px;
+    padding: 0;
     overflow: hidden;
     /* 终端等全高视图：子组件必须能吃掉剩余高度 */
     > * {
@@ -217,5 +216,9 @@ function onSubChange(hid: string, v: string) {
       min-width: 0;
     }
   }
+}
+
+.host-shell .content-pad:not(.content-pad--fill) {
+  padding: 4px 0 12px;
 }
 </style>

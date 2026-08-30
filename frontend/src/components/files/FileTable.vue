@@ -1,7 +1,7 @@
 <template>
   <div class="file-table-wrap">
     <el-table
-      class="file-table"
+      class="file-table data-table-unified"
       :data="rows"
       height="100%"
       size="default"
@@ -9,12 +9,12 @@
       highlight-current-row
       row-key="path"
       empty-text="空目录"
-      table-layout="auto"
+      table-layout="fixed"
       @selection-change="onSelectionChange"
       @row-dblclick="onOpen"
       @sort-change="onSortChange"
     >
-      <el-table-column type="selection" width="42" />
+      <el-table-column type="selection" width="44" align="center" />
       <el-table-column
         label="名称"
         prop="name"
@@ -29,20 +29,14 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="权限" prop="mode" width="80" align="center">
+      <el-table-column label="权限" prop="mode" width="88" align="center">
         <template #default="{ row }">
           <span class="mono">{{ modeToOctal(row.mode) || row.mode || "—" }}</span>
         </template>
       </el-table-column>
-      <el-table-column
-        label="用户 / 用户组"
-        min-width="120"
-        show-overflow-tooltip
-      >
+      <el-table-column label="用户 / 用户组" width="140" show-overflow-tooltip>
         <template #default="{ row }">
-          <span class="owner">
-            {{ row.owner || "-" }} / {{ row.group || "-" }}
-          </span>
+          <span class="owner">{{ row.owner || "—" }} / {{ row.group || "—" }}</span>
         </template>
       </el-table-column>
       <el-table-column
@@ -53,18 +47,10 @@
         sortable="custom"
       >
         <template #default="{ row }">
-          <el-button
-            v-if="row.isDir"
-            type="primary"
-            link
-            size="small"
-            disabled
-          >
+          <el-button v-if="row.isDir" type="primary" link size="small" disabled>
             计算
           </el-button>
-          <el-button v-else type="primary" link size="small">
-            {{ formatBytes(row.size || 0) }}
-          </el-button>
+          <span v-else class="size-text">{{ formatBytes(row.size || 0) }}</span>
         </template>
       </el-table-column>
       <el-table-column
@@ -77,12 +63,10 @@
       <el-table-column label="备注" width="72" align="center">
         <template #default>—</template>
       </el-table-column>
-      <el-table-column label="操作" width="150" align="right">
+      <el-table-column label="操作" width="148" align="right" fixed="right">
         <template #default="{ row }">
           <div class="ops-cell">
-            <el-button type="primary" link size="small" @click="onOpen(row)">
-              打开
-            </el-button>
+            <el-button type="primary" link size="small" @click="onOpen(row)">打开</el-button>
             <el-button
               v-if="!row.isDir"
               type="primary"
@@ -148,7 +132,6 @@ function onSortChange(data: {
 </script>
 
 <style scoped lang="scss">
-/* 表格容器占满剩余高度，避免 height:100% + fixed 列把右侧表头顶飞 */
 .file-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
@@ -156,21 +139,17 @@ function onSortChange(data: {
   overflow: hidden;
   position: relative;
 }
+
 .file-table {
   width: 100%;
   height: 100%;
-  :deep(.el-table__header th.el-table__cell) {
-    background: var(--el-fill-color-blank);
-  }
+
   :deep(.el-table__row) {
     cursor: default;
   }
+
   :deep(.el-table__row:hover > td.el-table__cell) {
-    background-color: var(--el-fill-color-light);
-  }
-  :deep(.el-table__cell) {
-    padding-top: 6px;
-    padding-bottom: 6px;
+    background-color: color-mix(in srgb, var(--m3-primary) 6%, var(--m3-surface-container-lowest));
   }
 }
 
@@ -181,31 +160,43 @@ function onSortChange(data: {
   min-height: 24px;
   min-width: 0;
 }
+
 .ops-cell {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   flex-wrap: nowrap;
-  gap: 2px;
+  gap: 4px;
   white-space: nowrap;
 }
+
 .table-link {
-  color: var(--el-text-color-primary);
+  color: var(--m3-on-surface);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font: var(--m3-body-medium);
+
   &:hover {
-    color: var(--el-color-primary);
+    color: var(--m3-primary);
   }
 }
+
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-family: var(--m3-font-mono);
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  color: var(--m3-on-surface-variant);
 }
+
 .owner {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+}
+
+.size-text {
+  font: var(--m3-body-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--m3-on-surface);
 }
 </style>

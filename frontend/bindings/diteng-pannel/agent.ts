@@ -29,7 +29,7 @@ export function AgentAppShutdown(host: string, req: agentcli$0.AppShutdownReq): 
 }
 
 /**
- * AgentBatchInstall 批量安装/更新（幂等，逐台并发 3；单台失败不影响其余）。
+ * AgentBatchInstall 批量安装/更新（幂等，全部并行；单台失败不影响其余）。
  * hosts 为空时自动覆盖 ssh config 里的全部主机。
  */
 export function AgentBatchInstall(hosts: string[] | null): $CancellablePromise<$models.AgentBatchResult[] | null> {

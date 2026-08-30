@@ -15,8 +15,8 @@ import * as monitor$0 from "./internal/monitor/models.js";
 import * as sshconfig$0 from "./internal/sshconfig/models.js";
 
 /**
- * AddHostInput 是「添加主机」对话框的入参（用户只需填 4 项）
- * 端口默认 22，公钥/密钥路径由后端自动推断
+ * AddHostInput 是「添加主机」对话框的入参
+ * 端口默认 22，公钥/密钥路径由后端自动推断；备注存本机 host_meta.json
  */
 export interface AddHostInput {
     /**
@@ -34,6 +34,11 @@ export interface AddHostInput {
      * 仅本次使用，不落盘
      */
     "password": string;
+
+    /**
+     * 本机备注，可选
+     */
+    "note": string;
 }
 
 /**
@@ -292,4 +297,9 @@ export interface UpdateHostInput {
      * 仅本次使用，不落盘
      */
     "password": string;
+
+    /**
+     * 本机备注，可选
+     */
+    "note": string;
 }

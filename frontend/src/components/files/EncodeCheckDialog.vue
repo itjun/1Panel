@@ -167,8 +167,8 @@ function toggleExpanded(path: string) {
   overflow: auto;
   font-size: 12px;
   line-height: 1.5;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
+  background: var(--m3-surface-container, #f2f1f4);
+  border-radius: var(--m3-shape-s, 8px);
   white-space: pre-wrap;
   word-break: break-all;
   font-family: ui-monospace, SFMono-Regular, monospace;

@@ -8,7 +8,7 @@
     <el-table :data="rows" height="100%" size="small" stripe empty-text="未发现定时任务">
       <el-table-column label="来源" width="110">
         <template #default="{ row }">
-          <el-tag size="small">{{ sourceLabel(row.source) }}</el-tag>
+          <el-tag size="small" type="primary" effect="light">{{ sourceLabel(row.source) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="user" label="用户" width="100">

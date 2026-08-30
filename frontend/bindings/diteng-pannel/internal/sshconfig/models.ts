@@ -39,4 +39,10 @@ export interface HostConfig {
      * 原文保留（部分场景需要）
      */
     "hostKeyAlgos": string;
+
+    /**
+     * Note 本机备注：存 Application Support 的 host_meta.json，不写入 ~/.ssh/config；
+     * 列表/导出时由 Hosts 服务合并进来。
+     */
+    "note"?: string;
 }

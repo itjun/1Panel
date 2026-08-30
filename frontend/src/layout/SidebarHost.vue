@@ -178,13 +178,14 @@
     <el-dialog
       v-model="createGroupOpen"
       title="新建分组"
-      width="440px"
+      width="400px"
       append-to-body
       destroy-on-close
+      class="m3-form-dialog"
       @opened="onCreateGroupOpened"
     >
-      <el-form label-width="80px" @submit.prevent="submitCreateGroup">
-        <el-form-item label="分组名称">
+      <el-form label-position="top" @submit.prevent="submitCreateGroup">
+        <el-form-item label="分组名称" required>
           <el-input
             ref="createGroupInputRef"
             v-model="newGroupName"
@@ -199,58 +200,75 @@
       </template>
     </el-dialog>
 
-    <!-- ⌘F / Ctrl+F：与添加主机 / 新建分组同一套 Dialog -->
+    <!-- ⌘F / Ctrl+F：M3 搜索对话框 -->
     <el-dialog
       :model-value="app.sidebarSearchOpen"
       title="搜索主机"
-      width="440px"
+      width="480px"
       append-to-body
       destroy-on-close
+      class="host-search-dialog"
       @update:model-value="onSearchVisible"
       @opened="onSearchOpened"
     >
-      <el-input
-        ref="searchInputRef"
-        v-model="query"
-        clearable
-        placeholder="主机名或地址"
-        @keydown.enter="openFirstHit"
-      >
-        <template #prefix>
-          <el-icon>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.75"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </el-icon>
-        </template>
-      </el-input>
-      <div v-if="query.trim() && searchHits.length === 0" class="search-empty">
-        无匹配主机
-      </div>
-      <div v-else-if="searchHits.length" class="search-hits">
-        <button
-          v-for="h in searchHits"
-          :key="h.name"
-          type="button"
-          class="search-hit"
-          @click="onHostClick(h.name)"
+      <div class="host-search">
+        <el-input
+          ref="searchInputRef"
+          v-model="query"
+          clearable
+          class="host-search__input"
+          placeholder="主机名或地址"
+          @keydown.enter="openFirstHit"
         >
-          <DistroLogo
-            :os-release="app.osReleaseMap.get(h.name) || ''"
-            :size="16"
-            class="host-ico"
-          />
-          <span class="search-hit-name">{{ h.name }}</span>
-          <span class="search-hit-addr">{{ h.hostName }}</span>
-        </button>
+          <template #prefix>
+            <el-icon class="host-search__icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </el-icon>
+          </template>
+        </el-input>
+
+        <p v-if="!query.trim()" class="host-search__hint">
+          输入关键字筛选侧栏主机，Enter 打开首个结果
+        </p>
+
+        <div v-else-if="searchHits.length === 0" class="host-search__empty">
+          无匹配主机
+        </div>
+
+        <div v-else class="host-search__hits" role="listbox" aria-label="搜索结果">
+          <button
+            v-for="(h, idx) in searchHits"
+            :key="h.name"
+            type="button"
+            role="option"
+            class="host-search__hit"
+            :class="{ 'is-first': idx === 0 }"
+            @click="onHostClick(h.name)"
+          >
+            <DistroLogo
+              :os-release="app.osReleaseMap.get(h.name) || ''"
+              :size="18"
+              class="host-ico"
+            />
+            <span class="host-search__name">{{ h.name }}</span>
+            <span class="host-search__addr">{{ h.hostName }}</span>
+          </button>
+        </div>
+
+        <div class="host-search__footer">
+          <span><kbd>{{ isMac ? "↵" : "Enter" }}</kbd> 打开</span>
+          <span><kbd>Esc</kbd> 关闭</span>
+        </div>
       </div>
     </el-dialog>
   </aside>
@@ -515,7 +533,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 
   &:not(.is-resizing) {
-    transition: width 0.15s ease;
+    transition: width var(--m3-motion-state);
   }
 
   &.is-resizing,
@@ -525,46 +543,138 @@ onBeforeUnmount(() => {
   }
 }
 
-.search-empty {
-  padding: 16px 0 4px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+.host-search {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
 
-.search-hits {
-  margin-top: 12px;
+.host-search__input {
+  width: 100%;
+
+  :deep(.el-input__wrapper) {
+    min-height: 32px;
+    height: 32px;
+    padding: 0 11px;
+    border-radius: var(--m3-shape-s);
+    background: var(--m3-surface-container-lowest);
+    box-shadow: none !important;
+    border: 1px solid var(--m3-outline-variant);
+  }
+
+  :deep(.el-input__wrapper:hover) {
+    border-color: var(--m3-outline);
+  }
+
+  :deep(.el-input__wrapper.is-focus) {
+    border-color: var(--m3-primary);
+    background: var(--m3-surface-container-lowest);
+  }
+
+  :deep(.el-input__inner) {
+    height: 30px;
+    line-height: 30px;
+    font: var(--m3-body-medium);
+    color: var(--m3-on-surface);
+  }
+
+  :deep(.el-input__prefix) {
+    color: var(--m3-on-surface-variant);
+  }
+}
+
+.host-search__icon {
+  font-size: 16px;
+}
+
+.host-search__hint,
+.host-search__empty {
+  margin: 0;
+  padding: 8px 4px;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  text-align: center;
+}
+
+.host-search__hits {
   max-height: 320px;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -4px;
+  padding: 0 4px;
 }
 
-.search-hit {
+.host-search__hit {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 12px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--m3-shape-s);
   background: transparent;
-  color: var(--el-text-color-primary);
+  color: var(--m3-on-surface);
   text-align: left;
   cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color var(--m3-motion-state);
+
+  &:hover,
+  &.is-first {
+    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+  }
+
+  &.is-first .host-search__name {
+    color: var(--m3-primary);
+    font-weight: 600;
+  }
 }
 
-.search-hit:hover {
-  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
-}
-
-.search-hit-name {
-  font-size: 13px;
+.host-search__name {
+  font: var(--m3-label-large);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.search-hit-addr {
+.host-search__addr {
   margin-left: auto;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  font-family: var(--m3-font-mono);
+}
+
+.host-search__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-top: 4px;
+  border-top: 1px solid var(--m3-outline-variant);
+  font: var(--m3-label-small);
+  color: var(--m3-on-surface-variant);
+
+  kbd {
+    display: inline-block;
+    margin-right: 4px;
+    padding: 1px 6px;
+    border-radius: var(--m3-shape-xs);
+    border: 1px solid var(--m3-outline-variant);
+    background: var(--m3-surface-container);
+    font: var(--m3-label-small);
+    font-family: var(--m3-font-mono);
+    color: var(--m3-on-surface);
+  }
 }
 
 /* ---------- 分组标题行内容 ---------- */
@@ -613,10 +723,10 @@ onBeforeUnmount(() => {
   border-radius: 9px;
 }
 
-/* 「全部主机」汇总计数：主色系，区别于各分组色 */
+/* 「全部主机」汇总计数：secondary 色系胶囊 */
 .home-count {
-  color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary) 12%, transparent);
+  color: var(--m3-on-secondary-container);
+  background: var(--m3-secondary-container);
 }
 
 /* 主机项：仅保留拖拽与运行态标记，视觉完全走全局 panel-sidebar 样式 */
@@ -643,43 +753,28 @@ onBeforeUnmount(() => {
 }
 
 .run-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #67c23a;
+  background: var(--m3-primary);
   flex-shrink: 0;
   margin-left: 6px;
-  box-shadow: 0 0 0 2px rgba(103, 194, 58, 0.2);
 }
 
 :deep(.el-sub-menu.is-drop-target > .el-sub-menu__title) {
-  background: var(--el-color-primary-light-9) !important;
-  outline: 2px dashed var(--el-color-primary);
+  background: color-mix(in srgb, var(--m3-primary) 12%, transparent) !important;
+  outline: 2px dashed var(--m3-primary);
   outline-offset: -2px;
-  border-radius: 4px;
+  border-radius: var(--m3-shape-xl);
 }
 
-/* 分组被打开为当前页：与「全部主机」选中一致的白底 + 主色描边 + 左竖线 */
+/* 分组被打开为当前页：与主机项一致的 secondary-container 胶囊 */
 :deep(.el-sub-menu.is-group-active > .el-sub-menu__title) {
-  position: relative;
-  background-color: var(--el-menu-item-bg-color-active) !important;
-  box-shadow:
-    0 0 4px rgba(0, 94, 235, 0.1),
-    inset 0 0 0 2px var(--el-color-primary) !important;
-
-  &::before {
-    position: absolute;
-    border-radius: 4px;
-    left: 8px;
-    width: 4px;
-    height: 14px;
-    content: "";
-    background: var(--el-color-primary);
-  }
+  background-color: var(--m3-secondary-container) !important;
 
   .group-name,
   .group-folder-ico {
-    color: var(--el-color-primary);
+    color: var(--m3-on-secondary-container);
   }
 }
 
@@ -694,15 +789,16 @@ onBeforeUnmount(() => {
 .host-count {
   margin-top: 6px;
   text-align: center;
-  font-size: 11px;
-  color: #909399;
+  font: var(--m3-label-small);
+  color: var(--m3-on-surface-variant);
 }
 
 .drag-hint {
   margin-top: 4px;
   text-align: center;
+  font: var(--m3-label-small);
   font-size: 10px;
-  color: #c0c4cc;
+  color: var(--m3-outline);
 }
 
 /* 侧栏底部：本机出口 IP 与归属地（无卡片底色，直接融入侧栏，仅展示） */
@@ -757,7 +853,7 @@ onBeforeUnmount(() => {
     height: 100%;
     border-radius: 1px;
     background: transparent;
-    transition: background 0.15s ease;
+    transition: background var(--m3-motion-state);
   }
 
   &:hover::after,
@@ -775,15 +871,14 @@ onBeforeUnmount(() => {
   z-index: 99999;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  background: #fff;
-  color: #303133;
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--el-color-primary, #005eeb);
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--m3-shape-m);
+  background: var(--m3-surface-container-high);
+  color: var(--m3-on-surface);
+  font: var(--m3-label-large);
+  box-shadow: var(--m3-elevation-3);
+  border: 1px solid var(--m3-outline-variant);
   pointer-events: none;
   max-width: 240px;
   white-space: nowrap;
@@ -791,7 +886,19 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 html.dark .host-drag-ghost {
-  background: #2e313d;
-  color: #e5eaf3;
+  background: var(--m3-surface-container-high);
+  color: var(--m3-on-surface);
+}
+
+/* ⌘F 搜索对话框（append-to-body） */
+.host-search-dialog.el-dialog {
+  border-radius: var(--m3-shape-xl);
+  box-shadow: var(--m3-elevation-3);
+}
+.host-search-dialog .el-dialog__header {
+  padding-bottom: 12px;
+}
+.host-search-dialog .el-dialog__body {
+  padding-top: 0;
 }
 </style>

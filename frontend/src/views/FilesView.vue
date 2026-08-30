@@ -1,7 +1,7 @@
 <template>
   <EnlargableCard bare title="文件" class="files-enl">
   <div
-    class="file-management-page"
+    class="file-management-page page-panel"
     data-file-drop-target
     :class="{ 'is-dragover': dragOver }"
     @dragenter.prevent="onDragEnter"
@@ -9,11 +9,10 @@
     @dragleave.prevent="onDragLeave"
     @drop.prevent="onDropFallback"
   >
-    <!-- 路径 Tab（1Panel 风格 card tabs） -->
+    <!-- 路径 Tab：与顶部 Primary Tabs 同规格 -->
     <el-tabs
       v-model="activeTabId"
-      type="card"
-      class="file-tabs"
+      class="file-path-tabs"
       @tab-change="onTabChange"
       @tab-remove="removeTab"
     >
@@ -93,25 +92,18 @@
             <el-checkbox v-model="containSub" disabled>子目录</el-checkbox>
           </template>
           <template #append>
-            <el-button :icon="Search" round @click="applyFilter" />
+            <el-button :icon="Search" @click="applyFilter" />
           </template>
         </el-input>
       </div>
     </div>
 
-    <!-- 主内容白底卡片 -->
-    <div class="file-layout" v-loading="loading">
-      <el-alert type="info" :closable="false" class="file-helper" show-icon>
-        <template #title>
-          <span class="helper-text"
-            >注意：1. 搜索结果不支持排序功能 2. 文件夹无法按大小排序。</span
-          >
-        </template>
-      </el-alert>
+    <!-- 工具栏 + 表格 + 分页 -->
+    <div class="file-body" v-loading="loading">
+      <p class="file-hint">注意：1. 搜索结果不支持排序功能 2. 文件夹无法按大小排序。</p>
 
-      <!-- 工具栏：上下两行清晰分区，避免右侧按钮与表格 fixed 列叠在一起 -->
       <div class="file-toolbar">
-        <div class="file-toolbar__row">
+        <div class="file-toolbar__row file-toolbar__row--primary">
           <div class="file-toolbar__left">
             <el-dropdown>
               <el-button type="primary">
@@ -174,6 +166,7 @@
       </div>
 
       <FileTable
+        class="data-table-unified"
         :rows="pageRows"
         @open="onOpen"
         @preview="(row) => previewRef?.openFile(row)"
@@ -426,7 +419,6 @@ function toTerminal() {
 </script>
 
 <style scoped lang="scss">
-/* bare 放大包装层：占满 content-pad--fill 给的剩余空间 */
 .files-enl {
   flex: 1;
   min-height: 0;
@@ -434,18 +426,16 @@ function toTerminal() {
   flex-direction: column;
 }
 
-.file-management-page {
+.file-management-page.page-panel {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  gap: 0;
-  background: transparent;
-  position: relative; /* 拖拽遮罩 absolute 定位基准 */
+  padding: 0;
+  overflow: hidden;
+  position: relative;
 }
 
-/* ---- 拖拽上传遮罩 ---- */
-/* Wails v3 拖过 data-file-drop-target 时会加 file-drop-target-active */
 .drop-overlay {
   position: absolute;
   inset: 0;
@@ -455,9 +445,9 @@ function toTerminal() {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: rgba(0, 94, 235, 0.12);
-  border: 2px dashed var(--el-color-primary);
-  border-radius: 6px;
+  background: rgba(0, 94, 235, 0.08);
+  border: 2px dashed var(--m3-primary);
+  border-radius: var(--m3-shape-m);
   pointer-events: none;
 }
 .file-management-page.is-dragover .drop-overlay,
@@ -466,41 +456,51 @@ function toTerminal() {
 }
 .drop-icon {
   font-size: 56px;
-  color: var(--el-color-primary);
+  color: var(--m3-primary);
 }
 .drop-text {
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-color-primary);
+  color: var(--m3-primary);
 }
 .drop-cwd {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--m3-on-surface-variant);
+  font-family: var(--m3-font-mono);
 }
 
-/* ---- path tabs ---- */
-.file-tabs {
+/* 路径 Tab：Primary Tabs 同规格（无 card 边框） */
+.file-path-tabs {
   flex-shrink: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--m3-outline-variant);
+
   :deep(.el-tabs__header) {
-    margin: 0 0 8px;
+    margin: 0;
   }
-  :deep(.el-tabs__nav) {
-    border: none !important;
+  :deep(.el-tabs__nav-wrap::after) {
+    display: none;
+  }
+  :deep(.el-tabs__active-bar) {
+    height: 2px;
+    background-color: var(--m3-primary);
   }
   :deep(.el-tabs__item) {
-    height: 32px;
-    line-height: 32px;
-    padding: 0 14px !important;
-    border: 1px solid var(--el-border-color-light) !important;
-    border-bottom: none !important;
-    background: var(--el-fill-color-blank);
-    color: var(--el-text-color-regular);
+    height: 40px;
+    padding: 0 18px !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--m3-on-surface-variant);
+    font: var(--m3-title-small);
+    font-weight: 500;
   }
   :deep(.el-tabs__item.is-active) {
-    color: var(--el-color-primary);
-    background: #fff;
-    border-bottom-color: #fff !important;
+    color: var(--m3-primary);
+    font-weight: 600;
+  }
+  :deep(.el-tabs__item.is-disabled) {
+    cursor: pointer;
+    opacity: 1;
   }
   :deep(.el-tabs__content) {
     display: none;
@@ -510,18 +510,20 @@ function toTerminal() {
   cursor: pointer;
   vertical-align: middle;
   &:hover {
-    color: var(--el-color-primary);
+    color: var(--m3-primary);
   }
 }
 
-/* ---- navigation row ---- */
 .file-nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 2px 0 10px;
+  padding: 10px 16px;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--m3-outline-variant);
+  background: var(--m3-surface-container-lowest);
+  --file-nav-control-h: 36px;
 }
 .file-nav__actions {
   display: flex;
@@ -532,50 +534,122 @@ function toTerminal() {
     margin-left: 0;
   }
 }
+
+.file-nav__path,
+.file-nav__search {
+  display: flex;
+  align-items: center;
+}
+
 .file-nav__path {
   flex: 1 1 280px;
   min-width: 180px;
 }
+
 .file-nav__search {
   flex: 0 1 360px;
   min-width: 240px;
   max-width: 420px;
-  :deep(.el-input-group__prepend) {
-    padding: 0 10px;
-    background: var(--el-fill-color-blank);
-  }
+  width: 100%;
+}
+
+/* 路径框 / 搜索框：统一高度、描边、圆角、底色 */
+.address-bar,
+.file-nav__path :deep(.address-input .el-input__wrapper),
+.file-nav__search :deep(.el-input-group) {
+  height: var(--file-nav-control-h);
+  min-height: var(--file-nav-control-h);
+  box-sizing: border-box;
+  background: var(--m3-surface-container);
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-s);
+  box-shadow: none !important;
 }
 
 .address-bar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  min-height: 32px;
-  padding: 4px 10px;
+  gap: 4px;
+  width: 100%;
+  padding: 0 12px;
   overflow: hidden;
   cursor: text;
-  background-color: var(--el-fill-color-lighter);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 6px;
-  transition: border-color 0.2s, box-shadow 0.2s;
   white-space: nowrap;
 
   &:hover {
-    border-color: var(--el-color-primary-light-5);
-    box-shadow: 0 0 0 2px var(--el-color-primary-light-9);
+    border-color: var(--m3-outline);
+    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container));
   }
 
   .arrow {
     margin: 0 2px;
-    color: var(--el-text-color-placeholder);
+    color: var(--m3-on-surface-variant);
     font-size: 12px;
   }
   .root-label {
     margin-left: 4px;
-    color: var(--el-text-color-secondary);
-    font-size: 13px;
+    color: var(--m3-on-surface-variant);
+    font: var(--m3-body-small);
   }
 }
+
+.file-nav__path :deep(.address-input) {
+  width: 100%;
+
+  .el-input__wrapper {
+    padding: 0 12px;
+  }
+}
+
+.file-nav__search :deep(.el-input-group) {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  overflow: hidden;
+}
+
+.file-nav__search :deep(.el-input-group__prepend),
+.file-nav__search :deep(.el-input-group__append) {
+  display: inline-flex;
+  align-items: center;
+  background: var(--m3-surface-container-high);
+  border: none;
+  box-shadow: none;
+  padding: 0 10px;
+  color: var(--m3-on-surface-variant);
+}
+
+.file-nav__search :deep(.el-input-group__prepend .el-checkbox) {
+  height: auto;
+  --el-checkbox-font-size: 12px;
+}
+
+.file-nav__search :deep(.el-input__wrapper) {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 8px;
+}
+
+.file-nav__search :deep(.el-input-group__append .el-button) {
+  height: 100%;
+  margin: 0;
+  padding: 0 12px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+
+  &:hover {
+    color: var(--m3-primary);
+    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+  }
+}
+
 .breadcrumb-root {
   display: inline-flex;
   flex-shrink: 0;
@@ -583,53 +657,45 @@ function toTerminal() {
   justify-content: center;
   width: 22px;
   height: 24px;
-  color: var(--el-text-color-secondary);
+  color: var(--m3-on-surface-variant);
   cursor: pointer;
   &:hover {
-    color: var(--el-color-primary);
+    color: var(--m3-primary);
   }
 }
 .path-segment {
-  font-size: 13px;
+  font: var(--m3-body-small);
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .address-input {
   width: 100%;
 }
 
-/* ---- main layout card ---- */
-.file-layout {
+.file-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
-  padding: 12px 14px 8px;
+  padding: 0 16px 12px;
   box-sizing: border-box;
 }
-html.dark .file-layout {
-  background: var(--panel-main-bg-color-9, #2e313d);
-}
 
-.file-helper {
-  margin-bottom: 10px;
+.file-hint {
   flex-shrink: 0;
-  :deep(.el-alert__title) {
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-.helper-text {
-  color: var(--el-text-color-regular);
+  margin: 10px 0 8px;
+  padding: 8px 12px;
+  border-radius: var(--m3-shape-s);
+  background: var(--m3-primary-container);
+  color: var(--m3-on-primary-container);
+  font: var(--m3-body-small);
 }
 
 .file-toolbar {
   flex-shrink: 0;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .file-toolbar__row {
   display: flex;
@@ -651,17 +717,16 @@ html.dark .file-layout {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
   flex: 0 0 auto;
   margin-left: auto;
 }
 .file-utility-group {
   :deep(.el-button) {
-    --el-button-bg-color: var(--el-fill-color-blank);
+    --el-button-bg-color: var(--m3-surface-container-lowest);
   }
 }
 .mount-btn {
-  max-width: 160px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -672,9 +737,9 @@ html.dark .file-layout {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-top: 8px;
+  padding-top: 10px;
   flex-shrink: 0;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--m3-outline-variant);
   margin-top: 4px;
 }
 .file-pagination__left {
@@ -684,8 +749,8 @@ html.dark .file-layout {
   min-width: 0;
 }
 .summary {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
 }
 
 @media (max-width: 1100px) {

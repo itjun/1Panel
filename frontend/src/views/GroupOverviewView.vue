@@ -1,17 +1,20 @@
 <template>
-  <div class="group-overview">
+  <div class="group-overview page-panel">
     <template v-if="hosts.length">
-      <div class="summary-bar">
-        <div class="summary-left">
-          <span class="meta">共 {{ hosts.length }} 台 · 已打开 {{ openedCount }}</span>
-          <el-tag size="small" type="success" effect="dark">
+      <div class="page-toolbar">
+        <span class="panel-section-title">{{ groupName || "分组概览" }}</span>
+        <span class="page-toolbar__hint">
+          共 {{ hosts.length }} 台 · 已打开 {{ openedCount }} · 双击主机打开
+        </span>
+        <div class="page-toolbar__actions group-stats">
+          <el-tag size="small" type="success" effect="light">
             正常 {{ okCount }}
           </el-tag>
           <el-tag
             v-if="alertCount > 0"
             size="small"
             type="danger"
-            effect="dark"
+            effect="light"
           >
             告警 {{ alertCount }}
           </el-tag>
@@ -19,16 +22,19 @@
             v-if="errCount > 0"
             size="small"
             type="danger"
-            effect="dark"
+            effect="light"
           >
             失败 {{ errCount }}
           </el-tag>
-        </div>
-        <div class="summary-right">
-          <span class="dblclick-hint">双击主机打开</span>
           <el-button
-            link
-            type="primary"
+            :loading="batchBusy"
+            :disabled="!hosts.length || agentInstall.running"
+            title="勾选主机后仅安装选中项；未勾选则安装本组全部"
+            @click="batchInstallAgent"
+          >
+            {{ selectedHosts.length ? `安装 Agent (${selectedHosts.length})` : "安装 Agent" }}
+          </el-button>
+          <el-button
             :icon="Refresh"
             :loading="refreshing"
             @click="refreshAll"
@@ -38,15 +44,18 @@
         </div>
       </div>
 
-      <div class="host-list-wrap panel-hover-card">
+      <div class="host-list-wrap">
         <el-table
+          ref="tableRef"
           :data="hosts"
           size="default"
           stripe
-          class="host-list-table"
+          class="host-list-table data-table-unified"
           :row-class-name="tableRowClass"
+          @selection-change="onSelectionChange"
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
         >
+          <el-table-column type="selection" width="44" fixed />
           <el-table-column label="状态" width="78" fixed>
             <template #default="{ row }">
               <el-tag
@@ -71,7 +80,7 @@
                   <el-icon
                     v-if="hostState(row.name).error"
                     :size="18"
-                    color="#f56c6c"
+                    color="#b3261e"
                     :title="withErrTime(hostState(row.name).error!, hostState(row.name).errorAt)"
                   >
                     <WarningFilled />
@@ -91,9 +100,31 @@
               <span class="mono">{{ row.hostName || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Agent" width="110">
+          <el-table-column label="Agent" min-width="140">
             <template #default="{ row }">
-              <el-tag size="small" :type="agentTagOf(row.name).type as any" effect="plain">
+              <div v-if="batchProgressOf(row.name)" class="agent-progress-cell">
+                <span
+                  class="agent-progress-text"
+                  :class="'is-' + batchProgressOf(row.name)!.state"
+                >
+                  {{ batchProgressLabel(row.name) }}
+                </span>
+                <el-progress
+                  v-if="
+                    batchProgressOf(row.name)!.state === 'running' &&
+                    batchProgressOf(row.name)!.percent >= 0
+                  "
+                  :percentage="batchProgressOf(row.name)!.percent"
+                  :stroke-width="4"
+                  :show-text="false"
+                />
+              </div>
+              <el-tag
+                v-else
+                size="small"
+                :type="agentTagOf(row.name).type as any"
+                effect="plain"
+              >
                 {{ agentTagOf(row.name).text }}
               </el-tag>
             </template>
@@ -198,6 +229,42 @@
     </template>
 
     <el-empty v-else description="该分组暂无主机，可将侧栏主机拖入分组" />
+
+    <!-- 批量安装进度：各主机步骤实时更新 -->
+    <el-dialog
+      v-model="batchDialogVisible"
+      title="安装 Agent"
+      width="560px"
+      append-to-body
+      :close-on-click-modal="false"
+      :close-on-press-escape="batchDone"
+      :show-close="batchDone"
+      class="m3-form-dialog agent-batch-dialog"
+      @closed="onBatchDialogClosed"
+    >
+      <div class="batch-progress-list">
+        <div v-for="r in batchRows" :key="r.host" class="batch-progress-row">
+          <span class="batch-host mono">{{ r.host }}</span>
+          <div class="batch-meta">
+            <span class="batch-label" :class="'is-' + r.state">{{ batchRowLabel(r) }}</span>
+            <el-progress
+              v-if="r.state === 'running' && r.percent >= 0"
+              :percentage="r.percent"
+              :stroke-width="4"
+              class="batch-upload-bar"
+            />
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <p v-if="!batchDone" class="batch-running-hint">
+          正在安装，请稍候…（全部主机并行）
+        </p>
+        <el-button v-else type="primary" @click="batchDialogVisible = false">
+          完成
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -211,9 +278,16 @@ import {
   watch,
 } from "vue";
 import { Refresh, WarningFilled } from "@element-plus/icons-vue";
-import { ElNotification, ElProgress, ElSkeleton, ElSkeletonItem } from "element-plus";
+import {
+  ElMessageBox,
+  ElNotification,
+  ElProgress,
+  ElSkeleton,
+  ElSkeletonItem,
+} from "element-plus";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
+import { Events } from "@wailsio/runtime";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 import { useSettingsStore } from "@/stores/settings";
@@ -351,11 +425,12 @@ const errCount = computed(
 
 // ---------- 单主机加载（独立，互不阻塞）----------
 
-async function loadOne(name: string, showSkeleton: boolean) {
+async function loadOne(name: string, showSkeleton: boolean, force = false) {
   if (inFlight.has(name)) return;
   if (activeGroupId !== props.groupId) return;
   const prev = hostStates.value[name];
-  if (prev?.error && isAgentMissing(prev.error)) return;
+  // 未装 Agent 时避免轮询空打；force / 手动刷新 / 安装完成后应允许重试
+  if (!force && prev?.error && isAgentMissing(prev.error)) return;
   inFlight.add(name);
   if (showSkeleton) {
     hostStates.value[name] = { loading: true };
@@ -381,13 +456,27 @@ async function loadOne(name: string, showSkeleton: boolean) {
   }
 }
 
+/** 清除「未装 Agent」粘性错误，并强制重新采集概览（安装成功 / 手动刷新后） */
+function resumeHostAfterAgentReady(name: string) {
+  const cur = hostStates.value[name];
+  if (cur?.error && isAgentMissing(cur.error)) {
+    hostStates.value[name] = { loading: false };
+  } else if (cur?.error) {
+    hostStates.value[name] = { ...cur, error: undefined, errorAt: undefined };
+  }
+  void loadOne(name, false, true);
+}
+
 /** 手动刷新（按钮）：静默重载（按钮自身有 loading 转圈）。
  *  不走骨架路径：骨架会先抹掉已有数据，逐台恢复期间告警键反复进出
  *  去重集合，导致仍存在的告警被当新告警重复弹窗 */
 async function refreshAll() {
   refreshing.value = true;
   try {
-    await Promise.allSettled(hosts.value.map((h) => loadOne(h.name, false)));
+    await Promise.allSettled(
+      hosts.value.map((h) => loadOne(h.name, false, true))
+    );
+    await loadAgentStatuses();
   } finally {
     refreshing.value = false;
   }
@@ -588,6 +677,236 @@ function agentTagOf(name: string): { type: string; text: string } {
   return { type: "success", text: `v${st.version}` };
 }
 
+/** 勾选的主机；未勾选时批量操作作用于本组全部 */
+const selectedHosts = ref<sshconfig.HostConfig[]>([]);
+const tableRef = ref<{ clearSelection?: () => void } | null>(null);
+const batchBusy = ref(false);
+const batchDialogVisible = ref(false);
+const batchDone = ref(false);
+
+type BatchRowState = "pending" | "running" | "done" | "error";
+interface BatchRow {
+  host: string;
+  state: BatchRowState;
+  step: string;
+  percent: number;
+  error?: string;
+  version?: string;
+}
+
+const BATCH_STEP_LABEL: Record<string, string> = {
+  probe: "探测主机状态",
+  upload: "上传 Agent",
+  replace: "替换二进制",
+  start: "启动服务",
+  verify: "验证版本",
+  done: "完成",
+  error: "失败",
+};
+
+const batchRows = ref<BatchRow[]>([]);
+const batchRowMap = computed(() => {
+  const m: Record<string, BatchRow> = {};
+  for (const r of batchRows.value) m[r.host] = r;
+  return m;
+});
+
+let offBatchProgress: (() => void) | null = null;
+
+function batchProgressOf(name: string): BatchRow | undefined {
+  if (!batchBusy.value && !batchDialogVisible.value) return undefined;
+  return batchRowMap.value[name];
+}
+
+function batchProgressLabel(name: string): string {
+  const r = batchProgressOf(name);
+  if (!r) return "";
+  return batchRowLabel(r);
+}
+
+function batchRowLabel(r: BatchRow): string {
+  if (r.state === "pending") return "排队中";
+  if (r.state === "done") {
+    if (r.version) {
+      return `已是最新 v${r.version}`;
+    }
+    return "完成";
+  }
+  if (r.state === "error") return r.error ? `失败：${r.error}` : "失败";
+  const step = BATCH_STEP_LABEL[r.step] || r.step || "安装中";
+  if (r.step === "upload" && r.percent >= 0) {
+    return `${step} ${r.percent}%`;
+  }
+  return step;
+}
+
+function onSelectionChange(rows: sshconfig.HostConfig[]) {
+  selectedHosts.value = rows;
+}
+
+function applyBatchProgress(d: {
+  host?: string;
+  step?: string;
+  percent?: number;
+  text?: string;
+}) {
+  if (!d.host) return;
+  const row = batchRowMap.value[d.host];
+  if (!row) return;
+  const step = d.step || "";
+  if (step === "done") {
+    row.state = "done";
+    row.step = "done";
+    row.percent = 100;
+    if (d.text) {
+      // 文案可能含版本号，尽量提取；最终以 API 结果为准
+      const m = d.text.match(/v?(\d+\.\d+\.\d+)/);
+      if (m) row.version = m[1];
+    }
+    return;
+  }
+  if (step === "error") {
+    row.state = "error";
+    row.step = "error";
+    row.error = d.text || "安装失败";
+    return;
+  }
+  row.state = "running";
+  row.step = step;
+  if (typeof d.percent === "number") {
+    row.percent = d.percent;
+  }
+}
+
+function bindBatchProgress() {
+  unbindBatchProgress();
+  offBatchProgress = Events.On(
+    "agent-install-progress",
+    (ev: { data?: { host?: string; step?: string; percent?: number; text?: string } }) => {
+      const d = ev?.data;
+      if (d) applyBatchProgress(d);
+    }
+  );
+}
+
+function unbindBatchProgress() {
+  if (offBatchProgress) {
+    offBatchProgress();
+    offBatchProgress = null;
+  }
+}
+
+function onBatchDialogClosed() {
+  if (!batchBusy.value) {
+    batchRows.value = [];
+    batchDone.value = false;
+  }
+}
+
+/** 批量安装：弹进度窗，订阅各主机 agent-install-progress，完成后汇总 */
+async function batchInstallAgent() {
+  if (batchBusy.value || agentInstall.running) {
+    ElNotification.warning({
+      title: "请稍候",
+      message: agentInstall.running
+        ? "单台安装仍在进行中"
+        : "安装进行中",
+      duration: 3000,
+    });
+    return;
+  }
+  const targets =
+    selectedHosts.value.length > 0
+      ? selectedHosts.value.map((h) => h.name)
+      : hosts.value.map((h) => h.name);
+  if (!targets.length) return;
+
+  const needInstall = targets.filter((n) => agentTagOf(n).type !== "success");
+  const alreadyOk = targets.filter((n) => agentTagOf(n).type === "success");
+  const needCount = needInstall.length;
+  const scope =
+    selectedHosts.value.length > 0
+      ? `选中的 ${targets.length} 台`
+      : `本组全部 ${targets.length} 台`;
+  try {
+    await ElMessageBox.confirm(
+      `将向${scope}主机安装 spanel-agent（内置 v${latestAgentVersion.value || "?"}，历史数据保留）。` +
+        `其中 ${needCount} 台未装或可更新` +
+        (alreadyOk.length ? `，${alreadyOk.length} 台已是最新将跳过` : "") +
+        `。全部并行，可在进度窗口查看各主机状态。`,
+      "安装 Agent",
+      { confirmButtonText: "开始", cancelButtonText: "取消", type: "info" }
+    );
+  } catch {
+    return;
+  }
+
+  batchRows.value = [
+    ...alreadyOk.map((host) => ({
+      host,
+      state: "done" as const,
+      step: "done",
+      percent: 100,
+      version: latestAgentVersion.value || agentStatuses.value[host]?.version || "",
+    })),
+    ...needInstall.map((host) => ({
+      host,
+      state: "pending" as const,
+      step: "",
+      percent: -1,
+    })),
+  ];
+  batchDone.value = needInstall.length === 0;
+  batchDialogVisible.value = true;
+  if (needInstall.length === 0) {
+    tableRef.value?.clearSelection?.();
+    selectedHosts.value = [];
+    return;
+  }
+
+  batchBusy.value = true;
+  bindBatchProgress();
+
+  try {
+    const results = await api.batchInstallAgent(needInstall);
+    for (const r of results) {
+      const row = batchRowMap.value[r.host];
+      if (!row) continue;
+      if (r.ok) {
+        row.state = "done";
+        row.step = "done";
+        row.version = r.version || row.version;
+        row.percent = 100;
+      } else {
+        row.state = "error";
+        row.step = "error";
+        row.error = r.error || "失败";
+      }
+    }
+    batchDone.value = true;
+    tableRef.value?.clearSelection?.();
+    selectedHosts.value = [];
+    await loadAgentStatuses();
+    // 安装成功后清掉「未装」粘性错误并重拉概览，否则状态会一直红
+    for (const r of results) {
+      if (r.ok) resumeHostAfterAgentReady(r.host);
+    }
+    for (const name of alreadyOk) {
+      resumeHostAfterAgentReady(name);
+    }
+  } catch (e) {
+    batchDone.value = true;
+    ElNotification.error({
+      title: "安装失败",
+      message: formatErr(e),
+      duration: 5000,
+    });
+  } finally {
+    batchBusy.value = false;
+    unbindBatchProgress();
+  }
+}
+
 watch(
   hosts,
   (h) => {
@@ -615,6 +934,7 @@ watch(
     activeGroupId = props.groupId;
     hostStates.value = {};
     prevAlertKeys = new Set();
+    selectedHosts.value = [];
     stopPoll();
     startPoll();
   }
@@ -624,9 +944,7 @@ watch(
   () => agentInstall.lastInstalled,
   (info) => {
     if (info && hosts.value.some((h) => h.name === info.host)) {
-      const cur = hostStates.value[info.host];
-      if (cur) hostStates.value[info.host] = { ...cur, error: undefined, errorAt: undefined };
-      void loadOne(info.host, false);
+      resumeHostAfterAgentReady(info.host);
       void loadAgentStatuses();
     }
   }
@@ -634,6 +952,7 @@ watch(
 
 onBeforeUnmount(() => {
   stopPoll();
+  unbindBatchProgress();
   activeGroupId = ""; // 取消所有 in-flight
 });
 
@@ -712,60 +1031,44 @@ startPoll();
   min-height: 200px;
   box-sizing: border-box;
 }
-.summary-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.summary-left,
-.summary-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.meta {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.dblclick-hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+
+.group-stats {
+  gap: 8px;
 }
 
 .host-list-wrap {
-  background: var(--el-bg-color, #fff);
-  border-radius: 4px;
   overflow: hidden;
 }
+
 .host-list-table {
   width: 100%;
-  :deep(.el-table__header th) {
-    font-weight: 600;
-    background: var(--el-fill-color-lighter, #fafafa);
-  }
+  cursor: pointer;
+
   :deep(.host-list-row) {
     cursor: pointer;
   }
   :deep(.host-list-row.is-danger-row > td.el-table__cell) {
-    background: var(--el-color-danger-light-9, #fef0f0) !important;
+    background: var(--m3-error-container, #fef0f0) !important;
   }
   :deep(.host-list-row.is-danger-row .list-host-name) {
-    color: var(--el-color-danger);
+    color: var(--m3-error);
   }
   :deep(.el-table__row:hover > td.el-table__cell) {
-    background: var(--el-color-primary-light-9, #ecf5ff) !important;
+    background: color-mix(
+      in srgb,
+      var(--m3-primary) 6%,
+      var(--m3-surface-container-lowest)
+    ) !important;
   }
   :deep(.host-list-row.is-danger-row:hover > td.el-table__cell) {
-    background: var(--el-color-danger-light-8, #fde2e2) !important;
-  }
-  :deep(.el-table__cell) {
-    padding: 10px 0;
+    background: color-mix(
+      in srgb,
+      var(--m3-error) 12%,
+      var(--m3-surface-container-lowest)
+    ) !important;
   }
 }
+
 .list-host-name {
   display: inline-flex;
   align-items: center;
@@ -786,27 +1089,27 @@ startPoll();
   gap: 6px;
 }
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--m3-font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
 .list-err {
   font-size: 12px;
-  color: var(--el-color-danger);
+  color: var(--m3-error);
 }
 .load-cell {
   font-variant-numeric: tabular-nums;
   &.is-alert {
-    color: var(--el-color-danger);
+    color: var(--m3-error);
     font-weight: 600;
   }
 }
 .load-sep {
   margin: 0 2px;
-  color: var(--el-text-color-placeholder);
+  color: var(--m3-on-surface-variant);
 }
 .load-cores {
-  color: var(--el-text-color-secondary);
+  color: var(--m3-on-surface-variant);
   font-size: 12px;
 }
 :deep(.list-metric) {
@@ -825,37 +1128,120 @@ startPoll();
   font-size: 13px;
   font-weight: 600;
   &.is-alert {
-    color: var(--el-color-danger) !important;
+    color: var(--m3-error) !important;
     font-weight: 700;
   }
 }
 :deep(.list-metric-sub) {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--m3-on-surface-variant);
   white-space: nowrap;
   &.is-alert {
-    color: var(--el-color-danger);
+    color: var(--m3-error);
   }
 }
 
-html.dark .host-list-wrap {
-  background: var(--panel-main-bg-color-9, #2e313d);
+.agent-progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.agent-progress-text {
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  &.is-running {
+    color: var(--m3-primary);
+  }
+  &.is-done {
+    color: var(--m3-primary);
+  }
+  &.is-error {
+    color: var(--m3-error);
+  }
 }
 </style>
 
-<style>
+<style lang="scss">
 .group-alert-notify {
   white-space: pre-line !important;
   max-width: 420px;
-  border-left: 4px solid var(--el-color-danger) !important;
+  border-left: 4px solid var(--m3-error) !important;
+  background: var(--m3-surface-container-lowest) !important;
+  border-radius: var(--m3-shape-m) !important;
 }
 .group-alert-notify .el-notification__title {
-  color: var(--el-color-danger);
+  color: var(--m3-error);
   font-weight: 700;
 }
 .group-alert-notify .el-notification__content {
   white-space: pre-line;
   line-height: 1.55;
   font-size: 13px;
+}
+
+.agent-batch-dialog {
+  .batch-progress-list {
+    display: flex;
+    flex-direction: column;
+    max-height: min(52vh, 420px);
+    overflow: auto;
+  }
+  .batch-progress-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-height: 40px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--m3-outline-variant);
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+  .batch-host {
+    flex-shrink: 0;
+    width: 140px;
+    font: var(--m3-label-large);
+    font-weight: 500;
+    color: var(--m3-on-surface);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .batch-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .batch-label {
+    font: var(--m3-body-small);
+    color: var(--m3-on-surface-variant);
+    word-break: break-word;
+    &.is-running {
+      color: var(--m3-primary);
+    }
+    &.is-done {
+      color: var(--m3-primary);
+    }
+    &.is-error {
+      color: var(--m3-error);
+    }
+  }
+  .batch-upload-bar {
+    width: 100%;
+    max-width: 280px;
+  }
+  .batch-running-hint {
+    margin: 0;
+    flex: 1;
+    text-align: left;
+    font: var(--m3-body-small);
+    color: var(--m3-on-surface-variant);
+  }
 }
 </style>

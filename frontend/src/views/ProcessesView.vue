@@ -2,10 +2,11 @@
   <div class="tab-root" v-loading="view !== 'docker' && loading && !rows.length">
     <EnlargableCard title="进程">
     <!-- 三级视图标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
-    <el-card class="tag-search-card">
-      <div class="tag-search-row">
+    <div class="view-toolbar">
+      <div class="view-toolbar__chips">
         <TagButton v-model="view" :buttons="viewButtons" />
-        <div class="tag-tools">
+      </div>
+      <div class="view-toolbar__tools">
           <el-input
             v-model="filter"
             clearable
@@ -14,9 +15,8 @@
           />
           <span class="count">{{ view === "docker" ? dockerFilteredCount : filtered.length }} 个</span>
           <el-button :icon="Refresh" @click="onRefresh" />
-        </div>
       </div>
-    </el-card>
+    </div>
     <el-alert v-if="view !== 'docker' && error && !rows.length" type="error" :title="error" show-icon />
 
     <div ref="tableWrap" class="table-wrap">
@@ -845,22 +845,6 @@ async function copyArgs() {
   gap: 8px;
 }
 /* 三级标签卡：照搬 1Panel LayoutContent content-container__search（--el-card-padding: 8px 12px） */
-.tag-search-card {
-  --el-card-padding: 8px 12px;
-  flex-shrink: 0;
-}
-.tag-search-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.tag-tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 .filter {
   width: 240px;
 }
@@ -902,6 +886,14 @@ async function copyArgs() {
   white-space: nowrap;
   line-height: 22px;
 }
+/* 虚拟化表格行高：M3 默认密度 52dp 偏高，进程表保留紧凑 40dp 但 hover 用标准状态层 */
+:deep(.el-table-v2__header-row) {
+  background: var(--m3-surface-container);
+}
+:deep(.el-table-v2__header-cell) {
+  font: var(--m3-title-small);
+  color: var(--m3-on-surface-variant);
+}
 :deep(.el-table-v2__row) {
   overflow: hidden;
 }
@@ -913,12 +905,11 @@ async function copyArgs() {
   min-width: 0;
   max-width: 100%;
 }
-/* el-table-v2 无内置斑马纹/hover：按 rowIndex 着色对齐原 el-table stripe 观感 */
 :deep(.el-table-v2__row.zebra-row) {
   background: var(--el-table-tr-bg-color, transparent);
 }
 :deep(.el-table-v2__row:hover) {
-  background: var(--el-table-row-hover-bg-color, #f5f7fa);
+  background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
 }
 </style>
 
@@ -931,20 +922,20 @@ async function copyArgs() {
   width: 420px;
   max-height: 70vh;
   overflow-y: auto;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--el-bg-color-overlay, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  font-size: 12px;
-  color: var(--el-text-color-primary, #303133);
+  padding: 16px;
+  border-radius: var(--m3-shape-m, 12px);
+  background: var(--m3-surface-container-lowest, #ecebf0);
+  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  box-shadow: var(--m3-elevation-2);
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface, #1a1a1d);
   pointer-events: none;
 }
-/* 点击行固定后：可交互（选择文本/点按钮），主题色边框区分 */
 .java-hover-card.pinned {
   pointer-events: auto;
   z-index: 3001;
-  border-color: var(--el-color-primary);
+  border-color: var(--m3-primary);
+  box-shadow: var(--m3-elevation-3);
 }
 .java-hover-card .flex-spacer {
   flex: 1;

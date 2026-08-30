@@ -1,67 +1,74 @@
 <template>
-  <div class="apps-page">
-    <el-alert v-if="error" type="error" :title="error" show-icon :closable="false" />
+  <div class="apps-root">
+  <div class="apps-page page-panel">
+    <el-alert v-if="error" type="error" :title="error" show-icon :closable="false" class="page-alert" />
 
-    <div class="apps-toolbar">
+    <div class="page-toolbar">
       <span class="panel-section-title">应用监视</span>
-      <span class="hint">实例表点行看曲线；下架前请到「Nginx」标签核对切流。</span>
-      <el-button size="small" @click="loadAll">刷新</el-button>
-      <el-button size="small" @click="openCfg">监视配置</el-button>
+      <span class="page-toolbar__hint">实例表点行看曲线；下架前请到「Nginx」标签核对切流。</span>
+      <div class="page-toolbar__actions">
+        <el-button @click="loadAll">刷新</el-button>
+        <el-button @click="openCfg">监视配置</el-button>
+      </div>
     </div>
 
-    <el-card v-for="sec in instanceSections" :key="sec.key" shadow="never" class="inst-card">
-      <template #header>
-        <span class="inst-sec-title">{{ sec.title }}</span>
-        <span class="inst-sec-count">{{ sec.rows.length }} 条</span>
-      </template>
-      <el-table
-        v-if="sec.rows.length"
-        :data="sec.rows"
-        size="small"
-        stripe
-        highlight-current-row
-        class="inst-table"
-        @row-click="onInstRowClick"
-      >
-        <el-table-column type="index" width="44" />
-        <el-table-column prop="service" label="标识" width="120">
-          <template #default="{ row }">
-            <span class="svc-chip" :class="'chip-' + chipIndex(row.service)">{{ row.service }}</span>
-            <span v-if="row.runtime === 'bun'" class="rt-tag">Bun</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="port" label="端口" width="72" />
-        <el-table-column prop="deployVer" label="部署版本" width="96" />
-        <el-table-column prop="startTime" label="启动时间" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="screen" label="screen" width="110" show-overflow-tooltip />
-        <el-table-column prop="jarPath" label="路径" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="168">
-          <template #default="{ row }">
-            <div class="lamps">
-              <span :class="['lamp', row.processUp ? 'on' : 'off']">进程</span>
-              <span :class="['lamp', row.healthUp ? 'on' : 'off']">本机</span>
-              <span v-if="row.ingressOn" :class="['lamp', row.ingressUp ? 'on' : 'off']">入口</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="88" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              v-if="canShutdown(row)"
-              type="danger"
-              size="small"
-              link
-              @click.stop="openShutdown(row)"
-            >
-              下架
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div v-else class="empty">暂无 {{ sec.title }} 实例</div>
-    </el-card>
+    <template v-for="(sec, secIdx) in instanceSections" :key="sec.key">
+      <div class="apps-section">
+        <div class="apps-section__head">
+          <span class="apps-section__title">{{ sec.title }}</span>
+          <span class="apps-section__count">{{ sec.rows.length }} 条</span>
+        </div>
+        <el-table
+          :data="sec.rows"
+          size="default"
+          stripe
+          highlight-current-row
+          class="data-table-unified"
+          :show-header="secIdx === 0"
+          @row-click="onInstRowClick"
+        >
+          <el-table-column type="index" label="#" width="48" align="center" />
+          <el-table-column prop="service" label="标识" width="128">
+            <template #default="{ row }">
+              <el-tag size="small" type="primary" effect="light" class="svc-tag">{{ row.service }}</el-tag>
+              <el-tag v-if="row.runtime === 'bun'" size="small" type="info" effect="plain" class="rt-tag">Bun</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="port" label="端口" width="72" align="center" />
+          <el-table-column prop="deployVer" label="部署版本" width="100" />
+          <el-table-column prop="startTime" label="启动时间" width="160" show-overflow-tooltip />
+          <el-table-column prop="screen" label="screen" width="120" show-overflow-tooltip />
+          <el-table-column prop="jarPath" label="路径" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="status" label="状态" width="180">
+            <template #default="{ row }">
+              <div class="lamps">
+                <span :class="['lamp', row.processUp ? 'on' : 'off']">进程</span>
+                <span :class="['lamp', row.healthUp ? 'on' : 'off']">本机</span>
+                <span v-if="row.ingressOn" :class="['lamp', row.ingressUp ? 'on' : 'off']">入口</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="80" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="canShutdown(row)"
+                type="danger"
+                size="small"
+                link
+                @click.stop="openShutdown(row)"
+              >
+                下架
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </template>
 
-    <el-dialog
+    <div v-if="!instanceSections.length && !error" class="page-empty">暂无监视实例</div>
+  </div>
+
+  <el-dialog
       v-model="chartsOpen"
       :title="chartsTitle"
       width="860px"
@@ -130,18 +137,6 @@ import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { patchWatchNotify } from "@/utils/watchYaml";
 
-const CHIP_SERVICES = [
-  "oss",
-  "im",
-  "csp",
-  "std",
-  "telemetry",
-  "fpl",
-  "zhetai",
-  "ai-agent",
-  "sapi-agent",
-];
-
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
 const settings = useSettingsStore();
@@ -175,11 +170,6 @@ function pad(n: number) {
 function timeLabel(ts: number) {
   const d = new Date(ts * 1000);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function chipIndex(service: string) {
-  const i = CHIP_SERVICES.indexOf((service || "").toLowerCase());
-  return i >= 0 ? i % 10 : 0;
 }
 
 function canShutdown(row: agentcli.JavaAppInstance) {
@@ -450,56 +440,47 @@ onBeforeUnmount(stopTimer);
 </script>
 
 <style scoped lang="scss">
-.apps-page {
+.apps-root {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
 }
-.apps-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+.apps-page {
   flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
-.inst-card {
-  min-width: 0;
+.page-alert {
+  margin-bottom: 4px;
 }
-.inst-sec-title {
-  font-weight: 600;
-}
-.inst-sec-count {
-  margin-left: 8px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.inst-table {
-  width: 100%;
-  cursor: pointer;
-}
-.svc-chip {
-  display: inline-block;
-  padding: 2px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  border-left: 3px solid var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+.svc-tag {
+  vertical-align: middle;
 }
 .rt-tag {
-  margin-left: 4px;
-  font-size: 10px;
-  color: var(--el-text-color-secondary);
+  margin-left: 6px;
+  vertical-align: middle;
 }
-@for $i from 0 through 9 {
-  .chip-#{$i} {
-    border-left-color: hsl(calc(210 + #{$i * 18}), 70%, 45%);
-    background: hsla(calc(210 + #{$i * 18}), 80%, 50%, 0.08);
+.lamps {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.lamp {
+  font: var(--m3-label-medium);
+  padding: 2px 8px;
+  border-radius: var(--m3-shape-full);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  &.on {
+    background: var(--m3-primary-container);
+    color: var(--m3-primary);
+    border-color: color-mix(in srgb, var(--m3-primary) 24%, transparent);
+  }
+  &.off {
+    background: var(--m3-error-container);
+    color: var(--m3-error);
+    border-color: color-mix(in srgb, var(--m3-error) 24%, transparent);
   }
 }
 .shutdown-body {
@@ -531,28 +512,6 @@ onBeforeUnmount(stopTimer);
 }
 .nginx-check {
   margin-top: 8px;
-}
-.lamps {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.lamp {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 99px;
-  &.on {
-    background: var(--el-color-success-light-9);
-    color: var(--el-color-success);
-  }
-  &.off {
-    background: var(--el-color-danger-light-9);
-    color: var(--el-color-danger);
-  }
-}
-.empty {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
 }
 .caption {
   font-size: 12px;

@@ -110,6 +110,9 @@
               <div class="host-sub">
                 {{ h.user || "?" }}@{{ h.hostName || "?" }}
               </div>
+              <div v-if="h.note" class="host-note" :title="h.note">
+                {{ h.note }}
+              </div>
               <div v-if="showPort(h.port)" class="host-port">
                 端口 {{ h.port }}
               </div>
@@ -139,22 +142,21 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
  */
 const GROUP_PALETTE = [
   { accent: "#005eeb", soft: "rgba(0, 94, 235, 0.12)", ink: "#005eeb" },
-  { accent: "#3375f6", soft: "rgba(51, 117, 246, 0.12)", ink: "#2a62d4" },
-  { accent: "#1a7fd4", soft: "rgba(26, 127, 212, 0.12)", ink: "#176bae" },
-  { accent: "#3d8bfd", soft: "rgba(61, 139, 253, 0.12)", ink: "#2f6fd4" },
-  { accent: "#4c6ef5", soft: "rgba(76, 110, 245, 0.12)", ink: "#3b5bdb" },
-  { accent: "#5c7cfa", soft: "rgba(92, 124, 250, 0.12)", ink: "#4c6ef5" },
-  { accent: "#228be6", soft: "rgba(34, 139, 230, 0.12)", ink: "#1c7ed6" },
-  { accent: "#15aabf", soft: "rgba(21, 170, 191, 0.12)", ink: "#1098ad" },
-  { accent: "#4263eb", soft: "rgba(66, 99, 235, 0.12)", ink: "#364fc7" },
-  { accent: "#748ffc", soft: "rgba(116, 143, 252, 0.12)", ink: "#5c7cfa" },
+  { accent: "#196eed", soft: "rgba(25, 110, 237, 0.12)", ink: "#196eed" },
+  { accent: "#337eef", soft: "rgba(51, 126, 239, 0.12)", ink: "#337eef" },
+  { accent: "#4c8ef1", soft: "rgba(76, 142, 241, 0.12)", ink: "#4c8ef1" },
+  { accent: "#669ef3", soft: "rgba(102, 158, 243, 0.12)", ink: "#669ef3" },
+  { accent: "#505f79", soft: "rgba(80, 95, 121, 0.12)", ink: "#505f79" },
+  { accent: "#0077cc", soft: "rgba(0, 119, 204, 0.12)", ink: "#0077cc" },
+  { accent: "#0066b3", soft: "rgba(0, 102, 179, 0.12)", ink: "#0066b3" },
+  { accent: "#004494", soft: "rgba(0, 68, 148, 0.12)", ink: "#004494" },
+  { accent: "#7faef5", soft: "rgba(127, 174, 245, 0.12)", ink: "#669ef3" },
 ] as const;
 
-/** 未分组：同色系低饱和灰蓝 */
 const UNGROUPED_COLOR = {
-  accent: "#868e96",
-  soft: "rgba(134, 142, 150, 0.12)",
-  ink: "#495057",
+  accent: "#909399",
+  soft: "rgba(144, 147, 153, 0.12)",
+  ink: "#646a73",
 } as const;
 
 type GroupColor = {
@@ -292,15 +294,16 @@ async function onRefreshIcons() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  background: var(--el-bg-color, #fff);
-  border: 1px solid transparent;
-  border-left: 3px solid var(--g-accent, #005eeb);
-  border-radius: 4px;
+  padding: 14px 16px;
+  background: var(--m3-surface-container-lowest, #fff);
+  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border-left: 4px solid var(--g-accent, #005eeb);
+  border-radius: var(--m3-shape-m, 12px);
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: border-color var(--m3-motion-select);
   &:hover {
-    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--m3-primary) 32%, var(--m3-outline-variant));
+    border-left-color: var(--m3-primary);
   }
 }
 .host-ico-wrap {
@@ -333,25 +336,32 @@ async function onRefreshIcons() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.host-note {
+  margin-top: 2px;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .host-port {
   margin-top: 2px;
   font-size: 11px;
   color: var(--el-text-color-placeholder);
 }
 .run-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #67c23a;
+  background: var(--m3-primary, #6750a4);
   flex-shrink: 0;
-  box-shadow: 0 0 0 2px rgba(103, 194, 58, 0.2);
 }
 .host-card.is-running {
-  border-color: rgba(103, 194, 58, 0.35);
-  border-left-color: #67c23a;
+  border-color: color-mix(in srgb, var(--m3-primary, #6750a4) 35%, transparent);
+  border-left-color: var(--m3-primary, #6750a4);
 }
 
 html.dark .host-card {
-  background: var(--panel-main-bg-color-9, #2e313d);
+  background: var(--m3-surface-container-low, #1a1a1d);
 }
 </style>

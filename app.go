@@ -15,6 +15,8 @@ import (
 	"diteng-pannel/internal/agentinstall"
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/hosticon"
+	"diteng-pannel/internal/hostmeta"
+	"diteng-pannel/internal/macui"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
@@ -23,6 +25,9 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
+
+// macTitleBarHeight 与前端 .app-chrome 首行、InvisibleTitleBarHeight 保持一致。
+const macTitleBarHeight = 40
 
 // App 是应用核心对象：持有全部共享依赖。
 // 对外暴露的前端方法不再直接挂在 App 上，而是按域拆分为多个 v3 Service
@@ -35,6 +40,7 @@ type App struct {
 	installer *agentinstall.Installer
 	groups    *groups.Store
 	hostIcons *hosticon.Store
+	hostMeta  *hostmeta.Store
 	termMgr   *terminal.Manager
 
 	app        *application.App
@@ -43,6 +49,7 @@ type App struct {
 	showMu     sync.Mutex
 	sized      bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
 	shown      bool
+	ready      bool // Wails 已进入运行态（impl 就绪，窗口 API 可安全调用）
 	resizeSave *time.Timer
 }
 
@@ -108,7 +115,7 @@ func NewApp() *application.App {
 		DefaultContextMenuDisabled: true,
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHidden,
-			InvisibleTitleBarHeight: 32,
+			InvisibleTitleBarHeight: macTitleBarHeight,
 			Backdrop:                application.MacBackdropNormal,
 		},
 		URL: "/",
@@ -127,19 +134,20 @@ func NewApp() *application.App {
 	// 没有：按主屏算完再 Show，仍然不等 Vue。
 	core.fitWindowToPrimaryScreen()
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		core.markReady()
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
 		core.enforceMinSize()
 		core.scheduleSaveGeom()
+		macui.ApplyCenteredTrafficLights(win)
 	})
 	go func() {
 		time.Sleep(800 * time.Millisecond)
 		core.fitWindowToPrimaryScreen()
 		core.forceShowMainWindow()
 	}()
-
 	// 初始化本地存储与采集器
 	if store, err := groups.NewStore("ServerPanel"); err != nil {
 		app.Logger.Error("初始化分组存储失败", "error", err)
@@ -150,6 +158,11 @@ func NewApp() *application.App {
 		app.Logger.Error("初始化主机图标存储失败", "error", err)
 	} else {
 		core.hostIcons = hi
+	}
+	if hm, err := hostmeta.NewStore("ServerPanel"); err != nil {
+		app.Logger.Error("初始化主机备注存储失败", "error", err)
+	} else {
+		core.hostMeta = hm
 	}
 	core.collector = monitor.NewCollector(sshMgr)
 	core.termMgr.Init(context.Background(), app.Event.Emit)
@@ -219,11 +232,14 @@ func (a *App) maybeShowMainWindow() {
 	win.SetMinSize(windowMinW, windowMinH)
 	win.Center()
 	win.Show()
+	a.syncTrafficLights()
 }
 
 func (a *App) forceShowMainWindow() {
 	a.showMu.Lock()
-	if a.shown || a.mainWindow == nil {
+	// Wails 未进入运行态（Run 尚未初始化 impl）时调用窗口 API 会空指针崩溃，
+	// 此处直接放弃兜底——ApplicationStarted 路径或下次触发会正常显示窗口。
+	if a.shown || a.mainWindow == nil || !a.ready {
 		a.showMu.Unlock()
 		return
 	}
@@ -232,6 +248,22 @@ func (a *App) forceShowMainWindow() {
 	a.showMu.Unlock()
 	win.SetMinSize(windowMinW, windowMinH)
 	win.Show()
+	a.syncTrafficLights()
+}
+
+// syncTrafficLights 将 macOS 红绿灯垂直居中到自定义通栏。
+func (a *App) syncTrafficLights() {
+	if a.mainWindow == nil {
+		return
+	}
+	macui.InstallCenteredTrafficLights(a.mainWindow, macTitleBarHeight)
+}
+
+// markReady 在 ApplicationStarted（Wails 运行态就绪）后标记窗口 API 可安全调用。
+func (a *App) markReady() {
+	a.showMu.Lock()
+	a.ready = true
+	a.showMu.Unlock()
 }
 
 func (a *App) enforceMinSize() {
@@ -257,7 +289,7 @@ func (a *App) enforceMinSize() {
 // 必须在 Hidden 期间调用；成功后不再重复（避免覆盖用户后续的手动调整）。
 func (a *App) fitWindowToPrimaryScreen() {
 	a.showMu.Lock()
-	if a.sized || a.mainWindow == nil || a.app == nil {
+	if a.sized || a.mainWindow == nil || a.app == nil || !a.ready {
 		a.showMu.Unlock()
 		return
 	}

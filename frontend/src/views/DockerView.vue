@@ -615,7 +615,7 @@ async function copyJson(name: string) {
   overflow: auto;
   margin: 0;
   padding: 14px 16px;
-  border-radius: 6px;
+  border-radius: var(--m3-shape-s);
   background: var(--el-fill-color-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
@@ -650,12 +650,12 @@ async function copyJson(name: string) {
   max-height: 80vh;
   overflow-y: auto;
   padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--el-bg-color-overlay, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  border-radius: var(--m3-shape-s, 8px);
+  background: var(--m3-surface-container-lowest, #ecebf0);
+  border: none;
+  box-shadow: var(--m3-elevation-2);
   font-size: 12px;
-  color: var(--el-text-color-primary, #303133);
+  color: var(--m3-on-surface, #1a1a1d);
 }
 .dc-hover-card .detail-title {
   display: flex;

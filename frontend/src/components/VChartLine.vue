@@ -55,46 +55,26 @@ function initChart() {
   if (!el.value) return;
   if (!chart) chart = echarts.init(el.value);
   const root = getComputedStyle(document.documentElement);
-  const primary =
-    root.getPropertyValue("--panel-color-primary").trim() || "#005eeb";
-  const primaryLight9 =
-    root.getPropertyValue("--panel-color-primary-light-9").trim() || "#e5eefd";
-  const regularText =
-    root.getPropertyValue("--el-text-color-regular").trim() || "#646a73";
-  const secondaryText =
-    root.getPropertyValue("--el-text-color-secondary").trim() || "#909399";
-  const borderColor =
-    root.getPropertyValue("--el-border-color-light").trim() || "#e4e7ed";
-  const tooltipBg =
-    root.getPropertyValue("--el-bg-color-overlay").trim() || "#ffffff";
+  const get = (name: string, fallback: string) =>
+    root.getPropertyValue(name).trim() || fallback;
+  const primary = get("--m3-primary", "#6750a4");
+  const secondary = get("--m3-secondary", "#625b71");
+  const tertiary = get("--m3-tertiary", "#7d5260");
+  const regularText = get("--m3-on-surface-variant", "#49454f");
+  const secondaryText = get("--m3-on-surface-variant", "#49454f");
+  const borderColor = get("--m3-outline-variant", "#cac4d0");
+  const tooltipBg = get("--m3-surface-container-lowest", "#ffffff");
+  const danger = get("--m3-error", "#b3261e");
 
-  // 与 1Panel Line.vue seriesStyle 对齐
+  // M3 图表惯例：细实线 + 低透明度面积（禁大面积渐变紫墙）
+  // 线色用 primary/secondary/tertiary 区分序列，面积统一 10% 透明度
   const seriesStyle = [
-    {
-      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: primaryLight9 },
-        { offset: 1, color: primary },
-      ]),
-    },
-    {
-      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: "rgba(0, 94, 235, .3)" },
-        { offset: 1, color: "rgba(0, 94, 235, .4)" },
-      ]),
-    },
-    {
-      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: "rgba(27, 143, 60, .3)" },
-        { offset: 1, color: "rgba(27, 143, 60, .4)" },
-      ]),
-    },
-    {
-      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: "rgba(249, 199, 79, .3)" },
-        { offset: 1, color: "rgba(249, 199, 79, .4)" },
-      ]),
-    },
+    primary,
+    secondary,
+    tertiary,
+    get("--m3-outline", "#79747e"),
   ];
+  const seriesColor = (index: number) => seriesStyle[index] || seriesStyle[0];
 
   const xData =
     props.option.xData?.length > 0
@@ -104,8 +84,12 @@ function initChart() {
     name: item.name,
     type: "line" as const,
     showSymbol: false,
-    itemStyle: seriesStyle[index + 2] || seriesStyle[2],
-    areaStyle: seriesStyle[index] || seriesStyle[0],
+    lineStyle: { width: 1.5 },
+    itemStyle: { color: seriesColor(index) },
+    areaStyle: {
+      color: seriesColor(index),
+      opacity: 0.1,
+    },
     data:
       item.data?.length > 0
         ? item.data
@@ -115,7 +99,7 @@ function initChart() {
         ? {
             symbol: "none",
             label: { formatter: "{b}", color: secondaryText },
-            lineStyle: { type: "dashed", color: "#f56c6c" },
+            lineStyle: { type: "dashed", color: danger },
             data: (props.option.markLines || []).map((m) => ({
               name: m.name,
               xAxis: m.x,
@@ -161,6 +145,7 @@ function initChart() {
         icon: "circle",
         textStyle: { color: regularText },
       },
+      color: seriesStyle,
       xAxis: {
         type: "category",
         data: xData,

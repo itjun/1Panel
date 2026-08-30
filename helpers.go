@@ -18,13 +18,14 @@ type CopyIDInput struct {
 	IdentityFile  string `json:"identityFile"` // 写入 ssh config 的密钥路径
 }
 
-// AddHostInput 是「添加主机」对话框的入参（用户只需填 4 项）
-// 端口默认 22，公钥/密钥路径由后端自动推断
+// AddHostInput 是「添加主机」对话框的入参
+// 端口默认 22，公钥/密钥路径由后端自动推断；备注存本机 host_meta.json
 type AddHostInput struct {
 	Name     string `json:"name"`     // Host 别名
 	HostName string `json:"hostName"` // IP/域名
 	User     string `json:"user"`
 	Password string `json:"password"` // 仅本次使用，不落盘
+	Note     string `json:"note"`     // 本机备注，可选
 }
 
 // UpdateHostInput 是「编辑主机」对话框的入参
@@ -34,6 +35,7 @@ type UpdateHostInput struct {
 	HostName string `json:"hostName"` // 新 IP/域名
 	User     string `json:"user"`     // 登录用户
 	Password string `json:"password"` // 仅本次使用，不落盘
+	Note     string `json:"note"`     // 本机备注，可选
 }
 
 // HostConnNotify 面板侧主机连接告警（停机 / 恢复）入参

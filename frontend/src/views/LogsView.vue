@@ -2,14 +2,15 @@
   <div class="tab-root">
     <EnlargableCard title="日志">
     <!-- 三级日志类型标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
-    <el-card class="tag-search-card">
-      <div class="tag-search-row">
+    <div class="view-toolbar">
+      <div class="view-toolbar__chips">
         <TagButton
           :model-value="currentLogType"
           :buttons="logTypeButtons"
           @update:model-value="(v: string) => { currentLogType = v; loadLog(); }"
         />
-        <div class="tag-tools">
+      </div>
+      <div class="view-toolbar__tools">
           <el-select v-model="lines" style="width: 110px" @change="loadLog">
             <el-option :value="100" label="100 行" />
             <el-option :value="500" label="500 行" />
@@ -31,9 +32,8 @@
           >
             刷新
           </el-button>
-        </div>
       </div>
-    </el-card>
+    </div>
     <el-alert
       v-if="error"
       type="error"
@@ -155,29 +155,13 @@ watch(
   flex-direction: column;
 }
 /* 三级标签卡：照搬 1Panel LayoutContent content-container__search */
-.tag-search-card {
-  --el-card-padding: 8px 12px;
-  flex-shrink: 0;
-}
-.tag-search-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.tag-tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 .log-body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  border-radius: 4px;
-  background: var(--el-bg-color, #fff);
+  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border-radius: var(--m3-shape-m, 12px);
+  background: var(--m3-surface-container-lowest, #fff);
   display: flex;
 }
 .log-pre {

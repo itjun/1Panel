@@ -272,10 +272,10 @@ function formatCpu(v?: string): string {
   gap: 10px;
   padding: 9px 12px;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
+  border-radius: var(--m3-shape-s);
   background: var(--el-bg-color);
   cursor: default;
-  transition: background-color 0.15s;
+  transition: background-color var(--m3-motion-state);
 }
 .svc-row:hover {
   background: var(--el-fill-color-light);
@@ -326,12 +326,12 @@ function formatCpu(v?: string): string {
   max-height: 70vh;
   overflow-y: auto;
   padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--el-bg-color-overlay, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  border-radius: var(--m3-shape-s, 8px);
+  background: var(--m3-surface-container-lowest, #ecebf0);
+  border: none;
+  box-shadow: var(--m3-elevation-2);
   font-size: 12px;
-  color: var(--el-text-color-primary, #303133);
+  color: var(--m3-on-surface, #1a1a1d);
   pointer-events: none;
 }
 .svc-hover-card .detail-title {

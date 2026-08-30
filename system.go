@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"diteng-pannel/internal/macui"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/wecom"
 
@@ -25,6 +26,9 @@ func (s *System) SetTrafficLightsHidden(hidden bool) {
 	w.SetCloseButtonState(st)
 	w.SetMinimiseButtonState(st)
 	w.SetMaximiseButtonState(st)
+	if !hidden {
+		macui.InstallCenteredTrafficLights(w, macTitleBarHeight)
+	}
 }
 
 // GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）

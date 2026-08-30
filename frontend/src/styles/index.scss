@@ -1,4 +1,6 @@
-// 1Panel 官方主题变量（源：1Panel/frontend/src/styles）
+// Material Design 3 主题层
+// 令牌定义 -> EP 映射 -> 全局基础样式
+@use "./m3/tokens.scss";
 @use "./element.scss";
 @use "./element-dark.scss";
 
@@ -10,19 +12,10 @@ body,
   padding: 0;
   overflow: hidden;
   /* 可由设置弹窗覆盖：--app-font-family / --app-font-size */
-  font-family: var(
-    --app-font-family,
-    "Helvetica Neue",
-    Helvetica,
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Microsoft YaHei",
-    Arial,
-    sans-serif
-  );
+  font-family: var(--app-font-family, var(--m3-font-family));
   font-size: var(--app-font-size, 14px);
-  color: var(--panel-text-color, #1f2329);
-  background: var(--panel-main-bg-color-9, #f4f4f4);
+  color: var(--m3-on-surface);
+  background: var(--m3-surface-container);
   user-select: none;
 }
 
@@ -36,80 +29,91 @@ body,
   -webkit-app-region: no-drag;
 }
 
-// 1Panel 卡片间隔
+// M3 卡片间距（12dp）
 .card-interval {
-  margin-top: 7px;
+  margin-top: 12px;
 }
 
-// 1Panel 风格：鼠标悬停显示主色描边（应用商店卡片同款）
+// M3 outlined card：白底不变；hover 仅描边强调，不加底色/阴影
 .panel-hover-card {
-  border: 1px solid var(--el-border-color-light, #e4e7ed) !important;
-  border-radius: 4px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid var(--m3-outline-variant) !important;
+  border-radius: var(--m3-shape-m);
+  background: var(--m3-surface-container-lowest) !important;
   box-sizing: border-box;
+  transition: border-color var(--m3-motion-select);
 
   &:hover {
-    border-color: var(--el-color-primary) !important;
-    box-shadow: 0 0 0 1px var(--el-color-primary);
+    border-color: color-mix(in srgb, var(--m3-primary) 32%, var(--m3-outline-variant)) !important;
   }
 }
 
-// 1Panel 区块标题蓝条
+// 区块标题：headline-small 字号，去 1Panel 蓝条
 .panel-section-title {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  padding-left: 13px;
-  font-size: 16px;
+  font: var(--m3-title-large);
   font-weight: 500;
-  line-height: 22px;
-  &::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 4px;
-    height: 14px;
-    border-radius: 10px;
-    background: var(--el-color-primary);
-  }
+  line-height: 28px;
+  color: var(--m3-on-surface);
 }
 
-// 顶部标签页（照搬 1Panel Tabs/index.vue：EP 原生 card 风格 + 选中项底部主色线）
+// 顶部标签页（M3 tabs：激活项 primary 指示器）
 .common-tabs {
   .el-tabs__header {
     margin: 0;
   }
-  .el-tabs__item.is-active {
-    border-bottom-color: var(--el-color-primary) !important;
-    border-bottom-width: 2px !important;
-  }
-}
+  .el-tabs__item {
+    font: var(--m3-title-small);
+    color: var(--m3-on-surface-variant);
 
-// 三级标签按钮（照搬 1Panel common.scss：选中 primary 实底，未选中纯文字；
-// 微调：未选中悬浮时显示主色边框，提示可点击）
-.tag-button {
-  margin-right: 10px;
-  &.no-active {
-    background: none;
-    /* 透明边框占位，避免悬浮出现边框时按钮抖动 */
-    border: 1px solid transparent;
-    &:hover {
-      border-color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-      color: var(--el-color-primary);
+    &.is-active {
+      color: var(--m3-primary);
+      border-bottom-color: var(--m3-primary) !important;
+      border-bottom-width: 2px !important;
     }
   }
 }
 
-// 侧栏：整体照搬 1Panel Sidebar/index.scss（宽度可由组件 inline 覆盖，支持拖拽）
+// 三级标签按钮（M3 filter chip：8dp 圆角、outline-variant 描边、选中 secondary-container）
+.tag-button.el-button {
+  margin-right: 8px;
+  border-radius: var(--m3-shape-s);
+  height: 32px;
+  padding: 0 12px;
+  font: var(--m3-label-large);
+  border: 1px solid var(--m3-outline-variant);
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+
+  &:hover,
+  &:focus {
+    background: color-mix(in srgb, var(--m3-on-surface) var(--m3-state-hover-percent, 8%), transparent);
+    color: var(--m3-on-surface);
+    border-color: var(--m3-outline-variant);
+  }
+
+  &.is-active {
+    background: var(--m3-primary-container);
+    border-color: transparent;
+    color: var(--m3-primary);
+
+    &:hover,
+    &:focus {
+      background: color-mix(in srgb, var(--m3-primary-container) 88%, var(--m3-primary));
+      color: var(--m3-primary);
+      border-color: transparent;
+    }
+  }
+}
+
+// 侧栏：M3 Navigation drawer 规格
+// 容器 surface-container-low；激活项 secondary-container 胶囊（56dp 高 / 28dp 圆角）
 .panel-sidebar {
-  width: var(--panel-menu-width, 180px);
-  min-width: 180px;
-  max-width: 320px;
+  width: var(--panel-menu-width, 280px);
+  min-width: 200px;
+  max-width: 360px;
   height: 100%;
-  background: var(--panel-menu-bg-color) no-repeat top;
+  background: var(--m3-surface-container-low);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -128,77 +132,67 @@ body,
     background: none !important;
     border-right: none !important;
     width: 100%;
-    padding: 0 7px;
-
-    /* 顶贴通栏底沿（蓝/灰分界），不要空出一条蓝边 */
-    > .el-menu-item:first-child {
-      margin-top: 0;
-    }
+    padding: 8px;
 
     .el-menu-item {
-      border-radius: 4px;
-      background-color: var(--el-menu-item-bg-color) !important;
-      margin: 7px 0;
-      height: 42px !important;
-      box-shadow: 0 0 4px rgba(0, 94, 235, 0.1);
+      border-radius: var(--m3-shape-xl); // 28dp 胶囊
+      background-color: transparent !important;
+      margin: 2px 0;
+      height: 56px !important;
+      line-height: 56px;
+      color: var(--m3-on-surface-variant);
       box-sizing: border-box;
 
+      /* 状态层：hover 淡蓝底 */
       &:hover {
-        .el-icon {
-          color: var(--el-color-primary);
-        }
+        background-color: color-mix(in srgb, var(--m3-primary) 8%, transparent) !important;
+        color: var(--m3-on-surface);
 
+        .el-icon,
         span {
-          color: var(--el-color-primary);
+          color: var(--m3-on-surface);
         }
       }
 
-      /* 选中：白色色块 + 主色内描边 + 左侧蓝竖线（1Panel 原版） */
+      /* 选中：白底蓝字胶囊（对齐 main 侧栏清晰对比） */
       &.is-active {
-        position: relative;
-        background-color: var(--el-menu-item-bg-color-active) !important;
-        box-shadow:
-          0 0 4px rgba(0, 94, 235, 0.1),
-          inset 0 0 0 2px var(--el-color-primary);
+        background-color: var(--m3-secondary-container) !important;
+        color: var(--m3-on-secondary-container);
+        box-shadow: 0 1px 3px rgba(0, 94, 235, 0.12);
 
-        &::before {
-          position: absolute;
-          border-radius: 4px;
-          left: 12px;
-          width: 4px;
-          height: 14px;
-          content: "";
-          background: var(--el-color-primary);
+        .el-icon,
+        span {
+          color: var(--m3-on-secondary-container);
         }
       }
     }
 
     .el-sub-menu {
-      /* 分组下有主机被选中：仅分组标题文字/图标变主色（1Panel 原版） */
+      /* 分组下有主机被选中：仅分组标题字色变化 */
       &.is-active .el-sub-menu__title {
-        span {
-          color: var(--el-color-primary);
-        }
+        color: var(--m3-on-surface);
 
+        span,
         .el-icon {
-          color: var(--el-color-primary);
+          color: var(--m3-on-surface);
         }
       }
 
       .el-sub-menu__title {
-        background-color: var(--el-menu-item-bg-color) !important;
-        box-shadow: 0 0 4px rgba(0, 94, 235, 0.1);
-        margin-top: 7px;
-        height: 42px !important;
-        border-radius: 4px;
+        background-color: transparent !important;
+        margin-top: 4px;
+        height: 56px !important;
+        line-height: 56px;
+        border-radius: var(--m3-shape-xl);
+        color: var(--m3-on-surface-variant);
 
         &:hover {
-          .el-icon {
-            color: var(--el-color-primary);
-          }
+          background-color: color-mix(in srgb, var(--m3-on-surface-variant) 8%, transparent) !important;
+          color: var(--m3-on-surface);
 
+          .el-icon,
           span {
-            color: var(--el-color-primary);
+            color: var(--m3-on-surface);
           }
         }
       }
@@ -207,10 +201,10 @@ body,
         padding: 0;
 
         .el-menu-item {
-          box-shadow: none;
-          padding-left: 35px !important;
-          /* 只留上边距：分组标题→第一台、主机之间都是 7px，避免 7+7 叠成 14 */
-          margin: 7px 0 0;
+          padding-left: 32px !important;
+          margin: 2px 0;
+          height: 48px !important;
+          line-height: 48px;
         }
       }
     }
@@ -218,7 +212,7 @@ body,
 
   .sidebar-footer {
     flex-shrink: 0;
-    padding: 8px 7px 12px;
+    padding: 8px 16px 12px;
   }
 }
 
@@ -226,7 +220,7 @@ body,
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--panel-main-bg-color-9, #f4f4f4);
+  background: var(--m3-surface-container);
 }
 
 .app-chrome {
@@ -237,7 +231,7 @@ body,
   grid-template-rows: 40px 1fr;
   grid-template-columns: auto 1fr;
   overflow: hidden;
-  background: var(--panel-menu-bg-color);
+  background: var(--m3-surface-container-low);
 }
 
 .app-chrome > .titlebar-left {
@@ -273,7 +267,8 @@ body,
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--panel-main-bg-color-9, #f4f4f4);
+  background: var(--m3-surface-container);
+  border-top-left-radius: var(--m3-shape-l);
 }
 
 .main-container {
@@ -282,13 +277,179 @@ body,
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--panel-main-bg-color-9, #f4f4f4);
+  background: var(--m3-surface-container);
   overflow: hidden;
 }
 
 .monitor-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 8px;
+}
+
+/* 监控实时指标：M3 assist chip（中性 surface，非 primary 紫底） */
+.metric-tag {
+  background: var(--m3-surface-container-high) !important;
+  border-color: var(--m3-outline-variant) !important;
+  color: var(--m3-on-surface) !important;
+}
+.metric-tag--warn {
+  color: var(--m3-tertiary) !important;
+}
+
+// 二级页工具栏：Filter Chip 行 + 搜索/操作区（无额外 card 嵌套）
+.view-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--m3-outline-variant);
+}
+
+.view-toolbar__chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tag-button.el-button {
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+}
+
+.view-toolbar__tools {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+// 二级页统一白底面板（应用监视、证书等整页内容区）
+.page-panel {
+  background: var(--m3-surface-container-lowest);
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-m);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--m3-outline-variant);
+  flex-shrink: 0;
+}
+
+.page-toolbar__hint {
+  flex: 1;
+  min-width: 0;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+}
+
+.page-toolbar__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-empty {
+  padding: 24px;
+  text-align: center;
+  font: var(--m3-body-medium);
+  color: var(--m3-on-surface-variant);
+}
+
+// 数据表格：固定列宽、左对齐、统一行高 + 12dp 外圆角
+.data-table-unified {
+  width: 100%;
+  cursor: pointer;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-m);
+  overflow: hidden;
+  --el-table-border-color: var(--m3-outline-variant);
+
+  table {
+    table-layout: fixed;
+    width: 100% !important;
+  }
+
+  .el-table__header th,
+  .el-table__body td {
+    text-align: left;
+  }
+
+  .el-table__cell.is-center {
+    text-align: center;
+  }
+
+  .el-table__cell {
+    padding: 10px 12px;
+  }
+
+  .el-table__header th {
+    height: 44px;
+    font: var(--m3-title-small);
+    color: var(--m3-on-surface-variant);
+    background: var(--m3-surface-container);
+  }
+
+  .el-table__row {
+    height: 48px;
+  }
+
+  .el-table__inner-wrapper::before {
+    display: none;
+  }
+}
+
+.apps-section {
+  &:not(:first-child) .apps-section__head {
+    margin-top: 4px;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    background: var(--m3-surface-container);
+    border-radius: var(--m3-shape-s);
+  }
+
+  &__title {
+    font: var(--m3-title-small);
+    font-weight: 600;
+    color: var(--m3-on-surface);
+  }
+
+  &__count {
+    font: var(--m3-label-medium);
+    color: var(--m3-on-surface-variant);
+  }
+
+  .el-table {
+    --el-table-border-color: var(--m3-outline-variant);
+    --el-table-header-bg-color: var(--m3-surface-container);
+    --el-table-row-hover-bg-color: color-mix(in srgb, var(--m3-primary) 6%, var(--m3-surface-container-lowest));
+  }
+
+  .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
+  }
 }

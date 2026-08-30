@@ -211,7 +211,7 @@ type AgentBatchResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// AgentBatchInstall 批量安装/更新（幂等，逐台并发 3；单台失败不影响其余）。
+// AgentBatchInstall 批量安装/更新（幂等，全部并行；单台失败不影响其余）。
 // hosts 为空时自动覆盖 ssh config 里的全部主机。
 func (s *Agent) AgentBatchInstall(hosts []string) ([]AgentBatchResult, error) {
 	if len(hosts) == 0 {
@@ -226,14 +226,11 @@ func (s *Agent) AgentBatchInstall(hosts []string) ([]AgentBatchResult, error) {
 		}
 	}
 	results := make([]AgentBatchResult, len(hosts))
-	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for i, host := range hosts {
 		wg.Add(1)
-		sem <- struct{}{}
 		go func(idx int, h string) {
 			defer wg.Done()
-			defer func() { <-sem }()
 			r := AgentBatchResult{Host: h}
 			if v, err := s.installAgentOn(h); err != nil {
 				r.Error = err.Error()
@@ -278,6 +275,16 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 	if err != nil {
 		return fail(err)
 	}
+
+	// 已在跑且版本与面板内置一致：跳过上传/替换
+	if info.ServiceState == "active" {
+		st := s.agentPool.Status(host, true)
+		if st.OK && st.Version == agentres.AgentVersion {
+			emit("done", "已是最新 v"+st.Version+"，跳过安装", -1)
+			return st.Version, nil
+		}
+	}
+
 	bin, sum, err := agentres.Binary(info.Arch)
 	if err != nil {
 		return fail(err)

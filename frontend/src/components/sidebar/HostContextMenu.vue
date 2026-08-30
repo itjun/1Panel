@@ -289,24 +289,26 @@ async function onInitZsh() {
   z-index: 100000;
 }
 
+/* M3 Menu：白底、elevation-2、8dp 圆角；项 40dp、悬停状态层 */
 .host-ctx-menu {
   position: fixed;
   z-index: 100001;
-  min-width: 156px;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--el-bg-color-overlay, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  font-size: 13px;
-  color: var(--el-text-color-primary, #303133);
+  min-width: 180px;
+  padding: 8px;
+  border-radius: var(--m3-shape-s);
+  background: var(--m3-surface-container-lowest);
+  border: none;
+  box-shadow: var(--m3-elevation-2);
+  font: var(--m3-label-large);
+  color: var(--m3-on-surface);
   user-select: none;
 }
 
 .host-ctx-menu .ctx-kbd {
-  margin-left: 16px;
-  color: var(--el-text-color-secondary, #909399);
-  font-size: 12px;
+  margin-left: 24px;
+  color: var(--m3-on-surface-variant);
+  font: var(--m3-label-medium);
+  font-variant-numeric: tabular-nums;
 }
 
 .host-ctx-menu .ctx-item {
@@ -314,10 +316,11 @@ async function onInitZsh() {
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  min-height: 40px;
   margin: 0;
-  padding: 7px 12px;
+  padding: 8px 12px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--m3-shape-xs);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -325,29 +328,31 @@ async function onInitZsh() {
   cursor: pointer;
   box-sizing: border-box;
   white-space: nowrap;
+  transition: background-color var(--m3-motion-state);
 }
 
 .host-ctx-menu .ctx-item:hover,
 .host-ctx-menu .ctx-item.is-current {
-  background: var(--el-fill-color-light, #f5f7fa);
+  background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
 }
 
 .host-ctx-menu .ctx-item.is-current {
-  color: var(--el-color-primary, #005eeb);
+  color: var(--m3-primary);
+  font-weight: 600;
 }
 
 .host-ctx-menu .ctx-item.is-danger {
-  color: var(--el-color-danger, #f56c6c);
+  color: var(--m3-error);
 }
 
 .host-ctx-menu .ctx-item.is-danger:hover {
-  background: var(--el-color-danger-light-9, #fef0f0);
+  background: color-mix(in srgb, var(--m3-error) 8%, transparent);
 }
 
 .host-ctx-menu .ctx-divider {
   height: 1px;
-  margin: 4px 6px;
-  background: var(--el-border-color-lighter, #ebeef5);
+  margin: 4px 8px;
+  background: var(--m3-outline-variant);
 }
 
 .host-ctx-menu .ctx-has-sub {
@@ -356,39 +361,38 @@ async function onInitZsh() {
 
 .host-ctx-menu .ctx-arrow {
   margin-left: 16px;
-  color: var(--el-text-color-secondary, #909399);
+  color: var(--m3-on-surface-variant);
   font-size: 14px;
 }
 
 .host-ctx-menu .ctx-sub {
   position: absolute;
-  left: calc(100% + 2px);
-  top: -4px;
-  min-width: 140px;
+  left: calc(100% + 4px);
+  top: -8px;
+  min-width: 148px;
   max-height: 280px;
   overflow-y: auto;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--el-bg-color-overlay, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  border-radius: var(--m3-shape-s);
+  background: var(--m3-surface-container-lowest);
+  border: none;
+  box-shadow: var(--m3-elevation-2);
 }
 
 .host-ctx-menu .ctx-empty {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
+  padding: 10px 12px;
+  font: var(--m3-label-medium);
+  color: var(--m3-on-surface-variant);
 }
 
 html.dark .host-ctx-menu,
 html.dark .host-ctx-menu .ctx-sub {
-  background: #2e313d;
-  border-color: #414243;
-  color: #e5eaf3;
+  background: var(--m3-surface-container-lowest);
+  color: var(--m3-on-surface);
 }
 
 html.dark .host-ctx-menu .ctx-item:hover,
 html.dark .host-ctx-menu .ctx-item.is-current {
-  background: #3a3d4a;
+  background: color-mix(in srgb, var(--m3-primary) 12%, transparent);
 }
 </style>

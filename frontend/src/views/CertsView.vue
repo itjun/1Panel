@@ -446,14 +446,15 @@ watch(
   gap: 6px;
   padding: 28px 16px;
   border: 1px dashed var(--el-border-color);
-  border-radius: 6px;
+  border-radius: var(--m3-shape-s);
   color: var(--el-text-color-secondary);
-  transition: border-color 0.2s;
+  transition: border-color var(--m3-motion-select);
 }
 .dropzone.hover,
 .dropzone.file-drop-target-active {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
+  border-color: var(--m3-primary);
+  color: var(--m3-primary);
+  background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-surface-container-lowest));
 }
 .drop-title {
   font-size: 14px;

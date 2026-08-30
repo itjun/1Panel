@@ -93,13 +93,12 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--el-bg-color, #fff);
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  border-radius: 4px;
-  padding: 12px 16px;
+  background: var(--m3-surface-container-lowest, #fff);
+  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border-radius: var(--m3-shape-m, 12px);
+  padding: 16px;
   box-sizing: border-box;
-  /* 与 1Panel el-card 一致的品牌蓝浅阴影 */
-  box-shadow: var(--el-box-shadow-light, 0 0 4px rgba(0, 94, 235, 0.1));
+  /* M3 outlined card：无 resting 阴影 */
 }
 .enl-head {
   flex-shrink: 0;
@@ -137,13 +136,13 @@ onBeforeUnmount(() => {
   right: 6px;
   z-index: 5;
   padding: 4px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-bg-color, #fff);
-  border-radius: 4px;
+  color: var(--m3-on-surface-variant);
+  background: var(--m3-surface-container-high, #ecebf0);
+  border-radius: var(--m3-shape-full);
   opacity: 0.35;
   &:hover {
     opacity: 1;
-    color: var(--el-color-primary);
+    color: var(--m3-primary);
   }
 }
 

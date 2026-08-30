@@ -74,6 +74,13 @@ export function RenameHost(oldName: string, newName: string): $CancellablePromis
 }
 
 /**
+ * SetHostNote 仅更新本机备注（不改 ssh config、不验连）
+ */
+export function SetHostNote(name: string, note: string): $CancellablePromise<void> {
+    return $Call.ByID(1462312353, name, note);
+}
+
+/**
  * TestConnection 用密码尝试 SSH 登录（执行 hostname），仅验证连通性与凭据是否正确
  * 不推送公钥、不写 config；测试完立即关闭连接，避免污染连接池
  * 成功返回包含远程主机名的提示信息

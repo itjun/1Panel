@@ -183,10 +183,10 @@ defineExpose({ openFile });
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  border-radius: 6px;
+  border-radius: var(--m3-shape-m, 12px);
   overflow: hidden;
-  background: #0d0d0d;
-  color: #e4e4e7;
+  background: #131316;
+  color: #e6e0e9;
 }
 .preview-code {
   flex: 1;
@@ -267,14 +267,14 @@ defineExpose({ openFile });
   font-variant-numeric: tabular-nums;
 }
 .status-item {
-  color: #d1d5db;
+  color: #e6e0e9;
   &.is-warn {
-    color: #fbbf24;
+    color: #ffd8e4;
     font-weight: 600;
   }
 }
 .status-sep {
-  color: #4b5563;
+  color: #938f99;
 }
 </style>
 

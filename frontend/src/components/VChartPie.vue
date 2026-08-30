@@ -39,27 +39,22 @@ function isDark() {
 
 function getThemeColors() {
   const root = getComputedStyle(document.documentElement);
+  const get = (name: string, fallback: string) =>
+    root.getPropertyValue(name).trim() || fallback;
   return {
-    primaryLight2:
-      root.getPropertyValue("--panel-color-primary-light-3").trim() ||
-      "#4c8ef1",
-    primaryLight1:
-      root.getPropertyValue("--panel-color-primary").trim() || "#005eeb",
-    pieBgColor: isDark() ? "#434552" : "#ffffff",
-    textColor: isDark() ? "#ffffff" : "#0f0f0f",
-    subtextColor: isDark() ? "#BBBFC4" : "#646A73",
-    shadowColor: isDark() ? "#16191D" : "rgba(0, 94, 235, 0.1)",
-    backgroundStyleColor: isDark()
-      ? "rgba(255, 255, 255, 0.05)"
-      : "rgba(0, 94, 235, 0.05)",
-    danger:
-      root.getPropertyValue("--el-color-danger").trim() || "#f56c6c",
-    dangerLight:
-      root.getPropertyValue("--el-color-danger-light-3").trim() || "#f89898",
-    dangerShadow: "rgba(245, 108, 108, 0.15)",
-    dangerBg: isDark()
-      ? "rgba(245, 108, 108, 0.12)"
-      : "rgba(245, 108, 108, 0.08)",
+    primaryLight2: get("--m3-primary", "#6750a4"),
+    primaryLight1: get("--m3-primary", "#6750a4"),
+    pieBgColor: get("--m3-surface-container-lowest", "#ffffff"),
+    textColor: get("--m3-on-surface", "#1d1b20"),
+    subtextColor: get("--m3-on-surface-variant", "#49454f"),
+    // 环形图轨迹槽：中性灰（surface-container-highest），非紫色
+    trackColor: get("--m3-surface-container-highest", "#e6e5ea"),
+    shadowColor: isDark() ? "#131316" : "rgba(0, 0, 0, 0.08)",
+    backgroundStyleColor: get("--m3-surface-container-highest", "#e6e5ea"),
+    danger: get("--m3-error", "#b3261e"),
+    dangerLight: get("--m3-error", "#b3261e"),
+    dangerShadow: "rgba(179, 38, 30, 0.15)",
+    dangerBg: get("--m3-surface-container-highest", "#e6e5ea"),
   };
 }
 
@@ -69,8 +64,6 @@ function initChart() {
   const v = Math.max(0, Math.min(100, Number(props.option.data) || 0));
   const percentText = v.toFixed(2).split(".");
   const c = getThemeColors();
-  const ringFrom = props.danger ? c.dangerLight : c.primaryLight2;
-  const ringTo = props.danger ? c.danger : c.primaryLight1;
   chart.setOption(
     {
       title: [
@@ -109,14 +102,10 @@ function initChart() {
           showBackground: true,
           coordinateSystem: "polar",
           backgroundStyle: {
-            color: props.danger ? c.dangerBg : c.backgroundStyleColor,
+            color: c.backgroundStyleColor,
           },
-          color: [
-            new echarts.graphic.LinearGradient(0, 1, 0, 0, [
-              { offset: 0, color: ringFrom },
-              { offset: 1, color: ringTo },
-            ]),
-          ],
+          // M3：纯色数值弧，不用渐变
+          color: [props.danger ? c.danger : c.primaryLight2],
           label: { show: false },
           data: [v],
         },

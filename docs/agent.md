@@ -56,7 +56,7 @@ go run ./cmd/agentinstall-test cdcp-beta    # 安装/更新/回滚链路验证
 - **资源硬限制**（systemd）：`CPUQuota=25%`（持续采集 <0.1% CPU；按需命令 fork 的 ps/docker 等子进程同 cgroup，25% 保证秒回且仍是防失控硬顶）`MemoryMax=96M` `Nice=10` `CPUWeight/IOWeight=50` `OOMScoreAdjust=500` + `GOMEMLIMIT=64MiB`。实测稳态 CPU ≈0.02%、RSS 4-12MB。
 - **按需采集缓存**（agent 侧，均为惰性缓存）：Go 进程识别（`debug/buildinfo` 纯 Go 实现，15s）、docker stats（CLI 采样周期秒级，15s）、docker ps 容器映射（classifyDeploy 用，15s）、出口 IP（外网请求，10min）。各页面实时性不受影响（容器列表/连接/端口等仍每次实时）。
 - **更新**：sftp 上传 → sha256 校验 → `mv` 原子替换（旧版转 `.old`）→ restart → 隧道健康检查版本号；失败自动回滚 `.old`。schema 迁移用 `PRAGMA user_version`，只加不改。
-- **批量部署**：面板分组页「批量部署 Agent」→ `AgentBatchInstall`（并发 3 逐台执行，单台失败不影响其余，汇总结果报告）；主机列表有 Agent 状态徽章（版本/可更新/未装）。
+- **批量部署**：面板分组页「安装 Agent」→ `AgentBatchInstall`（全部主机并行，单台失败不影响其余，进度窗逐台展示）；主机列表有 Agent 状态徽章（版本/可更新/未装）。
 - **HTTP API 契约类型**在 `internal/agentcli`（面板侧）与 `internal/agent`（agent 侧）各一份，json tag 保持一致。
 
 ## 预留：Uploader

@@ -2,35 +2,26 @@
   <div ref="pageRef" v-loading="loading && !overview" class="overview-page">
     <el-alert v-if="error && !overview" type="error" :title="error" show-icon />
     <template v-if="overview">
-      <el-row :gutter="7">
+      <el-row :gutter="12">
         <!-- 左栏 16 -->
         <el-col :xs="24" :md="16">
           <el-card
             shadow="never"
-            class="home-card"
+            class="home-card panel-hover-card"
             :class="{ 'is-enlarged': enlargedKey === 'overview' }"
             :style="enlargedKey === 'overview' ? enlargeStyle : undefined"
           >
             <div class="card-header" @dblclick="openEnlarge('overview')">
               <span class="panel-section-title">概览</span>
-              <div class="card-actions">
-                <el-button
-                  link
-                  class="card-icon-btn"
-                  :icon="Refresh"
-                  title="刷新"
-                  @click="refreshAll"
-                />
-                <el-button
-                  link
-                  class="card-icon-btn card-toggle"
-                  :icon="enlargedKey === 'overview' ? Close : FullScreen"
-                  :title="enlargedKey === 'overview' ? '退出放大' : '放大'"
-                  @click="toggleEnlarge('overview')"
-                />
-              </div>
+              <el-button
+                link
+                class="card-icon-btn card-toggle"
+                :icon="enlargedKey === 'overview' ? Close : FullScreen"
+                :title="enlargedKey === 'overview' ? '退出放大' : '放大'"
+                @click="toggleEnlarge('overview')"
+              />
             </div>
-            <el-row :gutter="12">
+            <el-row :gutter="0" class="stats-grid">
               <el-col :span="6" v-for="s in stats" :key="s.label">
                 <div class="stat-cell">
                   <div class="stat-label">{{ s.label }}</div>
@@ -42,7 +33,7 @@
 
           <el-card
             shadow="never"
-            class="home-card card-interval"
+            class="home-card panel-hover-card card-interval"
             :class="{ 'is-enlarged': enlargedKey === 'status' }"
             :style="enlargedKey === 'status' ? enlargeStyle : undefined"
           >
@@ -223,7 +214,7 @@
 
           <el-card
             shadow="never"
-            class="home-card card-interval"
+            class="home-card panel-hover-card card-interval"
             :class="{ 'is-enlarged': enlargedKey === 'monitor' }"
             :style="enlargedKey === 'monitor' ? enlargeStyle : undefined"
           >
@@ -252,23 +243,23 @@
             </div>
             <div v-if="chartMode === 'network'" class="monitor-tags">
               <template v-if="rangeMode === 'live'">
-                <el-tag type="primary" effect="light">
+                <el-tag class="metric-tag" effect="plain">
                   上行: {{ formatBytes(rates.upBps) }}/s
                 </el-tag>
-                <el-tag type="primary" effect="light">
+                <el-tag class="metric-tag" effect="plain">
                   下行: {{ formatBytes(rates.downBps) }}/s
                 </el-tag>
               </template>
             </div>
             <div v-else class="monitor-tags">
               <template v-if="rangeMode === 'live'">
-                <el-tag type="primary" effect="light">
+                <el-tag class="metric-tag" effect="plain">
                   读: {{ formatBytes(ioRates.readBps) }}/s
                 </el-tag>
-                <el-tag type="primary" effect="light">
+                <el-tag class="metric-tag" effect="plain">
                   写: {{ formatBytes(ioRates.writeBps) }}/s
                 </el-tag>
-                <el-tag type="warning" effect="light">
+                <el-tag class="metric-tag metric-tag--warn" effect="plain">
                   IOPS: {{ ioRates.iops }}/s
                 </el-tag>
               </template>
@@ -288,7 +279,7 @@
 
           <el-card
             shadow="never"
-            class="home-card card-interval"
+            class="home-card panel-hover-card card-interval"
             :class="{ 'is-enlarged': enlargedKey === 'disks' }"
             :style="enlargedKey === 'disks' ? enlargeStyle : undefined"
           >
@@ -337,7 +328,7 @@
         <el-col :xs="24" :md="8">
           <el-card
             shadow="never"
-            class="home-card"
+            class="home-card panel-hover-card"
             :class="{ 'is-enlarged': enlargedKey === 'sysinfo' }"
             :style="enlargedKey === 'sysinfo' ? enlargeStyle : undefined"
           >
@@ -351,34 +342,43 @@
                 @click="toggleEnlarge('sysinfo')"
               />
             </div>
-            <el-descriptions :column="1" border size="small" class="sys-desc">
-              <el-descriptions-item label="主机名称">
-                {{ overview.hostname || host }}
-              </el-descriptions-item>
-              <el-descriptions-item label="发行版本">
-                {{ overview.osRelease || "—" }}
-              </el-descriptions-item>
-              <el-descriptions-item label="内核版本">
-                {{ overview.kernel || "—" }}
-              </el-descriptions-item>
-              <el-descriptions-item label="系统类型">
-                {{ overview.arch || "—" }}
-              </el-descriptions-item>
-              <el-descriptions-item label="主机地址">
-                {{ overview.ipAddress || "—" }}
-              </el-descriptions-item>
-              <el-descriptions-item label="CPU 型号">
-                {{ overview.cpuModel || "—" }}
-              </el-descriptions-item>
-              <el-descriptions-item label="运行时间">
-                {{ formatDurationLong(overview.uptime) }}
-              </el-descriptions-item>
-            </el-descriptions>
+            <div class="kv-list">
+              <div class="kv-row">
+                <span class="kv-label">主机名称</span>
+                <span class="kv-value">{{ overview.hostname || host }}</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">发行版本</span>
+                <span class="kv-value">{{ overview.osRelease || "—" }}</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">内核版本</span>
+                <span class="kv-value">{{ overview.kernel || "—" }}</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">系统类型</span>
+                <span class="kv-value">{{ overview.arch || "—" }}</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">主机地址</span>
+                <span class="kv-value">{{ overview.ipAddress || "—" }}</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">CPU 型号</span>
+                <span class="kv-value" :title="overview.cpuModel || undefined">
+                  {{ overview.cpuModel || "—" }}
+                </span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">运行时间</span>
+                <span class="kv-value">{{ formatDurationLong(overview.uptime) }}</span>
+              </div>
+            </div>
           </el-card>
 
           <el-card
             shadow="never"
-            class="home-card card-interval"
+            class="home-card panel-hover-card card-interval"
             :class="{ 'is-enlarged': enlargedKey === 'agent' }"
             :style="enlargedKey === 'agent' ? enlargeStyle : undefined"
           >
@@ -423,21 +423,28 @@
                 />
               </div>
             </div>
-            <el-descriptions :column="1" border size="small" class="sys-desc">
-              <el-descriptions-item label="当前版本">
-                {{ agentInfo?.ok ? agentInfo.version || "—" : "—" }}
-              </el-descriptions-item>
-              <el-descriptions-item label="面板内置">
-                {{ latestAgentVersion || "—" }}
-              </el-descriptions-item>
-              <el-descriptions-item label="内存占用">
-                {{
-                  agentInfo?.ok && agentInfo.rssKB
-                    ? formatBytes(agentInfo.rssKB * 1024)
-                    : "—"
-                }}
-              </el-descriptions-item>
-            </el-descriptions>
+            <div class="kv-list">
+              <div class="kv-row">
+                <span class="kv-label">当前版本</span>
+                <span class="kv-value">
+                  {{ agentInfo?.ok ? agentInfo.version || "—" : "—" }}
+                </span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">面板内置</span>
+                <span class="kv-value">{{ latestAgentVersion || "—" }}</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">内存占用</span>
+                <span class="kv-value">
+                  {{
+                    agentInfo?.ok && agentInfo.rssKB
+                      ? formatBytes(agentInfo.rssKB * 1024)
+                      : "—"
+                  }}
+                </span>
+              </div>
+            </div>
             <div v-if="!agentInfo?.ok" class="empty-tip agent-offline-hint">
               在侧栏右键主机可安装 Agent
             </div>
@@ -445,7 +452,7 @@
 
           <el-card
             shadow="never"
-            class="home-card card-interval"
+            class="home-card panel-hover-card card-interval"
             :class="{ 'is-enlarged': enlargedKey === 'runtimes' }"
             :style="enlargedKey === 'runtimes' ? enlargeStyle : undefined"
           >
@@ -1171,7 +1178,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   max-width: 100%;
   overflow: visible;
-  padding: 0 0 12px;
+  padding: 0 0 16px;
   box-sizing: border-box;
 
   /* el-row gutter 用负 margin，会顶破父级宽度 → 横向滚动条 */
@@ -1205,22 +1212,30 @@ onBeforeUnmount(() => {
 }
 
 .home-card {
-  border: 1px solid var(--el-border-color-light, #e4e7ed) !important;
-  border-radius: 4px;
   max-width: 100%;
-  overflow: hidden; /* 卡片内图表/描述表不得撑破横向 */
+  overflow: hidden;
   box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  /* 1Panel：悬停主色描边 */
-  &:hover {
-    border-color: var(--el-color-primary) !important;
-    box-shadow: 0 0 0 1px var(--el-color-primary);
-  }
+
+  /* M3 Outlined Card：12dp 圆角已由全局 el-card；内边距 16dp；标题 title-medium */
   :deep(.el-card__body) {
-    padding: 14px 16px;
+    padding: 16px;
     max-width: 100%;
     box-sizing: border-box;
+    background: transparent;
   }
+
+  .panel-section-title {
+    font: var(--m3-title-medium);
+    font-weight: 500;
+    line-height: 24px;
+  }
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  min-height: 32px;
 }
 /* 放大态：卡片提升铺满主内容区，内部列表撑满滚动 */
 .home-card.is-enlarged {
@@ -1240,13 +1255,7 @@ onBeforeUnmount(() => {
 .enlarge-mask {
   position: fixed;
   z-index: 2000;
-  background: rgba(0, 0, 0, 0.5);
-}
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  background: color-mix(in srgb, var(--m3-scrim, #000) 50%, transparent);
 }
 .card-title-group {
   display: flex;
@@ -1258,41 +1267,66 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
 }
-/* 卡片头右侧图标按钮：灰色纯图标，悬停变主色（对齐 1Panel） */
+/* 卡片头右侧图标按钮：on-surface-variant，悬停 on-surface */
 .card-icon-btn {
-  color: var(--el-text-color-secondary);
+  width: 40px;
+  height: 40px;
+  color: var(--m3-on-surface-variant);
+  border-radius: var(--m3-shape-full);
+  transition: background-color var(--m3-motion-state), color var(--m3-motion-state);
+
   &:hover {
-    color: var(--el-color-primary);
+    color: var(--m3-on-surface);
+    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
   }
 }
 /* 放大状态下的关闭按钮：红色醒目 */
 .home-card.is-enlarged .card-toggle {
-  color: var(--el-color-danger);
+  color: var(--m3-error);
+}
+/* 概览指标：浅蓝 tonal 格（primary-container），无描边嵌套 */
+.stats-grid {
+  :deep(.el-col) {
+    padding-left: 6px;
+    padding-right: 6px;
+
+    &:first-child {
+      padding-left: 0;
+    }
+    &:last-child {
+      padding-right: 0;
+    }
+  }
 }
 .stat-cell {
   text-align: center;
   padding: 12px 8px;
-  border: 1px solid var(--el-border-color-lighter, #ebeef5);
-  border-radius: 4px;
-  background: rgba(0, 94, 235, 0.03);
+  border: none;
+  border-radius: var(--m3-shape-s);
+  background: var(--m3-primary-container);
+  transition: background-color var(--m3-motion-state);
+
+  &:hover {
+    background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-primary-container));
+  }
 }
 .stat-label {
-  font-size: 12px;
-  color: var(--el-text-color-regular);
+  font: var(--m3-label-medium);
+  color: var(--m3-on-primary-container);
 }
 .stat-value {
   margin-top: 6px;
-  font-size: 18px;
+  font: var(--m3-headline-small);
   font-weight: 500;
-  color: var(--el-color-primary);
+  color: var(--m3-on-primary-container);
 }
 .input-help {
-  font-size: 12px;
-  color: #646a73;
-  margin-top: 2px;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  margin-top: 4px;
 
   &.is-danger {
-    color: var(--el-color-danger);
+    color: var(--m3-error);
   }
 }
 .disk-row {
@@ -1300,14 +1334,16 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
-  font-size: 12px;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface);
 }
 .disk-row--clickable {
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 6px 8px;
+  border-radius: var(--m3-shape-xs);
+  transition: background-color var(--m3-motion-state);
   &:hover {
-    background: var(--el-fill-color-light);
+    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
   }
 }
 .disk-mount {
@@ -1320,16 +1356,16 @@ onBeforeUnmount(() => {
 .disk-size {
   width: 140px;
   text-align: right;
-  color: var(--el-text-color-regular);
+  color: var(--m3-on-surface-variant);
   flex-shrink: 0;
 }
 .empty-tip {
   text-align: center;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
+  color: var(--m3-on-surface-variant);
+  font: var(--m3-body-medium);
   padding: 20px 0;
 }
-/* 运行环境卡片 */
+/* 运行环境卡片：M3 list + outline-variant 分隔 */
 .rt-list {
   display: flex;
   flex-direction: column;
@@ -1338,8 +1374,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--el-border-color-extra-light, #f2f6fc);
+  min-height: 36px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--m3-outline-variant);
   &:last-of-type {
     border-bottom: none;
   }
@@ -1353,58 +1390,85 @@ onBeforeUnmount(() => {
 .rt-name {
   flex-shrink: 0;
   width: 52px;
-  font-size: 13px;
+  font: var(--m3-label-large);
   font-weight: 500;
+  color: var(--m3-on-surface);
 }
 .rt-path {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--el-text-color-secondary);
+  font: var(--m3-body-small);
+  font-family: var(--m3-font-mono);
+  color: var(--m3-on-surface-variant);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .hint {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
 }
-.sys-desc {
-  :deep(.el-descriptions__label) {
-    width: 88px;
+/* 系统信息 / Agent：与运行环境同款 list 行，固定标签列宽对齐值列 */
+.kv-list {
+  display: flex;
+  flex-direction: column;
+}
+.kv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--m3-outline-variant);
+  &:last-of-type {
+    border-bottom: none;
   }
+}
+.kv-label {
+  flex-shrink: 0;
+  width: 5.5em;
+  font: var(--m3-body-medium);
+  color: var(--m3-on-surface-variant);
+  white-space: nowrap;
+}
+.kv-value {
+  flex: 1;
+  min-width: 0;
+  font: var(--m3-body-medium);
+  color: var(--m3-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
 
 <!-- el-popover 内容 teleport 到 body，scoped 样式无法穿透，故用全局样式 -->
 <style lang="scss">
 .ring-popover {
-  font-size: 12px;
-  color: var(--el-text-color-primary);
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface);
 
   .ring-pop-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 3px 0;
+    padding: 4px 0;
 
     .num {
       font-weight: 600;
-      color: var(--el-color-primary);
+      color: var(--m3-primary);
       white-space: nowrap;
     }
   }
 
   &.is-danger .num {
-    color: var(--el-color-danger);
+    color: var(--m3-error);
   }
 
-  /* CPU 型号行：标签固定宽，值截断 */
   .ring-pop-label {
     flex-shrink: 0;
-    color: var(--el-text-color-secondary);
+    color: var(--m3-on-surface-variant);
   }
   .ring-pop-value {
     flex: 1;
@@ -1415,18 +1479,18 @@ onBeforeUnmount(() => {
     text-align: right;
   }
 
-  /* 内存两列网格 */
   .ring-pop-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 0 20px;
   }
   .ring-pop-title {
+    font: var(--m3-title-small);
     font-weight: 600;
-    color: var(--el-color-primary);
-    padding: 3px 0;
+    color: var(--m3-primary);
+    padding: 4px 0;
     margin-bottom: 2px;
-    border-bottom: 1px solid var(--el-border-color-lighter);
+    border-bottom: 1px solid var(--m3-outline-variant);
   }
 }
 </style>

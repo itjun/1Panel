@@ -565,17 +565,17 @@ function connRowClass({ rowData }: { rowData: NetConnection }) {
   min-height: 84px;
   min-width: 0;
   padding: 12px 14px;
-  background: var(--el-bg-color, #fff);
-  border: 1px solid var(--el-border-color, #dcdfe6) !important;
-  border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--m3-surface-container-lowest);
+  border: 1px solid var(--m3-outline-variant) !important;
+  border-radius: var(--m3-shape-m);
+  box-shadow: none;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 8px;
 
   &.is-empty {
-    background: var(--el-fill-color-blank, #fafafa);
+    background: var(--m3-surface-container, #f2f1f4);
   }
 }
 
@@ -600,23 +600,23 @@ html.dark .ip-card {
   border-radius: 50%;
   flex-shrink: 0;
   &--private {
-    background: #67c23a;
+    background: var(--m3-primary, #6750a4);
   }
   &--public {
-    background: #409eff;
+    background: var(--m3-tertiary, #7d5260);
   }
   &--docker {
-    background: #e6a23c;
+    background: var(--m3-secondary, #625b71);
   }
   &--gw {
-    background: #909399;
+    background: var(--m3-outline, #79747e);
   }
 }
 
 .ip-card__title {
-  font-size: 12px;
+  font: var(--m3-label-medium);
   font-weight: 600;
-  color: var(--el-text-color-regular, #606266);
+  color: var(--m3-on-surface-variant, #49454f);
   letter-spacing: 0.02em;
 }
 
@@ -626,17 +626,17 @@ html.dark .ip-card {
   gap: 8px;
   width: 100%;
   margin: 0;
-  padding: 6px 8px;
+  padding: 8px 12px;
   border: none;
-  border-radius: 4px;
-  background: var(--el-fill-color-light, #f5f7fa);
-  color: var(--el-text-color-primary, #303133);
+  border-radius: var(--m3-shape-xs, 4px);
+  background: var(--m3-surface-container, #f2f1f4);
+  color: var(--m3-on-surface, #1a1a1d);
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--m3-motion-state), color var(--m3-motion-state);
 
   &:hover {
-    background: var(--el-color-primary-light-9, #ecf5ff);
+    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
     .ip-value__copy {
       opacity: 1;
     }
@@ -668,13 +668,13 @@ html.dark .ip-card {
   display: inline-block;
   margin-right: 6px;
   padding: 0 5px;
-  border-radius: 3px;
+  border-radius: var(--m3-shape-xs);
   font-size: 10px;
   font-weight: 600;
   font-family: inherit;
   vertical-align: middle;
-  color: #fff;
-  background: var(--el-color-primary);
+  color: var(--m3-on-primary);
+  background: var(--m3-primary);
 }
 
 .ip-value__loc {
@@ -693,7 +693,7 @@ html.dark .ip-card {
   font-weight: 500;
   color: var(--el-color-primary);
   opacity: 0.55;
-  transition: opacity 0.12s;
+  transition: opacity var(--m3-motion-fade);
 }
 
 .ip-empty {
@@ -705,18 +705,18 @@ html.dark .ip-card {
 
 .ip-toggle {
   margin-top: 2px;
-  padding: 5px 8px;
+  padding: 6px 12px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--m3-shape-full);
   background: transparent;
-  color: var(--el-color-primary, #409eff);
-  font-size: 12px;
+  color: var(--m3-primary, #6750a4);
+  font: var(--m3-label-medium);
   text-align: center;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--m3-motion-state);
 
   &:hover {
-    background: var(--el-color-primary-light-9, #ecf5ff);
+    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
   }
 }
 
@@ -811,17 +811,16 @@ html.dark .ip-card {
   font-size: 12px;
 }
 :deep(.slow-row) {
-  --el-table-tr-bg-color: rgba(245, 108, 108, 0.12);
+  --el-table-tr-bg-color: color-mix(in srgb, var(--m3-error) 12%, var(--m3-surface-container-lowest));
   td {
-    background: rgba(245, 108, 108, 0.12) !important;
+    background: color-mix(in srgb, var(--m3-error) 12%, var(--m3-surface-container-lowest)) !important;
   }
 }
-/* el-table-v2（TCP 连接虚拟表）的卡顿行：行是 div 不是 tr，单独适配 */
 :deep(.el-table-v2__row.slow-row-v2) {
-  background: rgba(245, 108, 108, 0.12);
+  background: color-mix(in srgb, var(--m3-error) 12%, var(--m3-surface-container-lowest));
 }
 .slow-card {
-  border-color: rgba(245, 108, 108, 0.45);
+  border-color: color-mix(in srgb, var(--m3-error) 45%, var(--m3-outline-variant));
   flex-shrink: 0;
   max-height: 160px;
   overflow: hidden;
