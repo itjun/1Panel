@@ -196,7 +196,7 @@
               <el-tag size="small" :type="kindTag(row.kind)">{{ kindLabel(row.kind) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="state" label="状态" width="72" />
+          <el-table-column prop="state" label="状态" width="96" show-overflow-tooltip />
           <el-table-column prop="mtu" label="MTU" width="64" />
           <el-table-column prop="mac" label="MAC" min-width="120" show-overflow-tooltip />
           <el-table-column label="IPv4" min-width="130">
