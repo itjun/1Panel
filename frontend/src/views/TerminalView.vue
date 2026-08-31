@@ -177,7 +177,15 @@ interface ReconnectCtl {
   timer: ReturnType<typeof setTimeout> | null;
   attempt: number;
   stopped: boolean;
+  /** 防止并发 connect（异常 exit 与定时器重叠） */
+  inFlight: boolean;
+  /** 网络恢复时立刻踢一脚，不等退避 */
+  kick: (() => void) | null;
 }
+
+/** 重连退避：体验/速度优先，短间隔无限重试，每个 Tab 独立 */
+const RECONNECT_BASE_MS = 200;
+const RECONNECT_MAX_MS = 2000;
 
 interface CtxMenu {
   x: number;
@@ -332,13 +340,37 @@ async function openNew() {
   const currentSid = () =>
     sessions.value.find((x) => x.id === id)?.sessionID || "";
 
-  // 重连控制
-  const ctl: ReconnectCtl = { timer: null, attempt: 0, stopped: false };
+  // 重连控制（每个 Tab 独立；关 Tab 才 stopped）
+  const ctl: ReconnectCtl = {
+    timer: null,
+    attempt: 0,
+    stopped: false,
+    inFlight: false,
+    kick: null,
+  };
   reconnectMap.set(id, ctl);
 
+  function scheduleReconnect() {
+    if (ctl.stopped) return;
+    if (ctl.timer) clearTimeout(ctl.timer);
+    // 200ms → 400ms → 800ms → … 封顶 2s，无限重试
+    const delay = Math.min(
+      RECONNECT_MAX_MS,
+      RECONNECT_BASE_MS * Math.pow(2, ctl.attempt)
+    );
+    ctl.attempt++;
+    patchSession(id, { closed: true, reconnecting: true });
+    ctl.timer = setTimeout(() => void connect(false), delay);
+  }
 
-  // 连接（首次 + 自动重连复用）：成功填充 sessionID，失败指数退避重试
+  // 连接（首次 + 自动重连复用）：成功填充 sessionID，失败短退避无限重试
   async function connect(first: boolean) {
+    if (ctl.stopped || ctl.inFlight) return;
+    ctl.inFlight = true;
+    if (ctl.timer) {
+      clearTimeout(ctl.timer);
+      ctl.timer = null;
+    }
     const c = term.cols || 80;
     const r = term.rows || 24;
     try {
@@ -373,11 +405,25 @@ async function openNew() {
     } catch (e) {
       if (ctl.stopped) return;
       if (first) term.write(`\x1b[31m连接失败: ${e}\x1b[0m\r\n`);
-      const delay = Math.min(30000, 1000 * Math.pow(2, ctl.attempt));
-      ctl.attempt++;
-      ctl.timer = setTimeout(() => void connect(false), delay);
+      else term.write(`\r\n\x1b[31m[重连失败，稍后重试…]\x1b[0m\r\n`);
+      scheduleReconnect();
+    } finally {
+      ctl.inFlight = false;
     }
   }
+
+  // 本机网络恢复时：若仍在重连中，立刻重试（不等退避定时器）
+  ctl.kick = () => {
+    if (ctl.stopped) return;
+    const s = sessions.value.find((x) => x.id === id);
+    if (!s?.reconnecting) return;
+    ctl.attempt = 0;
+    if (ctl.timer) {
+      clearTimeout(ctl.timer);
+      ctl.timer = null;
+    }
+    void connect(false);
+  };
 
   tab.offData = Events.On(eventName, (ev: { data?: { data?: string } }) => {
     if (ev?.data?.data) term.write(ev.data.data);
@@ -386,16 +432,20 @@ async function openNew() {
     const payload = ev?.data;
     if (ctl.stopped) return;
     if (payload?.reason === "error") {
-      // 异常断开：提示 + 通知 + 自动重连
+      // 异常断开：每个 Tab 各自立即自动重连，互不影响
       term.write("\r\n\x1b[33m[连接已断开，正在自动重连…]\x1b[0m\r\n");
       patchSession(id, { closed: true, reconnecting: true, sessionID: "" });
       notifyDisconnect();
       ctl.attempt = 0;
+      if (ctl.timer) {
+        clearTimeout(ctl.timer);
+        ctl.timer = null;
+      }
       void connect(false);
     } else {
       // 正常退出（exit）：不重连
       term.write("\r\n\x1b[33m[连接已关闭]\x1b[0m\r\n");
-      patchSession(id, { closed: true });
+      patchSession(id, { closed: true, reconnecting: false });
     }
   });
 
@@ -695,11 +745,19 @@ function onDocClick() {
   ctxMenu.value = null;
 }
 
+/** 浏览器 online：本机网络恢复后，立刻踢所有重连中的 Tab */
+function onNetworkOnline() {
+  for (const ctl of reconnectMap.values()) {
+    ctl.kick?.();
+  }
+}
+
 let resizeObs: ResizeObserver | null = null;
 
 onMounted(() => {
   window.addEventListener("resize", onWinResize);
   window.addEventListener("click", onDocClick);
+  window.addEventListener("online", onNetworkOnline);
   if (containerRef.value) {
     resizeObs = new ResizeObserver(() => {
       requestAnimationFrame(() => fitActiveTerminal());
@@ -742,6 +800,7 @@ onBeforeUnmount(() => {
   resizeObs = null;
   window.removeEventListener("resize", onWinResize);
   window.removeEventListener("click", onDocClick);
+  window.removeEventListener("online", onNetworkOnline);
   offDrop?.();
   offDrop = null;
   offProgress?.();
