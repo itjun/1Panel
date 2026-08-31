@@ -55,7 +55,15 @@
       class="m3-form-dialog pkg-dep-dialog"
       destroy-on-close
     >
-      <template v-if="depDialog.pkg">
+      <div v-if="depDialog.pkg" v-loading="depDialog.loading">
+        <el-alert
+          v-if="depDialog.error"
+          type="error"
+          :title="depDialog.error"
+          show-icon
+          :closable="false"
+          class="dep-alert"
+        />
         <div class="dep-meta">
           <div class="dep-meta__row">
             <span class="dep-meta__k">版本</span>
@@ -63,7 +71,7 @@
           </div>
           <div class="dep-meta__row">
             <span class="dep-meta__k">依赖数</span>
-            <span class="dep-meta__v">{{ depDialog.deps.length }}</span>
+            <span class="dep-meta__v">{{ depCountShown }}</span>
           </div>
         </div>
         <div v-if="depDialog.deps.length" class="dep-list-wrap">
@@ -71,8 +79,12 @@
             <li v-for="d in depDialog.deps" :key="d">{{ d }}</li>
           </ul>
         </div>
-        <el-empty v-else description="该包无直接依赖" :image-size="72" />
-      </template>
+        <el-empty
+          v-else-if="!depDialog.loading && !depDialog.error"
+          description="该包无直接依赖"
+          :image-size="72"
+        />
+      </div>
       <template #footer>
         <el-button @click="depDialog.open = false">关闭</el-button>
         <el-button type="primary" :disabled="!depDialog.deps.length" @click="copyDeps">
@@ -93,6 +105,7 @@ import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import { useAppStore } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
+import { formatErr } from "@/utils/format";
 
 interface AptPackage {
   name: string;
@@ -127,26 +140,43 @@ const size = useContainerSize(tableWrap);
 
 const depDialog = reactive({
   open: false,
+  loading: false,
+  error: "",
   pkg: null as AptPackage | null,
   deps: [] as string[],
 });
 
-function pkgDeps(pkg: AptPackage): string[] {
-  if (pkg.depList?.length) return pkg.depList;
-  return [];
+const depCountShown = computed(() => {
+  if (depDialog.deps.length) return depDialog.deps.length;
+  return depDialog.pkg?.depends ?? 0;
+});
+
+function cacheDepList(name: string, deps: string[]) {
+  if (!data.value?.length || !deps.length) return;
+  const idx = data.value.findIndex((p) => p.name === name);
+  if (idx < 0) return;
+  data.value[idx] = { ...data.value[idx], depList: deps, depends: deps.length };
 }
 
-function openDepDialog(pkg: AptPackage) {
+async function openDepDialog(pkg: AptPackage) {
   depDialog.pkg = pkg;
-  depDialog.deps = pkgDeps(pkg);
+  depDialog.error = "";
+  depDialog.deps = pkg.depList?.length ? [...pkg.depList] : [];
   depDialog.open = true;
-}
 
-function depCountClass(n: number): string {
-  if (n >= 20) return "dep-pill dep-pill--warn";
-  if (n >= 10) return "dep-pill dep-pill--primary";
-  if (n > 0) return "dep-pill dep-pill--info";
-  return "dep-pill dep-pill--zero";
+  if (depDialog.deps.length > 0) return;
+  if ((pkg.depends || 0) <= 0) return;
+
+  depDialog.loading = true;
+  try {
+    const deps = await api.collectPackageDepends(props.host, pkg.name);
+    depDialog.deps = deps;
+    cacheDepList(pkg.name, deps);
+  } catch (e) {
+    depDialog.error = formatErr(e);
+  } finally {
+    depDialog.loading = false;
+  }
 }
 
 const pkgColumns = [
@@ -182,17 +212,17 @@ const pkgColumns = [
     cellRenderer: ({ cellData, rowData }: { cellData: number; rowData: AptPackage }) => {
       const n = cellData || 0;
       if (n <= 0) {
-        return h("span", { class: "dep-pill dep-pill--zero" }, "0");
+        return h("span", { class: "dep-zero" }, "0");
       }
       return h(
         "button",
         {
           type: "button",
-          class: depCountClass(n),
+          class: "dep-link",
           title: "查看依赖列表",
           onClick: (e: Event) => {
             e.stopPropagation();
-            openDepDialog(rowData);
+            void openDepDialog(rowData);
           },
         },
         String(n)
@@ -315,46 +345,52 @@ async function copyDeps() {
   color: var(--m3-on-surface);
 }
 
-/* 依赖数：M3 assist chip，可点击打开依赖弹窗 */
-.dep-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 24px;
-  padding: 0 8px;
+/* 依赖数：M3 文本链接，无背景 chip */
+.dep-link {
   border: none;
-  border-radius: var(--m3-shape-full);
-  font: var(--m3-label-medium);
-  line-height: 1;
-  cursor: default;
+  padding: 0;
+  background: none;
+  font: var(--m3-label-large);
+  color: var(--m3-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  &:hover {
+    color: color-mix(in srgb, var(--m3-primary) 85%, var(--m3-on-surface));
+  }
 }
-.dep-pill--zero {
-  background: var(--m3-surface-container-high);
+.dep-zero {
+  font: var(--m3-body-medium);
   color: var(--m3-on-surface-variant);
 }
-.dep-pill--info,
-.dep-pill--primary,
-.dep-pill--warn {
-  cursor: pointer;
-  transition: background-color var(--m3-motion-state), color var(--m3-motion-state);
+
+.dep-alert {
+  margin-bottom: 12px;
 }
-.dep-pill--info {
-  background: color-mix(in srgb, var(--m3-primary) 12%, var(--m3-surface-container-lowest));
-  color: var(--m3-primary);
+
+.dep-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--m3-outline-variant);
 }
-.dep-pill--primary {
-  background: var(--m3-primary-container);
-  color: var(--m3-on-primary-container);
+.dep-meta__row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font: var(--m3-body-medium);
 }
-.dep-pill--warn {
-  background: var(--m3-tertiary-container);
-  color: var(--m3-on-tertiary-container);
+.dep-meta__k {
+  flex-shrink: 0;
+  width: 56px;
+  color: var(--m3-on-surface-variant);
 }
-.dep-pill--info:hover,
-.dep-pill--primary:hover,
-.dep-pill--warn:hover {
-  filter: brightness(0.96);
+.dep-meta__v {
+  min-width: 0;
+  color: var(--m3-on-surface);
+  word-break: break-all;
 }
 
 :deep(.el-table-v2__header-row) {
@@ -378,32 +414,6 @@ async function copyDeps() {
 }
 :deep(.el-table-v2__row:hover) {
   background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-surface-container-lowest));
-}
-
-.dep-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 12px;
-  border-radius: var(--m3-shape-s);
-  background: var(--m3-surface-container-low);
-}
-.dep-meta__row {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  font: var(--m3-body-medium);
-}
-.dep-meta__k {
-  flex-shrink: 0;
-  width: 56px;
-  color: var(--m3-on-surface-variant);
-}
-.dep-meta__v {
-  min-width: 0;
-  color: var(--m3-on-surface);
-  word-break: break-all;
 }
 
 .dep-list-wrap {
