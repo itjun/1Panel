@@ -40,6 +40,25 @@ func TestParsePackages(t *testing.T) {
 	}
 }
 
+func TestEnrichReverseDepends(t *testing.T) {
+	t.Parallel()
+	pkgs := []AptPackage{
+		{Name: "pkg-a", DepList: []string{"pkg-b"}, Depends: 1},
+		{Name: "pkg-b", DepList: []string{"pkg-c"}, Depends: 1},
+		{Name: "pkg-c", DepList: nil, Depends: 0},
+	}
+	enrichReverseDepends(pkgs)
+	if pkgs[0].DependedBy != 0 {
+		t.Fatalf("pkg-a dependedBy = %d", pkgs[0].DependedBy)
+	}
+	if pkgs[1].DependedBy != 1 || len(pkgs[1].RDepList) != 1 || pkgs[1].RDepList[0] != "pkg-a" {
+		t.Fatalf("pkg-b: %+v", pkgs[1])
+	}
+	if pkgs[2].DependedBy != 1 || pkgs[2].RDepList[0] != "pkg-b" {
+		t.Fatalf("pkg-c: %+v", pkgs[2])
+	}
+}
+
 func TestIsValidDebPackageName(t *testing.T) {
 	t.Parallel()
 	if !isValidDebPackageName("apt-utils") {

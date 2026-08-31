@@ -254,7 +254,37 @@ func parsePackages(s string) []AptPackage {
 		}
 		out = append(out, pkg)
 	}
+	enrichReverseDepends(out)
 	return out
+}
+
+// enrichReverseDepends 根据全量 Depends 反查被依赖数（仅统计已安装包之间的直接依赖）
+func enrichReverseDepends(pkgs []AptPackage) {
+	if len(pkgs) == 0 {
+		return
+	}
+	installed := make(map[string]int, len(pkgs))
+	for i := range pkgs {
+		installed[pkgs[i].Name] = i
+	}
+	counts := make(map[string]int, len(pkgs))
+	lists := make(map[string][]string, len(pkgs))
+	for _, pkg := range pkgs {
+		for _, dep := range pkg.DepList {
+			if _, ok := installed[dep]; !ok {
+				continue
+			}
+			counts[dep]++
+			lists[dep] = append(lists[dep], pkg.Name)
+		}
+	}
+	for i := range pkgs {
+		name := pkgs[i].Name
+		pkgs[i].DependedBy = counts[name]
+		if counts[name] > 0 {
+			pkgs[i].RDepList = lists[name]
+		}
+	}
 }
 
 // parseDepends 解析 Depends 字段，返回直接依赖包名列表（保持 dpkg 顺序）

@@ -6,14 +6,24 @@ export interface AptPackage {
     "version": string;
 
     /**
-     * 依赖包数量
+     * 直接依赖包数量
      */
     "depends": number;
 
     /**
-     * 解析后的直接依赖名（dpkg Depends 字段）
+     * 直接依赖包名
      */
     "depList": string[] | null;
+
+    /**
+     * 被依赖数：已安装包中直接依赖本包的数量
+     */
+    "dependedBy": number;
+
+    /**
+     * 依赖本包的已安装包名
+     */
+    "rDepList": string[] | null;
 }
 
 /**
