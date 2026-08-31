@@ -910,7 +910,9 @@ async function copyArgs() {
 }
 .java-hover-card .close-btn {
   padding: 0 4px;
-  font-size: 14px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-color-danger) !important;
 }
 .java-hover-card .card-actions {
   display: flex;

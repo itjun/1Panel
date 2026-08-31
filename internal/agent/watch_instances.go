@@ -291,8 +291,6 @@ func (w *Watcher) rebuildInstances(cfg WatchConfig, procs []javaProc, instHealth
 			key := fmt.Sprintf("%s/%d", svc.Name, p.PID)
 			ok := instHealth[key]
 			row := w.buildJavaInstance(svc, p, ok)
-			row.ProcessUp = procUp
-			row.HealthUp = healthUp
 			row.IngressUp = ingressUp
 			row.IngressOn = ingressOn
 			rows = append(rows, row)

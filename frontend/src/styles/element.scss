@@ -185,6 +185,14 @@ html {
     color: var(--m3-on-surface);
 }
 
+.el-overlay-message-box .el-message-box__headerbtn .el-message-box__close {
+    color: var(--m3-error);
+}
+
+.el-overlay-message-box .el-message-box__headerbtn:hover .el-message-box__close {
+    color: color-mix(in srgb, var(--m3-error) 85%, var(--m3-on-surface));
+}
+
 /* 仅淡入淡出，避免 overlay transform 破坏 flex 居中；M3 short4 + standard */
 .fade-in-linear-enter-active .el-overlay-message-box {
     animation: msgbox-overlay-fade-in var(--m3-duration-short4) var(--m3-easing-standard);
@@ -398,6 +406,14 @@ html {
         }
     }
 
+    .el-drawer__close-btn {
+        color: var(--m3-error);
+
+        &:hover {
+            color: color-mix(in srgb, var(--m3-error) 85%, var(--m3-on-surface));
+        }
+    }
+
     .el-drawer__footer {
         border-top: var(--panel-border);
     }
@@ -446,12 +462,12 @@ html {
         height: 40px;
 
         .el-dialog__close {
-            color: var(--m3-on-surface-variant);
+            color: var(--m3-error);
             font-size: 18px;
         }
 
         &:hover .el-dialog__close {
-            color: var(--m3-on-surface);
+            color: color-mix(in srgb, var(--m3-error) 85%, var(--m3-on-surface));
         }
     }
 

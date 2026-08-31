@@ -10,48 +10,29 @@ import (
 	"time"
 )
 
-const shutdownPollSeconds = 15
-
 var screenNameRE = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
-// stopAppInstance 对齐 diteng-script/core/teardown.stop_instance：SIGTERM → 轮询端口 → SIGKILL → quit screen
+// stopAppInstance 直接 SIGKILL 进程并 quit screen
 func stopAppInstance(port, pid int, screen string) (bool, error) {
 	if pid <= 0 && port > 0 {
 		pid = pidForListenPort(port)
 	}
-	if pid <= 0 && port <= 0 {
-		return false, fmt.Errorf("无 PID/端口，无法下线")
+	if pid <= 0 && port <= 0 && screen == "" {
+		return false, fmt.Errorf("无 PID/端口/screen，无法下线")
 	}
 
 	if pid > 0 {
-		_ = syscall.Kill(pid, syscall.SIGTERM)
+		_ = syscall.Kill(pid, syscall.SIGKILL)
 	}
+	quitScreen(screen)
 
 	stopped := true
 	if port > 0 {
-		for i := 0; i < shutdownPollSeconds; i++ {
-			time.Sleep(time.Second)
-			if !isPortListening(port) {
-				break
-			}
-			if i == shutdownPollSeconds-1 {
-				if pid > 0 {
-					_ = syscall.Kill(pid, syscall.SIGKILL)
-				}
-				time.Sleep(time.Second)
-				if isPortListening(port) {
-					stopped = false
-				}
-			}
-		}
-	} else {
-		time.Sleep(2 * time.Second)
-		if pid > 0 {
-			_ = syscall.Kill(pid, syscall.SIGKILL)
+		time.Sleep(time.Second)
+		if isPortListening(port) {
+			stopped = false
 		}
 	}
-
-	quitScreen(screen)
 	return stopped, nil
 }
 

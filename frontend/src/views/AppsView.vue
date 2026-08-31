@@ -26,42 +26,62 @@
           highlight-current-row
           class="data-table-unified"
           :show-header="secIdx === 0"
+          :row-class-name="(p) => instRowClass(sec.latestDeployVer, p.row)"
           @row-click="onInstRowClick"
         >
           <el-table-column type="index" label="#" width="48" align="center" />
           <el-table-column prop="service" label="标识" width="148">
             <template #default="{ row }">
               <div class="svc-id-cell">
-                <el-tag size="small" type="primary" effect="light" class="svc-tag">{{ row.service }}</el-tag>
-                <el-tag v-if="row.runtime === 'bun'" size="small" type="info" effect="plain" class="rt-tag">Bun</el-tag>
+                <span :class="['svc-id', svcIdClass(row.service)]">{{ row.service }}</span>
+                <span v-if="row.runtime === 'bun'" class="rt-badge">Bun</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="port" label="端口" width="72" align="center" />
-          <el-table-column prop="deployVer" label="部署版本" width="100" />
+          <el-table-column prop="port" label="端口" width="72" align="center">
+            <template #default="{ row }">
+              <span
+                v-if="row.port && isLatestDeploy(row.deployVer || '', sec.latestDeployVer)"
+                class="latest-highlight"
+              >
+                {{ row.port }}
+              </span>
+              <span v-else>{{ row.port || "—" }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="deployVer" label="部署版本" width="110">
+            <template #default="{ row }">
+              <span
+                v-if="row.deployVer && isLatestDeploy(row.deployVer, sec.latestDeployVer)"
+                class="latest-highlight"
+              >
+                {{ row.deployVer }}
+              </span>
+              <span v-else>{{ row.deployVer || "—" }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="startTime" label="启动时间" width="160" show-overflow-tooltip />
           <el-table-column prop="screen" label="screen" width="120" show-overflow-tooltip />
           <el-table-column prop="jarPath" label="路径" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="180">
+          <el-table-column prop="status" label="状态" width="72" align="center">
             <template #default="{ row }">
-              <div class="lamps">
-                <span :class="['lamp', row.processUp ? 'on' : 'off']">进程</span>
-                <span :class="['lamp', row.healthUp ? 'on' : 'off']">本机</span>
-                <span v-if="row.ingressOn" :class="['lamp', row.ingressUp ? 'on' : 'off']">入口</span>
-              </div>
+              <span :class="isOnline(row) ? 'status-online' : 'status-offline'">
+                {{ isOnline(row) ? "在线" : "离线" }}
+              </span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="80" align="center" fixed="right">
             <template #default="{ row }">
-              <el-button
+              <span
                 v-if="canShutdown(row)"
-                type="danger"
-                size="small"
-                link
+                class="shutdown-action"
+                role="button"
+                tabindex="0"
                 @click.stop="openShutdown(row)"
+                @keydown.enter.stop="openShutdown(row)"
               >
                 下架
-              </el-button>
+              </span>
             </template>
           </el-table-column>
         </el-table>
@@ -95,24 +115,18 @@
       </el-table>
     </el-dialog>
 
-    <el-dialog v-model="shutdownOpen" title="确认下架" width="520px" append-to-body>
+    <el-dialog v-model="shutdownOpen" title="确认下架" width="480px" append-to-body>
       <div v-if="shutdownTarget" class="shutdown-body">
-        <p class="warn">nginx 切流须运维人工完成；面板不代为重载 nginx。</p>
+        <p class="shutdown-tip">将直接终止进程并退出 screen 会话，此操作不可撤销。</p>
         <div class="kv"><span>服务</span><b>{{ shutdownTarget.service }}</b></div>
-        <div class="kv"><span>PID</span><b>{{ shutdownTarget.pid }}</b></div>
-        <div class="kv"><span>端口</span><b>{{ shutdownTarget.port }}</b></div>
-        <div class="kv"><span>部署版本</span><b>{{ shutdownTarget.deployVer || "-" }}</b></div>
-        <div class="kv"><span>启动时间</span><b>{{ shutdownTarget.startTime || "-" }}</b></div>
-        <div class="kv"><span>screen</span><b>{{ shutdownTarget.screen || "-" }}</b></div>
-        <div class="kv path"><span>路径</span><b>{{ shutdownTarget.jarPath || "-" }}</b></div>
-        <el-button type="primary" link @click="goNginxTab">查看 Nginx 配置</el-button>
-        <el-checkbox v-model="nginxConfirmed" class="nginx-check">
-          我已核对 nginx 上游/切流，确认可以下线该实例
-        </el-checkbox>
+        <div class="kv"><span>PID</span><b>{{ shutdownTarget.pid || "—" }}</b></div>
+        <div class="kv"><span>端口</span><b>{{ shutdownTarget.port || "—" }}</b></div>
+        <div class="kv"><span>screen</span><b>{{ shutdownTarget.screen || "—" }}</b></div>
+        <div class="kv"><span>部署版本</span><b>{{ shutdownTarget.deployVer || "—" }}</b></div>
       </div>
       <template #footer>
         <el-button @click="shutdownOpen = false">取消</el-button>
-        <el-button type="danger" :loading="shutdownLoading" :disabled="!nginxConfirmed" @click="confirmShutdown">
+        <el-button type="danger" :loading="shutdownLoading" @click="confirmShutdown">
           确认下架
         </el-button>
       </template>
@@ -158,7 +172,6 @@ const saving = ref(false);
 
 const shutdownOpen = ref(false);
 const shutdownTarget = ref<agentcli.JavaAppInstance | null>(null);
-const nginxConfirmed = ref(false);
 const shutdownLoading = ref(false);
 
 const chartsOpen = ref(false);
@@ -177,9 +190,86 @@ function timeLabel(ts: number) {
 }
 
 function canShutdown(row: agentcli.JavaAppInstance) {
-  if (!row.processUp || !row.port || !row.screen) return false;
-  const st = row.status || "";
-  return st === "UP" || st === "UNHEALTHY";
+  if (!row.screen) return false;
+  return (row.pid || 0) > 0 || (row.port || 0) > 0;
+}
+
+/** 实例 HTTP 探活 200 → 在线 */
+function isOnline(row: agentcli.JavaAppInstance) {
+  return !!row.healthUp;
+}
+
+/** 部署版本 YYMMDD_N，先比日期再比序号 */
+function compareDeployVer(a: string, b: string): number {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  const [aDate = "", aSeq = "0"] = a.split("_");
+  const [bDate = "", bSeq = "0"] = b.split("_");
+  if (aDate !== bDate) return aDate.localeCompare(bDate);
+  return (parseInt(aSeq, 10) || 0) - (parseInt(bSeq, 10) || 0);
+}
+
+function latestDeployVerInRows(rows: agentcli.JavaAppInstance[]): string {
+  let latest = "";
+  for (const r of rows) {
+    const v = (r.deployVer || "").trim();
+    if (!v) continue;
+    if (!latest || compareDeployVer(v, latest) > 0) latest = v;
+  }
+  return latest;
+}
+
+function isLatestDeploy(deployVer: string, latest: string): boolean {
+  if (!deployVer || !latest) return false;
+  return deployVer.trim() === latest;
+}
+
+function instRowClass(latestDeployVer: string, row: agentcli.JavaAppInstance): string {
+  if (isLatestDeploy(row.deployVer || "", latestDeployVer)) return "deploy-latest-row";
+  return "";
+}
+
+/** 实例表服务标识显示顺序（组内按此序，同服务按端口） */
+const SERVICE_ORDER = [
+  "im",
+  "oss",
+  "csp",
+  "std",
+  "zhetai",
+  "fpl",
+  "ai-agent",
+  "sapi-agent",
+] as const;
+
+function serviceSortKey(name: string): number {
+  const idx = SERVICE_ORDER.indexOf(name);
+  if (idx >= 0) return idx;
+  return SERVICE_ORDER.length + 1;
+}
+
+function sortInstances(rows: agentcli.JavaAppInstance[]): agentcli.JavaAppInstance[] {
+  return [...rows].sort((a, b) => {
+    const sa = serviceSortKey(a.service || "");
+    const sb = serviceSortKey(b.service || "");
+    if (sa !== sb) return sa - sb;
+    return (a.port || 0) - (b.port || 0);
+  });
+}
+
+function svcIdClass(name: string): string {
+  if (!name) return "svc-default";
+  const known: Record<string, string> = {
+    im: "svc-im",
+    oss: "svc-oss",
+    csp: "svc-csp",
+    std: "svc-std",
+    zhetai: "svc-zhetai",
+    fpl: "svc-fpl",
+    "ai-agent": "svc-ai-agent",
+    "sapi-agent": "svc-sapi-agent",
+  };
+  return known[name] || "svc-default";
 }
 
 const tableRows = computed(() => {
@@ -191,16 +281,10 @@ const tableRows = computed(() => {
     const st = bySvc.get(name);
     const group =
       name === "ai-agent" || name === "sapi-agent" ? "other" : r.group || "pro";
-    if (!st) return { ...r, group };
     return {
       ...r,
       group,
-      runtime: r.runtime || st.runtime,
-      processUp: st.processUp,
-      healthUp: st.healthUp,
-      ingressOn: st.ingressOn,
-      ingressUp: st.ingressUp,
-      status: st.processUp ? (st.healthUp ? "UP" : "UNHEALTHY") : "DOWN",
+      runtime: r.runtime || st?.runtime || "java",
     };
   });
   // watch.yml 有但 instances 未返回的（旧 agent 跳过 bun）：补行
@@ -222,27 +306,32 @@ const tableRows = computed(() => {
       startTime: "",
       screen: "",
       jarPath: "",
-      processUp: !!s.processUp,
-      healthUp: !!s.healthUp,
-      ingressOn: !!s.ingressOn,
-      ingressUp: !!s.ingressUp,
-      status: s.processUp ? (s.healthUp ? "UP" : "UNHEALTHY") : "DOWN",
+      healthUp: false,
+      processUp: false,
+      ingressOn: false,
+      ingressUp: false,
+      status: "DOWN",
       group,
     });
   }
   return rows;
 });
 
-const stdInstances = computed(() => tableRows.value.filter((r) => r.group === "std"));
-const proInstances = computed(() => tableRows.value.filter((r) => r.group === "pro"));
-const otherInstances = computed(() => tableRows.value.filter((r) => r.group === "other"));
+const stdInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "std")));
+const proInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "pro")));
+const otherInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "other")));
 
 const instanceSections = computed(() =>
   [
     { key: "std", title: "标准版服务", rows: stdInstances.value },
     { key: "pro", title: "私有化服务", rows: proInstances.value },
     { key: "other", title: "探活服务", rows: otherInstances.value },
-  ].filter((s) => s.rows.length > 0)
+  ]
+    .filter((s) => s.rows.length > 0)
+    .map((s) => ({
+      ...s,
+      latestDeployVer: latestDeployVerInRows(s.rows),
+    }))
 );
 function onInstRowClick(row: agentcli.JavaAppInstance) {
   if (row.service) openCharts(row.service);
@@ -259,20 +348,14 @@ function openCharts(service: string) {
   chartsOpen.value = true;
 }
 
-function goNginxTab() {
-  shutdownOpen.value = false;
-  app.setSubTab(props.host, "nginx");
-}
-
 function openShutdown(row: agentcli.JavaAppInstance) {
   shutdownTarget.value = row;
-  nginxConfirmed.value = false;
   shutdownOpen.value = true;
 }
 
 async function confirmShutdown() {
   const t = shutdownTarget.value;
-  if (!t || !nginxConfirmed.value) return;
+  if (!t) return;
   shutdownLoading.value = true;
   try {
     const r = await api.agentAppShutdown(props.host, {
@@ -458,6 +541,23 @@ onBeforeUnmount(stopTimer);
 :deep(.data-table-unified) {
   cursor: pointer;
 }
+:deep(.data-table-unified .el-table__cell.is-center .cell) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+:deep(.deploy-latest-row) {
+  td:first-child {
+    box-shadow: inset 3px 0 0 var(--m3-primary);
+  }
+  td {
+    background: color-mix(in srgb, var(--m3-primary) 12%, var(--m3-surface-container-lowest)) !important;
+  }
+}
+.latest-highlight {
+  font-weight: 600;
+  color: var(--m3-primary);
+}
 .page-alert {
   margin-bottom: 4px;
 }
@@ -469,46 +569,82 @@ onBeforeUnmount(stopTimer);
   white-space: nowrap;
   max-width: 100%;
 }
-.svc-tag,
-.rt-tag {
-  flex-shrink: 0;
-  vertical-align: middle;
-}
-.rt-tag {
-  margin-left: 0;
-}
-.lamps {
-  display: flex;
-  gap: 6px;
-  flex-wrap: nowrap;
-}
-.lamp {
-  font: var(--m3-label-medium);
-  padding: 2px 8px;
-  border-radius: var(--m3-shape-full);
-  border: 1px solid transparent;
-  white-space: nowrap;
-  &.on {
-    background: var(--m3-primary-container);
-    color: var(--m3-primary);
-    border-color: color-mix(in srgb, var(--m3-primary) 24%, transparent);
-  }
-  &.off {
-    background: var(--m3-error-container);
-    color: var(--m3-error);
-    border-color: color-mix(in srgb, var(--m3-error) 24%, transparent);
-  }
-}
-.shutdown-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.svc-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  background: none;
 }
-.warn {
-  margin: 0;
-  color: var(--el-color-warning);
-  font-size: 12px;
+.svc-im {
+  color: #64b5f6;
+}
+.svc-oss {
+  color: #81c784;
+  letter-spacing: 0.02em;
+}
+.svc-csp {
+  color: #ffb74d;
+  font-weight: 700;
+}
+.svc-std {
+  color: #ce93d8;
+}
+.svc-zhetai {
+  color: #4db6ac;
+  font-style: italic;
+}
+.svc-fpl {
+  color: #e57373;
+  letter-spacing: 0.04em;
+}
+.svc-ai-agent {
+  color: #4fc3f7;
+  font-weight: 500;
+}
+.svc-sapi-agent {
+  color: #aed581;
+  font-weight: 500;
+}
+.svc-default {
+  color: var(--el-text-color-primary);
+}
+.rt-badge {
+  flex-shrink: 0;
+  font: var(--m3-label-small);
+  color: var(--el-text-color-secondary);
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-extra-small);
+  padding: 0 4px;
+  line-height: 16px;
+  background: none;
+}
+.status-online,
+.status-offline,
+.shutdown-action {
+  display: inline-block;
+  line-height: 22px;
+  font-size: inherit;
+  font-weight: 600;
+}
+.status-online {
+  color: #52c41a;
+}
+.status-offline {
+  color: #8c8c8c;
+}
+.shutdown-action {
+  cursor: pointer;
+  color: #ff4d4f;
+  &:hover,
+  &:focus-visible {
+    color: #ff7875;
+  }
+}
+.shutdown-tip {
+  margin: 0 0 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 .kv {
   display: grid;
@@ -526,8 +662,11 @@ onBeforeUnmount(stopTimer);
     font-size: 11px;
   }
 }
-.nginx-check {
-  margin-top: 8px;
+.shutdown-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
 }
 .caption {
   font-size: 12px;
