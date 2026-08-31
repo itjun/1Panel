@@ -183,9 +183,10 @@ interface ReconnectCtl {
   kick: (() => void) | null;
 }
 
-/** 重连退避：体验/速度优先，短间隔无限重试，每个 Tab 独立 */
+/** 重连退避：每个 Tab 独立，最多尝试 RECONNECT_MAX_ATTEMPTS 次 */
 const RECONNECT_BASE_MS = 200;
 const RECONNECT_MAX_MS = 2000;
+const RECONNECT_MAX_ATTEMPTS = 3;
 
 interface CtxMenu {
   x: number;
@@ -350,20 +351,41 @@ async function openNew() {
   };
   reconnectMap.set(id, ctl);
 
+  function giveUpReconnect() {
+    term.write(
+      `\r\n\x1b[31m[重连失败：已尝试 ${RECONNECT_MAX_ATTEMPTS} 次，停止自动重连]\x1b[0m\r\n`
+    );
+    patchSession(id, { closed: true, reconnecting: false });
+    ElNotification({
+      title: "终端重连失败",
+      message: `已尝试 ${RECONNECT_MAX_ATTEMPTS} 次仍无法连接，请检查网络后手动重开终端`,
+      type: "error",
+      duration: 6000,
+    });
+  }
+
   function scheduleReconnect() {
     if (ctl.stopped) return;
     if (ctl.timer) clearTimeout(ctl.timer);
-    // 200ms → 400ms → 800ms → … 封顶 2s，无限重试
+    // 本次失败计入次数；满 3 次不再排下一轮
+    ctl.attempt++;
+    if (ctl.attempt >= RECONNECT_MAX_ATTEMPTS) {
+      giveUpReconnect();
+      return;
+    }
+    term.write(
+      `\r\n\x1b[31m[重连失败（${ctl.attempt}/${RECONNECT_MAX_ATTEMPTS}），稍后重试…]\x1b[0m\r\n`
+    );
+    // 200ms → 400ms → 800ms → … 封顶 2s
     const delay = Math.min(
       RECONNECT_MAX_MS,
-      RECONNECT_BASE_MS * Math.pow(2, ctl.attempt)
+      RECONNECT_BASE_MS * Math.pow(2, ctl.attempt - 1)
     );
-    ctl.attempt++;
     patchSession(id, { closed: true, reconnecting: true });
     ctl.timer = setTimeout(() => void connect(false), delay);
   }
 
-  // 连接（首次 + 自动重连复用）：成功填充 sessionID，失败短退避无限重试
+  // 连接（首次 + 自动重连复用）：成功填充 sessionID；失败短退避，最多 3 次
   async function connect(first: boolean) {
     if (ctl.stopped || ctl.inFlight) return;
     ctl.inFlight = true;
@@ -405,7 +427,6 @@ async function openNew() {
     } catch (e) {
       if (ctl.stopped) return;
       if (first) term.write(`\x1b[31m连接失败: ${e}\x1b[0m\r\n`);
-      else term.write(`\r\n\x1b[31m[重连失败，稍后重试…]\x1b[0m\r\n`);
       scheduleReconnect();
     } finally {
       ctl.inFlight = false;
