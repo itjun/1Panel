@@ -2,9 +2,10 @@
   <div class="tab-root" v-loading="loading && !list.length">
     <EnlargableCard title="定时任务">
     <div class="toolbar">
-      <el-button size="large" @click="refresh">刷新</el-button>
+      <el-button @click="refresh">刷新</el-button>
     </div>
     <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
+    <div class="table-wrap">
     <el-table :data="rows" height="100%" size="small" stripe empty-text="未发现定时任务">
       <el-table-column label="来源" width="110">
         <template #default="{ row }">
@@ -16,15 +17,16 @@
       </el-table-column>
       <el-table-column prop="schedule" label="调度" width="160">
         <template #default="{ row }">
-          <span class="mono">{{ row.schedule }}</span>
+          <span class="mono selectable">{{ row.schedule }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="cmd" label="命令" min-width="280" show-overflow-tooltip>
+      <el-table-column prop="cmd" label="命令" min-width="280">
         <template #default="{ row }">
-          <span class="mono">{{ row.cmd }}</span>
+          <span class="mono selectable cmd-text">{{ row.cmd }}</span>
         </template>
       </el-table-column>
     </el-table>
+    </div>
     </EnlargableCard>
   </div>
 </template>
@@ -82,11 +84,21 @@ function sourceLabel(s: string) {
   min-height: 0;
   gap: 8px;
 }
+:deep(.enl-body) {
+  gap: 12px;
+}
 .toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  margin-bottom: 4px;
+}
+.table-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .title {
   font-weight: 600;
@@ -94,6 +106,17 @@ function sourceLabel(s: string) {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   font-size: 12px;
+}
+/* 全局 user-select:none 下，命令/调度需显式允许选中复制 */
+.selectable {
+  user-select: text;
+  cursor: text;
+}
+.cmd-text {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
 }
 :deep(.el-table) {
   flex: 1;
