@@ -218,43 +218,41 @@ func parsePackages(s string) []AptPackage {
 			Version: fields[1],
 		}
 		if len(fields) >= 3 {
-			pkg.Depends = countDepends(fields[2])
+			pkg.DepList = parseDepends(fields[2])
+			pkg.Depends = len(pkg.DepList)
 		}
 		out = append(out, pkg)
 	}
 	return out
 }
 
-// countDepends 解析 Depends 字段，返回依赖包的数量
+// parseDepends 解析 Depends 字段，返回直接依赖包名列表（保持 dpkg 顺序）
 // Depends 字段示例：
 //   "libc6 (>= 2.34), libssl3 (>= 3.0.0), zlib1g"
 //   "libpython3.10 (>= 3.10), libpython3.10:amd64 | libpython3.11"
-// 解析规则：按逗号分隔，每一项取第一个 token 为依赖名；or 选择（|）取一项算一次
-func countDepends(depends string) int {
+// 解析规则：按逗号分隔；or 选择（|）取左侧项；去掉版本约束与架构后缀
+func parseDepends(depends string) []string {
 	if depends == "" {
-		return 0
+		return nil
 	}
-	count := 0
+	names := []string{}
 	for _, item := range strings.Split(depends, ",") {
 		item = strings.TrimSpace(item)
 		if item == "" {
 			continue
 		}
-		// 处理 | 选择项：「A | B」只算一次（用户视角：满足任一即可）
 		if idx := strings.Index(item, "|"); idx >= 0 {
 			item = strings.TrimSpace(item[:idx])
 		}
-		// 去掉版本约束： "libc6 (>= 2.34)" → "libc6"
 		if idx := strings.Index(item, "("); idx >= 0 {
 			item = strings.TrimSpace(item[:idx])
 		}
-		// 去掉架构后缀："libssl3:amd64" → "libssl3"
 		if idx := strings.Index(item, ":"); idx >= 0 {
 			item = strings.TrimSpace(item[:idx])
 		}
 		if item != "" {
-			count++
+			names = append(names, item)
 		}
 	}
-	return count
+	return names
 }
