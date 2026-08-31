@@ -6,9 +6,14 @@ export interface AptPackage {
     "version": string;
 
     /**
-     * 依赖包数量（apt-cache depends 的 uniq 计数）
+     * 依赖包数量
      */
     "depends": number;
+
+    /**
+     * 解析后的直接依赖包名（dpkg Depends 字段）
+     */
+    "depList": string[] | null;
 }
 
 /**
