@@ -49,7 +49,7 @@
 
     <el-dialog
       v-model="depDialog.open"
-      :title="depDialog.pkg ? `${depDialog.pkg.name} 的依赖` : '依赖'"
+      :title="depDialog.pkg ? `${depDialog.pkg.name} 依赖关系` : '依赖关系'"
       width="520px"
       append-to-body
       class="m3-form-dialog pkg-dep-dialog"
@@ -73,22 +73,47 @@
             <span class="dep-meta__k">依赖数</span>
             <span class="dep-meta__v">{{ depCountShown }}</span>
           </div>
+          <div class="dep-meta__row">
+            <span class="dep-meta__k">被依赖数</span>
+            <span class="dep-meta__v">{{ rDepCountShown }}</span>
+          </div>
         </div>
-        <div v-if="depDialog.deps.length" class="dep-list-wrap">
-          <ul class="dep-list selectable">
-            <li v-for="d in depDialog.deps" :key="d">{{ d }}</li>
-          </ul>
-        </div>
+        <template v-if="depDialog.deps.length">
+          <div class="dep-section-title">依赖的包</div>
+          <div class="dep-list-wrap">
+            <ul class="dep-list selectable">
+              <li v-for="d in depDialog.deps" :key="'d-' + d">{{ d }}</li>
+            </ul>
+          </div>
+        </template>
+        <template v-if="depDialog.rdeps.length">
+          <div class="dep-section-title">被哪些包依赖</div>
+          <div class="dep-list-wrap">
+            <ul class="dep-list selectable">
+              <li v-for="d in depDialog.rdeps" :key="'r-' + d">{{ d }}</li>
+            </ul>
+          </div>
+        </template>
         <el-empty
-          v-else-if="!depDialog.loading && !depDialog.error"
-          description="该包无直接依赖"
+          v-if="!depDialog.loading && !depDialog.error && !depDialog.deps.length && !depDialog.rdeps.length"
+          description="无直接依赖关系"
           :image-size="72"
         />
       </div>
       <template #footer>
         <el-button @click="depDialog.open = false">关闭</el-button>
-        <el-button type="primary" :disabled="!depDialog.deps.length" @click="copyDeps">
+        <el-button
+          v-if="depDialog.deps.length"
+          @click="copyDeps"
+        >
           复制依赖列表
+        </el-button>
+        <el-button
+          v-if="depDialog.rdeps.length"
+          type="primary"
+          @click="copyRDeps"
+        >
+          复制被依赖列表
         </el-button>
       </template>
     </el-dialog>
@@ -112,6 +137,8 @@ interface AptPackage {
   version: string;
   depends: number;
   depList?: string[] | null;
+  dependedBy?: number;
+  rDepList?: string[] | null;
 }
 
 const props = defineProps<{ host: string }>();
@@ -126,6 +153,37 @@ const { data, error, loading, refresh } = usePolling<AptPackage[]>(
 );
 
 const list = computed(() => data.value || []);
+
+/** 列表内反查被依赖（兼容旧 agent 无 dependedBy 字段） */
+const reverseIndex = computed(() => {
+  const counts = new Map<string, number>();
+  const lists = new Map<string, string[]>();
+  const pkgs = list.value;
+  if (!pkgs.length) return { counts, lists };
+  const names = new Set(pkgs.map((p) => p.name));
+  for (const pkg of pkgs) {
+    for (const dep of pkg.depList ?? []) {
+      if (!names.has(dep)) continue;
+      counts.set(dep, (counts.get(dep) ?? 0) + 1);
+      const arr = lists.get(dep) ?? [];
+      arr.push(pkg.name);
+      lists.set(dep, arr);
+    }
+  }
+  return { counts, lists };
+});
+
+function pkgDependedBy(pkg: AptPackage): number {
+  if (pkg.dependedBy != null && pkg.dependedBy > 0) return pkg.dependedBy;
+  const n = reverseIndex.value.counts.get(pkg.name);
+  if (n != null) return n;
+  return pkg.dependedBy ?? 0;
+}
+
+function pkgRDeps(pkg: AptPackage): string[] {
+  if (pkg.rDepList?.length) return [...pkg.rDepList];
+  return [...(reverseIndex.value.lists.get(pkg.name) ?? [])];
+}
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase();
   if (!q) return list.value;
@@ -144,11 +202,18 @@ const depDialog = reactive({
   error: "",
   pkg: null as AptPackage | null,
   deps: [] as string[],
+  rdeps: [] as string[],
 });
 
 const depCountShown = computed(() => {
   if (depDialog.deps.length) return depDialog.deps.length;
   return depDialog.pkg?.depends ?? 0;
+});
+
+const rDepCountShown = computed(() => {
+  if (depDialog.rdeps.length) return depDialog.rdeps.length;
+  if (depDialog.pkg) return pkgDependedBy(depDialog.pkg);
+  return 0;
 });
 
 function cacheDepList(name: string, deps: string[]) {
@@ -162,21 +227,44 @@ async function openDepDialog(pkg: AptPackage) {
   depDialog.pkg = pkg;
   depDialog.error = "";
   depDialog.deps = pkg.depList?.length ? [...pkg.depList] : [];
+  depDialog.rdeps = pkgRDeps(pkg);
   depDialog.open = true;
 
-  if (depDialog.deps.length > 0) return;
-  if ((pkg.depends || 0) <= 0) return;
+  const needFetchDeps =
+    depDialog.deps.length === 0 && (pkg.depends || 0) > 0;
+  if (!needFetchDeps) return;
 
   depDialog.loading = true;
   try {
     const deps = await api.collectPackageDepends(props.host, pkg.name);
     depDialog.deps = deps;
     cacheDepList(pkg.name, deps);
+    // 补拉依赖后刷新被依赖反查
+    depDialog.rdeps = pkgRDeps({ ...pkg, depList: deps, depends: deps.length });
   } catch (e) {
     depDialog.error = formatErr(e);
   } finally {
     depDialog.loading = false;
   }
+}
+
+function depCountCell(n: number, rowData: AptPackage, title: string) {
+  if (n <= 0) {
+    return h("span", { class: "dep-zero" }, "0");
+  }
+  return h(
+    "button",
+    {
+      type: "button",
+      class: "dep-link",
+      title,
+      onClick: (e: Event) => {
+        e.stopPropagation();
+        void openDepDialog(rowData);
+      },
+    },
+    String(n)
+  );
 }
 
 const pkgColumns = [
@@ -195,7 +283,7 @@ const pkgColumns = [
     key: "version",
     dataKey: "version",
     title: "版本",
-    width: 200,
+    width: 180,
     sortable: true,
     flexGrow: 1,
     flexShrink: 1,
@@ -206,28 +294,21 @@ const pkgColumns = [
     key: "depends",
     dataKey: "depends",
     title: "依赖数",
+    width: 88,
+    align: "right" as const,
+    sortable: true,
+    cellRenderer: ({ cellData, rowData }: { cellData: number; rowData: AptPackage }) =>
+      depCountCell(cellData || 0, rowData, "查看依赖的包"),
+  },
+  {
+    key: "dependedBy",
+    dataKey: "dependedBy",
+    title: "被依赖数",
     width: 96,
     align: "right" as const,
     sortable: true,
-    cellRenderer: ({ cellData, rowData }: { cellData: number; rowData: AptPackage }) => {
-      const n = cellData || 0;
-      if (n <= 0) {
-        return h("span", { class: "dep-zero" }, "0");
-      }
-      return h(
-        "button",
-        {
-          type: "button",
-          class: "dep-link",
-          title: "查看依赖列表",
-          onClick: (e: Event) => {
-            e.stopPropagation();
-            void openDepDialog(rowData);
-          },
-        },
-        String(n)
-      );
-    },
+    cellRenderer: ({ rowData }: { rowData: AptPackage }) =>
+      depCountCell(pkgDependedBy(rowData), rowData, "查看被哪些包依赖"),
   },
 ];
 
@@ -246,6 +327,7 @@ const sorted = computed(() => {
   const dir = order === TableV2SortOrder.DESC ? -1 : 1;
   return [...filtered.value].sort((a, b) => {
     if (key === "depends") return dir * ((a.depends || 0) - (b.depends || 0));
+    if (key === "dependedBy") return dir * (pkgDependedBy(a) - pkgDependedBy(b));
     return (
       dir *
       String(a[key as "name" | "version"] || "").localeCompare(
@@ -281,6 +363,16 @@ async function copyDeps() {
   try {
     await copyText(depDialog.deps.join("\n"));
     ElMessage.success("已复制依赖列表");
+  } catch {
+    ElMessage.error("复制失败");
+  }
+}
+
+async function copyRDeps() {
+  if (!depDialog.rdeps.length) return;
+  try {
+    await copyText(depDialog.rdeps.join("\n"));
+    ElMessage.success("已复制被依赖列表");
   } catch {
     ElMessage.error("复制失败");
   }
@@ -391,6 +483,15 @@ async function copyDeps() {
   min-width: 0;
   color: var(--m3-on-surface);
   word-break: break-all;
+}
+
+.dep-section-title {
+  margin: 12px 0 8px;
+  font: var(--m3-title-small);
+  color: var(--m3-on-surface-variant);
+}
+.dep-section-title:first-of-type {
+  margin-top: 0;
 }
 
 :deep(.el-table-v2__header-row) {
