@@ -1,7 +1,7 @@
 <template>
-  <div class="tab-root" v-loading="loading && !list.length">
+  <div class="tab-root tab-table-page" v-loading="loading && !list.length">
     <EnlargableCard title="定时任务">
-      <div class="view-toolbar cron-toolbar">
+      <div class="view-toolbar">
         <span class="panel-section-title">定时任务</span>
         <div class="view-toolbar__tools">
           <el-button :loading="loading" @click="refresh">刷新</el-button>
@@ -10,7 +10,7 @@
 
       <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
 
-      <div class="table-wrap">
+      <div class="table-wrap m3-table-surface">
         <el-table
           :data="rows"
           height="100%"
@@ -116,31 +116,6 @@ async function copyCronLine(row: CronRow) {
 </script>
 
 <style scoped lang="scss">
-.tab-root {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  gap: 8px;
-}
-
-:deep(.enl-body) {
-  gap: 12px;
-}
-
-.cron-toolbar {
-  margin: 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--m3-outline-variant);
-}
-
-.table-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 .mono {
   font-family: var(--m3-font-mono);
   font-size: 12px;
@@ -166,15 +141,6 @@ async function copyCronLine(row: CronRow) {
   padding: 0 4px;
   height: auto;
   font: var(--m3-label-medium);
-}
-
-/* Wails/WebKit：全局 user-select:none 时，必须打到 td/.cell 并带 -webkit 前缀 */
-:deep(.copyable-table .el-table__body .el-table__cell),
-:deep(.copyable-table .el-table__body .cell),
-:deep(.copyable-table .copy-text) {
-  user-select: text !important;
-  -webkit-user-select: text !important;
-  cursor: text;
 }
 
 :deep(.cron-table) {

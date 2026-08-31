@@ -1,36 +1,49 @@
 <template>
-  <div class="tab-root" v-loading="loading && !list.length">
+  <div class="tab-root tab-table-page" v-loading="loading && !list.length">
     <EnlargableCard title="服务">
-    <div class="toolbar">
-      <el-input
-        v-model="filter"
-        size="large"
-        clearable
-        class="filter"
-        placeholder="搜索服务名/描述..."
-      />
-      <el-button size="large" @click="refresh">刷新</el-button>
-      <span class="muted">{{ filtered.length }} / {{ list.length }} 个</span>
-    </div>
-    <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
-
-    <!-- 单行列表：悬浮整行弹出跟随鼠标的详情卡片 -->
-    <div class="svc-list" @mouseleave="hideCard">
-      <div
-        v-for="s in filtered"
-        :key="s.name"
-        class="svc-row"
-        @mouseenter="onRowEnter($event, s.name)"
-        @mousemove="onRowMove"
-      >
-        <span class="dot" :class="dotClass(s)" />
-        <span class="name" :title="s.name">{{ s.name }}</span>
-        <span class="desc" :title="s.description">{{ s.description || "—" }}</span>
-        <el-tag size="small" type="info" class="sub">{{ s.sub || s.active || "—" }}</el-tag>
+      <div class="view-toolbar">
+        <span class="panel-section-title">服务</span>
+        <div class="view-toolbar__tools">
+          <el-input
+            v-model="filter"
+            clearable
+            class="filter-input"
+            placeholder="搜索服务名/描述..."
+          />
+          <el-button :loading="loading" @click="refresh">刷新</el-button>
+          <span class="toolbar-meta">{{ filtered.length }} / {{ list.length }}</span>
+        </div>
       </div>
-    </div>
 
-    <!-- 跟随鼠标的详情卡片：固定定位 + 视口内自动避让，不参与鼠标事件 -->
+      <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
+
+      <div
+        v-if="list.length"
+        ref="tableWrap"
+        class="table-wrap m3-table-surface m3-table-v2"
+        @mouseleave="hideCard"
+      >
+        <el-table-v2
+          v-if="size.width.value > 0"
+          :columns="svcColumns"
+          :data="filtered"
+          :width="size.width.value"
+          :height="size.height.value"
+          :row-height="M3_TABLE_ROW_HEIGHT"
+          :header-height="M3_TABLE_HEADER_HEIGHT"
+          :row-class="zebraRowClass"
+          :row-event-handlers="rowEventHandlers"
+        >
+          <template #empty>无匹配服务</template>
+        </el-table-v2>
+      </div>
+
+      <el-empty
+        v-if="!loading && list.length === 0 && !error"
+        description="未采集到 systemd 服务（目标机可能不是 systemd）"
+      />
+    </EnlargableCard>
+
     <Teleport to="body">
       <div
         v-if="card.visible"
@@ -91,22 +104,24 @@
         </div>
       </div>
     </Teleport>
-
-    <el-empty
-      v-if="!loading && list.length === 0 && !error"
-      description="未采集到 systemd 服务（目标机可能不是 systemd）"
-    />
-    </EnlargableCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, h, reactive, ref } from "vue";
+import { ElTag } from "element-plus";
+import type { Column, RowEventHandlers } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import { useContainerSize } from "@/composables/useContainerSize";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import {
+  M3_TABLE_HEADER_HEIGHT,
+  M3_TABLE_ROW_HEIGHT,
+  zebraRowClass,
+} from "@/constants/m3Table";
 
 interface Service {
   name: string;
@@ -132,18 +147,26 @@ interface ServiceDetail {
   user?: string;
 }
 
+const ELLIPSIS_STYLE: Record<string, string> = {
+  display: "block",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  minWidth: "0",
+  width: "100%",
+  lineHeight: "22px",
+};
+
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
 const { data, error, loading, refresh } = usePolling<Service[]>(
   () => api.collectServices(props.host) as Promise<Service[]>,
   30_000,
   () => props.host,
-  // 30s 间隔较长：切回子页时立即补刷
   () => app.isHostSubActive(props.host, "services")
 );
 const list = computed(() => data.value || []);
 
-/** 搜索：按服务名/描述/子状态过滤 */
 const filter = ref("");
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase();
@@ -156,14 +179,91 @@ const filtered = computed(() => {
   );
 });
 
-/** 详情按服务名缓存；首次悬浮时查询一次 */
+const tableWrap = ref<HTMLDivElement | null>(null);
+const size = useContainerSize(tableWrap);
+
 const detailMap = reactive<Record<string, ServiceDetail | null>>({});
 const pending = new Set<string>();
 
-/** 跟随鼠标的悬浮卡片：固定定位在鼠标右下方，靠边时自动翻到左侧/上方 */
 const card = reactive({ visible: false, name: "", x: 0, y: 0 });
 const CARD_W = 380;
 const CARD_EST_H = 340;
+
+function ellipsisCell(text: string, title?: string) {
+  return h(
+    "span",
+    {
+      class: "cell-ellipsis",
+      style: ELLIPSIS_STYLE,
+      title: title || text || "",
+    },
+    text || ""
+  );
+}
+
+function dotClass(s: Service): string {
+  if (s.active === "failed") return "is-failed";
+  if (s.active === "inactive") return "is-inactive";
+  return "";
+}
+
+function stateTagType(s: Service): "success" | "danger" | "info" | "warning" {
+  if (s.active === "failed") return "danger";
+  if (s.active === "inactive") return "info";
+  if (s.sub === "running" || s.active === "active") return "success";
+  return "warning";
+}
+
+const svcColumns: Column<Service>[] = [
+  {
+    key: "dot",
+    title: "",
+    width: 48,
+    align: "center",
+    cellRenderer: ({ rowData }) =>
+      h("span", { class: ["svc-dot", dotClass(rowData)] }),
+  },
+  {
+    key: "name",
+    dataKey: "name",
+    title: "服务名",
+    width: 220,
+    flexGrow: 1,
+    flexShrink: 1,
+    cellRenderer: ({ cellData }) => ellipsisCell(cellData),
+  },
+  {
+    key: "description",
+    dataKey: "description",
+    title: "描述",
+    width: 280,
+    flexGrow: 2,
+    flexShrink: 1,
+    cellRenderer: ({ cellData }) => ellipsisCell(cellData || "—", cellData || ""),
+  },
+  {
+    key: "state",
+    title: "状态",
+    width: 120,
+    align: "right",
+    cellRenderer: ({ rowData }) =>
+      h(
+        ElTag,
+        { size: "small", effect: "plain", type: stateTagType(rowData) },
+        () => rowData.sub || rowData.active || "—"
+      ),
+  },
+];
+
+const rowEventHandlers: RowEventHandlers = {
+  onMouseenter: ({ rowData, event }) => {
+    card.name = rowData.name;
+    placeCard(event as MouseEvent);
+    card.visible = true;
+    void detailOf(rowData.name);
+  },
+  onMouseleave: () => hideCard(),
+};
 
 function placeCard(e: MouseEvent) {
   const vw = window.innerWidth;
@@ -175,15 +275,7 @@ function placeCard(e: MouseEvent) {
   card.x = x;
   card.y = y;
 }
-function onRowEnter(e: MouseEvent, name: string) {
-  card.name = name;
-  placeCard(e);
-  card.visible = true;
-  void detailOf(name); // 进入即触发详情查询
-}
-function onRowMove(e: MouseEvent) {
-  if (card.visible) placeCard(e);
-}
+
 function hideCard() {
   card.visible = false;
 }
@@ -199,13 +291,6 @@ function detailOf(name: string): ServiceDetail | null | undefined {
   return detailMap[name];
 }
 
-function dotClass(s: Service): string {
-  if (s.active === "failed") return "is-failed";
-  if (s.active === "inactive") return "is-inactive";
-  return "";
-}
-
-/** MemoryCurrent 可能是 "[not set]" 或纯数字（字节） */
 function formatMem(v?: string): string {
   if (!v) return "—";
   const n = Number(v);
@@ -221,7 +306,6 @@ function formatMem(v?: string): string {
   return `${f.toFixed(i >= 2 ? 1 : 0)} ${units[i]}`;
 }
 
-/** CPUTimeNSec 纳秒 → 可读时长 */
 function formatCpu(v?: string): string {
   if (!v) return "—";
   const ns = Number(v);
@@ -238,87 +322,30 @@ function formatCpu(v?: string): string {
 </script>
 
 <style scoped>
-.tab-root {
-  height: 100%;
-  min-height: 0;
-  overflow: auto;
-}
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.title {
-  font-weight: 600;
-  font-size: 14px;
-}
-.muted {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.filter {
-  width: 240px;
-}
-.svc-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.svc-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--m3-shape-s);
-  background: var(--el-bg-color);
-  cursor: default;
-  transition: background-color var(--m3-motion-state);
-}
-.svc-row:hover {
-  background: var(--el-fill-color-light);
-}
-.dot {
+.svc-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--el-color-success);
-  flex-shrink: 0;
 }
-.dot.is-failed {
+.svc-dot.is-failed {
   background: var(--el-color-danger);
 }
-.dot.is-inactive {
+.svc-dot.is-inactive {
   background: var(--el-color-info);
 }
-.name {
-  flex-shrink: 0;
-  max-width: 40%;
-  font-size: 13px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.desc {
-  flex: 1;
+.cell-ellipsis {
+  display: block;
   min-width: 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.sub {
-  flex-shrink: 0;
 }
 </style>
 
 <style>
-/* 跟随鼠标的详情卡片（Teleport 到 body，scoped 不生效）；
-   pointer-events:none 保证不挡鼠标、不闪烁 */
 .svc-hover-card {
   position: fixed;
   z-index: 3000;

@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root" v-loading="view !== 'docker' && loading && !rows.length">
+  <div class="tab-root tab-table-page" v-loading="view !== 'docker' && loading && !rows.length">
     <EnlargableCard title="进程">
     <!-- 三级视图标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
     <div class="view-toolbar">
@@ -10,7 +10,7 @@
           <el-input
             v-model="filter"
             clearable
-            class="filter"
+            class="filter-input"
             :placeholder="filterPlaceholder"
           />
           <span class="count">{{ view === "docker" ? dockerFilteredCount : filtered.length }} 个</span>
@@ -19,7 +19,7 @@
     </div>
     <el-alert v-if="view !== 'docker' && error && !rows.length" type="error" :title="error" show-icon />
 
-    <div ref="tableWrap" class="table-wrap">
+    <div ref="tableWrap" class="table-wrap m3-table-surface m3-table-v2">
       <!-- Docker：沿用原 Docker 标签页的卡片 + inspect 浮层 -->
       <DockerView
         v-if="view === 'docker'"
@@ -36,8 +36,8 @@
         :data="sortedRows"
         :width="size.width.value"
         :height="size.height.value"
-        :row-height="34"
-        :header-height="38"
+        :row-height="M3_TABLE_ROW_HEIGHT"
+        :header-height="M3_TABLE_HEADER_HEIGHT"
         :row-class="zebraRowClass"
         :sort-by="sortBy"
         :row-event-handlers="allRowEventHandlers"
@@ -53,8 +53,8 @@
         :data="sortedRows"
         :width="size.width.value"
         :height="size.height.value"
-        :row-height="34"
-        :header-height="38"
+        :row-height="M3_TABLE_ROW_HEIGHT"
+        :header-height="M3_TABLE_HEADER_HEIGHT"
         :row-class="zebraRowClass"
         :sort-by="sortBy"
         :row-event-handlers="rowEventHandlers"
@@ -206,6 +206,11 @@ import TagButton from "@/components/TagButton.vue";
 import DockerView from "@/views/DockerView.vue";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatDurationCompact, formatDurationLong } from "@/utils/format";
+import {
+  M3_TABLE_HEADER_HEIGHT,
+  M3_TABLE_ROW_HEIGHT,
+  zebraRowClass,
+} from "@/constants/m3Table";
 
 interface ProcInfo {
   pid: number;
@@ -341,12 +346,6 @@ const filtered = computed(() => {
 
 const tableWrap = ref<HTMLDivElement | null>(null);
 const size = useContainerSize(tableWrap);
-
-/** 斑马纹按数据行号着色：虚拟滚动的渲染窗口起点随滚动漂移，
- * nth-child 的兄弟序与数据索引不保证一致，滚动后条纹会翻转错行 */
-function zebraRowClass({ rowIndex }: { rowIndex: number }): string {
-  return rowIndex % 2 === 1 ? "zebra-row" : "";
-}
 
 /** 超长文本单元格：单行截断。width/minWidth 必须写死，flex 单元格默认 min-width:auto 会把整段命令撑出来换行 */
 const ELLIPSIS_STYLE: Record<string, string> = {
@@ -866,12 +865,6 @@ async function copyArgs() {
   color: var(--el-color-danger);
   font-weight: 600;
 }
-.table-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
 .table-wrap > :deep(.tab-root) {
   flex: 1;
   min-height: 0;
@@ -885,31 +878,6 @@ async function copyArgs() {
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 22px;
-}
-/* 虚拟化表格行高：M3 默认密度 52dp 偏高，进程表保留紧凑 40dp 但 hover 用标准状态层 */
-:deep(.el-table-v2__header-row) {
-  background: var(--m3-surface-container);
-}
-:deep(.el-table-v2__header-cell) {
-  font: var(--m3-title-small);
-  color: var(--m3-on-surface-variant);
-}
-:deep(.el-table-v2__row) {
-  overflow: hidden;
-}
-:deep(.el-table-v2__row-cell) {
-  overflow: hidden;
-  min-width: 0;
-}
-:deep(.el-table-v2__row-cell > *) {
-  min-width: 0;
-  max-width: 100%;
-}
-:deep(.el-table-v2__row.zebra-row) {
-  background: var(--el-table-tr-bg-color, transparent);
-}
-:deep(.el-table-v2__row:hover) {
-  background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
 }
 </style>
 

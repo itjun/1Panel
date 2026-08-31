@@ -16,7 +16,7 @@ export interface AptPackage {
     "depList": string[] | null;
 
     /**
-     * 被依赖数：已安装包中直接依赖本包的数量
+     * 被依赖数：已安装包中依赖本包的数量
      */
     "dependedBy": number;
 

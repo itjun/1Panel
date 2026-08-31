@@ -77,9 +77,8 @@
           <div
             v-for="h in node.hosts"
             :key="h.name"
-            class="host-card panel-hover-card"
+            class="host-card"
             :class="{ 'is-running': app.isRunning(h.name) }"
-            :style="{ borderLeftColor: colorOf(node, idx).accent }"
             @click="openHost(h.name)"
           >
             <span
@@ -296,15 +295,16 @@ async function onRefreshIcons() {
   gap: 12px;
   padding: 14px 16px;
   background: var(--m3-surface-container-lowest, #fff);
-  border: 1px solid var(--m3-outline-variant, #cac4d0);
-  border-left: 4px solid var(--g-accent, #005eeb);
+  border: none;
   border-radius: var(--m3-shape-m, 12px);
+  box-sizing: border-box;
   cursor: pointer;
-  transition: border-color var(--m3-motion-select), box-shadow var(--m3-motion-select);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--m3-outline-variant, #cac4d0);
+  transition: box-shadow var(--m3-motion-select);
+
   &:hover {
-    border-color: var(--m3-primary);
-    border-left-color: var(--m3-primary);
-    box-shadow: 0 0 0 1px var(--m3-primary);
+    box-shadow: inset 0 0 0 2px var(--m3-primary);
   }
 }
 .host-ico-wrap {
@@ -356,10 +356,6 @@ async function onRefreshIcons() {
   border-radius: 50%;
   background: var(--m3-primary, #6750a4);
   flex-shrink: 0;
-}
-.host-card.is-running {
-  border-color: color-mix(in srgb, var(--m3-primary, #6750a4) 35%, transparent);
-  border-left-color: var(--m3-primary, #6750a4);
 }
 
 html.dark .host-card {

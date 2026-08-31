@@ -1,10 +1,14 @@
 <template>
-  <div class="tab-root" v-loading="loading && !loaded">
+  <div class="tab-root tab-table-page" v-loading="loading && !loaded">
     <EnlargableCard title="证书">
-    <div class="toolbar">
-      <span class="muted">/etc/nginx/cert · {{ groups.length }} 张</span>
-      <el-button size="large" :icon="Plus" @click="openUpload">上传证书</el-button>
-      <el-button size="large" :icon="Refresh" @click="loadCerts">刷新</el-button>
+    <div class="view-toolbar">
+      <div class="view-toolbar__chips">
+        <span class="toolbar-meta">/etc/nginx/cert · {{ groups.length }} 张</span>
+      </div>
+      <div class="view-toolbar__tools">
+        <el-button :icon="Plus" @click="openUpload">上传证书</el-button>
+        <el-button :icon="Refresh" :loading="loading" @click="loadCerts">刷新</el-button>
+      </div>
     </div>
     <el-alert
       v-if="error"
@@ -20,11 +24,13 @@
       show-icon
       :closable="false"
     />
+    <div v-if="groups.length" class="table-wrap m3-table-surface">
     <el-table
-      v-if="groups.length"
       :data="groups"
       height="100%"
+      size="default"
       stripe
+      class="data-table-unified"
     >
       <el-table-column label="证书文件" min-width="200">
         <template #default="{ row }">
@@ -73,6 +79,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
     <el-empty
       v-if="!loading && !error && result && !result.installed"
       description="当前主机没有安装证书"
@@ -395,18 +402,6 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  flex-shrink: 0;
-}
-.muted {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  flex: 1;
 }
 .cert-name-group {
   display: flex;

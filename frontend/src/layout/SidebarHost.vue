@@ -801,37 +801,40 @@ onBeforeUnmount(() => {
   color: var(--m3-outline);
 }
 
-/* 侧栏底部：本机出口 IP 与归属地（无卡片底色，直接融入侧栏，仅展示） */
+/* 侧栏底部：本机出口 IP 与归属地（随侧栏宽度水平居中） */
 .my-egress {
-  margin: 8px 14px 6px;
-  padding: 2px 2px;
+  margin: 8px 0 6px;
+  padding: 2px 4px;
+  width: 100%;
+  max-width: 100%;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px 6px;
   font-size: 11px;
   line-height: 1.4;
+  text-align: center;
   color: var(--el-text-color-secondary);
-  white-space: nowrap;
-  overflow: hidden;
 }
 .egress-ip {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--el-text-color-primary);
-  flex-shrink: 0;
 }
 .egress-loc {
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
+  white-space: nowrap;
+  max-width: 100%;
 }
 .egress-empty,
 .egress-loading {
+  width: 100%;
+  text-align: center;
   color: var(--el-text-color-placeholder);
   font-style: italic;
-  flex: 1;
 }
 
 .sidebar-resize-handle {

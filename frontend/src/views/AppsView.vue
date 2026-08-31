@@ -14,6 +14,7 @@
 
     <template v-for="(sec, secIdx) in instanceSections" :key="sec.key">
       <div class="apps-section">
+        <div class="m3-table-surface">
         <div class="apps-section__head">
           <span class="apps-section__title">{{ sec.title }}</span>
           <span class="apps-section__count">{{ sec.rows.length }} 条</span>
@@ -28,10 +29,12 @@
           @row-click="onInstRowClick"
         >
           <el-table-column type="index" label="#" width="48" align="center" />
-          <el-table-column prop="service" label="标识" width="128">
+          <el-table-column prop="service" label="标识" width="148">
             <template #default="{ row }">
-              <el-tag size="small" type="primary" effect="light" class="svc-tag">{{ row.service }}</el-tag>
-              <el-tag v-if="row.runtime === 'bun'" size="small" type="info" effect="plain" class="rt-tag">Bun</el-tag>
+              <div class="svc-id-cell">
+                <el-tag size="small" type="primary" effect="light" class="svc-tag">{{ row.service }}</el-tag>
+                <el-tag v-if="row.runtime === 'bun'" size="small" type="info" effect="plain" class="rt-tag">Bun</el-tag>
+              </div>
             </template>
           </el-table-column>
           <el-table-column prop="port" label="端口" width="72" align="center" />
@@ -62,6 +65,7 @@
             </template>
           </el-table-column>
         </el-table>
+        </div>
       </div>
     </template>
 
@@ -451,15 +455,27 @@ onBeforeUnmount(stopTimer);
   min-height: 0;
   overflow: auto;
 }
+:deep(.data-table-unified) {
+  cursor: pointer;
+}
 .page-alert {
   margin-bottom: 4px;
 }
-.svc-tag {
+.svc-id-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.svc-tag,
+.rt-tag {
+  flex-shrink: 0;
   vertical-align: middle;
 }
 .rt-tag {
-  margin-left: 6px;
-  vertical-align: middle;
+  margin-left: 0;
 }
 .lamps {
   display: flex;

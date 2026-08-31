@@ -183,11 +183,12 @@
       >
       <el-card shadow="never" class="mb block-card panel-hover-card">
         <div class="block-title enl-head-zone">网卡</div>
+        <div class="m3-table-surface">
         <el-table
           :data="snap.interfaces || []"
-          size="small"
+          size="default"
           stripe
-          class="no-x-scroll-table"
+          class="data-table-unified no-x-scroll-table"
           :height="ifacesEnlarged ? '100%' : 140"
         >
           <el-table-column prop="name" label="接口" min-width="88" />
@@ -215,6 +216,7 @@
             <template #default="{ row }">{{ formatBytes(row.txBytes || 0) }}</template>
           </el-table-column>
         </el-table>
+        </div>
       </el-card>
       </EnlargableCard>
 
@@ -235,10 +237,12 @@
           疑似网络卡顿连接
           <span class="sub">Send-Q/Recv-Q 积压 ≥ 8KB 或 RTT ≥ 200ms（已建立连接）</span>
         </div>
+        <div class="m3-table-surface">
         <el-table
           :data="snap.slowConnections"
-          size="small"
+          size="default"
           stripe
+          class="data-table-unified"
           :height="slowEnlarged ? '100%' : undefined"
           :max-height="slowEnlarged ? undefined : 200"
           row-class-name="slow-row"
@@ -256,6 +260,7 @@
           </el-table-column>
           <el-table-column prop="slowReason" label="原因" min-width="140" show-overflow-tooltip />
         </el-table>
+        </div>
       </el-card>
       </EnlargableCard>
 
@@ -274,7 +279,7 @@
           <el-checkbox v-model="onlyEstab" size="large">仅 ESTAB</el-checkbox>
           <el-checkbox v-model="onlySlow" size="large">仅卡顿</el-checkbox>
         </div>
-        <div ref="connWrap" class="conn-table-wrap">
+        <div ref="connWrap" class="conn-table-wrap m3-table-surface m3-table-v2">
           <!-- 虚拟化表格：全量 TCP 连接可能数百条，只画可视区 -->
           <el-table-v2
             v-if="connSize.width.value > 0"
@@ -282,8 +287,8 @@
             :data="filteredConns"
             :width="connSize.width.value"
             :height="connSize.height.value"
-            :row-height="34"
-            :header-height="38"
+            :row-height="M3_TABLE_ROW_HEIGHT"
+            :header-height="M3_TABLE_HEADER_HEIGHT"
             :row-class="connRowClass"
           />
         </div>
@@ -307,6 +312,10 @@ import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes } from "@/utils/format";
+import {
+  M3_TABLE_HEADER_HEIGHT,
+  M3_TABLE_ROW_HEIGHT,
+} from "@/constants/m3Table";
 
 export interface NetInterface {
   name: string;

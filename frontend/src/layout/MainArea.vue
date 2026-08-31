@@ -82,14 +82,14 @@
             v-show="sessionOf(hid)?.subTab === 'cron'"
             :host="hid"
           />
-          <PackagesView
-            v-if="visitedSub(hid, 'packages')"
-            v-show="sessionOf(hid)?.subTab === 'packages'"
-            :host="hid"
-          />
           <LogsView
             v-if="visitedSub(hid, 'logs')"
             v-show="sessionOf(hid)?.subTab === 'logs'"
+            :host="hid"
+          />
+          <PackagesView
+            v-if="visitedSub(hid, 'packages')"
+            v-show="sessionOf(hid)?.subTab === 'packages'"
             :host="hid"
           />
           <!-- KeepAlive：切到其他子页签时终端只停用不卸载，
@@ -136,8 +136,8 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "services", label: "服务" },
   { value: "certs", label: "证书" },
   { value: "cron", label: "定时任务" },
-  { value: "packages", label: "软件包" },
   { value: "logs", label: "日志" },
+  { value: "packages", label: "软件包" },
   { value: "terminal", label: "终端" },
 ];
 

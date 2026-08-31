@@ -34,19 +34,21 @@ body,
   margin-top: 12px;
 }
 
-// M3 outlined card：白底不变；hover 实色主色描边（对齐改 M3 前的清晰边框）
+// M3 outlined card：用 inset box-shadow 画描边，hover 加粗，四边严格等宽
 .panel-hover-card {
   --el-card-border-radius: var(--m3-shape-m);
-  border: 1px solid var(--m3-outline-variant) !important;
+  border: none !important;
   border-radius: var(--m3-shape-m) !important;
   background: var(--m3-surface-container-lowest) !important;
   box-sizing: border-box;
   overflow: hidden;
-  transition: border-color var(--m3-motion-select), box-shadow var(--m3-motion-select);
+  outline: none !important;
+  box-shadow: inset 0 0 0 1px var(--m3-outline-variant) !important;
+  transition: box-shadow var(--m3-motion-select);
 
   &:hover {
-    border-color: var(--m3-primary) !important;
-    box-shadow: 0 0 0 1px var(--m3-primary);
+    outline: none !important;
+    box-shadow: inset 0 0 0 2px var(--m3-primary) !important;
   }
 }
 
@@ -215,7 +217,9 @@ body,
 
   .sidebar-footer {
     flex-shrink: 0;
-    padding: 8px 16px 12px;
+    padding: 8px 12px 12px;
+    display: flex;
+    justify-content: center;
   }
 }
 
@@ -301,14 +305,13 @@ body,
   color: var(--m3-tertiary) !important;
 }
 
-// 二级页工具栏：Filter Chip 行 + 搜索/操作区（无额外 card 嵌套）
+// 二级页工具栏：Filter Chip 行 + 搜索/操作区
 .view-toolbar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 0 12px;
-  border-bottom: 1px solid var(--m3-outline-variant);
+  padding: 8px 12px 10px;
 }
 
 .view-toolbar__chips {
@@ -377,14 +380,121 @@ body,
   color: var(--m3-on-surface-variant);
 }
 
-// 数据表格：固定列宽、左对齐、统一行高 + 12dp 外圆角
-.data-table-unified {
-  width: 100%;
-  cursor: pointer;
+// 子标签页：工具栏 + 可伸缩表格区
+:root {
+  --m3-table-row-height: 40px;
+  --m3-table-header-height: 44px;
+}
+
+.tab-table-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  // 工具栏 + 表格外壳合成一张卡，避免中间双线/灰影
+  .view-toolbar {
+    border: 1px solid var(--m3-outline-variant);
+    border-bottom: 1px solid var(--m3-outline-variant);
+    border-radius: var(--m3-shape-m) var(--m3-shape-m) 0 0;
+    background: var(--m3-surface-container-lowest);
+    margin-bottom: 0;
+  }
+
+  .view-toolbar + .table-wrap.m3-table-surface,
+  .view-toolbar + .m3-table-surface {
+    border-top: none;
+    border-radius: 0 0 var(--m3-shape-m) var(--m3-shape-m);
+  }
+}
+
+.table-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+// M3 表格外壳（el-table / el-table-v2 共用，12dp 圆角 + 描边）
+.m3-table-surface {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   overflow: hidden;
+  background: var(--m3-surface-container-lowest);
+
+  > .el-table,
+  > .el-table-v2 {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+.table-wrap.m3-table-surface,
+.conn-table-wrap.m3-table-surface {
+  flex: 1;
+  min-height: 0;
+}
+
+// el-table-v2 统一 M3 表头 / 行 / 斑马纹 / hover
+.m3-table-v2 {
+  .el-table-v2__header-row {
+    background: var(--m3-surface-container);
+  }
+
+  .el-table-v2__header-cell {
+    background: var(--m3-surface-container) !important;
+    font: var(--m3-title-small);
+    font-weight: 600;
+    color: var(--m3-on-surface);
+  }
+
+  .el-table-v2__row {
+    overflow: hidden;
+  }
+
+  .el-table-v2__row-cell {
+    overflow: hidden;
+    min-width: 0;
+    font: var(--m3-body-medium);
+    color: var(--m3-on-surface);
+  }
+
+  .el-table-v2__row-cell > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .el-table-v2__row.zebra-row {
+    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
+  }
+
+  .el-table-v2__row:hover {
+    background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-surface-container-lowest));
+  }
+}
+
+.toolbar-meta {
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  white-space: nowrap;
+}
+
+.view-toolbar__tools .filter-input {
+  width: 240px;
+}
+
+// 数据表格：固定列宽、左对齐、统一行高（外壳由 .m3-table-surface 提供圆角描边）
+.data-table-unified {
+  width: 100%;
+  cursor: default;
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
   --el-table-border-color: var(--m3-outline-variant);
+  --el-table-header-bg-color: var(--m3-surface-container);
+  --el-table-row-hover-bg-color: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-surface-container-lowest));
 
   table {
     table-layout: fixed;
@@ -401,28 +511,52 @@ body,
   }
 
   .el-table__cell {
-    padding: 10px 12px;
+    padding: 8px 12px;
   }
 
   .el-table__header th {
-    height: 44px;
+    height: var(--m3-table-header-height, 44px);
     font: var(--m3-title-small);
-    color: var(--m3-on-surface-variant);
-    background: var(--m3-surface-container);
+    font-weight: 600;
+    color: var(--m3-on-surface);
+    background: var(--m3-surface-container) !important;
+  }
+
+  .el-table__header .cell {
+    font-weight: 600;
   }
 
   .el-table__row {
-    height: 48px;
+    height: var(--m3-table-row-height, 40px);
   }
 
   .el-table__inner-wrapper::before {
     display: none;
   }
+
+  // EP 固定列/滚动条伪元素会在表底产生灰线阴影
+  .el-table__inner-wrapper::after {
+    display: none;
+  }
+
+  &.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
+  }
+}
+
+// 表格内文本可选中复制
+.copyable-table {
+  .el-table__body .el-table__cell,
+  .el-table__body .cell,
+  .copy-text {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
 }
 
 .apps-section {
-  &:not(:first-child) .apps-section__head {
-    margin-top: 4px;
+  &:not(:first-child) {
+    margin-top: 12px;
   }
 
   &__head {
@@ -430,9 +564,10 @@ body,
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    margin-bottom: 6px;
+    margin-bottom: 0;
     background: var(--m3-surface-container);
-    border-radius: var(--m3-shape-s);
+    border-bottom: 1px solid var(--m3-outline-variant);
+    border-radius: 0;
   }
 
   &__title {
@@ -450,6 +585,12 @@ body,
     --el-table-border-color: var(--m3-outline-variant);
     --el-table-header-bg-color: var(--m3-surface-container);
     --el-table-row-hover-bg-color: color-mix(in srgb, var(--m3-primary) 6%, var(--m3-surface-container-lowest));
+
+    .el-table__header th {
+      font-weight: 600;
+      color: var(--m3-on-surface);
+      background: var(--m3-surface-container) !important;
+    }
   }
 
   .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {

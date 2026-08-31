@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root">
+  <div class="tab-root tab-table-page">
     <EnlargableCard title="软件包">
       <div class="view-toolbar pkg-toolbar">
         <div class="view-toolbar__chips">
@@ -29,15 +29,15 @@
         description="点击刷新加载软件包列表（体积较大，按需拉取）"
       />
 
-      <div v-else ref="tableWrap" v-loading="loading && !list.length" class="table-wrap">
+      <div v-else ref="tableWrap" v-loading="loading && !list.length" class="table-wrap m3-table-surface m3-table-v2">
         <el-table-v2
           v-if="size.width.value > 0"
           :columns="pkgColumns"
           :data="sorted"
           :width="size.width.value"
           :height="size.height.value"
-          :row-height="40"
-          :header-height="44"
+          :row-height="M3_TABLE_ROW_HEIGHT"
+          :header-height="M3_TABLE_HEADER_HEIGHT"
           :row-class="zebraRowClass"
           :sort-by="sortBy"
           @column-sort="onColumnSort"
@@ -131,6 +131,11 @@ import EnlargableCard from "@/components/EnlargableCard.vue";
 import { useAppStore } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
+import {
+  M3_TABLE_HEADER_HEIGHT,
+  M3_TABLE_ROW_HEIGHT,
+  zebraRowClass,
+} from "@/constants/m3Table";
 
 interface AptPackage {
   name: string;
@@ -250,13 +255,13 @@ async function openDepDialog(pkg: AptPackage) {
 
 function depCountCell(n: number, rowData: AptPackage, title: string) {
   if (n <= 0) {
-    return h("span", { class: "dep-zero" }, "0");
+    return h("span");
   }
   return h(
     "button",
     {
       type: "button",
-      class: "dep-link",
+      class: "pkg-dep-link",
       title,
       onClick: (e: Event) => {
         e.stopPropagation();
@@ -315,10 +320,6 @@ const pkgColumns = [
 const sortBy = ref<SortBy>({ key: "", order: TableV2SortOrder.ASC });
 function onColumnSort(by: ColumnSortParams<any>) {
   sortBy.value = { key: by.key, order: by.order };
-}
-
-function zebraRowClass({ rowIndex }: { rowIndex: number }): string {
-  return rowIndex % 2 === 1 ? "zebra-row" : "";
 }
 
 const sorted = computed(() => {
@@ -407,17 +408,6 @@ async function copyRDeps() {
   width: 240px;
 }
 
-.table-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--m3-outline-variant);
-  border-radius: var(--m3-shape-m);
-  overflow: hidden;
-  background: var(--m3-surface-container-lowest);
-}
-
 .mono {
   font-family: var(--m3-font-mono);
   font-size: 12px;
@@ -435,25 +425,6 @@ async function copyRDeps() {
 .pkg-name {
   font: var(--m3-body-medium);
   color: var(--m3-on-surface);
-}
-
-/* 依赖数：M3 文本链接，无背景 chip */
-.dep-link {
-  border: none;
-  padding: 0;
-  background: none;
-  font: var(--m3-label-large);
-  color: var(--m3-primary);
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  &:hover {
-    color: color-mix(in srgb, var(--m3-primary) 85%, var(--m3-on-surface));
-  }
-}
-.dep-zero {
-  font: var(--m3-body-medium);
-  color: var(--m3-on-surface-variant);
 }
 
 .dep-alert {
@@ -494,29 +465,6 @@ async function copyRDeps() {
   margin-top: 0;
 }
 
-:deep(.el-table-v2__header-row) {
-  background: var(--m3-surface-container);
-}
-:deep(.el-table-v2__header-cell) {
-  font: var(--m3-title-small);
-  color: var(--m3-on-surface-variant);
-}
-:deep(.el-table-v2__row) {
-  overflow: hidden;
-}
-:deep(.el-table-v2__row-cell) {
-  overflow: hidden;
-  min-width: 0;
-  font: var(--m3-body-medium);
-  color: var(--m3-on-surface);
-}
-:deep(.el-table-v2__row.zebra-row) {
-  background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
-}
-:deep(.el-table-v2__row:hover) {
-  background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-surface-container-lowest));
-}
-
 .dep-list-wrap {
   max-height: 360px;
   overflow: auto;
@@ -544,5 +492,28 @@ async function copyRDeps() {
 .selectable {
   user-select: text;
   cursor: text;
+}
+</style>
+
+<style>
+/* el-table-v2 单元格 Teleport 到表内，scoped 样式打不上，依赖数链接用全局类 */
+.pkg-dep-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  appearance: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--m3-primary);
+  cursor: pointer;
+  text-decoration: none;
+  line-height: inherit;
+}
+.pkg-dep-link:hover {
+  color: color-mix(in srgb, var(--m3-primary) 85%, var(--m3-on-surface));
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 </style>

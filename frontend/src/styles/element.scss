@@ -342,8 +342,9 @@ html {
         .el-table__header th {
             height: 56px;
             font: var(--m3-title-small);
-            color: var(--m3-on-surface-variant);
-            background: var(--m3-surface-container);
+            font-weight: 600;
+            color: var(--m3-on-surface);
+            background: var(--m3-surface-container) !important;
         }
 
         .table-image {
@@ -668,7 +669,9 @@ html {
 
   .el-table__header th {
     font: var(--m3-title-small);
-    color: var(--m3-on-surface-variant);
+    font-weight: 600;
+    color: var(--m3-on-surface);
+    background: var(--m3-surface-container) !important;
   }
 
   .el-table__inner-wrapper::before {
