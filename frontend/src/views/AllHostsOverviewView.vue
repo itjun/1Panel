@@ -300,10 +300,11 @@ async function onRefreshIcons() {
   border-left: 4px solid var(--g-accent, #005eeb);
   border-radius: var(--m3-shape-m, 12px);
   cursor: pointer;
-  transition: border-color var(--m3-motion-select);
+  transition: border-color var(--m3-motion-select), box-shadow var(--m3-motion-select);
   &:hover {
-    border-color: color-mix(in srgb, var(--m3-primary) 32%, var(--m3-outline-variant));
+    border-color: var(--m3-primary);
     border-left-color: var(--m3-primary);
+    box-shadow: 0 0 0 1px var(--m3-primary);
   }
 }
 .host-ico-wrap {
