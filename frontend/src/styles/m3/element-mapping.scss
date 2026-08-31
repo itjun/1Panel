@@ -104,6 +104,9 @@
   // 对话框：xl 28dp 圆角
   --el-dialog-border-radius: var(--m3-shape-xl);
 
+  // 卡片：M3 medium 12dp（覆盖 EP 默认 4px，避免按需加载样式后变直角）
+  --el-card-border-radius: var(--m3-shape-m);
+
   // 菜单：M3 menu 用 s 8dp
   --el-menu-border-radius: var(--m3-shape-s);
 

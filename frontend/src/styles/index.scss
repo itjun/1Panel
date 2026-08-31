@@ -36,10 +36,12 @@ body,
 
 // M3 outlined card：白底不变；hover 实色主色描边（对齐改 M3 前的清晰边框）
 .panel-hover-card {
+  --el-card-border-radius: var(--m3-shape-m);
   border: 1px solid var(--m3-outline-variant) !important;
-  border-radius: var(--m3-shape-m);
+  border-radius: var(--m3-shape-m) !important;
   background: var(--m3-surface-container-lowest) !important;
   box-sizing: border-box;
+  overflow: hidden;
   transition: border-color var(--m3-motion-select), box-shadow var(--m3-motion-select);
 
   &:hover {

@@ -643,11 +643,13 @@ html {
 
 /* M3 outlined card：12dp 圆角、outline-variant 描边、无 resting 阴影 */
 .el-card {
+    --el-card-border-radius: var(--m3-shape-m);
     border: 1px solid var(--m3-outline-variant);
-    border-radius: var(--m3-shape-m);
+    border-radius: var(--m3-shape-m) !important;
     background: var(--m3-surface-container-lowest);
     box-shadow: none;
     color: var(--m3-on-surface);
+    overflow: hidden;
 }
 
 /* 全局 el-table：数据页默认左对齐 + 12dp 圆角外框（table-box 内运维表格仍居中、保持直角） */
