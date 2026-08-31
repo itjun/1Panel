@@ -39,3 +39,13 @@ func TestParsePackages(t *testing.T) {
 		t.Fatalf("adduser: %+v", pkgs[1])
 	}
 }
+
+func TestIsValidDebPackageName(t *testing.T) {
+	t.Parallel()
+	if !isValidDebPackageName("apt-utils") {
+		t.Fatal("apt-utils should be valid")
+	}
+	if isValidDebPackageName("bad name") {
+		t.Fatal("space should be invalid")
+	}
+}

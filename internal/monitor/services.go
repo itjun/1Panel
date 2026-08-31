@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"diteng-pannel/internal/sshd"
@@ -197,6 +198,36 @@ func (c *Collector) CollectPackages(host string, opt sshd.ConnectOption) ([]AptP
 		return nil, err
 	}
 	return parsePackages(string(out)), nil
+}
+
+// CollectPackageDepends 查询单个已安装包的直接依赖名（dpkg Depends）
+func (c *Collector) CollectPackageDepends(host string, opt sshd.ConnectOption, pkgName string) ([]string, error) {
+	name := strings.TrimSpace(pkgName)
+	if name == "" {
+		return nil, fmt.Errorf("包名不能为空")
+	}
+	if !isValidDebPackageName(name) {
+		return nil, fmt.Errorf("非法包名: %s", name)
+	}
+	cmd := "dpkg-query -W -f='${Depends}' " + strconv.Quote(name)
+	out, err := c.mgr.Run(host, opt, cmd)
+	if err != nil {
+		return nil, err
+	}
+	return parseDepends(strings.TrimSpace(string(out))), nil
+}
+
+func isValidDebPackageName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '+' || r == '-' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // parsePackages 解析 dpkg-query 输出

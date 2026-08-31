@@ -11,7 +11,7 @@ export interface AptPackage {
     "depends": number;
 
     /**
-     * 解析后的直接依赖包名（dpkg Depends 字段）
+     * 解析后的直接依赖名（dpkg Depends 字段）
      */
     "depList": string[] | null;
 }

@@ -200,6 +200,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /collect/packages", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
 		return c.CollectPackages("local", local)
 	}))
+	mux.HandleFunc("GET /collect/package-depends", s.collect(func(c *monitor.Collector, q url.Values) (any, error) {
+		return c.CollectPackageDepends("local", local, q.Get("name"))
+	}))
 	mux.HandleFunc("GET /collect/runtimes", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
 		return c.CollectRuntimes("local", local)
 	}))

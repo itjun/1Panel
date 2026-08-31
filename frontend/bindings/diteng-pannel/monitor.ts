@@ -88,6 +88,13 @@ export function CollectOverview(host: string): $CancellablePromise<monitor$0.Ove
 }
 
 /**
+ * CollectPackageDepends 单个软件包的直接依赖名列表（按需查询，兼容旧 agent 列表无 depList）
+ */
+export function CollectPackageDepends(host: string, pkgName: string): $CancellablePromise<string[] | null> {
+    return $Call.ByID(2129095583, host, pkgName);
+}
+
+/**
  * CollectPackages apt 包列表（重查询）
  */
 export function CollectPackages(host: string): $CancellablePromise<monitor$0.AptPackage[] | null> {

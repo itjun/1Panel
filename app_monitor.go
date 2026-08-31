@@ -233,6 +233,17 @@ func (s *Monitor) CollectPackages(host string) ([]monitor.AptPackage, error) {
 	return v, err
 }
 
+// CollectPackageDepends 单个软件包的直接依赖名列表（按需查询，兼容旧 agent 列表无 depList）
+func (s *Monitor) CollectPackageDepends(host, pkgName string) ([]string, error) {
+	cli, err := s.agentClient(host)
+	if err != nil {
+		return nil, err
+	}
+	var v []string
+	err = cli.GetJSON(context.Background(), "/collect/package-depends?"+q("name", pkgName), &v, true)
+	return v, err
+}
+
 // ============ 文件浏览（只读） ============
 
 // GetHomeDir 返回远程登录用户的家目录（$HOME）。
