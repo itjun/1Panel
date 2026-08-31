@@ -27,6 +27,14 @@ const (
 	keepaliveMaxMissed = 3                // 连续无响应次数，超过判死关闭连接
 )
 
+// 终端独立连接的激进心跳：尽快发现网络断开，促使前端自动重连
+// 体验优先：约 2 次失败 ≈ 6s 内判死，不与连接池共用较松的参数
+const (
+	termKeepaliveInterval  = 3 * time.Second
+	termKeepaliveTimeout   = 2 * time.Second
+	termKeepaliveMaxMissed = 2
+)
+
 // errKeepaliveTimeout 标识单次心跳超时
 var errKeepaliveTimeout = errors.New("keepalive timeout")
 
@@ -104,11 +112,47 @@ func (m *Manager) GetClient(host string, opt ConnectOption) (*ssh.Client, error)
 	return m.Get(host, opt)
 }
 
-// DialNew 建立一条独立 SSH 连接（不进连接池、不 keepalive）。
+// DialNew 建立一条独立 SSH 连接（不进连接池）。
 // 供终端 PTY 等需要与面板采集隔离的长会话使用，避免共享连接时互相反压。
 // 调用方负责在会话结束时 Close 释放连接。
 func (m *Manager) DialNew(opt ConnectOption) (*ssh.Client, error) {
 	return m.dial(opt)
+}
+
+// DialNewKeepalive 建立独立 SSH 连接并启动激进心跳。
+// 心跳连续失败会 Close 连接，促使终端 session.Wait 返回 error，前端据此自动重连。
+// 返回的 cancel 用于会话正常关闭时停止心跳；调用方仍负责 Close client。
+func (m *Manager) DialNewKeepalive(opt ConnectOption) (*ssh.Client, context.CancelFunc, error) {
+	client, err := m.dial(opt)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go keepaliveStandalone(client, ctx)
+	return client, cancel, nil
+}
+
+// keepaliveStandalone 终端专用心跳：不碰连接池，失败则关连接。
+func keepaliveStandalone(client *ssh.Client, ctx context.Context) {
+	ticker := time.NewTicker(termKeepaliveInterval)
+	defer ticker.Stop()
+	missed := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := sendKeepaliveWithTimeout(client, termKeepaliveTimeout); err != nil {
+				missed++
+				if missed >= termKeepaliveMaxMissed {
+					_ = client.Close()
+					return
+				}
+			} else {
+				missed = 0
+			}
+		}
+	}
 }
 
 // Dial 经 host 的 SSH 连接建立 direct-tcpip 通道，返回等效的 TCP 连接。
@@ -198,6 +242,10 @@ func (m *Manager) keepaliveLoop(host string, client *ssh.Client, ctx context.Con
 
 // sendKeepalive 发一次 keepalive@openssh.com 请求；带超时，避免半开连接永久阻塞。
 func sendKeepalive(client *ssh.Client) error {
+	return sendKeepaliveWithTimeout(client, keepaliveTimeout)
+}
+
+func sendKeepaliveWithTimeout(client *ssh.Client, timeout time.Duration) error {
 	done := make(chan error, 1)
 	go func() {
 		_, _, err := client.SendRequest("keepalive@openssh.com", true, nil)
@@ -206,7 +254,7 @@ func sendKeepalive(client *ssh.Client) error {
 	select {
 	case err := <-done:
 		return err
-	case <-time.After(keepaliveTimeout):
+	case <-time.After(timeout):
 		return errKeepaliveTimeout
 	}
 }
