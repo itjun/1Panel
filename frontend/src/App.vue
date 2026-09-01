@@ -39,7 +39,7 @@
         @dblclick="toggleMaximise"
         @contextmenu.prevent="openTitlebarMenu"
       >
-        <span class="titlebar-title no-drag">{{ titlebarTitle }}</span>
+        <span class="titlebar-title">{{ titlebarTitle }}</span>
         <div class="titlebar-tools no-drag" @dblclick.stop @contextmenu.stop>
           <el-dropdown trigger="click" @command="onAppTool">
             <el-button text class="titlebar-btn" title="应用">
