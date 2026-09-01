@@ -3,7 +3,7 @@
 package macui
 
 /*
-#cgo CFLAGS: -x objective-c -fobjc-arc -mmacosx-version-min=10.13
+#cgo CFLAGS: -x objective-c -fobjc-arc -mmacosx-version-min=13.0
 #cgo LDFLAGS: -framework AppKit -framework Foundation
 #import <AppKit/AppKit.h>
 #import <objc/runtime.h>
