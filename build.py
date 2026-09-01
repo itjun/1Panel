@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 
 APP_NAME = "1Pannel"
 BIN_DIR = "bin"
@@ -40,6 +41,36 @@ CLEAN_PATHS = [
 AGENTRES_BIN = "internal/agentres/bin"
 
 
+
+# 阶段耗时记录：(阶段名, 秒)，构建结束后汇总输出
+STAGE_TIMES = []
+
+
+@contextmanager
+def stage(name):
+    """计时所包裹的构建阶段，结束时记录耗时"""
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        STAGE_TIMES.append((name, time.perf_counter() - start))
+
+
+def print_stage_report():
+    """输出各阶段耗时与占总耗时的比例"""
+    total = sum(sec for _, sec in STAGE_TIMES)
+    print()
+    print("======================================")
+    print(f"  阶段耗时统计（总计 {total:.1f}s）")
+    print("======================================")
+    for name, sec in STAGE_TIMES:
+        # 中文名按 2 列宽计算，补空格让表格对齐
+        width = sum(2 if ord(c) > 0x2E80 else 1 for c in name)
+        name = name + " " * (16 - width)
+        pct = sec / total * 100 if total else 0.0
+        print(f"  {name}{sec:6.1f}s  {pct:5.1f}%")
+
+
 def clean():
     print("==> 清理旧构建产物与缓存")
     for path in CLEAN_PATHS:
@@ -59,20 +90,24 @@ def clean():
 
 
 def build():
-    clean()
-    print("==> [1/2] 编译内嵌 agent 产物")
-    print("==> wails3 task agent:build")
-    subprocess.run(["wails3", "task", "agent:build"], check=True)
+    with stage("清理旧产物"):
+        clean()
+    with stage("编译 agent"):
+        print("==> [1/2] 编译内嵌 agent 产物")
+        print("==> wails3 task agent:build")
+        subprocess.run(["wails3", "task", "agent:build"], check=True)
     if IS_WINDOWS:
         # Windows 分发形态是裸 exe（README：CI 同样用 windows:build + zip），
         # package 走 NSIS 安装器，非本脚本目标
-        print(f"==> [2/2] 编译前端 + Go，产出 {WIN_EXE}")
-        print("==> wails3 task windows:build")
-        subprocess.run(["wails3", "task", "windows:build"], check=True)
+        with stage("编译前端与 Go"):
+            print(f"==> [2/2] 编译前端 + Go，产出 {WIN_EXE}")
+            print("==> wails3 task windows:build")
+            subprocess.run(["wails3", "task", "windows:build"], check=True)
     else:
-        print(f"==> [2/2] 编译前端 + Go，打包 {APP_BUNDLE}")
-        print("==> wails3 task package")
-        subprocess.run(["wails3", "task", "package"], check=True)
+        with stage("编译前端与 Go"):
+            print(f"==> [2/2] 编译前端 + Go，打包 {APP_BUNDLE}")
+            print("==> wails3 task package")
+            subprocess.run(["wails3", "task", "package"], check=True)
 
 
 def stop_running():
@@ -134,25 +169,32 @@ def main():
         choice = input("请选择 [1/2]: ").strip()
 
     if choice == "1":
-        stop_running()
+        with stage("停止旧进程"):
+            stop_running()
         build()
-        if IS_WINDOWS:
-            launch_win()
-        else:
-            launch_mac(APP_BUNDLE)
+        with stage("启动应用"):
+            if IS_WINDOWS:
+                launch_win()
+            else:
+                launch_mac(APP_BUNDLE)
     elif choice == "2":
         if IS_WINDOWS:
             # Windows 没有 /Applications 概念，应用即 bin/ 下单个 exe
             print("选项 2（覆盖安装到 /Applications）仅 macOS 支持；Windows 直接运行选项 1 即可", file=sys.stderr)
             sys.exit(1)
-        stop_running()
+        with stage("停止旧进程"):
+            stop_running()
         build()
-        stop_running()
-        install()
-        launch_mac(INSTALL_DIR)
+        with stage("停止旧进程"):
+            stop_running()
+        with stage("覆盖安装"):
+            install()
+        with stage("启动应用"):
+            launch_mac(INSTALL_DIR)
     else:
         print(f"无效选择: {choice}（可选 1 或 2）", file=sys.stderr)
         sys.exit(1)
+    print_stage_report()
 
 
 if __name__ == "__main__":

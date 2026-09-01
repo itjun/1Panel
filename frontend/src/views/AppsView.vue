@@ -546,17 +546,19 @@ onBeforeUnmount(stopTimer);
   align-items: center;
   justify-content: center;
 }
-:deep(.deploy-latest-row) {
-  td:first-child {
-    box-shadow: inset 3px 0 0 var(--m3-primary);
-  }
-  td {
-    background: color-mix(in srgb, var(--m3-primary) 12%, var(--m3-surface-container-lowest)) !important;
-  }
+:deep(.deploy-latest-row > td.el-table__cell) {
+  background: var(--m3-primary-container) !important;
+}
+:deep(.deploy-latest-row > td.el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 var(--m3-primary);
+}
+:deep(.el-table--enable-row-hover .el-table__body .deploy-latest-row:hover > td.el-table__cell),
+:deep(.el-table__body .deploy-latest-row.current-row > td.el-table__cell) {
+  background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-primary-container)) !important;
 }
 .latest-highlight {
   font-weight: 600;
-  color: var(--m3-primary);
+  color: var(--m3-on-primary-container);
 }
 .page-alert {
   margin-bottom: 4px;
