@@ -7,26 +7,34 @@
           共 {{ hosts.length }} 台 · 已打开 {{ openedCount }} · 双击主机打开
         </span>
         <div class="page-toolbar__actions group-stats">
-          <el-tag size="small" type="success" effect="light">
+          <el-tag
+            round
+            effect="light"
+            type="success"
+            class="group-stat-chip"
+          >
             正常 {{ okCount }}
           </el-tag>
           <el-tag
             v-if="alertCount > 0"
-            size="small"
-            type="danger"
+            round
             effect="light"
+            type="warning"
+            class="group-stat-chip"
           >
             告警 {{ alertCount }}
           </el-tag>
           <el-tag
             v-if="errCount > 0"
-            size="small"
-            type="danger"
+            round
             effect="light"
+            type="danger"
+            class="group-stat-chip"
           >
             失败 {{ errCount }}
           </el-tag>
           <el-button
+            class="group-toolbar-btn"
             :loading="batchBusy"
             :disabled="!hosts.length || agentInstall.running"
             title="勾选主机后仅安装选中项；未勾选则安装本组全部"
@@ -35,6 +43,7 @@
             {{ selectedHosts.length ? `安装 Agent (${selectedHosts.length})` : "安装 Agent" }}
           </el-button>
           <el-button
+            class="group-toolbar-btn"
             :icon="Refresh"
             :loading="refreshing"
             @click="refreshAll"
@@ -44,7 +53,7 @@
         </div>
       </div>
 
-      <div class="host-list-wrap">
+      <div class="host-list-wrap m3-table-surface">
         <el-table
           ref="tableRef"
           :data="hosts"
@@ -56,13 +65,14 @@
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
         >
           <el-table-column type="selection" width="44" fixed />
-          <el-table-column label="状态" width="78" fixed>
+          <el-table-column label="状态" width="88" fixed>
             <template #default="{ row }">
               <el-tag
                 size="small"
-                :type="statusTagType(row.name)"
-                effect="light"
                 round
+                effect="light"
+                :type="statusTagType(row.name)"
+                class="group-status-chip"
               >
                 {{ statusLabel(row.name) }}
               </el-tag>
@@ -122,8 +132,10 @@
               <el-tag
                 v-else
                 size="small"
+                round
+                effect="light"
                 :type="agentTagOf(row.name).type as any"
-                effect="plain"
+                class="group-status-chip"
               >
                 {{ agentTagOf(row.name).text }}
               </el-tag>
@@ -239,18 +251,43 @@
       :close-on-click-modal="false"
       :close-on-press-escape="batchDone"
       :show-close="batchDone"
-      class="m3-form-dialog agent-batch-dialog"
+      class="agent-batch-dialog"
       @closed="onBatchDialogClosed"
     >
+      <p v-if="batchRows.length" class="batch-summary">
+        {{ batchSummaryText }}
+      </p>
       <div class="batch-progress-list">
-        <div v-for="r in batchRows" :key="r.host" class="batch-progress-row">
-          <span class="batch-host mono">{{ r.host }}</span>
-          <div class="batch-meta">
-            <span class="batch-label" :class="'is-' + r.state">{{ batchRowLabel(r) }}</span>
+        <div
+          v-for="r in batchRows"
+          :key="r.host"
+          class="batch-progress-row"
+          :class="'is-' + r.state"
+        >
+          <div class="batch-status-icon" aria-hidden="true">
+            <el-icon v-if="r.state === 'running'" class="is-loading">
+              <Loading />
+            </el-icon>
+            <el-icon v-else-if="r.state === 'done'">
+              <CircleCheck />
+            </el-icon>
+            <el-icon v-else-if="r.state === 'error'">
+              <CircleClose />
+            </el-icon>
+            <el-icon v-else>
+              <Clock />
+            </el-icon>
+          </div>
+          <div class="batch-row-body">
+            <div class="batch-row-head">
+              <span class="batch-host mono">{{ r.host }}</span>
+              <span class="batch-label" :class="'is-' + r.state">{{ batchRowLabel(r) }}</span>
+            </div>
             <el-progress
               v-if="r.state === 'running' && r.percent >= 0"
               :percentage="r.percent"
               :stroke-width="4"
+              :show-text="false"
               class="batch-upload-bar"
             />
           </div>
@@ -260,7 +297,12 @@
         <p v-if="!batchDone" class="batch-running-hint">
           正在安装，请稍候…（全部主机并行）
         </p>
-        <el-button v-else type="primary" @click="batchDialogVisible = false">
+        <el-button
+          v-else
+          type="primary"
+          class="batch-done-btn"
+          @click="batchDialogVisible = false"
+        >
           完成
         </el-button>
       </template>
@@ -277,7 +319,14 @@ import {
   ref,
   watch,
 } from "vue";
-import { Refresh, WarningFilled } from "@element-plus/icons-vue";
+import {
+  CircleCheck,
+  CircleClose,
+  Clock,
+  Loading,
+  Refresh,
+  WarningFilled,
+} from "@element-plus/icons-vue";
 import {
   ElMessageBox,
   ElNotification,
@@ -602,9 +651,11 @@ function statusLabel(name: string): string {
   return "正常";
 }
 
-function statusTagType(name: string): "success" | "danger" {
+function statusTagType(name: string): "success" | "warning" | "danger" | "info" {
   const s = hostState(name);
-  if (!s.overview || s.error || isHostAlert(s)) return "danger";
+  if (s.error) return "danger";
+  if (!s.overview) return "info";
+  if (isHostAlert(s)) return "warning";
   return "success";
 }
 
@@ -709,6 +760,19 @@ const batchRowMap = computed(() => {
   const m: Record<string, BatchRow> = {};
   for (const r of batchRows.value) m[r.host] = r;
   return m;
+});
+
+const batchSummaryText = computed(() => {
+  const total = batchRows.value.length;
+  const done = batchRows.value.filter((r) => r.state === "done").length;
+  const err = batchRows.value.filter((r) => r.state === "error").length;
+  if (!batchDone.value) {
+    return `进行中 ${done + err}/${total} · 全部主机并行`;
+  }
+  if (err > 0) {
+    return `完成 ${done}/${total} · ${err} 台失败`;
+  }
+  return `全部 ${total} 台安装完成`;
 });
 
 let offBatchProgress: (() => void) | null = null;
@@ -1006,9 +1070,9 @@ const MetricCell = defineComponent({
         return h("div", { class: "list-metric" }, [
           h("div", { class: "list-metric-bar" }, h(ElProgress, {
             percentage: Math.min(100, Math.max(0, value || 0)),
-            strokeWidth: 8,
+            strokeWidth: 4,
             showText: false,
-            color: alert ? "var(--el-color-danger)" : "var(--el-color-primary)",
+            color: alert ? "var(--m3-error)" : "var(--m3-primary)",
           })),
           h("div", { class: "list-metric-nums" }, [
             h("span", { class: ["list-metric-val", alert ? "is-alert" : ""] }, display),
@@ -1034,6 +1098,49 @@ startPoll();
 
 .group-stats {
   gap: 8px;
+}
+
+/* 工具栏操作：统一 32px 满圆角 outlined，避免图标按钮与文字按钮高低不一 */
+.group-toolbar-btn {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 16px !important;
+  border-radius: var(--m3-shape-full) !important;
+  font: var(--m3-label-large) !important;
+  font-weight: 500 !important;
+  background: var(--m3-surface-container-lowest);
+  border-color: var(--m3-outline-variant);
+  color: var(--m3-primary);
+
+  &:hover,
+  &:focus {
+    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+    border-color: var(--m3-outline);
+    color: var(--m3-primary);
+  }
+
+  :deep(.el-icon) {
+    font-size: 16px;
+  }
+}
+
+.group-stat-chip {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 16px !important;
+  border-radius: var(--m3-shape-full) !important;
+  font: var(--m3-label-large) !important;
+  font-weight: 500 !important;
+  line-height: 30px !important;
+  box-sizing: border-box;
+}
+
+.group-status-chip {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--m3-shape-full) !important;
+  font: var(--m3-label-medium);
+  font-weight: 500;
 }
 
 .host-list-wrap {
@@ -1066,6 +1173,15 @@ startPoll();
       var(--m3-error) 12%,
       var(--m3-surface-container-lowest)
     ) !important;
+  }
+
+  :deep(.list-metric-bar .el-progress-bar__outer) {
+    background: var(--m3-surface-container-highest) !important;
+    border-radius: var(--m3-shape-full);
+  }
+
+  :deep(.list-metric-bar .el-progress-bar__inner) {
+    border-radius: var(--m3-shape-full);
   }
 }
 
@@ -1183,27 +1299,140 @@ startPoll();
   font-size: 13px;
 }
 
-.agent-batch-dialog {
+/* append-to-body：弹窗外壳与列表需非 scoped 才能压过 EP 默认 */
+.agent-batch-dialog.el-dialog {
+  padding: 24px;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--m3-shape-xl) !important;
+  background: var(--m3-surface-container-lowest) !important;
+  box-shadow: var(--m3-elevation-3) !important;
+
+  .el-dialog__header {
+    padding: 0 0 16px;
+    margin: 0;
+  }
+
+  .el-dialog__title {
+    font: var(--m3-headline-small) !important;
+    font-weight: 500 !important;
+    color: var(--m3-on-surface) !important;
+  }
+
+  .el-dialog__headerbtn {
+    top: 8px;
+    right: 8px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .el-dialog__body {
+    padding: 0;
+  }
+
+  .el-dialog__footer {
+    padding: 20px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .batch-summary {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    border-radius: var(--m3-shape-m);
+    background: var(--m3-surface-container);
+    font: var(--m3-body-small);
+    color: var(--m3-on-surface-variant);
+    line-height: 1.45;
+  }
+
   .batch-progress-list {
     display: flex;
     flex-direction: column;
+    gap: 8px;
     max-height: min(52vh, 420px);
     overflow: auto;
+    padding-right: 2px;
   }
+
   .batch-progress-row {
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    min-height: 40px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--m3-outline-variant);
-    &:last-child {
-      border-bottom: none;
+    padding: 12px 14px;
+    border-radius: var(--m3-shape-m);
+    background: var(--m3-surface-container-low);
+    transition: background-color var(--m3-motion-state);
+
+    &.is-running {
+      background: color-mix(
+        in srgb,
+        var(--m3-primary) 6%,
+        var(--m3-surface-container-low)
+      );
+    }
+
+    &.is-done {
+      background: color-mix(
+        in srgb,
+        var(--m3-primary) 4%,
+        var(--m3-surface-container-low)
+      );
+    }
+
+    &.is-error {
+      background: var(--m3-error-container);
     }
   }
-  .batch-host {
+
+  .batch-status-icon {
     flex-shrink: 0;
-    width: 140px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+
+    .el-icon {
+      font-size: 18px;
+      color: var(--m3-on-surface-variant);
+    }
+
+    .is-loading {
+      color: var(--m3-primary);
+    }
+  }
+
+  .batch-progress-row.is-done .batch-status-icon .el-icon {
+    color: var(--m3-primary);
+  }
+
+  .batch-progress-row.is-error .batch-status-icon .el-icon {
+    color: var(--m3-error);
+  }
+
+  .batch-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .batch-row-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .batch-host {
+    flex: 1;
+    min-width: 0;
     font: var(--m3-label-large);
     font-weight: 500;
     color: var(--m3-on-surface);
@@ -1211,37 +1440,59 @@ startPoll();
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .batch-meta {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
+
   .batch-label {
+    flex-shrink: 0;
+    max-width: 52%;
     font: var(--m3-body-small);
     color: var(--m3-on-surface-variant);
+    text-align: right;
     word-break: break-word;
+
     &.is-running {
       color: var(--m3-primary);
+      font-weight: 500;
     }
+
     &.is-done {
       color: var(--m3-primary);
     }
+
     &.is-error {
       color: var(--m3-error);
     }
   }
+
   .batch-upload-bar {
     width: 100%;
-    max-width: 280px;
   }
+
+  .el-progress-bar__outer {
+    background: var(--m3-surface-container-highest) !important;
+    border-radius: var(--m3-shape-full);
+  }
+
+  .el-progress-bar__inner {
+    border-radius: var(--m3-shape-full);
+    background: var(--m3-primary) !important;
+  }
+
   .batch-running-hint {
     margin: 0;
     flex: 1;
     text-align: left;
     font: var(--m3-body-small);
     color: var(--m3-on-surface-variant);
+    line-height: 1.45;
+  }
+
+  .batch-done-btn {
+    min-width: 88px;
+    height: 40px;
+    padding: 0 24px;
+    border-radius: var(--m3-shape-full);
+    font: var(--m3-label-large);
+    font-weight: 500;
   }
 }
 </style>
