@@ -49,7 +49,7 @@
               <span v-else>{{ row.port || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="deployVer" label="部署版本" width="110">
+          <el-table-column prop="deployVer" label="部署版本" width="110" show-overflow-tooltip>
             <template #default="{ row }">
               <span
                 v-if="row.deployVer && isLatestDeploy(row.deployVer, sec.latestDeployVer)"
