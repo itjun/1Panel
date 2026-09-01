@@ -146,36 +146,30 @@
               {{ row.user || "—" }}
             </template>
           </el-table-column>
-          <el-table-column label="系统" min-width="120" show-overflow-tooltip>
+          <el-table-column label="版本" min-width="120" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="hostState(row.name).error">—</template>
-              <div v-else class="list-os-cell">
-                <DistroLogo
-                  :os-release="hostState(row.name).overview?.osRelease || ''"
-                  :size="16"
-                />
-                <span>{{
-                  shortOs(hostState(row.name).overview?.osRelease || "") || "Linux"
-                }}</span>
-              </div>
+              <span v-else class="mono">{{
+                osVersion(hostState(row.name).overview?.osRelease || "") || "—"
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="CPU 核" width="78" align="right">
+          <el-table-column label="规格" min-width="110" show-overflow-tooltip>
             <template #default="{ row }">
-              <MetricCell
-                :snap="hostState(row.name)"
-                field="cpuCount"
-                :fallback="0"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="内存总量" width="100" align="right">
-            <template #default="{ row }">
-              <MetricCell
-                :snap="hostState(row.name)"
-                field="memTotal"
-                :format="formatBytes"
-              />
+              <el-skeleton
+                v-if="hostState(row.name).loading && !hostState(row.name).overview"
+                :rows="1"
+                animated
+                style="width: 80%"
+              >
+                <template #template>
+                  <el-skeleton-item variant="text" style="width: 100%" />
+                </template>
+              </el-skeleton>
+              <template v-else-if="hostState(row.name).error || !hostState(row.name).overview"
+                >—</template
+              >
+              <span v-else class="mono">{{ hostSpec(hostState(row.name).overview!) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="CPU" min-width="150">
@@ -340,7 +334,7 @@ import { Events } from "@wailsio/runtime";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 import { useSettingsStore } from "@/stores/settings";
-import { formatBytes, formatErr, isAgentMissing } from "@/utils/format";
+import { formatBytes, formatErr, formatMemCapacity, isAgentMissing } from "@/utils/format";
 import {
   ALERT,
   diskLowMessage,
@@ -435,7 +429,13 @@ function diskPercent(disks?: monitor.DiskInfo[]): number {
 
 function memUsage(ov: monitor.Overview | undefined): string {
   if (!ov) return "—";
-  return `${formatBytes(ov.memUsed || 0)} / ${formatBytes(ov.memTotal || 0)}`;
+  return `${formatBytes(ov.memUsed || 0)} / ${formatMemCapacity(ov.memTotal || 0)}`;
+}
+
+/** 规格：如「8核32G」 */
+function hostSpec(ov: monitor.Overview): string {
+  const cores = ov.cpuCount || 0;
+  return `${cores}核${formatMemCapacity(ov.memTotal || 0)}`;
 }
 
 function diskUsage(disks?: monitor.DiskInfo[]): string | undefined {
@@ -665,11 +665,18 @@ function tableRowClass({ row }: { row: sshconfig.HostConfig }) {
   return "host-list-row";
 }
 
-function shortOs(osRelease: string): string {
+/** 从 PRETTY_NAME 抽出版本号（主机列已有发行版图标，此处不重复系统名） */
+function osVersion(osRelease: string): string {
   const s = (osRelease || "").trim();
   if (!s) return "";
-  const m = s.match(/^([A-Za-z]+)/);
-  return m ? m[1] : s.slice(0, 16);
+  // "Ubuntu 22.04.5 LTS" / "Debian GNU/Linux 12 (bookworm)" / "Alpine Linux v3.20"
+  const ver = s.match(/\bv?\d+(?:\.\d+)+(?:\.\d+)?(?:\s+LTS)?\b/i);
+  if (ver) {
+    return ver[0].replace(/^v/i, "");
+  }
+  // 无数字版本时退回去掉发行版名的尾部，避免整串空白
+  const stripped = s.replace(/^[A-Za-z][A-Za-z0-9+.\- ]*?\s+(?=\d|v\d|\()/i, "").trim();
+  return stripped || s;
 }
 
 // ---------- 轮询 ----------
@@ -1198,11 +1205,6 @@ startPoll();
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-.list-os-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 .mono {
   font-family: var(--m3-font-mono);

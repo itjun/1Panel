@@ -116,7 +116,7 @@
                         <div class="ring-pop-title">内存</div>
                         <div class="ring-pop-row">
                           <span>总量</span>
-                          <span class="num">{{ formatBytes(overview.memTotal) }}</span>
+                          <span class="num">{{ formatMemCapacity(overview.memTotal) }}</span>
                         </div>
                         <div class="ring-pop-row">
                           <span>已用</span>
@@ -162,7 +162,7 @@
                 </el-popover>
                 <div class="input-help">
                   {{ formatBytes(overview.memUsed) }} /
-                  {{ formatBytes(overview.memTotal) }}
+                  {{ formatMemCapacity(overview.memTotal) }}
                 </div>
               </el-col>
               <el-col :span="6" align="center">
@@ -525,6 +525,7 @@ import {
   bytesToKBps,
   formatBytes,
   formatDurationLong,
+  formatMemCapacity,
 } from "@/utils/format";
 import {
   ALERT,

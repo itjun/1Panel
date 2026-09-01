@@ -22,6 +22,26 @@ export function formatBytes(bytes: number, decimals = 1): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
 }
 
+/**
+ * 内存装机标识容量：Linux MemTotal 常略小于铭牌（BIOS/设备预留）。
+ * 按 1024 进制算 GiB 后，取「不小于实测、且偏差 ≤12%」的最小常见档位（如 31.3 → 32G）。
+ */
+export function formatMemCapacity(bytes: number): string {
+  if (!bytes || bytes <= 0) return "0G";
+  const gib = bytes / (1024 * 1024 * 1024);
+  const common = [
+    1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024,
+  ];
+  for (const c of common) {
+    if (c + 1e-9 < gib) continue;
+    if ((c - gib) / c <= 0.12) {
+      return `${c}G`;
+    }
+  }
+  // 已超过最大档或偏差过大：回退精确值
+  return formatBytes(bytes);
+}
+
 /** 进程运行时长等短格式：12s / 5m / 2.1h / 1.5d */
 export function formatDuration(seconds: number): string {
   if (!seconds || seconds <= 0) return "0s";
