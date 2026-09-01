@@ -514,6 +514,14 @@ body,
     padding: 8px 12px;
   }
 
+  // 数据行单元格一律单行显示，超长省略号截断
+  // （EP 默认 .cell 是 normal 会折行；需要看全文的列配合 show-overflow-tooltip）
+  .el-table__body td .cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .el-table__header th {
     height: var(--m3-table-header-height, 44px);
     font: var(--m3-title-small);
@@ -524,6 +532,8 @@ body,
 
   .el-table__header .cell {
     font-weight: 600;
+    // 表头一律单行（窄列下"端口/状态"等二字标题不折行）
+    white-space: nowrap;
   }
 
   .el-table__row {
