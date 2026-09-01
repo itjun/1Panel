@@ -26,7 +26,7 @@
           highlight-current-row
           class="data-table-unified"
           :show-header="secIdx === 0"
-          :row-class-name="(p) => instRowClass(sec.latestDeployVer, p.row)"
+          :row-class-name="(p) => instRowClass(latestDeployVer, p.row)"
           @row-click="onInstRowClick"
         >
           <el-table-column type="index" label="#" width="48" align="center" />
@@ -41,7 +41,7 @@
           <el-table-column prop="port" label="端口" width="72" align="center">
             <template #default="{ row }">
               <span
-                v-if="row.port && isLatestDeploy(row.deployVer || '', sec.latestDeployVer)"
+                v-if="row.port && isLatestDeploy(row.deployVer || '', latestDeployVer)"
                 class="latest-highlight"
               >
                 {{ row.port }}
@@ -52,7 +52,7 @@
           <el-table-column prop="deployVer" label="部署版本" width="110" show-overflow-tooltip>
             <template #default="{ row }">
               <span
-                v-if="row.deployVer && isLatestDeploy(row.deployVer, sec.latestDeployVer)"
+                v-if="row.deployVer && isLatestDeploy(row.deployVer, latestDeployVer)"
                 class="latest-highlight"
               >
                 {{ row.deployVer }}
@@ -199,6 +199,16 @@ function isOnline(row: agentcli.JavaAppInstance) {
   return !!row.healthUp;
 }
 
+/** 已拉起进程（有 pid / 端口 / screen），空占位行不算启动 */
+function isAppStarted(row: agentcli.JavaAppInstance) {
+  return (row.pid || 0) > 0 || (row.port || 0) > 0 || !!row.processUp || !!(row.screen || "").trim();
+}
+
+/** 未启动或离线的实例点行不弹曲线卡 */
+function canOpenCharts(row: agentcli.JavaAppInstance) {
+  return !!row.service && isAppStarted(row) && isOnline(row);
+}
+
 /** 部署版本 YYMMDD_N，先比日期再比序号 */
 function compareDeployVer(a: string, b: string): number {
   if (!a && !b) return 0;
@@ -226,8 +236,10 @@ function isLatestDeploy(deployVer: string, latest: string): boolean {
 }
 
 function instRowClass(latestDeployVer: string, row: agentcli.JavaAppInstance): string {
-  if (isLatestDeploy(row.deployVer || "", latestDeployVer)) return "deploy-latest-row";
-  return "";
+  const parts: string[] = [];
+  if (isLatestDeploy(row.deployVer || "", latestDeployVer)) parts.push("deploy-latest-row");
+  if (!canOpenCharts(row)) parts.push("inst-stopped-row");
+  return parts.join(" ");
 }
 
 /** 实例表服务标识显示顺序（组内按此序，同服务按端口） */
@@ -321,24 +333,24 @@ const stdInstances = computed(() => sortInstances(tableRows.value.filter((r) => 
 const proInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "pro")));
 const otherInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "other")));
 
+/** 整机只取一个最新部署版本（workspace 目录 YYMMDD_N），不按分组各自取 */
+const latestDeployVer = computed(() => latestDeployVerInRows(tableRows.value));
+
 const instanceSections = computed(() =>
   [
     { key: "std", title: "标准版服务", rows: stdInstances.value },
     { key: "pro", title: "私有化服务", rows: proInstances.value },
     { key: "other", title: "探活服务", rows: otherInstances.value },
-  ]
-    .filter((s) => s.rows.length > 0)
-    .map((s) => ({
-      ...s,
-      latestDeployVer: latestDeployVerInRows(s.rows),
-    }))
+  ].filter((s) => s.rows.length > 0)
 );
 function onInstRowClick(row: agentcli.JavaAppInstance) {
-  if (row.service) openCharts(row.service);
+  if (!canOpenCharts(row)) return;
+  openCharts(row);
 }
 
-function openCharts(service: string) {
-  if (!service) return;
+function openCharts(row: agentcli.JavaAppInstance) {
+  if (!canOpenCharts(row)) return;
+  const service = row.service;
   if (selected.value === service) {
     chartsOpen.value = true;
     loadDetail();
@@ -538,8 +550,11 @@ onBeforeUnmount(stopTimer);
   min-height: 0;
   overflow: auto;
 }
-:deep(.data-table-unified) {
+:deep(.data-table-unified .el-table__row) {
   cursor: pointer;
+}
+:deep(.data-table-unified .inst-stopped-row) {
+  cursor: default;
 }
 :deep(.data-table-unified .el-table__cell.is-center .cell) {
   display: flex;
