@@ -32,5 +32,35 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    // element-plus / echarts 单库压缩后仍约 570KB+，拆包后主入口已 <300KB；阈值略抬到 vendor 实况
+    chunkSizeWarningLimit: 600,
+    // 桌面端整包本地加载，但仍拆大 vendor，避免单 chunk 过大并利于缓存
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) {
+            return;
+          }
+          if (id.includes("element-plus") || id.includes("@element-plus")) {
+            return "element-plus";
+          }
+          if (id.includes("echarts")) {
+            return "echarts";
+          }
+          if (id.includes("@xterm") || id.includes("/xterm/")) {
+            return "xterm";
+          }
+          if (
+            id.includes("/vue/") ||
+            id.includes("vue-router") ||
+            id.includes("/pinia/") ||
+            id.includes("@vue/")
+          ) {
+            return "vue-vendor";
+          }
+          return "vendor";
+        },
+      },
+    },
   },
 });
