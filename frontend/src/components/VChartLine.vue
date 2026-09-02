@@ -13,18 +13,33 @@
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from "vue";
 import echarts from "@/utils/echarts";
 import { useChartVisibility } from "@/composables/useChartVisibility";
-import { formatBytes, formatRateKBps } from "@/utils/format";
+import {
+  formatBytes,
+  formatRateKBps,
+  formatScaledBytes,
+  pickByteScale,
+} from "@/utils/format";
+
+export type LineUnit = "bytes" | "rate" | "raw";
+
+export interface LineSeries {
+  name: string;
+  data: (number | null)[];
+  /** 覆盖 option.unit，用于混轴（如 CPU% + 内存字节） */
+  unit?: LineUnit;
+  yAxisIndex?: number;
+}
 
 export interface LineOption {
   xData: string[];
-  yData: { name: string; data: (number | null)[] }[];
+  yData: LineSeries[];
   formatStr?: string;
   /**
-   * tooltip 数值格式化策略：
+   * tooltip / 默认 Y 轴格式化：
    * - 默认（不传）：用 formatRateKBps，适合网卡速率（KB/s）
-   * - "bytes"：把原始值当字节，格式化为 B/KB/MB/GB，适合内存/堆
+   * - "bytes"：原始值当字节；Y 轴按数据最大值自动换成 B/KB/MB/GB
    */
-  unit?: "bytes" | "rate" | "raw";
+  unit?: LineUnit;
   /** 与 xData 标签对齐的垂线（探活/进程事件） */
   markLines?: { name: string; x: string }[];
 }
@@ -80,10 +95,12 @@ function initChart() {
     props.option.xData?.length > 0
       ? props.option.xData
       : Array.from({ length: 20 }, () => "");
-  const series = (props.option.yData || []).map((item, index) => ({
+  const yData = props.option.yData || [];
+  const series = yData.map((item, index) => ({
     name: item.name,
     type: "line" as const,
     showSymbol: false,
+    yAxisIndex: item.yAxisIndex || 0,
     lineStyle: { width: 1.5 },
     itemStyle: { color: seriesColor(index) },
     areaStyle: {
@@ -108,6 +125,50 @@ function initChart() {
         : undefined,
   }));
 
+  const splitLine = {
+    lineStyle: {
+      type: "dashed" as const,
+      opacity: isDark() ? 0.1 : 1,
+      color: borderColor,
+    },
+  };
+
+  const yAxisBase = (axisSeries: LineSeries[], hideSplit?: boolean) => {
+    const bytesOnly =
+      axisSeries.length > 0 &&
+      axisSeries.every((s) => (s.unit || props.option.unit) === "bytes");
+    if (bytesOnly) {
+      const scale = pickByteScale(maxSeriesValue(axisSeries));
+      return {
+        name: `( ${scale.unit} )`,
+        nameTextStyle: { color: secondaryText },
+        axisLabel: {
+          color: secondaryText,
+          formatter: (v: number | string) =>
+            formatScaledBytes(Number(v), scale.divisor),
+        },
+        splitLine: hideSplit ? { show: false } : splitLine,
+      };
+    }
+    return {
+      name: `( ${props.option.formatStr || "KB/s"} )`,
+      nameTextStyle: { color: secondaryText },
+      axisLabel: { color: secondaryText },
+      splitLine: hideSplit ? { show: false } : splitLine,
+    };
+  };
+
+  const dual = yData.some((s) => (s.yAxisIndex || 0) === 1);
+  const yAxis = dual
+    ? [
+        yAxisBase(yData.filter((s) => (s.yAxisIndex || 0) === 0)),
+        yAxisBase(
+          yData.filter((s) => (s.yAxisIndex || 0) === 1),
+          true
+        ),
+      ]
+    : yAxisBase(yData);
+
   chart.setOption(
     {
       tooltip: {
@@ -120,10 +181,12 @@ function initChart() {
           let res = datas[0].name + "<br/>";
           for (const item of datas) {
             const n = typeof item.data === "number" ? item.data : 0;
+            const s = yData[item.seriesIndex as number];
+            const unit = s?.unit || props.option.unit;
             const formatted =
-              props.option.unit === "bytes"
+              unit === "bytes"
                 ? formatBytes(n)
-                : props.option.unit === "raw"
+                : unit === "raw"
                   ? String(Math.round(n * 10) / 10)
                   : formatRateKBps(n);
             res +=
@@ -140,7 +203,7 @@ function initChart() {
       grid: { left: 65, right: 65, bottom: "12%", top: 36 },
       legend: {
         top: 0,
-        right: 65,
+        ...(dual ? { left: "center" } : { right: 65 }),
         itemWidth: 8,
         icon: "circle",
         textStyle: { color: regularText },
@@ -153,22 +216,21 @@ function initChart() {
         axisLabel: { color: secondaryText },
         axisLine: { lineStyle: { color: borderColor } },
       },
-      yAxis: {
-        name: `( ${props.option.formatStr || "KB/s"} )`,
-        nameTextStyle: { color: secondaryText },
-        axisLabel: { color: secondaryText },
-        splitLine: {
-          lineStyle: {
-            type: "dashed",
-            opacity: isDark() ? 0.1 : 1,
-            color: borderColor,
-          },
-        },
-      },
+      yAxis,
       series,
     },
     true
   );
+}
+
+function maxSeriesValue(seriesList: LineSeries[]): number {
+  let max = 0;
+  for (const s of seriesList) {
+    for (const v of s.data || []) {
+      if (typeof v === "number" && Number.isFinite(v) && v > max) max = v;
+    }
+  }
+  return max;
 }
 
 // option 是 computed 每次返回新引用，浅比较足够

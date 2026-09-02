@@ -438,7 +438,6 @@ const isBun = computed(() => {
 const rssOption = computed<LineOption>(() => ({
   xData: jarPts.value.map((p) => timeLabel(p.ts)),
   yData: [{ name: "RSS", data: jarPts.value.map((p) => p.rss || 0) }],
-  formatStr: "B",
   unit: "bytes",
   markLines: marks.value,
 }));
@@ -456,7 +455,6 @@ const heapOption = computed<LineOption>(() => ({
     { name: "堆已用", data: jarPts.value.map((p) => p.heapUsed || 0) },
     { name: "RSS", data: jarPts.value.map((p) => p.rss || 0) },
   ],
-  formatStr: "B",
   unit: "bytes",
   markLines: marks.value,
 }));
@@ -475,9 +473,14 @@ const hostOption = computed<LineOption>(() => ({
   xData: hostPts.value.map((p) => timeLabel(p.ts)),
   yData: [
     { name: "主机 CPU%", data: hostPts.value.map((p) => p.cpuPercent || 0) },
-    { name: "主机内存", data: hostPts.value.map((p) => p.memUsed || 0) },
+    {
+      name: "主机内存",
+      data: hostPts.value.map((p) => p.memUsed || 0),
+      unit: "bytes",
+      yAxisIndex: 1,
+    },
   ],
-  formatStr: "对照",
+  formatStr: "%",
   unit: "raw",
 }));
 

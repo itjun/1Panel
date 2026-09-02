@@ -36,6 +36,8 @@ const {
   breadcrumbPath,
   parentDir,
   formatBytes,
+  pickByteScale,
+  formatScaledBytes,
   formatDuration,
   detectLineEnding,
   detectTextEncoding,
@@ -64,6 +66,21 @@ assert.strictEqual(formatBytes(0), "0 B");
 assert.match(formatBytes(1024), /KB/);
 assert.strictEqual(formatDuration(30), "30s");
 assert.match(formatDuration(120), /m/);
+
+// pickByteScale：Y 轴按最大值自动换单位（截图堆 ~1.8e9 → GB）
+assert.deepStrictEqual(pickByteScale(0), { unit: "B", divisor: 1 });
+assert.deepStrictEqual(pickByteScale(500), { unit: "B", divisor: 1 });
+assert.strictEqual(pickByteScale(1024).unit, "KB");
+assert.strictEqual(pickByteScale(1024 * 512).unit, "KB");
+assert.strictEqual(pickByteScale(1024 * 1024).unit, "MB");
+assert.strictEqual(pickByteScale(500 * 1024 * 1024).unit, "MB");
+assert.strictEqual(pickByteScale(1.8e9).unit, "GB");
+assert.strictEqual(pickByteScale(12e9).unit, "GB");
+assert.strictEqual(pickByteScale(1024 ** 4).unit, "TB");
+assert.strictEqual(formatScaledBytes(0, 1024 ** 3), "0");
+assert.strictEqual(formatScaledBytes(1.8e9, 1024 ** 3), "1.7");
+assert.strictEqual(formatScaledBytes(12e9, 1024 ** 3), "11.2");
+assert.strictEqual(formatScaledBytes(512 * 1024, 1024), "512");
 
 // line ending / encoding / split
 assert.strictEqual(detectLineEnding("a\nb\nc"), "LF");

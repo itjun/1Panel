@@ -14,12 +14,46 @@ export function isAgentMissing(err: unknown): boolean {
   return s.includes("agent 未安装") || s.includes("agent 不可达");
 }
 
+const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
+export type ByteUnit = (typeof BYTE_UNITS)[number];
+
 export function formatBytes(bytes: number, decimals = 1): string {
   if (!bytes || bytes <= 0) return "0 B";
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB", "PB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
+  const idx = Math.min(Math.max(i, 0), BYTE_UNITS.length - 1);
+  return `${parseFloat((bytes / Math.pow(k, idx)).toFixed(decimals))} ${BYTE_UNITS[idx]}`;
+}
+
+/**
+ * 按最大值挑一个统一字节单位，给折线 Y 轴用（整轴同一单位，避免刻度 1,800,000,000 B）。
+ * 空数据 / 不足 1 KB 时用 B。
+ */
+export function pickByteScale(maxBytes: number): { unit: ByteUnit; divisor: number } {
+  if (!Number.isFinite(maxBytes) || maxBytes < 1024) {
+    return { unit: "B", divisor: 1 };
+  }
+  const k = 1024;
+  let i = Math.floor(Math.log(maxBytes) / Math.log(k));
+  if (i < 0) i = 0;
+  if (i >= BYTE_UNITS.length) i = BYTE_UNITS.length - 1;
+  return { unit: BYTE_UNITS[i], divisor: Math.pow(k, i) };
+}
+
+/** Y 轴刻度：把原始字节换成 pickByteScale 的单位，不带后缀（单位在轴名上） */
+export function formatScaledBytes(bytes: number, divisor: number, decimals?: number): string {
+  if (!Number.isFinite(bytes) || bytes === 0) return "0";
+  const n = bytes / (divisor || 1);
+  if (!Number.isFinite(n)) return "0";
+  const d =
+    decimals != null
+      ? decimals
+      : divisor <= 1
+        ? 0
+        : Math.abs(n) >= 100
+          ? 0
+          : 1;
+  return parseFloat(n.toFixed(d)).toString();
 }
 
 /**
