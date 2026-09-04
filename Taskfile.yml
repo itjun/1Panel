@@ -27,14 +27,21 @@ tasks:
       - task: "{{.GOOS}}:build"
 
   agent:build:
-    summary: 源码若有改动则升版本，再交叉编译 spanel-agent（linux/amd64+arm64）供面板内嵌
+    summary: 源码若有改动则升版本并交叉编译；未改且产物在则跳过（不升版本）
     cmds:
-      - go run ./cmd/agentversion sync
       - |
         set -e
+        AMD=internal/agentres/bin/spanel-agent-linux-amd64
+        ARM=internal/agentres/bin/spanel-agent-linux-arm64
+        if [ -f "$AMD" ] && [ -f "$ARM" ] && go run ./cmd/agentversion check >/dev/null 2>&1; then
+          V=$(tr -d ' \t\n' < internal/agentres/VERSION)
+          echo "spanel-agent $V 源码未变，沿用已有产物（不升版本、不重编）"
+          exit 0
+        fi
+        go run ./cmd/agentversion sync
         V=$(tr -d ' \t\n' < internal/agentres/VERSION)
-        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=$V" -o internal/agentres/bin/spanel-agent-linux-amd64 ./cmd/spanel-agent
-        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=$V" -o internal/agentres/bin/spanel-agent-linux-arm64 ./cmd/spanel-agent
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=$V" -o "$AMD" ./cmd/spanel-agent
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=$V" -o "$ARM" ./cmd/spanel-agent
         echo "spanel-agent $V 构建完成（amd64 + arm64）"
 
   agent:test:

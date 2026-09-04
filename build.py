@@ -95,12 +95,19 @@ def clean(full: bool = False):
             print(f"    删除 {path}/")
         else:
             print(f"    跳过 {path}/（不存在）")
-    # agent 交叉编译产物全部删掉。bin/ 必须马上再放一个占位文件：
-    # //go:embed all:bin 不能编空目录，下一步 go run ./cmd/agentversion 会失败。
+    # 不删 spanel-agent-*：源码未变时沿用，避免每次打包都交叉编译并升版本。
+    # 目录必须始终非空（//go:embed all:bin 编不了空目录）。
+    kept_agent = []
     if os.path.isdir(AGENTRES_BIN):
         for name in os.listdir(AGENTRES_BIN):
+            if name.startswith("spanel-agent-"):
+                kept_agent.append(name)
+                continue
             os.remove(os.path.join(AGENTRES_BIN, name))
-        print(f"    清空 {AGENTRES_BIN}/")
+        if kept_agent:
+            print(f"    保留 {AGENTRES_BIN}/ 已有 {len(kept_agent)} 个 agent 产物")
+        else:
+            print(f"    清空 {AGENTRES_BIN}/ 非产物文件")
     os.makedirs(AGENTRES_BIN, exist_ok=True)
     placeholder = os.path.join(AGENTRES_BIN, ".gitkeep")
     open(placeholder, "w").close()
