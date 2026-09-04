@@ -805,8 +805,9 @@ onMounted(() => {
   height: 100%;
   min-height: 0;
   min-width: 0;
-  padding: 16px 24px 24px;
+  padding: 20px 28px 28px;
   box-sizing: border-box;
+  background: var(--m3-surface);
 }
 
 .settings-header {
@@ -819,9 +820,8 @@ onMounted(() => {
 
 .settings-title {
   margin: 0;
-  font: var(--m3-title-medium);
-  font-weight: 600;
-  font-size: 20px;
+  font: var(--m3-headline-small);
+  font-weight: 400;
   color: var(--m3-on-surface);
 }
 
@@ -892,22 +892,21 @@ onMounted(() => {
   border: none;
   background: transparent;
   text-align: left;
-  padding: 10px 16px;
+  padding: 10px 20px;
   border-radius: var(--m3-shape-full);
   font: var(--m3-label-large);
-  color: var(--m3-on-surface-variant);
+  color: var(--m3-on-surface);
   cursor: pointer;
   transition: background-color var(--m3-motion-state),
     color var(--m3-motion-state);
 
   &:hover {
     background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
-    color: var(--m3-on-surface);
   }
   &.active {
     background: var(--m3-primary-container);
     color: var(--m3-primary);
-    font-weight: 600;
+    font-weight: 500;
   }
 }
 
@@ -919,7 +918,7 @@ onMounted(() => {
   padding: 4px 0 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 20px;
   scrollbar-width: none;
 
   &.is-notify {
@@ -933,6 +932,18 @@ onMounted(() => {
 
 .settings-section {
   min-width: 0;
+  padding: 18px 20px;
+  background: var(--m3-surface);
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-m);
+  box-sizing: border-box;
+
+  &:has(.deploy-groups) {
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 0;
+  }
 }
 
 .sec-title {
@@ -956,7 +967,7 @@ onMounted(() => {
   code {
     padding: 1px 6px;
     border-radius: var(--m3-shape-xs);
-    background: var(--m3-surface-container);
+    background: color-mix(in srgb, var(--m3-on-surface) 6%, var(--m3-surface));
     font-family: var(--m3-font-mono);
     font-size: 12px;
   }
@@ -1003,8 +1014,9 @@ onMounted(() => {
 }
 
 .deploy-form {
+  background: var(--m3-surface);
   border: 1px solid var(--m3-outline-variant);
-  border-radius: var(--m3-shape-s);
+  border-radius: var(--m3-shape-m);
   overflow: hidden;
 }
 
@@ -1020,11 +1032,16 @@ onMounted(() => {
 .deploy-head {
   font: var(--m3-label-medium);
   color: var(--m3-on-surface-variant);
-  background: var(--m3-surface-container);
+  background: var(--m3-surface);
+  border-bottom: 1px solid var(--m3-outline-variant);
 }
 
 .deploy-row + .deploy-row {
   border-top: 1px solid var(--m3-outline-variant);
+}
+
+.deploy-row:hover {
+  background: color-mix(in srgb, var(--m3-on-surface) 3%, var(--m3-surface));
 }
 
 .deploy-row :deep(.el-button + .el-button) {
@@ -1068,6 +1085,7 @@ onMounted(() => {
   width: 100%;
 
   :deep(.el-textarea__inner) {
+    background: var(--m3-surface);
     font-family: var(--m3-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, monospace);
     font-size: 13px;
     line-height: 1.55;
@@ -1165,7 +1183,7 @@ onMounted(() => {
   padding: 14px 16px;
   border-radius: var(--m3-shape-s);
   border: 1px solid var(--m3-outline-variant);
-  background: var(--m3-surface-container);
+  background: var(--m3-surface);
   color: var(--m3-on-surface);
   font: var(--m3-body-medium);
   line-height: 1.5;
