@@ -198,7 +198,7 @@
               <div>
                 <h3 class="sec-title">启用企微通知</h3>
                 <p class="sec-desc sec-desc--inline">
-                  总开关。关闭后不推送主机异常：连接失败、CPU、内存、磁盘、负载。应用探活暂不推送。
+                  总开关。关闭后不推送 CPU、内存、磁盘、负载超阈值。主机断开不推送。应用探活暂不推送。
                 </p>
               </div>
               <el-switch

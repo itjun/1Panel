@@ -24,27 +24,20 @@ export async function fireHostWecom(opts: {
   kind: HostWecomKind;
   detail: string;
 }): Promise<void> {
+  // 客户端与目标主机断开不发企微（多监控端各自断线会刷屏）
+  if (opts.kind === "conn") return;
   const webhook = useSettingsStore().effectiveWecomWebhook();
   if (!webhook) return;
   if (fired.has(opts.key)) return;
   fired.add(opts.key);
   try {
-    if (opts.kind === "conn") {
-      await api.notifyHostConn({
-        webhook,
-        host: opts.host,
-        kind: "down",
-        detail: opts.detail,
-      });
-    } else {
-      await api.notifyHostAlert({
-        webhook,
-        host: opts.host,
-        kind: opts.kind,
-        state: "down",
-        detail: opts.detail,
-      });
-    }
+    await api.notifyHostAlert({
+      webhook,
+      host: opts.host,
+      kind: opts.kind,
+      state: "down",
+      detail: opts.detail,
+    });
   } catch {
     fired.delete(opts.key);
   }
@@ -55,27 +48,19 @@ export async function clearHostWecom(opts: {
   host: string;
   kind: HostWecomKind;
 }): Promise<void> {
+  if (opts.kind === "conn") return;
   if (!fired.has(opts.key)) return;
   const webhook = useSettingsStore().effectiveWecomWebhook();
   fired.delete(opts.key);
   if (!webhook) return;
   try {
-    if (opts.kind === "conn") {
-      await api.notifyHostConn({
-        webhook,
-        host: opts.host,
-        kind: "up",
-        detail: "连接已恢复",
-      });
-    } else {
-      await api.notifyHostAlert({
-        webhook,
-        host: opts.host,
-        kind: opts.kind,
-        state: "up",
-        detail: "",
-      });
-    }
+    await api.notifyHostAlert({
+      webhook,
+      host: opts.host,
+      kind: opts.kind,
+      state: "up",
+      detail: "",
+    });
   } catch {
     /* 恢复通知失败不回填 fired */
   }
