@@ -4,7 +4,11 @@
     <!-- 两列通栏：左列 mac 红绿灯 + 侧栏开关；右列标题（非 mac 再加窗口按钮） -->
     <div
       class="app-chrome"
-      :class="{ 'sidebar-collapsed': !app.sidebarOpen, 'is-mac': isMac }"
+      :class="{
+        'sidebar-collapsed': !app.sidebarOpen,
+        'is-mac': isMac,
+        'is-fullscreen': fullscreen,
+      }"
     >
       <div
         class="titlebar-left drag-region"
@@ -196,6 +200,7 @@ function kbd(key: string): string {
 }
 
 const maximised = ref(false);
+const fullscreen = ref(false);
 const titlebarMenu = ref<{ x: number; y: number } | null>(null);
 
 function openTitlebarMenu(e: MouseEvent) {
@@ -327,6 +332,29 @@ onMounted(() => {
   void Window.IsMaximised().then((v) => {
     maximised.value = v;
   });
+  void Window.IsFullscreen().then((v) => {
+    fullscreen.value = v;
+  });
+  eventOffs.push(
+    Events.On(Events.Types.Common.WindowFullscreen, () => {
+      fullscreen.value = true;
+    })
+  );
+  eventOffs.push(
+    Events.On(Events.Types.Common.WindowUnFullscreen, () => {
+      fullscreen.value = false;
+    })
+  );
+  eventOffs.push(
+    Events.On(Events.Types.Mac.WindowDidEnterFullScreen, () => {
+      fullscreen.value = true;
+    })
+  );
+  eventOffs.push(
+    Events.On(Events.Types.Mac.WindowDidExitFullScreen, () => {
+      fullscreen.value = false;
+    })
+  );
   eventOffs.push(
     Events.On(Events.Types.Common.WindowMaximise, () => {
       maximised.value = true;
@@ -377,6 +405,11 @@ onBeforeUnmount(() => {
   /* 给系统红绿灯留位；与红绿灯共用通栏垂直中线 */
   padding-left: 78px;
   min-width: 78px;
+}
+/* 全屏时红绿灯进系统悬停条，不必再留 78px，否则收缩按钮会偏右 */
+.is-mac.is-fullscreen .titlebar-left {
+  padding-left: 12px;
+  min-width: 0;
 }
 .titlebar-right {
   min-width: 0;
