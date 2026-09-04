@@ -54,6 +54,7 @@ func (s *System) NotifyHostConn(in HostConnNotify) error {
 		Kind:     kind,
 		Detail:   strings.TrimSpace(in.Detail),
 		NotifyAt: time.Now(),
+		Source:   wecom.LocalSource(),
 	}
 	if kind == "up" {
 		n.Level = "ok"
@@ -89,6 +90,7 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 		Kind:     kind,
 		Detail:   strings.TrimSpace(in.Detail),
 		NotifyAt: time.Now(),
+		Source:   wecom.LocalSource(),
 	}
 	if strings.TrimSpace(in.State) == "up" {
 		n.Level = "ok"

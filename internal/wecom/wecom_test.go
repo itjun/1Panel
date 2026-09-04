@@ -1,6 +1,7 @@
 package wecom
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,8 @@ func TestFormatWatchMarkdownDown(t *testing.T) {
 	})
 	want := "### <font color=\"red\">[严重]</font> cdcp-beta 的 sapi-agent · 本机探活挂了\n" +
 		">时间: 2026-08-26 16:08:00\n" +
-		">内容: sapi-agent 本机探活：无进程\n"
+		">内容: sapi-agent 本机探活：无进程\n" +
+		sourceLine()
 	if md != want {
 		t.Fatalf("got:\n%q\nwant:\n%q", md, want)
 	}
@@ -49,6 +51,7 @@ func TestFormatWatchMarkdownWarningOrange(t *testing.T) {
 	if !strings.Contains(md, ">内容: oss GC pause 样例") {
 		t.Fatalf("%s", md)
 	}
+	mustHaveSource(t, md)
 }
 
 func TestFormatWatchMarkdownUp(t *testing.T) {
@@ -69,6 +72,7 @@ func TestFormatWatchMarkdownUp(t *testing.T) {
 	if !strings.Contains(md, ">时间: 2026-01-02 03:04:05") || !strings.Contains(md, ">内容: im 本机探活已恢复") {
 		t.Fatalf("%s", md)
 	}
+	mustHaveSource(t, md)
 }
 
 func TestFormatWatchMarkdownHostDown(t *testing.T) {
@@ -83,9 +87,25 @@ func TestFormatWatchMarkdownHostDown(t *testing.T) {
 	})
 	want := "### <font color=\"red\">[严重]</font> cdcp-beta · 主机连接失败\n" +
 		">时间: 2026-08-27 08:51:00\n" +
-		">内容: 连接 198.51.100.10:22 失败: ssh: handshake failed: EOF\n"
+		">内容: 连接 198.51.100.10:22 失败: ssh: handshake failed: EOF\n" +
+		sourceLine()
 	if md != want {
 		t.Fatalf("got:\n%q\nwant:\n%q", md, want)
+	}
+}
+
+func sourceLine() string {
+	src := LocalSource()
+	if src == "" {
+		return ""
+	}
+	return ">来源: " + src + "\n"
+}
+
+func mustHaveSource(t *testing.T, md string) {
+	t.Helper()
+	if !strings.Contains(md, ">来源:") {
+		t.Fatalf("缺少来源:\n%s", md)
 	}
 }
 
@@ -97,6 +117,37 @@ func TestEntryFromCmdline(t *testing.T) {
 	got2 := EntryFromCmdline("bun run /root/ai-agent/src/server.ts")
 	if got2 != "server.ts" {
 		t.Fatal(got2)
+	}
+}
+
+func TestFormatWatchMarkdownSource(t *testing.T) {
+	md := FormatWatchMarkdown(WatchNotify{
+		Level:       "critical",
+		Host:        "cdcp-beta",
+		TitleSuffix: "主机连接失败",
+		Detail:      `Get "http://agent/metrics/current": context deadline exceeded`,
+		NotifyAt:    time.Date(2026, 9, 4, 20, 17, 16, 0, time.Local),
+		Source:      "itjun-mbp 192.168.1.20",
+	})
+	if !strings.Contains(md, ">来源: itjun-mbp 192.168.1.20\n") {
+		t.Fatalf("%s", md)
+	}
+	idxTime := strings.Index(md, ">时间:")
+	idxDetail := strings.Index(md, ">内容:")
+	idxSrc := strings.Index(md, ">来源:")
+	if idxSrc < 0 || idxSrc < idxTime || idxSrc < idxDetail {
+		t.Fatalf("来源应在时间/内容之后:\n%s", md)
+	}
+}
+
+func TestLocalSource(t *testing.T) {
+	got := LocalSource()
+	if got == "" {
+		t.Fatal("本机 hostname/内网 IP 都为空")
+	}
+	host, err := os.Hostname()
+	if err == nil && strings.TrimSpace(host) != "" && !strings.Contains(got, strings.TrimSpace(host)) {
+		t.Fatalf("未包含 hostname %q: %q", host, got)
 	}
 }
 

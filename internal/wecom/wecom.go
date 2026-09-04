@@ -28,6 +28,7 @@ type WatchNotify struct {
 	Detail        string
 	NotifyAt      time.Time
 	ProcStartedAt time.Time // zero = 省略
+	Source        string    // 发送端「Hostname 内网IP」；空则自动取本机
 }
 
 const wecomWebhookPrefix = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key="
@@ -131,6 +132,13 @@ func FormatWatchMarkdown(n WatchNotify) string {
 	appendQuote(&b, "时间", at.Format("2006-01-02 15:04:05"))
 	if n.Detail != "" {
 		appendQuote(&b, "内容", n.Detail)
+	}
+	src := strings.TrimSpace(n.Source)
+	if src == "" {
+		src = LocalSource()
+	}
+	if src != "" {
+		appendQuote(&b, "来源", src)
 	}
 	return b.String()
 }
