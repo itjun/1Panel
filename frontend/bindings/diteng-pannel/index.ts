@@ -33,6 +33,7 @@ export type {
     CertPairCheck,
     CopyIDInput,
     GroupOverview,
+    HostAlertNotify,
     HostConnNotify,
     HostIcon,
     HostOverviewSnapshot,

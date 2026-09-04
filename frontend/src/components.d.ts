@@ -66,7 +66,6 @@ declare module 'vue' {
     HostContextMenu: typeof import('./components/sidebar/HostContextMenu.vue')['default']
     LargestFilesDialog: typeof import('./components/LargestFilesDialog.vue')['default']
     RouterButton: typeof import('./components/RouterButton.vue')['default']
-    SettingsDialog: typeof import('./components/SettingsDialog.vue')['default']
     TagButton: typeof import('./components/TagButton.vue')['default']
     UploadProgressDialog: typeof import('./components/files/UploadProgressDialog.vue')['default']
     VChartLine: typeof import('./components/VChartLine.vue')['default']

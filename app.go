@@ -173,7 +173,7 @@ func NewApp() *application.App {
 	})
 
 	// 必须显式设菜单：Wails 在 nil 时会装 DefaultApplicationMenu（含 View→Reload），
-	// 会抢走 ⌘R。macOS 只留系统应用菜单（隐藏/退出）；不设 File/Edit/View/Window。
+	// 会抢走 ⌘R。macOS 留 App 菜单 + Edit（否则 ⌘C/⌘V 无法进 WebView 输入框）。
 	core.installMinimalMenu(app)
 
 	// 文件拖放：v2 的 OnFileDrop 回调 → v3 窗口事件 → 转发为前端自定义事件
@@ -315,11 +315,13 @@ func (a *App) fitWindowToPrimaryScreen() {
 }
 
 // installMinimalMenu 避免 Wails 默认菜单（View→Reload 会抢走 ⌘R）。
+// 必须带 Edit：macOS 无 Edit 菜单时 WebView 收不到 ⌘C/⌘V/⌘A。
 func (a *App) installMinimalMenu(app *application.App) {
 	m := app.Menu.New()
 	if goruntime.GOOS == "darwin" {
 		m.AddRole(application.AppMenu)
 	}
+	m.AddRole(application.EditMenu)
 	app.Menu.SetApplicationMenu(m)
 }
 

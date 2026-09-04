@@ -10,9 +10,9 @@
 #   ./build.py        # 交互式菜单选择
 #   ./build.py 1      # 直接执行选项 1
 #   ./build.py 2      # 直接执行选项 2
-# 每次打包前自动清理旧构建产物（bin/、agentres/bin、dist）与 vite 缓存，
-# 确保从头构建、旧内容不污染新产物。
-# 依赖: wails3（构建）；macOS 另需 open/pkill
+# 选项 1：清 bin/、dist、vite 缓存后本地启动。
+# 选项 2：全量清理（含 node_modules、.task）再用 bun + vite 彻底重打包，覆盖安装到 /Applications。
+# 依赖: wails3、bun；macOS 另需 open/pkill
 
 import os
 import shutil
@@ -30,12 +30,20 @@ INSTALL_DIR = f"/Applications/{APP_NAME}.app"
 IS_WINDOWS = sys.platform == "win32"
 
 
-# 构建产物与缓存目录：每次打包前清理，确保从头构建、旧内容不污染新产物
+# 每次打包都清：Go 产物、vite dist、vite 预构建缓存
 CLEAN_PATHS = [
-    BIN_DIR,                            # Go 二进制 + .app bundle（含旧 dev.app）
-    "frontend/dist",                    # 前端 vite 构建产物
-    "frontend/node_modules/.vite",      # vite 依赖预构建缓存
+    BIN_DIR,
+    "frontend/dist",
+    "frontend/node_modules/.vite",
 ]
+
+# 选项 2 额外清：bun 依赖与 task 指纹，强制 bun install + 全量任务重跑
+FULL_CLEAN_PATHS = [
+    "frontend/node_modules",
+    ".task",
+]
+
+PACKAGE_ENV = {**os.environ, "PACKAGE_MANAGER": "bun"}
 
 # go:embed all:bin 要求目录始终存在；只清交叉编译产物，再留占位文件
 AGENTRES_BIN = "internal/agentres/bin"
@@ -71,43 +79,68 @@ def print_stage_report():
         print(f"  {name}{sec:6.1f}s  {pct:5.1f}%")
 
 
-def clean():
-    print("==> 清理旧构建产物与缓存")
-    for path in CLEAN_PATHS:
+def clean(full: bool = False):
+    paths = list(CLEAN_PATHS)
+    if full:
+        print("==> 全量清理（彻底重打包）")
+        paths = FULL_CLEAN_PATHS + paths
+    else:
+        print("==> 清理旧构建产物与缓存")
+    # node_modules 包含 .vite，全量时不必先单独删 .vite
+    if full:
+        paths = [p for p in paths if p != "frontend/node_modules/.vite"]
+    for path in paths:
         if os.path.exists(path):
             shutil.rmtree(path, ignore_errors=True)
             print(f"    删除 {path}/")
-    # agent 产物：删文件但保留目录（否则 go run ./cmd/agentversion 因 embed 失败）
+        else:
+            print(f"    跳过 {path}/（不存在）")
+    # agent 交叉编译产物全部删掉。bin/ 必须马上再放一个占位文件：
+    # //go:embed all:bin 不能编空目录，下一步 go run ./cmd/agentversion 会失败。
     if os.path.isdir(AGENTRES_BIN):
         for name in os.listdir(AGENTRES_BIN):
             os.remove(os.path.join(AGENTRES_BIN, name))
         print(f"    清空 {AGENTRES_BIN}/")
     os.makedirs(AGENTRES_BIN, exist_ok=True)
     placeholder = os.path.join(AGENTRES_BIN, ".gitkeep")
-    if not os.path.exists(placeholder):
-        open(placeholder, "a").close()
-        print(f"    保留 {placeholder}")
+    open(placeholder, "w").close()
+    print(f"    写入占位 {placeholder}（go:embed 需要非空目录）")
 
 
-def build():
+def ensure_bun():
+    if shutil.which("bun"):
+        return
+    print(
+        "未找到 bun。请先安装：curl -fsSL https://bun.sh/install | bash",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+def run_wails(*args: str) -> None:
+    subprocess.run(["wails3", *args], check=True, env=PACKAGE_ENV)
+
+
+def build(full: bool = False):
+    ensure_bun()
     with stage("清理旧产物"):
-        clean()
+        clean(full=full)
     with stage("编译 agent"):
         print("==> [1/2] 编译内嵌 agent 产物")
         print("==> wails3 task agent:build")
-        subprocess.run(["wails3", "task", "agent:build"], check=True)
+        run_wails("task", "agent:build")
     if IS_WINDOWS:
         # Windows 分发形态是裸 exe（README：CI 同样用 windows:build + zip），
         # package 走 NSIS 安装器，非本脚本目标
         with stage("编译前端与 Go"):
-            print(f"==> [2/2] 编译前端 + Go，产出 {WIN_EXE}")
+            print(f"==> [2/2] bun + vite 打包前端，再编译 Go，产出 {WIN_EXE}")
             print("==> wails3 task windows:build")
-            subprocess.run(["wails3", "task", "windows:build"], check=True)
+            run_wails("task", "windows:build")
     else:
         with stage("编译前端与 Go"):
-            print(f"==> [2/2] 编译前端 + Go，打包 {APP_BUNDLE}")
+            print(f"==> [2/2] bun + vite 打包前端，再编译 Go，打包 {APP_BUNDLE}")
             print("==> wails3 task package")
-            subprocess.run(["wails3", "task", "package"], check=True)
+            run_wails("task", "package")
 
 
 def stop_running():
@@ -158,7 +191,7 @@ def print_menu():
     print("======================================")
     print("  1 - 编译打包启动（bin/ 本地运行）")
     if not IS_WINDOWS:
-        print("  2 - 拷贝到应用程序并启动（覆盖式安装）")
+        print("  2 - 全量清理后打包，覆盖安装到应用程序并启动")
     print("======================================")
 
 
@@ -184,7 +217,7 @@ def main():
             sys.exit(1)
         with stage("停止旧进程"):
             stop_running()
-        build()
+        build(full=True)
         with stage("停止旧进程"):
             stop_running()
         with stage("覆盖安装"):

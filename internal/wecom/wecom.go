@@ -30,14 +30,25 @@ type WatchNotify struct {
 	ProcStartedAt time.Time // zero = 省略
 }
 
+const wecomWebhookPrefix = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key="
+
+// NormalizeWebhook 把 key 或完整 URL 规范成可 POST 的地址；空串仍为空。
+func NormalizeWebhook(webhook string) string {
+	webhook = strings.TrimSpace(webhook)
+	if webhook == "" {
+		return ""
+	}
+	if strings.HasPrefix(webhook, "http://") || strings.HasPrefix(webhook, "https://") {
+		return webhook
+	}
+	return wecomWebhookPrefix + webhook
+}
+
 // NotifyWecom 向企业微信群机器人发送 markdown；webhook 为空则跳过。
 func NotifyWecom(webhook, markdown string) error {
-	if webhook == "" {
+	url := NormalizeWebhook(webhook)
+	if url == "" {
 		return nil
-	}
-	url := webhook
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=" + strings.TrimSpace(url)
 	}
 	body, err := json.Marshal(map[string]any{
 		"msgtype":  "markdown",
@@ -64,6 +75,22 @@ func NotifyWecom(webhook, markdown string) error {
 		return fmt.Errorf("企微 errcode=%d %s", wr.ErrCode, wr.ErrMsg)
 	}
 	return nil
+}
+
+// TestWebhook 向企业微信发送一条测试 markdown；地址为空或企微拒绝则返回错误。
+func TestWebhook(webhook string) error {
+	url := NormalizeWebhook(webhook)
+	if url == "" {
+		return fmt.Errorf("通知地址为空")
+	}
+	md := FormatWatchMarkdown(WatchNotify{
+		Level:       "ok",
+		Service:     "1Pannel",
+		TitleSuffix: "通讯测试",
+		Detail:      "设置页发出的测试消息。能在本群看到，说明企业微信通知地址可用。",
+		NotifyAt:    time.Now(),
+	})
+	return NotifyWecom(url, md)
 }
 
 // FormatWatchMarkdown 格式化企微告警 markdown（agent 探活与面板主机告警共用）。

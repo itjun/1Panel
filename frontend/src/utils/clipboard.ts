@@ -3,6 +3,24 @@
  */
 import { Clipboard } from "@wailsio/runtime";
 
+export async function readText(): Promise<string> {
+  try {
+    const t = await Clipboard.Text();
+    if (typeof t === "string" && t) return t;
+  } catch {
+    /* fall through */
+  }
+  try {
+    if (navigator.clipboard?.readText) {
+      const t = await navigator.clipboard.readText();
+      if (t) return t;
+    }
+  } catch {
+    /* fall through */
+  }
+  return "";
+}
+
 export async function copyText(text: string): Promise<void> {
   const t = text ?? "";
   if (!t) {

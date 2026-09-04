@@ -85,6 +85,21 @@ export const useAppStore = defineStore("app", () => {
     sidebarSearchOpen.value = v;
   }
 
+  /**
+   * 设置整页覆盖主区，但不改 activeView。
+   * 再点设置 / Esc 即回到底下那一页；点主机/分组/全部主机会关掉设置并切过去。
+   */
+  const settingsOpen = ref(false);
+  function openSettings() {
+    settingsOpen.value = true;
+  }
+  function closeSettings() {
+    settingsOpen.value = false;
+  }
+  function toggleSettings() {
+    settingsOpen.value = !settingsOpen.value;
+  }
+
   /** 后台常挂的主机会话（按打开顺序） */
   const hostSessions = ref<Record<string, HostSession>>({});
   const runningOrder = ref<string[]>([]);
@@ -274,6 +289,7 @@ export const useAppStore = defineStore("app", () => {
   function openHostTab(name: string) {
     const sess = ensureSession(name);
     if (!sess) return;
+    settingsOpen.value = false;
     // 从其它主机切入时：若已有会话则沿用其 subTab；首次则 overview
     activeView.value = {
       id: name,
@@ -285,6 +301,7 @@ export const useAppStore = defineStore("app", () => {
   }
 
   function openGroupTab(id: string, title: string) {
+    settingsOpen.value = false;
     activeView.value = {
       id,
       title,
@@ -305,6 +322,7 @@ export const useAppStore = defineStore("app", () => {
 
   /** 返回全部主机概览（保留后台运行的主机会话） */
   function goHome() {
+    settingsOpen.value = false;
     activeView.value = null;
   }
 
@@ -446,6 +464,10 @@ export const useAppStore = defineStore("app", () => {
     toggleSidebar,
     sidebarSearchOpen,
     setSidebarSearchOpen,
+    settingsOpen,
+    openSettings,
+    closeSettings,
+    toggleSettings,
     refresh,
     rememberOsRelease,
     refreshHostIcon,

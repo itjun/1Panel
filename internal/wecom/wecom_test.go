@@ -99,3 +99,23 @@ func TestEntryFromCmdline(t *testing.T) {
 		t.Fatal(got2)
 	}
 }
+
+func TestNormalizeWebhook(t *testing.T) {
+	full := "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=abc"
+	if got := NormalizeWebhook("  abc  "); got != full {
+		t.Fatalf("key: %s", got)
+	}
+	if got := NormalizeWebhook(full); got != full {
+		t.Fatalf("url: %s", got)
+	}
+	if got := NormalizeWebhook("  "); got != "" {
+		t.Fatalf("empty: %q", got)
+	}
+}
+
+func TestTestWebhookEmpty(t *testing.T) {
+	err := TestWebhook("  ")
+	if err == nil || !strings.Contains(err.Error(), "为空") {
+		t.Fatalf("got %v", err)
+	}
+}

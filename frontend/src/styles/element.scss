@@ -490,52 +490,6 @@ html {
     }
 }
 
-/* 设置弹窗：M3 分栏设置（导航轨 + 内容面），无嵌套双眼皮框 */
-.settings-dialog.el-dialog {
-  padding: 0;
-  overflow: hidden;
-
-  .el-dialog__header {
-    padding: 20px 24px 12px;
-    margin: 0;
-  }
-
-  .el-dialog__headerbtn {
-    top: 16px;
-    right: 16px;
-  }
-
-  .el-dialog__body {
-    padding: 0 24px 8px;
-  }
-
-  .el-dialog__footer {
-    padding: 12px 24px 20px;
-    gap: 8px;
-
-    .el-button {
-      min-width: 96px;
-      height: 40px;
-      padding: 0 20px;
-      border-radius: var(--m3-shape-full);
-      font: var(--m3-label-large);
-      font-weight: 500;
-    }
-
-    .el-button:not(.el-button--primary) {
-      background: transparent;
-      border-color: var(--m3-outline-variant);
-      color: var(--m3-primary);
-
-      &:hover {
-        background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
-        border-color: var(--m3-outline);
-        color: var(--m3-primary);
-      }
-    }
-  }
-}
-
 /* M3 表单对话框：标签在上、Outlined 输入、满圆角按钮 */
 .m3-form-dialog.el-dialog {
   .el-dialog__body {

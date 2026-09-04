@@ -3,13 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "packageManager": "bun@1.4.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "type-check": "vue-tsc --noEmit",
     "preview": "vite preview",
-    "verify:shell": "node scripts/verify-shell.mjs",
-    "test:helpers": "node scripts/test-helpers.mjs",
+    "verify:shell": "bun scripts/verify-shell.mjs",
+    "test:helpers": "bun scripts/test-helpers.mjs",
     "build:dev": "vite build --minify false --mode development"
   },
   "dependencies": {

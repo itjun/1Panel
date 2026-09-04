@@ -108,14 +108,16 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="my-egress" :title="egressTitle">
-        <span v-if="egressLoading" class="egress-loading">检测中…</span>
-        <template v-else-if="egress && egress.ip">
-          <span class="egress-ip">{{ egress.ip }}</span>
-          <span v-if="egress.location" class="egress-loc">{{ egress.location }}</span>
-        </template>
-        <span v-else class="egress-empty">出口 IP 未知</span>
-      </div>
+      <button
+        type="button"
+        class="settings-entry"
+        :class="{ active: app.settingsOpen }"
+        :title="isMac ? '设置 (⌘,)' : '设置 (Ctrl+,)'"
+        @click="app.toggleSettings()"
+      >
+        <el-icon><Setting /></el-icon>
+        <span>设置</span>
+      </button>
     </div>
 
     <div
@@ -281,12 +283,10 @@
  * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { Folder, Monitor } from "@element-plus/icons-vue";
+import { Folder, Monitor, Setting } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import DistroLogo from "@/components/DistroLogo.vue";
-import { api } from "@/api";
-import type { monitor } from "@/api";
 import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
 import HostContextMenu, {
   type CtxMenuState,
@@ -321,8 +321,11 @@ const {
 
 const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
 
-/** 无激活主机时选中首页项（与主机项一样由 el-menu 驱动高亮） */
-const activeId = computed(() => app.activeTabId || "__home__");
+/** 无激活主机时选中首页项；设置整页打开时取消菜单选中 */
+const activeId = computed(() => {
+  if (app.settingsOpen) return "__settings__";
+  return app.activeTabId || "__home__";
+});
 
 const openedGroups = computed(() =>
   app.groupNodes.map((n) => n.group?.id || UNGROUPED_ID)
@@ -484,39 +487,9 @@ function onWindowKeydown(e: KeyboardEvent) {
   }
 }
 
-// ---------- 侧栏底部：本机出口 IP 与归属地（应用启动时获取一次） ----------
-
-const egress = ref<monitor.EgressInfo | null>(null);
-const egressLoading = ref(false);
-
-const egressTitle = computed(() => {
-  if (egressLoading.value) return "正在查询 myip.ipip.net…";
-  if (!egress.value || !egress.value.ip) return "本机出口公网 IP";
-  return `${egress.value.ip}${egress.value.location ? " · " + egress.value.location : ""}\n来源：myip.ipip.net`;
-});
-
-async function refreshEgress() {
-  if (egressLoading.value) return;
-  egressLoading.value = true;
-  try {
-    const r = await api.getMyEgress();
-    if (r && r.ip) {
-      egress.value = r;
-    } else {
-      // 静默失败：保留旧值或显示「未识别」
-      if (!egress.value) egress.value = r ?? null;
-    }
-  } catch {
-    /* 启动期查询失败静默，避免弹窗打扰 */
-  } finally {
-    egressLoading.value = false;
-  }
-}
-
 onMounted(() => {
   window.addEventListener("keydown", onWindowKeydown);
   window.addEventListener("keydown", onNumSwitchKeydown);
-  void refreshEgress();
 });
 
 onBeforeUnmount(() => {
@@ -801,40 +774,37 @@ onBeforeUnmount(() => {
   color: var(--m3-outline);
 }
 
-/* 侧栏底部：本机出口 IP 与归属地（随侧栏宽度水平居中） */
-.my-egress {
-  margin: 8px 0 6px;
-  padding: 2px 4px;
+.settings-entry {
+  appearance: none;
   width: 100%;
-  max-width: 100%;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 4px 6px;
-  font-size: 11px;
-  line-height: 1.4;
-  text-align: center;
-  color: var(--el-text-color-secondary);
-}
-.egress-ip {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-.egress-loc {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.egress-empty,
-.egress-loading {
-  width: 100%;
-  text-align: center;
-  color: var(--el-text-color-placeholder);
-  font-style: italic;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--m3-shape-xl);
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+  font: var(--m3-label-large);
+  cursor: pointer;
+  transition: background-color var(--m3-motion-state),
+    color var(--m3-motion-state);
+
+  .el-icon {
+    font-size: 16px;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
+    color: var(--m3-on-surface);
+  }
+
+  &.active {
+    background: var(--m3-secondary-container);
+    color: var(--m3-on-secondary-container);
+    font-weight: 600;
+  }
 }
 
 .sidebar-resize-handle {

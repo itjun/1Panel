@@ -26,9 +26,9 @@
 
 ```bash
 cd frontend
-npm install
-npm run dev     # 开发
-npm run build   # 产出 dist/ 供 Wails 嵌入
+bun install
+bun run dev     # 开发
+bun run build   # vite 打包 dist/，供 Wails 嵌入
 ```
 
 ## 功能迁移状态

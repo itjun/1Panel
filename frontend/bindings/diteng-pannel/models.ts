@@ -148,6 +148,25 @@ export interface GroupOverview {
 }
 
 /**
+ * HostAlertNotify 面板侧资源超阈值 / 回落入参（CPU / 内存 / 磁盘 / 负载）
+ */
+export interface HostAlertNotify {
+    "webhook": string;
+    "host": string;
+
+    /**
+     * mem | cpu | disk | load
+     */
+    "kind": string;
+
+    /**
+     * down = 超阈值, up = 已回落
+     */
+    "state": string;
+    "detail": string;
+}
+
+/**
  * HostConnNotify 面板侧主机连接告警（停机 / 恢复）入参
  */
 export interface HostConnNotify {

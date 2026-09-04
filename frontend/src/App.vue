@@ -1,7 +1,7 @@
 <template>
   <el-config-provider :locale="zhCn" size="default">
     <div class="app-shell">
-    <!-- 两列通栏：左列 mac 红绿灯 + 侧栏开关；右列标题 + 应用菜单（非 mac 再加窗口按钮） -->
+    <!-- 两列通栏：左列 mac 红绿灯 + 侧栏开关；右列标题（非 mac 再加窗口按钮） -->
     <div
       class="app-chrome"
       :class="{ 'sidebar-collapsed': !app.sidebarOpen, 'is-mac': isMac }"
@@ -40,44 +40,6 @@
         @contextmenu.prevent="openTitlebarMenu"
       >
         <span class="titlebar-title">{{ titlebarTitle }}</span>
-        <div class="titlebar-tools no-drag" @dblclick.stop @contextmenu.stop>
-          <el-dropdown trigger="click" @command="onAppTool">
-            <el-button text class="titlebar-btn" title="应用">
-              <el-icon>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.75"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="3" />
-                  <path
-                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"
-                  />
-                </svg>
-              </el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="settings">
-                  <span class="dd-row">
-                    设置
-                    <span class="titlebar-kbd">{{ kbd(",") }}</span>
-                  </span>
-                </el-dropdown-item>
-                <el-dropdown-item command="export" divided>
-                  导出主机配置…
-                </el-dropdown-item>
-                <el-dropdown-item command="import">导入主机配置…</el-dropdown-item>
-                <el-dropdown-item command="restart" divided>
-                  重启应用
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
         <div v-if="!isMac" class="win-controls no-drag" @dblclick.stop @contextmenu.stop>
           <button
             type="button"
@@ -175,9 +137,7 @@
       </template>
     </el-dialog>
 
-    <SettingsDialog v-model="settingsOpen" />
     <AgentInstallDialog />
-    <BackupImportDialog ref="backupImportRef" />
 
     <!-- 标题栏右键：展开/收起侧栏 -->
     <Teleport to="body">
@@ -205,26 +165,22 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
-import { Application, Dialogs, Events, Window } from "@wailsio/runtime";
+import { Application, Events, Window } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
 import MainArea from "@/layout/MainArea.vue";
-import SettingsDialog from "@/components/SettingsDialog.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
-import BackupImportDialog from "@/components/BackupImportDialog.vue";
 
 const app = useAppStore();
 // 确保设置 store 初始化并应用主题/字体
 useSettingsStore();
 void app.refresh();
 const addHostOpen = ref(false);
-const settingsOpen = ref(false);
-const backupImportRef = ref<InstanceType<typeof BackupImportDialog>>();
 const saving = ref(false);
 const form = reactive({
   name: "",
@@ -241,10 +197,6 @@ function kbd(key: string): string {
 
 const maximised = ref(false);
 const titlebarMenu = ref<{ x: number; y: number } | null>(null);
-
-function openSettings() {
-  settingsOpen.value = true;
-}
 
 function openTitlebarMenu(e: MouseEvent) {
   titlebarMenu.value = { x: e.clientX, y: e.clientY };
@@ -272,32 +224,33 @@ function quitApp() {
   void Application.Quit();
 }
 
-function onAppTool(cmd: string) {
-  if (cmd === "settings") openSettings();
-  if (cmd === "export") void onExportBackup();
-  if (cmd === "import") backupImportRef.value?.openFor();
-  if (cmd === "restart") void onRestart();
-}
-
-async function onRestart() {
-  try {
-    await ElMessageBox.confirm(
-      "将断开所有主机连接并重启 1Pannel",
-      "重启应用",
-      { confirmButtonText: "重启", cancelButtonText: "取消", type: "warning" }
-    );
-  } catch {
-    return;
-  }
-  void Events.Emit("app-restart");
-}
-
 const titlebarTitle = computed(() => {
+  if (app.settingsOpen) return "设置";
   const tab = app.activeTab;
   if (!tab) return "全部主机";
   if (tab.kind === "group") return app.groupNameOf(tab.id);
   return app.hostSessions[tab.id]?.title || tab.title || tab.id;
 });
+
+/** 可见的 Element Plus 遮罩（关闭态的 dialog 会留下 display:none 的 overlay） */
+function hasVisibleOverlay(): boolean {
+  for (const el of document.querySelectorAll(".el-overlay")) {
+    const s = getComputedStyle(el);
+    if (s.display === "none" || s.visibility === "hidden") continue;
+    return true;
+  }
+  return false;
+}
+
+/** Esc：先让弹窗 / 侧栏搜索自己关掉；都没有再退出设置整页 */
+function onSettingsEsc(e: KeyboardEvent) {
+  if (e.key !== "Escape") return;
+  if (!app.settingsOpen) return;
+  if (app.sidebarSearchOpen) return;
+  if (hasVisibleOverlay()) return;
+  e.preventDefault();
+  app.closeSettings();
+}
 
 /** 设置 / 侧栏 / 添加主机 / 搜索 / 刷新 / 退出（tooltip 按平台写 ⌘ 或 Ctrl） */
 function onGlobalKeydown(e: KeyboardEvent) {
@@ -305,7 +258,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   const isComma = e.key === "," || e.code === "Comma" || e.key === "，";
   if (isComma) {
     e.preventDefault();
-    openSettings();
+    app.toggleSettings();
     return;
   }
   if (e.code === "KeyB") {
@@ -331,23 +284,6 @@ function onGlobalKeydown(e: KeyboardEvent) {
   if (e.code === "KeyQ") {
     e.preventDefault();
     quitApp();
-  }
-}
-
-/** 导出主机配置：选父目录 → 导出到其中的日期文件夹（同日覆盖） */
-async function onExportBackup() {
-  const dir = await Dialogs.OpenFile({
-    Title: "选择备份位置",
-    CanChooseDirectories: true,
-    CanChooseFiles: false,
-    CanCreateDirectories: true,
-  });
-  if (!dir) return;
-  try {
-    const msg = await api.exportBackup(dir);
-    ElMessage.success(msg);
-  } catch (e) {
-    ElMessage.error(formatErr(e));
   }
 }
 
@@ -387,6 +323,7 @@ const eventOffs: (() => void)[] = [];
 
 onMounted(() => {
   window.addEventListener("keydown", onGlobalKeydown, true);
+  window.addEventListener("keydown", onSettingsEsc);
   void Window.IsMaximised().then((v) => {
     maximised.value = v;
   });
@@ -417,6 +354,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown, true);
+  window.removeEventListener("keydown", onSettingsEsc);
   eventOffs.forEach((off) => off());
   eventOffs.length = 0;
 });
@@ -511,17 +449,6 @@ onBeforeUnmount(() => {
   line-height: 20px;
   height: 32px;
   user-select: none;
-}
-.dd-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 24px;
-  width: 100%;
-  justify-content: space-between;
-}
-.titlebar-kbd {
-  color: var(--m3-on-surface-variant);
-  font-size: 12px;
 }
 .win-controls {
   display: flex;

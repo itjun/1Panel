@@ -32,7 +32,7 @@ func (s *System) SetTrafficLightsHidden(hidden bool) {
 }
 
 // GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）
-// 用于侧栏底部显示。不依赖任何主机。
+// 用于设置页本机信息。不依赖任何主机。
 func (s *System) GetMyEgress() (monitor.EgressInfo, error) {
 	return monitor.FetchEgress()
 }
@@ -70,4 +70,59 @@ func (s *System) NotifyHostConn(in HostConnNotify) error {
 		}
 	}
 	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
+}
+
+// NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落时发企微。
+func (s *System) NotifyHostAlert(in HostAlertNotify) error {
+	webhook := strings.TrimSpace(in.Webhook)
+	if webhook == "" {
+		return nil
+	}
+	host := strings.TrimSpace(in.Host)
+	if host == "" {
+		return nil
+	}
+	kind := strings.TrimSpace(in.Kind)
+	label := resourceAlertLabel(kind)
+	n := wecom.WatchNotify{
+		Host:     host,
+		Kind:     kind,
+		Detail:   strings.TrimSpace(in.Detail),
+		NotifyAt: time.Now(),
+	}
+	if strings.TrimSpace(in.State) == "up" {
+		n.Level = "ok"
+		n.TitleSuffix = label + "已回落"
+		if n.Detail == "" {
+			n.Detail = label + "已恢复到阈值以下"
+		}
+	} else {
+		n.Level = "critical"
+		n.TitleSuffix = label + "超阈值"
+		if n.Detail == "" {
+			n.Detail = label + "超过警戒阈值"
+		}
+	}
+	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
+}
+
+func resourceAlertLabel(kind string) string {
+	switch kind {
+	case "mem":
+		return "内存"
+	case "cpu":
+		return "CPU"
+	case "disk":
+		return "磁盘"
+	case "load":
+		return "负载"
+	default:
+		return kind
+	}
+}
+
+// TestWecomWebhook 向企业微信群机器人发一条测试消息，确认地址可用。
+// 空地址或企微拒绝时返回错误；前端据此决定能否保存新地址。
+func (s *System) TestWecomWebhook(webhook string) error {
+	return wecom.TestWebhook(webhook)
 }

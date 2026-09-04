@@ -9,13 +9,13 @@ import (
 
 // CopyIDInput 是 CopySSHID 的入参
 type CopyIDInput struct {
-	Name         string `json:"name"`         // Host 别名
-	HostName     string `json:"hostName"`     // IP/域名
-	User         string `json:"user"`
-	Port         string `json:"port"`
-	Password     string `json:"password"`     // 仅本次使用，不落盘
+	Name          string `json:"name"`     // Host 别名
+	HostName      string `json:"hostName"` // IP/域名
+	User          string `json:"user"`
+	Port          string `json:"port"`
+	Password      string `json:"password"`      // 仅本次使用，不落盘
 	PublicKeyFile string `json:"publicKeyFile"` // 默认 ~/.ssh/id_ed25519.pub
-	IdentityFile  string `json:"identityFile"` // 写入 ssh config 的密钥路径
+	IdentityFile  string `json:"identityFile"`  // 写入 ssh config 的密钥路径
 }
 
 // AddHostInput 是「添加主机」对话框的入参
@@ -44,6 +44,15 @@ type HostConnNotify struct {
 	Host    string `json:"host"`    // 主机别名
 	Kind    string `json:"kind"`    // down | up
 	Detail  string `json:"detail"`  // 错误原文或恢复说明
+}
+
+// HostAlertNotify 面板侧资源超阈值 / 回落入参（CPU / 内存 / 磁盘 / 负载）
+type HostAlertNotify struct {
+	Webhook string `json:"webhook"`
+	Host    string `json:"host"`
+	Kind    string `json:"kind"`  // mem | cpu | disk | load
+	State   string `json:"state"` // down = 超阈值, up = 已回落
+	Detail  string `json:"detail"`
 }
 
 // readPublicKey 读公钥文件内容（去掉末尾换行）

@@ -29,10 +29,17 @@ export function BootstrapZsh(host: string): $CancellablePromise<string> {
 
 /**
  * GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）
- * 用于侧栏底部显示。不依赖任何主机。
+ * 用于设置页本机信息。不依赖任何主机。
  */
 export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
     return $Call.ByID(772990904);
+}
+
+/**
+ * NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落时发企微。
+ */
+export function NotifyHostAlert($in: $models.HostAlertNotify): $CancellablePromise<void> {
+    return $Call.ByID(3629648658, $in);
 }
 
 /**
@@ -50,4 +57,12 @@ export function NotifyHostConn($in: $models.HostConnNotify): $CancellablePromise
  */
 export function SetTrafficLightsHidden(hidden: boolean): $CancellablePromise<void> {
     return $Call.ByID(2375721563, hidden);
+}
+
+/**
+ * TestWecomWebhook 向企业微信群机器人发一条测试消息，确认地址可用。
+ * 空地址或企微拒绝时返回错误；前端据此决定能否保存新地址。
+ */
+export function TestWecomWebhook(webhook: string): $CancellablePromise<void> {
+    return $Call.ByID(1547119601, webhook);
 }

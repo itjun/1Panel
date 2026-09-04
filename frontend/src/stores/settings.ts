@@ -3,6 +3,15 @@ import { ref, watch } from "vue";
 
 export type ThemeKey = "light" | "dark" | "auto";
 
+/** 设置页左侧分组；仅进程内记忆，不写入 localStorage */
+export type SettingsNavGroup =
+  | "appearance"
+  | "ui"
+  | "terminal"
+  | "session"
+  | "notify"
+  | "app";
+
 export interface AppSettings {
   theme: ThemeKey;
   fontFamily: string;
@@ -111,6 +120,17 @@ export const THEME_OPTIONS: {
   },
 ];
 
+export const WECOM_WEBHOOK_PREFIX =
+  "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=";
+
+/** 只填 key 时补成完整 URL，便于完整展示和发送 */
+export function expandWecomWebhook(raw: string): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  if (/^https?:\/\//i.test(v)) return v;
+  return WECOM_WEBHOOK_PREFIX + v;
+}
+
 const STORAGE_KEY = "ipannel.settings.v1";
 
 const DEFAULTS: AppSettings = {
@@ -180,6 +200,13 @@ export const useSettingsStore = defineStore("settings", () => {
   const maxRunningHosts = ref(initial.maxRunningHosts);
   const notifyEnabled = ref(initial.notifyEnabled);
   const wecomWebhook = ref(initial.wecomWebhook);
+  /** 设置页草稿：离开页面不丢，未点保存不写入 localStorage */
+  const webhookDraft = ref(expandWecomWebhook(initial.wecomWebhook));
+  const webhookTested = ref("");
+  const lastNavGroup = ref<SettingsNavGroup>("appearance");
+  function setLastNavGroup(g: SettingsNavGroup) {
+    lastNavGroup.value = g;
+  }
 
   function persist() {
     const data: AppSettings = {
@@ -279,14 +306,15 @@ export const useSettingsStore = defineStore("settings", () => {
   }
 
   function setWecomWebhook(v: string) {
-    wecomWebhook.value = v.trim();
+    wecomWebhook.value = expandWecomWebhook(v);
+    webhookDraft.value = wecomWebhook.value;
     persist();
   }
 
   /** 下发到 agent 时实际写入的 webhook（总开关关则空） */
   function effectiveWecomWebhook(): string {
     if (!notifyEnabled.value) return "";
-    return wecomWebhook.value.trim();
+    return expandWecomWebhook(wecomWebhook.value);
   }
 
   function resetSettings() {
@@ -298,6 +326,8 @@ export const useSettingsStore = defineStore("settings", () => {
     maxRunningHosts.value = DEFAULTS.maxRunningHosts;
     notifyEnabled.value = DEFAULTS.notifyEnabled;
     wecomWebhook.value = DEFAULTS.wecomWebhook;
+    webhookDraft.value = "";
+    webhookTested.value = "";
     applyAll();
     persist();
   }
@@ -324,6 +354,10 @@ export const useSettingsStore = defineStore("settings", () => {
     maxRunningHosts,
     notifyEnabled,
     wecomWebhook,
+    webhookDraft,
+    webhookTested,
+    lastNavGroup,
+    setLastNavGroup,
     setTheme,
     cycleTheme,
     setFontFamily,

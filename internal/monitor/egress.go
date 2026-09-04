@@ -24,7 +24,7 @@ var (
 )
 
 // FetchEgress 从本地访问 myip.ipip.net 获取出口公网 IP 与归属地
-// 设计为侧栏/系统级别信息使用，不依赖任何主机。
+// 设计为设置页本机信息使用，不依赖任何主机。
 func FetchEgress() (EgressInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

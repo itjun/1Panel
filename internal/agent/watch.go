@@ -51,12 +51,12 @@ type Watcher struct {
 	mu  sync.Mutex
 	cfg WatchConfig
 
-	cpu  map[int]cpuPrev
-	st   map[string]*layerState // service/layer
+	cpu       map[int]cpuPrev
+	st        map[string]*layerState // service/layer
 	inst      map[string]int
 	seen      map[string]svcSeen // service → lastSeen
 	instances []JavaAppInstance
-	http *http.Client
+	http      *http.Client
 
 	host string
 }
@@ -385,10 +385,20 @@ func (w *Watcher) transition(cfg WatchConfig, service, layer, kind, detail strin
 
 	n := w.buildNotify(cfg, service, layer, kind, detail, now)
 	md := wecom.FormatWatchMarkdown(n)
-	if err := wecom.NotifyWecom(cfg.WecomWebhook, md); err != nil {
+	if err := sendWatchWecom(cfg, md); err != nil {
 		log.Printf("[watch] 企微: %v", err)
 		w.store.WriteEvent("warn", "企微发送失败: "+err.Error())
 	}
+}
+
+// 应用探活企微先关闭：主机异常由面板推送。改回 true 即恢复探活企微。
+const watchWecomEnabled = false
+
+func sendWatchWecom(cfg WatchConfig, markdown string) error {
+	if !watchWecomEnabled {
+		return nil
+	}
+	return wecom.NotifyWecom(cfg.WecomWebhook, markdown)
 }
 
 func (w *Watcher) rememberSeen(svc ServiceWatch, inst []javaProc) {
@@ -499,7 +509,7 @@ func (w *Watcher) notifyGC(cfg WatchConfig, svc ServiceWatch, port int, p javaPr
 		return
 	}
 	st.lastNotifyDown = now
-	if err := wecom.NotifyWecom(cfg.WecomWebhook, wecom.FormatWatchMarkdown(n)); err != nil {
+	if err := sendWatchWecom(cfg, wecom.FormatWatchMarkdown(n)); err != nil {
 		log.Printf("[watch] 企微 GC: %v", err)
 	}
 }

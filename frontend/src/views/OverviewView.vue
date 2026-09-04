@@ -536,6 +536,11 @@ import {
   isMemAlert,
   pickRootDisk,
 } from "@/utils/alerts";
+import {
+  clearHostWecom,
+  fireHostWecom,
+  hostWecomKindFromKey,
+} from "@/utils/wecomHostAlerts";
 import VChartPie from "@/components/VChartPie.vue";
 import VChartLine from "@/components/VChartLine.vue";
 import javaLogo from "@/assets/runtime/java-original.svg";
@@ -852,9 +857,17 @@ const agentMissing = computed(
 
 const alertLines = computed(() => {
   if (agentMissing.value) return [] as { key: string; line: string }[];
+  const host = props.host;
+  if (error.value) {
+    return [
+      {
+        key: "conn",
+        line: `「${host}」连接失败：${error.value}`,
+      },
+    ];
+  }
   const ov = overview.value;
   if (!ov) return [] as { key: string; line: string }[];
-  const host = props.host;
   const out: { key: string; line: string }[] = [];
   if (cpuAlert.value) {
     out.push({
@@ -888,6 +901,29 @@ watch(
     const newLines = lines
       .filter((l) => !prevAlertKeys.has(l.key))
       .map((l) => l.line);
+    for (const l of lines) {
+      if (prevAlertKeys.has(l.key)) continue;
+      const kind = hostWecomKindFromKey(l.key);
+      if (kind) {
+        void fireHostWecom({
+          key: `${props.host}|${l.key}`,
+          host: props.host,
+          kind,
+          detail: l.line,
+        });
+      }
+    }
+    for (const key of prevAlertKeys) {
+      if (next.has(key)) continue;
+      const kind = hostWecomKindFromKey(key);
+      if (kind) {
+        void clearHostWecom({
+          key: `${props.host}|${key}`,
+          host: props.host,
+          kind,
+        });
+      }
+    }
     prevAlertKeys = next;
     if (!newLines.length) return;
     ElNotification({

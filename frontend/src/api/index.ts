@@ -268,6 +268,16 @@ export const api = {
     await System.NotifyHostConn(input);
   },
 
+  /** 面板侧 CPU/内存/磁盘/负载超阈值或回落 → 企微 */
+  notifyHostAlert: async (input: main.HostAlertNotify): Promise<void> => {
+    await System.NotifyHostAlert(input);
+  },
+
+  /** 向企业微信发测试消息；失败则抛错，前端据此禁止保存新地址 */
+  testWecomWebhook: async (webhook: string): Promise<void> => {
+    await System.TestWecomWebhook(webhook);
+  },
+
   /** 隐藏/恢复 macOS 窗口红绿灯（卡片最大化时使用，v3 原生按钮状态 API） */
   setTrafficLightsHidden: async (hidden: boolean): Promise<void> => {
     await System.SetTrafficLightsHidden(hidden);

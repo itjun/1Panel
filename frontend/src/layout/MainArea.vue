@@ -1,7 +1,12 @@
 <template>
   <div class="main-container">
+    <!-- 设置整页：离开即卸载；底下主机/分组/首页仍 v-show 常驻 -->
+    <div v-if="app.settingsOpen" class="content-pad content-pad--fill">
+      <SettingsView />
+    </div>
+
     <!-- 全部主机首页：常驻（v-show 切换，零销毁零重载） -->
-    <div v-show="!app.activeTab" class="content-pad">
+    <div v-show="!app.settingsOpen && !app.activeTab" class="content-pad">
       <AllHostsOverviewView />
     </div>
 
@@ -10,7 +15,11 @@
     <div
       v-for="gid in app.visitedGroupIds"
       :key="gid"
-      v-show="app.activeTab?.kind === 'group' && app.activeTab.id === gid"
+      v-show="
+        !app.settingsOpen &&
+        app.activeTab?.kind === 'group' &&
+        app.activeTab.id === gid
+      "
       class="content-pad"
     >
       <GroupOverviewView :group-id="gid" :group-name="app.groupNameOf(gid)" />
@@ -19,7 +28,11 @@
     <!-- 多主机会话：已打开的全部挂载，仅用 v-show 切换，避免销毁重载 -->
     <template v-for="hid in app.runningHosts" :key="hid">
       <div
-        v-show="app.activeTab?.kind === 'host' && app.activeTab.id === hid"
+        v-show="
+          !app.settingsOpen &&
+          app.activeTab?.kind === 'host' &&
+          app.activeTab.id === hid
+        "
         class="host-shell"
       >
         <div class="router-tabs">
@@ -123,6 +136,7 @@ import PackagesView from "@/views/PackagesView.vue";
 import LogsView from "@/views/LogsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
+import SettingsView from "@/views/SettingsView.vue";
 
 const app = useAppStore();
 

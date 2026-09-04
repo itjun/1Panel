@@ -16,7 +16,7 @@ const fail = (m) => {
 const ok = (m) => console.log("OK:", m);
 
 const distIndex = path.join(root, "dist/index.html");
-if (!fs.existsSync(distIndex)) fail("dist/index.html missing — run npm run build");
+if (!fs.existsSync(distIndex)) fail("dist/index.html missing — run bun run build");
 const html = fs.readFileSync(distIndex, "utf8");
 if (!html.includes("id=\"app\"") && !html.includes("id='app'")) {
   // vite may inject assets only; check non-empty
