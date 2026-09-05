@@ -36,12 +36,17 @@ export interface LineOption {
   formatStr?: string;
   /**
    * tooltip / 默认 Y 轴格式化：
-   * - 默认（不传）：用 formatRateKBps，适合网卡速率（KB/s）
+   * - 默认（不传）：用 formatRateKBps，适合网卡速率（KB/s）；
+   *   Y 轴最大值 ≥1024 KB/s 时整轴自动换成 MB/s
    * - "bytes"：原始值当字节；Y 轴按数据最大值自动换成 B/KB/MB/GB
    */
   unit?: LineUnit;
   /** 与 xData 标签对齐的垂线（探活/进程事件） */
   markLines?: { name: string; x: string }[];
+  /** 横向参考线（如内存总量） */
+  yMarkLine?: { name: string; value: number };
+  /** 单轴时的 Y 轴上限（如 CPU% 固定 100） */
+  yMax?: number;
 }
 
 const props = withDefaults(
@@ -91,6 +96,27 @@ function initChart() {
   ];
   const seriesColor = (index: number) => seriesStyle[index] || seriesStyle[0];
 
+  // 第 0 条序列的标线：事件垂线（红虚线，x 轴对齐）+ 可选横向参考线（如内存总量）
+  function buildMarkLine(index: number) {
+    if (index !== 0) return undefined;
+    const lines: Record<string, unknown>[] = [];
+    for (const m of props.option.markLines || []) {
+      lines.push({ name: m.name, xAxis: m.x });
+    }
+    const ym = props.option.yMarkLine;
+    if (ym) {
+      lines.push({ name: ym.name, yAxis: ym.value });
+    }
+    if (!lines.length) return undefined;
+    return {
+      symbol: "none",
+      silent: true,
+      label: { formatter: "{b}", color: secondaryText },
+      lineStyle: { type: "dashed", color: danger },
+      data: lines,
+    };
+  }
+
   const xData =
     props.option.xData?.length > 0
       ? props.option.xData
@@ -111,18 +137,7 @@ function initChart() {
       item.data?.length > 0
         ? item.data
         : Array.from({ length: 20 }, () => null),
-    markLine:
-      index === 0 && (props.option.markLines?.length || 0) > 0
-        ? {
-            symbol: "none",
-            label: { formatter: "{b}", color: secondaryText },
-            lineStyle: { type: "dashed", color: danger },
-            data: (props.option.markLines || []).map((m) => ({
-              name: m.name,
-              xAxis: m.x,
-            })),
-          }
-        : undefined,
+    markLine: buildMarkLine(index),
   }));
 
   const splitLine = {
@@ -134,11 +149,16 @@ function initChart() {
   };
 
   const yAxisBase = (axisSeries: LineSeries[], hideSplit?: boolean) => {
+    // 换档基准 = 数据最大值与横向参考线的较大者，保证参考线不出画面
+    const scaleMax = Math.max(
+      maxSeriesValue(axisSeries),
+      props.option.yMarkLine?.value || 0
+    );
     const bytesOnly =
       axisSeries.length > 0 &&
       axisSeries.every((s) => (s.unit || props.option.unit) === "bytes");
     if (bytesOnly) {
-      const scale = pickByteScale(maxSeriesValue(axisSeries));
+      const scale = pickByteScale(scaleMax);
       return {
         name: `( ${scale.unit} )`,
         nameTextStyle: { color: secondaryText },
@@ -150,8 +170,24 @@ function initChart() {
         splitLine: hideSplit ? { show: false } : splitLine,
       };
     }
+    // 速率数据（KB/s）：最大值超过 1024 KB/s 时整轴换 MB/s，避免 5,000,000 这类刻度
+    const formatStr = props.option.formatStr || "KB/s";
+    if (formatStr.includes("KB")) {
+      if (scaleMax >= 1024) {
+        return {
+          name: `( ${formatStr.replace("KB", "MB")} )`,
+          nameTextStyle: { color: secondaryText },
+          axisLabel: {
+            color: secondaryText,
+            formatter: (v: number | string) =>
+              formatScaledBytes(Number(v), 1024),
+          },
+          splitLine: hideSplit ? { show: false } : splitLine,
+        };
+      }
+    }
     return {
-      name: `( ${props.option.formatStr || "KB/s"} )`,
+      name: `( ${formatStr} )`,
       nameTextStyle: { color: secondaryText },
       axisLabel: { color: secondaryText },
       splitLine: hideSplit ? { show: false } : splitLine,
@@ -159,6 +195,11 @@ function initChart() {
   };
 
   const dual = yData.some((s) => (s.yAxisIndex || 0) === 1);
+  // raw 轴 tooltip 数值后缀（如 %）；与 Y 轴名一致
+  const formatStrForTooltip = props.option.formatStr || "";
+  // yMax 只作用于单轴场景（如 CPU% 固定 0-100），双轴混轴保持自动缩放
+  const axisMax =
+    !dual && props.option.yMax != null ? { max: props.option.yMax } : {};
   const yAxis = dual
     ? [
         yAxisBase(yData.filter((s) => (s.yAxisIndex || 0) === 0)),
@@ -167,7 +208,7 @@ function initChart() {
           true
         ),
       ]
-    : yAxisBase(yData);
+    : { ...yAxisBase(yData), ...axisMax };
 
   chart.setOption(
     {
@@ -183,12 +224,15 @@ function initChart() {
             const n = typeof item.data === "number" ? item.data : 0;
             const s = yData[item.seriesIndex as number];
             const unit = s?.unit || props.option.unit;
-            const formatted =
-              unit === "bytes"
-                ? formatBytes(n)
-                : unit === "raw"
-                  ? String(Math.round(n * 10) / 10)
-                  : formatRateKBps(n);
+            let formatted: string;
+            if (unit === "bytes") {
+              formatted = formatBytes(n);
+            } else if (unit === "raw") {
+              // 原样数值 + 轴单位后缀（如 23.4 %）
+              formatted = `${String(Math.round(n * 10) / 10)} ${formatStrForTooltip}`;
+            } else {
+              formatted = formatRateKBps(n);
+            }
             res +=
               item.marker +
               " " +
