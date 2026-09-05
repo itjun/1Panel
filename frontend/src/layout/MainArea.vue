@@ -55,6 +55,11 @@
             v-show="(sessionOf(hid)?.subTab || 'overview') === 'overview'"
             :host="hid"
           />
+          <MonitorView
+            v-if="visitedSub(hid, 'monitor')"
+            v-show="sessionOf(hid)?.subTab === 'monitor'"
+            :host="hid"
+          />
           <AppsView
             v-if="visitedSub(hid, 'apps')"
             v-show="sessionOf(hid)?.subTab === 'apps'"
@@ -123,6 +128,7 @@
 import { useAppStore, type SubTab } from "@/stores/app";
 import RouterButton from "@/components/RouterButton.vue";
 import OverviewView from "@/views/OverviewView.vue";
+import MonitorView from "@/views/MonitorView.vue";
 import AppsView from "@/views/AppsView.vue";
 import NginxView from "@/views/NginxView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
@@ -142,6 +148,7 @@ const app = useAppStore();
 
 const subTabs: { value: SubTab; label: string }[] = [
   { value: "overview", label: "概览" },
+  { value: "monitor", label: "监控" },
   { value: "apps", label: "应用" },
   { value: "nginx", label: "Nginx" },
   { value: "processes", label: "进程" },

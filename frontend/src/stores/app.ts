@@ -8,6 +8,7 @@ export const UNGROUPED_ID = "__ungrouped__";
 
 export type SubTab =
   | "overview"
+  | "monitor"
   | "apps"
   | "nginx"
   | "processes"

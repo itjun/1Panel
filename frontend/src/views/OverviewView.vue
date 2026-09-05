@@ -214,129 +214,18 @@
 
           <el-card
             shadow="never"
-            class="home-card panel-hover-card card-interval"
-            :class="{ 'is-enlarged': enlargedKey === 'monitor' }"
-            :style="enlargedKey === 'monitor' ? enlargeStyle : undefined"
+            class="home-card panel-hover-card card-interval monitor-entry-card"
+            @click="goMonitor"
           >
-            <div class="card-header" @dblclick="openEnlarge('monitor')">
+            <div class="card-header">
               <div class="card-title-group">
                 <span class="panel-section-title">监控</span>
-                <el-radio-group v-model="chartMode" size="small">
-                  <el-radio-button value="load">负载</el-radio-button>
-                  <el-radio-button value="cpu">CPU</el-radio-button>
-                  <el-radio-button value="mem">内存</el-radio-button>
-                  <el-radio-button value="network">流量</el-radio-button>
-                  <el-radio-button value="io">磁盘 IO</el-radio-button>
-                </el-radio-group>
-                <el-radio-group v-model="rangeMode" size="small" class="range-group">
-                  <el-radio-button value="live">实时</el-radio-button>
-                  <el-radio-button value="30m">30分</el-radio-button>
-                  <el-radio-button value="1h">1时</el-radio-button>
-                  <el-radio-button value="6h">6时</el-radio-button>
-                  <el-radio-button value="12h">12时</el-radio-button>
-                  <el-radio-button value="24h">24时</el-radio-button>
-                  <el-radio-button value="7d">7天</el-radio-button>
-                  <el-radio-button value="custom">自定义</el-radio-button>
-                </el-radio-group>
+                <span class="monitor-entry-hint">
+                  负载 / CPU / 内存 / 流量 / 磁盘 IO 曲线
+                </span>
               </div>
-              <el-button
-                link
-                class="card-icon-btn card-toggle"
-                :icon="enlargedKey === 'monitor' ? Close : FullScreen"
-                :title="enlargedKey === 'monitor' ? '退出放大' : '放大'"
-                @click="toggleEnlarge('monitor')"
-              />
+              <el-button link class="card-icon-btn" :icon="ArrowRight" title="打开监控页" />
             </div>
-            <div v-if="chartMode === 'network'" class="monitor-tags">
-              <template v-if="rangeMode === 'live'">
-                <el-tag class="metric-tag" effect="plain">
-                  上行: {{ formatBytes(rates.upBps) }}/s
-                </el-tag>
-                <el-tag class="metric-tag" effect="plain">
-                  下行: {{ formatBytes(rates.downBps) }}/s
-                </el-tag>
-              </template>
-            </div>
-            <div v-else-if="chartMode === 'io'" class="monitor-tags">
-              <template v-if="rangeMode === 'live'">
-                <el-tag class="metric-tag" effect="plain">
-                  读: {{ formatBytes(ioRates.readBps) }}/s
-                </el-tag>
-                <el-tag class="metric-tag" effect="plain">
-                  写: {{ formatBytes(ioRates.writeBps) }}/s
-                </el-tag>
-                <el-tag class="metric-tag metric-tag--warn" effect="plain">
-                  IOPS: {{ ioRates.iops }}/s
-                </el-tag>
-              </template>
-            </div>
-            <div v-else-if="chartMode === 'cpu'" class="monitor-tags">
-              <template v-if="rangeMode === 'live' && overview">
-                <el-tag class="metric-tag" effect="plain">
-                  使用率: {{ overview.cpuPercent.toFixed(2) }}%
-                </el-tag>
-                <el-tag class="metric-tag" effect="plain">
-                  {{ overview.cpuCount }} 核 {{ overview.cpuModel || "" }}
-                </el-tag>
-              </template>
-            </div>
-            <div v-else-if="chartMode === 'mem'" class="monitor-tags">
-              <template v-if="rangeMode === 'live' && overview">
-                <el-tag class="metric-tag" effect="plain">
-                  已用: {{ formatBytes(overview.memUsed) }} /
-                  {{ formatBytes(overview.memTotal) }}
-                </el-tag>
-                <el-tag class="metric-tag" effect="plain">
-                  使用率: {{ overview.memPercent.toFixed(1) }}%
-                </el-tag>
-              </template>
-            </div>
-            <div v-else class="monitor-tags">
-              <template v-if="rangeMode === 'live' && overview">
-                <el-tag class="metric-tag" effect="plain">
-                  1分钟: {{ overview.load1.toFixed(2) }}
-                </el-tag>
-                <el-tag class="metric-tag" effect="plain">
-                  5分钟: {{ overview.load5.toFixed(2) }}
-                </el-tag>
-                <el-tag class="metric-tag" effect="plain">
-                  15分钟: {{ overview.load15.toFixed(2) }}
-                </el-tag>
-                <el-tag class="metric-tag" effect="plain">
-                  {{ loadLabel }}（{{ overview.cpuCount }} 核）
-                </el-tag>
-              </template>
-            </div>
-            <div
-              v-if="rangeMode === 'custom'"
-              class="custom-range-row"
-            >
-              <el-date-picker
-                v-model="customRange"
-                type="datetimerange"
-                size="small"
-                range-separator="至"
-                start-placeholder="开始时间"
-                end-placeholder="结束时间"
-                format="MM-dd HH:mm"
-                :clearable="false"
-                @change="onCustomRangeChange"
-              />
-              <span class="custom-range-hint">
-                最多 7 天；超过 3 小时自动降为 5 分钟粒度
-              </span>
-            </div>
-            <div
-              v-if="rangeMode !== 'live' && !historyLoading && !history.length"
-              class="history-empty"
-            >
-              该区间暂无数据（agent 需运行一段时间，或未安装）
-            </div>
-            <VChartLine
-              v-else
-              height="280px"
-              :option="monitorChartOption"
-            />
           </el-card>
 
           <el-card
@@ -575,8 +464,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Close, FullScreen, Refresh } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox, ElNotification } from "element-plus";
+import { ArrowRight, Close, FullScreen, Refresh } from "@element-plus/icons-vue";
+import { ElMessageBox, ElNotification } from "element-plus";
 import { api } from "@/api";
 import type { agentcli, monitor } from "@/api";
 import { formatErr, isAgentMissing } from "@/utils/format";
@@ -584,7 +473,6 @@ import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 import {
-  bytesToKBps,
   formatBytes,
   formatDurationLong,
   formatMemCapacity,
@@ -604,7 +492,6 @@ import {
   hostWecomKindFromKey,
 } from "@/utils/wecomHostAlerts";
 import VChartPie from "@/components/VChartPie.vue";
-import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import javaLogo from "@/assets/runtime/java-original.svg";
 import goLogo from "@/assets/runtime/go-original.svg";
 import nodeLogo from "@/assets/runtime/nodejs-original.svg";
@@ -693,33 +580,10 @@ async function confirmInstallRuntime(name: string) {
   }
 }
 
-const traffic = ref<{ time: string; up: number; down: number }[]>([]);
-const rates = ref({ upBps: 0, downBps: 0 });
-const lastNet = ref<{ rx: number; tx: number; ts: number } | null>(null);
-
-// ---------- Agent 历史曲线（数据来自目标主机 SQLite，离线期间也不缺） ----------
 /** agent 状态徽章（在线版本 / 离线提示；安装入口在主机右键菜单） */
 const agentInfo = ref<agentcli.Status | null>(null);
 /** 面板内置 agent 版本（比对显示「可更新」） */
 const latestAgentVersion = ref("");
-/** 历史区间：live=实时（前端差分），其余为 agent 落库历史 */
-const rangeMode = ref<"live" | "30m" | "1h" | "6h" | "12h" | "24h" | "7d" | "custom">("live");
-const RANGE_SPAN: Record<string, number> = {
-  "30m": 30 * 60,
-  "1h": 3600,
-  "6h": 6 * 3600,
-  "12h": 12 * 3600,
-  "24h": 24 * 3600,
-  "7d": 7 * 86400,
-};
-const history = ref<agentcli.RangePoint[]>([]);
-const historyLoading = ref(false);
-
-/** 自定义时间范围：datetimerange 选择值与已应用的区间（Unix 秒） */
-const customRange = ref<[Date, Date] | null>(null);
-const customApplied = ref<{ from: number; to: number } | null>(null);
-/** 自定义跨度上限 7 天：与「7天」按钮一致，防止 agg 抽样过粗 */
-const CUSTOM_MAX_SPAN = 7 * 86400;
 
 async function loadAgentStatus() {
   try {
@@ -830,145 +694,15 @@ async function onAgentCommand(cmd: string) {
   }
 }
 
-async function loadHistory() {
-  // 自定义区间：用已应用的范围；未选择过则保持空数据
-  let from: number;
-  let to: number;
-  if (rangeMode.value === "custom") {
-    const applied = customApplied.value;
-    if (!applied) {
-      history.value = [];
-      return;
-    }
-    from = applied.from;
-    to = applied.to;
-  } else {
-    const span = RANGE_SPAN[rangeMode.value];
-    if (!span) return;
-    to = Math.floor(Date.now() / 1000);
-    from = to - span;
-  }
-  historyLoading.value = true;
-  try {
-    const r = await api.agentRange(props.host, from, to, "auto");
-    history.value = r.points || [];
-  } catch {
-    history.value = [];
-  } finally {
-    historyLoading.value = false;
+/** 监控入口卡：跳转监控一级子页 */
+function goMonitor() {
+  if (app.activeTabId) {
+    app.setSubTab(app.activeTabId, "monitor");
   }
 }
 
-watch(rangeMode, (mode) => {
-  // 选「自定义」：已应用过区间则直接查询，否则展开选择器等待选择
-  if (mode === "custom") {
-    if (customApplied.value) void loadHistory();
-    else history.value = [];
-    return;
-  }
-  void loadHistory();
-});
-
-/** 自定义时间范围确认：校验跨度 ≤7 天后拉取 */
-function onCustomRangeChange(val: [Date, Date] | null) {
-  if (!val || !val[0] || !val[1]) return;
-  const from = Math.floor(val[0].getTime() / 1000);
-  const to = Math.floor(val[1].getTime() / 1000);
-  if (to <= from) {
-    ElMessage.warning("结束时间需晚于开始时间");
-    return;
-  }
-  if (to - from > CUSTOM_MAX_SPAN) {
-    ElMessage.warning("自定义时间范围最多 7 天");
-    return;
-  }
-  customApplied.value = { from, to };
-  void loadHistory();
-}
-
-/** 首开曲线预取：agent SQLite 里现成有 5s 粒度的历史速率点，
- * 直接灌入 live 曲线作为初始数据——打开页面即呈现最近 15 分钟曲线，
- * 而不是从 1 个点开始逐秒积累。失败静默（退回逐点积累）。 */
-async function seedLiveCurves() {
-  if (traffic.value.length > 1) return; // 实时轮询已积累，无需预取
-  try {
-    const to = Math.floor(Date.now() / 1000);
-    const r = await api.agentRange(props.host, to - 15 * 60, to, "auto");
-    const pts = r.points || [];
-    if (!pts.length || traffic.value.length > 1) return;
-    // 只取最近 100 点：与 pushTraffic 的滑动窗口一致，
-    // 避免首次 push 时 slice(-100) 把曲线突然裁掉一段
-    const win = pts.slice(-100);
-    traffic.value = win.map((p) => ({
-      time: liveTimeLabel(p.ts * 1000),
-      up: p.netTxKBps,
-      down: p.netRxKBps,
-    }));
-    ioTraffic.value = win.map((p) => ({
-      time: liveTimeLabel(p.ts * 1000),
-      read: p.diskReadKBps,
-      write: p.diskWriteKBps,
-    }));
-    cpuSeries.value = win.map((p) => ({
-      time: liveTimeLabel(p.ts * 1000),
-      value: p.cpuPercent,
-    }));
-    memSeries.value = win.map((p) => ({
-      time: liveTimeLabel(p.ts * 1000),
-      value: p.memUsed,
-    }));
-    loadSeries.value = win.map((p) => ({
-      time: liveTimeLabel(p.ts * 1000),
-      value: p.load1,
-    }));
-  } catch {
-    /* agent 不可达或无历史：live 曲线退回逐点积累 */
-  }
-}
-
-/** live 曲线点的横轴标签（HH:mm:ss；首开预取与逐秒积累的点同格式） */
-function liveTimeLabel(ms: number): string {
-  return new Date(ms).toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-}
-
-/** 历史点的横轴标签：跨度 ≤24h 显示 HH:mm，更长（7d/自定义跨天）显示 MM-dd HH:mm */
-function historyTimeLabel(ts: number): string {
-  const d = new Date(ts * 1000);
-  const mmdd = `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const hhmm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  const span = historySpanSec();
-  if (span > 24 * 3600) return `${mmdd} ${hhmm}`;
-  return hhmm;
-}
-
-/** 当前历史查询跨度（秒）；live 返回 0 */
-function historySpanSec(): number {
-  if (rangeMode.value === "live") return 0;
-  if (rangeMode.value === "custom") {
-    const a = customApplied.value;
-    return a ? a.to - a.from : 0;
-  }
-  return RANGE_SPAN[rangeMode.value] || 0;
-}
-
-// 监控卡片：流量 / 磁盘 IO 切换
-const chartMode = ref<"load" | "cpu" | "mem" | "network" | "io">("network");
-const ioTraffic = ref<{ time: string; read: number; write: number }[]>([]);
-const ioRates = ref({ readBps: 0, writeBps: 0, iops: 0 });
-const lastDisk = ref<{ read: number; write: number; count: number; ts: number } | null>(null);
-
-// live 曲线：CPU% / 已用内存 / 负载（快照直读，无需差分；与 traffic 同款滑动窗口）
-const cpuSeries = ref<{ time: string; value: number }[]>([]);
-const memSeries = ref<{ time: string; value: number }[]>([]);
-const loadSeries = ref<{ time: string; value: number }[]>([]);
-
+// 监控卡片已迁移到独立的 MonitorView 一级子页；此处仅保留流量差分（状态环用）
 let timer: number | undefined;
-let historyTimer: number | undefined;
 let slowTimer: number | undefined;
 
 // 终端正在使用时暂停本机的 3s 采集轮询：隐藏状态下每 3s 的响应解析
@@ -1106,105 +840,6 @@ const stats = computed(() => [
   },
 ]);
 
-// ---------- 监控图表 option：按 chartMode 分流，live 与历史共用 history 点 ----------
-const monitorChartOption = computed<LineOption>(() => {
-  const isLive = rangeMode.value === "live";
-  // 历史点（含 live 预灌后的首开数据也走 live 数组，这里只服务非 live）
-  const hx = history.value.map((p) => historyTimeLabel(p.ts));
-  const liveX = (arr: { time: string }[]) => arr.map((p) => p.time);
-
-  if (chartMode.value === "load") {
-    return {
-      xData: isLive ? liveX(loadSeries.value) : hx,
-      yData: [
-        {
-          name: "1 分钟负载",
-          data: isLive
-            ? loadSeries.value.map((p) => p.value)
-            : history.value.map((p) => p.load1),
-        },
-      ],
-      formatStr: "load",
-      unit: "raw",
-    };
-  }
-  if (chartMode.value === "cpu") {
-    return {
-      xData: isLive ? liveX(cpuSeries.value) : hx,
-      yData: [
-        {
-          name: "CPU 使用率",
-          data: isLive
-            ? cpuSeries.value.map((p) => p.value)
-            : history.value.map((p) => p.cpuPercent),
-        },
-      ],
-      formatStr: "%",
-      unit: "raw",
-      yMax: 100,
-    };
-  }
-  if (chartMode.value === "mem") {
-    // 内存总量参考线：优先 overview 快照；历史长区间也能对照
-    const memTotal = overview.value?.memTotal || 0;
-    return {
-      xData: isLive ? liveX(memSeries.value) : hx,
-      yData: [
-        {
-          name: "已用内存",
-          data: isLive
-            ? memSeries.value.map((p) => p.value)
-            : history.value.map((p) => p.memUsed),
-          unit: "bytes",
-        },
-      ],
-      unit: "bytes",
-      ...(memTotal
-        ? { yMarkLine: { name: `总量 ${formatBytes(memTotal)}`, value: memTotal } }
-        : {}),
-    };
-  }
-  if (chartMode.value === "io") {
-    return {
-      xData: isLive ? liveX(ioTraffic.value) : hx,
-      yData: [
-        {
-          name: "读",
-          data: isLive
-            ? ioTraffic.value.map((p) => p.read)
-            : history.value.map((p) => p.diskReadKBps),
-        },
-        {
-          name: "写",
-          data: isLive
-            ? ioTraffic.value.map((p) => p.write)
-            : history.value.map((p) => p.diskWriteKBps),
-        },
-      ],
-      formatStr: "KB/s",
-    };
-  }
-  // network（默认）
-  return {
-    xData: isLive ? liveX(traffic.value) : hx,
-    yData: [
-      {
-        name: "上行",
-        data: isLive
-          ? traffic.value.map((p) => p.up)
-          : history.value.map((p) => p.netTxKBps),
-      },
-      {
-        name: "下行",
-        data: isLive
-          ? traffic.value.map((p) => p.down)
-          : history.value.map((p) => p.netRxKBps),
-      },
-    ],
-    formatStr: "KB/s",
-  };
-});
-
 async function loadOverview() {
   try {
     const data = await api.collectOverview(props.host);
@@ -1213,69 +848,9 @@ async function loadOverview() {
     if (data.osRelease) {
       app.rememberOsRelease(props.host, data.osRelease);
     }
-    pushTraffic(data);
-    pushDiskIO(data);
-    pushMonitorSeries(data);
   } catch (e) {
     error.value = formatErr(e);
   }
-}
-
-function pushTraffic(data: monitor.Overview) {
-  const now = Date.now();
-  const rx = Number(data.netRxBytes) || 0;
-  const tx = Number(data.netTxBytes) || 0;
-  const prev = lastNet.value;
-  lastNet.value = { rx, tx, ts: now };
-  if (!prev || now <= prev.ts || rx < prev.rx || tx < prev.tx) return;
-  const dt = now - prev.ts;
-  const up = bytesToKBps(tx - prev.tx, dt);
-  const down = bytesToKBps(rx - prev.rx, dt);
-  rates.value = {
-    upBps: ((tx - prev.tx) / dt) * 1000,
-    downBps: ((rx - prev.rx) / dt) * 1000,
-  };
-  traffic.value = [...traffic.value, { time: liveTimeLabel(now), up, down }].slice(-100);
-}
-
-// CPU% / 已用内存 / load1：快照直读推入 live 曲线，与 traffic 同款滑动窗口
-function pushMonitorSeries(data: monitor.Overview) {
-  const time = liveTimeLabel(Date.now());
-  cpuSeries.value = [
-    ...cpuSeries.value,
-    { time, value: Number(data.cpuPercent) || 0 },
-  ].slice(-100);
-  memSeries.value = [
-    ...memSeries.value,
-    { time, value: Number(data.memUsed) || 0 },
-  ].slice(-100);
-  loadSeries.value = [
-    ...loadSeries.value,
-    { time, value: Number(data.load1) || 0 },
-  ].slice(-100);
-}
-
-// 磁盘 IO 速率：对累计值做差分，和网络流量同模式
-function pushDiskIO(data: monitor.Overview) {
-  const now = Date.now();
-  const read = Number(data.diskReadBytes) || 0;
-  const write = Number(data.diskWriteBytes) || 0;
-  const count = Number(data.diskIOCount) || 0;
-  const prev = lastDisk.value;
-  lastDisk.value = { read, write, count, ts: now };
-  if (!prev || now <= prev.ts || read < prev.read || write < prev.write) return;
-  const dt = now - prev.ts;
-  const readKBps = bytesToKBps(read - prev.read, dt);
-  const writeKBps = bytesToKBps(write - prev.write, dt);
-  ioRates.value = {
-    readBps: ((read - prev.read) / dt) * 1000,
-    writeBps: ((write - prev.write) / dt) * 1000,
-    iops: Math.round(((count - prev.count) / dt) * 1000),
-  };
-  ioTraffic.value = [
-    ...ioTraffic.value,
-    { time: liveTimeLabel(now), read: readKBps, write: writeKBps },
-  ].slice(-100);
 }
 
 async function loadDisks() {
@@ -1319,20 +894,7 @@ function resetHostState() {
   disks.value = [];
   docker.value = null;
   runtimes.value = [];
-  traffic.value = [];
-  rates.value = { upBps: 0, downBps: 0 };
-  lastNet.value = null;
-  ioTraffic.value = [];
-  ioRates.value = { readBps: 0, writeBps: 0, iops: 0 };
-  lastDisk.value = null;
-  cpuSeries.value = [];
-  memSeries.value = [];
-  loadSeries.value = [];
-  customRange.value = null;
-  customApplied.value = null;
   agentInfo.value = null;
-  history.value = [];
-  rangeMode.value = "live";
 }
 
 // ---------- 卡片放大（全窗口覆盖置顶，盖住侧栏/标签栏） ----------
@@ -1372,7 +934,6 @@ watch(
     resetHostState();
     enlargedKey.value = null;
     void refreshAll();
-    void seedLiveCurves();
     void checkAgentInstalled();
   }
 );
@@ -1396,15 +957,11 @@ watch(terminalActive, (active) => {
 onMounted(() => {
   resetHostState();
   void refreshAll();
-  void seedLiveCurves();
   void checkAgentInstalled();
   timer = window.setInterval(() => {
     if (terminalActive.value || agentMissing.value) return;
     void loadOverview();
   }, 2000);
-  historyTimer = window.setInterval(() => {
-    if (rangeMode.value !== "live") void loadHistory();
-  }, 30000);
   slowTimer = window.setInterval(() => {
     if (agentMissing.value) return;
     void loadDisks();
@@ -1417,7 +974,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
-  if (historyTimer) clearInterval(historyTimer);
   if (slowTimer) clearInterval(slowTimer);
   window.removeEventListener("keydown", onEnlargeKeydown);
 });
@@ -1443,35 +999,19 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 监控卡片：时间范围选择 */
-.range-group {
-  margin-left: 8px;
+/* 监控入口卡：点击跳转监控一级子页 */
+.monitor-entry-card {
+  cursor: pointer;
 }
-/* 自定义时间范围：内联展开的一行选择器 */
-.custom-range-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 2px 0 8px;
-}
-.custom-range-hint {
+.monitor-entry-hint {
   color: var(--m3-on-surface-variant, #49454f);
-  font-size: 12px;
+  font-size: 13px;
 }
 .agent-tag-btn {
   cursor: pointer;
 }
 .agent-offline-hint {
   padding: 10px 0 0;
-}
-.history-empty {
-  height: 280px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
 }
 
 .home-card {
@@ -1524,7 +1064,6 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  /* 监控卡按钮多（5 模式 + 8 范围），窄窗口允许换行避免溢出 */
   flex-wrap: wrap;
   row-gap: 4px;
 }
