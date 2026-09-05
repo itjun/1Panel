@@ -273,6 +273,11 @@ export const api = {
     await System.NotifyHostAlert(input);
   },
 
+  /** 本机系统通知（macOS 通知中心；其它平台暂为空操作） */
+  notifyDesktop: async (title: string, body: string): Promise<void> => {
+    await System.NotifyDesktop(title, body);
+  },
+
   /** 向企业微信发测试消息；失败则抛错，前端据此禁止保存新地址 */
   testWecomWebhook: async (webhook: string): Promise<void> => {
     await System.TestWecomWebhook(webhook);

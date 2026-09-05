@@ -198,7 +198,7 @@
               <div>
                 <h3 class="sec-title">启用企微通知</h3>
                 <p class="sec-desc sec-desc--inline">
-                  总开关。关闭后不推送 CPU、内存、磁盘、负载超阈值。主机断开不推送。应用探活暂不推送。
+                  总开关。关闭后不向企业微信推送。未订阅企微的主机仍发应用内通知与系统通知；主机断开不推送。应用探活暂不推送。
                 </p>
               </div>
               <el-switch
@@ -213,7 +213,7 @@
             <p class="sec-desc">
               企业微信群机器人 Webhook 完整 URL，或只填
               <code>key=</code> 后面的 UUID。不会写入 git。新地址必须先点「测试」，
-              确认企业微信群收到消息后再保存。下发到主机用的是已保存的地址。
+              确认企业微信群收到消息后再保存。订阅主机用的是已保存的地址。
             </p>
             <el-input
               v-model="settings.webhookDraft"
@@ -250,7 +250,7 @@
 
           <section class="settings-section">
             <div class="sec-row">
-              <h3 class="sec-title">下发到主机</h3>
+              <h3 class="sec-title">订阅主机</h3>
               <el-button
                 link
                 type="primary"
@@ -262,9 +262,9 @@
               </el-button>
             </div>
             <p class="sec-desc">
-              写入各主机
+              订阅后：该主机 CPU / 内存 / 磁盘 / 负载超阈值会推企业微信，并写入
               <code>/var/lib/spanel-agent/watch.yml</code>
-              的通知地址（热加载）。勾表示已是当前保存的地址，空白表示尚未启用或与本地不一致。取消会清空该主机上的通知地址。
+              。未订阅只发应用内通知与系统通知。勾表示已订阅且与当前保存地址一致。
             </p>
             <div v-if="!deployRows.length" class="sec-hint">暂无主机</div>
             <div v-else class="deploy-groups">
@@ -278,7 +278,7 @@
                   <div class="deploy-head">
                     <span>序</span>
                     <span>主机</span>
-                    <span>已启用</span>
+                    <span>已订阅</span>
                     <span></span>
                     <span></span>
                   </div>
@@ -314,18 +314,19 @@
                       "
                       @click="deployOne(row)"
                     >
-                      启用
+                      订阅
                     </el-button>
                     <el-button
                       :loading="row.status === 'clearing'"
                       :disabled="
-                        !row.fromHost ||
+                        (!row.fromHost &&
+                          !settings.isWecomSubscribed(row.name)) ||
                         row.status === 'loading' ||
                         row.status === 'pushing'
                       "
                       @click="undeployOne(row)"
                     >
-                      取消
+                      取消订阅
                     </el-button>
                   </div>
                 </div>
@@ -629,7 +630,9 @@ async function probeDeployRow(row: DeployRow) {
     row.fromHost = fromHost;
     if (saved && fromHost && fromHost === saved) {
       row.status = "synced";
-      row.detail = "已是当前保存的通知地址";
+      row.detail = "已订阅当前保存的通知地址";
+      // 主机上已是当前地址：补记本地订阅（兼容升级前只下发、未写本地列表的情况）
+      settings.subscribeWecomHost(row.name);
     } else {
       row.status = "empty";
       row.detail = fromHost ? "主机地址与本地不一致" : "";
@@ -662,7 +665,7 @@ async function refreshDeployStatus() {
 async function deployOne(row: DeployRow) {
   const webhook = settings.effectiveWecomWebhook();
   if (!webhook) {
-    ElMessage.warning("请先保存通知地址再启用");
+    ElMessage.warning("请先保存通知地址再订阅");
     return;
   }
   row.status = "pushing";
@@ -673,8 +676,9 @@ async function deployOne(row: DeployRow) {
     await api.agentPutWatch(row.name, next);
     row.fromHost = webhook;
     row.status = "synced";
-    row.detail = "已是当前保存的通知地址";
-    ElMessage.success(`已启用 ${row.name}`);
+    row.detail = "已订阅当前保存的通知地址";
+    settings.subscribeWecomHost(row.name);
+    ElMessage.success(`已订阅 ${row.name}`);
   } catch (e) {
     row.status = "empty";
     row.detail = isAgentMissing(e) ? "未装 agent" : formatErr(e);
@@ -685,14 +689,14 @@ async function deployOne(row: DeployRow) {
 }
 
 async function undeployOne(row: DeployRow) {
-  if (!row.fromHost) {
-    ElMessage.warning("该主机尚未启用通知地址");
+  if (!row.fromHost && !settings.isWecomSubscribed(row.name)) {
+    ElMessage.warning("该主机尚未订阅");
     return;
   }
   try {
     await ElMessageBox.confirm(
-      `将清空 ${row.name} 上的通知地址，确定取消启用吗？`,
-      "取消启用",
+      `将取消 ${row.name} 的企微订阅并清空其上的通知地址，确定吗？`,
+      "取消订阅",
       { type: "warning", confirmButtonText: "确定", cancelButtonText: "取消" }
     );
   } catch {
@@ -707,12 +711,13 @@ async function undeployOne(row: DeployRow) {
     row.fromHost = "";
     row.status = "empty";
     row.detail = "";
-    ElMessage.success(`已取消 ${row.name} 的启用`);
+    settings.unsubscribeWecomHost(row.name);
+    ElMessage.success(`已取消 ${row.name} 的订阅`);
   } catch (e) {
     const saved = expandWecomWebhook(settings.wecomWebhook);
     if (row.fromHost && saved && row.fromHost === saved) {
       row.status = "synced";
-      row.detail = "已是当前保存的通知地址";
+      row.detail = "已订阅当前保存的通知地址";
     } else {
       row.status = "empty";
       row.detail = row.fromHost

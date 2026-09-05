@@ -36,6 +36,13 @@ export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
 }
 
 /**
+ * NotifyDesktop 本机系统通知（macOS 通知中心）。其它平台目前为空操作。
+ */
+export function NotifyDesktop(title: string, body: string): $CancellablePromise<void> {
+    return $Call.ByID(3415807530, title, body);
+}
+
+/**
  * NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落时发企微。
  */
 export function NotifyHostAlert($in: $models.HostAlertNotify): $CancellablePromise<void> {

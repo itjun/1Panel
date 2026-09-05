@@ -20,10 +20,12 @@ export interface AppSettings {
   terminalFontFamily: string;
   /** 同时后台挂起的主机会话数上限（4~24） */
   maxRunningHosts: number;
-  /** 企微通知总开关（关则下发空 webhook） */
+  /** 企微通知总开关（关则不下发、不发企微；应用内/系统通知仍发） */
   notifyEnabled: boolean;
   /** 企微机器人 Webhook 完整 URL 或 key */
   wecomWebhook: string;
+  /** 已订阅企微的主机名列表（点「订阅」写入；CPU 等告警仅对这些主机发企微） */
+  wecomSubscribedHosts: string[];
 }
 
 export const FONT_OPTIONS: { label: string; value: string }[] = [
@@ -142,6 +144,7 @@ const DEFAULTS: AppSettings = {
   maxRunningHosts: 12,
   notifyEnabled: true,
   wecomWebhook: "",
+  wecomSubscribedHosts: [],
 };
 
 function load(): AppSettings {
@@ -180,6 +183,11 @@ function load(): AppSettings {
         typeof parsed.wecomWebhook === "string"
           ? parsed.wecomWebhook
           : DEFAULTS.wecomWebhook,
+      wecomSubscribedHosts: Array.isArray(parsed.wecomSubscribedHosts)
+        ? parsed.wecomSubscribedHosts.filter(
+            (h): h is string => typeof h === "string" && !!h.trim()
+          )
+        : DEFAULTS.wecomSubscribedHosts,
     };
   } catch {
     return { ...DEFAULTS };
@@ -200,6 +208,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const maxRunningHosts = ref(initial.maxRunningHosts);
   const notifyEnabled = ref(initial.notifyEnabled);
   const wecomWebhook = ref(initial.wecomWebhook);
+  const wecomSubscribedHosts = ref<string[]>([...initial.wecomSubscribedHosts]);
   /** 设置页草稿：离开页面不丢，未点保存不写入 localStorage */
   const webhookDraft = ref(expandWecomWebhook(initial.wecomWebhook));
   const webhookTested = ref("");
@@ -218,6 +227,7 @@ export const useSettingsStore = defineStore("settings", () => {
       maxRunningHosts: maxRunningHosts.value,
       notifyEnabled: notifyEnabled.value,
       wecomWebhook: wecomWebhook.value,
+      wecomSubscribedHosts: [...wecomSubscribedHosts.value],
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem("ipannel.theme", theme.value);
@@ -317,6 +327,29 @@ export const useSettingsStore = defineStore("settings", () => {
     return expandWecomWebhook(wecomWebhook.value);
   }
 
+  /** 该主机是否已订阅企微（资源告警才推群） */
+  function isWecomSubscribed(host: string): boolean {
+    const name = (host || "").trim();
+    if (!name) return false;
+    return wecomSubscribedHosts.value.includes(name);
+  }
+
+  function subscribeWecomHost(host: string) {
+    const name = (host || "").trim();
+    if (!name || wecomSubscribedHosts.value.includes(name)) return;
+    wecomSubscribedHosts.value = [...wecomSubscribedHosts.value, name];
+    persist();
+  }
+
+  function unsubscribeWecomHost(host: string) {
+    const name = (host || "").trim();
+    if (!name) return;
+    const next = wecomSubscribedHosts.value.filter((h) => h !== name);
+    if (next.length === wecomSubscribedHosts.value.length) return;
+    wecomSubscribedHosts.value = next;
+    persist();
+  }
+
   function resetSettings() {
     theme.value = DEFAULTS.theme;
     fontFamily.value = DEFAULTS.fontFamily;
@@ -326,6 +359,7 @@ export const useSettingsStore = defineStore("settings", () => {
     maxRunningHosts.value = DEFAULTS.maxRunningHosts;
     notifyEnabled.value = DEFAULTS.notifyEnabled;
     wecomWebhook.value = DEFAULTS.wecomWebhook;
+    wecomSubscribedHosts.value = [...DEFAULTS.wecomSubscribedHosts];
     webhookDraft.value = "";
     webhookTested.value = "";
     applyAll();
@@ -354,6 +388,7 @@ export const useSettingsStore = defineStore("settings", () => {
     maxRunningHosts,
     notifyEnabled,
     wecomWebhook,
+    wecomSubscribedHosts,
     webhookDraft,
     webhookTested,
     lastNavGroup,
@@ -368,6 +403,9 @@ export const useSettingsStore = defineStore("settings", () => {
     setNotifyEnabled,
     setWecomWebhook,
     effectiveWecomWebhook,
+    isWecomSubscribed,
+    subscribeWecomHost,
+    unsubscribeWecomHost,
     resetSettings,
     applyAll,
   };

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"diteng-pannel/internal/desktop"
 	"diteng-pannel/internal/macui"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/wecom"
@@ -106,6 +107,11 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 		}
 	}
 	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
+}
+
+// NotifyDesktop 本机系统通知（macOS 通知中心）。其它平台目前为空操作。
+func (s *System) NotifyDesktop(title, body string) error {
+	return desktop.Notify(title, body)
 }
 
 func resourceAlertLabel(kind string) string {

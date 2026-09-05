@@ -1,8 +1,10 @@
 import { api } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 
-/** 已向企微发出、尚未恢复的告警键（host|kind），进程内去重 */
-const fired = new Set<string>();
+/** 已发企微、尚未回落的告警键（host|kind） */
+const firedWecom = new Set<string>();
+/** 已发系统通知、尚未回落的告警键（未订阅主机也走这条） */
+const firedLocal = new Set<string>();
 
 export type HostWecomKind = "mem" | "cpu" | "disk" | "load" | "conn";
 
@@ -18,18 +20,52 @@ export function hostWecomKindFromKey(key: string): HostWecomKind | "" {
   return isHostWecomKind(k) ? k : "";
 }
 
+function kindLabel(kind: HostWecomKind): string {
+  switch (kind) {
+    case "mem":
+      return "内存";
+    case "cpu":
+      return "CPU";
+    case "disk":
+      return "磁盘";
+    case "load":
+      return "负载";
+    case "conn":
+      return "连接";
+    default:
+      return kind;
+  }
+}
+
+/**
+ * 主机资源告警出口：
+ * - 始终：系统通知（通知中心）；应用内通知由 Overview/GroupOverview 自行弹出
+ * - 仅已订阅企微的主机：再推企业微信
+ */
 export async function fireHostWecom(opts: {
   key: string;
   host: string;
   kind: HostWecomKind;
   detail: string;
 }): Promise<void> {
-  // 客户端与目标主机断开不发企微（多监控端各自断线会刷屏）
+  // 客户端与目标主机断开不告警（多监控端各自断线会刷屏）
   if (opts.kind === "conn") return;
-  const webhook = useSettingsStore().effectiveWecomWebhook();
+
+  const title = `「${opts.host}」${kindLabel(opts.kind)}超阈值`;
+  const body = opts.detail || title;
+
+  // 系统通知：订阅与否都发；进程内按 key 去重直到回落
+  if (!firedLocal.has(opts.key)) {
+    firedLocal.add(opts.key);
+    void api.notifyDesktop(title, body).catch(() => {});
+  }
+
+  const settings = useSettingsStore();
+  if (!settings.isWecomSubscribed(opts.host)) return;
+  const webhook = settings.effectiveWecomWebhook();
   if (!webhook) return;
-  if (fired.has(opts.key)) return;
-  fired.add(opts.key);
+  if (firedWecom.has(opts.key)) return;
+  firedWecom.add(opts.key);
   try {
     await api.notifyHostAlert({
       webhook,
@@ -39,7 +75,7 @@ export async function fireHostWecom(opts: {
       detail: opts.detail,
     });
   } catch {
-    fired.delete(opts.key);
+    firedWecom.delete(opts.key);
   }
 }
 
@@ -49,9 +85,22 @@ export async function clearHostWecom(opts: {
   kind: HostWecomKind;
 }): Promise<void> {
   if (opts.kind === "conn") return;
-  if (!fired.has(opts.key)) return;
-  const webhook = useSettingsStore().effectiveWecomWebhook();
-  fired.delete(opts.key);
+
+  const hadLocal = firedLocal.delete(opts.key);
+  const hadWecom = firedWecom.delete(opts.key);
+  if (!hadLocal && !hadWecom) return;
+
+  if (hadLocal) {
+    const title = `「${opts.host}」${kindLabel(opts.kind)}已回落`;
+    void api
+      .notifyDesktop(title, `${kindLabel(opts.kind)}已恢复到阈值以下`)
+      .catch(() => {});
+  }
+
+  if (!hadWecom) return;
+  const settings = useSettingsStore();
+  if (!settings.isWecomSubscribed(opts.host)) return;
+  const webhook = settings.effectiveWecomWebhook();
   if (!webhook) return;
   try {
     await api.notifyHostAlert({
@@ -62,6 +111,6 @@ export async function clearHostWecom(opts: {
       detail: "",
     });
   } catch {
-    /* 恢复通知失败不回填 fired */
+    /* 恢复通知失败不回填 */
   }
 }
