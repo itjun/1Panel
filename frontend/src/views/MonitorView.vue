@@ -2,17 +2,11 @@
   <div ref="pageRef" class="monitor-page">
     <el-alert v-if="error && !overview" type="error" :title="error" show-icon />
 
+    <!-- 全局时间范围工具条：对所有监控卡生效 -->
     <el-card shadow="never" class="home-card panel-hover-card">
       <div class="card-header">
         <div class="card-title-group">
           <span class="panel-section-title">监控</span>
-          <el-radio-group v-model="chartMode" size="small">
-            <el-radio-button value="load">负载</el-radio-button>
-            <el-radio-button value="cpu">CPU</el-radio-button>
-            <el-radio-button value="mem">内存</el-radio-button>
-            <el-radio-button value="network">流量</el-radio-button>
-            <el-radio-button value="io">磁盘 IO</el-radio-button>
-          </el-radio-group>
           <el-radio-group v-model="rangeMode" size="small" class="range-group">
             <el-radio-button value="live">实时</el-radio-button>
             <el-radio-button value="30m">30分</el-radio-button>
@@ -49,69 +43,101 @@
           最多 7 天；超过 3 小时自动降为 5 分钟粒度
         </span>
       </div>
+    </el-card>
 
-      <div class="monitor-tags">
-        <template v-if="rangeMode === 'live' && overview">
-          <template v-if="chartMode === 'network'">
-            <el-tag class="metric-tag" effect="plain">
-              上行: {{ formatBytes(rates.upBps) }}/s
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain">
-              下行: {{ formatBytes(rates.downBps) }}/s
-            </el-tag>
-          </template>
-          <template v-else-if="chartMode === 'io'">
-            <el-tag class="metric-tag" effect="plain">
-              读: {{ formatBytes(ioRates.readBps) }}/s
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain">
-              写: {{ formatBytes(ioRates.writeBps) }}/s
-            </el-tag>
-            <el-tag class="metric-tag metric-tag--warn" effect="plain">
-              IOPS: {{ ioRates.iops }}/s
-            </el-tag>
-          </template>
-          <template v-else-if="chartMode === 'cpu'">
-            <el-tag class="metric-tag" effect="plain">
-              使用率: {{ overview.cpuPercent.toFixed(2) }}%
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain">
-              {{ overview.cpuCount }} 核 {{ overview.cpuModel || "" }}
-            </el-tag>
-          </template>
-          <template v-else-if="chartMode === 'mem'">
-            <el-tag class="metric-tag" effect="plain">
-              已用: {{ formatBytes(overview.memUsed) }} /
-              {{ formatBytes(overview.memTotal) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain">
-              使用率: {{ overview.memPercent.toFixed(1) }}%
-            </el-tag>
-          </template>
-          <template v-else>
-            <el-tag class="metric-tag" effect="plain">
-              1分钟: {{ overview.load1.toFixed(2) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain">
-              5分钟: {{ overview.load5.toFixed(2) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain">
-              15分钟: {{ overview.load15.toFixed(2) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain">
-              {{ loadLabel }}（{{ overview.cpuCount }} 核）
-            </el-tag>
-          </template>
-        </template>
+    <!-- 负载 -->
+    <el-card shadow="never" class="home-card panel-hover-card card-interval">
+      <div class="card-header">
+        <span class="panel-section-title">负载</span>
+        <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
+          <el-tag class="metric-tag" effect="plain">
+            1分钟: {{ overview.load1.toFixed(2) }}
+          </el-tag>
+          <el-tag class="metric-tag" effect="plain">
+            5分钟: {{ overview.load5.toFixed(2) }}
+          </el-tag>
+          <el-tag class="metric-tag" effect="plain">
+            15分钟: {{ overview.load15.toFixed(2) }}
+          </el-tag>
+          <el-tag class="metric-tag" effect="plain">
+            {{ loadLabel }}（{{ overview.cpuCount }} 核）
+          </el-tag>
+        </div>
       </div>
+      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+      <VChartLine v-else height="220px" :option="loadOption" />
+    </el-card>
 
-      <div
-        v-if="rangeMode !== 'live' && !historyLoading && !history.length"
-        class="history-empty"
-      >
-        该区间暂无数据（agent 需运行一段时间，或未安装）
+    <!-- CPU -->
+    <el-card shadow="never" class="home-card panel-hover-card card-interval">
+      <div class="card-header">
+        <span class="panel-section-title">CPU</span>
+        <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
+          <el-tag class="metric-tag" effect="plain">
+            使用率: {{ overview.cpuPercent.toFixed(2) }}%
+          </el-tag>
+          <el-tag class="metric-tag" effect="plain">
+            {{ overview.cpuCount }} 核 {{ overview.cpuModel || "" }}
+          </el-tag>
+        </div>
       </div>
-      <VChartLine v-else height="300px" :option="monitorChartOption" />
+      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+      <VChartLine v-else height="220px" :option="cpuOption" />
+    </el-card>
+
+    <!-- 内存 -->
+    <el-card shadow="never" class="home-card panel-hover-card card-interval">
+      <div class="card-header">
+        <span class="panel-section-title">内存</span>
+        <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
+          <el-tag class="metric-tag" effect="plain">
+            已用: {{ formatBytes(overview.memUsed) }} /
+            {{ formatBytes(overview.memTotal) }}
+          </el-tag>
+          <el-tag class="metric-tag" effect="plain">
+            使用率: {{ overview.memPercent.toFixed(1) }}%
+          </el-tag>
+        </div>
+      </div>
+      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+      <VChartLine v-else height="220px" :option="memOption" />
+    </el-card>
+
+    <!-- 流量 -->
+    <el-card shadow="never" class="home-card panel-hover-card card-interval">
+      <div class="card-header">
+        <span class="panel-section-title">流量</span>
+        <div v-if="rangeMode === 'live'" class="monitor-tags">
+          <el-tag class="metric-tag" effect="plain">
+            上行: {{ formatBytes(rates.upBps) }}/s
+          </el-tag>
+          <el-tag class="metric-tag" effect="plain">
+            下行: {{ formatBytes(rates.downBps) }}/s
+          </el-tag>
+        </div>
+      </div>
+      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+      <VChartLine v-else height="220px" :option="networkOption" />
+    </el-card>
+
+    <!-- 磁盘 IO -->
+    <el-card shadow="never" class="home-card panel-hover-card card-interval">
+      <div class="card-header">
+        <span class="panel-section-title">磁盘 IO</span>
+        <div v-if="rangeMode === 'live'" class="monitor-tags">
+          <el-tag class="metric-tag" effect="plain">
+            读: {{ formatBytes(ioRates.readBps) }}/s
+          </el-tag>
+          <el-tag class="metric-tag" effect="plain">
+            写: {{ formatBytes(ioRates.writeBps) }}/s
+          </el-tag>
+          <el-tag class="metric-tag metric-tag--warn" effect="plain">
+            IOPS: {{ ioRates.iops }}/s
+          </el-tag>
+        </div>
+      </div>
+      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+      <VChartLine v-else height="220px" :option="ioOption" />
     </el-card>
   </div>
 </template>
@@ -132,7 +158,6 @@ const error = ref<string | null>(null);
 const overview = ref<monitor.Overview | null>(null);
 
 // ---------- 模式与时间范围 ----------
-const chartMode = ref<"load" | "cpu" | "mem" | "network" | "io">("network");
 const rangeMode = ref<
   "live" | "30m" | "1h" | "6h" | "12h" | "24h" | "7d" | "custom"
 >("live");
@@ -388,85 +413,81 @@ function refreshMonitor() {
   void loadHistory();
 }
 
-// ---------- 图表 option：按 chartMode 分流 ----------
-const monitorChartOption = computed<LineOption>(() => {
-  const isLive = rangeMode.value === "live";
-  const hx = history.value.map((p) => historyTimeLabel(p.ts));
-  const liveX = (arr: { time: string }[]) => arr.map((p) => p.time);
+// ---------- 图表 option：每卡独立 ----------
+/** 历史模式无数据时的空态（live 预灌失败也可能为空，同样提示） */
+const historyEmpty = computed(
+  () => rangeMode.value !== "live" && !historyLoading.value && !history.value.length
+);
 
-  if (chartMode.value === "load") {
-    return {
-      xData: isLive ? liveX(loadSeries.value) : hx,
-      yData: [
-        {
-          name: "1 分钟负载",
-          data: isLive
-            ? loadSeries.value.map((p) => p.value)
-            : history.value.map((p) => p.load1),
-        },
-      ],
-      formatStr: "load",
-      unit: "raw",
-    };
-  }
-  if (chartMode.value === "cpu") {
-    return {
-      xData: isLive ? liveX(cpuSeries.value) : hx,
-      yData: [
-        {
-          name: "CPU 使用率",
-          data: isLive
-            ? cpuSeries.value.map((p) => p.value)
-            : history.value.map((p) => p.cpuPercent),
-        },
-      ],
-      formatStr: "%",
-      unit: "raw",
-      yMax: 100,
-    };
-  }
-  if (chartMode.value === "mem") {
-    const memTotal = overview.value?.memTotal || 0;
-    return {
-      xData: isLive ? liveX(memSeries.value) : hx,
-      yData: [
-        {
-          name: "已用内存",
-          data: isLive
-            ? memSeries.value.map((p) => p.value)
-            : history.value.map((p) => p.memUsed),
-          unit: "bytes",
-        },
-      ],
-      unit: "bytes",
-      ...(memTotal
-        ? { yMarkLine: { name: `总量 ${formatBytes(memTotal)}`, value: memTotal } }
-        : {}),
-    };
-  }
-  if (chartMode.value === "io") {
-    return {
-      xData: isLive ? liveX(ioTraffic.value) : hx,
-      yData: [
-        {
-          name: "读",
-          data: isLive
-            ? ioTraffic.value.map((p) => p.read)
-            : history.value.map((p) => p.diskReadKBps),
-        },
-        {
-          name: "写",
-          data: isLive
-            ? ioTraffic.value.map((p) => p.write)
-            : history.value.map((p) => p.diskWriteKBps),
-        },
-      ],
-      formatStr: "KB/s",
-    };
-  }
-  // network（默认）
+const loadOption = computed<LineOption>(() => {
+  const isLive = rangeMode.value === "live";
   return {
-    xData: isLive ? liveX(traffic.value) : hx,
+    xData: isLive
+      ? loadSeries.value.map((p) => p.time)
+      : history.value.map((p) => historyTimeLabel(p.ts)),
+    yData: [
+      {
+        name: "1 分钟负载",
+        data: isLive
+          ? loadSeries.value.map((p) => p.value)
+          : history.value.map((p) => p.load1),
+      },
+    ],
+    formatStr: "load",
+    unit: "raw",
+  };
+});
+
+const cpuOption = computed<LineOption>(() => {
+  const isLive = rangeMode.value === "live";
+  return {
+    xData: isLive
+      ? cpuSeries.value.map((p) => p.time)
+      : history.value.map((p) => historyTimeLabel(p.ts)),
+    yData: [
+      {
+        name: "CPU 使用率",
+        data: isLive
+          ? cpuSeries.value.map((p) => p.value)
+          : history.value.map((p) => p.cpuPercent),
+      },
+    ],
+    formatStr: "%",
+    unit: "raw",
+    yMax: 100,
+  };
+});
+
+const memOption = computed<LineOption>(() => {
+  const isLive = rangeMode.value === "live";
+  // 内存总量参考线：优先 overview 快照；历史长区间也能对照
+  const memTotal = overview.value?.memTotal || 0;
+  return {
+    xData: isLive
+      ? memSeries.value.map((p) => p.time)
+      : history.value.map((p) => historyTimeLabel(p.ts)),
+    yData: [
+      {
+        name: "已用内存",
+        data: isLive
+          ? memSeries.value.map((p) => p.value)
+          : history.value.map((p) => p.memUsed),
+        unit: "bytes",
+      },
+    ],
+    unit: "bytes",
+    ...(memTotal
+      ? { yMarkLine: { name: `总量 ${formatBytes(memTotal)}`, value: memTotal } }
+      : {}),
+  };
+});
+
+const networkOption = computed<LineOption>(() => {
+  const isLive = rangeMode.value === "live";
+  return {
+    xData: isLive
+      ? traffic.value.map((p) => p.time)
+      : history.value.map((p) => historyTimeLabel(p.ts)),
     yData: [
       {
         name: "上行",
@@ -479,6 +500,30 @@ const monitorChartOption = computed<LineOption>(() => {
         data: isLive
           ? traffic.value.map((p) => p.down)
           : history.value.map((p) => p.netRxKBps),
+      },
+    ],
+    formatStr: "KB/s",
+  };
+});
+
+const ioOption = computed<LineOption>(() => {
+  const isLive = rangeMode.value === "live";
+  return {
+    xData: isLive
+      ? ioTraffic.value.map((p) => p.time)
+      : history.value.map((p) => historyTimeLabel(p.ts)),
+    yData: [
+      {
+        name: "读",
+        data: isLive
+          ? ioTraffic.value.map((p) => p.read)
+          : history.value.map((p) => p.diskReadKBps),
+      },
+      {
+        name: "写",
+        data: isLive
+          ? ioTraffic.value.map((p) => p.write)
+          : history.value.map((p) => p.diskWriteKBps),
       },
     ],
     formatStr: "KB/s",
@@ -547,6 +592,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .card-title-group {
@@ -586,6 +632,6 @@ onBeforeUnmount(() => {
   color: var(--m3-on-surface-variant, #49454f);
   font-size: 13px;
   text-align: center;
-  padding: 48px 0;
+  padding: 80px 0;
 }
 </style>
