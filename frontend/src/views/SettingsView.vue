@@ -333,7 +333,7 @@
               </div>
             </div>
             <p v-if="webhookDirty" class="sec-hint">
-              有未保存的地址，启用仍使用已保存的通知地址。请先保存。
+              有未保存的地址，订阅仍使用已保存的通知地址。请先保存。
             </p>
           </section>
         </template>
