@@ -65,7 +65,13 @@
         </div>
       </div>
       <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine v-else height="220px" :option="loadOption" />
+      <VChartLine
+        v-else
+        height="220px"
+        :option="loadOption"
+        :connect-group="connectGroup"
+        zoomable
+      />
     </el-card>
 
     <!-- CPU -->
@@ -82,7 +88,13 @@
         </div>
       </div>
       <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine v-else height="220px" :option="cpuOption" />
+      <VChartLine
+        v-else
+        height="220px"
+        :option="cpuOption"
+        :connect-group="connectGroup"
+        zoomable
+      />
     </el-card>
 
     <!-- 内存 -->
@@ -100,7 +112,13 @@
         </div>
       </div>
       <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine v-else height="220px" :option="memOption" />
+      <VChartLine
+        v-else
+        height="220px"
+        :option="memOption"
+        :connect-group="connectGroup"
+        zoomable
+      />
     </el-card>
 
     <!-- 流量 -->
@@ -117,7 +135,13 @@
         </div>
       </div>
       <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine v-else height="220px" :option="networkOption" />
+      <VChartLine
+        v-else
+        height="220px"
+        :option="networkOption"
+        :connect-group="connectGroup"
+        zoomable
+      />
     </el-card>
 
     <!-- 磁盘 IO -->
@@ -137,7 +161,13 @@
         </div>
       </div>
       <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine v-else height="220px" :option="ioOption" />
+      <VChartLine
+        v-else
+        height="220px"
+        :option="ioOption"
+        :connect-group="connectGroup"
+        zoomable
+      />
     </el-card>
   </div>
 </template>
@@ -153,6 +183,9 @@ import { isAgentMissing } from "@/utils/format";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 
 const props = defineProps<{ host: string }>();
+
+/** 五卡 connect 联动分组：按 host 隔离，多主机会话同屏也不互相干扰 */
+const connectGroup = computed(() => `monitor-${props.host}`);
 
 const error = ref<string | null>(null);
 const overview = ref<monitor.Overview | null>(null);
@@ -349,7 +382,15 @@ function pushTraffic(data: monitor.Overview) {
   const tx = Number(data.netTxBytes) || 0;
   const prev = lastNet.value;
   lastNet.value = { rx, tx, ts: now };
-  if (!prev || now <= prev.ts || rx < prev.rx || tx < prev.tx) return;
+  // 首点无差分基准：推 0 占位，保证与 cpu/mem/load 卡点数一致
+  //（connect 按百分比同步窗口，点数不齐会横向错位）
+  if (!prev || now <= prev.ts || rx < prev.rx || tx < prev.tx) {
+    traffic.value = [
+      ...traffic.value,
+      { time: liveTimeLabel(now), up: 0, down: 0 },
+    ].slice(-100);
+    return;
+  }
   const dt = now - prev.ts;
   const up = bytesToKBps(tx - prev.tx, dt);
   const down = bytesToKBps(rx - prev.rx, dt);
@@ -360,7 +401,7 @@ function pushTraffic(data: monitor.Overview) {
   traffic.value = [...traffic.value, { time: liveTimeLabel(now), up, down }].slice(-100);
 }
 
-// 磁盘 IO 速率：对累计值做差分，和网络流量同模式
+// 磁盘 IO 速率：对累计值做差分，和网络流量同模式（首点同样推 0 占位）
 function pushDiskIO(data: monitor.Overview) {
   const now = Date.now();
   const read = Number(data.diskReadBytes) || 0;
@@ -368,7 +409,13 @@ function pushDiskIO(data: monitor.Overview) {
   const count = Number(data.diskIOCount) || 0;
   const prev = lastDisk.value;
   lastDisk.value = { read, write, count, ts: now };
-  if (!prev || now <= prev.ts || read < prev.read || write < prev.write) return;
+  if (!prev || now <= prev.ts || read < prev.read || write < prev.write) {
+    ioTraffic.value = [
+      ...ioTraffic.value,
+      { time: liveTimeLabel(now), read: 0, write: 0 },
+    ].slice(-100);
+    return;
+  }
   const dt = now - prev.ts;
   ioRates.value = {
     readBps: ((read - prev.read) / dt) * 1000,

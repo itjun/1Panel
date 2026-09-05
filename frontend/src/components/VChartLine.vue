@@ -53,6 +53,10 @@ const props = withDefaults(
   defineProps<{
     height?: string;
     option: LineOption;
+    /** echarts.connect 分组名：同组图表 tooltip / dataZoom 联动（监控页多卡同组） */
+    connectGroup?: string;
+    /** 开启 inside dataZoom（滚轮缩放 + 拖动平移），需配合 connectGroup 同步窗口 */
+    zoomable?: boolean;
   }>(),
   { height: "240px" }
 );
@@ -74,6 +78,12 @@ function isDark() {
 function initChart() {
   if (!el.value) return;
   if (!chart) chart = echarts.init(el.value);
+  // connect 分组：同组图表 tooltip / dataZoom 动作互相同步。
+  // group 赋值后须显式 connect 激活（对同名分组幂等，可重复调用）
+  if (props.connectGroup) {
+    chart.group = props.connectGroup;
+    echarts.connect(props.connectGroup);
+  }
   const root = getComputedStyle(document.documentElement);
   const get = (name: string, fallback: string) =>
     root.getPropertyValue(name).trim() || fallback;
@@ -262,6 +272,21 @@ function initChart() {
       },
       yAxis,
       series,
+      ...(props.zoomable
+        ? {
+            dataZoom: [
+              {
+                type: "inside",
+                xAxisIndex: 0,
+                // 触摸板双指滚动在 WebView 里会触发 ctrl+wheel，
+                // zoomOnMouseWheel: "shift" 放宽为任意滚轮缩放，拖动平移
+                zoomOnMouseWheel: true,
+                moveOnMouseWheel: true,
+                moveOnMouseMove: true,
+              },
+            ],
+          }
+        : {}),
     },
     true
   );
@@ -286,7 +311,11 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  chart?.dispose();
+  if (chart) {
+    // 置空分组再销毁：dispose 会把实例从 connect 联动列表移除
+    chart.group = "";
+    chart.dispose();
+  }
   chart = null;
 });
 </script>

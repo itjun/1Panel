@@ -6,6 +6,7 @@ import {
   GridComponent,
   LegendComponent,
   PolarComponent,
+  DataZoomComponent,
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 
@@ -18,6 +19,7 @@ echarts.use([
   GridComponent,
   LegendComponent,
   PolarComponent,
+  DataZoomComponent,
   CanvasRenderer,
 ]);
 
