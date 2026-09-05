@@ -2,31 +2,28 @@
   <div ref="pageRef" class="monitor-page">
     <el-alert v-if="error && !overview" type="error" :title="error" show-icon />
 
-    <!-- 全局时间范围工具条：对所有监控卡生效 -->
-    <el-card shadow="never" class="home-card panel-hover-card">
-      <div class="card-header">
-        <div class="card-title-group">
-          <span class="panel-section-title">监控</span>
-          <el-radio-group v-model="rangeMode" size="small" class="range-group">
-            <el-radio-button value="live">实时</el-radio-button>
-            <el-radio-button value="30m">30分</el-radio-button>
-            <el-radio-button value="1h">1时</el-radio-button>
-            <el-radio-button value="6h">6时</el-radio-button>
-            <el-radio-button value="12h">12时</el-radio-button>
-            <el-radio-button value="24h">24时</el-radio-button>
-            <el-radio-button value="7d">7天</el-radio-button>
-            <el-radio-button value="custom">自定义</el-radio-button>
-          </el-radio-group>
-          <el-button
-            link
-            class="card-icon-btn"
-            :icon="Refresh"
-            title="刷新"
-            @click="refreshMonitor"
-          />
-        </div>
+    <!-- 顶部工具条：不占大卡片，把纵向空间留给五张图 -->
+    <div class="monitor-toolbar">
+      <div class="card-title-group">
+        <span class="panel-section-title">监控</span>
+        <el-radio-group v-model="rangeMode" size="small" class="range-group">
+          <el-radio-button value="live">实时</el-radio-button>
+          <el-radio-button value="30m">30分</el-radio-button>
+          <el-radio-button value="1h">1时</el-radio-button>
+          <el-radio-button value="6h">6时</el-radio-button>
+          <el-radio-button value="12h">12时</el-radio-button>
+          <el-radio-button value="24h">24时</el-radio-button>
+          <el-radio-button value="7d">7天</el-radio-button>
+          <el-radio-button value="custom">自定义</el-radio-button>
+        </el-radio-group>
+        <el-button
+          link
+          class="card-icon-btn"
+          :icon="Refresh"
+          title="刷新"
+          @click="refreshMonitor"
+        />
       </div>
-
       <div v-if="rangeMode === 'custom'" class="custom-range-row">
         <el-date-picker
           v-model="customRange"
@@ -43,132 +40,143 @@
           最多 7 天；超过 3 小时自动降为 5 分钟粒度
         </span>
       </div>
-    </el-card>
+    </div>
 
-    <!-- 负载 -->
-    <el-card shadow="never" class="home-card panel-hover-card card-interval">
-      <div class="card-header">
-        <span class="panel-section-title">负载</span>
-        <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
-          <el-tag class="metric-tag" effect="plain">
-            1分钟: {{ overview.load1.toFixed(2) }}
-          </el-tag>
-          <el-tag class="metric-tag" effect="plain">
-            5分钟: {{ overview.load5.toFixed(2) }}
-          </el-tag>
-          <el-tag class="metric-tag" effect="plain">
-            15分钟: {{ overview.load15.toFixed(2) }}
-          </el-tag>
-          <el-tag class="metric-tag" effect="plain">
-            {{ loadLabel }}（{{ overview.cpuCount }} 核）
-          </el-tag>
+    <!-- 两列网格：宽屏 2×2 + 底行通栏；窄屏自动单列 -->
+    <div class="monitor-grid">
+      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
+        <div class="card-header">
+          <span class="panel-section-title">负载</span>
+          <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
+            <el-tag class="metric-tag" effect="plain" size="small">
+              1m {{ overview.load1.toFixed(2) }}
+            </el-tag>
+            <el-tag class="metric-tag" effect="plain" size="small">
+              5m {{ overview.load5.toFixed(2) }}
+            </el-tag>
+            <el-tag class="metric-tag" effect="plain" size="small">
+              15m {{ overview.load15.toFixed(2) }}
+            </el-tag>
+            <el-tag class="metric-tag" effect="plain" size="small">
+              {{ loadLabel }} · {{ overview.cpuCount }}核
+            </el-tag>
+          </div>
         </div>
-      </div>
-      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine
-        v-else
-        height="220px"
-        :option="loadOption"
-        :connect-group="connectGroup"
-        zoomable
-      />
-    </el-card>
+        <div class="chart-slot">
+          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+          <VChartLine
+            v-else
+            height="100%"
+            :option="loadOption"
+            :connect-group="connectGroup"
+            zoomable
+          />
+        </div>
+      </el-card>
 
-    <!-- CPU -->
-    <el-card shadow="never" class="home-card panel-hover-card card-interval">
-      <div class="card-header">
-        <span class="panel-section-title">CPU</span>
-        <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
-          <el-tag class="metric-tag" effect="plain">
-            使用率: {{ overview.cpuPercent.toFixed(2) }}%
-          </el-tag>
-          <el-tag class="metric-tag" effect="plain">
-            {{ overview.cpuCount }} 核 {{ overview.cpuModel || "" }}
-          </el-tag>
+      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
+        <div class="card-header">
+          <span class="panel-section-title">CPU</span>
+          <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
+            <el-tag class="metric-tag" effect="plain" size="small">
+              {{ overview.cpuPercent.toFixed(2) }}%
+            </el-tag>
+            <el-tag class="metric-tag" effect="plain" size="small">
+              {{ overview.cpuCount }} 核
+            </el-tag>
+          </div>
         </div>
-      </div>
-      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine
-        v-else
-        height="220px"
-        :option="cpuOption"
-        :connect-group="connectGroup"
-        zoomable
-      />
-    </el-card>
+        <div class="chart-slot">
+          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+          <VChartLine
+            v-else
+            height="100%"
+            :option="cpuOption"
+            :connect-group="connectGroup"
+            zoomable
+          />
+        </div>
+      </el-card>
 
-    <!-- 内存 -->
-    <el-card shadow="never" class="home-card panel-hover-card card-interval">
-      <div class="card-header">
-        <span class="panel-section-title">内存</span>
-        <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
-          <el-tag class="metric-tag" effect="plain">
-            已用: {{ formatBytes(overview.memUsed) }} /
-            {{ formatBytes(overview.memTotal) }}
-          </el-tag>
-          <el-tag class="metric-tag" effect="plain">
-            使用率: {{ overview.memPercent.toFixed(1) }}%
-          </el-tag>
+      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
+        <div class="card-header">
+          <span class="panel-section-title">内存</span>
+          <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
+            <el-tag class="metric-tag" effect="plain" size="small">
+              {{ formatBytes(overview.memUsed) }} /
+              {{ formatBytes(overview.memTotal) }}
+            </el-tag>
+            <el-tag class="metric-tag" effect="plain" size="small">
+              {{ overview.memPercent.toFixed(1) }}%
+            </el-tag>
+          </div>
         </div>
-      </div>
-      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine
-        v-else
-        height="220px"
-        :option="memOption"
-        :connect-group="connectGroup"
-        zoomable
-      />
-    </el-card>
+        <div class="chart-slot">
+          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+          <VChartLine
+            v-else
+            height="100%"
+            :option="memOption"
+            :connect-group="connectGroup"
+            zoomable
+          />
+        </div>
+      </el-card>
 
-    <!-- 流量 -->
-    <el-card shadow="never" class="home-card panel-hover-card card-interval">
-      <div class="card-header">
-        <span class="panel-section-title">流量</span>
-        <div v-if="rangeMode === 'live'" class="monitor-tags">
-          <el-tag class="metric-tag" effect="plain">
-            上行: {{ formatBytes(rates.upBps) }}/s
-          </el-tag>
-          <el-tag class="metric-tag" effect="plain">
-            下行: {{ formatBytes(rates.downBps) }}/s
-          </el-tag>
+      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
+        <div class="card-header">
+          <span class="panel-section-title">流量</span>
+          <div v-if="rangeMode === 'live'" class="monitor-tags">
+            <el-tag class="metric-tag" effect="plain" size="small">
+              ↑ {{ formatBytes(rates.upBps) }}/s
+            </el-tag>
+            <el-tag class="metric-tag" effect="plain" size="small">
+              ↓ {{ formatBytes(rates.downBps) }}/s
+            </el-tag>
+          </div>
         </div>
-      </div>
-      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine
-        v-else
-        height="220px"
-        :option="networkOption"
-        :connect-group="connectGroup"
-        zoomable
-      />
-    </el-card>
+        <div class="chart-slot">
+          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+          <VChartLine
+            v-else
+            height="100%"
+            :option="networkOption"
+            :connect-group="connectGroup"
+            zoomable
+          />
+        </div>
+      </el-card>
 
-    <!-- 磁盘 IO -->
-    <el-card shadow="never" class="home-card panel-hover-card card-interval">
-      <div class="card-header">
-        <span class="panel-section-title">磁盘 IO</span>
-        <div v-if="rangeMode === 'live'" class="monitor-tags">
-          <el-tag class="metric-tag" effect="plain">
-            读: {{ formatBytes(ioRates.readBps) }}/s
-          </el-tag>
-          <el-tag class="metric-tag" effect="plain">
-            写: {{ formatBytes(ioRates.writeBps) }}/s
-          </el-tag>
-          <el-tag class="metric-tag metric-tag--warn" effect="plain">
-            IOPS: {{ ioRates.iops }}/s
-          </el-tag>
+      <el-card
+        shadow="never"
+        class="home-card panel-hover-card monitor-cell monitor-cell--wide"
+      >
+        <div class="card-header">
+          <span class="panel-section-title">磁盘 IO</span>
+          <div v-if="rangeMode === 'live'" class="monitor-tags">
+            <el-tag class="metric-tag" effect="plain" size="small">
+              读 {{ formatBytes(ioRates.readBps) }}/s
+            </el-tag>
+            <el-tag class="metric-tag" effect="plain" size="small">
+              写 {{ formatBytes(ioRates.writeBps) }}/s
+            </el-tag>
+            <el-tag class="metric-tag metric-tag--warn" effect="plain" size="small">
+              IOPS {{ ioRates.iops }}/s
+            </el-tag>
+          </div>
         </div>
-      </div>
-      <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-      <VChartLine
-        v-else
-        height="220px"
-        :option="ioOption"
-        :connect-group="connectGroup"
-        zoomable
-      />
-    </el-card>
+        <div class="chart-slot">
+          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+          <VChartLine
+            v-else
+            height="100%"
+            :option="ioOption"
+            :connect-group="connectGroup"
+            zoomable
+          />
+        </div>
+      </el-card>
+    </div>
   </div>
 </template>
 
@@ -634,34 +642,35 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-/* 独立监控页：滚动交给外层 .content-pad */
+/* 监控页占满主区：工具条 + 网格均分剩余高度，尽量一屏看全 */
 .monitor-page {
+  box-sizing: border-box;
   min-width: 0;
   max-width: 100%;
-  overflow: visible;
-  padding: 0 0 16px;
-  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  overflow: hidden;
 }
 
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
+.monitor-toolbar {
+  flex-shrink: 0;
+  padding: 4px 2px 0;
 }
 
 .card-title-group {
   display: flex;
   align-items: center;
   gap: 12px;
-  /* 模式 + 范围按钮多，窄窗口允许换行避免溢出 */
   flex-wrap: wrap;
   row-gap: 4px;
 }
 
 .range-group {
-  margin-left: 8px;
+  margin-left: 4px;
 }
 
 .custom-range-row {
@@ -669,25 +678,104 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 2px 0 8px;
+  padding: 6px 0 0;
 }
 .custom-range-hint {
   color: var(--m3-on-surface-variant, #49454f);
   font-size: 12px;
 }
 
+.monitor-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* 三行均分：上两行各两卡，底行磁盘 IO 通栏 */
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.monitor-cell {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 !important;
+
+  :deep(.el-card__body) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 12px 8px;
+    box-sizing: border-box;
+  }
+}
+
+.monitor-cell--wide {
+  grid-column: 1 / -1;
+}
+
+.card-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
 .monitor-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 0 8px;
-  min-height: 26px;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.chart-slot {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+
+  /* VChartLine 根节点吃满槽位，供 echarts 自动 resize */
+  :deep(.v-chart-line) {
+    position: absolute;
+    inset: 0;
+    height: 100% !important;
+  }
 }
 
 .history-empty {
+  height: 100%;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--m3-on-surface-variant, #49454f);
   font-size: 13px;
-  text-align: center;
-  padding: 80px 0;
+  padding: 0;
+}
+
+/* 窄屏：单列纵向排，允许页面滚动 */
+@media (max-width: 960px) {
+  .monitor-page {
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+  }
+  .monitor-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    flex: none;
+  }
+  .monitor-cell--wide {
+    grid-column: auto;
+  }
+  .chart-slot {
+    position: relative;
+    height: 180px;
+    flex: none;
+  }
 }
 </style>

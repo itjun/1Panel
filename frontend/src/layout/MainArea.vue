@@ -169,6 +169,7 @@ const FILL_SUBS: SubTab[] = [
   "apps",
   "nginx",
   "network",
+  "monitor",
   "services",
   "certs",
   "cron",
