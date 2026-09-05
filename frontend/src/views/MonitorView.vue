@@ -222,6 +222,8 @@ const lastDisk = ref<{ read: number; write: number; count: number; ts: number } 
 const cpuSeries = ref<{ time: string; value: number }[]>([]);
 const memSeries = ref<{ time: string; value: number }[]>([]);
 const loadSeries = ref<{ time: string; value: number }[]>([]);
+/** 内存总量（字节）：只在数值变化时更新，避免每 2s overview 轮询触发 memOption 重算 → 内存卡单独 setOption 清掉联动轴指针 */
+const memTotalBytes = ref(0);
 
 let timer: number | undefined;
 let historyTimer: number | undefined;
@@ -247,6 +249,12 @@ async function loadOverview() {
     const data = await api.collectOverview(props.host);
     overview.value = data;
     error.value = null;
+    // 总量只在数值变化时写入：历史模式下其它卡依赖 history（30s），
+    // 若 memOption 跟着 overview 每 2s 换引用，内存卡会单独重绘并丢掉 connect 轴指针
+    const total = Number(data.memTotal) || 0;
+    if (total > 0 && total !== memTotalBytes.value) {
+      memTotalBytes.value = total;
+    }
     pushTraffic(data);
     pushDiskIO(data);
     pushMonitorSeries(data);
@@ -507,8 +515,8 @@ const cpuOption = computed<LineOption>(() => {
 
 const memOption = computed<LineOption>(() => {
   const isLive = rangeMode.value === "live";
-  // 内存总量参考线：优先 overview 快照；历史长区间也能对照
-  const memTotal = overview.value?.memTotal || 0;
+  // 总量参考线：用稳定的 memTotalBytes，不直接读 overview（避免 2s 轮询连带重绘）
+  const memTotal = memTotalBytes.value;
   return {
     xData: isLive
       ? memSeries.value.map((p) => p.time)
@@ -590,6 +598,7 @@ function resetState() {
   cpuSeries.value = [];
   memSeries.value = [];
   loadSeries.value = [];
+  memTotalBytes.value = 0;
   history.value = [];
   customRange.value = null;
   customApplied.value = null;

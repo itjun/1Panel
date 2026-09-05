@@ -63,6 +63,8 @@ const props = withDefaults(
 
 const el = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
+/** 内容指纹：option 引用每次变，但数据未变时跳过 setOption，避免清掉 connect 轴指针 */
+let lastOptionFp = "";
 
 // 隐藏时数据更新只记账不重绘；恢复显示自动补渲染 + 容器尺寸变化自动 resize
 const { renderWhenVisible } = useChartVisibility(
@@ -75,6 +77,25 @@ function isDark() {
   return document.documentElement.classList.contains("dark");
 }
 
+/** 只取影响画面的字段做指纹，忽略对象引用差异 */
+function optionFingerprint(opt: LineOption): string {
+  return JSON.stringify({
+    x: opt.xData,
+    y: (opt.yData || []).map((s) => ({
+      n: s.name,
+      d: s.data,
+      u: s.unit,
+      i: s.yAxisIndex,
+    })),
+    u: opt.unit,
+    f: opt.formatStr,
+    ym: opt.yMarkLine,
+    ymax: opt.yMax,
+    ml: opt.markLines,
+    z: props.zoomable ? 1 : 0,
+  });
+}
+
 function initChart() {
   if (!el.value) return;
   if (!chart) chart = echarts.init(el.value);
@@ -84,6 +105,12 @@ function initChart() {
     chart.group = props.connectGroup;
     echarts.connect(props.connectGroup);
   }
+
+  // 数据未变则跳过 setOption：历史模式下内存卡曾因 overview 轮询单独重绘，
+  // notMerge 会清掉 axisPointer，表现为「只有内存不联动 / 一会儿消失」
+  const fp = optionFingerprint(props.option);
+  if (fp === lastOptionFp) return;
+  lastOptionFp = fp;
   const root = getComputedStyle(document.documentElement);
   const get = (name: string, fallback: string) =>
     root.getPropertyValue(name).trim() || fallback;
@@ -317,6 +344,7 @@ onBeforeUnmount(() => {
     chart.dispose();
   }
   chart = null;
+  lastOptionFp = "";
 });
 </script>
 
