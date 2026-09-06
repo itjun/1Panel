@@ -231,19 +231,21 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 					}
 				}
 				if err := s.groups.Upsert(groups.Group{
-					ID:    target.ID,
-					Name:  target.Name,
-					Order: target.Order,
-					Hosts: merged,
+					ID:         target.ID,
+					Name:       target.Name,
+					BoardTitle: target.BoardTitle, // 合并保留本地看板标题
+					Order:      target.Order,
+					Hosts:      merged,
 				}); err != nil {
 					return nil, fmt.Errorf("合并分组 %s 失败: %w", g.Name, err)
 				}
 			} else {
 				if err := s.groups.Upsert(groups.Group{
-					ID:    g.ID,
-					Name:  g.Name,
-					Order: g.Order,
-					Hosts: keep,
+					ID:         g.ID,
+					Name:       g.Name,
+					BoardTitle: g.BoardTitle,
+					Order:      g.Order,
+					Hosts:      keep,
 				}); err != nil {
 					return nil, fmt.Errorf("导入分组 %s 失败: %w", g.Name, err)
 				}

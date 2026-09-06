@@ -28,6 +28,20 @@ export function BootstrapZsh(host: string): $CancellablePromise<string> {
 }
 
 /**
+ * CloseBoardWindow 按 groupID 关闭对应看板窗；groupID 为空则无操作（须显式传分组）。
+ */
+export function CloseBoardWindow(groupID: string): $CancellablePromise<void> {
+    return $Call.ByID(2474462435, groupID);
+}
+
+/**
+ * FocusMainWindow 显示并聚焦主窗口（看板双击主机后切回主窗操作）。
+ */
+export function FocusMainWindow(): $CancellablePromise<void> {
+    return $Call.ByID(2479596072);
+}
+
+/**
  * GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）
  * 用于设置页本机信息。不依赖任何主机。
  */
@@ -55,6 +69,14 @@ export function NotifyHostAlert($in: $models.HostAlertNotify): $CancellablePromi
  */
 export function NotifyHostConn($in: $models.HostConnNotify): $CancellablePromise<void> {
     return $Call.ByID(1135117834, $in);
+}
+
+/**
+ * OpenBoardWindow 打开或聚焦该分组的看板窗（普通尺寸，不立刻全屏、不调进程级 kiosk）。
+ * 同分组重复调用只聚焦已有窗；不同分组各自一窗，互不影响。
+ */
+export function OpenBoardWindow(groupID: string): $CancellablePromise<void> {
+    return $Call.ByID(1404223385, groupID);
 }
 
 /**

@@ -12,10 +12,11 @@ import (
 
 // Group 表示一个服务器分组
 type Group struct {
-	ID    string   `json:"id"`    // 分组唯一 ID（UUID）
-	Name  string   `json:"name"`  // 分组显示名
-	Order int      `json:"order"` // 排序权重
-	Hosts []string `json:"hosts"` // 该分组包含的 Host 名称
+	ID         string   `json:"id"`                   // 分组唯一 ID（UUID）
+	Name       string   `json:"name"`                 // 分组显示名
+	BoardTitle string   `json:"boardTitle,omitempty"` // 看板模式中间标题（可空）
+	Order      int      `json:"order"`                // 排序权重
+	Hosts      []string `json:"hosts"`                // 该分组包含的 Host 名称
 }
 
 // Store 管理分组元数据的持久化（线程安全）
@@ -83,9 +84,29 @@ func (s *Store) Upsert(g Group) error {
 		if g.Order == 0 && existing.Order != 0 {
 			g.Order = existing.Order
 		}
+		// 入参看板标题为空时保留原值；真正清空走 SetBoardTitle("")
+		if g.BoardTitle == "" && existing.BoardTitle != "" {
+			g.BoardTitle = existing.BoardTitle
+		}
 	}
 	cp := g
 	s.data[g.ID] = &cp
+	return s.saveLocked()
+}
+
+// SetBoardTitle 设置看板中间标题；title 为空表示清空
+func (s *Store) SetBoardTitle(id, title string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	title = strings.TrimSpace(title)
+	if id == "" {
+		return fmt.Errorf("分组 ID 不能为空")
+	}
+	g, ok := s.data[id]
+	if !ok {
+		return fmt.Errorf("分组 %s 不存在", id)
+	}
+	g.BoardTitle = title
 	return s.saveLocked()
 }
 

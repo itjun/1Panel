@@ -16,6 +16,22 @@
           <el-radio-button value="7d">7天</el-radio-button>
           <el-radio-button value="custom">自定义</el-radio-button>
         </el-radio-group>
+        <span class="grain-label">粒度</span>
+        <el-select
+          v-model="grainMode"
+          size="small"
+          class="grain-select"
+          title="X 轴采样间隔；实时「自动」= agent 默认采集间隔（5 秒）"
+        >
+          <el-option value="auto" label="自动" />
+          <el-option value="5s" label="5 秒" />
+          <el-option value="10s" label="10 秒" />
+          <el-option value="15s" label="15 秒" />
+          <el-option value="1m" label="1 分" />
+          <el-option value="5m" label="5 分" />
+          <el-option value="10m" label="10 分" />
+        </el-select>
+        <span v-if="grainHint" class="grain-hint">{{ grainHint }}</span>
         <el-button
           link
           class="card-icon-btn"
@@ -34,148 +50,52 @@
           end-placeholder="结束时间"
           format="MM-dd HH:mm"
           :clearable="false"
+          :default-value="customDefaultValue"
           @change="onCustomRangeChange"
         />
         <span class="custom-range-hint">
-          最多 7 天；超过 3 小时自动降为 5 分钟粒度
+          最多 7 天；细粒度（5/10/15 秒）依赖 raw，长区间可能自动抽稀
         </span>
       </div>
     </div>
 
-    <!-- 两列网格：宽屏 2×2 + 底行通栏；窄屏自动单列 -->
+    <!-- 两列网格：宽屏 2×2 + 底行通栏；窄屏自动单列；每卡可单独最大化 -->
     <div class="monitor-grid">
-      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
-        <div class="card-header">
-          <span class="panel-section-title">负载</span>
-          <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
-            <el-tag class="metric-tag" effect="plain" size="small">
-              1m {{ overview.load1.toFixed(2) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain" size="small">
-              5m {{ overview.load5.toFixed(2) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain" size="small">
-              15m {{ overview.load15.toFixed(2) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain" size="small">
-              {{ loadLabel }} · {{ overview.cpuCount }}核
-            </el-tag>
-          </div>
-        </div>
-        <div class="chart-slot">
-          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-          <VChartLine
-            v-else
-            height="100%"
-            :option="loadOption"
-            :connect-group="connectGroup"
-            zoomable
-          />
-        </div>
-      </el-card>
-
-      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
-        <div class="card-header">
-          <span class="panel-section-title">CPU</span>
-          <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
-            <el-tag class="metric-tag" effect="plain" size="small">
-              {{ overview.cpuPercent.toFixed(2) }}%
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain" size="small">
-              {{ overview.cpuCount }} 核
-            </el-tag>
-          </div>
-        </div>
-        <div class="chart-slot">
-          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-          <VChartLine
-            v-else
-            height="100%"
-            :option="cpuOption"
-            :connect-group="connectGroup"
-            zoomable
-          />
-        </div>
-      </el-card>
-
-      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
-        <div class="card-header">
-          <span class="panel-section-title">内存</span>
-          <div v-if="rangeMode === 'live' && overview" class="monitor-tags">
-            <el-tag class="metric-tag" effect="plain" size="small">
-              {{ formatBytes(overview.memUsed) }} /
-              {{ formatBytes(overview.memTotal) }}
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain" size="small">
-              {{ overview.memPercent.toFixed(1) }}%
-            </el-tag>
-          </div>
-        </div>
-        <div class="chart-slot">
-          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-          <VChartLine
-            v-else
-            height="100%"
-            :option="memOption"
-            :connect-group="connectGroup"
-            zoomable
-          />
-        </div>
-      </el-card>
-
-      <el-card shadow="never" class="home-card panel-hover-card monitor-cell">
-        <div class="card-header">
-          <span class="panel-section-title">流量</span>
-          <div v-if="rangeMode === 'live'" class="monitor-tags">
-            <el-tag class="metric-tag" effect="plain" size="small">
-              ↑ {{ formatBytes(rates.upBps) }}/s
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain" size="small">
-              ↓ {{ formatBytes(rates.downBps) }}/s
-            </el-tag>
-          </div>
-        </div>
-        <div class="chart-slot">
-          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-          <VChartLine
-            v-else
-            height="100%"
-            :option="networkOption"
-            :connect-group="connectGroup"
-            zoomable
-          />
-        </div>
-      </el-card>
-
-      <el-card
-        shadow="never"
-        class="home-card panel-hover-card monitor-cell monitor-cell--wide"
+      <EnlargableCard
+        v-for="card in monitorCards"
+        :key="card.title"
+        bare
+        :title="card.title"
+        :class="['monitor-cell', card.wide ? 'monitor-cell--wide' : '']"
       >
-        <div class="card-header">
-          <span class="panel-section-title">磁盘 IO</span>
-          <div v-if="rangeMode === 'live'" class="monitor-tags">
-            <el-tag class="metric-tag" effect="plain" size="small">
-              读 {{ formatBytes(ioRates.readBps) }}/s
-            </el-tag>
-            <el-tag class="metric-tag" effect="plain" size="small">
-              写 {{ formatBytes(ioRates.writeBps) }}/s
-            </el-tag>
-            <el-tag class="metric-tag metric-tag--warn" effect="plain" size="small">
-              IOPS {{ ioRates.iops }}/s
-            </el-tag>
+        <el-card shadow="never" class="home-card panel-hover-card monitor-card">
+          <div class="card-header enl-head-zone">
+            <span class="panel-section-title">{{ card.title }}</span>
+            <div v-if="rangeMode === 'live' && card.tags.value.length" class="monitor-tags">
+              <el-tag
+                v-for="(tag, i) in card.tags.value"
+                :key="i"
+                class="metric-tag"
+                :class="{ 'metric-tag--warn': tag.warn }"
+                effect="plain"
+                size="small"
+              >
+                {{ tag.text }}
+              </el-tag>
+            </div>
           </div>
-        </div>
-        <div class="chart-slot">
-          <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
-          <VChartLine
-            v-else
-            height="100%"
-            :option="ioOption"
-            :connect-group="connectGroup"
-            zoomable
-          />
-        </div>
-      </el-card>
+          <div class="chart-slot">
+            <div v-if="historyEmpty" class="history-empty">该区间暂无数据</div>
+            <VChartLine
+              v-else
+              height="100%"
+              :option="card.option.value"
+              :connect-group="connectGroup"
+              zoomable
+            />
+          </div>
+        </el-card>
+      </EnlargableCard>
     </div>
   </div>
 </template>
@@ -189,6 +109,7 @@ import type { agentcli, monitor } from "@/api";
 import { formatErr, formatBytes, bytesToKBps } from "@/utils/format";
 import { isAgentMissing } from "@/utils/format";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
+import EnlargableCard from "@/components/EnlargableCard.vue";
 
 const props = defineProps<{ host: string }>();
 
@@ -216,6 +137,46 @@ const customRange = ref<[Date, Date] | null>(null);
 const customApplied = ref<{ from: number; to: number } | null>(null);
 /** 自定义跨度上限 7 天：与「7天」按钮一致，防止 agg 抽样过粗 */
 const CUSTOM_MAX_SPAN = 7 * 86400;
+/** 首次进入自定义：默认「此刻往前 24 小时」，避免空值时弹窗展示跨两月的空白面板 */
+const CUSTOM_DEFAULT_SPAN_MS = 24 * 3600 * 1000;
+
+/**
+ * X 轴采样粒度：
+ * - auto（实时）：agent 默认采集间隔 5 秒
+ * - auto（历史）：沿用后端（≤3h raw ≈5s；更长走 5 分钟 agg，超长再抽稀）
+ * - 5s/10s/15s/1m：强制 raw，再按目标秒数桶化
+ * - 5m/10m：走 agg（5 分钟桶），10m 再隔桶取
+ */
+type GrainMode = "auto" | "5s" | "10s" | "15s" | "1m" | "5m" | "10m";
+const grainMode = ref<GrainMode>("auto");
+/** 与 spanel-agent -interval 默认值一致 */
+const AGENT_DEFAULT_INTERVAL_SEC = 5;
+const GRAIN_SEC: Record<Exclude<GrainMode, "auto">, number> = {
+  "5s": 5,
+  "10s": 10,
+  "15s": 15,
+  "1m": 60,
+  "5m": 300,
+  "10m": 600,
+};
+/** 单卡点数上限：五卡联动，过密会卡顿且横轴挤成一团 */
+const MAX_CHART_POINTS = 2500;
+/** 实际生效提示（抽稀 / 数据源 / 实时 agent 间隔） */
+const grainHint = ref("");
+/** 实时曲线上次落点时间：按粒度节流，避免 2s 轮询把 X 轴加密 */
+let lastLiveChartAt = 0;
+
+function defaultCustomRange(): [Date, Date] {
+  const to = new Date();
+  const from = new Date(to.getTime() - CUSTOM_DEFAULT_SPAN_MS);
+  return [from, to];
+}
+
+/** 弹窗面板聚焦用：有选中值时跟选中，否则跟默认 24h 起点 */
+const customDefaultValue = computed(() => {
+  if (customRange.value?.[0]) return customRange.value[0];
+  return new Date(Date.now() - CUSTOM_DEFAULT_SPAN_MS);
+});
 
 const history = ref<agentcli.RangePoint[]>([]);
 const historyLoading = ref(false);
@@ -263,12 +224,76 @@ async function loadOverview() {
     if (total > 0 && total !== memTotalBytes.value) {
       memTotalBytes.value = total;
     }
-    pushTraffic(data);
-    pushDiskIO(data);
-    pushMonitorSeries(data);
+    // 标签速率每 2s 更新；曲线落点按实时粒度节流（自动 = agent 默认 5s）
+    const appendChart = takeLiveChartSlot();
+    pushTraffic(data, appendChart);
+    pushDiskIO(data, appendChart);
+    if (appendChart) pushMonitorSeries(data);
   } catch (e) {
     error.value = formatErr(e);
   }
+}
+
+/** 实时「自动」→ agent 默认采集间隔；其它模式同选项秒数 */
+function liveGrainSec(): number {
+  if (grainMode.value === "auto") return AGENT_DEFAULT_INTERVAL_SEC;
+  return GRAIN_SEC[grainMode.value];
+}
+
+function updateLiveGrainHint() {
+  const sec = liveGrainSec();
+  if (grainMode.value === "auto") {
+    grainHint.value = `实际：${formatGrainSec(sec)}（agent 默认）`;
+  } else {
+    grainHint.value = `实际：${formatGrainSec(sec)}`;
+  }
+}
+
+/** 是否往实时曲线追加一点；非实时始终追加（后台缓冲，切回实时还能用） */
+function takeLiveChartSlot(now = Date.now()): boolean {
+  if (rangeMode.value !== "live") return true;
+  const need = liveGrainSec() * 1000;
+  if (lastLiveChartAt > 0 && now - lastLiveChartAt < need) return false;
+  lastLiveChartAt = now;
+  return true;
+}
+
+/** 按目标间隔把点归桶：每桶保留最后一点，ts 对齐到桶起点 */
+function downsampleBySec(
+  pts: agentcli.RangePoint[],
+  everySec: number
+): agentcli.RangePoint[] {
+  if (!pts.length || everySec <= 1) return pts;
+  const out: agentcli.RangePoint[] = [];
+  let bucket = Number.NaN;
+  let last: agentcli.RangePoint | null = null;
+  for (const p of pts) {
+    const b = Math.floor(p.ts / everySec) * everySec;
+    if (b !== bucket) {
+      if (last) out.push(last);
+      bucket = b;
+    }
+    last = { ...p, ts: b };
+  }
+  if (last) out.push(last);
+  return out;
+}
+
+function formatGrainSec(sec: number): string {
+  if (sec < 60) return `${sec} 秒`;
+  if (sec < 3600) return `${Math.round(sec / 60)} 分`;
+  return `${Math.round(sec / 3600)} 时`;
+}
+
+/** 粒度 → 请求源 + 目标秒数；auto 不抽稀 */
+function resolveGrainQuery(grain: GrainMode): {
+  src: "auto" | "raw" | "agg";
+  everySec: number | null;
+} {
+  if (grain === "auto") return { src: "auto", everySec: null };
+  const everySec = GRAIN_SEC[grain];
+  if (everySec < 300) return { src: "raw", everySec };
+  return { src: "agg", everySec };
 }
 
 async function loadHistory() {
@@ -278,6 +303,7 @@ async function loadHistory() {
     const applied = customApplied.value;
     if (!applied) {
       history.value = [];
+      grainHint.value = "";
       return;
     }
     from = applied.from;
@@ -288,12 +314,36 @@ async function loadHistory() {
     to = Math.floor(Date.now() / 1000);
     from = to - span;
   }
+  const span = to - from;
+  const { src, everySec } = resolveGrainQuery(grainMode.value);
   historyLoading.value = true;
   try {
-    const r = await api.agentRange(props.host, from, to, "auto");
-    history.value = r.points || [];
+    const r = await api.agentRange(props.host, from, to, src);
+    let pts = r.points || [];
+    let effective = everySec;
+    if (effective != null) {
+      pts = downsampleBySec(pts, effective);
+    }
+    // 超上限再抽稀：保证五卡可流畅联动
+    if (pts.length > MAX_CHART_POINTS) {
+      const forced = Math.max(effective || 1, Math.ceil(span / MAX_CHART_POINTS));
+      pts = downsampleBySec(r.points || [], forced);
+      effective = forced;
+    }
+    history.value = pts;
+    const srcLabel = r.src === "raw" ? "细采样" : r.src === "agg" ? "5 分钟聚合" : r.src;
+    if (grainMode.value === "auto") {
+      grainHint.value = `实际：${srcLabel}`;
+    } else if (effective != null && everySec != null && effective > everySec) {
+      grainHint.value = `已抽稀至 ${formatGrainSec(effective)}（${srcLabel}）`;
+    } else if (effective != null) {
+      grainHint.value = `实际：${formatGrainSec(effective)} · ${srcLabel}`;
+    } else {
+      grainHint.value = `实际：${srcLabel}`;
+    }
   } catch {
     history.value = [];
+    grainHint.value = "";
   } finally {
     historyLoading.value = false;
   }
@@ -301,8 +351,30 @@ async function loadHistory() {
 
 watch(rangeMode, (mode) => {
   if (mode === "custom") {
-    if (customApplied.value) void loadHistory();
-    else history.value = [];
+    // 首次点「自定义」：预填并应用最近 24 小时，弹窗也落在当天附近
+    if (!customApplied.value) {
+      const range = defaultCustomRange();
+      customRange.value = range;
+      customApplied.value = {
+        from: Math.floor(range[0].getTime() / 1000),
+        to: Math.floor(range[1].getTime() / 1000),
+      };
+    }
+    void loadHistory();
+    return;
+  }
+  if (mode === "live") {
+    lastLiveChartAt = 0;
+    updateLiveGrainHint();
+    return;
+  }
+  void loadHistory();
+});
+
+watch(grainMode, () => {
+  if (rangeMode.value === "live") {
+    lastLiveChartAt = 0;
+    updateLiveGrainHint();
     return;
   }
   void loadHistory();
@@ -392,7 +464,7 @@ function historySpanSec(): number {
   return RANGE_SPAN[rangeMode.value] || 0;
 }
 
-function pushTraffic(data: monitor.Overview) {
+function pushTraffic(data: monitor.Overview, appendChart = true) {
   const now = Date.now();
   const rx = Number(data.netRxBytes) || 0;
   const tx = Number(data.netTxBytes) || 0;
@@ -401,10 +473,12 @@ function pushTraffic(data: monitor.Overview) {
   // 首点无差分基准：推 0 占位，保证与 cpu/mem/load 卡点数一致
   //（connect 按百分比同步窗口，点数不齐会横向错位）
   if (!prev || now <= prev.ts || rx < prev.rx || tx < prev.tx) {
-    traffic.value = [
-      ...traffic.value,
-      { time: liveTimeLabel(now), up: 0, down: 0 },
-    ].slice(-100);
+    if (appendChart) {
+      traffic.value = [
+        ...traffic.value,
+        { time: liveTimeLabel(now), up: 0, down: 0 },
+      ].slice(-100);
+    }
     return;
   }
   const dt = now - prev.ts;
@@ -414,11 +488,12 @@ function pushTraffic(data: monitor.Overview) {
     upBps: ((tx - prev.tx) / dt) * 1000,
     downBps: ((rx - prev.rx) / dt) * 1000,
   };
+  if (!appendChart) return;
   traffic.value = [...traffic.value, { time: liveTimeLabel(now), up, down }].slice(-100);
 }
 
 // 磁盘 IO 速率：对累计值做差分，和网络流量同模式（首点同样推 0 占位）
-function pushDiskIO(data: monitor.Overview) {
+function pushDiskIO(data: monitor.Overview, appendChart = true) {
   const now = Date.now();
   const read = Number(data.diskReadBytes) || 0;
   const write = Number(data.diskWriteBytes) || 0;
@@ -426,10 +501,12 @@ function pushDiskIO(data: monitor.Overview) {
   const prev = lastDisk.value;
   lastDisk.value = { read, write, count, ts: now };
   if (!prev || now <= prev.ts || read < prev.read || write < prev.write) {
-    ioTraffic.value = [
-      ...ioTraffic.value,
-      { time: liveTimeLabel(now), read: 0, write: 0 },
-    ].slice(-100);
+    if (appendChart) {
+      ioTraffic.value = [
+        ...ioTraffic.value,
+        { time: liveTimeLabel(now), read: 0, write: 0 },
+      ].slice(-100);
+    }
     return;
   }
   const dt = now - prev.ts;
@@ -438,6 +515,7 @@ function pushDiskIO(data: monitor.Overview) {
     writeBps: ((write - prev.write) / dt) * 1000,
     iops: Math.round(((count - prev.count) / dt) * 1000),
   };
+  if (!appendChart) return;
   ioTraffic.value = [
     ...ioTraffic.value,
     { time: liveTimeLabel(now), read: bytesToKBps(read - prev.read, dt), write: bytesToKBps(write - prev.write, dt) },
@@ -593,6 +671,81 @@ const ioOption = computed<LineOption>(() => {
   };
 });
 
+// ---------- 五卡配置：标题/标签/图表选项统一声明，模板 v-for 渲染 ----------
+
+/** 单卡标签：text 文案；warn 走 metric-tag--warn 样式 */
+interface MonitorTag {
+  text: string;
+  warn?: boolean;
+}
+
+const monitorCards = computed(() => [
+  {
+    title: "CPU",
+    wide: false,
+    tags: computed<MonitorTag[]>(() =>
+      overview.value
+        ? [
+            { text: `${overview.value.cpuPercent.toFixed(2)}%` },
+            { text: `${overview.value.cpuCount} 核` },
+          ]
+        : []
+    ),
+    option: cpuOption,
+  },
+  {
+    title: "负载",
+    wide: false,
+    tags: computed<MonitorTag[]>(() =>
+      overview.value
+        ? [
+            { text: `1m ${overview.value.load1.toFixed(2)}` },
+            { text: `5m ${overview.value.load5.toFixed(2)}` },
+            { text: `15m ${overview.value.load15.toFixed(2)}` },
+            { text: `${loadLabel.value} · ${overview.value.cpuCount}核` },
+          ]
+        : []
+    ),
+    option: loadOption,
+  },
+  {
+    title: "内存",
+    wide: false,
+    tags: computed<MonitorTag[]>(() =>
+      overview.value
+        ? [
+            {
+              text: `${formatBytes(overview.value.memUsed)} / ${formatBytes(
+                overview.value.memTotal
+              )}`,
+            },
+            { text: `${overview.value.memPercent.toFixed(1)}%` },
+          ]
+        : []
+    ),
+    option: memOption,
+  },
+  {
+    title: "流量",
+    wide: false,
+    tags: computed<MonitorTag[]>(() => [
+      { text: `↑ ${formatBytes(rates.value.upBps)}/s` },
+      { text: `↓ ${formatBytes(rates.value.downBps)}/s` },
+    ]),
+    option: networkOption,
+  },
+  {
+    title: "磁盘 IO",
+    wide: true,
+    tags: computed<MonitorTag[]>(() => [
+      { text: `读 ${formatBytes(ioRates.value.readBps)}/s` },
+      { text: `写 ${formatBytes(ioRates.value.writeBps)}/s` },
+      { text: `IOPS ${ioRates.value.iops}/s`, warn: true },
+    ]),
+    option: ioOption,
+  },
+]);
+
 // ---------- 生命周期 ----------
 function resetState() {
   overview.value = null;
@@ -610,7 +763,9 @@ function resetState() {
   history.value = [];
   customRange.value = null;
   customApplied.value = null;
+  lastLiveChartAt = 0;
   rangeMode.value = "live";
+  updateLiveGrainHint();
 }
 
 watch(
@@ -673,6 +828,21 @@ onBeforeUnmount(() => {
   margin-left: 4px;
 }
 
+.grain-label {
+  margin-left: 8px;
+  color: var(--m3-on-surface-variant, #49454f);
+  font-size: 13px;
+}
+
+.grain-select {
+  width: 96px;
+}
+
+.grain-hint {
+  color: var(--m3-on-surface-variant, #49454f);
+  font-size: 12px;
+}
+
 .custom-range-row {
   display: flex;
   align-items: center;
@@ -698,9 +868,18 @@ onBeforeUnmount(() => {
 .monitor-cell {
   min-width: 0;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  margin: 0 !important;
+
+  :deep(.monitor-card) {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    margin: 0 !important;
+    display: flex;
+    flex-direction: column;
+  }
 
   :deep(.el-card__body) {
     flex: 1;
@@ -716,6 +895,17 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
 }
 
+/* 最大化后整卡吃满视口，图表槽跟着拉高 */
+.monitor-cell.is-enlarged {
+  display: flex;
+  flex-direction: column;
+
+  :deep(.monitor-card),
+  :deep(.el-card__body) {
+    height: 100%;
+  }
+}
+
 .card-header {
   flex-shrink: 0;
   display: flex;
@@ -724,6 +914,8 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 4px;
+  /* 给右上角最大化角标留空，避免压住标签 */
+  padding-right: 28px;
 }
 
 .monitor-tags {

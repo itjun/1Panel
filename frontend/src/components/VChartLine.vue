@@ -305,10 +305,10 @@ function initChart() {
               {
                 type: "inside",
                 xAxisIndex: 0,
-                // 触摸板双指滚动在 WebView 里会触发 ctrl+wheel，
-                // zoomOnMouseWheel: "shift" 放宽为任意滚轮缩放，拖动平移
+                // 滚轮只缩放：以鼠标下时间锚点为中心放大缩小。
+                // 若同时 moveOnMouseWheel，滚轮会边缩边平移，时间轴会乱飞。
                 zoomOnMouseWheel: true,
-                moveOnMouseWheel: true,
+                moveOnMouseWheel: false,
                 moveOnMouseMove: true,
               },
             ],

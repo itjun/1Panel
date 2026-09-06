@@ -43,6 +43,13 @@ export function RenameGroup(id: string, newName: string): $CancellablePromise<vo
 }
 
 /**
+ * SetBoardTitle 设置分组看板中间标题；title 为空表示清空
+ */
+export function SetBoardTitle(id: string, title: string): $CancellablePromise<void> {
+    return $Call.ByID(285969698, id, title);
+}
+
+/**
  * UpsertGroup 创建或更新分组
  */
 export function UpsertGroup(g: groups$0.Group): $CancellablePromise<void> {

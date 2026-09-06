@@ -70,3 +70,28 @@ func TestUpsertKeepsHostsWhenNil(t *testing.T) {
 		t.Fatalf("got name=%q hosts=%v", g.Name, g.Hosts)
 	}
 }
+
+func TestSetBoardTitleAndUpsertPreserves(t *testing.T) {
+	dir := t.TempDir()
+	s := &Store{path: filepath.Join(dir, "groups.json"), data: map[string]*Group{}}
+	_ = s.Upsert(Group{ID: "g1", Name: "一组", Hosts: []string{"a"}})
+	if err := s.SetBoardTitle("g1", "  运维看板  "); err != nil {
+		t.Fatal(err)
+	}
+	if s.List()[0].BoardTitle != "运维看板" {
+		t.Fatalf("title = %q", s.List()[0].BoardTitle)
+	}
+	// Upsert 空 BoardTitle 应保留
+	if err := s.Upsert(Group{ID: "g1", Name: "一组", Hosts: []string{"a", "b"}}); err != nil {
+		t.Fatal(err)
+	}
+	if s.List()[0].BoardTitle != "运维看板" {
+		t.Fatalf("title wiped: %q", s.List()[0].BoardTitle)
+	}
+	if err := s.SetBoardTitle("g1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if s.List()[0].BoardTitle != "" {
+		t.Fatalf("want empty, got %q", s.List()[0].BoardTitle)
+	}
+}

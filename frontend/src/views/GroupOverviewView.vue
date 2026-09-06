@@ -3,10 +3,7 @@
     <template v-if="hosts.length">
       <div class="page-toolbar">
         <span class="panel-section-title">{{ groupName || "分组概览" }}</span>
-        <span class="page-toolbar__hint">
-          共 {{ hosts.length }} 台 · 已打开 {{ openedCount }} · 双击主机打开
-        </span>
-        <div class="page-toolbar__actions group-stats">
+        <div class="group-stats">
           <el-tag
             round
             effect="light"
@@ -33,14 +30,24 @@
           >
             失败 {{ errCount }}
           </el-tag>
+        </div>
+        <div class="page-toolbar__actions">
+          <el-button
+            class="group-toolbar-btn"
+            title="独立窗口全屏看板：可拖到外屏投屏"
+            :loading="boardOpening"
+            @click="openBoardWindow"
+          >
+            看板模式
+          </el-button>
           <el-button
             class="group-toolbar-btn"
             :loading="batchBusy"
             :disabled="!hosts.length || agentInstall.running"
-            title="勾选主机后仅安装选中项；未勾选则安装本组全部"
+            title="为本组全部主机安装 Agent"
             @click="batchInstallAgent"
           >
-            {{ selectedHosts.length ? `安装 Agent (${selectedHosts.length})` : "安装 Agent" }}
+            安装 Agent
           </el-button>
           <el-button
             class="group-toolbar-btn"
@@ -50,34 +57,33 @@
           >
             刷新
           </el-button>
+          <el-button
+            v-if="canEditGroup"
+            class="group-toolbar-btn group-toolbar-btn--icon"
+            :icon="Setting"
+            title="分组设置"
+            @click="openGroupSettings"
+          />
         </div>
       </div>
 
       <div class="host-list-wrap m3-table-surface">
         <el-table
-          ref="tableRef"
           :data="hosts"
           size="default"
           stripe
           class="host-list-table data-table-unified"
           :row-class-name="tableRowClass"
-          @selection-change="onSelectionChange"
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
         >
-          <el-table-column type="selection" width="44" fixed />
-          <el-table-column label="状态" width="88" fixed>
-            <template #default="{ row }">
-              <el-tag
-                size="small"
-                round
-                effect="light"
-                :type="statusTagType(row.name)"
-                class="group-status-chip"
-              >
-                {{ statusLabel(row.name) }}
-              </el-tag>
-            </template>
-          </el-table-column>
+          <el-table-column
+            type="index"
+            label="序"
+            width="56"
+            fixed
+            align="center"
+            class-name="group-index-col"
+          />
           <el-table-column
             label="主机"
             min-width="150"
@@ -301,6 +307,44 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="groupSettingsOpen"
+      title="分组设置"
+      width="420px"
+      append-to-body
+      destroy-on-close
+      class="m3-form-dialog"
+      @opened="onGroupSettingsOpened"
+    >
+      <el-form label-position="top" @submit.prevent="saveGroupSettings">
+        <el-form-item label="分组名称" required>
+          <el-input
+            ref="groupNameInputRef"
+            v-model="settingsName"
+            placeholder="侧栏与概览显示名"
+            @keyup.enter="saveGroupSettings"
+          />
+        </el-form-item>
+        <el-form-item label="看板标题">
+          <el-input
+            v-model="settingsBoardTitle"
+            placeholder="看板正中标题，可空"
+            @keyup.enter="saveGroupSettings"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="groupSettingsOpen = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="groupSettingsSaving"
+          @click="saveGroupSettings"
+        >
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -319,9 +363,11 @@ import {
   Clock,
   Loading,
   Refresh,
+  Setting,
   WarningFilled,
 } from "@element-plus/icons-vue";
 import {
+  ElMessage,
   ElMessageBox,
   ElNotification,
   ElProgress,
@@ -358,8 +404,58 @@ const props = defineProps<{
 const app = useAppStore();
 const agentInstall = useAgentInstallStore();
 
+const canEditGroup = computed(() => props.groupId !== UNGROUPED_ID);
+
+const boardTitle = computed(() => {
+  if (!canEditGroup.value) return "";
+  const g = app.groupList.find((x) => x.id === props.groupId);
+  return (g?.boardTitle || "").trim();
+});
+
+const groupSettingsOpen = ref(false);
+const groupSettingsSaving = ref(false);
+const settingsName = ref("");
+const settingsBoardTitle = ref("");
+const groupNameInputRef = ref<{ focus?: () => void } | null>(null);
+
+function openGroupSettings() {
+  if (!canEditGroup.value) return;
+  settingsName.value = props.groupName || "";
+  settingsBoardTitle.value = boardTitle.value;
+  groupSettingsOpen.value = true;
+}
+
+function onGroupSettingsOpened() {
+  groupNameInputRef.value?.focus?.();
+}
+
+async function saveGroupSettings() {
+  if (!canEditGroup.value || groupSettingsSaving.value) return;
+  const nextName = settingsName.value.trim();
+  if (!nextName) {
+    ElMessage.warning("分组名称不能为空");
+    return;
+  }
+  groupSettingsSaving.value = true;
+  try {
+    if (nextName !== props.groupName) {
+      await app.renameGroup(props.groupId, nextName);
+    }
+    const nextBoard = settingsBoardTitle.value.trim();
+    if (nextBoard !== boardTitle.value) {
+      await app.setBoardTitle(props.groupId, nextBoard);
+    }
+    groupSettingsOpen.value = false;
+    ElMessage.success("已保存");
+  } catch (err) {
+    ElMessage.error(`保存失败: ${formatErr(err)}`);
+  } finally {
+    groupSettingsSaving.value = false;
+  }
+}
+
 const THRESHOLDS = ALERT;
-const POLL_MS = 2000;
+const POLL_MS = 3000;
 
 /** 单主机面板状态：标题/地址来自 store（同步），指标通过 per-host 异步加载 */
 interface HostSnap {
@@ -397,11 +493,6 @@ const hosts = computed<sshconfig.HostConfig[]>(() => {
   return node?.hosts ?? [];
 });
 
-/** 组内已打开（后台保持会话）的主机数 */
-const openedCount = computed(
-  () => hosts.value.filter((h) => app.isRunning(h.name)).length
-);
-
 /** 每主机独立的指标状态：key=host.name */
 const hostStates = ref<Record<string, HostSnap>>({});
 
@@ -422,6 +513,20 @@ function hostState(name: string): HostSnap {
 
 function openHost(name: string) {
   app.openHostTab(name);
+}
+
+/** 看板独立窗：打开或聚焦 Name=board-{groupId} 的普通窗（可再全屏） */
+const boardOpening = ref(false);
+
+async function openBoardWindow() {
+  boardOpening.value = true;
+  try {
+    await api.openBoardWindow(props.groupId || UNGROUPED_ID);
+  } catch (e) {
+    ElMessage.error(formatErr(e));
+  } finally {
+    boardOpening.value = false;
+  }
 }
 
 // ---------- 指标 / 告警 ----------
@@ -617,22 +722,6 @@ function notifyAllAlerts() {
   }
 }
 
-function statusLabel(name: string): string {
-  const s = hostState(name);
-  if (s.error) return isAgentMissing(s.error) ? "未装" : "失败";
-  if (!s.overview) return "—";
-  if (isHostAlert(s)) return "告警";
-  return "正常";
-}
-
-function statusTagType(name: string): "success" | "warning" | "danger" | "info" {
-  const s = hostState(name);
-  if (s.error) return "danger";
-  if (!s.overview) return "info";
-  if (isHostAlert(s)) return "warning";
-  return "success";
-}
-
 function tableRowClass({ row }: { row: sshconfig.HostConfig }) {
   const s = hostState(row.name);
   if (s.error || isHostAlert(s)) return "host-list-row is-danger-row";
@@ -709,9 +798,7 @@ function agentTagOf(name: string): { type: string; text: string } {
   return { type: "success", text: `v${st.version}` };
 }
 
-/** 勾选的主机；未勾选时批量操作作用于本组全部 */
-const selectedHosts = ref<sshconfig.HostConfig[]>([]);
-const tableRef = ref<{ clearSelection?: () => void } | null>(null);
+/** 批量安装进度 */
 const batchBusy = ref(false);
 const batchDialogVisible = ref(false);
 const batchDone = ref(false);
@@ -785,10 +872,6 @@ function batchRowLabel(r: BatchRow): string {
   return step;
 }
 
-function onSelectionChange(rows: sshconfig.HostConfig[]) {
-  selectedHosts.value = rows;
-}
-
 function applyBatchProgress(d: {
   host?: string;
   step?: string;
@@ -860,19 +943,13 @@ async function batchInstallAgent() {
     });
     return;
   }
-  const targets =
-    selectedHosts.value.length > 0
-      ? selectedHosts.value.map((h) => h.name)
-      : hosts.value.map((h) => h.name);
+  const targets = hosts.value.map((h) => h.name);
   if (!targets.length) return;
 
   const needInstall = targets.filter((n) => agentTagOf(n).type !== "success");
   const alreadyOk = targets.filter((n) => agentTagOf(n).type === "success");
   const needCount = needInstall.length;
-  const scope =
-    selectedHosts.value.length > 0
-      ? `选中的 ${targets.length} 台`
-      : `本组全部 ${targets.length} 台`;
+  const scope = `本组全部 ${targets.length} 台`;
   try {
     await ElMessageBox.confirm(
       `将向${scope}主机安装 spanel-agent（内置 v${latestAgentVersion.value || "?"}，历史数据保留）。` +
@@ -904,8 +981,6 @@ async function batchInstallAgent() {
   batchDone.value = needInstall.length === 0;
   batchDialogVisible.value = true;
   if (needInstall.length === 0) {
-    tableRef.value?.clearSelection?.();
-    selectedHosts.value = [];
     return;
   }
 
@@ -929,8 +1004,6 @@ async function batchInstallAgent() {
       }
     }
     batchDone.value = true;
-    tableRef.value?.clearSelection?.();
-    selectedHosts.value = [];
     await loadAgentStatuses();
     // 安装成功后清掉「未装」粘性错误并重拉概览，否则状态会一直红
     for (const r of results) {
@@ -979,7 +1052,6 @@ watch(
     activeGroupId = props.groupId;
     hostStates.value = {};
     prevAlertKeys = new Set();
-    selectedHosts.value = [];
     stopPoll();
     startPoll();
   }
@@ -1078,7 +1150,14 @@ startPoll();
 }
 
 .group-stats {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+.page-toolbar__actions {
+  margin-left: auto;
 }
 
 /* 工具栏操作：统一 32px 满圆角 outlined，避免图标按钮与文字按钮高低不一 */
@@ -1092,6 +1171,12 @@ startPoll();
   background: var(--m3-surface-container-lowest);
   border-color: var(--m3-outline-variant);
   color: var(--m3-primary);
+
+  &--icon {
+    padding: 0 !important;
+    width: 32px !important;
+    min-width: 32px !important;
+  }
 
   &:hover,
   &:focus {
@@ -1132,13 +1217,22 @@ startPoll();
   width: 100%;
   cursor: pointer;
 
+  :deep(.group-index-col .cell) {
+    overflow: visible;
+    text-overflow: clip;
+    font-variant-numeric: tabular-nums;
+  }
+
   :deep(.host-list-row) {
     cursor: pointer;
   }
   :deep(.host-list-row.is-danger-row > td.el-table__cell) {
     background: var(--m3-error-container, #fef0f0) !important;
+    color: var(--m3-error);
   }
-  :deep(.host-list-row.is-danger-row .list-host-name) {
+  :deep(.host-list-row.is-danger-row .list-host-name),
+  :deep(.host-list-row.is-danger-row .group-index-col .cell),
+  :deep(.host-list-row.is-danger-row .mono) {
     color: var(--m3-error);
   }
   :deep(.el-table__row:hover > td.el-table__cell) {

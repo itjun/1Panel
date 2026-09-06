@@ -378,6 +378,15 @@ onMounted(() => {
       }
     })
   );
+  // 看板独立窗双击主机：主窗打开监控会话并聚焦（不关看板）
+  eventOffs.push(
+    Events.On("board-open-host", (ev: { data?: { name?: string } }) => {
+      const name = (ev?.data?.name || "").trim();
+      if (!name) return;
+      app.openHostTab(name, "monitor");
+      void api.focusMainWindow();
+    })
+  );
 });
 
 onBeforeUnmount(() => {

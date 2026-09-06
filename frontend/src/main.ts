@@ -8,7 +8,6 @@ import "element-plus/es/components/message-box/style/css";
 import "element-plus/es/components/notification/style/css";
 import "element-plus/es/components/loading/style/css";
 import "@/styles/index.scss";
-import App from "./App.vue";
 
 // 屏蔽 WebView 默认右键菜单（Reload / Inspect Element）
 // 误点 Reload 会硬刷页面，Wails 桥与会话状态易白屏；业务区如需自定义菜单可在元素上 stopPropagation
@@ -20,6 +19,18 @@ document.addEventListener(
   { capture: true }
 );
 
-const app = createApp(App);
-app.use(createPinia());
-app.mount("#app");
+const params = new URLSearchParams(location.search);
+if (params.get("mode") === "board") {
+  // 看板独立窗：不挂主壳 App.vue
+  void import("./components/board/BoardWindowApp.vue").then((m) => {
+    const app = createApp(m.default);
+    app.use(createPinia());
+    app.mount("#app");
+  });
+} else {
+  void import("./App.vue").then((m) => {
+    const app = createApp(m.default);
+    app.use(createPinia());
+    app.mount("#app");
+  });
+}

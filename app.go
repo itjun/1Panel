@@ -46,6 +46,9 @@ type App struct {
 	app        *application.App
 	mainWindow *application.WebviewWindow
 
+	boardMu      sync.Mutex
+	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
+
 	showMu     sync.Mutex
 	sized      bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
 	shown      bool
@@ -62,10 +65,11 @@ const RetryInterval = 30 * time.Second
 func NewApp() *application.App {
 	sshMgr := sshd.NewManager()
 	core := &App{
-		sshMgr:    sshMgr,
-		termMgr:   terminal.NewManager(sshMgr),
-		agentPool: agentcli.NewPool(sshMgr, connectOptionFor),
-		installer: agentinstall.New(sshMgr),
+		sshMgr:       sshMgr,
+		termMgr:      terminal.NewManager(sshMgr),
+		agentPool:    agentcli.NewPool(sshMgr, connectOptionFor),
+		installer:    agentinstall.New(sshMgr),
+		boardWindows: make(map[string]*application.WebviewWindow),
 	}
 
 	app := application.New(application.Options{

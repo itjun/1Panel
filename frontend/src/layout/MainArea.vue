@@ -11,7 +11,7 @@
     </div>
 
     <!-- 分组视图：访问过的分组全部常驻，仅 v-show 切换；
-         组内主机监控由 GroupOverviewView 自带 5s 轮询保持常热 -->
+         组内主机监控由 GroupOverviewView 自带 3s 轮询保持常热 -->
     <div
       v-for="gid in app.visitedGroupIds"
       :key="gid"

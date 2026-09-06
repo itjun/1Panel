@@ -77,6 +77,9 @@ export const api = {
   renameGroup: async (id: string, newName: string): Promise<void> => {
     await Groups.RenameGroup(id, newName);
   },
+  setBoardTitle: async (id: string, title: string): Promise<void> => {
+    await Groups.SetBoardTitle(id, title);
+  },
   deleteGroup: async (id: string): Promise<void> => {
     await Groups.DeleteGroup(id);
   },
@@ -286,6 +289,18 @@ export const api = {
   /** 隐藏/恢复 macOS 窗口红绿灯（卡片最大化时使用，v3 原生按钮状态 API） */
   setTrafficLightsHidden: async (hidden: boolean): Promise<void> => {
     await System.SetTrafficLightsHidden(hidden);
+  },
+  /** 打开或聚焦该分组的看板窗（普通尺寸，可再全屏） */
+  openBoardWindow: async (groupId: string): Promise<void> => {
+    await System.OpenBoardWindow(groupId);
+  },
+  /** 按 groupId 关闭对应看板窗 */
+  closeBoardWindow: async (groupId: string): Promise<void> => {
+    await System.CloseBoardWindow(groupId);
+  },
+  /** 显示并聚焦主窗口 */
+  focusMainWindow: async (): Promise<void> => {
+    await System.FocusMainWindow();
   },
 
   // ============ 备份与恢复（主机配置） ============

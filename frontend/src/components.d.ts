@@ -13,6 +13,9 @@ declare module 'vue' {
   export interface GlobalComponents {
     AgentInstallDialog: typeof import('./components/AgentInstallDialog.vue')['default']
     BackupImportDialog: typeof import('./components/BackupImportDialog.vue')['default']
+    BoardModeOverlay: typeof import('./components/board/BoardModeOverlay.vue')['default']
+    BoardSparkline: typeof import('./components/board/BoardSparkline.vue')['default']
+    BoardWindowApp: typeof import('./components/board/BoardWindowApp.vue')['default']
     DistroLogo: typeof import('./components/DistroLogo.vue')['default']
     EditHostDialog: typeof import('./components/sidebar/EditHostDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
@@ -64,6 +67,7 @@ declare module 'vue' {
     FileFolderIcon: typeof import('./components/FileFolderIcon.vue')['default']
     FilePreviewDrawer: typeof import('./components/files/FilePreviewDrawer.vue')['default']
     FileTable: typeof import('./components/files/FileTable.vue')['default']
+    HostBoardCard: typeof import('./components/board/HostBoardCard.vue')['default']
     HostContextMenu: typeof import('./components/sidebar/HostContextMenu.vue')['default']
     LargestFilesDialog: typeof import('./components/LargestFilesDialog.vue')['default']
     RouterButton: typeof import('./components/RouterButton.vue')['default']

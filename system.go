@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"net/url"
+	"runtime"
 	"strings"
 	"time"
 
@@ -10,7 +13,33 @@ import (
 	"diteng-pannel/internal/wecom"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
+
+const (
+	ungroupedGroupID = "__ungrouped__"
+	// 默认约可整齐放下 3×2 / 3×3 主机卡（含顶栏与间距）
+	boardWindowW    = 1440
+	boardWindowH    = 900
+	boardWindowMinW = 1100
+	boardWindowMinH = 720
+)
+
+func boardWindowName(groupID string) string {
+	return "board-" + groupID
+}
+
+func boardWindowTitle(groupID, groupName string) string {
+	name := strings.TrimSpace(groupName)
+	if name == "" {
+		if groupID == ungroupedGroupID {
+			name = "未分组"
+		} else {
+			name = groupID
+		}
+	}
+	return "看板 · " + name
+}
 
 // SetTrafficLightsHidden 隐藏/恢复 macOS 窗口红绿灯按钮
 // 供前端卡片最大化时调用：最大化期间隐藏，退出时恢复。
@@ -30,6 +59,125 @@ func (s *System) SetTrafficLightsHidden(hidden bool) {
 	if !hidden {
 		macui.InstallCenteredTrafficLights(w, macTitleBarHeight)
 	}
+}
+
+// OpenBoardWindow 打开或聚焦该分组的看板窗（普通尺寸，不立刻全屏、不调进程级 kiosk）。
+// 同分组重复调用只聚焦已有窗；不同分组各自一窗，互不影响。
+func (s *System) OpenBoardWindow(groupID string) error {
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		return fmt.Errorf("groupID 不能为空")
+	}
+
+	groupName := ""
+	if groupID == ungroupedGroupID {
+		groupName = "未分组"
+	} else {
+		if s.groups == nil {
+			return fmt.Errorf("分组存储未初始化")
+		}
+		found := false
+		for _, g := range s.groups.List() {
+			if g.ID == groupID {
+				found = true
+				groupName = g.Name
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("分组不存在: %s", groupID)
+		}
+	}
+	if s.app == nil {
+		return fmt.Errorf("应用未就绪")
+	}
+
+	winName := boardWindowName(groupID)
+	title := boardWindowTitle(groupID, groupName)
+
+	s.boardMu.Lock()
+	defer s.boardMu.Unlock()
+	win := s.boardWindows[groupID]
+	if win == nil {
+		if existing, ok := s.app.Window.GetByName(winName); ok {
+			if bw, ok := existing.(*application.WebviewWindow); ok {
+				win = bw
+				s.boardWindows[groupID] = bw
+			}
+		}
+	}
+
+	if win != nil {
+		win.SetTitle(title)
+		win.Show()
+		win.Focus()
+		return nil
+	}
+
+	boardURL := "/?mode=board&groupId=" + url.QueryEscape(groupID)
+	opts := application.WebviewWindowOptions{
+		Name:                       winName,
+		Title:                      title,
+		URL:                        boardURL,
+		Width:                      boardWindowW,
+		Height:                     boardWindowH,
+		MinWidth:                   boardWindowMinW,
+		MinHeight:                  boardWindowMinH,
+		InitialPosition:            application.WindowCentered,
+		BackgroundColour:           application.NewRGB(15, 17, 21), // #0f1115
+		Hidden:                     false,
+		DefaultContextMenuDisabled: true,
+		Mac: application.MacWindow{
+			TitleBar:                application.MacTitleBarHidden,
+			InvisibleTitleBarHeight: macTitleBarHeight,
+			Backdrop:                application.MacBackdropNormal,
+		},
+	}
+	if runtime.GOOS != "darwin" {
+		opts.Frameless = true
+		opts.Windows.DisableMenu = true
+		opts.Windows.NonClientRegionSupport = true
+	}
+
+	win = s.app.Window.NewWithOptions(opts)
+	s.boardWindows[groupID] = win
+
+	gid := groupID
+	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
+		s.boardMu.Lock()
+		if s.boardWindows[gid] == win {
+			delete(s.boardWindows, gid)
+		}
+		s.boardMu.Unlock()
+	})
+
+	win.Show()
+	win.Focus()
+	return nil
+}
+
+// CloseBoardWindow 按 groupID 关闭对应看板窗；groupID 为空则无操作（须显式传分组）。
+func (s *System) CloseBoardWindow(groupID string) {
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		return
+	}
+	s.boardMu.Lock()
+	win := s.boardWindows[groupID]
+	s.boardMu.Unlock()
+	if win != nil {
+		win.Close()
+	}
+}
+
+// FocusMainWindow 显示并聚焦主窗口（看板双击主机后切回主窗操作）。
+func (s *System) FocusMainWindow() {
+	w := s.mainWindow
+	if w == nil {
+		return
+	}
+	w.Show()
+	w.Focus()
 }
 
 // GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）

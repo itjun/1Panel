@@ -16,6 +16,11 @@ export interface Group {
     "name": string;
 
     /**
+     * 看板模式中间标题（可空）
+     */
+    "boardTitle"?: string;
+
+    /**
      * 排序权重
      */
     "order": number;

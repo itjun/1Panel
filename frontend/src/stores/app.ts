@@ -287,11 +287,11 @@ export const useAppStore = defineStore("app", () => {
     }
   }
 
-  function openHostTab(name: string) {
+  function openHostTab(name: string, subTab?: SubTab) {
     const sess = ensureSession(name);
     if (!sess) return;
     settingsOpen.value = false;
-    // 从其它主机切入时：若已有会话则沿用其 subTab；首次则 overview
+    // 先激活该主机会话，再按需切子页（setSubTab 依赖激活视图）
     activeView.value = {
       id: name,
       title: sess.title,
@@ -299,6 +299,9 @@ export const useAppStore = defineStore("app", () => {
       kind: "host",
       subTab: sess.subTab,
     };
+    if (subTab && subTab !== sess.subTab) {
+      setSubTab(name, subTab);
+    }
   }
 
   function openGroupTab(id: string, title: string) {
@@ -374,6 +377,11 @@ export const useAppStore = defineStore("app", () => {
     if (activeView.value?.id === id) {
       activeView.value = { ...activeView.value, title: newName };
     }
+  }
+
+  async function setBoardTitle(id: string, title: string) {
+    await api.setBoardTitle(id, title);
+    await refresh();
   }
 
   async function assignHost(host: string, groupID: string) {
@@ -485,6 +493,7 @@ export const useAppStore = defineStore("app", () => {
     clearTerminalCmd,
     createGroup,
     renameGroup,
+    setBoardTitle,
     renameHost,
     updateHost,
     deleteHost,

@@ -36,6 +36,14 @@ func (s *Groups) RenameGroup(id, newName string) error {
 	return s.groups.Rename(id, newName)
 }
 
+// SetBoardTitle 设置分组看板中间标题；title 为空表示清空
+func (s *Groups) SetBoardTitle(id, title string) error {
+	if s.groups == nil {
+		return fmt.Errorf("分组存储未初始化")
+	}
+	return s.groups.SetBoardTitle(id, title)
+}
+
 // DeleteGroup 删除分组
 func (s *Groups) DeleteGroup(id string) error {
 	if s.groups == nil {
