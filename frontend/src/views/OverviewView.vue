@@ -598,29 +598,49 @@ async function loadAgentStatus() {
   }
 }
 
-// ---------- 打开主机时的 agent 运行检测（只提示，绝不自动安装） ----------
+// ---------- 打开主机时的 agent 检测（弹窗询问安装，绝不自动安装） ----------
 /** 本会话内已检测/提示过的主机，避免切换主机反复弹通知 */
 const agentCheckedHosts = new Set<string>();
+
+/** 弹窗询问是否安装；确认后走进度对话框，取消则静默 */
+async function askInstallAgent(host: string) {
+  try {
+    await ElMessageBox.confirm(
+      `将向 ${host} 部署 spanel-agent（systemd 服务，约 10MB）。已安装时更新到面板内置版本，历史数据保留。`,
+      "安装 Agent",
+      { confirmButtonText: "安装", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  await agentInstall.start(host);
+}
 
 async function checkAgentInstalled() {
   const host = props.host;
   if (agentCheckedHosts.has(host)) return;
   agentCheckedHosts.add(host);
 
-  let online = false;
+  let status: agentcli.Status | null = null;
   try {
-    online = (await api.agentStatus(host, true))?.ok === true;
+    status = await api.agentStatus(host, true);
   } catch {
-    online = false;
+    status = null;
   }
-  if (online) return;
+  if (status?.ok) return;
+  if (status?.notInstalled) {
+    await askInstallAgent(host);
+    return;
+  }
 
-  // agent 不在线时 SSH 探测：已安装但未运行才提示（带恢复命令）；
-  // 未安装不弹通知——卡片右上角的「Agent 离线」标签已可见，
-  // 安装入口在侧栏主机右键菜单
+  // agent 不在线且状态未标未装：SSH 探测区分「未安装」与「已装未运行」
   try {
     const info = await api.agentProbeInfo(host);
-    if (info.HasBinary && info.ServiceState !== "active") {
+    if (!info.HasBinary) {
+      await askInstallAgent(host);
+      return;
+    }
+    if (info.ServiceState !== "active") {
       ElNotification.warning({
         title: "spanel-agent 未运行",
         message: `${host} 的 spanel-agent 服务状态为 ${info.ServiceState}，监控数据暂不可用。可在目标机执行 systemctl restart spanel-agent 恢复。`,
@@ -640,7 +660,7 @@ const agentUpdatable = computed(
     agentInfo.value.version !== latestAgentVersion.value
 );
 
-/** 更新 / 卸载（安装的入口在侧栏主机右键菜单，install 与 upgrade 走同一幂等接口） */
+/** 更新 / 卸载（安装也可从打开主机时的询问弹窗或侧栏右键触发，install 与 upgrade 走同一幂等接口） */
 const agentBusy = ref(false);
 async function onAgentCommand(cmd: string) {
   if (agentBusy.value) return;

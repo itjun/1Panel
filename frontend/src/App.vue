@@ -166,7 +166,7 @@
     <el-drawer
       :model-value="alertHistory.drawerOpen"
       direction="rtl"
-      size="420px"
+      size="440px"
       append-to-body
       class="alert-history-drawer"
       @update:model-value="(v: boolean) => (v ? alertHistory.openDrawer() : alertHistory.closeDrawer())"
@@ -178,6 +178,7 @@
           <div class="alert-drawer-actions">
             <el-button
               link
+              size="small"
               type="primary"
               :disabled="alertHistory.unread <= 0"
               @click="onMarkAllAlertsRead"
@@ -186,6 +187,7 @@
             </el-button>
             <el-button
               link
+              size="small"
               type="danger"
               :disabled="!alertHistory.events.length"
               @click="onClearAlertHistory"
@@ -704,16 +706,44 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding-right: 8px;
+  min-width: 0;
+  padding-right: 4px;
 }
 .alert-history-drawer .alert-drawer-title {
+  flex: 1;
+  min-width: 0;
   font: var(--m3-title-large);
   color: var(--m3-on-surface);
 }
 .alert-history-drawer .alert-drawer-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 4px;
+}
+/* 操作文案用 label-medium，明显小于 title-large，符合 M3 层级 */
+.alert-history-drawer .alert-drawer-actions .el-button {
+  font: var(--m3-label-medium);
+  height: auto;
+  min-height: 0;
+  padding: 4px 6px;
+}
+.alert-history-drawer .alert-drawer-actions .el-button.is-disabled {
+  color: var(--m3-on-surface-variant) !important;
+  opacity: 0.5;
+}
+/* drawer 挂到 body；对齐 M3 side sheet 内边距与表面色 */
+.alert-history-drawer.el-drawer {
+  background: var(--m3-surface-container-lowest);
+}
+.alert-history-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding: 20px 20px 12px 24px;
+  border-bottom: 1px solid var(--m3-outline-variant);
+}
+.alert-history-drawer .el-drawer__body {
+  padding: 16px 20px 24px;
+  background: var(--m3-surface-container-lowest);
 }
 .alert-history-drawer .alert-drawer-body {
   min-height: 120px;

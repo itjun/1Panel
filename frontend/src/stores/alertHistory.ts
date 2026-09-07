@@ -85,6 +85,8 @@ export function alertKindLabel(kind: string): string {
       return "磁盘";
     case "load":
       return "负载";
+    case "conn":
+      return "连接";
     default:
       return kind || "告警";
   }
