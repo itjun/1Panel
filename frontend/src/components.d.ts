@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AgentInstallDialog: typeof import('./components/AgentInstallDialog.vue')['default']
+    AlertEventList: typeof import('./components/alert/AlertEventList.vue')['default']
     BackupImportDialog: typeof import('./components/BackupImportDialog.vue')['default']
     BoardModeOverlay: typeof import('./components/board/BoardModeOverlay.vue')['default']
     BoardSparkline: typeof import('./components/board/BoardSparkline.vue')['default']
@@ -19,6 +20,7 @@ declare module 'vue' {
     DistroLogo: typeof import('./components/DistroLogo.vue')['default']
     EditHostDialog: typeof import('./components/sidebar/EditHostDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
+    ElBadge: typeof import('element-plus/es')['ElBadge']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
     ElCard: typeof import('element-plus/es')['ElCard']

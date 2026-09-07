@@ -132,6 +132,21 @@ export interface CopyIDInput {
 }
 
 /**
+ * DesktopNotify 本机系统通知入参；Host/EventID/Kind 写入通知 Data，点击后可跳转。
+ */
+export interface DesktopNotify {
+    "title": string;
+    "body": string;
+    "host"?: string;
+    "eventId"?: string;
+
+    /**
+     * cpu|mem|disk|load
+     */
+    "kind"?: string;
+}
+
+/**
  * GroupOverview 一个分组的概览数据
  */
 export interface GroupOverview {

@@ -19,6 +19,7 @@ export type SubTab =
   | "cron"
   | "packages"
   | "logs"
+  | "notifications"
   | "terminal";
 
 /** 当前主区展示的对象 */

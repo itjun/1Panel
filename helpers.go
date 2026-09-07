@@ -55,6 +55,15 @@ type HostAlertNotify struct {
 	Detail  string `json:"detail"`
 }
 
+// DesktopNotify 本机系统通知入参；Host/EventID/Kind 写入通知 Data，点击后可跳转。
+type DesktopNotify struct {
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	Host    string `json:"host,omitempty"`
+	EventID string `json:"eventId,omitempty"`
+	Kind    string `json:"kind,omitempty"` // cpu|mem|disk|load
+}
+
 // readPublicKey 读公钥文件内容（去掉末尾换行）
 func readPublicKey(path string) (string, error) {
 	path = expandTilde(path)

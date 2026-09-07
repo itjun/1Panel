@@ -25,6 +25,12 @@ const (
 	boardWindowMinH = 720
 )
 
+// 磨砂关闭时的实色窗底：主窗浅灰、看板深色（与前端 --lg-fill 降级实色一致）
+var (
+	mainWindowSolidColour  = application.NewRGB(244, 244, 244)
+	boardWindowSolidColour = application.NewRGB(15, 17, 21)
+)
+
 func boardWindowName(groupID string) string {
 	return "board-" + groupID
 }
@@ -58,6 +64,40 @@ func (s *System) SetTrafficLightsHidden(hidden bool) {
 	w.SetMaximiseButtonState(st)
 	if !hidden {
 		macui.InstallCenteredTrafficLights(w, macTitleBarHeight)
+	}
+}
+
+// SetFrostedChrome 热切换主窗与全部看板窗的磨砂材质。
+// 开启：透明底 + macOS Visual Effect；关闭：主窗 RGB(244,244,244)、看板 RGB(15,17,21)。
+func (s *System) SetFrostedChrome(enabled bool) {
+	s.frostedChrome = enabled
+	saveFrostedState(enabled) // 写镜像，下次启动首帧即磨砂/实色
+
+	s.setFrostedOnWindow(s.mainWindow, mainWindowSolidColour)
+
+	s.boardMu.Lock()
+	boards := make([]*application.WebviewWindow, 0, len(s.boardWindows))
+	for _, w := range s.boardWindows {
+		boards = append(boards, w)
+	}
+	s.boardMu.Unlock()
+	for _, w := range boards {
+		s.setFrostedOnWindow(w, boardWindowSolidColour)
+	}
+}
+
+// setFrostedOnWindow 对单个窗口应用/撤销磨砂。
+// 非 macOS：SetWindowFrosted 是 no-op，且不能把窗口设成透明底
+// （无系统磨砂兜底时会渲染成黑底/怪底），仅保持实色。
+func (s *System) setFrostedOnWindow(win *application.WebviewWindow, solid application.RGBA) {
+	if win == nil {
+		return
+	}
+	macui.SetWindowFrosted(win, s.frostedChrome)
+	if s.frostedChrome && runtime.GOOS == "darwin" {
+		win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
+	} else {
+		win.SetBackgroundColour(solid)
 	}
 }
 
@@ -124,7 +164,7 @@ func (s *System) OpenBoardWindow(groupID string) error {
 		MinWidth:                   boardWindowMinW,
 		MinHeight:                  boardWindowMinH,
 		InitialPosition:            application.WindowCentered,
-		BackgroundColour:           application.NewRGB(15, 17, 21), // #0f1115
+		BackgroundColour:           boardWindowSolidColour, // 默认深色实底
 		Hidden:                     false,
 		DefaultContextMenuDisabled: true,
 		Mac: application.MacWindow{
@@ -141,6 +181,9 @@ func (s *System) OpenBoardWindow(groupID string) error {
 
 	win = s.app.Window.NewWithOptions(opts)
 	s.boardWindows[groupID] = win
+
+	// 按当前磨砂状态补材质（关则为实色，行为一致）
+	s.setFrostedOnWindow(win, boardWindowSolidColour)
 
 	gid := groupID
 	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
@@ -257,9 +300,16 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
 }
 
-// NotifyDesktop 本机系统通知（macOS 通知中心）。其它平台目前为空操作。
-func (s *System) NotifyDesktop(title, body string) error {
-	return desktop.Notify(title, body)
+// NotifyDesktop 本机系统通知（Wails 原生通知中心）。
+// 未获授权时静默空操作；点击通知会 FocusMainWindow 并 Emit alert-open-host。
+func (s *System) NotifyDesktop(in DesktopNotify) error {
+	return desktop.Notify(desktop.Payload{
+		Title:   in.Title,
+		Body:    in.Body,
+		Host:    in.Host,
+		EventID: in.EventID,
+		Kind:    in.Kind,
+	})
 }
 
 func resourceAlertLabel(kind string) string {

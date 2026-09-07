@@ -5,7 +5,7 @@
     aria-modal="true"
     aria-label="看板模式"
   >
-    <header class="board-mode__bar drag-region">
+    <header class="board-mode__bar lg-chrome drag-region">
       <div class="board-mode__titles">
         <span class="board-mode__group">{{ groupName || "分组" }}</span>
         <span class="board-mode__count">{{ hosts.length }} 台</span>
@@ -260,12 +260,20 @@ onBeforeUnmount(() => {
   -webkit-user-select: none;
 }
 
+:global(html.frosted) .board-mode {
+  /* 磨砂底色单变量：reduced-transparency 时 tokens 已把 --lg-fill 退回实色，
+     直接整值使用，不再 color-mix 稀释（稀释会让降级后的实色又变半透明） */
+  background: var(--lg-fill);
+}
+
 .board-mode__bar {
   flex-shrink: 0;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 16px;
+  padding: 10px 14px;
+  border-radius: var(--lg-radius, 16px);
 }
 
 .board-mode__titles {

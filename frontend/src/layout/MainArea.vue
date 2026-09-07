@@ -110,6 +110,11 @@
             v-show="sessionOf(hid)?.subTab === 'packages'"
             :host="hid"
           />
+          <HostNotificationsView
+            v-if="visitedSub(hid, 'notifications')"
+            v-show="sessionOf(hid)?.subTab === 'notifications'"
+            :host="hid"
+          />
           <!-- KeepAlive：切到其他子页签时终端只停用不卸载，
                避免卸载钩子关闭全部 PTY 会话（切回来就断线） -->
           <KeepAlive>
@@ -140,6 +145,7 @@ import CertsView from "@/views/CertsView.vue";
 import CronView from "@/views/CronView.vue";
 import PackagesView from "@/views/PackagesView.vue";
 import LogsView from "@/views/LogsView.vue";
+import HostNotificationsView from "@/views/HostNotificationsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
 import SettingsView from "@/views/SettingsView.vue";
@@ -159,6 +165,7 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "cron", label: "定时任务" },
   { value: "logs", label: "日志" },
   { value: "packages", label: "软件包" },
+  { value: "notifications", label: "通知" },
   { value: "terminal", label: "终端" },
 ];
 

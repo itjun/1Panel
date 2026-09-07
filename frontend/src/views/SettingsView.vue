@@ -2,7 +2,12 @@
   <div class="settings-page">
     <div class="settings-header">
       <h1 class="settings-title">设置</h1>
-      <el-button @click="settings.resetSettings()">恢复默认</el-button>
+      <el-button
+        title="仅恢复外观、界面、终端与会话；通知配置保留"
+        @click="settings.resetSettings()"
+      >
+        恢复默认
+      </el-button>
     </div>
 
     <div class="settings-machine">
@@ -54,42 +59,55 @@
         :class="{ 'is-notify': settings.lastNavGroup === 'notify' }"
       >
         <!-- 外观 -->
-        <section
-          v-if="settings.lastNavGroup === 'appearance'"
-          class="settings-section"
-        >
-          <h3 class="sec-title">主题</h3>
-          <p class="sec-desc">选择整体配色。「跟随系统」会按系统外观自动切换。</p>
-          <div class="theme-grid">
-            <button
-              v-for="t in THEME_OPTIONS"
-              :key="t.key"
-              type="button"
-              class="theme-card"
-              :class="{ active: settings.theme === t.key }"
-              @click="settings.setTheme(t.key)"
-            >
-              <div class="theme-swatch" :style="{ background: t.swatch.bg }">
-                <span
-                  class="theme-aa"
-                  :style="{
-                    background: t.swatch.accent,
-                    color: t.swatch.fg === '#888' ? '#fff' : t.swatch.fg,
-                  }"
-                >
-                  Aa
-                </span>
+        <template v-if="settings.lastNavGroup === 'appearance'">
+          <section class="settings-section">
+            <h3 class="sec-title">主题</h3>
+            <p class="sec-desc">选择整体配色。「跟随系统」会按系统外观自动切换。</p>
+            <div class="theme-grid">
+              <button
+                v-for="t in THEME_OPTIONS"
+                :key="t.key"
+                type="button"
+                class="theme-card"
+                :class="{ active: settings.theme === t.key }"
+                @click="settings.setTheme(t.key)"
+              >
+                <div class="theme-swatch" :style="{ background: t.swatch.bg }">
+                  <span
+                    class="theme-aa"
+                    :style="{
+                      background: t.swatch.accent,
+                      color: t.swatch.fg === '#888' ? '#fff' : t.swatch.fg,
+                    }"
+                  >
+                    Aa
+                  </span>
+                </div>
+                <div class="theme-meta">
+                  <div class="theme-name">{{ t.name }}</div>
+                  <div class="theme-desc">{{ t.description }}</div>
+                </div>
+                <el-icon v-if="settings.theme === t.key" class="theme-check">
+                  <Check />
+                </el-icon>
+              </button>
+            </div>
+          </section>
+          <section class="settings-section">
+            <div class="sec-row">
+              <div>
+                <h3 class="sec-title">开启磨砂质感</h3>
+                <p class="sec-desc sec-desc--inline">
+                  开启后外壳改为磨砂半透明；关闭则为浅蓝实色边框。
+                </p>
               </div>
-              <div class="theme-meta">
-                <div class="theme-name">{{ t.name }}</div>
-                <div class="theme-desc">{{ t.description }}</div>
-              </div>
-              <el-icon v-if="settings.theme === t.key" class="theme-check">
-                <Check />
-              </el-icon>
-            </button>
-          </div>
-        </section>
+              <el-switch
+                :model-value="settings.frostedChrome"
+                @change="(v: string | number | boolean) => settings.setFrostedChrome(Boolean(v))"
+              />
+            </div>
+          </section>
+        </template>
 
         <!-- 界面 -->
         <template v-else-if="settings.lastNavGroup === 'ui'">
@@ -249,6 +267,47 @@
           </section>
 
           <section class="settings-section">
+            <h3 class="sec-title">报警规则</h3>
+            <p class="sec-desc">
+              系统通知与应用通知始终开启；点击系统通知可打开应用内告警历史。企业微信可按类型单独关闭；关闭后仍发系统与应用内通知。
+            </p>
+            <div class="alert-rules-form">
+              <div class="alert-rules-head">
+                <span>类型</span>
+                <span>条件</span>
+                <span>系统通知</span>
+                <span>应用通知</span>
+                <span>企业微信</span>
+              </div>
+              <div
+                v-for="rule in ALERT_RULES"
+                :key="rule.kind"
+                class="alert-rules-row"
+              >
+                <span class="alert-rules-name">{{ rule.name }}</span>
+                <span class="alert-rules-desc">{{ rule.desc }}</span>
+                <span
+                  class="alert-rules-always"
+                  title="系统通知始终开启，不可关闭；点击可跳转到应用内历史"
+                >
+                  <el-icon><Check /></el-icon>
+                </span>
+                <span
+                  class="alert-rules-always"
+                  title="应用内通知始终开启，不可关闭"
+                >
+                  <el-icon><Check /></el-icon>
+                </span>
+                <el-checkbox
+                  :model-value="settings.isWecomKindEnabled(rule.kind)"
+                  :disabled="!settings.notifyEnabled"
+                  @change="(v: string | number | boolean) => settings.setWecomKindEnabled(rule.kind, Boolean(v))"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section">
             <div class="sec-row">
               <h3 class="sec-title">订阅主机</h3>
               <el-button
@@ -262,7 +321,7 @@
               </el-button>
             </div>
             <p class="sec-desc">
-              订阅后：该主机 CPU / 内存 / 磁盘 / 负载超阈值会推企业微信，并写入
+              订阅后：该主机超阈值告警会推企业微信（还受上方「报警规则」中企微勾选控制），并写入
               <code>/var/lib/spanel-agent/watch.yml</code>
               。未订阅只发应用内通知与系统通知。勾表示已订阅且与当前保存地址一致。
             </p>
@@ -387,6 +446,7 @@ import {
   useSettingsStore,
   type SettingsNavGroup,
 } from "@/stores/settings";
+import { ALERT_RULES } from "@/utils/alerts";
 import { patchWatchNotify, readWatchNotify } from "@/utils/watchYaml";
 
 const NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
@@ -1003,6 +1063,70 @@ onMounted(() => {
   gap: 10px;
   align-items: center;
   margin-top: 10px;
+}
+
+.alert-rules-form {
+  background: var(--m3-surface);
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-m);
+  overflow: hidden;
+}
+
+.alert-rules-head,
+.alert-rules-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 80px 80px 80px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
+}
+
+.alert-rules-head {
+  font: var(--m3-label-medium);
+  color: var(--m3-on-surface-variant);
+  background: var(--m3-surface);
+  border-bottom: 1px solid var(--m3-outline-variant);
+}
+
+.alert-rules-row + .alert-rules-row {
+  border-top: 1px solid var(--m3-outline-variant);
+}
+
+.alert-rules-row {
+  transition: background-color var(--m3-motion-state);
+}
+
+.alert-rules-row:hover {
+  background: color-mix(in srgb, var(--m3-on-surface) 3%, var(--m3-surface));
+}
+
+.alert-rules-name {
+  font: var(--m3-body-large);
+  color: var(--m3-on-surface);
+  font-weight: 500;
+}
+
+.alert-rules-desc {
+  font: var(--m3-body-medium);
+  color: var(--m3-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alert-rules-row :deep(.el-checkbox) {
+  justify-self: center;
+  margin-right: 0;
+  height: auto;
+}
+
+/* 「始终开启」列：静态勾图标（非可交互控件，语义即固定勾选） */
+.alert-rules-always {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  color: var(--m3-on-surface-variant);
+  font-size: 16px;
 }
 
 .deploy-groups {

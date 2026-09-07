@@ -13,6 +13,7 @@ import * as Certs from "../../bindings/diteng-pannel/certs";
 import * as Icons from "../../bindings/diteng-pannel/icons";
 import * as System from "../../bindings/diteng-pannel/system";
 import * as Backup from "../../bindings/diteng-pannel/backup";
+import * as AlertHistory from "../../bindings/diteng-pannel/alerthistory";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -20,11 +21,13 @@ export * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models
 export * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
+export * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
 export * as main from "../../bindings/diteng-pannel/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
 import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
 import type * as agentinstall from "../../bindings/diteng-pannel/internal/agentinstall/models";
+import type * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
 import type * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 import type * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 import type * as main from "../../bindings/diteng-pannel/models";
@@ -276,10 +279,41 @@ export const api = {
     await System.NotifyHostAlert(input);
   },
 
-  /** 本机系统通知（macOS 通知中心；其它平台暂为空操作） */
-  notifyDesktop: async (title: string, body: string): Promise<void> => {
-    await System.NotifyDesktop(title, body);
+  /**
+   * 本机系统通知（Wails 原生通知中心）。
+   * meta 可选：host / eventId / kind，写入通知 Data，供点击跳转。
+   */
+  notifyDesktop: async (
+    title: string,
+    body: string,
+    meta?: { host?: string; eventId?: string; kind?: string },
+  ): Promise<void> => {
+    await System.NotifyDesktop({
+      title,
+      body,
+      host: meta?.host ?? "",
+      eventId: meta?.eventId ?? "",
+      kind: meta?.kind ?? "",
+    });
   },
+
+  // ============ 应用内告警历史 ============
+  listAlertHistory: (limit: number): Promise<alerthistory.Event[]> =>
+    arr(AlertHistory.List(limit)),
+  listAlertHistoryByHost: (host: string, limit: number): Promise<alerthistory.Event[]> =>
+    arr(AlertHistory.ListByHost(host, limit)),
+  appendAlertHistory: (event: alerthistory.Event): Promise<alerthistory.Event> =>
+    must(AlertHistory.Append(event)),
+  markAlertRead: async (id: string): Promise<void> => {
+    await AlertHistory.MarkRead(id);
+  },
+  markAllAlertsRead: async (host = ""): Promise<void> => {
+    await AlertHistory.MarkAllRead(host);
+  },
+  clearAlertHistory: async (): Promise<void> => {
+    await AlertHistory.Clear();
+  },
+  unreadAlertCount: (): Promise<number> => AlertHistory.UnreadCount(),
 
   /** 向企业微信发测试消息；失败则抛错，前端据此禁止保存新地址 */
   testWecomWebhook: async (webhook: string): Promise<void> => {
@@ -289,6 +323,10 @@ export const api = {
   /** 隐藏/恢复 macOS 窗口红绿灯（卡片最大化时使用，v3 原生按钮状态 API） */
   setTrafficLightsHidden: async (hidden: boolean): Promise<void> => {
     await System.SetTrafficLightsHidden(hidden);
+  },
+  /** 热切换主窗/看板窗磨砂材质（设置 → 外观） */
+  setFrostedChrome: async (enabled: boolean): Promise<void> => {
+    await System.SetFrostedChrome(enabled);
   },
   /** 打开或聚焦该分组的看板窗（普通尺寸，可再全屏） */
   openBoardWindow: async (groupId: string): Promise<void> => {

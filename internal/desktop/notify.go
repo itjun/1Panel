@@ -1,49 +1,80 @@
 package desktop
 
 import (
-	"fmt"
-	"os/exec"
-	"runtime"
 	"strings"
+	"sync"
+
+	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
-// Notify 弹出本机系统通知（通知中心）。失败静默由调用方决定是否忽略。
-func Notify(title, body string) error {
-	title = strings.TrimSpace(title)
-	body = strings.TrimSpace(body)
-	if title == "" && body == "" {
-		return nil
-	}
-	if title == "" {
-		title = "diteng-pannel"
-	}
-	switch runtime.GOOS {
-	case "darwin":
-		return notifyDarwin(title, body)
-	default:
-		// 其它平台暂不实现：不报错，避免阻断告警主流程
-		return nil
-	}
+var (
+	notifyMu   sync.RWMutex
+	notifySvc  *notifications.NotificationService
+	authorized bool
+)
+
+// Payload 本机系统通知内容；Host/EventID/Kind 写入 Data，供点击回调使用。
+type Payload struct {
+	Title   string
+	Body    string
+	Host    string
+	EventID string
+	Kind    string
 }
 
-func notifyDarwin(title, body string) error {
-	// display notification 对引号敏感，用转义后的 AppleScript 字符串
-	script := fmt.Sprintf(
-		`display notification %s with title %s`,
-		appleString(body),
-		appleString(title),
-	)
-	cmd := exec.Command("osascript", "-e", script)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("系统通知失败: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
+// SetService 注入 Wails 通知服务（启动时调用一次）。
+func SetService(ns *notifications.NotificationService) {
+	notifyMu.Lock()
+	notifySvc = ns
+	notifyMu.Unlock()
 }
 
-// appleString 把 Go 字符串编成 AppleScript 引号字面量
-func appleString(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	return `"` + s + `"`
+// SetAuthorized 标记系统通知授权结果；未授权时 Notify 静默空操作（不回退 osascript）。
+func SetAuthorized(ok bool) {
+	notifyMu.Lock()
+	authorized = ok
+	notifyMu.Unlock()
+}
+
+// Notify 通过 Wails 原生通知中心发送；未授权或服务未就绪时直接返回 nil。
+func Notify(p Payload) error {
+	p.Title = strings.TrimSpace(p.Title)
+	p.Body = strings.TrimSpace(p.Body)
+	if p.Title == "" && p.Body == "" {
+		return nil
+	}
+	if p.Title == "" {
+		p.Title = "1Pannel"
+	}
+
+	notifyMu.RLock()
+	svc := notifySvc
+	ok := authorized
+	notifyMu.RUnlock()
+	if !ok || svc == nil {
+		return nil
+	}
+
+	id := strings.TrimSpace(p.EventID)
+	if id == "" {
+		id = uuid.NewString()
+	}
+	data := map[string]interface{}{}
+	if h := strings.TrimSpace(p.Host); h != "" {
+		data["host"] = h
+	}
+	if id != "" {
+		data["eventId"] = id
+	}
+	if k := strings.TrimSpace(p.Kind); k != "" {
+		data["kind"] = k
+	}
+
+	return svc.SendNotification(notifications.NotificationOptions{
+		ID:    id,
+		Title: p.Title,
+		Body:  p.Body,
+		Data:  data,
+	})
 }

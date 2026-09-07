@@ -13,6 +13,8 @@ import (
 
 	"diteng-pannel/internal/agentcli"
 	"diteng-pannel/internal/agentinstall"
+	"diteng-pannel/internal/alerthistory"
+	"diteng-pannel/internal/desktop"
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/hosticon"
 	"diteng-pannel/internal/hostmeta"
@@ -24,6 +26,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 // macTitleBarHeight 与前端 .app-chrome 首行、InvisibleTitleBarHeight 保持一致。
@@ -38,16 +41,20 @@ type App struct {
 	collector *monitor.Collector
 	agentPool *agentcli.Pool
 	installer *agentinstall.Installer
-	groups    *groups.Store
-	hostIcons *hosticon.Store
-	hostMeta  *hostmeta.Store
-	termMgr   *terminal.Manager
+	groups       *groups.Store
+	hostIcons    *hosticon.Store
+	hostMeta     *hostmeta.Store
+	alertHistory *alerthistory.Store
+	termMgr      *terminal.Manager
 
 	app        *application.App
 	mainWindow *application.WebviewWindow
+	notifier   *notifications.NotificationService
 
 	boardMu      sync.Mutex
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
+
+	frostedChrome bool // 磨砂壳：默认关（零值 false）
 
 	showMu     sync.Mutex
 	sized      bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
@@ -64,13 +71,16 @@ const RetryInterval = 30 * time.Second
 // 返回的 *application.App 由 main.go 调用 Run。
 func NewApp() *application.App {
 	sshMgr := sshd.NewManager()
+	ns := notifications.New()
 	core := &App{
 		sshMgr:       sshMgr,
 		termMgr:      terminal.NewManager(sshMgr),
 		agentPool:    agentcli.NewPool(sshMgr, connectOptionFor),
 		installer:    agentinstall.New(sshMgr),
 		boardWindows: make(map[string]*application.WebviewWindow),
+		notifier:     ns,
 	}
+	desktop.SetService(ns)
 
 	app := application.New(application.Options{
 		Name:        "1Pannel",
@@ -87,6 +97,8 @@ func NewApp() *application.App {
 			application.NewService((*Icons)(core)),
 			application.NewService((*System)(core)),
 			application.NewService((*Backup)(core)),
+			application.NewService((*AlertHistory)(core)),
+			application.NewService(ns),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -112,7 +124,7 @@ func NewApp() *application.App {
 		Height:                     winH,
 		MinWidth:                   windowMinW,
 		MinHeight:                  windowMinH,
-		BackgroundColour:           application.NewRGB(244, 244, 244),
+		BackgroundColour:           application.NewRGB(244, 244, 244), // 非 Mac 实色，避免透明怪底
 		Hidden:                     true,
 		InitialPosition:            application.WindowCentered,
 		EnableFileDrop:             true,
@@ -124,6 +136,7 @@ func NewApp() *application.App {
 		},
 		URL: "/",
 	}
+	// 默认实色壳（磨砂关）；运行时由 SetFrostedChrome 热切换 Translucent。
 	// Windows/Linux：无系统标题栏/菜单，窗口按钮画在应用内标题栏。
 	// macOS 继续隐藏系统标题栏、保留左上红绿灯（不走 Frameless，否则红绿灯会被藏掉）。
 	if goruntime.GOOS != "darwin" {
@@ -134,6 +147,15 @@ func NewApp() *application.App {
 	win := app.Window.NewWithOptions(winOpts)
 	core.mainWindow = win
 
+	// 首帧即磨砂：启动早期（前端 JS 未跑）按镜像文件预置材质，避免实色→磨砂闪烁。
+	// 运行后以 SetFrostedChrome 的前端权威值为准。
+	if core.frostedChrome = loadFrostedState(); core.frostedChrome {
+		macui.SetWindowFrosted(win, true)
+		if goruntime.GOOS == "darwin" {
+			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
+		}
+	}
+
 	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
 	// 没有：按主屏算完再 Show，仍然不等 Vue。
 	core.fitWindowToPrimaryScreen()
@@ -141,6 +163,18 @@ func NewApp() *application.App {
 		core.markReady()
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
+		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
+		go func() {
+			ok, err := ns.RequestNotificationAuthorization()
+			if err != nil || !ok {
+				desktop.SetAuthorized(false)
+				if err != nil {
+					app.Logger.Warn("系统通知授权失败，已降级为仅应用内历史", "error", err)
+				}
+				return
+			}
+			desktop.SetAuthorized(true)
+		}()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
 		core.enforceMinSize()
@@ -168,8 +202,34 @@ func NewApp() *application.App {
 	} else {
 		core.hostMeta = hm
 	}
+	if ah, err := alerthistory.NewStore("ServerPanel"); err != nil {
+		app.Logger.Error("初始化告警历史存储失败", "error", err)
+	} else {
+		core.alertHistory = ah
+	}
 	core.collector = monitor.NewCollector(sshMgr)
 	core.termMgr.Init(context.Background(), app.Event.Emit)
+
+	// 系统通知点击 → 聚焦主窗 + 通知前端打开对应主机告警历史
+	ns.OnNotificationResponse(func(result notifications.NotificationResult) {
+		if result.Error != nil {
+			return
+		}
+		if result.Response.ActionIdentifier != "" &&
+			result.Response.ActionIdentifier != notifications.DefaultActionIdentifier {
+			return
+		}
+		host := stringFromUserInfo(result.Response.UserInfo, "host")
+		eventID := stringFromUserInfo(result.Response.UserInfo, "eventId")
+		if eventID == "" {
+			eventID = strings.TrimSpace(result.Response.ID)
+		}
+		(*System)(core).FocusMainWindow()
+		app.Event.Emit("alert-open-host", map[string]string{
+			"host":    host,
+			"eventId": eventID,
+		})
+	})
 
 	// 应用内「重启应用」：前端确认后再发事件
 	app.Event.On("app-restart", func(*application.CustomEvent) {
@@ -360,6 +420,22 @@ func (a *App) restartApp() {
 }
 
 // ============ 共享辅助 ============
+
+func stringFromUserInfo(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	default:
+		return strings.TrimSpace(fmt.Sprint(t))
+	}
+}
 
 // connectOptionFor 根据 host 名称从 ssh config 里查找对应连接参数
 func connectOptionFor(host string) (sshd.ConnectOption, error) {

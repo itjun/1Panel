@@ -1,5 +1,11 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
+import { api } from "@/api";
+import {
+  ALL_ALERT_KINDS,
+  isResourceAlertKind,
+  type ResourceAlertKind,
+} from "@/utils/alerts";
 
 export type ThemeKey = "light" | "dark" | "auto";
 
@@ -12,8 +18,15 @@ export type SettingsNavGroup =
   | "notify"
   | "app";
 
+/** 主机资源告警中可单独开关企微推送的类型（单一来源见 utils/alerts.ts） */
+export type WecomAlertKind = ResourceAlertKind;
+
+export const ALL_WECOM_ALERT_KINDS: WecomAlertKind[] = [...ALL_ALERT_KINDS];
+
 export interface AppSettings {
   theme: ThemeKey;
+  /** 侧栏/通栏磨砂半透明；默认开 */
+  frostedChrome: boolean;
   fontFamily: string;
   fontSize: number; // UI 字号 px 12~18
   terminalFontSize: number; // 终端字号 px 11~20
@@ -26,6 +39,8 @@ export interface AppSettings {
   wecomWebhook: string;
   /** 已订阅企微的主机名列表（点「订阅」写入；CPU 等告警仅对这些主机发企微） */
   wecomSubscribedHosts: string[];
+  /** 哪些告警类型推企微；缺字段时按四条全开迁移 */
+  wecomAlertKinds: WecomAlertKind[];
 }
 
 export const FONT_OPTIONS: { label: string; value: string }[] = [
@@ -137,6 +152,7 @@ const STORAGE_KEY = "ipannel.settings.v1";
 
 const DEFAULTS: AppSettings = {
   theme: "auto",
+  frostedChrome: true,
   fontFamily: FONT_OPTIONS[0].value,
   fontSize: 14,
   terminalFontSize: 13,
@@ -145,7 +161,18 @@ const DEFAULTS: AppSettings = {
   notifyEnabled: true,
   wecomWebhook: "",
   wecomSubscribedHosts: [],
+  wecomAlertKinds: [...ALL_WECOM_ALERT_KINDS],
 };
+
+function isWecomAlertKind(k: unknown): k is WecomAlertKind {
+  return isResourceAlertKind(k);
+}
+
+/** 缺字段或非法类型时四条全开；合法数组则按内容过滤（可为空） */
+function loadWecomAlertKinds(v: unknown): WecomAlertKind[] {
+  if (!Array.isArray(v)) return [...ALL_WECOM_ALERT_KINDS];
+  return v.filter(isWecomAlertKind);
+}
 
 function load(): AppSettings {
   try {
@@ -161,6 +188,10 @@ function load(): AppSettings {
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
     return {
       theme: (parsed.theme as ThemeKey) || DEFAULTS.theme,
+      frostedChrome:
+        typeof parsed.frostedChrome === "boolean"
+          ? parsed.frostedChrome
+          : DEFAULTS.frostedChrome,
       fontFamily: parsed.fontFamily || DEFAULTS.fontFamily,
       fontSize: clamp(Number(parsed.fontSize) || DEFAULTS.fontSize, 11, 20),
       terminalFontSize: clamp(
@@ -188,6 +219,7 @@ function load(): AppSettings {
             (h): h is string => typeof h === "string" && !!h.trim()
           )
         : DEFAULTS.wecomSubscribedHosts,
+      wecomAlertKinds: loadWecomAlertKinds(parsed.wecomAlertKinds),
     };
   } catch {
     return { ...DEFAULTS };
@@ -201,6 +233,7 @@ function clamp(n: number, min: number, max: number) {
 export const useSettingsStore = defineStore("settings", () => {
   const initial = load();
   const theme = ref<ThemeKey>(initial.theme);
+  const frostedChrome = ref(initial.frostedChrome);
   const fontFamily = ref(initial.fontFamily);
   const fontSize = ref(initial.fontSize);
   const terminalFontSize = ref(initial.terminalFontSize);
@@ -209,6 +242,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const notifyEnabled = ref(initial.notifyEnabled);
   const wecomWebhook = ref(initial.wecomWebhook);
   const wecomSubscribedHosts = ref<string[]>([...initial.wecomSubscribedHosts]);
+  const wecomAlertKinds = ref<WecomAlertKind[]>([...initial.wecomAlertKinds]);
   /** 设置页草稿：离开页面不丢，未点保存不写入 localStorage */
   const webhookDraft = ref(expandWecomWebhook(initial.wecomWebhook));
   const webhookTested = ref("");
@@ -220,6 +254,7 @@ export const useSettingsStore = defineStore("settings", () => {
   function persist() {
     const data: AppSettings = {
       theme: theme.value,
+      frostedChrome: frostedChrome.value,
       fontFamily: fontFamily.value,
       fontSize: fontSize.value,
       terminalFontSize: terminalFontSize.value,
@@ -228,6 +263,7 @@ export const useSettingsStore = defineStore("settings", () => {
       notifyEnabled: notifyEnabled.value,
       wecomWebhook: wecomWebhook.value,
       wecomSubscribedHosts: [...wecomSubscribedHosts.value],
+      wecomAlertKinds: [...wecomAlertKinds.value],
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem("ipannel.theme", theme.value);
@@ -242,8 +278,24 @@ export const useSettingsStore = defineStore("settings", () => {
     } else {
       actual = t;
     }
-    document.documentElement.className = actual;
-    document.documentElement.setAttribute("data-theme", actual);
+    const root = document.documentElement;
+    // className 赋值后由 applyFrosted 统一管理 frosted class；
+    // setTheme 单独调用时也补一次，避免主题切换把 frosted 清掉
+    root.className = actual;
+    applyFrostedClass();
+    root.setAttribute("data-theme", actual);
+  }
+
+  /** 仅切 html.frosted class（不动窗口材质）；applyTheme 重建 className 后须重放 */
+  function applyFrostedClass() {
+    document.documentElement.classList.toggle("frosted", frostedChrome.value);
+  }
+
+  function applyFrosted() {
+    applyFrostedClass();
+    void api.setFrostedChrome(frostedChrome.value).catch((err) => {
+      console.warn("setFrostedChrome failed", err);
+    });
   }
 
   function applyTypography() {
@@ -266,12 +318,19 @@ export const useSettingsStore = defineStore("settings", () => {
 
   function applyAll() {
     applyTheme(theme.value);
+    applyFrosted();
     applyTypography();
   }
 
   function setTheme(t: ThemeKey) {
     theme.value = t;
     applyTheme(t);
+    persist();
+  }
+
+  function setFrostedChrome(v: boolean) {
+    frostedChrome.value = v;
+    applyFrosted();
     persist();
   }
 
@@ -350,18 +409,33 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  /** 该告警类型是否推企微（系统/应用通知不受此开关影响） */
+  function isWecomKindEnabled(kind: string): boolean {
+    if (!isWecomAlertKind(kind)) return false;
+    return wecomAlertKinds.value.includes(kind);
+  }
+
+  function setWecomKindEnabled(kind: WecomAlertKind, on: boolean) {
+    const has = wecomAlertKinds.value.includes(kind);
+    if (on) {
+      if (has) return;
+      wecomAlertKinds.value = [...wecomAlertKinds.value, kind];
+    } else {
+      if (!has) return;
+      wecomAlertKinds.value = wecomAlertKinds.value.filter((k) => k !== kind);
+    }
+    persist();
+  }
+
+  /** 仅重置外观/界面/终端/会话；通知相关配置保留 */
   function resetSettings() {
     theme.value = DEFAULTS.theme;
+    frostedChrome.value = DEFAULTS.frostedChrome;
     fontFamily.value = DEFAULTS.fontFamily;
     fontSize.value = DEFAULTS.fontSize;
     terminalFontSize.value = DEFAULTS.terminalFontSize;
     terminalFontFamily.value = DEFAULTS.terminalFontFamily;
     maxRunningHosts.value = DEFAULTS.maxRunningHosts;
-    notifyEnabled.value = DEFAULTS.notifyEnabled;
-    wecomWebhook.value = DEFAULTS.wecomWebhook;
-    wecomSubscribedHosts.value = [...DEFAULTS.wecomSubscribedHosts];
-    webhookDraft.value = "";
-    webhookTested.value = "";
     applyAll();
     persist();
   }
@@ -381,6 +455,7 @@ export const useSettingsStore = defineStore("settings", () => {
 
   return {
     theme,
+    frostedChrome,
     fontFamily,
     fontSize,
     terminalFontSize,
@@ -389,11 +464,13 @@ export const useSettingsStore = defineStore("settings", () => {
     notifyEnabled,
     wecomWebhook,
     wecomSubscribedHosts,
+    wecomAlertKinds,
     webhookDraft,
     webhookTested,
     lastNavGroup,
     setLastNavGroup,
     setTheme,
+    setFrostedChrome,
     cycleTheme,
     setFontFamily,
     setFontSize,
@@ -406,6 +483,8 @@ export const useSettingsStore = defineStore("settings", () => {
     isWecomSubscribed,
     subscribeWecomHost,
     unsubscribeWecomHost,
+    isWecomKindEnabled,
+    setWecomKindEnabled,
     resetSettings,
     applyAll,
   };

@@ -3,7 +3,7 @@
 
 /**
  * System 系统服务：内置脚本上传 / 窗口控制等
- * SetTrafficLightsHidden 见 system.go
+ * SetTrafficLightsHidden / SetFrostedChrome 见 system.go
  * @module
  */
 
@@ -50,10 +50,11 @@ export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
 }
 
 /**
- * NotifyDesktop 本机系统通知（macOS 通知中心）。其它平台目前为空操作。
+ * NotifyDesktop 本机系统通知（Wails 原生通知中心）。
+ * 未获授权时静默空操作；点击通知会 FocusMainWindow 并 Emit alert-open-host。
  */
-export function NotifyDesktop(title: string, body: string): $CancellablePromise<void> {
-    return $Call.ByID(3415807530, title, body);
+export function NotifyDesktop($in: $models.DesktopNotify): $CancellablePromise<void> {
+    return $Call.ByID(3415807530, $in);
 }
 
 /**
@@ -77,6 +78,14 @@ export function NotifyHostConn($in: $models.HostConnNotify): $CancellablePromise
  */
 export function OpenBoardWindow(groupID: string): $CancellablePromise<void> {
     return $Call.ByID(1404223385, groupID);
+}
+
+/**
+ * SetFrostedChrome 热切换主窗与全部看板窗的磨砂材质。
+ * 开启：透明底 + macOS Visual Effect；关闭：主窗 RGB(244,244,244)、看板 RGB(15,17,21)。
+ */
+export function SetFrostedChrome(enabled: boolean): $CancellablePromise<void> {
+    return $Call.ByID(4058646694, enabled);
 }
 
 /**

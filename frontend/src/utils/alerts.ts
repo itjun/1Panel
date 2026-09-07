@@ -9,6 +9,30 @@ export const ALERT = {
   diskAvailBytes: 10 * 1024 * 1024 * 1024, // 根分区可用 ≤ 10 GB
 };
 
+/** 资源告警类型键（企微按类型开关的范围；conn 属连接告警，不在此列） */
+export type ResourceAlertKind = "cpu" | "mem" | "disk" | "load";
+
+const GB = 1024 * 1024 * 1024;
+
+/** 通知页「报警规则」清单；kind 仅内部键，UI 只显示 name。
+ *  全项目告警类型的单一来源：设置存储与企微开关均由此派生。
+ *  desc 由 ALERT 阈值派生，调阈值时文案自动同步。 */
+export const ALERT_RULES = [
+  { kind: "cpu", name: "CPU", desc: `CPU ≥ ${ALERT.cpu}%` },
+  { kind: "mem", name: "内存", desc: `内存 > ${ALERT.mem}%` },
+  { kind: "disk", name: "磁盘", desc: `根分区可用 ≤ ${ALERT.diskAvailBytes / GB} GB` },
+  { kind: "load", name: "负载", desc: `load1 / 核数 > ${ALERT.loadRatio}` },
+] as const;
+
+/** 全部资源告警类型（cpu/mem/disk/load） */
+export const ALL_ALERT_KINDS: ResourceAlertKind[] = ALERT_RULES.map(
+  (r) => r.kind
+);
+
+export function isResourceAlertKind(k: unknown): k is ResourceAlertKind {
+  return ALL_ALERT_KINDS.includes(k as ResourceAlertKind);
+}
+
 export function pickRootDisk(
   disks?: monitor.DiskInfo[] | null
 ): monitor.DiskInfo | null {

@@ -44,6 +44,25 @@
         @contextmenu.prevent="openTitlebarMenu"
       >
         <span class="titlebar-title">{{ titlebarTitle }}</span>
+        <div class="titlebar-actions no-drag" @dblclick.stop @contextmenu.stop>
+          <el-badge
+            :value="alertHistory.unread"
+            :hidden="alertHistory.unread <= 0"
+            :max="99"
+            class="titlebar-badge"
+          >
+            <el-button
+              text
+              class="titlebar-btn"
+              title="通知中心"
+              @click="alertHistory.openDrawer()"
+            >
+              <el-icon>
+                <Bell />
+              </el-icon>
+            </el-button>
+          </el-badge>
+        </div>
         <div v-if="!isMac" class="win-controls no-drag" @dblclick.stop @contextmenu.stop>
           <button
             type="button"
@@ -143,6 +162,51 @@
 
     <AgentInstallDialog />
 
+    <!-- 全局通知中心：扁平列表 -->
+    <el-drawer
+      :model-value="alertHistory.drawerOpen"
+      direction="rtl"
+      size="420px"
+      append-to-body
+      class="alert-history-drawer"
+      @update:model-value="(v: boolean) => (v ? alertHistory.openDrawer() : alertHistory.closeDrawer())"
+      @opened="void alertHistory.refresh()"
+    >
+      <template #header>
+        <div class="alert-drawer-head">
+          <span class="alert-drawer-title">通知中心</span>
+          <div class="alert-drawer-actions">
+            <el-button
+              link
+              type="primary"
+              :disabled="alertHistory.unread <= 0"
+              @click="onMarkAllAlertsRead"
+            >
+              全部已读
+            </el-button>
+            <el-button
+              link
+              type="danger"
+              :disabled="!alertHistory.events.length"
+              @click="onClearAlertHistory"
+            >
+              清空
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <div v-loading="alertHistory.loading" class="alert-drawer-body">
+        <AlertEventList
+          :events="alertHistory.events"
+          :loading="alertHistory.loading"
+          flat
+          show-host
+          clickable
+          @select="onOpenAlertEvent"
+        />
+      </div>
+    </el-drawer>
+
     <!-- 标题栏右键：展开/收起侧栏 -->
     <Teleport to="body">
       <div
@@ -169,22 +233,28 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { Bell } from "@element-plus/icons-vue";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
 import { Application, Events, Window } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";
+import {
+  useAlertHistoryStore,
+  type AlertEvent,
+} from "@/stores/alertHistory";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
 import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
+import AlertEventList from "@/components/alert/AlertEventList.vue";
 
 const app = useAppStore();
+const alertHistory = useAlertHistoryStore();
 // 确保设置 store 初始化并应用主题/字体
 useSettingsStore();
-void app.refresh();
-const addHostOpen = ref(false);
+void app.refresh();const addHostOpen = ref(false);
 const saving = ref(false);
 const form = reactive({
   name: "",
@@ -323,6 +393,44 @@ async function onAddHost() {
   }
 }
 
+async function onMarkAllAlertsRead() {
+  try {
+    await alertHistory.markAllRead();
+    ElMessage.success("已全部标为已读");
+  } catch (e) {
+    ElMessage.error(formatErr(e));
+  }
+}
+
+async function onClearAlertHistory() {
+  try {
+    await ElMessageBox.confirm(
+      "将清空通知中心全部历史记录，此操作不可恢复。",
+      "清空通知",
+      { type: "warning", confirmButtonText: "清空", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await alertHistory.clearAll();
+    ElMessage.success("已清空通知中心");
+  } catch (e) {
+    ElMessage.error(formatErr(e));
+  }
+}
+
+function onOpenAlertEvent(ev: AlertEvent) {
+  const host = (ev.host || "").trim();
+  if (!host) return;
+  alertHistory.setFocusEventId(ev.id || "");
+  alertHistory.closeDrawer();
+  app.openHostTab(host, "notifications");
+  if (ev.id && !ev.read) {
+    void alertHistory.markRead(ev.id);
+  }
+}
+
 /** v3 事件订阅：Events.On 返回退订函数，逐个保存后统一释放 */
 const eventOffs: (() => void)[] = [];
 
@@ -387,8 +495,19 @@ onMounted(() => {
       void api.focusMainWindow();
     })
   );
+  // 系统通知点击：打开对应主机「通知」子页并可选定位事件
+  eventOffs.push(
+    Events.On("alert-open-host", (ev: { data?: { host?: string; eventId?: string } }) => {
+      const host = (ev?.data?.host || "").trim();
+      const eventId = (ev?.data?.eventId || "").trim();
+      if (!host) return;
+      if (eventId) alertHistory.setFocusEventId(eventId);
+      app.openHostTab(host, "notifications");
+      void api.focusMainWindow();
+      void alertHistory.refresh();
+    })
+  );
 });
-
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown, true);
   window.removeEventListener("keydown", onSettingsEsc);
@@ -405,6 +524,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   height: 100%;
   min-height: 0;
+  background: transparent;
 }
 .titlebar-left {
   padding-left: 8px;
@@ -492,6 +612,16 @@ onBeforeUnmount(() => {
   height: 32px;
   user-select: none;
 }
+.titlebar-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 32px;
+}
+.titlebar-badge :deep(.el-badge__content) {
+  border: none;
+  transform: translateY(-2px) translateX(4px);
+}
 .win-controls {
   display: flex;
   align-items: stretch;
@@ -566,5 +696,26 @@ onBeforeUnmount(() => {
 .titlebar-ctx-menu .ctx-kbd {
   font: var(--m3-body-small);
   color: var(--m3-on-surface-variant);
+}
+
+.alert-history-drawer .alert-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding-right: 8px;
+}
+.alert-history-drawer .alert-drawer-title {
+  font: var(--m3-title-large);
+  color: var(--m3-on-surface);
+}
+.alert-history-drawer .alert-drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.alert-history-drawer .alert-drawer-body {
+  min-height: 120px;
 }
 </style>

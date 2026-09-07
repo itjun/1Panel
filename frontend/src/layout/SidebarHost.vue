@@ -696,10 +696,10 @@ onBeforeUnmount(() => {
   border-radius: 9px;
 }
 
-/* 「全部主机」汇总计数：secondary 色系胶囊 */
+/* 「全部主机」汇总计数：secondary 色系胶囊（磨砂下跟选中半透明） */
 .home-count {
-  color: var(--m3-on-secondary-container);
-  background: var(--m3-secondary-container);
+  color: var(--m3-sidebar-active-fg);
+  background: var(--m3-sidebar-active-bg);
 }
 
 /* 主机项：仅保留拖拽与运行态标记，视觉完全走全局 panel-sidebar 样式 */
@@ -741,13 +741,14 @@ onBeforeUnmount(() => {
   border-radius: var(--m3-shape-xl);
 }
 
-/* 分组被打开为当前页：与主机项一致的 secondary-container 胶囊 */
+/* 分组被打开为当前页：与主机项一致的选中胶囊（磨砂下半透明） */
 :deep(.el-sub-menu.is-group-active > .el-sub-menu__title) {
-  background-color: var(--m3-secondary-container) !important;
+  background-color: var(--m3-sidebar-active-bg) !important;
+  box-shadow: inset 0 0 0 1px var(--m3-sidebar-active-stroke);
 
   .group-name,
   .group-folder-ico {
-    color: var(--m3-on-secondary-container);
+    color: var(--m3-sidebar-active-fg);
   }
 }
 
@@ -801,9 +802,10 @@ onBeforeUnmount(() => {
   }
 
   &.active {
-    background: var(--m3-secondary-container);
-    color: var(--m3-on-secondary-container);
+    background: var(--m3-sidebar-active-bg);
+    color: var(--m3-sidebar-active-fg);
     font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--m3-sidebar-active-stroke);
   }
 }
 
