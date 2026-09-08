@@ -41,6 +41,7 @@
         :error="cardOf(h.name).error"
         :cpu-trend="trendOf(h.name).cpu"
         :mem-trend="trendOf(h.name).mem"
+        :app-sub-items="cardOf(h.name).appSubItems"
         :density="cardDensity"
         @open="onOpen"
       />
@@ -60,11 +61,18 @@ import { Events, Window } from "@wailsio/runtime";
 import type { monitor, sshconfig } from "@/api";
 import HostBoardCard from "@/components/board/HostBoardCard.vue";
 
+export interface BoardAppSubItem {
+  name: string;
+  count: number;
+}
+
 export interface BoardHostCard {
   loading: boolean;
   overview?: monitor.Overview | null;
   disks?: monitor.DiskInfo[] | null;
   error?: string | null;
+  /** 已订阅微服务及实例数；null 表示从未配置、不显示该行；[] 表示配置过但当前为 0 */
+  appSubItems?: BoardAppSubItem[] | null;
 }
 
 /** 近 1 小时 CPU/内存趋势（0–100），供 sparkline */

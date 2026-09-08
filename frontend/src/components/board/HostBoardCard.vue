@@ -28,9 +28,14 @@
     </div>
     <!--
       扁平 2 列网格：上下两排「标签/数值/副文/图」共享行，柱水平对齐。
-      布局：CPU | 内存（sparkline）；负载 | 磁盘（进度条）。xxs 隐藏 sparkline。
+      布局：CPU | 内存（sparkline）；负载 | 磁盘（进度条）；可选第三行「订阅」。
+      xxs 隐藏 sparkline。
     -->
-    <div v-else-if="overview" class="host-board-card__metrics">
+    <div
+      v-else-if="overview"
+      class="host-board-card__metrics"
+      :class="{ 'has-app-sub': showAppSub }"
+    >
       <div class="m-label m-r1-c1" :class="{ 'is-alert': cpuAlert }">CPU</div>
       <div class="m-label m-r1-c2" :class="{ 'is-alert': memAlert }">内存</div>
       <div class="m-value m-r1-c1" :class="{ 'is-alert': cpuAlert }">
@@ -83,6 +88,22 @@
         :show-text="false"
         :color="barColor(diskAlert)"
       />
+
+      <template v-if="showAppSub">
+        <div class="m-label m-r3" :class="{ 'is-alert': appSubAlert }">订阅</div>
+        <div v-if="appSubAlert" class="m-value m-r3 is-alert">0</div>
+        <div v-else class="m-app-subs m-r3">
+          <span
+            v-for="it in appSubItems"
+            :key="it.name"
+            class="m-app-sub"
+            :class="{ 'is-alert': it.count === 0 }"
+          >
+            {{ it.name }} {{ it.count }}
+          </span>
+        </div>
+        <div v-if="showSub" class="m-sub m-r3">已订阅应用</div>
+      </template>
     </div>
     <div v-else class="host-board-card__loading">暂无数据</div>
   </div>
@@ -100,6 +121,7 @@ import {
   pickRootDisk,
 } from "@/utils/alerts";
 import BoardSparkline from "@/components/board/BoardSparkline.vue";
+import type { BoardAppSubItem } from "@/components/board/BoardModeOverlay.vue";
 
 export type BoardCardDensity = "lg" | "md" | "sm" | "xs" | "xxs";
 
@@ -115,6 +137,8 @@ const props = withDefaults(
     cpuTrend?: number[];
     /** 近 1h 内存占用% 趋势（0–100） */
     memTrend?: number[];
+    /** 已订阅微服务及实例数；null/undefined 表示从未配置、不显示该行 */
+    appSubItems?: BoardAppSubItem[] | null;
     /** 由看板宫格档位驱动：越密越紧凑 */
     density?: BoardCardDensity;
   }>(),
@@ -132,6 +156,12 @@ const density = computed(() => props.density);
 const showSub = computed(() => density.value !== "xxs");
 const showAddr = computed(() => density.value !== "xxs" && density.value !== "xs");
 const showSpark = computed(() => density.value !== "xxs");
+
+const appSubItems = computed(() => props.appSubItems ?? null);
+const showAppSub = computed(() => appSubItems.value !== null);
+const appSubAlert = computed(
+  () => showAppSub.value && (appSubItems.value?.length ?? 0) === 0
+);
 
 const barStroke = computed(() => {
   switch (density.value) {
@@ -172,7 +202,11 @@ const alert = computed(
   () =>
     !error.value &&
     !!overview.value &&
-    (cpuAlert.value || memAlert.value || loadAlert.value || diskAlert.value)
+    (cpuAlert.value ||
+      memAlert.value ||
+      loadAlert.value ||
+      diskAlert.value ||
+      appSubAlert.value)
 );
 
 const rootDisk = computed(() => pickRootDisk(props.disks));
@@ -406,6 +440,7 @@ function barColor(isAlert: boolean): string {
 /*
   有副文：9 行（含中间空隙）；CPU/内存行高用 --spark-h，负载/磁盘用 --bar-h
   无副文（xxs）：隐藏 sparkline，6 行
+  has-app-sub：再加空隙 + 订阅标签/数值（及可选副文）
 */
 .host-board-card__metrics {
   flex: 1;
@@ -427,6 +462,23 @@ function barColor(isAlert: boolean): string {
   align-content: start;
 }
 
+.host-board-card__metrics.has-app-sub {
+  grid-template-rows:
+    auto
+    auto
+    auto
+    var(--spark-h)
+    var(--metric-mid-gap)
+    auto
+    auto
+    auto
+    var(--bar-h)
+    var(--metric-mid-gap)
+    auto
+    auto
+    auto;
+}
+
 .density-xxs .host-board-card__metrics {
   grid-template-rows:
     auto
@@ -435,6 +487,19 @@ function barColor(isAlert: boolean): string {
     auto
     auto
     var(--bar-h);
+}
+
+.density-xxs .host-board-card__metrics.has-app-sub {
+  grid-template-rows:
+    auto
+    auto
+    var(--metric-mid-gap)
+    auto
+    auto
+    var(--bar-h)
+    var(--metric-mid-gap)
+    auto
+    auto;
 }
 
 .m-r1-c1 {
@@ -448,6 +513,9 @@ function barColor(isAlert: boolean): string {
 }
 .m-r2-c2 {
   grid-column: 2;
+}
+.m-r3 {
+  grid-column: 1 / -1;
 }
 
 .m-label.m-r1-c1,
@@ -486,6 +554,17 @@ function barColor(isAlert: boolean): string {
   align-self: center;
 }
 
+.m-label.m-r3 {
+  grid-row: 11;
+}
+.m-value.m-r3,
+.m-app-subs.m-r3 {
+  grid-row: 12;
+}
+.m-sub.m-r3 {
+  grid-row: 13;
+}
+
 .density-xxs .m-label.m-r2-c1,
 .density-xxs .m-label.m-r2-c2 {
   grid-row: 4;
@@ -497,6 +576,14 @@ function barColor(isAlert: boolean): string {
 .density-xxs .m-bar.m-r2-c1,
 .density-xxs .m-bar.m-r2-c2 {
   grid-row: 6;
+}
+
+.density-xxs .m-label.m-r3 {
+  grid-row: 8;
+}
+.density-xxs .m-value.m-r3,
+.density-xxs .m-app-subs.m-r3 {
+  grid-row: 9;
 }
 
 .m-label {
@@ -517,6 +604,26 @@ function barColor(isAlert: boolean): string {
   height: 1.15em;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
+  white-space: nowrap;
+
+  &.is-alert {
+    color: var(--board-danger);
+  }
+}
+
+.m-app-subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15em 0.65em;
+  align-items: baseline;
+  min-height: 1.15em;
+  font-size: calc(var(--value-size) * 0.72);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.m-app-sub {
   white-space: nowrap;
 
   &.is-alert {
