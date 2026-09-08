@@ -28,6 +28,13 @@ export function BootstrapZsh(host: string): $CancellablePromise<string> {
 }
 
 /**
+ * CheckMenuPage 立即用 Go HTTP 检查菜单项（不打开浏览器）。id 空则检查全部，返回最后一项结果以兼容旧调用。
+ */
+export function CheckMenuPage(id: string): $CancellablePromise<$models.MenuCheckResult> {
+    return $Call.ByID(3866735965, id);
+}
+
+/**
  * CloseBoardWindow 按 groupID 关闭对应看板窗；groupID 为空则无操作（须显式传分组）。
  */
 export function CloseBoardWindow(groupID: string): $CancellablePromise<void> {
@@ -48,6 +55,13 @@ export function FocusMainWindow(): $CancellablePromise<void> {
  */
 export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
     return $Call.ByID(772990904);
+}
+
+/**
+ * ListMenuChecks 返回内置菜单检查项及最近一次结果。
+ */
+export function ListMenuChecks(): $CancellablePromise<$models.MenuCheckResult[] | null> {
+    return $Call.ByID(1424624473);
 }
 
 /**

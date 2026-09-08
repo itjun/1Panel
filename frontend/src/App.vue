@@ -528,6 +528,11 @@ onMounted(() => {
       tickHostResourceAlertPoll();
     })
   );
+  eventOffs.push(
+    Events.On("alert-history-updated", () => {
+      void alertHistory.refresh();
+    })
+  );
   void settings.hydrateNotifySubs().then(() => {
     startAppWatchAlertPoll();
     startHostResourceAlertPoll();
@@ -662,6 +667,8 @@ onBeforeUnmount(() => {
   right: auto;
   transform: translate(-50%, -50%);
   z-index: 1;
+  /* 角标盖在铃铛正中，不挡点击 */
+  pointer-events: none;
 }
 .win-controls {
   display: flex;

@@ -41,8 +41,47 @@
       description="暂无主机，右键侧栏空白处可添加主机或新建分组"
     />
 
+    <!-- 菜单检查（独立模块，与主机分组并列） -->
+    <section class="group-section menu-check-section">
+      <div class="group-head">
+        <span class="group-color-dot" style="background-color: #0f766e" />
+        <span class="group-name" style="color: #0f766e">菜单检查</span>
+        <span
+          class="group-count"
+          style="color: #0f766e; background-color: rgba(15, 118, 110, 0.12)"
+        >
+          {{ menuChecks.length }}
+        </span>
+      </div>
+      <div class="host-grid">
+        <div
+          v-for="item in menuChecks"
+          :key="item.id"
+          class="host-card menu-check-card"
+          :class="{
+            'is-checking': item.checking,
+            'is-ok': item.status === 'ok',
+            'is-bad': item.status === 'bad',
+          }"
+          :title="item.url || '每天 18:00–20:00 每 5 分钟自动检查'"
+          @click="onMenuCheck(item)"
+        >
+          <div class="host-info">
+            <div class="host-name">{{ item.label }}</div>
+            <div class="host-sub">
+              {{
+                item.checking
+                  ? "检查中…"
+                  : item.message || "每天 18–20 点每 5 分钟检查；点击立即检查"
+              }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- 按分组分段 -->
-    <div v-else class="group-sections">
+    <div v-if="app.hosts.length > 0" class="group-sections">
       <section
         v-for="(node, idx) in groups"
         :key="node.key"
@@ -124,16 +163,79 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive } from "vue";
 import { Picture, Refresh } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { Events } from "@wailsio/runtime";
 import DistroLogo from "@/components/DistroLogo.vue";
+import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import { appendAndNotifyDesktop } from "@/utils/alertNotify";
 import { formatErr } from "@/utils/format";
 import type { sshconfig } from "@/api";
+import type { main } from "@/api";
 
 const app = useAppStore();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+
+type MenuCheckStatus = "" | "ok" | "bad";
+
+interface MenuCheckItem {
+  id: string;
+  label: string;
+  url: string;
+  checking: boolean;
+  status: MenuCheckStatus;
+  message: string;
+}
+
+/** 由后端 ListMenuChecks 填充；占位避免首屏空白 */
+const menuChecks = reactive<MenuCheckItem[]>([
+  {
+    id: "data-report",
+    label: "数据上报",
+    url: "",
+    checking: false,
+    status: "",
+    message: "",
+  },
+]);
+
+let offMenuCheck: (() => void) | null = null;
+
+function applyMenuResult(r: main.MenuCheckResult) {
+  if (!r?.id) return;
+  let item = menuChecks.find((x) => x.id === r.id);
+  if (!item) {
+    item = {
+      id: r.id,
+      label: r.label || r.id,
+      url: r.url || "",
+      checking: false,
+      status: "",
+      message: "",
+    };
+    menuChecks.push(item);
+  }
+  item.label = r.label || item.label;
+  item.url = r.url || item.url;
+  if (r.checkedAt <= 0 && !r.message) return;
+  if (r.ok && r.hasData) {
+    item.status = "ok";
+  } else if (r.message || r.checkedAt > 0) {
+    item.status = "bad";
+  }
+  if (r.message) item.message = r.message;
+}
+
+async function loadMenuChecks() {
+  try {
+    const list = await api.listMenuChecks();
+    for (const r of list) applyMenuResult(r);
+  } catch {
+    /* 启动瞬间后端未就绪时忽略 */
+  }
+}
 
 /**
  * 分组色板：与 SidebarHost 保持一致，概览页分组色与侧栏呼应。
@@ -195,6 +297,56 @@ function openHost(name: string) {
   app.openHostTab(name);
 }
 
+async function onMenuCheck(item: MenuCheckItem) {
+  if (item.checking) return;
+  item.checking = true;
+  item.message = "正在检查…";
+  try {
+    // 仅 Go HTTP 拉取，不打开系统浏览器
+    const r = await api.checkMenuPage(item.id);
+    applyMenuResult(r);
+    if (r.ok && r.hasData) {
+      ElMessage.success(r.message || "可用，已有数据");
+      return;
+    }
+    const msg = r.message || "检查未通过";
+    item.status = "bad";
+    item.message = msg;
+    await ElMessageBox.alert(msg, `菜单检查 · ${item.label}`, {
+      type: "error",
+      confirmButtonText: "知道了",
+    });
+    void appendAndNotifyDesktop({
+      host: "菜单检查",
+      kind: `menu:${item.id}`,
+      state: "down",
+      title: `${item.label} 异常`,
+      body: msg,
+    });
+  } catch (e) {
+    item.status = "bad";
+    item.message = formatErr(e);
+    ElMessage.error(`菜单检查失败: ${item.message}`);
+  } finally {
+    item.checking = false;
+  }
+}
+
+onMounted(() => {
+  void loadMenuChecks();
+  offMenuCheck = Events.On(
+    "menu-check-updated",
+    (ev: { data?: main.MenuCheckResult }) => {
+      if (ev?.data) applyMenuResult(ev.data);
+    }
+  );
+});
+
+onBeforeUnmount(() => {
+  offMenuCheck?.();
+  offMenuCheck = null;
+});
+
 async function onRefreshOneIcon(name: string) {
   try {
     const os = await app.refreshHostIcon(name);
@@ -249,6 +401,19 @@ async function onRefreshIcons() {
   display: flex;
   flex-direction: column;
   gap: 22px;
+}
+.menu-check-section {
+  margin-bottom: 22px;
+}
+.menu-check-card.is-ok {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #0f766e 55%, var(--m3-outline-variant, #cac4d0));
+}
+.menu-check-card.is-bad {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #dc2626 60%, var(--m3-outline-variant, #cac4d0));
+}
+.menu-check-card.is-checking {
+  opacity: 0.75;
+  cursor: wait;
 }
 .group-head {
   display: flex;

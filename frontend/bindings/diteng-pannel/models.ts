@@ -309,6 +309,21 @@ export interface LocalTextCheck {
 }
 
 /**
+ * MenuCheckResult 菜单检查：页面是否可开、是否有业务数据。
+ */
+export interface MenuCheckResult {
+    "id": string;
+    "label": string;
+    "url": string;
+    "ok": boolean;
+    "hasData": boolean;
+    "title": string;
+    "message": string;
+    "checkedAt": number;
+    "scheduled": boolean;
+}
+
+/**
  * UpdateHostInput 是「编辑主机」对话框的入参
  * 别名不可在此接口修改（请用 RenameHost）；须带密码做连通性验证，通过后才写 config
  */

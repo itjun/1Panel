@@ -302,6 +302,12 @@ export const api = {
     });
   },
 
+  /** 菜单页可用性 + 是否有业务数据（Go HTTP，不打开浏览器） */
+  checkMenuPage: (id: string): Promise<main.MenuCheckResult> =>
+    must(System.CheckMenuPage(id)),
+  listMenuChecks: (): Promise<main.MenuCheckResult[]> =>
+    arr(System.ListMenuChecks()),
+
   // ============ 应用内告警历史 ============
   listAlertHistory: (limit: number): Promise<alerthistory.Event[]> =>
     arr(AlertHistory.List(limit)),

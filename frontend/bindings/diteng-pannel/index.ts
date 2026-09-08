@@ -44,5 +44,6 @@ export type {
     HostOverviewSnapshot,
     ImportResult,
     LocalTextCheck,
+    MenuCheckResult,
     UpdateHostInput
 } from "./models.js";
