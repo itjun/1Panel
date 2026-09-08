@@ -24,6 +24,16 @@ export function hostWecomKindFromKey(key: string): HostWecomKind | "" {
   return isResourceAlertKind(k) ? k : "";
 }
 
+/** 页内 toast：连接失败仍提示；资源类须该主机已订阅该类型 */
+export function shouldToastHostAlert(
+  host: string,
+  kind: HostWecomKind | ""
+): boolean {
+  if (!kind) return false;
+  if (kind === "conn") return true;
+  return useSettingsStore().isResourceNotifySubscribed(host, kind);
+}
+
 function kindLabel(kind: HostWecomKind): string {
   switch (kind) {
     case "mem":
@@ -42,9 +52,10 @@ function kindLabel(kind: HostWecomKind): string {
 }
 
 /**
- * 主机资源告警出口：
- * - 始终：系统通知（通知中心）+ 应用内历史；应用内 toast 由 Overview/GroupOverview 自行弹出
- * - 总开关开启、该告警类型勾选且有 Webhook：再推企业微信（对所有主机全局生效）
+ * 主机资源告警出口（须该主机已订阅该类型）：
+ * - 系统通知 + 应用内历史
+ * - 总开关开启、该告警类型勾选且有 Webhook：再推企业微信
+ * 应用内 toast 由 Overview/GroupOverview 自行弹出，同样按订阅过滤。
  */
 export async function fireHostWecom(opts: {
   key: string;
@@ -54,6 +65,9 @@ export async function fireHostWecom(opts: {
 }): Promise<void> {
   // 客户端与目标主机断开不告警（多监控端各自断线会刷屏）
   if (opts.kind === "conn") return;
+
+  const settings = useSettingsStore();
+  if (!settings.isResourceNotifySubscribed(opts.host, opts.kind)) return;
 
   const title = `「${opts.host}」${kindLabel(opts.kind)}超阈值`;
   const body = opts.detail || title;
@@ -70,7 +84,6 @@ export async function fireHostWecom(opts: {
     });
   }
 
-  const settings = useSettingsStore();
   if (!settings.isWecomKindEnabled(opts.kind)) return;
   const webhook = settings.effectiveWecomWebhook();
   if (!webhook) return;

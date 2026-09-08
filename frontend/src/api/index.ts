@@ -14,6 +14,7 @@ import * as Icons from "../../bindings/diteng-pannel/icons";
 import * as System from "../../bindings/diteng-pannel/system";
 import * as Backup from "../../bindings/diteng-pannel/backup";
 import * as AlertHistory from "../../bindings/diteng-pannel/alerthistory";
+import * as NotifySubs from "../../bindings/diteng-pannel/notifysubs";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -22,12 +23,14 @@ export * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/mode
 export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 export * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
+export * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
 export * as main from "../../bindings/diteng-pannel/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
 import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
 import type * as agentinstall from "../../bindings/diteng-pannel/internal/agentinstall/models";
 import type * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
+import type * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
 import type * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 import type * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 import type * as main from "../../bindings/diteng-pannel/models";
@@ -314,6 +317,11 @@ export const api = {
     await AlertHistory.Clear();
   },
   unreadAlertCount: (): Promise<number> => AlertHistory.UnreadCount(),
+
+  getNotifySubs: (): Promise<notifysubs.Data> => must(NotifySubs.Get()),
+  setNotifySubs: async (d: notifysubs.Data): Promise<void> => {
+    await NotifySubs.Set(d);
+  },
 
   /** 向企业微信发测试消息；失败则抛错，前端据此禁止保存新地址 */
   testWecomWebhook: async (webhook: string): Promise<void> => {

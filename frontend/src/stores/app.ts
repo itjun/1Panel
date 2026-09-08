@@ -407,6 +407,7 @@ export const useAppStore = defineStore("app", () => {
     const next = newName.trim();
     if (!next || next === oldName) return;
     await api.renameHost(oldName, next);
+    useSettingsStore().renameNotifyHost(oldName, next);
 
     // 图标记录随别名迁移，避免侧栏闪回默认企鹅
     if (osReleaseMap.value.has(oldName)) {

@@ -18,14 +18,40 @@
         <div class="notify-pane">
           <!-- 订阅设置 -->
           <section v-if="pane === 'subscribe'" class="sub-sec">
-            <h3 class="sub-sec__title">应用通知订阅</h3>
+            <h3 class="sub-sec__title">通知订阅</h3>
+
+            <h4 class="sub-sec__subtitle">消息订阅</h4>
             <p class="sub-sec__hint">
-              对本机按服务单独订阅。未勾选的服务不发任何通知；资源告警（CPU /
-              内存 / 磁盘 / 负载）仍走全局设置。
+              CPU / 内存 / 磁盘 / 负载。未勾选的类型不发任何通知。已订阅后走系统通知与应用内历史；企业微信还受「设置 → 通知」总开关控制。
             </p>
+            <div class="sub-list">
+              <div
+                v-for="rule in ALERT_RULES"
+                :key="rule.kind"
+                class="sub-row"
+              >
+                <div class="sub-row__main">
+                  <span class="sub-row__name">{{ rule.name }}</span>
+                  <span class="sub-row__desc">{{ rule.desc }}</span>
+                </div>
+                <el-switch
+                  :model-value="
+                    settings.isResourceNotifySubscribed(host, rule.kind)
+                  "
+                  @change="
+                    (v: string | number | boolean) =>
+                      settings.setResourceNotifySubscribed(
+                        host,
+                        rule.kind,
+                        Boolean(v)
+                      )
+                  "
+                />
+              </div>
+            </div>
 
             <div class="rules-block">
-              <h4 class="rules-block__title">订阅规则</h4>
+              <h4 class="rules-block__title">应用探活通道</h4>
               <p class="sub-sec__hint">
                 已订阅服务在探活异常 / 恢复时走下列通道。系统与应用内通知固定开启；企业微信还受「设置
                 → 通知」总开关与 Webhook 控制。
@@ -73,7 +99,10 @@
               </div>
             </div>
 
-            <h4 class="sub-sec__subtitle">本机服务</h4>
+            <h4 class="sub-sec__subtitle">应用探活</h4>
+            <p class="sub-sec__hint">
+              按服务订阅。也可在本机「应用」页行内开关。未勾选的服务不发任何通知。
+            </p>
             <div class="sub-groups">
               <div
                 v-for="g in WATCH_SERVICE_GROUPS"
@@ -154,6 +183,7 @@ import {
   useAlertHistoryStore,
   type AlertEvent,
 } from "@/stores/alertHistory";
+import { ALERT_RULES } from "@/utils/alerts";
 import {
   APP_NOTIFY_RULES,
   WATCH_SERVICE_GROUPS,
@@ -321,6 +351,7 @@ watch(
   line-height: 1.5;
 }
 .rules-block {
+  margin-top: 20px;
   margin-bottom: 4px;
 }
 .rules-block__title {
@@ -415,6 +446,10 @@ watch(
   font: var(--m3-body-large);
   color: var(--m3-on-surface);
   font-variant-numeric: tabular-nums;
+}
+.sub-row__desc {
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
 }
 .sub-row__tag {
   flex: 0 0 auto;

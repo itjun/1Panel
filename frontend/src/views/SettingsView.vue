@@ -217,7 +217,7 @@
               <div>
                 <h3 class="sec-title">启用企微通知</h3>
                 <p class="sec-desc sec-desc--inline">
-                  总开关。关闭后不向企业微信推送。资源告警对所有主机仍发应用内通知与系统通知；主机断开不推送。应用探活通知请到各主机「通知」页按服务订阅。
+                  总开关。关闭后不向企业微信推送。资源告警与应用探活都须到各主机「通知」页（或应用页）按需订阅，未订阅不发任何通道；主机断开不推送。
                 </p>
               </div>
               <el-switch
@@ -232,7 +232,7 @@
             <p class="sec-desc">
               企业微信群机器人 Webhook 完整 URL，或只填
               <code>key=</code> 后面的 UUID。不会写入 git。新地址必须先点「测试」，
-              确认企业微信群收到消息后再保存。资源告警与已订阅的应用探活共用此地址。
+              确认企业微信群收到消息后再保存。仅已订阅的资源告警与应用探活会用此地址。
             </p>
             <el-input
               v-model="settings.webhookDraft"
@@ -268,9 +268,9 @@
           </section>
 
           <section class="settings-section">
-            <h3 class="sec-title">报警规则</h3>
+            <h3 class="sec-title">通道设置</h3>
             <p class="sec-desc">
-              系统通知与应用通知始终开启；点击系统通知可打开应用内告警历史。企业微信可按类型单独关闭；关闭后仍发系统与应用内通知。以上规则对所有主机通用。应用探活请到各主机「通知」页单独订阅。
+              已订阅的主机走哪些通道。系统通知与应用通知固定开启；企业微信可按类型关闭。订阅请到各主机「通知」页或「应用」页按需打开。
             </p>
             <div class="alert-rules-form">
               <div class="alert-rules-head">
@@ -289,13 +289,13 @@
                 <span class="alert-rules-desc">{{ rule.desc }}</span>
                 <span
                   class="alert-rules-always"
-                  title="系统通知始终开启，不可关闭；点击可跳转到应用内历史"
+                  title="该主机订阅此类型后，系统通知开启；点击可跳转到应用内历史"
                 >
                   <el-icon><Check /></el-icon>
                 </span>
                 <span
                   class="alert-rules-always"
-                  title="应用内通知始终开启，不可关闭"
+                  title="该主机订阅此类型后，写入应用内告警历史"
                 >
                   <el-icon><Check /></el-icon>
                 </span>
@@ -849,7 +849,7 @@ onMounted(() => {
   height: auto;
 }
 
-/* 「始终开启」列：静态勾图标（非可交互控件，语义即固定勾选） */
+/* 已订阅后固定开启的通道列：静态勾图标（非可交互） */
 .alert-rules-always {
   justify-self: center;
   display: inline-flex;

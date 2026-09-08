@@ -259,7 +259,7 @@ import {
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
 // 确保设置 store 初始化并应用主题/字体
-useSettingsStore();
+const settings = useSettingsStore();
 void app.refresh();
 const addHostOpen = ref(false);
 const saving = ref(false);
@@ -514,7 +514,7 @@ onMounted(() => {
       void alertHistory.refresh();
     })
   );
-  startAppWatchAlertPoll();
+  void settings.hydrateNotifySubs().then(() => startAppWatchAlertPoll());
 });
 onBeforeUnmount(() => {
   stopAppWatchAlertPoll();

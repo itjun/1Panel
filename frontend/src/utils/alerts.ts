@@ -14,7 +14,7 @@ export type ResourceAlertKind = "cpu" | "mem" | "disk" | "load";
 
 const GB = 1024 * 1024 * 1024;
 
-/** 通知页「报警规则」清单；kind 仅内部键，UI 只显示 name。
+/** 设置页「通道设置」清单；kind 仅内部键，UI 只显示 name。
  *  全项目告警类型的单一来源：设置存储与企微开关均由此派生。
  *  desc 由 ALERT 阈值派生，调阈值时文案自动同步。 */
 export const ALERT_RULES = [

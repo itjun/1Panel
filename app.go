@@ -20,6 +20,7 @@ import (
 	"diteng-pannel/internal/hostmeta"
 	"diteng-pannel/internal/macui"
 	"diteng-pannel/internal/monitor"
+	"diteng-pannel/internal/notifysubs"
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
@@ -46,6 +47,7 @@ type App struct {
 	hostIcons    *hosticon.Store
 	hostMeta     *hostmeta.Store
 	alertHistory *alerthistory.Store
+	notifySubs   *notifysubs.Store
 	termMgr      *terminal.Manager
 
 	app        *application.App
@@ -99,6 +101,7 @@ func NewApp() *application.App {
 			application.NewService((*System)(core)),
 			application.NewService((*Backup)(core)),
 			application.NewService((*AlertHistory)(core)),
+			application.NewService((*NotifySubs)(core)),
 			application.NewService(ns),
 		},
 		Assets: application.AssetOptions{
@@ -213,6 +216,11 @@ func NewApp() *application.App {
 		app.Logger.Error("初始化告警历史存储失败", "error", err)
 	} else {
 		core.alertHistory = ah
+	}
+	if nsStore, err := notifysubs.NewStore("ServerPanel"); err != nil {
+		app.Logger.Error("初始化通知订阅存储失败", "error", err)
+	} else {
+		core.notifySubs = nsStore
 	}
 	core.collector = monitor.NewCollector(sshMgr)
 	core.termMgr.Init(context.Background(), app.Event.Emit)

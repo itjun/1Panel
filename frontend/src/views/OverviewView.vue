@@ -498,6 +498,7 @@ import {
   clearHostWecom,
   fireHostWecom,
   hostWecomKindFromKey,
+  shouldToastHostAlert,
 } from "@/utils/wecomHostAlerts";
 import VChartPie from "@/components/VChartPie.vue";
 import javaLogo from "@/assets/runtime/java-original.svg";
@@ -837,7 +838,11 @@ watch(
   (lines) => {
     const next = new Set(lines.map((l) => l.key));
     const newLines = lines
-      .filter((l) => !prevAlertKeys.has(l.key))
+      .filter((l) => {
+        if (prevAlertKeys.has(l.key)) return false;
+        const kind = hostWecomKindFromKey(l.key);
+        return shouldToastHostAlert(props.host, kind);
+      })
       .map((l) => l.line);
     for (const l of lines) {
       if (prevAlertKeys.has(l.key)) continue;

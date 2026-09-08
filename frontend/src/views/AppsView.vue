@@ -5,7 +5,7 @@
 
     <div class="page-toolbar">
       <span class="panel-section-title">应用监视</span>
-      <span class="page-toolbar__hint">实例表点行看曲线；下架前请到「Nginx」标签核对切流。</span>
+      <span class="page-toolbar__hint">实例表点行看曲线；通知默认关闭，按行订阅探活告警。下架前请到「Nginx」标签核对切流。</span>
       <div class="page-toolbar__actions">
         <el-button @click="loadAll">刷新</el-button>
         <el-button @click="openCfg">监视配置</el-button>
@@ -67,6 +67,28 @@
             <template #default="{ row }">
               <span :class="isOnline(row) ? 'status-online' : 'status-offline'">
                 {{ isOnline(row) ? "在线" : "离线" }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="通知" width="88" align="center">
+            <template #default="{ row }">
+              <span class="notify-cell" @click.stop>
+                <el-switch
+                  v-if="canSubscribeNotify(row.service)"
+                  size="small"
+                  :model-value="
+                    settings.isAppNotifySubscribed(host, row.service)
+                  "
+                  @change="
+                    (v: string | number | boolean) =>
+                      settings.setAppNotifySubscribed(
+                        host,
+                        row.service,
+                        Boolean(v)
+                      )
+                  "
+                />
+                <span v-else class="notify-na">—</span>
               </span>
             </template>
           </el-table-column>
@@ -134,7 +156,7 @@
 
     <el-dialog v-model="cfgOpen" title="下发 watch.yml" width="720px" append-to-body>
       <p class="sec-desc">
-        服务清单与探活路径在此编辑。企微总开关 / 地址在「设置 → 通知」；应用探活是否通知请到本机「通知」页按服务订阅。
+        服务清单与探活路径在此编辑。企微总开关 / 地址在「设置 → 通知」；应用探活默认不通知，请在本表「通知」列或本机「通知」页按服务订阅。
       </p>
       <el-input v-model="yamlText" type="textarea" :rows="18" class="yaml-box" />
       <template #footer>
@@ -155,6 +177,7 @@ import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { patchWatchNotify } from "@/utils/watchYaml";
 import {
+  isWatchServiceName,
   watchServiceSortKey,
 } from "@/utils/watchServices";
 
@@ -190,6 +213,10 @@ function pad(n: number) {
 function timeLabel(ts: number) {
   const d = new Date(ts * 1000);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function canSubscribeNotify(service: string) {
+  return isWatchServiceName(service);
 }
 
 function canShutdown(row: agentcli.JavaAppInstance) {
@@ -641,6 +668,14 @@ onBeforeUnmount(stopTimer);
 }
 .status-offline {
   color: #8c8c8c;
+}
+.notify-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.notify-na {
+  color: var(--el-text-color-secondary);
 }
 .shutdown-action {
   cursor: pointer;

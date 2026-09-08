@@ -10,6 +10,7 @@ import * as Groups from "./groups.js";
 import * as Hosts from "./hosts.js";
 import * as Icons from "./icons.js";
 import * as Monitor from "./monitor.js";
+import * as NotifySubs from "./notifysubs.js";
 import * as Overview from "./overview.js";
 import * as System from "./system.js";
 import * as TerminalSvc from "./terminalsvc.js";
@@ -23,6 +24,7 @@ export {
     Hosts,
     Icons,
     Monitor,
+    NotifySubs,
     Overview,
     System,
     TerminalSvc

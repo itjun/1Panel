@@ -383,6 +383,7 @@ import {
   clearHostWecom,
   fireHostWecom,
   hostWecomKindFromKey,
+  shouldToastHostAlert,
 } from "@/utils/wecomHostAlerts";
 import { formatBytes, formatErr, formatMemCapacity, isAgentMissing } from "@/utils/format";
 import {
@@ -683,8 +684,10 @@ function notifyAllAlerts() {
     for (const a of collectHostAlerts(h.name)) {
       next.add(a.key);
       if (!prevAlertKeys.has(a.key)) {
-        newLines.push(a.line);
         const kind = hostWecomKindFromKey(a.key);
+        if (shouldToastHostAlert(h.name, kind)) {
+          newLines.push(a.line);
+        }
         if (kind) {
           void fireHostWecom({
             key: a.key,
