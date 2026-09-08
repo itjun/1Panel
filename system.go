@@ -9,6 +9,7 @@ import (
 
 	"diteng-pannel/internal/desktop"
 	"diteng-pannel/internal/macui"
+	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/wecom"
 	"diteng-pannel/internal/winui"
@@ -371,4 +372,45 @@ func resourceAlertLabel(kind string) string {
 // 空地址或企微拒绝时返回错误；前端据此决定能否保存新地址。
 func (s *System) TestWecomWebhook(webhook string) error {
 	return wecom.TestWebhook(webhook)
+}
+
+// CheckMenuPage 立即用 Go HTTP 检查菜单项（不打开浏览器）。id 空则检查全部，返回最后一项结果以兼容旧调用。
+func (s *System) CheckMenuPage(id string) MenuCheckResult {
+	(*App)(s).startMenuCheckWatcher()
+	if s.menuCheck == nil {
+		return MenuCheckResult{Message: "菜单检查未启动"}
+	}
+	snaps := s.menuCheck.CheckNow(id)
+	if len(snaps) == 0 {
+		return MenuCheckResult{Message: "未找到检查项"}
+	}
+	return menuSnapToResult(snaps[len(snaps)-1])
+}
+
+// ListMenuChecks 返回内置菜单检查项及最近一次结果。
+func (s *System) ListMenuChecks() []MenuCheckResult {
+	(*App)(s).startMenuCheckWatcher()
+	if s.menuCheck == nil {
+		return nil
+	}
+	snaps := s.menuCheck.Latest()
+	out := make([]MenuCheckResult, 0, len(snaps))
+	for _, sn := range snaps {
+		out = append(out, menuSnapToResult(sn))
+	}
+	return out
+}
+
+func menuSnapToResult(sn menucheck.Snapshot) MenuCheckResult {
+	return MenuCheckResult{
+		ID:        sn.ID,
+		Label:     sn.Label,
+		URL:       sn.URL,
+		OK:        sn.OK,
+		HasData:   sn.HasData,
+		Title:     sn.Title,
+		Message:   sn.Message,
+		CheckedAt: sn.CheckedAt,
+		Scheduled: sn.Scheduled,
+	}
 }

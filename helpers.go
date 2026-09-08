@@ -65,6 +65,19 @@ type DesktopNotify struct {
 	Kind    string `json:"kind,omitempty"` // cpu|mem|disk|load
 }
 
+// MenuCheckResult 菜单检查：页面是否可开、是否有业务数据。
+type MenuCheckResult struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	URL       string `json:"url"`
+	OK        bool   `json:"ok"`
+	HasData   bool   `json:"hasData"`
+	Title     string `json:"title"`
+	Message   string `json:"message"`
+	CheckedAt int64  `json:"checkedAt"`
+	Scheduled bool   `json:"scheduled"`
+}
+
 // readPublicKey 读公钥文件内容（去掉末尾换行）
 func readPublicKey(path string) (string, error) {
 	path = expandTilde(path)

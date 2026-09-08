@@ -20,6 +20,7 @@ import (
 	"diteng-pannel/internal/hosticon"
 	"diteng-pannel/internal/hostmeta"
 	"diteng-pannel/internal/macui"
+	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/notifysubs"
 	"diteng-pannel/internal/sshconfig"
@@ -49,6 +50,7 @@ type App struct {
 	hostMeta     *hostmeta.Store
 	alertHistory *alerthistory.Store
 	notifySubs   *notifysubs.Store
+	menuCheck    *menucheck.Watcher
 	termMgr      *terminal.Manager
 
 	app        *application.App
@@ -199,6 +201,7 @@ func NewApp() *application.App {
 			desktop.SetAuthorized(true)
 		}()
 		core.startAlertPollKeepalive()
+		core.startMenuCheckWatcher()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
 		core.enforceMinSize()
