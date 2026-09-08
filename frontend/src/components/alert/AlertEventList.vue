@@ -139,6 +139,7 @@ function itemClass(ev: AlertEvent) {
     "is-alert": ev.state === "down",
     "is-plain": ev.state === "up",
     "is-unread": !ev.read,
+    "is-read": !!ev.read,
     "is-focus": props.focusId && ev.id === props.focusId,
     "is-clickable": props.clickable,
   };
@@ -293,6 +294,17 @@ function onClick(ev: AlertEvent) {
 .notify-item.is-plain.is-unread {
   background: var(--notify-ok-container);
 }
+.notify-item.is-read {
+  background: var(--notify-surface);
+  color: var(--notify-on-variant);
+}
+.notify-item.is-read.is-clickable:hover {
+  background: color-mix(
+    in srgb,
+    var(--m3-on-surface) 4%,
+    var(--notify-surface)
+  );
+}
 .notify-item.is-focus {
   outline: 2px solid var(--m3-primary);
   outline-offset: -2px;
@@ -334,6 +346,23 @@ function onClick(ev: AlertEvent) {
 }
 .notify-item.is-plain .notify-state {
   color: var(--notify-ok);
+}
+.notify-item.is-read .notify-kind,
+.notify-item.is-read .notify-kind.is-down,
+.notify-item.is-read .notify-kind.is-up {
+  color: var(--notify-on-variant);
+  background: transparent;
+}
+.notify-item.is-read .notify-state,
+.notify-item.is-read.is-alert .notify-state,
+.notify-item.is-read.is-plain .notify-state {
+  color: var(--notify-on-variant);
+  font-weight: 400;
+}
+.notify-item.is-read .notify-detail,
+.notify-item.is-read .notify-host,
+.notify-item.is-read .notify-time {
+  color: var(--notify-on-variant);
 }
 .notify-host {
   flex: 0 0 auto;
