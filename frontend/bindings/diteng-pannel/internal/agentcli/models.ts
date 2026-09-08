@@ -136,6 +136,7 @@ export interface JavaAppInstance {
     "pid": number;
     "port": number;
     "deployVer": string;
+    "latestDeployVer": string;
     "startTime": string;
     "screen": string;
     "jarPath": string;

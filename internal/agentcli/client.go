@@ -170,20 +170,21 @@ type WatchYAML struct {
 
 // JavaAppInstance /watch/instances 单 Java 实例
 type JavaAppInstance struct {
-	Service   string `json:"service"`
-	Runtime   string `json:"runtime"`
-	PID       int    `json:"pid"`
-	Port      int    `json:"port"`
-	DeployVer string `json:"deployVer"`
-	StartTime string `json:"startTime"`
-	Screen    string `json:"screen"`
-	JarPath   string `json:"jarPath"`
-	HealthUp  bool   `json:"healthUp"`
-	ProcessUp bool   `json:"processUp"`
-	IngressUp bool   `json:"ingressUp"`
-	IngressOn bool   `json:"ingressOn"`
-	Status    string `json:"status"`
-	Group     string `json:"group"`
+	Service         string `json:"service"`
+	Runtime         string `json:"runtime"`
+	PID             int    `json:"pid"`
+	Port            int    `json:"port"`
+	DeployVer       string `json:"deployVer"`
+	LatestDeployVer string `json:"latestDeployVer"`
+	StartTime       string `json:"startTime"`
+	Screen          string `json:"screen"`
+	JarPath         string `json:"jarPath"`
+	HealthUp        bool   `json:"healthUp"`
+	ProcessUp       bool   `json:"processUp"`
+	IngressUp       bool   `json:"ingressUp"`
+	IngressOn       bool   `json:"ingressOn"`
+	Status          string `json:"status"`
+	Group           string `json:"group"`
 }
 
 // AppShutdownReq POST /op/app-shutdown

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -18,25 +19,29 @@ import (
 
 // JavaAppInstance 应用监视页 Java 实例行（/watch/instances）
 type JavaAppInstance struct {
-	Service   string `json:"service"`
-	Runtime   string `json:"runtime"` // java / bun
-	PID       int    `json:"pid"`
-	Port      int    `json:"port"`
-	DeployVer string `json:"deployVer"`
-	StartTime string `json:"startTime"`
-	Screen    string `json:"screen"`
-	JarPath   string `json:"jarPath"`
-	HealthUp  bool   `json:"healthUp"`
-	ProcessUp bool   `json:"processUp"`
-	IngressUp bool   `json:"ingressUp"`
-	IngressOn bool   `json:"ingressOn"`
-	Status    string `json:"status"` // UP / DOWN / UNHEALTHY
-	Group     string `json:"group"`  // std / pro / other
+	Service         string `json:"service"`
+	Runtime         string `json:"runtime"` // java / bun
+	PID             int    `json:"pid"`
+	Port            int    `json:"port"`
+	DeployVer       string `json:"deployVer"`
+	LatestDeployVer string `json:"latestDeployVer"` // 该 jar 所在服务目录下最新日期版本
+	StartTime       string `json:"startTime"`
+	Screen          string `json:"screen"`
+	JarPath         string `json:"jarPath"`
+	HealthUp        bool   `json:"healthUp"`
+	ProcessUp       bool   `json:"processUp"`
+	IngressUp       bool   `json:"ingressUp"`
+	IngressOn       bool   `json:"ingressOn"`
+	Status          string `json:"status"` // UP / DOWN / UNHEALTHY
+	Group           string `json:"group"`  // std / pro / other
 }
 
 var (
-	deployVerRE = regexp.MustCompile(`\d{6}_\d+`)
-	stdServices = map[string]bool{
+	// 新布局 YYYYMMDD_N（如 20260908_6）；须优先于 6 位，否则会从中误切出 260908_6
+	deployVer8RE = regexp.MustCompile(`\d{8}_\d+`)
+	// 旧布局 YYMMDD_N（如 260903_1）
+	deployVer6RE = regexp.MustCompile(`\d{6}_\d+`)
+	stdServices  = map[string]bool{
 		"oss": true, "im": true, "csp": true, "std": true, "telemetry": true,
 	}
 	proServices = map[string]bool{
@@ -91,7 +96,91 @@ func deployVerFromPath(path string) string {
 	if path == "" {
 		return ""
 	}
-	return deployVerRE.FindString(path)
+	if m := deployVer8RE.FindString(path); m != "" {
+		return m
+	}
+	return deployVer6RE.FindString(path)
+}
+
+func isDeployVerName(name string) bool {
+	if name == "" {
+		return false
+	}
+	if deployVer8RE.FindString(name) == name {
+		return true
+	}
+	return deployVer6RE.FindString(name) == name
+}
+
+// normalizeDeployDate 比较用：6 位 YYMMDD 补成 20YYMMDD，与 8 位对齐
+func normalizeDeployDate(date string) string {
+	if len(date) == 6 {
+		return "20" + date
+	}
+	return date
+}
+
+// compareDeployVer 部署版本先后：先比日期再比序号；a>b 返回正数
+func compareDeployVer(a, b string) int {
+	if a == b {
+		return 0
+	}
+	if a == "" {
+		return -1
+	}
+	if b == "" {
+		return 1
+	}
+	aDate, aSeq, _ := strings.Cut(a, "_")
+	bDate, bSeq, _ := strings.Cut(b, "_")
+	aDate = normalizeDeployDate(aDate)
+	bDate = normalizeDeployDate(bDate)
+	if aDate != bDate {
+		return strings.Compare(aDate, bDate)
+	}
+	ai, _ := strconv.Atoi(aSeq)
+	bi, _ := strconv.Atoi(bSeq)
+	return ai - bi
+}
+
+// serviceDeployDir 从 jar 路径取服务独立目录。
+// 新：/root/workspace/oss/20260908_1/xxx.jar → /root/workspace/oss
+// 旧：/root/workspace/260903_1/xxx.jar → /root/workspace
+func serviceDeployDir(jarPath string) string {
+	ver := deployVerFromPath(jarPath)
+	if ver == "" {
+		return ""
+	}
+	dir := filepath.Clean(filepath.Dir(jarPath))
+	if filepath.Base(dir) != ver {
+		return ""
+	}
+	return filepath.Dir(dir)
+}
+
+// latestDeployVerInDir 扫描服务目录下 YYYYMMDD_N / YYMMDD_N 子目录，取最新
+func latestDeployVerInDir(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	latest := ""
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !isDeployVerName(name) {
+			continue
+		}
+		if latest == "" || compareDeployVer(name, latest) > 0 {
+			latest = name
+		}
+	}
+	return latest
 }
 
 // screenFromProc 沿父进程链查找 screen，从 cmdline 解析 -dmS / -S 会话名
@@ -262,6 +351,7 @@ func (w *Watcher) layerFlags(service string) (processUp, healthUp, ingressUp, in
 
 func (w *Watcher) rebuildInstances(cfg WatchConfig, procs []javaProc, instHealth map[string]bool) {
 	rows := make([]JavaAppInstance, 0, len(cfg.Services))
+	latestByDir := map[string]string{}
 	for _, svc := range cfg.Services {
 		rt := svc.Runtime
 		if rt == "" {
@@ -293,6 +383,12 @@ func (w *Watcher) rebuildInstances(cfg WatchConfig, procs []javaProc, instHealth
 			row := w.buildJavaInstance(svc, p, ok)
 			row.IngressUp = ingressUp
 			row.IngressOn = ingressOn
+			if dir := serviceDeployDir(row.JarPath); dir != "" {
+				if _, ok := latestByDir[dir]; !ok {
+					latestByDir[dir] = latestDeployVerInDir(dir)
+				}
+				row.LatestDeployVer = latestByDir[dir]
+			}
 			rows = append(rows, row)
 		}
 	}

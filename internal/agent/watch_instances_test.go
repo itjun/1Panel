@@ -3,15 +3,65 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestDeployVerFromPath(t *testing.T) {
 	if got := deployVerFromPath("/root/workspace/260828_3/diteng-std.jar"); got != "260828_3" {
-		t.Fatalf("got %q", got)
+		t.Fatalf("old layout got %q", got)
+	}
+	if got := deployVerFromPath("/root/workspace/rc/20260908_6/diteng-im-server-202409.01.jar"); got != "20260908_6" {
+		t.Fatalf("new layout got %q want 20260908_6", got)
+	}
+	if got := deployVerFromPath("/root/workspace/oss/20260908_1/diteng-oss-202409.01.jar"); got != "20260908_1" {
+		t.Fatalf("oss got %q", got)
 	}
 	if deployVerFromPath("") != "" {
 		t.Fatal("empty path")
+	}
+}
+
+func TestServiceDeployDir(t *testing.T) {
+	if got := serviceDeployDir("/root/workspace/oss/20260908_1/diteng-oss.jar"); got != "/root/workspace/oss" {
+		t.Fatalf("new got %q", got)
+	}
+	if got := serviceDeployDir("/root/workspace/260903_1/diteng-oss.jar"); got != "/root/workspace" {
+		t.Fatalf("old got %q", got)
+	}
+	if serviceDeployDir("/tmp/plain.jar") != "" {
+		t.Fatal("no ver")
+	}
+}
+
+func TestLatestDeployVerInDir(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"20260907_1", "20260908_1", "20260908_2", "logs", "diteng-oss.jar"} {
+		p := filepath.Join(root, name)
+		if strings.HasSuffix(name, ".jar") {
+			if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if err := os.Mkdir(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := latestDeployVerInDir(root); got != "20260908_2" {
+		t.Fatalf("got %q want 20260908_2", got)
+	}
+}
+
+func TestCompareDeployVer(t *testing.T) {
+	if compareDeployVer("20260908_1", "260903_1") <= 0 {
+		t.Fatal("8-digit should beat padded 6-digit older date")
+	}
+	if compareDeployVer("20260908_2", "20260908_1") <= 0 {
+		t.Fatal("seq")
+	}
+	if compareDeployVer("260903_1", "260828_3") <= 0 {
+		t.Fatal("old layout date")
 	}
 }
 
