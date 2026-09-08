@@ -636,6 +636,13 @@ export const useSettingsStore = defineStore("settings", () => {
     );
   }
 
+  /** 有资源告警订阅的主机名（全局资源轮询用） */
+  function hostsWithResourceNotifySubs(): string[] {
+    return Object.keys(hostResourceNotifySubs.value).filter(
+      (h) => (hostResourceNotifySubs.value[h] || []).length > 0
+    );
+  }
+
   /** 主机改名时带走订阅，避免生产机订阅丢到旧别名 */
   function renameNotifyHost(oldName: string, newName: string) {
     const from = (oldName || "").trim();
@@ -750,6 +757,7 @@ export const useSettingsStore = defineStore("settings", () => {
     isAppNotifySubscribed,
     setAppNotifySubscribed,
     hostsWithAppNotifySubs,
+    hostsWithResourceNotifySubs,
     hydrateNotifySubs,
     renameNotifyHost,
     isWecomKindEnabled,

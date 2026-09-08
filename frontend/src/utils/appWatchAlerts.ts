@@ -1,6 +1,5 @@
 import type { agentcli } from "@/api";
 import { api } from "@/api";
-import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import {
   appendAndNotifyDesktop,
@@ -148,10 +147,7 @@ async function tick(): Promise<void> {
   ticking = true;
   try {
     const settings = useSettingsStore();
-    const app = useAppStore();
-    const hosts = settings
-      .hostsWithAppNotifySubs()
-      .filter((h) => app.isRunning(h));
+    const hosts = settings.hostsWithAppNotifySubs();
     const active = new Set(hosts);
     for (const h of [...prevOk.keys()]) {
       if (!active.has(h)) prevOk.delete(h);
@@ -176,4 +172,8 @@ export function stopAppWatchAlertPoll(): void {
     clearInterval(timer);
     timer = null;
   }
+}
+
+export function tickAppWatchAlertPoll(): void {
+  void tick();
 }

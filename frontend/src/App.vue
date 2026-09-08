@@ -256,7 +256,13 @@ import AlertEventList from "@/components/alert/AlertEventList.vue";
 import {
   startAppWatchAlertPoll,
   stopAppWatchAlertPoll,
+  tickAppWatchAlertPoll,
 } from "@/utils/appWatchAlerts";
+import {
+  startHostResourceAlertPoll,
+  stopHostResourceAlertPoll,
+  tickHostResourceAlertPoll,
+} from "@/utils/hostResourceAlerts";
 
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
@@ -516,10 +522,20 @@ onMounted(() => {
       void alertHistory.refresh();
     })
   );
-  void settings.hydrateNotifySubs().then(() => startAppWatchAlertPoll());
+  eventOffs.push(
+    Events.On("alert-poll-tick", () => {
+      tickAppWatchAlertPoll();
+      tickHostResourceAlertPoll();
+    })
+  );
+  void settings.hydrateNotifySubs().then(() => {
+    startAppWatchAlertPoll();
+    startHostResourceAlertPoll();
+  });
 });
 onBeforeUnmount(() => {
   stopAppWatchAlertPoll();
+  stopHostResourceAlertPoll();
   window.removeEventListener("keydown", onGlobalKeydown, true);
   window.removeEventListener("keydown", onSettingsEsc);
   eventOffs.forEach((off) => off());
