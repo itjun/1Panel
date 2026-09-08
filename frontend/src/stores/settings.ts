@@ -9,6 +9,9 @@ import {
 
 export type ThemeKey = "light" | "dark" | "auto";
 
+/** 磨砂窗口材质仅 macOS 支持；Windows 等平台无系统磨砂，默认关闭 */
+const isMacPlatform = /Mac|iPhone|iPad/.test(navigator.platform);
+
 /** 设置页左侧分组；仅进程内记忆，不写入 localStorage */
 export type SettingsNavGroup =
   | "appearance"
@@ -25,7 +28,7 @@ export const ALL_WECOM_ALERT_KINDS: WecomAlertKind[] = [...ALL_ALERT_KINDS];
 
 export interface AppSettings {
   theme: ThemeKey;
-  /** 侧栏/通栏磨砂半透明；默认开 */
+  /** 侧栏/通栏磨砂半透明；默认：macOS 开，其余平台关 */
   frostedChrome: boolean;
   fontFamily: string;
   fontSize: number; // UI 字号 px 12~18
@@ -150,9 +153,12 @@ export function expandWecomWebhook(raw: string): string {
 
 const STORAGE_KEY = "ipannel.settings.v1";
 
+/** 磨砂默认值迁移标记：见 load() 中的一次性迁移 */
+const FROSTED_MIGRATION_KEY = "ipannel.frostedDefaultByPlatform.migrated";
+
 const DEFAULTS: AppSettings = {
   theme: "auto",
-  frostedChrome: true,
+  frostedChrome: isMacPlatform,
   fontFamily: FONT_OPTIONS[0].value,
   fontSize: 14,
   terminalFontSize: 13,
@@ -186,6 +192,13 @@ function load(): AppSettings {
       return { ...DEFAULTS };
     }
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    // 一次性迁移：磨砂默认值曾全平台为 true，改为仅 macOS 后，把存量
+    // 非 mac 用户被旧默认顺带持久化的 true 纠正为 false；标记落地后
+    // 不再干预，此后设置页的显式选择照常生效。
+    if (!isMacPlatform && !localStorage.getItem(FROSTED_MIGRATION_KEY)) {
+      localStorage.setItem(FROSTED_MIGRATION_KEY, "1");
+      if (parsed.frostedChrome === true) parsed.frostedChrome = false;
+    }
     return {
       theme: (parsed.theme as ThemeKey) || DEFAULTS.theme,
       frostedChrome:

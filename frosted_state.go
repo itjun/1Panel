@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // frostedState 镜像前端 localStorage 的磨砂开关，供启动早期（前端 JS 尚未跑）读取，
@@ -20,19 +21,21 @@ func frostedStatePath() string {
 	return filepath.Join(dir, "ServerPanel", "frosted.json")
 }
 
-// loadFrostedState 读镜像；不存在/损坏时默认开（与前端 DEFAULTS.frostedChrome 一致）。
+// loadFrostedState 读镜像；不存在/损坏时按平台取默认（与前端 DEFAULTS.frostedChrome 一致）：
+// macOS 默认开，Windows 等平台无系统磨砂，默认关。
 func loadFrostedState() bool {
+	def := runtime.GOOS == "darwin"
 	p := frostedStatePath()
 	if p == "" {
-		return true
+		return def
 	}
 	b, err := os.ReadFile(p)
 	if err != nil {
-		return true
+		return def
 	}
 	var st frostedState
 	if json.Unmarshal(b, &st) != nil {
-		return true
+		return def
 	}
 	return st.Enabled
 }

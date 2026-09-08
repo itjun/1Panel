@@ -140,9 +140,9 @@
             : "light";
         }
         try {
-          // 磨砂默认开；与 settings store 的 DEFAULTS.frostedChrome 对齐，
-          // 骨架屏阶段即透明，避免 Vue 挂载后二次切换闪烁
-          var frosted = true;
+          // 磨砂默认值按平台：macOS 开，其余关（与 settings store 的
+          // DEFAULTS.frostedChrome 对齐），骨架屏阶段即生效，避免 Vue 挂载后二次切换闪烁
+          var frosted = /Mac|iPhone|iPad/.test(navigator.platform);
           var s = localStorage.getItem("ipannel.settings.v1");
           if (s) {
             var sp = JSON.parse(s);
