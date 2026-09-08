@@ -101,7 +101,7 @@
 
             <h4 class="sub-sec__subtitle">应用探活</h4>
             <p class="sub-sec__hint">
-              按服务订阅。也可在本机「应用」页行内开关。未勾选的服务不发任何通知。
+              按服务订阅。未勾选的服务不发任何通知。应用页「订阅」列仅只读配套显示。
             </p>
             <div class="sub-groups">
               <div

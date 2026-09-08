@@ -5,7 +5,7 @@
 
     <div class="page-toolbar">
       <span class="panel-section-title">应用监视</span>
-      <span class="page-toolbar__hint">实例表点行看曲线；通知默认关闭，按行订阅探活告警。下架前请到「Nginx」标签核对切流。</span>
+      <span class="page-toolbar__hint">实例表点行看曲线；订阅列只读，订阅请到本机「通知」页。下架前请到「Nginx」标签核对切流。</span>
       <div class="page-toolbar__actions">
         <el-button @click="loadAll">刷新</el-button>
         <el-button @click="openCfg">监视配置</el-button>
@@ -26,7 +26,7 @@
           highlight-current-row
           class="data-table-unified"
           :show-header="secIdx === 0"
-          :row-class-name="(p) => instRowClass(latestDeployVer, p.row)"
+          :row-class-name="(p) => instRowClass(p.row, latestByService)"
           @row-click="onInstRowClick"
         >
           <el-table-column type="index" label="#" width="48" align="center" />
@@ -41,7 +41,7 @@
           <el-table-column prop="port" label="端口" width="72" align="center">
             <template #default="{ row }">
               <span
-                v-if="row.port && isLatestDeploy(row.deployVer || '', latestDeployVer)"
+                v-if="row.port && isLatestDeploy(row.deployVer || '', latestDeployVerForRow(row, latestByService))"
                 class="latest-highlight"
               >
                 {{ row.port }}
@@ -49,10 +49,10 @@
               <span v-else>{{ row.port || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="deployVer" label="部署版本" width="110" show-overflow-tooltip>
+          <el-table-column prop="deployVer" label="部署版本" width="128" show-overflow-tooltip>
             <template #default="{ row }">
               <span
-                v-if="row.deployVer && isLatestDeploy(row.deployVer, latestDeployVer)"
+                v-if="row.deployVer && isLatestDeploy(row.deployVer, latestDeployVerForRow(row, latestByService))"
                 class="latest-highlight"
               >
                 {{ row.deployVer }}
@@ -70,22 +70,15 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="通知" width="88" align="center">
+          <el-table-column label="订阅" width="88" align="center">
             <template #default="{ row }">
               <span class="notify-cell" @click.stop>
                 <el-switch
                   v-if="canSubscribeNotify(row.service)"
                   size="small"
+                  disabled
                   :model-value="
                     settings.isAppNotifySubscribed(host, row.service)
-                  "
-                  @change="
-                    (v: string | number | boolean) =>
-                      settings.setAppNotifySubscribed(
-                        host,
-                        row.service,
-                        Boolean(v)
-                      )
                   "
                 />
                 <span v-else class="notify-na">—</span>
@@ -156,7 +149,7 @@
 
     <el-dialog v-model="cfgOpen" title="下发 watch.yml" width="720px" append-to-body>
       <p class="sec-desc">
-        服务清单与探活路径在此编辑。企微总开关 / 地址在「设置 → 通知」；应用探活默认不通知，请在本表「通知」列或本机「通知」页按服务订阅。
+        服务清单与探活路径在此编辑。企微总开关 / 地址在「设置 → 通知」；应用探活默认不通知，请在本机「通知」页按服务订阅。
       </p>
       <el-input v-model="yamlText" type="textarea" :rows="18" class="yaml-box" />
       <template #footer>
@@ -239,13 +232,15 @@ function canOpenCharts(row: agentcli.JavaAppInstance) {
   return !!row.service && isAppStarted(row) && isOnline(row);
 }
 
-/** 部署版本 YYMMDD_N，先比日期再比序号 */
+/** 部署版本 YYYYMMDD_N / YYMMDD_N，先比日期再比序号；6 位日期按 20YYMMDD 对齐 */
 function compareDeployVer(a: string, b: string): number {
   if (!a && !b) return 0;
   if (!a) return -1;
   if (!b) return 1;
-  const [aDate = "", aSeq = "0"] = a.split("_");
-  const [bDate = "", bSeq = "0"] = b.split("_");
+  const [aDateRaw = "", aSeq = "0"] = a.split("_");
+  const [bDateRaw = "", bSeq = "0"] = b.split("_");
+  const aDate = aDateRaw.length === 6 ? `20${aDateRaw}` : aDateRaw;
+  const bDate = bDateRaw.length === 6 ? `20${bDateRaw}` : bDateRaw;
   if (aDate !== bDate) return aDate.localeCompare(bDate);
   return (parseInt(aSeq, 10) || 0) - (parseInt(bSeq, 10) || 0);
 }
@@ -260,14 +255,25 @@ function latestDeployVerInRows(rows: agentcli.JavaAppInstance[]): string {
   return latest;
 }
 
+/** 每服务最新：优先 agent 扫目录得到的 latestDeployVer，否则回退该服务运行实例里的最大版本 */
+function latestDeployVerForRow(
+  row: agentcli.JavaAppInstance,
+  fallbackByService: Map<string, string>
+): string {
+  const fromAgent = (row.latestDeployVer || "").trim();
+  if (fromAgent) return fromAgent;
+  return fallbackByService.get(row.service || "") || "";
+}
+
 function isLatestDeploy(deployVer: string, latest: string): boolean {
   if (!deployVer || !latest) return false;
   return deployVer.trim() === latest;
 }
 
-function instRowClass(latestDeployVer: string, row: agentcli.JavaAppInstance): string {
+function instRowClass(row: agentcli.JavaAppInstance, fallbackByService: Map<string, string>): string {
   const parts: string[] = [];
-  if (isLatestDeploy(row.deployVer || "", latestDeployVer)) parts.push("deploy-latest-row");
+  const latest = latestDeployVerForRow(row, fallbackByService);
+  if (isLatestDeploy(row.deployVer || "", latest)) parts.push("deploy-latest-row");
   if (!canOpenCharts(row)) parts.push("inst-stopped-row");
   return parts.join(" ");
 }
@@ -331,6 +337,7 @@ const tableRows = computed(() => {
       pid: 0,
       port: 0,
       deployVer: "",
+      latestDeployVer: "",
       startTime: "",
       screen: "",
       jarPath: "",
@@ -349,8 +356,25 @@ const stdInstances = computed(() => sortInstances(tableRows.value.filter((r) => 
 const proInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "pro")));
 const otherInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "other")));
 
-/** 整机只取一个最新部署版本（workspace 目录 YYMMDD_N），不按分组各自取 */
-const latestDeployVer = computed(() => latestDeployVerInRows(tableRows.value));
+/** 旧 agent 无 latestDeployVer 时：按服务各自取运行实例中的最大版本（不再整机统一） */
+const latestByService = computed(() => {
+  const m = new Map<string, string>();
+  const bySvc = new Map<string, agentcli.JavaAppInstance[]>();
+  for (const r of tableRows.value) {
+    const name = r.service || "";
+    if (!name) continue;
+    let list = bySvc.get(name);
+    if (!list) {
+      list = [];
+      bySvc.set(name, list);
+    }
+    list.push(r);
+  }
+  for (const [name, list] of bySvc) {
+    m.set(name, latestDeployVerInRows(list));
+  }
+  return m;
+});
 
 const instanceSections = computed(() =>
   [

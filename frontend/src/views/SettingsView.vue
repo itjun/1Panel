@@ -217,7 +217,7 @@
               <div>
                 <h3 class="sec-title">启用企微通知</h3>
                 <p class="sec-desc sec-desc--inline">
-                  总开关。关闭后不向企业微信推送。资源告警与应用探活都须到各主机「通知」页（或应用页）按需订阅，未订阅不发任何通道；主机断开不推送。
+                  总开关。关闭后不向企业微信推送。资源告警与应用探活都须到各主机「通知」页按需订阅，未订阅不发任何通道；主机断开不推送。
                 </p>
               </div>
               <el-switch
@@ -270,7 +270,7 @@
           <section class="settings-section">
             <h3 class="sec-title">通道设置</h3>
             <p class="sec-desc">
-              已订阅的主机走哪些通道。系统通知与应用通知固定开启；企业微信可按类型关闭。订阅请到各主机「通知」页或「应用」页按需打开。
+              已订阅的主机走哪些通道。系统通知与应用通知固定开启；企业微信可按类型关闭。订阅请到各主机「通知」页按需打开。
             </p>
             <div class="alert-rules-form">
               <div class="alert-rules-head">
