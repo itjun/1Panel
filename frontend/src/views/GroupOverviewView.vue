@@ -79,14 +79,14 @@
           <el-table-column
             type="index"
             label="序"
-            width="56"
+            width="44"
             fixed
             align="center"
             class-name="group-index-col"
           />
           <el-table-column
             label="主机"
-            min-width="150"
+            width="156"
             fixed
             show-overflow-tooltip
           >
@@ -107,16 +107,16 @@
                     :size="20"
                   />
                 </span>
-                <span>{{ row.name }}</span>
+                <span class="list-host-label">{{ row.name }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="地址" min-width="130" show-overflow-tooltip>
+          <el-table-column label="地址" width="132" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="mono">{{ row.hostName || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Agent" min-width="140">
+          <el-table-column label="Agent" width="88">
             <template #default="{ row }">
               <div v-if="batchProgressOf(row.name)" class="agent-progress-cell">
                 <span
@@ -147,12 +147,12 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="88" show-overflow-tooltip>
+          <el-table-column label="用户" width="64" show-overflow-tooltip>
             <template #default="{ row }">
               {{ row.user || "—" }}
             </template>
           </el-table-column>
-          <el-table-column label="版本" min-width="120" show-overflow-tooltip>
+          <el-table-column label="版本" width="112" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="hostState(row.name).error">—</template>
               <span v-else class="mono">{{
@@ -160,7 +160,7 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="规格" min-width="110" show-overflow-tooltip>
+          <el-table-column label="规格" width="80" show-overflow-tooltip>
             <template #default="{ row }">
               <el-skeleton
                 v-if="hostState(row.name).loading && !hostState(row.name).overview"
@@ -178,7 +178,7 @@
               <span v-else class="mono">{{ hostSpec(hostState(row.name).overview!) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="CPU" min-width="150">
+          <el-table-column label="CPU" min-width="96">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -189,7 +189,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="内存" min-width="170">
+          <el-table-column label="内存" min-width="156">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -202,7 +202,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="磁盘 /" min-width="170">
+          <el-table-column label="磁盘 /" min-width="160">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -214,7 +214,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="负载" min-width="120" align="right">
+          <el-table-column label="负载" width="88" align="right">
             <template #default="{ row }">
               <el-skeleton
                 v-if="hostState(row.name).loading && !hostState(row.name).overview"
@@ -1212,10 +1212,14 @@ startPoll();
 
 .group-status-chip {
   height: 24px;
-  padding: 0 10px;
+  max-width: 100%;
+  padding: 0 8px;
   border-radius: var(--m3-shape-full) !important;
   font: var(--m3-label-medium);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .host-list-wrap {
@@ -1270,10 +1274,18 @@ startPoll();
 }
 
 .list-host-name {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   font-weight: 600;
+  white-space: nowrap;
+}
+.list-host-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .list-os-ico {
   display: inline-flex;
@@ -1293,6 +1305,7 @@ startPoll();
   color: var(--m3-error);
 }
 .load-cell {
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   &.is-alert {
     color: var(--m3-error);
@@ -1311,13 +1324,16 @@ startPoll();
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-right: 8px;
+  min-width: 0;
 }
 :deep(.list-metric-nums) {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 :deep(.list-metric-val) {
   font-size: 13px;
