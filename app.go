@@ -23,6 +23,7 @@ import (
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
+	"diteng-pannel/internal/winui"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -148,11 +149,17 @@ func NewApp() *application.App {
 	core.mainWindow = win
 
 	// 首帧即磨砂：启动早期（前端 JS 未跑）按镜像文件预置材质，避免实色→磨砂闪烁。
-	// 运行后以 SetFrostedChrome 的前端权威值为准。
+	// 运行后以 SetFrostedChrome 的前端权威值为准。Windows 映射为云母（Win11 22H2+）。
 	if core.frostedChrome = loadFrostedState(); core.frostedChrome {
 		macui.SetWindowFrosted(win, true)
-		if goruntime.GOOS == "darwin" {
+		switch goruntime.GOOS {
+		case "darwin":
 			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
+		case "windows":
+			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
+			if !winui.SetWindowMica(win, true) {
+				win.SetBackgroundColour(mainWindowSolidColour)
+			}
 		}
 	}
 

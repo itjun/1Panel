@@ -11,6 +11,7 @@ import (
 	"diteng-pannel/internal/macui"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/wecom"
+	"diteng-pannel/internal/winui"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -87,16 +88,31 @@ func (s *System) SetFrostedChrome(enabled bool) {
 }
 
 // setFrostedOnWindow 对单个窗口应用/撤销磨砂。
-// 非 macOS：SetWindowFrosted 是 no-op，且不能把窗口设成透明底
-// （无系统磨砂兜底时会渲染成黑底/怪底），仅保持实色。
+// macOS：透明底 + Visual Effect；Windows：透明 WebView2 + 云母（Mica，
+// 仅 Win11 22H2+，不支持时回落实色）；其余平台无系统磨砂，不能把窗口
+// 设成透明底（无兜底材质时会渲染成黑底/怪底），仅保持实色。
 func (s *System) setFrostedOnWindow(win *application.WebviewWindow, solid application.RGBA) {
 	if win == nil {
 		return
 	}
 	macui.SetWindowFrosted(win, s.frostedChrome)
-	if s.frostedChrome && runtime.GOOS == "darwin" {
-		win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
+	if s.frostedChrome {
+		switch runtime.GOOS {
+		case "darwin":
+			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
+		case "windows":
+			// 先令 WebView2 透明（此调用顺带把类刷设为黑色，下一步由云母清掉）
+			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
+			if !winui.SetWindowMica(win, true) {
+				win.SetBackgroundColour(solid)
+			}
+		default:
+			win.SetBackgroundColour(solid)
+		}
 	} else {
+		if runtime.GOOS == "windows" {
+			winui.SetWindowMica(win, false)
+		}
 		win.SetBackgroundColour(solid)
 	}
 }
