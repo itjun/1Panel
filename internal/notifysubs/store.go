@@ -115,7 +115,7 @@ func normalize(d Data) Data {
 		WecomWebhook:           strings.TrimSpace(d.WecomWebhook),
 		WecomAlertKinds:        compactList(d.WecomAlertKinds),
 		HostResourceNotifySubs: compactHostMap(d.HostResourceNotifySubs),
-		HostAppNotifySubs:      compactHostMap(d.HostAppNotifySubs),
+		HostAppNotifySubs:      compactAppHostMap(d.HostAppNotifySubs),
 	}
 	return out
 }
@@ -152,6 +152,22 @@ func compactHostMap(in map[string][]string) map[string][]string {
 			continue
 		}
 		out[host] = items
+	}
+	return out
+}
+
+// compactAppHostMap 保留空列表主机键，以便「曾配置过、当前订阅为 0」仍可展示/报警。
+func compactAppHostMap(in map[string][]string) map[string][]string {
+	out := map[string][]string{}
+	if in == nil {
+		return out
+	}
+	for host, list := range in {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			continue
+		}
+		out[host] = compactList(list)
 	}
 	return out
 }

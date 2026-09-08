@@ -26,6 +26,7 @@ func TestSetGetRoundTrip(t *testing.T) {
 		},
 		HostAppNotifySubs: map[string][]string{
 			"diteng-main": {"im", "oss"},
+			"cdcp-main":   {},
 		},
 	}
 	if err := s.Set(in); err != nil {
@@ -50,6 +51,10 @@ func TestSetGetRoundTrip(t *testing.T) {
 	if len(got.HostAppNotifySubs["diteng-main"]) != 2 {
 		t.Fatalf("app=%v", got.HostAppNotifySubs)
 	}
+	emptyApp, okEmpty := got.HostAppNotifySubs["cdcp-main"]
+	if !okEmpty || emptyApp == nil || len(emptyApp) != 0 {
+		t.Fatalf("empty app host should be kept: ok=%v list=%v", okEmpty, emptyApp)
+	}
 
 	s2 := &Store{path: s.path, data: emptyData()}
 	if err := s2.load(); err != nil {
@@ -61,6 +66,10 @@ func TestSetGetRoundTrip(t *testing.T) {
 	}
 	if got2.HostAppNotifySubs["diteng-main"][0] != "im" {
 		t.Fatalf("reload app=%v", got2.HostAppNotifySubs)
+	}
+	empty2, ok2 := got2.HostAppNotifySubs["cdcp-main"]
+	if !ok2 || len(empty2) != 0 {
+		t.Fatalf("reload should keep empty app host: ok=%v list=%v", ok2, empty2)
 	}
 	_ = os.Remove(s.path)
 }

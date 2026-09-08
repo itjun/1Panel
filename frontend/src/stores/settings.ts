@@ -211,7 +211,7 @@ const DEFAULTS: AppSettings = {
   hostAppNotifySubs: {},
 };
 
-/** 主机 → 合法服务名列表；非法项丢弃 */
+/** 主机 → 合法服务名列表；非法项丢弃。空数组主机键保留（曾配置、当前 0）。 */
 function loadHostAppNotifySubs(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, string[]> = {};
@@ -223,7 +223,7 @@ function loadHostAppNotifySubs(v: unknown): Record<string, string[]> {
         list.filter(isWatchServiceName) as WatchServiceName[]
       ),
     ];
-    if (services.length) out[name] = services;
+    out[name] = services;
   }
   return out;
 }
@@ -595,6 +595,16 @@ export const useSettingsStore = defineStore("settings", () => {
     return [...(hostAppNotifySubs.value[name] || [])];
   }
 
+  /** 通知页曾配置过应用探活订阅（含当前为 0 的空列表） */
+  function hasAppNotifyConfig(host: string): boolean {
+    const name = (host || "").trim();
+    if (!name) return false;
+    return Object.prototype.hasOwnProperty.call(
+      hostAppNotifySubs.value,
+      name
+    );
+  }
+
   function isAppNotifySubscribed(host: string, service: string): boolean {
     const name = (host || "").trim();
     const svc = (service || "").trim();
@@ -621,10 +631,10 @@ export const useSettingsStore = defineStore("settings", () => {
     } else {
       if (!has) return;
       const next = cur.filter((s) => s !== svc);
-      const map = { ...hostAppNotifySubs.value };
-      if (next.length) map[name] = next;
-      else delete map[name];
-      hostAppNotifySubs.value = map;
+      hostAppNotifySubs.value = {
+        ...hostAppNotifySubs.value,
+        [name]: next,
+      };
     }
     persistNotify();
   }
@@ -651,12 +661,12 @@ export const useSettingsStore = defineStore("settings", () => {
     let changed = false;
 
     const appFrom = hostAppNotifySubs.value[from];
-    if (appFrom?.length) {
+    if (Object.prototype.hasOwnProperty.call(hostAppNotifySubs.value, from)) {
       const map = { ...hostAppNotifySubs.value };
       const merged = [
-        ...new Set([...(map[to] || []), ...appFrom]),
+        ...new Set([...(map[to] || []), ...(appFrom || [])]),
       ].filter(isWatchServiceName);
-      if (merged.length) map[to] = merged;
+      map[to] = merged;
       delete map[from];
       hostAppNotifySubs.value = map;
       changed = true;
@@ -754,6 +764,7 @@ export const useSettingsStore = defineStore("settings", () => {
     isResourceNotifySubscribed,
     setResourceNotifySubscribed,
     listAppNotifySubs,
+    hasAppNotifyConfig,
     isAppNotifySubscribed,
     setAppNotifySubscribed,
     hostsWithAppNotifySubs,
