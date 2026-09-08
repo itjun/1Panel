@@ -328,7 +328,10 @@ func (a *App) maybeShowMainWindow() {
 	win := a.mainWindow
 	a.shown = true
 	a.showMu.Unlock()
-	win.SetMinSize(windowMinW, windowMinH)
+	// 不在此处 SetMinSize：Wails 的 SetMinSize 内部会读 Size()，启动期
+	// impl 未就绪时返回 0x0，会把刚恢复的上次窗口尺寸强制改成最小尺寸
+	// （Windows 专属坑，macOS 无此问题）。Min 约束已在创建窗口的
+	// WM_GETMINMAXINFO 生效，无需重复设置。
 	win.Center()
 	win.Show()
 	a.syncTrafficLights()
@@ -345,7 +348,8 @@ func (a *App) forceShowMainWindow() {
 	win := a.mainWindow
 	a.shown = true
 	a.showMu.Unlock()
-	win.SetMinSize(windowMinW, windowMinH)
+	// 同 maybeShowMainWindow：启动期不 SetMinSize，避免 Size()=0x0 时
+	// 把恢复的窗口尺寸砸成最小尺寸。
 	win.Show()
 	a.syncTrafficLights()
 }
@@ -366,7 +370,13 @@ func (a *App) markReady() {
 }
 
 func (a *App) enforceMinSize() {
-	if a.mainWindow == nil {
+	// 窗口尚未显示（启动恢复尺寸阶段）时跳过：Windows 上隐藏窗口的
+	// bounds 读取可能返回 0/异常小值，此时强制夹到最小尺寸会把刚从
+	// window.json 恢复的上次窗口尺寸覆盖掉（macOS 无此问题）。
+	a.showMu.Lock()
+	shown := a.shown
+	a.showMu.Unlock()
+	if a.mainWindow == nil || !shown {
 		return
 	}
 	w, h := a.mainWindow.Size()
@@ -437,9 +447,14 @@ func (a *App) restartApp() {
 	}
 	switch goruntime.GOOS {
 	case "windows":
-		// exe 来自 os.Executable（运行时信任来源），不经 shell 直接拉起新实例
-		if p, err := os.StartProcess(exe, []string{exe}, &os.ProcAttr{}); err == nil {
-			_ = p.Release()
+		// exe 来自 os.Executable（运行时信任来源），不经 shell 直接拉起新实例。
+		// 注意：os.StartProcess 在 Windows 要求 ProcAttr.Files 至少 3 个 stdio
+		// 句柄（syscall EINVAL），必须用 exec.Cmd.Start，它自动以空设备补齐。
+		// 1PANNEL_RESTARTED=1 令新实例先等旧实例退出释放 WebView2 数据目录锁。
+		c := exec.Command(exe)
+		c.Env = append(os.Environ(), "1PANNEL_RESTARTED=1")
+		if err := c.Start(); err == nil {
+			_ = c.Process.Release()
 		}
 	case "darwin":
 		bundle := filepath.Clean(filepath.Join(exe, "..", "..", ".."))
