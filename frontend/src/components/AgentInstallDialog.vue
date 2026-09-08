@@ -44,20 +44,35 @@
         show-icon
         class="install-result"
       />
+      <AgentCheckList
+        v-if="!store.running && (store.checkReport || store.checking)"
+        :report="store.checkReport"
+        :checking="store.checking"
+      />
     </div>
 
     <template #footer>
       <p v-if="store.running" class="running-hint">
         正在安装，请稍候…（上传约 10MB，视网络可能需要一两分钟）
       </p>
-      <el-button v-else type="primary" class="install-done-btn" @click="store.close()">
-        {{ store.error ? "关闭" : "完成" }}
-      </el-button>
+      <p v-else-if="store.checking" class="running-hint">正在检查 Agent…</p>
+      <template v-else>
+        <el-button
+          v-if="store.checkReport && !store.checkReport.ok"
+          @click="store.runCheck(store.host)"
+        >
+          再检查
+        </el-button>
+        <el-button type="primary" class="install-done-btn" @click="store.close()">
+          {{ store.error ? "关闭" : "完成" }}
+        </el-button>
+      </template>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import AgentCheckList from "@/components/AgentCheckList.vue";
 import type { InstallStepState } from "@/stores/agentInstall";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 

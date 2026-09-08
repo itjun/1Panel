@@ -5,6 +5,8 @@ export type {
     AgentEvent,
     AppShutdownReq,
     AppShutdownResult,
+    CheckItem,
+    CheckReport,
     CurrentPoint,
     CurrentResponse,
     Health,

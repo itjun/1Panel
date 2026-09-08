@@ -30,6 +30,25 @@ export interface AppShutdownResult {
 }
 
 /**
+ * CheckItem 一项检查结果
+ */
+export interface CheckItem {
+    "key": string;
+    "name": string;
+    "ok": boolean;
+    "detail": string;
+}
+
+/**
+ * CheckReport agent 自检报告（服务 / 通信 / 版本 / 采集）
+ */
+export interface CheckReport {
+    "ok": boolean;
+    "summary": string;
+    "items": CheckItem[] | null;
+}
+
+/**
  * CurrentPoint 最新采样
  */
 export interface CurrentPoint {

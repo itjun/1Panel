@@ -61,6 +61,9 @@
       <button type="button" class="ctx-item" @click="onInstallAgent">
         安装 Agent…
       </button>
+      <button type="button" class="ctx-item" @click="onCheckAgent">
+        检查 Agent…
+      </button>
       <button
         v-if="app.isRunning(menu.host)"
         type="button"
@@ -195,6 +198,12 @@ async function onInstallAgent() {
   }
   // 进度对话框内展示各阶段步骤；成功后 store.lastInstalled 通知概览/分组页刷新
   await agentInstall.start(host);
+}
+
+function onCheckAgent() {
+  const host = props.menu?.host;
+  emit("close");
+  if (host) agentInstall.openCheck(host);
 }
 
 async function onDelete() {

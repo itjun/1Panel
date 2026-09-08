@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { Events } from "@wailsio/runtime";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
+import type { agentcli } from "@/api";
 import { formatErr } from "@/utils/format";
 
 /** 安装步骤 key，与 Go 侧 agent-install-progress 的 step 一致 */
@@ -42,6 +43,50 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
   const steps = ref<InstallStep[]>([]);
   /** 最近一次安装成功；概览/分组页 watch 后刷新 Agent 状态 */
   const lastInstalled = ref<{ host: string; seq: number } | null>(null);
+
+  const checkOpen = ref(false);
+  const checkHost = ref("");
+  const checking = ref(false);
+  const checkReport = ref<agentcli.CheckReport | null>(null);
+
+  async function runCheck(h: string) {
+    const name = (h || "").trim();
+    if (!name) return;
+    checkHost.value = name;
+    checking.value = true;
+    try {
+      checkReport.value = await api.checkAgent(name);
+    } catch (e) {
+      checkReport.value = {
+        ok: false,
+        summary: "检查失败",
+        items: [
+          {
+            key: "comm",
+            name: "通信",
+            ok: false,
+            detail: formatErr(e),
+          },
+        ],
+      };
+    } finally {
+      checking.value = false;
+    }
+  }
+
+  function openCheck(h: string) {
+    const name = (h || "").trim();
+    if (!name) return;
+    checkHost.value = name;
+    checkReport.value = null;
+    checkOpen.value = true;
+    void runCheck(name);
+  }
+
+  function closeCheck() {
+    if (checking.value) return;
+    checkOpen.value = false;
+  }
 
   function markRunningError() {
     const cur = steps.value.find((s) => s.state === "running");
@@ -96,6 +141,7 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
     host.value = h;
     error.value = "";
     resultText.value = "";
+    checkReport.value = null;
     steps.value = STEP_DEFS.map((d) => ({
       ...d,
       state: "pending" as const,
@@ -106,6 +152,8 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
     try {
       await api.installAgent(h);
       lastInstalled.value = { host: h, seq: (lastInstalled.value?.seq ?? 0) + 1 };
+      running.value = false;
+      await runCheck(h);
       return true;
     } catch (e) {
       console.error("[agent-install] 失败:", e);
@@ -133,7 +181,14 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
     resultText,
     steps,
     lastInstalled,
+    checkOpen,
+    checkHost,
+    checking,
+    checkReport,
     start,
     close,
+    runCheck,
+    openCheck,
+    closeCheck,
   };
 });

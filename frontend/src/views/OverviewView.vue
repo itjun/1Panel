@@ -1,6 +1,29 @@
 <template>
   <div ref="pageRef" v-loading="loading && !overview" class="overview-page">
-    <el-alert v-if="error && !overview" type="error" :title="error" show-icon />
+    <el-alert
+      v-if="noSample && !overview"
+      type="warning"
+      title="Agent 已连通，尚无采样数据"
+      show-icon
+    >
+      <template #default>
+        <span>采集可能刚启动，或磁盘水位/写入异常。</span>
+        <el-button
+          link
+          type="primary"
+          style="margin-left: 8px"
+          @click="agentInstall.openCheck(host)"
+        >
+          检查 Agent
+        </el-button>
+      </template>
+    </el-alert>
+    <el-alert
+      v-else-if="error && !overview"
+      type="error"
+      :title="error"
+      show-icon
+    />
     <template v-if="overview">
       <el-row :gutter="12">
         <!-- 左栏 16 -->
@@ -350,7 +373,10 @@
                       <el-dropdown-item v-if="agentUpdatable" command="upgrade">
                         更新到 {{ latestAgentVersion }}
                       </el-dropdown-item>
-                      <el-dropdown-item command="uninstall" :divided="agentUpdatable">
+                      <el-dropdown-item command="check">
+                        检查 Agent
+                      </el-dropdown-item>
+                      <el-dropdown-item command="uninstall" divided>
                         卸载 Agent
                       </el-dropdown-item>
                     </el-dropdown-menu>
@@ -361,7 +387,9 @@
                   type="info"
                   effect="plain"
                   size="small"
-                  title="未安装或未运行；在侧栏右键主机可安装 / 更新 Agent"
+                  class="agent-tag-btn"
+                  title="未安装或未运行；点击检查"
+                  @click="agentInstall.openCheck(host)"
                 >
                   离线
                 </el-tag>
@@ -475,7 +503,7 @@ import { ArrowRight, Close, CopyDocument, FullScreen, Refresh } from "@element-p
 import { ElButton, ElMessage, ElMessageBox, ElNotification } from "element-plus";
 import { api } from "@/api";
 import type { agentcli, monitor } from "@/api";
-import { formatErr, isAgentMissing } from "@/utils/format";
+import { formatErr, isAgentMissing, isAgentNoSample } from "@/utils/format";
 import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
@@ -715,6 +743,10 @@ const agentBusy = ref(false);
 async function onAgentCommand(cmd: string) {
   if (agentBusy.value) return;
   const host = props.host;
+  if (cmd === "check") {
+    agentInstall.openCheck(host);
+    return;
+  }
   if (cmd === "upgrade") {
     const version = latestAgentVersion.value;
     try {
@@ -793,9 +825,10 @@ const loadAlert = computed(() => isLoadAlert(overview.value));
 const agentMissing = computed(
   () => isAgentMissing(error.value) || !!agentInfo.value?.notInstalled
 );
+const noSample = computed(() => isAgentNoSample(error.value));
 
 const alertLines = computed(() => {
-  if (agentMissing.value) return [] as { key: string; line: string }[];
+  if (agentMissing.value || noSample.value) return [] as { key: string; line: string }[];
   const host = props.host;
   if (error.value) {
     return [

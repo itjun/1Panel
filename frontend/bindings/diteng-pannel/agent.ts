@@ -142,6 +142,14 @@ export function AgentWatchStatus(host: string): $CancellablePromise<agentcli$0.W
 }
 
 /**
+ * CheckAgent 安装后或概览无数据时的自检：服务 / 通信 / 版本 / 采集 / 磁盘 / 内存。
+ * 若刚启动尚无采样，会再等 3 秒重试一次。
+ */
+export function CheckAgent(host: string): $CancellablePromise<agentcli$0.CheckReport> {
+    return $Call.ByID(1068795134, host);
+}
+
+/**
  * InstallAgent 安装或更新单台（幂等）：探测 → 上传校验 → 原子替换 → systemd 启动
  * → 隧道健康检查（版本比对）→ 失败自动回滚旧版。
  */

@@ -14,6 +14,11 @@ export function isAgentMissing(err: unknown): boolean {
   return s.includes("agent 未安装") || s.includes("agent 不可达");
 }
 
+/** agent 已连通但还没有 raw_metrics，不是连接失败 */
+export function isAgentNoSample(err: unknown): boolean {
+  return formatErr(err).includes("尚无采样数据");
+}
+
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
 export type ByteUnit = (typeof BYTE_UNITS)[number];
 

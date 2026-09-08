@@ -19,6 +19,12 @@ const (
 	remoteBinOld  = "/usr/local/bin/spanel-agent.old"
 	remoteDataDir = "/var/lib/spanel-agent"
 	remoteUnit    = "/etc/systemd/system/spanel-agent.service"
+
+	// diskWatermarkPct 与 agent 停写水位一致：剩余低于该百分比会丢弃全部采样
+	diskWatermarkPct = 5.0
+	minDataAvailKB   = 64 * 1024 // 数据分区至少 64 MB，避免 5% 在超小盘上仍不够落库
+	minTmpAvailKB    = 32 * 1024 // 上传二进制约 10MB，/tmp 再留余量
+	minMemAvailKB    = 96 * 1024 // 与 systemd MemoryMax 对齐
 )
 
 // systemd unit：含资源硬限制（宁可 agent 降级/退出，也不挤压业务）
@@ -58,37 +64,164 @@ func New(mgr *sshd.Manager) *Installer {
 	return &Installer{mgr: mgr}
 }
 
-// ProbeInfo 安装前探测
+// ProbeInfo 安装前探测（架构、systemd、磁盘水位、内存、写权限）
 type ProbeInfo struct {
 	Arch         string // uname -m
-	HasSystemd   bool   // 是否有 systemctl
-	HasBinary    bool   // /usr/local/bin/spanel-agent 是否存在
-	ServiceState string // active / inactive / not-found（not-found = 未安装服务）
+	OS           string // uname -s
+	HasSystemd   bool
+	HasBinary    bool
+	ServiceState string // active / inactive / failed / not-found
+	DataMount    string
+	DataTotalKB  uint64
+	DataAvailKB  uint64
+	TmpAvailKB   uint64
+	BinAvailKB   uint64
+	MemTotalKB   uint64
+	MemAvailKB   uint64
+	UID          int
+	WritableBin  bool
+	WritableTmp  bool
 }
 
-// Probe 探测主机架构与 agent 安装状态
+const probeScript = `echo "=OS=$(uname -s)"
+echo "=ARCH=$(uname -m)"
+echo "=UID=$(id -u)"
+command -v systemctl >/dev/null 2>&1 && echo "=SYSTEMD=1" || echo "=SYSTEMD=0"
+[ -f /usr/local/bin/spanel-agent ] && echo "=BIN=1" || echo "=BIN=0"
+if [ -d /usr/local/bin ]; then
+  [ -w /usr/local/bin ] && echo "=WR_BIN=1" || echo "=WR_BIN=0"
+else
+  [ -w /usr/local ] && echo "=WR_BIN=1" || echo "=WR_BIN=0"
+fi
+[ -w /tmp ] && echo "=WR_TMP=1" || echo "=WR_TMP=0"
+echo "=SVC=$(systemctl is-active spanel-agent 2>/dev/null || true)"
+DATA=/var/lib/spanel-agent
+[ -e "$DATA" ] || DATA=/var/lib
+[ -e "$DATA" ] || DATA=/
+df -Pk "$DATA" 2>/dev/null | awk 'NR==2 {print "=DATA_TOTAL_KB="$2; print "=DATA_AVAIL_KB="$4; print "=DATA_MNT="$6}'
+df -Pk /tmp 2>/dev/null | awk 'NR==2 {print "=TMP_AVAIL_KB="$4}'
+df -Pk /usr/local 2>/dev/null | awk 'NR==2 {print "=BIN_AVAIL_KB="$4}'
+if [ -r /proc/meminfo ]; then
+  awk '/^MemAvailable:/ {a=$2} /^MemFree:/ {f=$2} /^MemTotal:/ {t=$2} END { if(a!="") print "=MEM_AVAIL_KB="a; else print "=MEM_AVAIL_KB="f; print "=MEM_TOTAL_KB="t }' /proc/meminfo
+fi
+`
+
+// Probe 探测主机架构、agent 状态与安装环境（磁盘/内存/权限）
 func (i *Installer) Probe(host string, opt sshd.ConnectOption) (ProbeInfo, error) {
-	var info ProbeInfo
-	out, err := i.mgr.Run(host, opt, `echo "=ARCH=$(uname -m)"; command -v systemctl >/dev/null 2>&1 && echo "=SYSTEMD=1" || echo "=SYSTEMD=0"; [ -f /usr/local/bin/spanel-agent ] && echo "=BIN=1" || echo "=BIN=0"; systemctl is-active spanel-agent 2>/dev/null || true`)
+	out, err := i.mgr.Run(host, opt, probeScript)
 	if err != nil {
-		return info, fmt.Errorf("探测失败: %w", err)
+		return ProbeInfo{}, fmt.Errorf("探测失败: %w", err)
 	}
-	for _, line := range strings.Split(string(out), "\n") {
+	return parseProbe(string(out)), nil
+}
+
+func parseProbe(out string) ProbeInfo {
+	var info ProbeInfo
+	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
-		if v, ok := strings.CutPrefix(line, "=ARCH="); ok {
-			info.Arch = v
-		} else if v, ok := strings.CutPrefix(line, "=SYSTEMD="); ok {
-			info.HasSystemd = v == "1"
-		} else if v, ok := strings.CutPrefix(line, "=BIN="); ok {
-			info.HasBinary = v == "1"
-		} else if line == "active" || line == "inactive" || line == "failed" {
-			info.ServiceState = line
+		switch {
+		case strings.HasPrefix(line, "=OS="):
+			info.OS = strings.TrimPrefix(line, "=OS=")
+		case strings.HasPrefix(line, "=ARCH="):
+			info.Arch = strings.TrimPrefix(line, "=ARCH=")
+		case strings.HasPrefix(line, "=UID="):
+			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=UID="), "%d", &info.UID)
+		case line == "=SYSTEMD=1":
+			info.HasSystemd = true
+		case line == "=BIN=1":
+			info.HasBinary = true
+		case line == "=WR_BIN=1":
+			info.WritableBin = true
+		case line == "=WR_TMP=1":
+			info.WritableTmp = true
+		case strings.HasPrefix(line, "=SVC="):
+			info.ServiceState = strings.TrimPrefix(line, "=SVC=")
+		case strings.HasPrefix(line, "=DATA_TOTAL_KB="):
+			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=DATA_TOTAL_KB="), "%d", &info.DataTotalKB)
+		case strings.HasPrefix(line, "=DATA_AVAIL_KB="):
+			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=DATA_AVAIL_KB="), "%d", &info.DataAvailKB)
+		case strings.HasPrefix(line, "=DATA_MNT="):
+			info.DataMount = strings.TrimPrefix(line, "=DATA_MNT=")
+		case strings.HasPrefix(line, "=TMP_AVAIL_KB="):
+			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=TMP_AVAIL_KB="), "%d", &info.TmpAvailKB)
+		case strings.HasPrefix(line, "=BIN_AVAIL_KB="):
+			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=BIN_AVAIL_KB="), "%d", &info.BinAvailKB)
+		case strings.HasPrefix(line, "=MEM_AVAIL_KB="):
+			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=MEM_AVAIL_KB="), "%d", &info.MemAvailKB)
+		case strings.HasPrefix(line, "=MEM_TOTAL_KB="):
+			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=MEM_TOTAL_KB="), "%d", &info.MemTotalKB)
 		}
 	}
 	if info.ServiceState == "" {
 		info.ServiceState = "not-found"
 	}
-	return info, nil
+	if info.UID == 0 {
+		info.WritableBin = true
+		info.WritableTmp = true
+	}
+	return info
+}
+
+func (p ProbeInfo) dataAvailPct() float64 {
+	if p.DataTotalKB == 0 {
+		return 100
+	}
+	return float64(p.DataAvailKB) / float64(p.DataTotalKB) * 100
+}
+
+// InstallBlockReason 环境不足以安装或采集时返回中文原因；空串表示可以装。
+func (p ProbeInfo) InstallBlockReason() string {
+	osname := strings.ToLower(p.OS)
+	if osname != "" && osname != "linux" {
+		return fmt.Sprintf("目标系统是 %s，spanel-agent 仅支持 Linux", p.OS)
+	}
+	if !p.HasSystemd {
+		return "目标主机无 systemd，暂不支持安装"
+	}
+	if !p.WritableBin {
+		return "当前用户不能写入 /usr/local/bin，请用 root 安装"
+	}
+	if !p.WritableTmp {
+		return "当前用户不能写入 /tmp，无法上传 Agent 二进制"
+	}
+	if p.TmpAvailKB > 0 && p.TmpAvailKB < minTmpAvailKB {
+		return fmt.Sprintf("/tmp 剩余 %s，上传 Agent 至少需要 %s，请清理后再安装",
+			fmtKB(p.TmpAvailKB), fmtKB(minTmpAvailKB))
+	}
+	if p.BinAvailKB > 0 && p.BinAvailKB < minTmpAvailKB {
+		return fmt.Sprintf("/usr/local 剩余 %s，安装 Agent 至少需要 %s，请清理后再安装",
+			fmtKB(p.BinAvailKB), fmtKB(minTmpAvailKB))
+	}
+	if p.DataTotalKB > 0 {
+		pct := p.dataAvailPct()
+		mnt := p.DataMount
+		if mnt == "" {
+			mnt = "/var/lib"
+		}
+		if pct < diskWatermarkPct {
+			return fmt.Sprintf("数据分区 %s 剩余 %.1f%%（%s / %s），低于采集停写水位 %.0f%%。装上后也无法落库，请先清理磁盘再安装",
+				mnt, pct, fmtKB(p.DataAvailKB), fmtKB(p.DataTotalKB), diskWatermarkPct)
+		}
+		if p.DataAvailKB < minDataAvailKB {
+			return fmt.Sprintf("数据分区 %s 剩余 %s，至少需要 %s 才能落库，请先清理磁盘再安装",
+				mnt, fmtKB(p.DataAvailKB), fmtKB(minDataAvailKB))
+		}
+	}
+	if p.MemAvailKB > 0 && p.MemAvailKB < minMemAvailKB {
+		return fmt.Sprintf("内存可用 %s，Agent 需要至少 %s，请释放内存后再安装",
+			fmtKB(p.MemAvailKB), fmtKB(minMemAvailKB))
+	}
+	return ""
+}
+
+func fmtKB(kb uint64) string {
+	if kb >= 1024*1024 {
+		return fmt.Sprintf("%.1f GB", float64(kb)/1024/1024)
+	}
+	if kb >= 1024 {
+		return fmt.Sprintf("%.0f MB", float64(kb)/1024)
+	}
+	return fmt.Sprintf("%d KB", kb)
 }
 
 // Install 安装或更新（幂等）。流程：sftp 上传 → sha256 校验 → 备份旧版 → 原子替换
@@ -99,8 +232,8 @@ func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wan
 	if err != nil {
 		return err
 	}
-	if !info.HasSystemd {
-		return fmt.Errorf("目标主机无 systemd，暂不支持安装")
+	if reason := info.InstallBlockReason(); reason != "" {
+		return fmt.Errorf("%s", reason)
 	}
 
 	// 1) 上传 + 校验

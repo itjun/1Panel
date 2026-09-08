@@ -385,7 +385,13 @@ import {
   hostWecomKindFromKey,
   shouldToastHostAlert,
 } from "@/utils/wecomHostAlerts";
-import { formatBytes, formatErr, formatMemCapacity, isAgentMissing } from "@/utils/format";
+import {
+  formatBytes,
+  formatErr,
+  formatMemCapacity,
+  isAgentMissing,
+  isAgentNoSample,
+} from "@/utils/format";
 import {
   ALERT,
   diskLowMessage,
@@ -646,7 +652,7 @@ function collectHostAlerts(name: string): { key: string; line: string }[] {
   const s = hostStates.value[name];
   if (!s) return [];
   if (s.error) {
-    if (isAgentMissing(s.error)) return [];
+    if (isAgentMissing(s.error) || isAgentNoSample(s.error)) return [];
     return [
       {
         key: `${name}|conn`,

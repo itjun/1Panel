@@ -429,10 +429,13 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	return tok, nil
 }
 
-// ResetToken 安装/更换 agent 后调用
+// ResetToken 安装/更换 agent 后调用：清 token，并丢掉可能连着旧进程的空闲连接。
 func (c *Client) ResetToken() {
 	c.mu.Lock()
 	c.token = ""
+	if c.client != nil {
+		c.client.CloseIdleConnections()
+	}
 	c.mu.Unlock()
 }
 

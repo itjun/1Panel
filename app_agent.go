@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -191,6 +192,55 @@ func (s *Agent) AgentLatestVersion() string {
 	return agentres.AgentVersion
 }
 
+// CheckAgent 安装后或概览无数据时的自检：服务 / 通信 / 版本 / 采集 / 磁盘 / 内存。
+// 若刚启动尚无采样，会再等 3 秒重试一次。
+func (s *Agent) CheckAgent(host string) (agentcli.CheckReport, error) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return agentcli.CheckReport{}, fmt.Errorf("主机名不能为空")
+	}
+	in := agentcli.CheckInput{PanelVersion: agentres.AgentVersion}
+
+	opt, err := connectOptionFor(host)
+	if err != nil {
+		in.ProbeErr = err
+		return agentcli.BuildCheckReport(in), nil
+	}
+	if s.installer != nil {
+		info, perr := s.installer.Probe(host, opt)
+		in.ProbeErr = perr
+		in.HasBinary = info.HasBinary
+		in.ServiceState = info.ServiceState
+	}
+
+	cli, err := s.agentPool.GetWithOpt(host, opt)
+	if err != nil {
+		in.HealthErr = err
+		return agentcli.BuildCheckReport(in), nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	in.HealthErr = cli.GetJSON(ctx, "/health", &in.Health)
+	cancel()
+
+	fetchCurrent := func() {
+		cctx, ccancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer ccancel()
+		var cur agentcli.CurrentResponse
+		in.CurrentErr = cli.GetJSON(cctx, "/metrics/current", &cur)
+	}
+	if in.HealthErr == nil {
+		fetchCurrent()
+		if in.Health.Written == 0 || agentcli.IsNoSampleData(in.CurrentErr) {
+			time.Sleep(3 * time.Second)
+			hctx, hcancel := context.WithTimeout(context.Background(), 8*time.Second)
+			_ = cli.GetJSON(hctx, "/health", &in.Health)
+			hcancel()
+			fetchCurrent()
+		}
+	}
+	return agentcli.BuildCheckReport(in), nil
+}
+
 // AgentEmbedded 面板是否已内置该架构的 agent 二进制
 func (s *Agent) AgentEmbedded(arch string) bool {
 	return agentres.HasBinary(arch)
@@ -275,6 +325,9 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 	if err != nil {
 		return fail(err)
 	}
+	if reason := info.InstallBlockReason(); reason != "" {
+		return fail(fmt.Errorf("%s", reason))
+	}
 
 	// 已在跑且版本与面板内置一致：跳过上传/替换
 	if info.ServiceState == "active" {
@@ -312,16 +365,27 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 	if err != nil {
 		return fail(err)
 	}
+	cli.ResetToken()
 	var h agentcli.Health
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := cli.GetJSON(ctx, "/health", &h); err != nil {
-		_ = s.installer.Rollback(host, opt)
-		return fail(fmt.Errorf("健康检查失败: %v（已回滚旧版本）", err))
+	var lastErr error
+	want := agentres.AgentVersion
+	for i := 0; i < 8; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		lastErr = cli.GetJSON(ctx, "/health", &h)
+		cancel()
+		if lastErr == nil && h.Version == want {
+			break
+		}
+		cli.ResetToken()
+		time.Sleep(500 * time.Millisecond)
 	}
-	if h.Version != agentres.AgentVersion {
+	if lastErr != nil {
 		_ = s.installer.Rollback(host, opt)
-		return fail(fmt.Errorf("远端版本 %s 与内置 %s 不一致（已回滚）", h.Version, agentres.AgentVersion))
+		return fail(fmt.Errorf("健康检查失败: %v（已回滚旧版本）", lastErr))
+	}
+	if h.Version != want {
+		_ = s.installer.Rollback(host, opt)
+		return fail(fmt.Errorf("远端版本 %s 与内置 %s 不一致（已回滚）", h.Version, want))
 	}
 	s.agentPool.InvalidateStatus(host)
 	emit("done", "安装完成 v"+h.Version, -1)

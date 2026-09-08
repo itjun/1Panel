@@ -11,6 +11,8 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AgentCheckDialog: typeof import('./components/AgentCheckDialog.vue')['default']
+    AgentCheckList: typeof import('./components/AgentCheckList.vue')['default']
     AgentInstallDialog: typeof import('./components/AgentInstallDialog.vue')['default']
     AlertEventList: typeof import('./components/alert/AlertEventList.vue')['default']
     BackupImportDialog: typeof import('./components/BackupImportDialog.vue')['default']

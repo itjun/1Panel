@@ -161,6 +161,7 @@
     </el-dialog>
 
     <AgentInstallDialog />
+    <AgentCheckDialog />
 
     <!-- 全局通知中心：扁平列表 -->
     <el-drawer
@@ -250,6 +251,7 @@ import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
 import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
+import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
 import AlertEventList from "@/components/alert/AlertEventList.vue";
 import {
   startAppWatchAlertPoll,
@@ -624,12 +626,26 @@ onBeforeUnmount(() => {
 .titlebar-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   height: 32px;
 }
+.titlebar-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  overflow: visible;
+}
 .titlebar-badge :deep(.el-badge__content) {
   border: none;
-  transform: translateY(-2px) translateX(4px);
+  top: 50%;
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+  z-index: 1;
 }
 .win-controls {
   display: flex;

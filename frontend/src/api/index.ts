@@ -150,6 +150,8 @@ export const api = {
   agentProbeInfo: (host: string): Promise<agentinstall.ProbeInfo> =>
     must(Agent.AgentProbeInfo(host)),
   agentLatestVersion: (): Promise<string> => str(Agent.AgentLatestVersion()),
+  checkAgent: (host: string): Promise<agentcli.CheckReport> =>
+    must(Agent.CheckAgent(host)),
   installAgent: async (host: string): Promise<void> => {
     await Agent.InstallAgent(host);
   },
