@@ -33,9 +33,11 @@ tasks:
         set -e
         AMD=internal/agentres/bin/spanel-agent-linux-amd64
         ARM=internal/agentres/bin/spanel-agent-linux-arm64
-        if [ -f "$AMD" ] && [ -f "$ARM" ] && go run ./cmd/agentversion check >/dev/null 2>&1; then
-          V=$(tr -d ' \t\n' < internal/agentres/VERSION)
-          echo "spanel-agent $V 源码未变，沿用已有产物（不升版本、不重编）"
+        V=$(tr -d ' \t\n' < internal/agentres/VERSION)
+        if [ -f "$AMD" ] && [ -f "$ARM" ] \
+          && go run ./cmd/agentversion check >/dev/null 2>&1 \
+          && strings "$AMD" | grep -Fqx "$V"; then
+          echo "spanel-agent $V 源码未变且产物版本一致，沿用已有产物"
           exit 0
         fi
         go run ./cmd/agentversion sync

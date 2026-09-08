@@ -45,6 +45,9 @@ func Binary(arch string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("内置 agent 未构建：%s 不存在，请先运行 task agent:build", name)
 	}
 	sum := sha256.Sum256(b)
+	if v := BinaryBuildVersion(b); v != "" && v != AgentVersion {
+		return nil, "", fmt.Errorf("内置 agent 二进制是 v%s，VERSION 是 v%s，请先运行 task agent:build", v, AgentVersion)
+	}
 	return b, hex.EncodeToString(sum[:]), nil
 }
 
