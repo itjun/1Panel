@@ -15,6 +15,14 @@ export type ThemeKey = "light" | "dark" | "auto";
 
 /** 磨砂窗口材质仅 macOS 支持；Windows 等平台无系统磨砂，默认关闭 */
 const isMacPlatform = /Mac|iPhone|iPad/.test(navigator.platform);
+const isWinPlatform = /Win/i.test(navigator.platform);
+
+/** 终端默认字号：macOS 14，Windows 16，其余 15 */
+function defaultTerminalFontSize(): number {
+  if (isMacPlatform) return 14;
+  if (isWinPlatform) return 16;
+  return 15;
+}
 
 /** 设置页左侧分组；仅进程内记忆，不写入 localStorage */
 export type SettingsNavGroup =
@@ -95,10 +103,19 @@ export const FONT_OPTIONS: { label: string; value: string }[] = [
   },
 ];
 
+const TERM_FONT_SF_MONO =
+  '"SF Mono", "JetBrains Mono", Menlo, Monaco, monospace';
+const TERM_FONT_CONSOLAS =
+  'Consolas, "Cascadia Mono", "Courier New", monospace';
+
 export const TERMINAL_FONT_OPTIONS: { label: string; value: string }[] = [
   {
-    label: "SF Mono（推荐）",
-    value: '"SF Mono", "JetBrains Mono", Menlo, Monaco, monospace',
+    label: "SF Mono（macOS 推荐）",
+    value: TERM_FONT_SF_MONO,
+  },
+  {
+    label: "Consolas（Windows 推荐）",
+    value: TERM_FONT_CONSOLAS,
   },
   {
     label: "Maple Mono NF CN",
@@ -121,6 +138,10 @@ export const TERMINAL_FONT_OPTIONS: { label: string; value: string }[] = [
     value: "inherit",
   },
 ];
+
+function defaultTerminalFontFamily(): string {
+  return isWinPlatform ? TERM_FONT_CONSOLAS : TERM_FONT_SF_MONO;
+}
 
 export const THEME_OPTIONS: {
   key: ThemeKey;
@@ -168,13 +189,20 @@ const STORAGE_KEY = "ipannel.settings.v1";
 /** 磨砂默认值迁移标记：见 load() 中的一次性迁移 */
 const FROSTED_MIGRATION_KEY = "ipannel.frostedDefaultByPlatform.migrated";
 
+/** 终端默认字号按平台：只纠正仍停在旧默认（13/15）的用户 */
+const TERM_FONT_MIGRATION_KEY = "ipannel.terminalFontSize.byPlatform.migrated";
+
+/** Windows 终端默认字体改为 Consolas */
+const TERM_FAMILY_WIN_MIGRATION_KEY =
+  "ipannel.terminalFontFamily.winConsolas.migrated";
+
 const DEFAULTS: AppSettings = {
   theme: "auto",
   frostedChrome: isMacPlatform,
   fontFamily: FONT_OPTIONS[0].value,
   fontSize: 14,
-  terminalFontSize: 13,
-  terminalFontFamily: TERMINAL_FONT_OPTIONS[0].value,
+  terminalFontSize: defaultTerminalFontSize(),
+  terminalFontFamily: defaultTerminalFontFamily(),
   maxRunningHosts: 12,
   notifyEnabled: false,
   wecomWebhook: "",
@@ -256,6 +284,21 @@ function load(): AppSettings {
     if (!isMacPlatform && !localStorage.getItem(FROSTED_MIGRATION_KEY)) {
       localStorage.setItem(FROSTED_MIGRATION_KEY, "1");
       if (parsed.frostedChrome === true) parsed.frostedChrome = false;
+    }
+    if (!localStorage.getItem(TERM_FONT_MIGRATION_KEY)) {
+      localStorage.setItem(TERM_FONT_MIGRATION_KEY, "1");
+      const n = Number(parsed.terminalFontSize);
+      // 13 为最初默认，15 为上一轮全平台默认；显式改过的其它值保留
+      if (n === 13 || n === 15) {
+        parsed.terminalFontSize = defaultTerminalFontSize();
+      }
+    }
+    if (isWinPlatform && !localStorage.getItem(TERM_FAMILY_WIN_MIGRATION_KEY)) {
+      localStorage.setItem(TERM_FAMILY_WIN_MIGRATION_KEY, "1");
+      const fam = parsed.terminalFontFamily;
+      if (!fam || fam === TERM_FONT_SF_MONO) {
+        parsed.terminalFontFamily = TERM_FONT_CONSOLAS;
+      }
     }
     return {
       theme: (parsed.theme as ThemeKey) || DEFAULTS.theme,

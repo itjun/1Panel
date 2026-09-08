@@ -154,7 +154,7 @@
         <template v-else-if="settings.lastNavGroup === 'terminal'">
           <section class="settings-section">
             <h3 class="sec-title">终端字体</h3>
-            <p class="sec-desc">仅影响「终端」标签页中的 xterm 显示。</p>
+            <p class="sec-desc">仅影响「终端」标签页。macOS 默认 SF Mono，Windows 默认 Consolas。</p>
             <el-select
               :model-value="settings.terminalFontFamily"
               style="width: 100%"
@@ -173,7 +173,7 @@
               <h3 class="sec-title">终端字号</h3>
               <span class="sec-value">{{ settings.terminalFontSize }} px</span>
             </div>
-            <p class="sec-desc">建议 12～14。范围 10～22。</p>
+            <p class="sec-desc">macOS 默认 14，Windows 默认 16。范围 10～22。</p>
             <el-slider
               :model-value="settings.terminalFontSize"
               :min="10"
@@ -969,7 +969,7 @@ onMounted(() => {
   white-space: nowrap;
 
   &--term {
-    background: #272822;
+    background: #000000;
     color: #f8f8f2;
     border-color: #49483e;
     font-family: var(--m3-font-mono);

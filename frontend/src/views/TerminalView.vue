@@ -210,19 +210,21 @@ let pendingCmdLocal: string | null = null;
 // 终端拖拽上传固定目标目录：/tmp（通用、权限宽松、适合临时传文件执行）
 const TERM_UPLOAD_DIR = "/tmp";
 
-/** Monokai 标准 ANSI 配色（Sublime Text 原版，勿自行改色） */
+/** Termius 风莫妮卡：纯黑底 + 原版 Monokai ANSI */
 const MONOKAI_XTERM_THEME = {
-  background: "#272822",
+  background: "#000000",
   foreground: "#F8F8F2",
-  cursor: "#F8F8F2",
+  cursor: "#F8F8F0",
+  cursorAccent: "#000000",
   selectionBackground: "#49483E",
-  black: "#272822",
+  selectionInactiveBackground: "#3E3D32",
+  black: "#1B1D1E",
   red: "#F92672",
   green: "#A6E22E",
-  yellow: "#E6DB74",
+  yellow: "#FD971F",
   blue: "#66D9EF",
   magenta: "#AE81FF",
-  cyan: "#66D9EF",
+  cyan: "#A1EFE4",
   white: "#F8F8F2",
   brightBlack: "#75715E",
   brightRed: "#F92672",
@@ -230,8 +232,8 @@ const MONOKAI_XTERM_THEME = {
   brightYellow: "#E6DB74",
   brightBlue: "#66D9EF",
   brightMagenta: "#AE81FF",
-  brightCyan: "#66D9EF",
-  brightWhite: "#F8F8F2",
+  brightCyan: "#A1EFE4",
+  brightWhite: "#F9F8F5",
 } as const;
 const dragOver = ref(false);
 // dragCounter：抵消子元素进出导致的 dragenter/dragleave 抖动（同 FilesView 技巧）
@@ -294,7 +296,7 @@ async function openNew() {
 
   const term = new XTerm({
     cursorBlink: true,
-    fontSize: terminalFontSize.value || 13,
+    fontSize: terminalFontSize.value || 14,
     fontFamily: resolveTermFontFamily(),
     rightClickSelectsWord: false,
     // macOS：Option 键作为 Meta（Alt+b/f 跳词等 readline 快捷键可用）
@@ -734,7 +736,7 @@ watch(
 watch(
   [terminalFontSize, terminalFontFamily, fontFamily],
   () => {
-    const size = terminalFontSize.value || 13;
+    const size = terminalFontSize.value || 14;
     const fam = resolveTermFontFamily();
     for (const s of sessions.value) {
       s.term.options.fontSize = size;
@@ -1029,7 +1031,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  background: var(--panel-terminal-bg-color, #272822);
+  background: var(--panel-terminal-bg-color, #000000);
   user-select: text;
 
   :deep(.xterm),
@@ -1040,7 +1042,7 @@ onBeforeUnmount(() => {
   }
 
   :deep(.xterm) {
-    padding: 6px 8px;
+    padding: 8px 12px;
     box-sizing: border-box;
   }
 }
