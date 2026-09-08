@@ -270,8 +270,7 @@ async function onInitZsh() {
   try {
     const remotePath = await api.bootstrapZsh(host);
     app.openHostTab(host); // 从任意视图触发都先切到该主机
-    app.sendTerminalCmd(`bash ${remotePath}; rm -f ${remotePath}`);
-    app.setSubTab(host, "terminal");
+    await app.runInTerminal(`bash ${remotePath}; rm -f ${remotePath}`);
     ElMessage.success("脚本已上传,正在终端执行…");
   } catch (e) {
     ElMessage.error(`上传脚本失败: ${formatErr(e)}`);

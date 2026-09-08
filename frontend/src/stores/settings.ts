@@ -6,6 +6,10 @@ import {
   isResourceAlertKind,
   type ResourceAlertKind,
 } from "@/utils/alerts";
+import {
+  isWatchServiceName,
+  type WatchServiceName,
+} from "@/utils/watchServices";
 
 export type ThemeKey = "light" | "dark" | "auto";
 
@@ -40,10 +44,13 @@ export interface AppSettings {
   notifyEnabled: boolean;
   /** 企微机器人 Webhook 完整 URL 或 key */
   wecomWebhook: string;
-  /** 已订阅企微的主机名列表（点「订阅」写入；CPU 等告警仅对这些主机发企微） */
-  wecomSubscribedHosts: string[];
-  /** 哪些告警类型推企微；缺字段时按四条全开迁移 */
+  /** 哪些资源告警类型推企微；缺字段时按四条全开迁移 */
   wecomAlertKinds: WecomAlertKind[];
+  /**
+   * 按主机订阅的应用探活通知（服务名列表）。
+   * 未订该服务则企微 / 系统通知 / 应用内历史都不发。
+   */
+  hostAppNotifySubs: Record<string, string[]>;
 }
 
 export const FONT_OPTIONS: { label: string; value: string }[] = [
@@ -166,9 +173,26 @@ const DEFAULTS: AppSettings = {
   maxRunningHosts: 12,
   notifyEnabled: true,
   wecomWebhook: "",
-  wecomSubscribedHosts: [],
   wecomAlertKinds: [...ALL_WECOM_ALERT_KINDS],
+  hostAppNotifySubs: {},
 };
+
+/** 主机 → 合法服务名列表；非法项丢弃 */
+function loadHostAppNotifySubs(v: unknown): Record<string, string[]> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [host, list] of Object.entries(v as Record<string, unknown>)) {
+    const name = (host || "").trim();
+    if (!name || !Array.isArray(list)) continue;
+    const services = [
+      ...new Set(
+        list.filter(isWatchServiceName) as WatchServiceName[]
+      ),
+    ];
+    if (services.length) out[name] = services;
+  }
+  return out;
+}
 
 function isWecomAlertKind(k: unknown): k is WecomAlertKind {
   return isResourceAlertKind(k);
@@ -227,12 +251,10 @@ function load(): AppSettings {
         typeof parsed.wecomWebhook === "string"
           ? parsed.wecomWebhook
           : DEFAULTS.wecomWebhook,
-      wecomSubscribedHosts: Array.isArray(parsed.wecomSubscribedHosts)
-        ? parsed.wecomSubscribedHosts.filter(
-            (h): h is string => typeof h === "string" && !!h.trim()
-          )
-        : DEFAULTS.wecomSubscribedHosts,
       wecomAlertKinds: loadWecomAlertKinds(parsed.wecomAlertKinds),
+      hostAppNotifySubs: loadHostAppNotifySubs(
+        (parsed as { hostAppNotifySubs?: unknown }).hostAppNotifySubs
+      ),
     };
   } catch {
     return { ...DEFAULTS };
@@ -254,8 +276,10 @@ export const useSettingsStore = defineStore("settings", () => {
   const maxRunningHosts = ref(initial.maxRunningHosts);
   const notifyEnabled = ref(initial.notifyEnabled);
   const wecomWebhook = ref(initial.wecomWebhook);
-  const wecomSubscribedHosts = ref<string[]>([...initial.wecomSubscribedHosts]);
   const wecomAlertKinds = ref<WecomAlertKind[]>([...initial.wecomAlertKinds]);
+  const hostAppNotifySubs = ref<Record<string, string[]>>({
+    ...initial.hostAppNotifySubs,
+  });
   /** 设置页草稿：离开页面不丢，未点保存不写入 localStorage */
   const webhookDraft = ref(expandWecomWebhook(initial.wecomWebhook));
   const webhookTested = ref("");
@@ -275,8 +299,8 @@ export const useSettingsStore = defineStore("settings", () => {
       maxRunningHosts: maxRunningHosts.value,
       notifyEnabled: notifyEnabled.value,
       wecomWebhook: wecomWebhook.value,
-      wecomSubscribedHosts: [...wecomSubscribedHosts.value],
       wecomAlertKinds: [...wecomAlertKinds.value],
+      hostAppNotifySubs: { ...hostAppNotifySubs.value },
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem("ipannel.theme", theme.value);
@@ -399,30 +423,54 @@ export const useSettingsStore = defineStore("settings", () => {
     return expandWecomWebhook(wecomWebhook.value);
   }
 
-  /** 该主机是否已订阅企微（资源告警才推群） */
-  function isWecomSubscribed(host: string): boolean {
+  function listAppNotifySubs(host: string): string[] {
     const name = (host || "").trim();
-    if (!name) return false;
-    return wecomSubscribedHosts.value.includes(name);
+    if (!name) return [];
+    return [...(hostAppNotifySubs.value[name] || [])];
   }
 
-  function subscribeWecomHost(host: string) {
+  function isAppNotifySubscribed(host: string, service: string): boolean {
     const name = (host || "").trim();
-    if (!name || wecomSubscribedHosts.value.includes(name)) return;
-    wecomSubscribedHosts.value = [...wecomSubscribedHosts.value, name];
+    const svc = (service || "").trim();
+    if (!name || !svc) return false;
+    return (hostAppNotifySubs.value[name] || []).includes(svc);
+  }
+
+  function setAppNotifySubscribed(
+    host: string,
+    service: string,
+    on: boolean
+  ) {
+    const name = (host || "").trim();
+    const svc = (service || "").trim();
+    if (!name || !isWatchServiceName(svc)) return;
+    const cur = hostAppNotifySubs.value[name] || [];
+    const has = cur.includes(svc);
+    if (on) {
+      if (has) return;
+      hostAppNotifySubs.value = {
+        ...hostAppNotifySubs.value,
+        [name]: [...cur, svc],
+      };
+    } else {
+      if (!has) return;
+      const next = cur.filter((s) => s !== svc);
+      const map = { ...hostAppNotifySubs.value };
+      if (next.length) map[name] = next;
+      else delete map[name];
+      hostAppNotifySubs.value = map;
+    }
     persist();
   }
 
-  function unsubscribeWecomHost(host: string) {
-    const name = (host || "").trim();
-    if (!name) return;
-    const next = wecomSubscribedHosts.value.filter((h) => h !== name);
-    if (next.length === wecomSubscribedHosts.value.length) return;
-    wecomSubscribedHosts.value = next;
-    persist();
+  /** 有应用订阅的主机名（全局探活轮询用） */
+  function hostsWithAppNotifySubs(): string[] {
+    return Object.keys(hostAppNotifySubs.value).filter(
+      (h) => (hostAppNotifySubs.value[h] || []).length > 0
+    );
   }
 
-  /** 该告警类型是否推企微（系统/应用通知不受此开关影响） */
+  /** 该资源告警类型是否推企微（系统/应用通知不受此开关影响） */
   function isWecomKindEnabled(kind: string): boolean {
     if (!isWecomAlertKind(kind)) return false;
     return wecomAlertKinds.value.includes(kind);
@@ -476,8 +524,8 @@ export const useSettingsStore = defineStore("settings", () => {
     maxRunningHosts,
     notifyEnabled,
     wecomWebhook,
-    wecomSubscribedHosts,
     wecomAlertKinds,
+    hostAppNotifySubs,
     webhookDraft,
     webhookTested,
     lastNavGroup,
@@ -493,9 +541,10 @@ export const useSettingsStore = defineStore("settings", () => {
     setNotifyEnabled,
     setWecomWebhook,
     effectiveWecomWebhook,
-    isWecomSubscribed,
-    subscribeWecomHost,
-    unsubscribeWecomHost,
+    listAppNotifySubs,
+    isAppNotifySubscribed,
+    setAppNotifySubscribed,
+    hostsWithAppNotifySubs,
     isWecomKindEnabled,
     setWecomKindEnabled,
     resetSettings,

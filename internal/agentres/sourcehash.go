@@ -56,6 +56,8 @@ func HashAgentSources(root string) (string, error) {
 	roots := []string{
 		filepath.Join(root, "cmd", "spanel-agent"),
 		filepath.Join(root, "internal", "agent"),
+		// agent 链入的采集实现；改这里也必须升 agent 版本并重编
+		filepath.Join(root, "internal", "monitor"),
 	}
 	for _, dir := range roots {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "@/api";
 import type { alerthistory } from "@/api";
+import { parseAppAlertKind } from "@/utils/watchServices";
 
 export type AlertEvent = alerthistory.Event;
 
@@ -76,6 +77,10 @@ export function formatAlertRelative(at: number): string {
 }
 
 export function alertKindLabel(kind: string): string {
+  const appSvc = parseAppAlertKind(kind);
+  if (appSvc) {
+    return appSvc || "应用";
+  }
   switch (kind) {
     case "mem":
       return "内存";

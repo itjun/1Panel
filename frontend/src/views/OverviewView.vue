@@ -413,6 +413,13 @@
                 <span class="hint">{{ installedRuntimes }} / {{ runtimes.length }} 已安装</span>
                 <el-button
                   link
+                  class="card-icon-btn"
+                  :icon="Refresh"
+                  title="刷新"
+                  @click="loadRuntimes"
+                />
+                <el-button
+                  link
                   class="card-icon-btn card-toggle"
                   :icon="enlargedKey === 'runtimes' ? Close : FullScreen"
                   :title="enlargedKey === 'runtimes' ? '退出放大' : '放大'"
@@ -463,15 +470,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ArrowRight, Close, FullScreen, Refresh } from "@element-plus/icons-vue";
-import { ElMessageBox, ElNotification } from "element-plus";
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ArrowRight, Close, CopyDocument, FullScreen, Refresh } from "@element-plus/icons-vue";
+import { ElButton, ElMessage, ElMessageBox, ElNotification } from "element-plus";
 import { api } from "@/api";
 import type { agentcli, monitor } from "@/api";
 import { formatErr, isAgentMissing } from "@/utils/format";
 import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
+import { copyText } from "@/utils/clipboard";
 import {
   formatBytes,
   formatDurationLong,
@@ -551,33 +559,74 @@ const INSTALL_COMMANDS: Record<string, string> = {
   python:
     "apt update && apt install -y python3 python3-pip python3-venv && ln -sf /usr/bin/python3 /usr/bin/python && python --version",
   go: "ARCH=$(uname -m); case $ARCH in x86_64) A=amd64;; aarch64|arm64) A=arm64;; *) A=''; echo \"不支持的架构: $ARCH\";; esac; [ -n \"$A\" ] && V=$( (curl -fsSL --connect-timeout 8 'https://go.dev/dl/?mode=json' || curl -fsSL 'https://golang.google.cn/dl/?mode=json') | python3 -c 'import json,sys;print(json.load(sys.stdin)[0][\"version\"])' 2>/dev/null) && echo \"安装 Go $V ...\" && (curl -fL --connect-timeout 8 \"https://go.dev/dl/${V}.linux-${A}.tar.gz\" -o /tmp/go.tgz || curl -fL \"https://mirrors.aliyun.com/golang/${V}.linux-${A}.tar.gz\" -o /tmp/go.tgz) && rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/go.tgz && rm /tmp/go.tgz && printf 'export PATH=$PATH:/usr/local/go/bin\\n' > /etc/profile.d/go.sh && export PATH=$PATH:/usr/local/go/bin && go version",
-  node: "ARCH=$(uname -m); case $ARCH in x86_64) A=amd64;; aarch64|arm64) A=arm64;; *) A=''; echo \"不支持的架构: $ARCH\";; esac; [ -n \"$A\" ] && V=$( (curl -fsSL --connect-timeout 8 'https://nodejs.org/dist/index.json' || curl -fsSL 'https://npmmirror.com/mirrors/node/index.json') | python3 -c 'import json,sys;print([e[\"version\"] for e in json.load(sys.stdin) if e[\"lts\"]][0])' 2>/dev/null) && echo \"安装 Node $V (LTS) ...\" && (curl -fL --connect-timeout 8 \"https://nodejs.org/dist/${V}/node-${V}-linux-${A}.tar.xz\" -o /tmp/node.tar.xz || curl -fL \"https://npmmirror.com/mirrors/node/${V}/node-${V}-linux-${A}.tar.xz\" -o /tmp/node.tar.xz) && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && rm /tmp/node.tar.xz && node --version && npm --version",
-  bun: "curl -fsSL https://bun.sh/install | bash && export PATH=\"$HOME/.bun/bin:$PATH\" && bun --version",
+  node: "ARCH=$(uname -m); case $ARCH in x86_64) A=x64;; aarch64|arm64) A=arm64;; *) A=''; echo \"不支持的架构: $ARCH\";; esac; [ -n \"$A\" ] && V=$( (curl -fsSL --connect-timeout 8 'https://nodejs.org/dist/index.json' || curl -fsSL 'https://npmmirror.com/mirrors/node/index.json') | python3 -c 'import json,sys;print([e[\"version\"] for e in json.load(sys.stdin) if e[\"lts\"]][0])' 2>/dev/null) && echo \"安装 Node $V (LTS) ...\" && (curl -fL --connect-timeout 8 \"https://nodejs.org/dist/${V}/node-${V}-linux-${A}.tar.xz\" -o /tmp/node.tar.xz || curl -fL \"https://npmmirror.com/mirrors/node/${V}/node-${V}-linux-${A}.tar.xz\" -o /tmp/node.tar.xz) && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && rm /tmp/node.tar.xz && node --version && npm --version",
+  bun: "apt update && apt install -y unzip curl ca-certificates && ARCH=$(uname -m); case $ARCH in x86_64) T=linux-x64;; aarch64|arm64) T=linux-aarch64;; *) T=''; echo \"不支持的架构: $ARCH\";; esac; [ -n \"$T\" ] && { [ \"$T\" = linux-x64 ] && ! grep -q avx2 /proc/cpuinfo 2>/dev/null && T=linux-x64-baseline; true; } && V=$(curl -fsSL --connect-timeout 8 'https://registry.npmmirror.com/-/binary/bun/' | python3 -c 'import json,sys,re; ns=[x[\"name\"].rstrip(\"/\") for x in json.load(sys.stdin) if re.match(r\"^bun-v\\d\", x[\"name\"])]; print(sorted(ns, key=lambda n:[int(x) for x in n[5:].split(\".\")])[-1])') && echo \"安装 Bun $V ($T) → /usr/local ...\" && mkdir -p /usr/local/bin && (curl -fL --connect-timeout 20 \"https://registry.npmmirror.com/-/binary/bun/${V}/bun-${T}.zip\" -o /tmp/bun.zip || curl -fL --connect-timeout 20 \"https://ghfast.top/https://github.com/oven-sh/bun/releases/download/${V}/bun-${T}.zip\" -o /tmp/bun.zip || curl -fL \"https://github.com/oven-sh/bun/releases/download/${V}/bun-${T}.zip\" -o /tmp/bun.zip) && rm -rf /tmp/bun-extract && unzip -oqd /tmp/bun-extract /tmp/bun.zip && mv \"/tmp/bun-extract/bun-${T}/bun\" /usr/local/bin/bun && chmod +x /usr/local/bin/bun && rm -rf /tmp/bun.zip /tmp/bun-extract && bun --version",
 };
 
 /** 确认后切到终端自动执行安装命令 */
 async function confirmInstallRuntime(name: string) {
   const cmd = INSTALL_COMMANDS[name];
   if (!cmd) return;
+
+  async function copyInstallCmd(e?: Event) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    try {
+      await copyText(cmd);
+      ElMessage.success("已复制安装命令");
+    } catch {
+      ElMessage.error("复制失败");
+    }
+  }
+
   try {
     await ElMessageBox.confirm(
-      `将在终端真实执行以下命令安装 <b>${name}</b>（需 root 权限）：<pre>${cmd}</pre>`,
+      h("div", { class: "install-runtime-msg" }, [
+        h("p", { class: "install-runtime-hint" }, [
+          "将在终端执行以下命令安装 ",
+          h("b", null, name),
+          "（需 root）：",
+        ]),
+        h("div", { class: "install-runtime-cmd-wrap" }, [
+          h(
+            "code",
+            {
+              class: "install-runtime-cmd",
+              title: cmd,
+            },
+            cmd
+          ),
+          h(
+            ElButton,
+            {
+              class: "install-runtime-copy",
+              size: "small",
+              onClick: (e: MouseEvent) => {
+                void copyInstallCmd(e);
+              },
+            },
+            {
+              default: () => [
+                h(CopyDocument, { class: "install-runtime-copy-icon" }),
+                " 复制",
+              ],
+            }
+          ),
+        ]),
+      ]),
       `安装 ${name}`,
       {
         confirmButtonText: "安装",
         cancelButtonText: "取消",
         type: "warning",
-        dangerouslyUseHTMLString: true,
-        customStyle: { maxWidth: "640px" },
+        customClass: "install-runtime-box",
+        distinguishCancelAndClose: true,
       }
     );
   } catch {
     return; // 用户取消
   }
-  app.sendTerminalCmd(cmd);
-  if (app.activeTabId) {
-    app.setSubTab(app.activeTabId, "terminal");
-  }
+  await app.runInTerminal(cmd);
 }
 
 /** agent 状态徽章（在线版本 / 离线提示；安装入口在主机右键菜单） */
@@ -969,9 +1018,14 @@ watch(
   }
 );
 
-// 终端占用结束后立即补一次刷新，避免切回概览时数据陈旧
+// 终端占用结束后立即补刷：概览快数据 + 运行环境（装完 java/bun 等切回来应马上看到）
 watch(terminalActive, (active) => {
-  if (!active) void loadOverview();
+  if (!active) {
+    void loadOverview();
+    void loadRuntimes();
+    void loadDisks();
+    void loadDocker();
+  }
 });
 
 onMounted(() => {
@@ -1267,8 +1321,60 @@ onBeforeUnmount(() => {
 }
 </style>
 
-<!-- el-popover 内容 teleport 到 body，scoped 样式无法穿透，故用全局样式 -->
+<!-- el-popover / MessageBox 内容 teleport 到 body，scoped 样式无法穿透，故用全局样式 -->
 <style lang="scss">
+.el-overlay-message-box .el-message-box.install-runtime-box {
+  width: min(520px, calc(100% - 32px)) !important;
+}
+
+.install-runtime-msg {
+  text-align: left;
+  min-width: 0;
+}
+
+.install-runtime-hint {
+  margin: 0 0 8px;
+  line-height: 1.45;
+  color: var(--m3-on-surface);
+}
+
+.install-runtime-cmd-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-s);
+  background: var(--m3-surface-container);
+}
+
+.install-runtime-cmd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--m3-body-small);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.4;
+  color: var(--m3-on-surface);
+  background: transparent;
+}
+
+.install-runtime-copy {
+  flex-shrink: 0;
+}
+
+.install-runtime-copy-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+  vertical-align: -2px;
+}
+
 .ring-popover {
   font: var(--m3-body-small);
   color: var(--m3-on-surface);

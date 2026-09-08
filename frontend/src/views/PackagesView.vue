@@ -354,9 +354,7 @@ const stats = computed(() => {
 });
 
 function runInTerminal(cmd: string) {
-  if (!app.activeTabId) return;
-  app.sendTerminalCmd(cmd);
-  app.setSubTab(app.activeTabId, "terminal");
+  void app.runInTerminal(cmd);
 }
 
 async function copyDeps() {

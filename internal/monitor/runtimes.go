@@ -16,9 +16,9 @@ type RuntimeInfo struct {
 }
 
 // CollectRuntimes 识别常用运行环境（java/go/python/node/bun）
-// 一次 SSH 往返全部探测：command -v 定位可执行文件，再跑对应版本命令
-// 非交互 SSH 不加载 ~/.bashrc，bun（~/.bun/bin）等常不在 PATH，
-// 因此 PATH 找不到时回退探测各环境的常见安装位置
+// 一次本地/SSH 往返全部探测：command -v 定位可执行文件，再跑对应版本命令
+// 非交互环境 PATH 很瘦，且 agent 常以 root 跑（HOME=/root），而终端安装可能落在
+// 登录用户家目录——因此 PATH 找不到时回退探测各环境的常见安装位置。
 // python 优先 python3，缺失时回退 python
 func (c *Collector) CollectRuntimes(host string, opt sshd.ConnectOption) ([]RuntimeInfo, error) {
 	// 包一层 sh -c：zsh 下通配符无匹配会直接终止脚本，sh 只会保留字面量
@@ -28,13 +28,21 @@ func (c *Collector) CollectRuntimes(host string, opt sshd.ConnectOption) ([]Runt
   if [ -z "$p" ]; then
     case $c in
       bun)
-        for alt in "$HOME/.bun/bin/bun"; do [ -x "$alt" ] && p="$alt" && break; done;;
+        for alt in "$HOME/.bun/bin/bun" /root/.bun/bin/bun /home/*/.bun/bin/bun; do
+          [ -x "$alt" ] && p="$alt" && break
+        done;;
       go)
-        for alt in /usr/local/go/bin/go "$HOME/go/bin/go" /opt/go/bin/go; do [ -x "$alt" ] && p="$alt" && break; done;;
+        for alt in /usr/local/go/bin/go "$HOME/go/bin/go" /root/go/bin/go /opt/go/bin/go; do
+          [ -x "$alt" ] && p="$alt" && break
+        done;;
       node)
-        for alt in /usr/local/bin/node "$HOME"/.nvm/versions/node/*/bin/node; do [ -x "$alt" ] && p="$alt" && break; done;;
+        for alt in /usr/local/bin/node "$HOME"/.nvm/versions/node/*/bin/node /root/.nvm/versions/node/*/bin/node; do
+          [ -x "$alt" ] && p="$alt" && break
+        done;;
       java)
-        for alt in /usr/lib/jvm/*/bin/java "$HOME"/.sdkman/candidates/java/*/bin/java /usr/local/jdk*/bin/java; do [ -x "$alt" ] && p="$alt" && break; done;;
+        for alt in /usr/lib/jvm/*/bin/java "$HOME"/.sdkman/candidates/java/*/bin/java /usr/local/jdk*/bin/java; do
+          [ -x "$alt" ] && p="$alt" && break
+        done;;
     esac
   fi
   [ -n "$p" ] || continue

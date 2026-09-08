@@ -163,19 +163,20 @@ export interface GroupOverview {
 }
 
 /**
- * HostAlertNotify 面板侧资源超阈值 / 回落入参（CPU / 内存 / 磁盘 / 负载）
+ * HostAlertNotify 面板侧资源超阈值 / 回落，或应用探活异常 / 恢复入参。
+ * Kind：mem | cpu | disk | load | app:<service>
  */
 export interface HostAlertNotify {
     "webhook": string;
     "host": string;
 
     /**
-     * mem | cpu | disk | load
+     * mem | cpu | disk | load | app:<service>
      */
     "kind": string;
 
     /**
-     * down = 超阈值, up = 已回落
+     * down = 超阈值/异常, up = 已回落/恢复
      */
     "state": string;
     "detail": string;

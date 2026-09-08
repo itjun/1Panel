@@ -9,7 +9,7 @@ export interface Event {
     "host": string;
 
     /**
-     * cpu|mem|disk|load
+     * cpu|mem|disk|load|app:<service>
      */
     "kind": string;
 

@@ -217,7 +217,7 @@
               <div>
                 <h3 class="sec-title">启用企微通知</h3>
                 <p class="sec-desc sec-desc--inline">
-                  总开关。关闭后不向企业微信推送。未订阅企微的主机仍发应用内通知与系统通知；主机断开不推送。应用探活暂不推送。
+                  总开关。关闭后不向企业微信推送。资源告警对所有主机仍发应用内通知与系统通知；主机断开不推送。应用探活通知请到各主机「通知」页按服务订阅。
                 </p>
               </div>
               <el-switch
@@ -232,7 +232,7 @@
             <p class="sec-desc">
               企业微信群机器人 Webhook 完整 URL，或只填
               <code>key=</code> 后面的 UUID。不会写入 git。新地址必须先点「测试」，
-              确认企业微信群收到消息后再保存。订阅主机用的是已保存的地址。
+              确认企业微信群收到消息后再保存。资源告警与已订阅的应用探活共用此地址。
             </p>
             <el-input
               v-model="settings.webhookDraft"
@@ -270,7 +270,7 @@
           <section class="settings-section">
             <h3 class="sec-title">报警规则</h3>
             <p class="sec-desc">
-              系统通知与应用通知始终开启；点击系统通知可打开应用内告警历史。企业微信可按类型单独关闭；关闭后仍发系统与应用内通知。
+              系统通知与应用通知始终开启；点击系统通知可打开应用内告警历史。企业微信可按类型单独关闭；关闭后仍发系统与应用内通知。以上规则对所有主机通用。应用探活请到各主机「通知」页单独订阅。
             </p>
             <div class="alert-rules-form">
               <div class="alert-rules-head">
@@ -306,95 +306,6 @@
                 />
               </div>
             </div>
-          </section>
-
-          <section class="settings-section">
-            <div class="sec-row">
-              <h3 class="sec-title">订阅主机</h3>
-              <el-button
-                link
-                type="primary"
-                :icon="Refresh"
-                :loading="deployLoading"
-                @click="refreshDeployStatus"
-              >
-                刷新
-              </el-button>
-            </div>
-            <p class="sec-desc">
-              订阅后：该主机超阈值告警会推企业微信（还受上方「报警规则」中企微勾选控制），并写入
-              <code>/var/lib/spanel-agent/watch.yml</code>
-              。未订阅只发应用内通知与系统通知。勾表示已订阅且与当前保存地址一致。
-            </p>
-            <div v-if="!deployRows.length" class="sec-hint">暂无主机</div>
-            <div v-else class="deploy-groups">
-              <div
-                v-for="g in deployGroups"
-                :key="g.name"
-                class="deploy-group-block"
-              >
-                <div class="deploy-group-title">{{ g.name }}</div>
-                <div class="deploy-form">
-                  <div class="deploy-head">
-                    <span>序</span>
-                    <span>主机</span>
-                    <span>已订阅</span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                  <div
-                    v-for="row in g.rows"
-                    :key="row.name"
-                    class="deploy-row"
-                  >
-                    <span class="deploy-idx">{{ row.seq }}</span>
-                    <div class="deploy-host">
-                      <span class="deploy-name">{{ row.name }}</span>
-                    </div>
-                    <div class="deploy-mark" :title="row.detail || ''">
-                      <el-icon
-                        v-if="row.status === 'synced'"
-                        class="deploy-check"
-                      >
-                        <Check />
-                      </el-icon>
-                      <span
-                        v-else-if="row.status === 'loading'"
-                        class="deploy-muted"
-                      >…</span>
-                    </div>
-                    <el-button
-                      :loading="row.status === 'pushing'"
-                      :disabled="
-                        !settings.notifyEnabled ||
-                        !settings.wecomWebhook ||
-                        webhookDirty ||
-                        row.status === 'loading' ||
-                        row.status === 'clearing'
-                      "
-                      @click="deployOne(row)"
-                    >
-                      订阅
-                    </el-button>
-                    <el-button
-                      :loading="row.status === 'clearing'"
-                      :disabled="
-                        (!row.fromHost &&
-                          !settings.isWecomSubscribed(row.name)) ||
-                        row.status === 'loading' ||
-                        row.status === 'pushing'
-                      "
-                      @click="undeployOne(row)"
-                    >
-                      取消订阅
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <p v-if="webhookDirty" class="sec-hint">
-              有未保存的地址，订阅仍使用已保存的通知地址。请先保存。
-            </p>
           </section>
         </template>
 
@@ -435,9 +346,8 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Dialogs, Events } from "@wailsio/runtime";
 import { api } from "@/api";
 import type { monitor } from "@/api";
-import { formatErr, isAgentMissing } from "@/utils/format";
+import { formatErr } from "@/utils/format";
 import { copyText, readText } from "@/utils/clipboard";
-import { useAppStore } from "@/stores/app";
 import BackupImportDialog from "@/components/BackupImportDialog.vue";
 import {
   FONT_OPTIONS,
@@ -448,7 +358,6 @@ import {
   type SettingsNavGroup,
 } from "@/stores/settings";
 import { ALERT_RULES } from "@/utils/alerts";
-import { patchWatchNotify, readWatchNotify } from "@/utils/watchYaml";
 
 const NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
   { id: "appearance", label: "外观" },
@@ -463,7 +372,6 @@ const NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
 let egressCache: monitor.EgressInfo | null = null;
 
 const settings = useSettingsStore();
-const app = useAppStore();
 const exporting = ref(false);
 const backupImportRef = ref<InstanceType<typeof BackupImportDialog> | null>(
   null
@@ -471,39 +379,6 @@ const backupImportRef = ref<InstanceType<typeof BackupImportDialog> | null>(
 const testingWebhook = ref(false);
 const egress = ref<monitor.EgressInfo | null>(egressCache);
 const egressLoading = ref(false);
-
-type DeployStatus =
-  | "loading"
-  | "pushing"
-  | "clearing"
-  | "synced"
-  | "empty"
-  | "error";
-interface DeployRow {
-  seq: number;
-  name: string;
-  group: string;
-  status: DeployStatus;
-  detail?: string;
-  fromHost?: string;
-}
-const deployRows = ref<DeployRow[]>([]);
-const deployLoading = ref(false);
-const deployGroups = computed(() => {
-  const groups: { name: string; rows: DeployRow[] }[] = [];
-  const index = new Map<string, { name: string; rows: DeployRow[] }>();
-  for (const row of deployRows.value) {
-    let g = index.get(row.group);
-    if (!g) {
-      g = { name: row.group, rows: [] };
-      index.set(row.group, g);
-      groups.push(g);
-    }
-    g.rows.push(row);
-  }
-  return groups;
-});
-
 const uiPreviewStyle = computed(() => ({
   fontFamily: settings.fontFamily,
   fontSize: `${settings.fontSize}px`,
@@ -659,140 +534,10 @@ function saveWebhook() {
   }
   settings.setWecomWebhook(expandWecomWebhook(draftNorm.value));
   ElMessage.success(draftNorm.value ? "通知地址已保存" : "已清除通知地址");
-  if (settings.lastNavGroup === "notify") {
-    void refreshDeployStatus();
-  }
 }
 
 async function onNotifyEnabled(v: string | number | boolean) {
   settings.setNotifyEnabled(Boolean(v));
-}
-
-function buildDeployRows(): DeployRow[] {
-  const rows: DeployRow[] = [];
-  let seq = 1;
-  for (const node of app.groupNodes) {
-    const group = node.group?.name || "未分组";
-    for (const h of node.hosts) {
-      if (!h.name) continue;
-      rows.push({ seq: seq++, name: h.name, group, status: "loading" });
-    }
-  }
-  return rows;
-}
-
-async function probeDeployRow(row: DeployRow) {
-  const saved = expandWecomWebhook(settings.wecomWebhook);
-  try {
-    const r = await api.agentGetWatch(row.name);
-    const fromHost = expandWecomWebhook(
-      readWatchNotify(r.yaml || "").wecomWebhook
-    );
-    row.fromHost = fromHost;
-    if (saved && fromHost && fromHost === saved) {
-      row.status = "synced";
-      row.detail = "已订阅当前保存的通知地址";
-      // 主机上已是当前地址：补记本地订阅（兼容升级前只下发、未写本地列表的情况）
-      settings.subscribeWecomHost(row.name);
-    } else {
-      row.status = "empty";
-      row.detail = fromHost ? "主机地址与本地不一致" : "";
-    }
-    if (!settings.wecomWebhook && fromHost) {
-      settings.setWecomWebhook(fromHost);
-    } else if (!settings.webhookDraft.trim() && fromHost) {
-      settings.webhookDraft = fromHost;
-    }
-  } catch (e) {
-    row.fromHost = "";
-    row.status = "empty";
-    row.detail = isAgentMissing(e) ? "未装 agent" : formatErr(e);
-  }
-}
-
-async function refreshDeployStatus() {
-  const rows = buildDeployRows();
-  deployRows.value = rows;
-  if (!rows.length) return;
-  deployLoading.value = true;
-  try {
-    await Promise.all(rows.map((row) => probeDeployRow(row)));
-    deployRows.value = rows.slice();
-  } finally {
-    deployLoading.value = false;
-  }
-}
-
-async function deployOne(row: DeployRow) {
-  const webhook = settings.effectiveWecomWebhook();
-  if (!webhook) {
-    ElMessage.warning("请先保存通知地址再订阅");
-    return;
-  }
-  row.status = "pushing";
-  deployRows.value = deployRows.value.slice();
-  try {
-    const cur = await api.agentGetWatch(row.name);
-    const next = patchWatchNotify(cur.yaml || "", { wecomWebhook: webhook });
-    await api.agentPutWatch(row.name, next);
-    row.fromHost = webhook;
-    row.status = "synced";
-    row.detail = "已订阅当前保存的通知地址";
-    settings.subscribeWecomHost(row.name);
-    ElMessage.success(`已订阅 ${row.name}`);
-  } catch (e) {
-    row.status = "empty";
-    row.detail = isAgentMissing(e) ? "未装 agent" : formatErr(e);
-    ElMessage.error(`${row.name}：${row.detail}`);
-  } finally {
-    deployRows.value = deployRows.value.slice();
-  }
-}
-
-async function undeployOne(row: DeployRow) {
-  if (!row.fromHost && !settings.isWecomSubscribed(row.name)) {
-    ElMessage.warning("该主机尚未订阅");
-    return;
-  }
-  try {
-    await ElMessageBox.confirm(
-      `将取消 ${row.name} 的企微订阅并清空其上的通知地址，确定吗？`,
-      "取消订阅",
-      { type: "warning", confirmButtonText: "确定", cancelButtonText: "取消" }
-    );
-  } catch {
-    return;
-  }
-  row.status = "clearing";
-  deployRows.value = deployRows.value.slice();
-  try {
-    const cur = await api.agentGetWatch(row.name);
-    const next = patchWatchNotify(cur.yaml || "", { wecomWebhook: "" });
-    await api.agentPutWatch(row.name, next);
-    row.fromHost = "";
-    row.status = "empty";
-    row.detail = "";
-    settings.unsubscribeWecomHost(row.name);
-    ElMessage.success(`已取消 ${row.name} 的订阅`);
-  } catch (e) {
-    const saved = expandWecomWebhook(settings.wecomWebhook);
-    if (row.fromHost && saved && row.fromHost === saved) {
-      row.status = "synced";
-      row.detail = "已订阅当前保存的通知地址";
-    } else {
-      row.status = "empty";
-      row.detail = row.fromHost
-        ? "主机地址与本地不一致"
-        : isAgentMissing(e)
-          ? "未装 agent"
-          : formatErr(e);
-    }
-    ElMessage.error(
-      `${row.name}：${isAgentMissing(e) ? "未装 agent" : formatErr(e)}`
-    );
-  } finally {
-    deployRows.value = deployRows.value.slice();
-  }
 }
 
 async function loadEgress(force: boolean) {
@@ -816,13 +561,6 @@ async function loadEgress(force: boolean) {
     egressLoading.value = false;
   }
 }
-
-watch(
-  () => settings.lastNavGroup,
-  (g) => {
-    if (g === "notify") void refreshDeployStatus();
-  }
-);
 
 async function onExportBackup() {
   const dir = await Dialogs.OpenFile({
@@ -857,9 +595,6 @@ async function onRestart() {
 }
 
 onMounted(() => {
-  if (settings.lastNavGroup === "notify") {
-    void refreshDeployStatus();
-  }
   void loadEgress(false);
 });
 </script>
@@ -1003,13 +738,6 @@ onMounted(() => {
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   box-sizing: border-box;
-
-  &:has(.deploy-groups) {
-    padding: 0;
-    border: none;
-    background: transparent;
-    border-radius: 0;
-  }
 }
 
 .sec-title {
@@ -1128,87 +856,6 @@ onMounted(() => {
   align-items: center;
   color: var(--m3-on-surface-variant);
   font-size: 16px;
-}
-
-.deploy-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.deploy-group-title {
-  font: var(--m3-label-large);
-  color: var(--m3-on-surface);
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.deploy-form {
-  background: var(--m3-surface);
-  border: 1px solid var(--m3-outline-variant);
-  border-radius: var(--m3-shape-m);
-  overflow: hidden;
-}
-
-.deploy-head,
-.deploy-row {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 80px auto auto;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 18px;
-}
-
-.deploy-head {
-  font: var(--m3-label-medium);
-  color: var(--m3-on-surface-variant);
-  background: var(--m3-surface);
-  border-bottom: 1px solid var(--m3-outline-variant);
-}
-
-.deploy-row + .deploy-row {
-  border-top: 1px solid var(--m3-outline-variant);
-}
-
-.deploy-row:hover {
-  background: color-mix(in srgb, var(--m3-on-surface) 3%, var(--m3-surface));
-}
-
-.deploy-row :deep(.el-button + .el-button) {
-  margin-left: 0;
-}
-
-.deploy-idx {
-  font: var(--m3-body-large);
-  font-variant-numeric: tabular-nums;
-  color: var(--m3-on-surface-variant);
-}
-
-.deploy-host {
-  min-width: 0;
-}
-
-.deploy-name {
-  font: var(--m3-body-large);
-  color: var(--m3-on-surface);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.deploy-mark {
-  display: flex;
-  justify-content: center;
-  min-height: 20px;
-}
-
-.deploy-check {
-  color: var(--m3-primary);
-  font-size: 20px;
-}
-
-.deploy-muted {
-  color: var(--m3-on-surface-variant);
 }
 
 .webhook-input {

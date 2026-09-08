@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { api } from "@/api";
 import type { groups, sshconfig } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
@@ -360,6 +360,18 @@ export const useAppStore = defineStore("app", () => {
     pendingTerminalCmd.value = null;
   }
 
+  /**
+   * 切到终端子页再投递命令：先 setSubTab 让 TerminalView 挂载/激活，
+   * 再 nextTick 后投递，避免子页尚未挂载时 pending 被漏掉。
+   * 三处调用点（概览安装运行环境 / 软件包管理 / 右键初始化 zsh）统一走这里。
+   */
+  async function runInTerminal(cmd: string) {
+    if (!activeView.value) return;
+    setSubTab(activeView.value.id, "terminal");
+    await nextTick();
+    pendingTerminalCmd.value = cmd;
+  }
+
   async function createGroup(name: string) {
     const id = `g_${Date.now().toString(36)}`;
     await api.upsertGroup({
@@ -492,6 +504,7 @@ export const useAppStore = defineStore("app", () => {
     stopHost,
     sendTerminalCmd,
     clearTerminalCmd,
+    runInTerminal,
     createGroup,
     renameGroup,
     setBoardTitle,

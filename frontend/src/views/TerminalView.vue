@@ -701,18 +701,23 @@ watch(activeId, () => {
 });
 
 // 已有会话时收到 pending 命令：写入当前 active
-watch(pendingTerminalCmd, (cmd) => {
+function flushPendingTerminalCmd(cmd: string | null | undefined) {
   if (!cmd) return;
   const active = sessions.value.find((x) => x.id === activeId.value);
   if (active?.sessionID) {
     const c = cmd;
     app.clearTerminalCmd();
+    pendingCmdLocal = null;
     setTimeout(() => {
       api.writeTerminal(active.sessionID, c + "\n").catch(() => {});
     }, 300);
-  } else {
-    pendingCmdLocal = cmd;
+    return;
   }
+  pendingCmdLocal = cmd;
+}
+
+watch(pendingTerminalCmd, (cmd) => {
+  flushPendingTerminalCmd(cmd);
 });
 
 // 换主机：关掉旧会话，重新开
@@ -803,6 +808,8 @@ onMounted(() => {
 // 隐藏期间容器尺寸变化不会触发任何事件，需要显式 fit
 onActivated(() => {
   if (!offDrop) offDrop = registerFileDrop(handleFileDrop);
+  // 概览「安装」等：先切 tab 再投递命令时，此处补一次 flush
+  flushPendingTerminalCmd(pendingTerminalCmd.value || pendingCmdLocal);
   const active = sessions.value.find((x) => x.id === activeId.value);
   if (!active) return;
   void nextTick(() => {

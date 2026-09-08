@@ -18,7 +18,7 @@ const maxEvents = 2000
 type Event struct {
 	ID     string `json:"id"`
 	Host   string `json:"host"`
-	Kind   string `json:"kind"`  // cpu|mem|disk|load
+	Kind   string `json:"kind"`  // cpu|mem|disk|load|app:<service>
 	State  string `json:"state"` // down|up
 	Title  string `json:"title"`
 	Detail string `json:"detail"`

@@ -46,12 +46,13 @@ type HostConnNotify struct {
 	Detail  string `json:"detail"`  // 错误原文或恢复说明
 }
 
-// HostAlertNotify 面板侧资源超阈值 / 回落入参（CPU / 内存 / 磁盘 / 负载）
+// HostAlertNotify 面板侧资源超阈值 / 回落，或应用探活异常 / 恢复入参。
+// Kind：mem | cpu | disk | load | app:<service>
 type HostAlertNotify struct {
 	Webhook string `json:"webhook"`
 	Host    string `json:"host"`
-	Kind    string `json:"kind"`  // mem | cpu | disk | load
-	State   string `json:"state"` // down = 超阈值, up = 已回落
+	Kind    string `json:"kind"`  // mem | cpu | disk | load | app:<service>
+	State   string `json:"state"` // down = 超阈值/异常, up = 已回落/恢复
 	Detail  string `json:"detail"`
 }
 

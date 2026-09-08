@@ -49,6 +49,7 @@ import {
   type AlertEvent,
   type DayGroup,
 } from "@/stores/alertHistory";
+import { parseAppAlertKind } from "@/utils/watchServices";
 
 const props = withDefaults(
   defineProps<{
@@ -152,8 +153,9 @@ function kindClass(ev: AlertEvent) {
 
 /** 状态短文案：类型已由 chip 展示，不再重复主机/类型 */
 function rowState(ev: AlertEvent): string {
+  const isApp = !!parseAppAlertKind(ev.kind);
   if (ev.state === "up") return "已恢复";
-  return "超阈值";
+  return isApp ? "探活异常" : "超阈值";
 }
 
 /** 去掉「主机名」前缀，避免与主机行重复 */
@@ -184,11 +186,10 @@ function rowDetail(ev: AlertEvent): string {
   }
   // 去掉与 kind chip 重复的「CPU超阈值 / CPU已回落 / CPU已恢复」整句标题
   const kind = alertKindLabel(ev.kind);
-  const statusTitles = [
-    `${kind}超阈值`,
-    `${kind}已回落`,
-    `${kind}已恢复`,
-  ];
+  const isApp = !!parseAppAlertKind(ev.kind);
+  const statusTitles = isApp
+    ? [`${kind} 探活异常`, `${kind}探活异常`, `${kind} 已恢复`, `${kind}已恢复`]
+    : [`${kind}超阈值`, `${kind}已回落`, `${kind}已恢复`];
   if (statusTitles.includes(detail)) {
     return "";
   }

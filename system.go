@@ -281,7 +281,7 @@ func (s *System) NotifyHostConn(in HostConnNotify) error {
 	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
 }
 
-// NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落时发企微。
+// NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落、以及应用探活异常/恢复时发企微。
 func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 	webhook := strings.TrimSpace(in.Webhook)
 	if webhook == "" {
@@ -292,7 +292,7 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 		return nil
 	}
 	kind := strings.TrimSpace(in.Kind)
-	label := resourceAlertLabel(kind)
+	up := strings.TrimSpace(in.State) == "up"
 	n := wecom.WatchNotify{
 		Host:     host,
 		Kind:     kind,
@@ -300,7 +300,28 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 		NotifyAt: time.Now(),
 		Source:   wecom.LocalSource(),
 	}
-	if strings.TrimSpace(in.State) == "up" {
+	if strings.HasPrefix(kind, "app:") {
+		svc := strings.TrimPrefix(kind, "app:")
+		if svc == "" {
+			svc = "应用"
+		}
+		if up {
+			n.Level = "ok"
+			n.TitleSuffix = svc + " 已恢复"
+			if n.Detail == "" {
+				n.Detail = "探活已恢复"
+			}
+		} else {
+			n.Level = "critical"
+			n.TitleSuffix = svc + " 探活异常"
+			if n.Detail == "" {
+				n.Detail = "探活异常"
+			}
+		}
+		return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
+	}
+	label := resourceAlertLabel(kind)
+	if up {
 		n.Level = "ok"
 		n.TitleSuffix = label + "已回落"
 		if n.Detail == "" {

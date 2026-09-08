@@ -251,12 +251,17 @@ import SidebarHost from "@/layout/SidebarHost.vue";
 import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AlertEventList from "@/components/alert/AlertEventList.vue";
+import {
+  startAppWatchAlertPoll,
+  stopAppWatchAlertPoll,
+} from "@/utils/appWatchAlerts";
 
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
 // 确保设置 store 初始化并应用主题/字体
 useSettingsStore();
-void app.refresh();const addHostOpen = ref(false);
+void app.refresh();
+const addHostOpen = ref(false);
 const saving = ref(false);
 const form = reactive({
   name: "",
@@ -509,8 +514,10 @@ onMounted(() => {
       void alertHistory.refresh();
     })
   );
+  startAppWatchAlertPoll();
 });
 onBeforeUnmount(() => {
+  stopAppWatchAlertPoll();
   window.removeEventListener("keydown", onGlobalKeydown, true);
   window.removeEventListener("keydown", onSettingsEsc);
   eventOffs.forEach((off) => off());

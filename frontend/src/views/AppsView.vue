@@ -134,7 +134,7 @@
 
     <el-dialog v-model="cfgOpen" title="下发 watch.yml" width="720px" append-to-body>
       <p class="sec-desc">
-        服务清单与探活路径在此编辑。企微通知总开关 / 地址请到「设置 → 通知」配置并下发。
+        服务清单与探活路径在此编辑。企微总开关 / 地址在「设置 → 通知」；应用探活是否通知请到本机「通知」页按服务订阅。
       </p>
       <el-input v-model="yamlText" type="textarea" :rows="18" class="yaml-box" />
       <template #footer>
@@ -154,6 +154,9 @@ import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { patchWatchNotify } from "@/utils/watchYaml";
+import {
+  watchServiceSortKey,
+} from "@/utils/watchServices";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
@@ -242,22 +245,8 @@ function instRowClass(latestDeployVer: string, row: agentcli.JavaAppInstance): s
   return parts.join(" ");
 }
 
-/** 实例表服务标识显示顺序（组内按此序，同服务按端口） */
-const SERVICE_ORDER = [
-  "im",
-  "oss",
-  "csp",
-  "std",
-  "zhetai",
-  "fpl",
-  "ai-agent",
-  "sapi-agent",
-] as const;
-
 function serviceSortKey(name: string): number {
-  const idx = SERVICE_ORDER.indexOf(name);
-  if (idx >= 0) return idx;
-  return SERVICE_ORDER.length + 1;
+  return watchServiceSortKey(name);
 }
 
 function sortInstances(rows: agentcli.JavaAppInstance[]): agentcli.JavaAppInstance[] {
@@ -340,7 +329,7 @@ const instanceSections = computed(() =>
   [
     { key: "std", title: "标准版服务", rows: stdInstances.value },
     { key: "pro", title: "私有化服务", rows: proInstances.value },
-    { key: "other", title: "探活服务", rows: otherInstances.value },
+    { key: "other", title: "云组件服务", rows: otherInstances.value },
   ].filter((s) => s.rows.length > 0)
 );
 function onInstRowClick(row: agentcli.JavaAppInstance) {
