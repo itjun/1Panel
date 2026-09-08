@@ -91,8 +91,8 @@
           <button
             type="button"
             class="win-btn win-btn-close"
-            :title="`关闭 (${kbd('Q')})`"
-            @click="quitApp"
+            :title="`挂到后台 (${kbd('Q')})`"
+            @click="hideToBackground"
           >
             <svg viewBox="0 0 12 12">
               <path d="M3 3l6 6M9 3l-6 6" />
@@ -240,7 +240,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Bell } from "@element-plus/icons-vue";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
-import { Application, Events, Window } from "@wailsio/runtime";
+import { Events, Window } from "@wailsio/runtime";
 import { useAppStore } from "@/stores/app";
 import {
   useAlertHistoryStore,
@@ -304,8 +304,8 @@ function minimiseWin() {
   void Window.Minimise();
 }
 
-function quitApp() {
-  void Application.Quit();
+function hideToBackground() {
+  void Events.Emit("app-hide-to-background");
 }
 
 const titlebarTitle = computed(() => {
@@ -367,7 +367,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   }
   if (e.code === "KeyQ") {
     e.preventDefault();
-    quitApp();
+    hideToBackground();
   }
 }
 

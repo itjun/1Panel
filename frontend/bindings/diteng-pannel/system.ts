@@ -36,6 +36,7 @@ export function CloseBoardWindow(groupID: string): $CancellablePromise<void> {
 
 /**
  * FocusMainWindow 显示并聚焦主窗口（看板双击主机后切回主窗操作）。
+ * 从后台挂起恢复时先把 Dock 图标加回来（Regular），再出示窗口。
  */
 export function FocusMainWindow(): $CancellablePromise<void> {
     return $Call.ByID(2479596072);

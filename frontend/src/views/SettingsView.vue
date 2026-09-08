@@ -332,6 +332,13 @@
             </p>
             <el-button @click="onRestart">重启应用</el-button>
           </section>
+          <section class="settings-section">
+            <h3 class="sec-title">退出应用</h3>
+            <p class="sec-desc">
+              关闭窗口或 {{ quitKbd }} 只会挂到后台，告警与企微仍会送达。真正退出后后台监听停止。
+            </p>
+            <el-button @click="onQuitForReal">退出应用</el-button>
+          </section>
         </template>
       </div>
     </div>
@@ -372,6 +379,8 @@ const NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
 let egressCache: monitor.EgressInfo | null = null;
 
 const settings = useSettingsStore();
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const quitKbd = isMac ? "⌘Q" : "Ctrl+Q";
 const exporting = ref(false);
 const backupImportRef = ref<InstanceType<typeof BackupImportDialog> | null>(
   null
@@ -592,6 +601,19 @@ async function onRestart() {
     return;
   }
   void Events.Emit("app-restart");
+}
+
+async function onQuitForReal() {
+  try {
+    await ElMessageBox.confirm(
+      "将结束后台监听，系统通知与企微不再送达",
+      "退出应用",
+      { confirmButtonText: "退出", cancelButtonText: "取消", type: "warning" }
+    );
+  } catch {
+    return;
+  }
+  void Events.Emit("app-quit-for-real");
 }
 
 onMounted(() => {

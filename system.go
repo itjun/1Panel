@@ -230,11 +230,14 @@ func (s *System) CloseBoardWindow(groupID string) {
 }
 
 // FocusMainWindow 显示并聚焦主窗口（看板双击主机后切回主窗操作）。
+// 从后台挂起恢复时先把 Dock 图标加回来（Regular），再出示窗口。
 func (s *System) FocusMainWindow() {
 	w := s.mainWindow
 	if w == nil {
 		return
 	}
+	macui.SetDockIconVisible(true)
+	winui.SetHiddenOnTaskbar(w, false)
 	w.Show()
 	w.Focus()
 }

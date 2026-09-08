@@ -1,8 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 24 24">
-  <!-- 白底 + 原 1Panel 六边形「1」（品牌色 #005EEB）。
-       图形略缩小，给 macOS 圆角留边，避免六边形被切角。 -->
-  <rect width="24" height="24" fill="#FFFFFF"/>
-  <g fill="#005EEB" transform="translate(12 12) scale(0.84) translate(-12 -12)">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Dock / icns：透明画布 + 圆角矩形白底。
+       Wails 会 NSApp.setApplicationIconImage，系统不再套 squircle，必须把圆角画进资源。
+       几何对齐 macOS 网格：824px 本体居中（四边各 100px），圆角 22.37%。 -->
+  <rect x="100" y="100" width="824" height="824" rx="184" ry="184" fill="#FFFFFF"/>
+  <g fill="#005EEB" transform="translate(512 512) scale(28.84) translate(-12 -12)">
     <path d="M11.1451 18.8875L5.66228 15.7224V8.40336L3.5376 7.1759V16.9488L9.02038 20.114L11.1451 18.8875Z" />
     <path d="M18.3397 15.7224L12.0005 19.3819L9.87683 20.6083L12.0005 21.8348L20.4644 16.9488L18.3397 15.7224Z" />
     <path d="M12.0015 4.74388L14.1252 3.5174L12.0005 2.28995L3.5376 7.17591L5.66228 8.40337L12.0005 4.74388H12.0015Z" />

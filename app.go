@@ -9,6 +9,7 @@ import (
 	goruntime "runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"diteng-pannel/internal/agentcli"
@@ -39,10 +40,10 @@ const macTitleBarHeight = 40
 // （Hosts / Groups / Overview / Monitor / Files / TerminalSvc / Certs / Icons / System / Backup），
 // 每个 Service 都是 App 的 defined type（字段共享，方法隔离）。
 type App struct {
-	sshMgr    *sshd.Manager
-	collector *monitor.Collector
-	agentPool *agentcli.Pool
-	installer *agentinstall.Installer
+	sshMgr       *sshd.Manager
+	collector    *monitor.Collector
+	agentPool    *agentcli.Pool
+	installer    *agentinstall.Installer
 	groups       *groups.Store
 	hostIcons    *hosticon.Store
 	hostMeta     *hostmeta.Store
@@ -64,6 +65,8 @@ type App struct {
 	shown      bool
 	ready      bool // Wails 已进入运行态（impl 就绪，窗口 API 可安全调用）
 	resizeSave *time.Timer
+
+	allowQuit atomic.Bool // 托盘/设置「退出应用」为 true；⌘Q 与关窗默认 false
 }
 
 // 按 grilling 时定下的策略：
@@ -108,9 +111,17 @@ func NewApp() *application.App {
 			Handler: application.AssetFileServerFS(assets),
 		},
 		Mac: application.MacOptions{
-			ApplicationShouldTerminateAfterLastWindowClosed: true,
+			ApplicationShouldTerminateAfterLastWindowClosed: false,
 		},
+		Windows: application.WindowsOptions{
+			DisableQuitOnLastWindowClosed: true,
+		},
+		Linux: application.LinuxOptions{
+			DisableQuitOnLastWindowClosed: true,
+		},
+		ShouldQuit: core.shouldQuit,
 		OnShutdown: core.shutdown,
+		Icon:       appIconPNG,
 	})
 	core.app = app
 
@@ -150,6 +161,8 @@ func NewApp() *application.App {
 	}
 	win := app.Window.NewWithOptions(winOpts)
 	core.mainWindow = win
+	core.interceptMainWindowClose(win)
+	core.installBackgroundTray(app)
 
 	// 首帧即磨砂：启动早期（前端 JS 未跑）按镜像文件预置材质，避免实色→磨砂闪烁。
 	// 运行后以 SetFrostedChrome 的前端权威值为准。Windows 映射为云母（Win11 22H2+）。
@@ -185,6 +198,7 @@ func NewApp() *application.App {
 			}
 			desktop.SetAuthorized(true)
 		}()
+		core.startAlertPollKeepalive()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
 		core.enforceMinSize()
@@ -249,6 +263,12 @@ func NewApp() *application.App {
 	// 应用内「重启应用」：前端确认后再发事件
 	app.Event.On("app-restart", func(*application.CustomEvent) {
 		core.restartApp()
+	})
+	app.Event.On("app-quit-for-real", func(*application.CustomEvent) {
+		core.quitForReal()
+	})
+	app.Event.On("app-hide-to-background", func(*application.CustomEvent) {
+		core.hideToBackground()
 	})
 
 	// 必须显式设菜单：Wails 在 nil 时会装 DefaultApplicationMenu（含 View→Reload），
@@ -407,6 +427,7 @@ func (a *App) installMinimalMenu(app *application.App) {
 // restartApp 杀掉当前进程并重新启动应用：
 // 先在后台拉起新实例，再 os.Exit(0)。子进程 fork 后由系统接管。
 func (a *App) restartApp() {
+	a.allowQuit.Store(true)
 	exe, err := os.Executable()
 	if err != nil {
 		if a.app != nil {
