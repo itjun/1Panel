@@ -271,12 +271,18 @@ html.frosted .app-shell {
   --chrome-content-radius: var(--m3-shape-l-inc); // 20px，四角一致
 }
 
-/* 磨砂：仅改外壳材质为半透明，内缩边框逻辑不变 */
+/* 磨砂：外壳半透明读系统磨砂；内容区必须实色，不能透壁纸 */
 html.frosted .app-chrome {
   background: var(--lg-fill);
-  backdrop-filter: var(--lg-blur);
-  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: inset 0 0 0 1px var(--lg-stroke);
+}
+
+html.frosted .main-column,
+html.frosted .main-container {
+  background: var(--m3-surface-container) !important;
+  opacity: 1 !important;
 }
 
 .app-chrome > .titlebar-left,

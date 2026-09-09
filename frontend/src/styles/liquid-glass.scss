@@ -2,9 +2,9 @@
 // 默认实色壳；html.frosted 才启用半透明磨砂（壁纸应被磨糊，不可清晰可读）
 
 :root {
-  --lg-fill: rgba(246, 246, 248, 0.78);
-  --lg-stroke: rgba(255, 255, 255, 0.45);
-  --lg-blur: saturate(160%) blur(40px);
+  --lg-fill: rgba(246, 246, 248, 0.88);
+  --lg-stroke: rgba(0, 0, 0, 0.08);
+  --lg-blur: none; /* 模糊交给原生 Glass / VisualEffect，避免 CSS 再透一层 */
   --lg-radius: var(--m3-shape-l);
 
   /* 侧栏选中胶囊色：非磨砂 = M3 实色；磨砂在下方 html.frosted 覆盖为半透明。
@@ -16,27 +16,33 @@
 
 html.dark,
 .is-dark {
-  --lg-fill: rgba(28, 28, 32, 0.82);
+  --lg-fill: rgba(28, 28, 32, 0.92);
   --lg-stroke: rgba(255, 255, 255, 0.12);
 }
 
-/* 磨砂侧栏选中：半透明 vibrancy，非实心白底 */
+/* 磨砂：壳层必须够不透明才能读字；原生负责糊壁纸，CSS 只负责可读底 */
 html.frosted {
-  --m3-sidebar-active-bg: rgba(255, 255, 255, 0.42);
-  --m3-sidebar-active-stroke: rgba(255, 255, 255, 0.28);
+  --m3-sidebar-active-bg: rgba(255, 255, 255, 0.55);
+  --m3-sidebar-active-stroke: rgba(0, 0, 0, 0.06);
   --m3-sidebar-active-fg: var(--m3-on-secondary-container);
+  --lg-fill: rgba(245, 245, 247, 0.82);
+  --lg-stroke: rgba(0, 0, 0, 0.1);
+  --lg-blur: none;
 }
 
 html.dark.frosted,
 html.frosted.is-dark {
-  --m3-sidebar-active-bg: rgba(255, 255, 255, 0.14);
-  --m3-sidebar-active-stroke: rgba(255, 255, 255, 0.18);
+  --m3-sidebar-active-bg: rgba(255, 255, 255, 0.12);
+  --m3-sidebar-active-stroke: rgba(255, 255, 255, 0.14);
+  --lg-fill: rgba(22, 22, 26, 0.78);
+  --lg-stroke: rgba(255, 255, 255, 0.1);
+  --lg-blur: none;
 }
 
 html.frosted .lg-chrome {
   background: var(--lg-fill);
-  backdrop-filter: var(--lg-blur);
-  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: inset 0 0 0 1px var(--lg-stroke);
   border-radius: var(--lg-radius);
 }
