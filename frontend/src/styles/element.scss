@@ -348,7 +348,7 @@ html {
         }
 
         .el-table__header th {
-            height: 56px;
+            height: var(--m3-table-header-height, 48px);
             font: var(--m3-title-small);
             font-weight: 600;
             color: var(--m3-on-surface);
@@ -366,7 +366,11 @@ html {
         }
 
         .el-table__row {
-            height: 52px;
+            height: var(--m3-table-row-height, 52px);
+        }
+
+        .el-table__cell {
+            padding: var(--m3-table-cell-padding-y, 12px) var(--m3-table-cell-padding-x, 12px);
         }
 
         /* 斑马纹：淡蓝底，对齐 main 分支表格可读性 */
@@ -623,7 +627,7 @@ html {
     overflow: hidden;
 }
 
-/* 全局 el-table：数据页默认左对齐 + 12dp 圆角外框（table-box 内运维表格仍居中、保持直角） */
+/* 全局 el-table：与 .data-table-unified 同尺寸口径（table-box 内运维表仍居中） */
 .el-table:not(.table-box .el-table):not(.data-table-unified) {
   --el-table-header-bg-color: var(--m3-surface-container);
   --el-table-row-hover-bg-color: color-mix(in srgb, var(--m3-primary) 6%, var(--m3-surface-container-lowest));
@@ -638,10 +642,19 @@ html {
   }
 
   .el-table__header th {
+    height: var(--m3-table-header-height, 48px);
     font: var(--m3-title-small);
     font-weight: 600;
     color: var(--m3-on-surface);
     background: var(--m3-surface-container) !important;
+  }
+
+  .el-table__cell {
+    padding: var(--m3-table-cell-padding-y, 12px) var(--m3-table-cell-padding-x, 12px);
+  }
+
+  .el-table__row {
+    height: var(--m3-table-row-height, 52px);
   }
 
   .el-table__inner-wrapper::before {

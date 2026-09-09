@@ -445,8 +445,10 @@ html.frosted .main-container {
 
 // 子标签页：工具栏 + 可伸缩表格区
 :root {
-  --m3-table-row-height: 40px;
-  --m3-table-header-height: 44px;
+  --m3-table-row-height: 52px;
+  --m3-table-header-height: 48px;
+  --m3-table-cell-padding-y: 12px;
+  --m3-table-cell-padding-x: 12px;
 }
 
 .tab-table-page {
@@ -511,6 +513,7 @@ html.frosted .main-container {
     font: var(--m3-title-small);
     font-weight: 600;
     color: var(--m3-on-surface);
+    padding: 0 var(--m3-table-cell-padding-x, 12px);
   }
 
   .el-table-v2__row {
@@ -522,6 +525,7 @@ html.frosted .main-container {
     min-width: 0;
     font: var(--m3-body-medium);
     color: var(--m3-on-surface);
+    padding: 0 var(--m3-table-cell-padding-x, 12px);
   }
 
   .el-table-v2__row-cell > * {
@@ -574,7 +578,7 @@ html.frosted .main-container {
   }
 
   .el-table__cell {
-    padding: 8px 12px;
+    padding: var(--m3-table-cell-padding-y, 12px) var(--m3-table-cell-padding-x, 12px);
   }
 
   // 数据行单元格一律单行显示，超长省略号截断
@@ -586,7 +590,7 @@ html.frosted .main-container {
   }
 
   .el-table__header th {
-    height: var(--m3-table-header-height, 44px);
+    height: var(--m3-table-header-height, 48px);
     font: var(--m3-title-small);
     font-weight: 600;
     color: var(--m3-on-surface);
@@ -600,7 +604,7 @@ html.frosted .main-container {
   }
 
   .el-table__row {
-    height: var(--m3-table-row-height, 40px);
+    height: var(--m3-table-row-height, 52px);
   }
 
   .el-table__inner-wrapper::before {
