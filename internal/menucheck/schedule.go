@@ -20,6 +20,8 @@ type Snapshot struct {
 	URL       string `json:"url"`
 	OK        bool   `json:"ok"`
 	HasData   bool   `json:"hasData"`
+	MenuText  string `json:"menuText"`
+	DataText  string `json:"dataText"`
 	Title     string `json:"title"`
 	Message   string `json:"message"`
 	CheckedAt int64  `json:"checkedAt"` // unix ms
@@ -152,6 +154,8 @@ func (w *Watcher) checkOne(it Item, scheduled bool) Snapshot {
 		URL:       it.URL,
 		OK:        r.OK,
 		HasData:   r.HasData,
+		MenuText:  r.MenuText,
+		DataText:  r.DataText,
 		Title:     r.Title,
 		Message:   r.Message,
 		CheckedAt: w.nowFn().UnixMilli(),
@@ -165,7 +169,7 @@ func (w *Watcher) checkOne(it Item, scheduled bool) Snapshot {
 	if w.update != nil {
 		w.update(snap)
 	}
-	// 定时任务：访问不了（OK=false）立即报警；有无数据只更新卡片，避免空数据刷屏。
+	// 定时任务：菜单不可用立即本地反馈（不发企微）；有无数据只更新卡片。
 	if scheduled && !snap.OK && w.alert != nil {
 		w.alert(snap)
 	}

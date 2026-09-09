@@ -408,6 +408,8 @@ func menuSnapToResult(sn menucheck.Snapshot) MenuCheckResult {
 		URL:       sn.URL,
 		OK:        sn.OK,
 		HasData:   sn.HasData,
+		MenuText:  sn.MenuText,
+		DataText:  sn.DataText,
 		Title:     sn.Title,
 		Message:   sn.Message,
 		CheckedAt: sn.CheckedAt,
