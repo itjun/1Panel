@@ -20,7 +20,7 @@ type HostOverviewSnapshot struct {
 	HostName string             `json:"hostName"` // 实际 IP/域名
 	User     string             `json:"user"`
 	Overview monitor.Overview   `json:"overview"`
-	Disks    []monitor.DiskInfo `json:"disks"` // 全部真实分区（前端汇总物理容量）
+	Disks    []monitor.DiskInfo `json:"disks"` // 物理盘/池(kind=disk) + 挂载分区(kind=mount)
 	Error    string             `json:"error,omitempty"`
 }
 

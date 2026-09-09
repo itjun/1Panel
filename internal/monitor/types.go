@@ -51,6 +51,8 @@ type DiskInfo struct {
 	Used       uint64  `json:"used"`
 	Avail      uint64  `json:"avail"`
 	Percent    float64 `json:"percent"`
+	// Kind：disk=物理盘/zpool（看板总量）；mount=挂载分区（列表与告警）；空视为 mount
+	Kind string `json:"kind"`
 }
 
 type ProcInfo struct {
