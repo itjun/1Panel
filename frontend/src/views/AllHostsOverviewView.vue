@@ -58,39 +58,13 @@
           v-for="item in menuChecks"
           :key="item.id"
           class="host-card menu-check-card"
-          :class="{
-            'is-checking': item.checking,
-            'is-ok': item.status === 'ok',
-            'is-bad': item.status === 'bad',
-          }"
-          :title="item.url || '每天 18:00–20:00 每 5 分钟自动检查'"
+          :class="{ 'is-checking': item.checking }"
           @click="onMenuCheck(item)"
         >
           <div class="host-info">
             <div class="host-name">{{ item.label }}</div>
-            <div v-if="item.checking" class="host-sub">检查中…</div>
-            <div v-else-if="item.menuText || item.dataText" class="menu-check-lines">
-              <div
-                class="menu-check-line"
-                :class="item.menuOk === false ? 'is-bad-line' : 'is-ok-line'"
-              >
-                <span class="menu-check-mark" aria-hidden="true">{{
-                  item.menuOk === false ? "❌" : "✓"
-                }}</span>
-                <span>{{ item.menuText }}</span>
-              </div>
-              <div
-                class="menu-check-line"
-                :class="item.dataOk === false ? 'is-bad-line' : 'is-ok-line'"
-              >
-                <span class="menu-check-mark" aria-hidden="true">{{
-                  item.dataOk === false ? "❌" : "✓"
-                }}</span>
-                <span>{{ item.dataText }}</span>
-              </div>
-            </div>
-            <div v-else class="host-sub">
-              每天 18–20 点每 5 分钟检查；点击立即检查
+            <div class="host-sub">
+              {{ item.checking ? "检查中…" : "点击检查" }}
             </div>
           </div>
         </div>
@@ -187,6 +161,7 @@ import { Events } from "@wailsio/runtime";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
 import type { sshconfig } from "@/api";
 import type { main } from "@/api";
@@ -337,18 +312,75 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function menuCheckResultHtml(menuOk: boolean, menuText: string, dataOk: boolean, dataText: string): string {
+function menuCheckResultHtml(
+  menuOk: boolean,
+  menuText: string,
+  dataOk: boolean,
+  dataText: string,
+  url: string
+): string {
   const row = (ok: boolean, text: string) => {
     const mark = ok ? "✓" : "❌";
     const color = ok ? "#16a34a" : "#dc2626";
     return (
-      `<div style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;line-height:1.45;color:${color}">` +
-      `<span style="flex-shrink:0;font-weight:700">${mark}</span>` +
-      `<span>${escapeHtml(text)}</span>` +
+      `<div style="display:flex;align-items:flex-start;gap:10px;margin:12px 0;line-height:1.55;font-size:16px;color:${color}">` +
+      `<span style="flex-shrink:0;font-weight:700;font-size:18px;line-height:1.4">${mark}</span>` +
+      `<span style="min-width:0;word-break:break-word">${escapeHtml(text)}</span>` +
       `</div>`
     );
   };
-  return row(menuOk, menuText) + row(dataOk, dataText);
+  let html = row(menuOk, menuText) + row(dataOk, dataText);
+  if (url) {
+    html +=
+      `<div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(127,127,127,0.25)">` +
+      `<div style="font-size:13px;color:#64748b;margin-bottom:8px">检查地址</div>` +
+      `<div title="${escapeHtml(url)}" style="font-size:14px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all;color:var(--el-text-color-regular,#303133)">${escapeHtml(url)}</div>` +
+      `</div>`;
+  }
+  return html;
+}
+
+async function onCopyMenuUrl(url: string) {
+  const u = url.trim();
+  if (!u) {
+    ElMessage.warning("暂无检查地址");
+    return;
+  }
+  try {
+    await copyText(u);
+    ElMessage.success("已复制完整地址");
+  } catch {
+    ElMessage.error("复制失败");
+  }
+}
+
+async function showMenuCheckResult(
+  label: string,
+  menuOk: boolean,
+  menuText: string,
+  dataOk: boolean,
+  dataText: string,
+  url: string
+) {
+  try {
+    await ElMessageBox.alert(
+      menuCheckResultHtml(menuOk, menuText, dataOk, dataText, url),
+      `菜单检查 · ${label}`,
+      {
+        customClass: "menu-check-msgbox",
+        confirmButtonText: "知道了",
+        cancelButtonText: "复制地址",
+        showCancelButton: !!url,
+        distinguishCancelAndClose: true,
+        dangerouslyUseHTMLString: true,
+        showClose: true,
+      }
+    );
+  } catch (action) {
+    if (action === "cancel" && url) {
+      await onCopyMenuUrl(url);
+    }
+  }
 }
 
 async function onMenuCheck(item: MenuCheckItem) {
@@ -363,15 +395,14 @@ async function onMenuCheck(item: MenuCheckItem) {
     applyMenuResult(r);
     const menuText = r.menuText || (r.ok ? "菜单正常" : "菜单异常");
     const dataText = r.dataText || (r.hasData ? "数据正常" : "数据异常");
-    await ElMessageBox.alert(
-      menuCheckResultHtml(!!r.ok, menuText, !!r.hasData, dataText),
-      `菜单检查 · ${item.label}`,
-      {
-        confirmButtonText: "知道了",
-        dangerouslyUseHTMLString: true,
-        // 不用 MessageBox 左侧统一状态图标，改由每项 ✓ / ❌ 表示
-        showClose: true,
-      }
+    const url = r.url || item.url;
+    await showMenuCheckResult(
+      item.label,
+      !!r.ok,
+      menuText,
+      !!r.hasData,
+      dataText,
+      url
     );
   } catch (e) {
     item.status = "bad";
@@ -380,15 +411,14 @@ async function onMenuCheck(item: MenuCheckItem) {
     item.menuText = "菜单异常：" + formatErr(e);
     item.dataText = "数据异常：菜单不可用，无法判断";
     item.message = `${item.menuText}\n${item.dataText}`;
-    await ElMessageBox.alert(
-      menuCheckResultHtml(false, item.menuText, false, item.dataText),
-      `菜单检查 · ${item.label}`,
-      {
-        confirmButtonText: "知道了",
-        dangerouslyUseHTMLString: true,
-        showClose: true,
-      }
-    ).catch(() => {});
+    await showMenuCheckResult(
+      item.label,
+      false,
+      item.menuText,
+      false,
+      item.dataText,
+      item.url
+    );
   } finally {
     item.checking = false;
   }
@@ -466,37 +496,6 @@ async function onRefreshIcons() {
 }
 .menu-check-section {
   margin-bottom: 22px;
-}
-.menu-check-card.is-ok {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #0f766e 55%, var(--m3-outline-variant, #cac4d0));
-}
-.menu-check-card.is-bad {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #dc2626 60%, var(--m3-outline-variant, #cac4d0));
-}
-.menu-check-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
-}
-.menu-check-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--el-text-color-secondary);
-}
-.menu-check-mark {
-  flex-shrink: 0;
-  font-weight: 700;
-  line-height: 1.35;
-}
-.menu-check-line.is-ok-line {
-  color: #16a34a;
-}
-.menu-check-line.is-bad-line {
-  color: var(--el-color-danger, #dc2626);
 }
 .menu-check-card.is-checking {
   opacity: 0.75;
@@ -612,5 +611,52 @@ async function onRefreshIcons() {
 
 html.dark .host-card {
   background: var(--m3-surface-container-low, #1a1a1d);
+}
+</style>
+
+<style lang="scss">
+/* MessageBox 挂到 body，需非 scoped */
+.menu-check-msgbox {
+  width: 800px !important;
+  max-width: min(800px, 96vw) !important;
+  min-height: 360px;
+  padding-bottom: 8px;
+  /* 暗色底上弹窗边框必须可见，不能靠极弱阴影辨认边缘 */
+  border: 1px solid var(--m3-outline-variant, rgba(255, 255, 255, 0.16)) !important;
+  border-radius: var(--m3-shape-l, 16px) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 12px 40px rgba(0, 0, 0, 0.55) !important;
+  background: var(--m3-surface-container-high, #252d3d) !important;
+}
+html:not(.dark) .menu-check-msgbox {
+  border-color: var(--m3-outline, #c9cdd4) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 12px 32px rgba(0, 0, 0, 0.14) !important;
+  background: var(--m3-surface-container-lowest, #fff) !important;
+}
+.menu-check-msgbox .el-message-box__header {
+  padding: 24px 48px 10px 28px;
+}
+.menu-check-msgbox .el-message-box__title {
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.menu-check-msgbox .el-message-box__content {
+  padding: 20px 28px 24px;
+  min-height: 200px;
+}
+.menu-check-msgbox .el-message-box__message {
+  max-width: 100%;
+  overflow: hidden;
+}
+.menu-check-msgbox .el-message-box__btns {
+  padding: 14px 28px 24px;
+}
+.menu-check-msgbox .el-message-box__btns .el-button {
+  min-width: 104px;
+  height: 38px;
 }
 </style>
