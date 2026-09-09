@@ -192,24 +192,24 @@
                 <el-popover trigger="hover" placement="bottom" :width="240">
                   <div class="ring-popover" :class="{ 'is-danger': diskLow }">
                     <div class="ring-pop-row">
-                      <span>挂载点</span>
-                      <span class="num">{{ rootDisk?.mount || '/' }}</span>
+                      <span>范围</span>
+                      <span class="num">全部 {{ diskSummary?.count || 0 }} 分区</span>
                     </div>
                     <div class="ring-pop-row">
                       <span>总量</span>
-                      <span class="num">{{ formatBytes(rootDisk?.total || 0) }}</span>
+                      <span class="num">{{ formatBytes(diskSummary?.total || 0) }}</span>
                     </div>
                     <div class="ring-pop-row">
                       <span>已用</span>
-                      <span class="num">{{ formatBytes(rootDisk?.used || 0) }}</span>
+                      <span class="num">{{ formatBytes(diskSummary?.used || 0) }}</span>
                     </div>
                     <div class="ring-pop-row">
                       <span>可用</span>
-                      <span class="num">{{ formatBytes(rootDisk?.avail || 0) }}</span>
+                      <span class="num">{{ formatBytes(diskSummary?.avail || 0) }}</span>
                     </div>
                     <div class="ring-pop-row">
                       <span>使用率</span>
-                      <span class="num">{{ (rootDisk?.percent || 0).toFixed(2) }}%</span>
+                      <span class="num">{{ (diskSummary?.percent || 0).toFixed(2) }}%</span>
                     </div>
                   </div>
                   <template #reference>
@@ -217,8 +217,8 @@
                       height="160px"
                       :danger="diskLow"
                       :option="{
-                        title: rootDisk?.mount || '/',
-                        data: rootDisk?.percent || 0,
+                        title: '磁盘',
+                        data: diskSummary?.percent || 0,
                       }"
                     />
                   </template>
@@ -226,10 +226,10 @@
                 <div
                   class="input-help"
                   :class="{ 'is-danger': diskLow }"
-                  v-if="rootDisk"
+                  v-if="diskSummary"
                 >
-                  {{ formatBytes(rootDisk.used) }} /
-                  {{ formatBytes(rootDisk.total) }}
+                  {{ formatBytes(diskSummary.used) }} /
+                  {{ formatBytes(diskSummary.total) }}
                 </div>
               </el-col>
             </el-row>
@@ -520,7 +520,7 @@ import {
   isDiskLow,
   isLoadAlert,
   isMemAlert,
-  pickRootDisk,
+  summarizeDisks,
 } from "@/utils/alerts";
 import {
   clearHostWecom,
@@ -817,7 +817,7 @@ const terminalActive = computed(() => {
   return app.hostSessions[t.id]?.subTab === "terminal";
 });
 
-const rootDisk = computed(() => pickRootDisk(disks.value));
+const diskSummary = computed(() => summarizeDisks(disks.value));
 const diskLow = computed(() => isDiskLow(disks.value));
 const cpuAlert = computed(() => isCpuAlert(overview.value));
 const memAlert = computed(() => isMemAlert(overview.value));

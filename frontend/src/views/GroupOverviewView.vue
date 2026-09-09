@@ -86,7 +86,7 @@
           />
           <el-table-column
             label="主机"
-            width="156"
+            width="140"
             fixed
             show-overflow-tooltip
           >
@@ -111,12 +111,12 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="地址" width="132" show-overflow-tooltip>
+          <el-table-column label="地址" width="118" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="mono">{{ row.hostName || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Agent" width="88">
+          <el-table-column label="Agent" width="100" show-overflow-tooltip>
             <template #default="{ row }">
               <div v-if="batchProgressOf(row.name)" class="agent-progress-cell">
                 <span
@@ -152,7 +152,7 @@
               {{ row.user || "—" }}
             </template>
           </el-table-column>
-          <el-table-column label="版本" width="112" show-overflow-tooltip>
+          <el-table-column label="版本" width="108" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="hostState(row.name).error">—</template>
               <span v-else class="mono">{{
@@ -178,7 +178,7 @@
               <span v-else class="mono">{{ hostSpec(hostState(row.name).overview!) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="CPU" min-width="96">
+          <el-table-column label="CPU" width="68">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -189,7 +189,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="内存" min-width="156">
+          <el-table-column label="内存" width="68">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -198,11 +198,10 @@
                 :alert-threshold="THRESHOLDS.mem"
                 :alert-op="'gt'"
                 suffix="%"
-                :sub="memUsage(hostState(row.name).overview)"
               />
             </template>
           </el-table-column>
-          <el-table-column label="磁盘 /" min-width="160">
+          <el-table-column label="磁盘" width="68">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -210,11 +209,10 @@
                 :percent="true"
                 :disks="hostState(row.name).disks"
                 suffix="%"
-                :sub="diskUsage(hostState(row.name).disks) || '—'"
               />
             </template>
           </el-table-column>
-          <el-table-column label="负载" width="88" align="right">
+          <el-table-column label="负载" width="72" align="right">
             <template #default="{ row }">
               <el-skeleton
                 v-if="hostState(row.name).loading && !hostState(row.name).overview"
@@ -386,7 +384,6 @@ import {
   shouldToastHostAlert,
 } from "@/utils/wecomHostAlerts";
 import {
-  formatBytes,
   formatErr,
   formatMemCapacity,
   isAgentMissing,
@@ -399,7 +396,7 @@ import {
   isDiskLow,
   isLoadAlert,
   isMemAlert,
-  pickRootDisk,
+  summarizeDisks,
 } from "@/utils/alerts";
 import type { agentcli, monitor, sshconfig } from "@/api";
 
@@ -538,25 +535,9 @@ async function openBoardWindow() {
 
 // ---------- 指标 / 告警 ----------
 
-function diskPercent(disks?: monitor.DiskInfo[]): number {
-  return pickRootDisk(disks)?.percent ?? 0;
-}
-
-function memUsage(ov: monitor.Overview | undefined): string {
-  if (!ov) return "—";
-  return `${formatBytes(ov.memUsed || 0)} / ${formatMemCapacity(ov.memTotal || 0)}`;
-}
-
-/** 规格：如「8核32G」 */
 function hostSpec(ov: monitor.Overview): string {
   const cores = ov.cpuCount || 0;
   return `${cores}核${formatMemCapacity(ov.memTotal || 0)}`;
-}
-
-function diskUsage(disks?: monitor.DiskInfo[]): string | undefined {
-  const d = pickRootDisk(disks);
-  if (!d) return undefined;
-  return `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`;
 }
 
 function isHostAlert(s: HostSnap): boolean {
@@ -800,9 +781,9 @@ async function loadAgentStatuses() {
 
 function agentTagOf(name: string): { type: string; text: string } {
   const st = agentStatuses.value[name];
-  if (!st?.ok) return { type: "info", text: "未装/离线" };
+  if (!st?.ok) return { type: "info", text: "未装" };
   if (latestAgentVersion.value && st.version !== latestAgentVersion.value) {
-    return { type: "warning", text: `v${st.version} 可更新` };
+    return { type: "warning", text: "可更新" };
   }
   return { type: "success", text: `v${st.version}` };
 }
@@ -1114,9 +1095,9 @@ const MetricCell = defineComponent({
       let display: any;
       let alert = false;
       if (p.field === "diskPercent") {
-        const d = pickRootDisk(p.disks)?.percent ?? 0;
-        value = d;
-        display = `${d.toFixed(1)}%`;
+        const sum = summarizeDisks(p.disks);
+        value = sum?.percent ?? 0;
+        display = `${value.toFixed(1)}%`;
         alert = isDiskLow(p.disks);
       } else {
         const raw = (ov as any)[p.field] ?? 0;
@@ -1224,6 +1205,7 @@ startPoll();
 
 .host-list-wrap {
   overflow: hidden;
+  min-width: 0;
 }
 
 .host-list-table {
@@ -1323,29 +1305,32 @@ startPoll();
 :deep(.list-metric) {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 :deep(.list-metric-nums) {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
   min-width: 0;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 :deep(.list-metric-val) {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.2;
   &.is-alert {
     color: var(--m3-error) !important;
     font-weight: 700;
   }
 }
 :deep(.list-metric-sub) {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.2;
   color: var(--m3-on-surface-variant);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   &.is-alert {
     color: var(--m3-error);

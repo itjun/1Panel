@@ -20,7 +20,7 @@ type HostOverviewSnapshot struct {
 	HostName string             `json:"hostName"` // 实际 IP/域名
 	User     string             `json:"user"`
 	Overview monitor.Overview   `json:"overview"`
-	Disks    []monitor.DiskInfo `json:"disks"` // 仅保留根分区一行（用于卡片显示）
+	Disks    []monitor.DiskInfo `json:"disks"` // 全部真实分区（前端汇总物理容量）
 	Error    string             `json:"error,omitempty"`
 }
 
@@ -162,15 +162,10 @@ func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int,
 			if remember != nil && ov.OSRelease != "" {
 				remember(host.Name, ov.OSRelease)
 			}
-			// 只取根分区（mount == "/"），用于卡片显示
+			// 全部真实分区，前端按物理容量汇总展示
 			var disks []monitor.DiskInfo
 			_ = cli.GetJSON(ctx, "/collect/disks", &disks, true)
-			for _, d := range disks {
-				if d.Mount == "/" {
-					snap.Disks = []monitor.DiskInfo{d}
-					break
-				}
-			}
+			snap.Disks = disks
 			results[idx] = snap
 		}(i, h)
 	}

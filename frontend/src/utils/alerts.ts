@@ -6,7 +6,7 @@ export const ALERT = {
   cpu: 90, // CPU% ≥
   mem: 85, // 内存% >
   loadRatio: 1.0, // load1 / 核数 >
-  diskAvailBytes: 10 * 1024 * 1024 * 1024, // 根分区可用 ≤ 10 GB
+  diskAvailBytes: 10 * 1024 * 1024 * 1024, // 任一分区可用 ≤ 10 GB
 };
 
 /** 资源告警类型键（企微按类型开关的范围；conn 属连接告警，不在此列） */
@@ -20,7 +20,7 @@ const GB = 1024 * 1024 * 1024;
 export const ALERT_RULES = [
   { kind: "cpu", name: "CPU", desc: `CPU ≥ ${ALERT.cpu}%` },
   { kind: "mem", name: "内存", desc: `内存 > ${ALERT.mem}%` },
-  { kind: "disk", name: "磁盘", desc: `根分区可用 ≤ ${ALERT.diskAvailBytes / GB} GB` },
+  { kind: "disk", name: "磁盘", desc: `任一分区可用 ≤ ${ALERT.diskAvailBytes / GB} GB` },
   { kind: "load", name: "负载", desc: `load1 / 核数 > ${ALERT.loadRatio}` },
 ] as const;
 
@@ -33,6 +33,46 @@ export function isResourceAlertKind(k: unknown): k is ResourceAlertKind {
   return ALL_ALERT_KINDS.includes(k as ResourceAlertKind);
 }
 
+/** 全部真实分区容量合计（按 filesystem 去重，避免同设备多挂载重复累计） */
+export type DiskSummary = {
+  total: number;
+  used: number;
+  avail: number;
+  percent: number;
+  count: number;
+};
+
+export function summarizeDisks(
+  disks?: monitor.DiskInfo[] | null
+): DiskSummary | null {
+  if (!disks?.length) return null;
+  const byFs = new Map<string, monitor.DiskInfo>();
+  for (const d of disks) {
+    const key = d.filesystem || d.mount;
+    const prev = byFs.get(key);
+    if (!prev || (d.total || 0) > (prev.total || 0)) {
+      byFs.set(key, d);
+    }
+  }
+  let total = 0;
+  let used = 0;
+  let avail = 0;
+  for (const d of byFs.values()) {
+    total += d.total || 0;
+    used += d.used || 0;
+    avail += d.avail || 0;
+  }
+  if (total <= 0) return null;
+  return {
+    total,
+    used,
+    avail,
+    percent: (used / total) * 100,
+    count: byFs.size,
+  };
+}
+
+/** 取根分区（主机概览分区列表等仍可能用到） */
 export function pickRootDisk(
   disks?: monitor.DiskInfo[] | null
 ): monitor.DiskInfo | null {
@@ -43,10 +83,10 @@ export function pickRootDisk(
   );
 }
 
+/** 任一真实分区可用空间不足则告警 */
 export function isDiskLow(disks?: monitor.DiskInfo[] | null): boolean {
-  const d = pickRootDisk(disks);
-  if (!d) return false;
-  return d.avail <= ALERT.diskAvailBytes;
+  if (!disks?.length) return false;
+  return disks.some((d) => (d.avail || 0) <= ALERT.diskAvailBytes);
 }
 
 export function isCpuAlert(ov?: monitor.Overview | null): boolean {
@@ -67,8 +107,10 @@ export function diskLowMessage(
   host: string,
   disks?: monitor.DiskInfo[] | null
 ): string {
-  const d = pickRootDisk(disks);
-  const mount = d?.mount || "/";
-  const avail = d ? formatBytes(d.avail) : "—";
-  return `「${host}」${mount} 可用 ${avail}，不足 10 GB`;
+  if (!disks?.length) {
+    return `「${host}」磁盘可用不足 ${ALERT.diskAvailBytes / GB} GB`;
+  }
+  const worst = [...disks].sort((a, b) => (a.avail || 0) - (b.avail || 0))[0];
+  const mount = worst.mount || "磁盘";
+  return `「${host}」${mount} 可用 ${formatBytes(worst.avail)}，不足 ${ALERT.diskAvailBytes / GB} GB`;
 }

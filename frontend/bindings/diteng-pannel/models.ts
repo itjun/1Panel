@@ -233,7 +233,7 @@ export interface HostOverviewSnapshot {
     "overview": monitor$0.Overview;
 
     /**
-     * 仅保留根分区一行（用于卡片显示）
+     * 全部真实分区（前端汇总物理容量）
      */
     "disks": monitor$0.DiskInfo[] | null;
     "error"?: string;

@@ -62,7 +62,7 @@
       />
 
       <div class="m-label m-r2-c1" :class="{ 'is-alert': loadAlert }">负载</div>
-      <div class="m-label m-r2-c2" :class="{ 'is-alert': diskAlert }">磁盘 /</div>
+      <div class="m-label m-r2-c2" :class="{ 'is-alert': diskAlert }">磁盘</div>
       <div class="m-value m-r2-c1" :class="{ 'is-alert': loadAlert }">
         {{ overview.load1.toFixed(2) }}
         <span class="m-unit">/ {{ overview.cpuCount || "—" }}</span>
@@ -118,7 +118,7 @@ import {
   isDiskLow,
   isLoadAlert,
   isMemAlert,
-  pickRootDisk,
+  summarizeDisks,
 } from "@/utils/alerts";
 import BoardSparkline from "@/components/board/BoardSparkline.vue";
 import type { BoardAppSubItem } from "@/components/board/BoardModeOverlay.vue";
@@ -209,8 +209,8 @@ const alert = computed(
       appSubAlert.value)
 );
 
-const rootDisk = computed(() => pickRootDisk(props.disks));
-const diskPct = computed(() => rootDisk.value?.percent ?? 0);
+const diskSummary = computed(() => summarizeDisks(props.disks));
+const diskPct = computed(() => diskSummary.value?.percent ?? 0);
 
 const memUsageText = computed(() => {
   const ov = overview.value;
@@ -219,7 +219,7 @@ const memUsageText = computed(() => {
 });
 
 const diskUsageText = computed(() => {
-  const d = rootDisk.value;
+  const d = diskSummary.value;
   if (!d) return "—";
   return `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`;
 });
