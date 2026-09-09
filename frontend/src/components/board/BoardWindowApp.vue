@@ -204,15 +204,18 @@ async function loadOne(name: string, showSkeleton: boolean, force = false) {
     hostStates.value[name] = { loading: true };
   }
   try {
-    const [ov, disks] = await Promise.all([
-      api.collectOverview(name),
-      api.collectDisks(name),
-    ]);
+    const ov = await api.collectOverview(name);
+    let disks: monitor.DiskInfo[] = [];
+    try {
+      disks = (await api.collectDisks(name)) || [];
+    } catch {
+      disks = [];
+    }
     if (!alive) return;
     hostStates.value[name] = {
       loading: false,
       overview: ov,
-      disks: disks ?? [],
+      disks,
       error: undefined,
     };
     // overview 后到时：若已有 cpu 趋势但 mem 因缺 memTotal 为空，补拉一次 range

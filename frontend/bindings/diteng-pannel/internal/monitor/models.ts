@@ -136,6 +136,11 @@ export interface DiskInfo {
     "used": number;
     "avail": number;
     "percent": number;
+
+    /**
+     * Kind：disk=物理盘/zpool（看板总量）；mount=挂载分区（列表与告警）；空视为 mount
+     */
+    "kind": string;
 }
 
 export interface DockerInfo {

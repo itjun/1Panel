@@ -233,7 +233,7 @@ export interface HostOverviewSnapshot {
     "overview": monitor$0.Overview;
 
     /**
-     * 全部真实分区（前端汇总物理容量）
+     * 物理盘/池(kind=disk) + 挂载分区(kind=mount)
      */
     "disks": monitor$0.DiskInfo[] | null;
     "error"?: string;

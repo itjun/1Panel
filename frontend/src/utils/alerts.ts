@@ -20,7 +20,7 @@ const GB = 1024 * 1024 * 1024;
 export const ALERT_RULES = [
   { kind: "cpu", name: "CPU", desc: `CPU ≥ ${ALERT.cpu}%` },
   { kind: "mem", name: "内存", desc: `内存 > ${ALERT.mem}%` },
-  { kind: "disk", name: "磁盘", desc: `任一分区可用 ≤ ${ALERT.diskAvailBytes / GB} GB` },
+  { kind: "disk", name: "磁盘", desc: `大分区/物理盘可用 ≤ ${ALERT.diskAvailBytes / GB} GB` },
   { kind: "load", name: "负载", desc: `load1 / 核数 > ${ALERT.loadRatio}` },
 ] as const;
 
@@ -33,21 +33,32 @@ export function isResourceAlertKind(k: unknown): k is ResourceAlertKind {
   return ALL_ALERT_KINDS.includes(k as ResourceAlertKind);
 }
 
-/** 全部真实分区容量合计（按 filesystem 去重，避免同设备多挂载重复累计） */
+/** 磁盘容量汇总（优先物理盘/zpool；无则回退挂载分区） */
 export type DiskSummary = {
   total: number;
   used: number;
   avail: number;
   percent: number;
   count: number;
+  /** 汇总口径：disk=物理盘/池；mount=挂载分区 */
+  scope: "disk" | "mount";
 };
 
-export function summarizeDisks(
+function isPhysicalDisk(d: monitor.DiskInfo): boolean {
+  return d.kind === "disk";
+}
+
+/** 挂载分区（不含物理盘/池条目） */
+export function mountDisks(
   disks?: monitor.DiskInfo[] | null
-): DiskSummary | null {
-  if (!disks?.length) return null;
+): monitor.DiskInfo[] {
+  if (!disks?.length) return [];
+  return disks.filter((d) => !isPhysicalDisk(d));
+}
+
+function sumUniqueByFilesystem(list: monitor.DiskInfo[]): DiskSummary | null {
   const byFs = new Map<string, monitor.DiskInfo>();
-  for (const d of disks) {
+  for (const d of list) {
     const key = d.filesystem || d.mount;
     const prev = byFs.get(key);
     if (!prev || (d.total || 0) > (prev.total || 0)) {
@@ -69,24 +80,43 @@ export function summarizeDisks(
     avail,
     percent: (used / total) * 100,
     count: byFs.size,
+    scope: "mount",
   };
+}
+
+export function summarizeDisks(
+  disks?: monitor.DiskInfo[] | null
+): DiskSummary | null {
+  if (!disks?.length) return null;
+  const physical = disks.filter(isPhysicalDisk);
+  if (physical.length) {
+    const sum = sumUniqueByFilesystem(physical);
+    if (sum) return { ...sum, scope: "disk" };
+  }
+  return sumUniqueByFilesystem(mountDisks(disks));
 }
 
 /** 取根分区（主机概览分区列表等仍可能用到） */
 export function pickRootDisk(
   disks?: monitor.DiskInfo[] | null
 ): monitor.DiskInfo | null {
-  if (!disks?.length) return null;
+  const mounts = mountDisks(disks);
+  if (!mounts.length) return null;
   return (
-    disks.find((d) => d.mount === "/") ||
-    [...disks].sort((a, b) => b.total - a.total)[0]
+    mounts.find((d) => d.mount === "/") ||
+    [...mounts].sort((a, b) => b.total - a.total)[0]
   );
 }
 
-/** 任一真实分区可用空间不足则告警 */
+/** 任一足够大的盘/分区可用空间不足则告警。
+ *  总量 ≤ 阈值的挂载（如 /boot/efi、efivarfs、/etc/pve）永远凑不出「可用 > 10GB」，
+ *  不得参与告警，否则 Proxmox 等主机磁盘会常年假红。 */
 export function isDiskLow(disks?: monitor.DiskInfo[] | null): boolean {
   if (!disks?.length) return false;
-  return disks.some((d) => (d.avail || 0) <= ALERT.diskAvailBytes);
+  const thr = ALERT.diskAvailBytes;
+  return disks.some(
+    (d) => (d.total || 0) > thr && (d.avail || 0) <= thr
+  );
 }
 
 export function isCpuAlert(ov?: monitor.Overview | null): boolean {
@@ -107,10 +137,14 @@ export function diskLowMessage(
   host: string,
   disks?: monitor.DiskInfo[] | null
 ): string {
-  if (!disks?.length) {
+  const thr = ALERT.diskAvailBytes;
+  const candidates = (disks || []).filter((d) => (d.total || 0) > thr);
+  if (!candidates.length) {
     return `「${host}」磁盘可用不足 ${ALERT.diskAvailBytes / GB} GB`;
   }
-  const worst = [...disks].sort((a, b) => (a.avail || 0) - (b.avail || 0))[0];
-  const mount = worst.mount || "磁盘";
+  const worst = [...candidates].sort(
+    (a, b) => (a.avail || 0) - (b.avail || 0)
+  )[0];
+  const mount = worst.mount || worst.filesystem || "磁盘";
   return `「${host}」${mount} 可用 ${formatBytes(worst.avail)}，不足 ${ALERT.diskAvailBytes / GB} GB`;
 }

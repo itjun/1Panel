@@ -201,7 +201,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="磁盘" width="68">
+          <el-table-column label="磁盘" width="92">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -384,6 +384,7 @@ import {
   shouldToastHostAlert,
 } from "@/utils/wecomHostAlerts";
 import {
+  formatBytes,
   formatErr,
   formatMemCapacity,
   isAgentMissing,
@@ -581,12 +582,15 @@ async function loadOne(name: string, showSkeleton: boolean, force = false) {
     hostStates.value[name] = { loading: true };
   }
   try {
-    const [ov, disks] = await Promise.all([
-      api.collectOverview(name),
-      api.collectDisks(name),
-    ]);
+    const ov = await api.collectOverview(name);
+    let disks: monitor.DiskInfo[] = [];
+    try {
+      disks = (await api.collectDisks(name)) || [];
+    } catch {
+      disks = [];
+    }
     if (activeGroupId !== props.groupId) return;
-    hostStates.value[name] = { loading: false, overview: ov, disks: disks ?? [], error: undefined };
+    hostStates.value[name] = { loading: false, overview: ov, disks, error: undefined };
     notifyAllAlerts();
   } catch (e) {
     if (activeGroupId !== props.groupId) return;
@@ -1099,6 +1103,21 @@ const MetricCell = defineComponent({
         value = sum?.percent ?? 0;
         display = `${value.toFixed(1)}%`;
         alert = isDiskLow(p.disks);
+        const capacity = sum ? formatBytes(sum.total) : "";
+        return h("div", { class: "list-metric" }, [
+          h("div", { class: "list-metric-bar" }, h(ElProgress, {
+            percentage: Math.min(100, Math.max(0, value || 0)),
+            strokeWidth: 4,
+            showText: false,
+            color: alert ? "var(--m3-error)" : "var(--m3-primary)",
+          })),
+          h("div", { class: "list-metric-nums" }, [
+            h("span", { class: ["list-metric-val", alert ? "is-alert" : ""] }, display),
+            capacity
+              ? h("span", { class: ["list-metric-sub", alert ? "is-alert" : ""] }, capacity)
+              : null,
+          ]),
+        ]);
       } else {
         const raw = (ov as any)[p.field] ?? 0;
         if (p.percent) {

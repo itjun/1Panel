@@ -65,14 +65,14 @@ async function pollHost(host: string): Promise<void> {
   let ov: monitor.Overview | null = null;
   let disks: monitor.DiskInfo[] = [];
   try {
-    const [o, d] = await Promise.all([
-      api.collectOverview(host),
-      api.collectDisks(host),
-    ]);
-    ov = o;
-    disks = d || [];
+    ov = await api.collectOverview(host);
   } catch {
     return;
+  }
+  try {
+    disks = (await api.collectDisks(host)) || [];
+  } catch {
+    disks = [];
   }
   if (!ov) return;
 

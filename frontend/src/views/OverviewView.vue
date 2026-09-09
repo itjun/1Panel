@@ -193,7 +193,10 @@
                   <div class="ring-popover" :class="{ 'is-danger': diskLow }">
                     <div class="ring-pop-row">
                       <span>范围</span>
-                      <span class="num">全部 {{ diskSummary?.count || 0 }} 分区</span>
+                      <span class="num">
+                        全部 {{ diskSummary?.count || 0 }}
+                        {{ diskSummary?.scope === "disk" ? " 块磁盘" : " 分区" }}
+                      </span>
                     </div>
                     <div class="ring-pop-row">
                       <span>总量</span>
@@ -276,9 +279,9 @@
                 />
               </div>
             </div>
-            <div v-if="!disks?.length" class="empty-tip">暂无磁盘数据</div>
+            <div v-if="!mountDiskList?.length" class="empty-tip">暂无磁盘数据</div>
             <div
-              v-for="d in disks"
+              v-for="d in mountDiskList"
               :key="d.mount"
               class="disk-row disk-row--clickable"
               title="点击查看该分区的最大文件"
@@ -520,6 +523,7 @@ import {
   isDiskLow,
   isLoadAlert,
   isMemAlert,
+  mountDisks,
   summarizeDisks,
 } from "@/utils/alerts";
 import {
@@ -818,6 +822,7 @@ const terminalActive = computed(() => {
 });
 
 const diskSummary = computed(() => summarizeDisks(disks.value));
+const mountDiskList = computed(() => mountDisks(disks.value));
 const diskLow = computed(() => isDiskLow(disks.value));
 const cpuAlert = computed(() => isCpuAlert(overview.value));
 const memAlert = computed(() => isMemAlert(overview.value));
@@ -932,7 +937,7 @@ const loadLabel = computed(() => {
 
 const stats = computed(() => [
   { label: "CPU 核心", value: String(overview.value?.cpuCount ?? 0) },
-  { label: "磁盘分区", value: String(disks.value?.length ?? 0) },
+  { label: "磁盘分区", value: String(mountDiskList.value?.length ?? 0) },
   {
     label: "Docker 容器",
     value: String(docker.value?.containers?.length ?? 0),
