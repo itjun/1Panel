@@ -88,6 +88,63 @@ func (s *System) SetFrostedChrome(enabled bool) {
 	}
 }
 
+// SetThemeAppearance 同步窗口原生外观（亮/暗/跟随系统）。
+// 暗色 + 磨砂时强制 DarkAqua，使 NSVisualEffect 呈现系统黑色磨砂。
+// mode: "light" | "dark" | "auto"（其它值按 auto）。
+func (s *System) SetThemeAppearance(mode string) {
+	m := macui.AppearanceAuto
+	switch mode {
+	case "light":
+		m = macui.AppearanceLight
+	case "dark":
+		m = macui.AppearanceDark
+	case "auto":
+		m = macui.AppearanceAuto
+	}
+	s.themeAppearance = m
+
+	s.applyAppearanceOnWindow(s.mainWindow)
+
+	s.boardMu.Lock()
+	boards := make([]*application.WebviewWindow, 0, len(s.boardWindows))
+	for _, w := range s.boardWindows {
+		boards = append(boards, w)
+	}
+	s.boardMu.Unlock()
+	for _, w := range boards {
+		s.applyAppearanceOnWindow(w)
+	}
+}
+
+func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
+	if win == nil {
+		return
+	}
+	mode := s.themeAppearance
+	if mode == "" {
+		mode = macui.AppearanceAuto
+	}
+	macui.SetWindowAppearance(win, mode)
+	if s.frostedChrome {
+		macui.RefreshWindowFrosted(win)
+	}
+}
+
+func (s *System) refreshFrostedMaterials() {
+	if s.mainWindow != nil {
+		macui.RefreshWindowFrosted(s.mainWindow)
+	}
+	s.boardMu.Lock()
+	boards := make([]*application.WebviewWindow, 0, len(s.boardWindows))
+	for _, w := range s.boardWindows {
+		boards = append(boards, w)
+	}
+	s.boardMu.Unlock()
+	for _, w := range boards {
+		macui.RefreshWindowFrosted(w)
+	}
+}
+
 // setFrostedOnWindow 对单个窗口应用/撤销磨砂。
 // macOS：透明底 + Visual Effect；Windows：透明 WebView2 + 云母（Mica，
 // 仅 Win11 22H2+，不支持时回落实色）；其余平台无系统磨砂，不能把窗口
@@ -199,8 +256,9 @@ func (s *System) OpenBoardWindow(groupID string) error {
 	win = s.app.Window.NewWithOptions(opts)
 	s.boardWindows[groupID] = win
 
-	// 按当前磨砂状态补材质（关则为实色，行为一致）
+	// 按当前磨砂状态补材质（关则为实色，行为一致），并同步主题外观
 	s.setFrostedOnWindow(win, boardWindowSolidColour)
+	s.applyAppearanceOnWindow(win)
 
 	gid := groupID
 	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {

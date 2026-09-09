@@ -60,7 +60,8 @@ type App struct {
 	boardMu      sync.Mutex
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
 
-	frostedChrome bool // 磨砂壳：默认关（零值 false）
+	frostedChrome   bool                 // 磨砂壳：默认关（零值 false）
+	themeAppearance macui.AppearanceMode // light / dark / auto；零值按 auto
 
 	showMu     sync.Mutex
 	sized      bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
@@ -180,6 +181,10 @@ func NewApp() *application.App {
 			}
 		}
 	}
+	if core.themeAppearance == "" {
+		core.themeAppearance = macui.AppearanceAuto
+	}
+	macui.SetWindowAppearance(win, core.themeAppearance)
 
 	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
 	// 没有：按主屏算完再 Show，仍然不等 Vue。
@@ -188,6 +193,12 @@ func NewApp() *application.App {
 		core.markReady()
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
+		macui.StartSystemAppearanceObserver(func(dark bool) {
+			app.Event.Emit("system-appearance-changed", map[string]any{"dark": dark})
+			if core.frostedChrome {
+				(*System)(core).refreshFrostedMaterials()
+			}
+		})
 		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
 		go func() {
 			ok, err := ns.RequestNotificationAuthorization()

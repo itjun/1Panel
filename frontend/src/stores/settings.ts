@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
+import { Events } from "@wailsio/runtime";
 import { api } from "@/api";
 import {
   ALL_ALERT_KINDS,
@@ -449,6 +450,11 @@ export const useSettingsStore = defineStore("settings", () => {
     root.className = actual;
     applyFrostedClass();
     root.setAttribute("data-theme", actual);
+    root.style.colorScheme = actual;
+    // 同步原生窗口 Aqua/DarkAqua：暗色磨砂才走系统黑色 vibrancy
+    void api.setThemeAppearance(t).catch((err) => {
+      console.warn("setThemeAppearance failed", err);
+    });
   }
 
   /** 仅切 html.frosted class（不动窗口材质）；applyTheme 重建 className 后须重放 */
@@ -728,6 +734,20 @@ export const useSettingsStore = defineStore("settings", () => {
       .addEventListener("change", () => {
         if (theme.value === "auto") applyTheme("auto");
       });
+
+    // 原生系统外观变化（WKWebView 上 matchMedia 有时不触发）
+    Events.On(
+      "system-appearance-changed",
+      (ev: { data?: { dark?: boolean } }) => {
+        if (theme.value !== "auto") return;
+        const dark = Boolean(ev?.data?.dark);
+        const root = document.documentElement;
+        root.className = dark ? "dark" : "light";
+        applyFrostedClass();
+        root.setAttribute("data-theme", dark ? "dark" : "light");
+        root.style.colorScheme = dark ? "dark" : "light";
+      }
+    );
   }
 
   watch(theme, (t) => applyTheme(t));

@@ -344,6 +344,10 @@ export const api = {
   setFrostedChrome: async (enabled: boolean): Promise<void> => {
     await System.SetFrostedChrome(enabled);
   },
+  /** 同步原生窗口外观 light/dark/auto（暗色磨砂 → 系统黑色 vibrancy） */
+  setThemeAppearance: async (mode: string): Promise<void> => {
+    await System.SetThemeAppearance(mode);
+  },
   /** 打开或聚焦该分组的看板窗（普通尺寸，可再全屏） */
   openBoardWindow: async (groupId: string): Promise<void> => {
     await System.OpenBoardWindow(groupId);

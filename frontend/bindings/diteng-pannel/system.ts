@@ -104,6 +104,15 @@ export function SetFrostedChrome(enabled: boolean): $CancellablePromise<void> {
 }
 
 /**
+ * SetThemeAppearance 同步窗口原生外观（亮/暗/跟随系统）。
+ * 暗色 + 磨砂时强制 DarkAqua，使 NSVisualEffect 呈现系统黑色磨砂。
+ * mode: "light" | "dark" | "auto"（其它值按 auto）。
+ */
+export function SetThemeAppearance(mode: string): $CancellablePromise<void> {
+    return $Call.ByID(474639928, mode);
+}
+
+/**
  * SetTrafficLightsHidden 隐藏/恢复 macOS 窗口红绿灯按钮
  * 供前端卡片最大化时调用：最大化期间隐藏，退出时恢复。
  * v3 原生支持按钮状态控制（替代 v2 的 cgo/AppKit 实现）。

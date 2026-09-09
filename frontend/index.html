@@ -134,10 +134,11 @@
             t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           }
           document.documentElement.className = t === "dark" ? "dark" : "light";
+          document.documentElement.style.colorScheme = t === "dark" ? "dark" : "light";
         } catch (e) {
-          document.documentElement.className = matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light";
+          var darkBoot = matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.className = darkBoot ? "dark" : "light";
+          document.documentElement.style.colorScheme = darkBoot ? "dark" : "light";
         }
         try {
           // 磨砂默认值按平台：macOS 开，其余关（与 settings store 的
