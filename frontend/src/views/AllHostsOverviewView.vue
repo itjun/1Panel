@@ -68,12 +68,29 @@
         >
           <div class="host-info">
             <div class="host-name">{{ item.label }}</div>
-            <div class="host-sub">
-              {{
-                item.checking
-                  ? "检查中…"
-                  : item.message || "每天 18–20 点每 5 分钟检查；点击立即检查"
-              }}
+            <div v-if="item.checking" class="host-sub">检查中…</div>
+            <div v-else-if="item.menuText || item.dataText" class="menu-check-lines">
+              <div
+                class="menu-check-line"
+                :class="item.menuOk === false ? 'is-bad-line' : 'is-ok-line'"
+              >
+                <span class="menu-check-mark" aria-hidden="true">{{
+                  item.menuOk === false ? "❌" : "✓"
+                }}</span>
+                <span>{{ item.menuText }}</span>
+              </div>
+              <div
+                class="menu-check-line"
+                :class="item.dataOk === false ? 'is-bad-line' : 'is-ok-line'"
+              >
+                <span class="menu-check-mark" aria-hidden="true">{{
+                  item.dataOk === false ? "❌" : "✓"
+                }}</span>
+                <span>{{ item.dataText }}</span>
+              </div>
+            </div>
+            <div v-else class="host-sub">
+              每天 18–20 点每 5 分钟检查；点击立即检查
             </div>
           </div>
         </div>
@@ -170,7 +187,6 @@ import { Events } from "@wailsio/runtime";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
-import { appendAndNotifyDesktop } from "@/utils/alertNotify";
 import { formatErr } from "@/utils/format";
 import type { sshconfig } from "@/api";
 import type { main } from "@/api";
@@ -186,6 +202,10 @@ interface MenuCheckItem {
   url: string;
   checking: boolean;
   status: MenuCheckStatus;
+  menuOk: boolean | null;
+  dataOk: boolean | null;
+  menuText: string;
+  dataText: string;
   message: string;
 }
 
@@ -197,6 +217,10 @@ const menuChecks = reactive<MenuCheckItem[]>([
     url: "",
     checking: false,
     status: "",
+    menuOk: null,
+    dataOk: null,
+    menuText: "",
+    dataText: "",
     message: "",
   },
 ]);
@@ -213,19 +237,27 @@ function applyMenuResult(r: main.MenuCheckResult) {
       url: r.url || "",
       checking: false,
       status: "",
+      menuOk: null,
+      dataOk: null,
+      menuText: "",
+      dataText: "",
       message: "",
     };
     menuChecks.push(item);
   }
   item.label = r.label || item.label;
   item.url = r.url || item.url;
-  if (r.checkedAt <= 0 && !r.message) return;
+  if (r.checkedAt <= 0 && !r.message && !r.menuText) return;
+  item.menuOk = !!r.ok;
+  item.dataOk = !!r.hasData;
+  item.menuText = r.menuText || (r.ok ? "菜单正常" : "菜单异常");
+  item.dataText = r.dataText || (r.hasData ? "数据正常" : "数据异常");
+  item.message = r.message || `${item.menuText}\n${item.dataText}`;
   if (r.ok && r.hasData) {
     item.status = "ok";
-  } else if (r.message || r.checkedAt > 0) {
+  } else {
     item.status = "bad";
   }
-  if (r.message) item.message = r.message;
 }
 
 async function loadMenuChecks() {
@@ -297,36 +329,66 @@ function openHost(name: string) {
   app.openHostTab(name);
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function menuCheckResultHtml(menuOk: boolean, menuText: string, dataOk: boolean, dataText: string): string {
+  const row = (ok: boolean, text: string) => {
+    const mark = ok ? "✓" : "❌";
+    const color = ok ? "#16a34a" : "#dc2626";
+    return (
+      `<div style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;line-height:1.45;color:${color}">` +
+      `<span style="flex-shrink:0;font-weight:700">${mark}</span>` +
+      `<span>${escapeHtml(text)}</span>` +
+      `</div>`
+    );
+  };
+  return row(menuOk, menuText) + row(dataOk, dataText);
+}
+
 async function onMenuCheck(item: MenuCheckItem) {
   if (item.checking) return;
   item.checking = true;
+  item.menuText = "";
+  item.dataText = "";
   item.message = "正在检查…";
   try {
-    // 仅 Go HTTP 拉取，不打开系统浏览器
+    // 仅 Go HTTP 拉取；结果只展示在页面/弹窗，不发企微与桌面通知
     const r = await api.checkMenuPage(item.id);
     applyMenuResult(r);
-    if (r.ok && r.hasData) {
-      ElMessage.success(r.message || "可用，已有数据");
-      return;
-    }
-    const msg = r.message || "检查未通过";
-    item.status = "bad";
-    item.message = msg;
-    await ElMessageBox.alert(msg, `菜单检查 · ${item.label}`, {
-      type: "error",
-      confirmButtonText: "知道了",
-    });
-    void appendAndNotifyDesktop({
-      host: "菜单检查",
-      kind: `menu:${item.id}`,
-      state: "down",
-      title: `${item.label} 异常`,
-      body: msg,
-    });
+    const menuText = r.menuText || (r.ok ? "菜单正常" : "菜单异常");
+    const dataText = r.dataText || (r.hasData ? "数据正常" : "数据异常");
+    await ElMessageBox.alert(
+      menuCheckResultHtml(!!r.ok, menuText, !!r.hasData, dataText),
+      `菜单检查 · ${item.label}`,
+      {
+        confirmButtonText: "知道了",
+        dangerouslyUseHTMLString: true,
+        // 不用 MessageBox 左侧统一状态图标，改由每项 ✓ / ❌ 表示
+        showClose: true,
+      }
+    );
   } catch (e) {
     item.status = "bad";
-    item.message = formatErr(e);
-    ElMessage.error(`菜单检查失败: ${item.message}`);
+    item.menuOk = false;
+    item.dataOk = false;
+    item.menuText = "菜单异常：" + formatErr(e);
+    item.dataText = "数据异常：菜单不可用，无法判断";
+    item.message = `${item.menuText}\n${item.dataText}`;
+    await ElMessageBox.alert(
+      menuCheckResultHtml(false, item.menuText, false, item.dataText),
+      `菜单检查 · ${item.label}`,
+      {
+        confirmButtonText: "知道了",
+        dangerouslyUseHTMLString: true,
+        showClose: true,
+      }
+    ).catch(() => {});
   } finally {
     item.checking = false;
   }
@@ -410,6 +472,31 @@ async function onRefreshIcons() {
 }
 .menu-check-card.is-bad {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #dc2626 60%, var(--m3-outline-variant, #cac4d0));
+}
+.menu-check-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+.menu-check-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--el-text-color-secondary);
+}
+.menu-check-mark {
+  flex-shrink: 0;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.menu-check-line.is-ok-line {
+  color: #16a34a;
+}
+.menu-check-line.is-bad-line {
+  color: var(--el-color-danger, #dc2626);
 }
 .menu-check-card.is-checking {
   opacity: 0.75;

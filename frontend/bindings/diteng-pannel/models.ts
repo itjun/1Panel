@@ -309,14 +309,24 @@ export interface LocalTextCheck {
 }
 
 /**
- * MenuCheckResult 菜单检查：页面是否可开、是否有业务数据。
+ * MenuCheckResult 菜单检查：菜单是否正常、数据是否正常。
  */
 export interface MenuCheckResult {
     "id": string;
     "label": string;
     "url": string;
+
+    /**
+     * 菜单正常
+     */
     "ok": boolean;
+
+    /**
+     * 数据正常
+     */
     "hasData": boolean;
+    "menuText": string;
+    "dataText": string;
     "title": string;
     "message": string;
     "checkedAt": number;
