@@ -123,7 +123,12 @@
       <VChartLine v-if="!isBun" height="160px" :option="gcOption" />
       <VChartLine v-else height="160px" :option="cpuOption" />
       <VChartLine height="160px" :option="hostOption" />
-      <el-table v-if="events.length" :data="events" size="small" class="ev-table">
+      <el-table
+        v-if="events.length"
+        :data="events"
+        class="data-table-unified charts-ev-table"
+        stripe
+      >
         <el-table-column prop="layer" label="层" width="90" />
         <el-table-column prop="kind" label="类型" width="80" />
         <el-table-column prop="msg" label="说明" />
@@ -741,7 +746,7 @@ onBeforeUnmount(stopTimer);
   color: var(--el-text-color-secondary);
   margin: 0 0 8px;
 }
-.ev-table {
+.charts-ev-table {
   margin-top: 12px;
 }
 .yaml-box :deep(textarea) {

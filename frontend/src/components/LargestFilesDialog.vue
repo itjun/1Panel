@@ -23,26 +23,29 @@
       :closable="false"
       style="margin-bottom: 10px"
     />
-    <el-table
-      v-loading="loading"
-      :data="files"
-      max-height="480"
-      stripe
-      :empty-text="loading ? '正在扫描（可能需要几十秒）…' : '暂无数据'"
-    >
-      <el-table-column label="#" type="index" width="44" />
-      <el-table-column label="大小" width="110">
-        <template #default="{ row }">
-          <span class="mono">{{ formatBytes(row.size) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="name" label="文件" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="dir" label="位置" min-width="240" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span class="mono">{{ row.dir }}</span>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="m3-table-surface">
+      <el-table
+        v-loading="loading"
+        :data="files"
+        max-height="480"
+        stripe
+        class="data-table-unified"
+        :empty-text="loading ? '正在扫描（可能需要几十秒）…' : '暂无数据'"
+      >
+        <el-table-column label="#" type="index" width="44" />
+        <el-table-column label="大小" width="110">
+          <template #default="{ row }">
+            <span class="mono">{{ formatBytes(row.size) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="name" label="文件" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="dir" label="位置" min-width="240" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="mono">{{ row.dir }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
     <template #footer>
       <span v-if="result" class="largest-meta">
         共 {{ files.length }} 个 · 耗时 {{ (result.elapsedMs / 1000).toFixed(1) }}s

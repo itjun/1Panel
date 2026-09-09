@@ -147,10 +147,6 @@ function onSortChange(data: {
   :deep(.el-table__row) {
     cursor: default;
   }
-
-  :deep(.el-table__row:hover > td.el-table__cell) {
-    background-color: color-mix(in srgb, var(--m3-primary) 6%, var(--m3-surface-container-lowest));
-  }
 }
 
 .file-row {

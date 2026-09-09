@@ -16,7 +16,7 @@
           height="100%"
           size="default"
           stripe
-          class="cron-table data-table-unified copyable-table"
+          class="data-table-unified copyable-table"
           empty-text="未发现定时任务"
         >
           <el-table-column label="来源" width="110">
@@ -143,7 +143,7 @@ async function copyCronLine(row: CronRow) {
   font: var(--m3-label-medium);
 }
 
-:deep(.cron-table) {
+:deep(.data-table-unified) {
   flex: 1;
 }
 </style>
