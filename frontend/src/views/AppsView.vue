@@ -237,7 +237,8 @@ function canOpenCharts(row: agentcli.JavaAppInstance) {
   return !!row.service && isAppStarted(row) && isOnline(row);
 }
 
-/** 部署版本 YYYYMMDD_N / YYMMDD_N，先比日期再比序号；6 位日期按 20YYMMDD 对齐 */
+/** 部署版本 YYYYMMDD_N / YYMMDD_N，先比日期再比序号；6 位日期按 20YYMMDD 对齐。
+ * 必须先对齐再比：否则 "260903" 字典序会大于 "20260910"（日=10 的 8 位尤易踩坑）。 */
 function compareDeployVer(a: string, b: string): number {
   if (!a && !b) return 0;
   if (!a) return -1;
@@ -250,29 +251,39 @@ function compareDeployVer(a: string, b: string): number {
   return (parseInt(aSeq, 10) || 0) - (parseInt(bSeq, 10) || 0);
 }
 
-function latestDeployVerInRows(rows: agentcli.JavaAppInstance[]): string {
+/** 取一组版本串中的最新（含 6/8 位混排） */
+function maxDeployVer(versions: Iterable<string>): string {
   let latest = "";
-  for (const r of rows) {
-    const v = (r.deployVer || "").trim();
+  for (const raw of versions) {
+    const v = (raw || "").trim();
     if (!v) continue;
     if (!latest || compareDeployVer(v, latest) > 0) latest = v;
   }
   return latest;
 }
 
-/** 每服务最新：优先 agent 扫目录得到的 latestDeployVer，否则回退该服务运行实例里的最大版本 */
-function latestDeployVerForRow(
-  row: agentcli.JavaAppInstance,
-  fallbackByService: Map<string, string>
-): string {
-  const fromAgent = (row.latestDeployVer || "").trim();
-  if (fromAgent) return fromAgent;
-  return fallbackByService.get(row.service || "") || "";
+/** 每服务候选：运行实例 deployVer + agent 扫各目录得到的 latestDeployVer，再取全局最大 */
+function latestDeployVerInRows(rows: agentcli.JavaAppInstance[]): string {
+  const vers: string[] = [];
+  for (const r of rows) {
+    vers.push(r.deployVer || "");
+    vers.push(r.latestDeployVer || "");
+  }
+  return maxDeployVer(vers);
 }
 
+/** 按服务统一最新版（同服务多目录时不能各行各自用本目录 latest，否则会同时高亮） */
+function latestDeployVerForRow(
+  row: agentcli.JavaAppInstance,
+  byService: Map<string, string>
+): string {
+  return byService.get(row.service || "") || "";
+}
+
+/** 语义相等：260910_1 与 20260910_1 对齐后同日同序即视为同一最新 */
 function isLatestDeploy(deployVer: string, latest: string): boolean {
   if (!deployVer || !latest) return false;
-  return deployVer.trim() === latest;
+  return compareDeployVer(deployVer.trim(), latest.trim()) === 0;
 }
 
 function instRowClass(row: agentcli.JavaAppInstance, fallbackByService: Map<string, string>): string {
@@ -361,7 +372,7 @@ const stdInstances = computed(() => sortInstances(tableRows.value.filter((r) => 
 const proInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "pro")));
 const otherInstances = computed(() => sortInstances(tableRows.value.filter((r) => r.group === "other")));
 
-/** 旧 agent 无 latestDeployVer 时：按服务各自取运行实例中的最大版本（不再整机统一） */
+/** 按服务聚合最新版：运行实例 + 各目录 agent 提示，避免同服务多根目录同时标最新 */
 const latestByService = computed(() => {
   const m = new Map<string, string>();
   const bySvc = new Map<string, agentcli.JavaAppInstance[]>();
