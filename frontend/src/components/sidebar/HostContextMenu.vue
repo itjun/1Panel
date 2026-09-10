@@ -99,6 +99,7 @@ import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 import { formatErr } from "@/utils/format";
+import { confirmStopHostSession } from "@/utils/hostSession";
 
 export interface CtxMenuState {
   host: string;
@@ -243,22 +244,8 @@ async function onDelete() {
 async function onStop() {
   const host = props.menu?.host;
   emit("close");
-  if (!host || !app.isRunning(host)) return;
-  try {
-    await ElMessageBox.confirm(
-      `停止「${host}」的后台会话？重新打开将重新加载。`,
-      "停止会话",
-      {
-        type: "warning",
-        confirmButtonText: "停止",
-        cancelButtonText: "取消",
-      }
-    );
-    app.stopHost(host);
-    ElMessage.success("已停止");
-  } catch {
-    /* cancel */
-  }
+  if (!host) return;
+  await confirmStopHostSession(app, host);
 }
 
 /** 右键「初始化 zsh」：上传内置脚本并在该主机终端自动执行（原顶栏按钮迁移至此） */

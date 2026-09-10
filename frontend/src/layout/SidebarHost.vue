@@ -86,8 +86,10 @@
               'is-running': app.isRunning(h.name),
               'is-drag-source': dragState?.host === h.name,
             }"
+            :title="app.isRunning(h.name) ? '双击停止会话' : undefined"
             @pointerdown="onHostPointerDown($event, h.name)"
             @click="onHostClick(h.name)"
+            @dblclick.stop="onHostDblClick(h.name)"
             @contextmenu.prevent="onHostContext($event, h.name)"
           >
             <DistroLogo
@@ -294,6 +296,7 @@ import HostContextMenu, {
 import { groupColor } from "@/components/sidebar/groupColors";
 import { useHostDrag } from "@/composables/useHostDrag";
 import { useSidebarResize } from "@/composables/useSidebarResize";
+import { confirmStopHostSession } from "@/utils/hostSession";
 
 const emit = defineEmits<{
   addHost: [];
@@ -392,6 +395,12 @@ function onHostClick(name: string) {
   app.openHostTab(name);
   // 打开主机即收起搜索、清空过滤（搜索目的达成）
   closeSearch();
+}
+
+/** 双击运行中主机：与右键「停止会话」同一确认流 */
+async function onHostDblClick(name: string) {
+  cancelDrag();
+  await confirmStopHostSession(app, name);
 }
 
 // ---------- 主机右键菜单（菜单体在 HostContextMenu） ----------
