@@ -267,7 +267,7 @@ html.frosted .app-shell {
   background: var(--m3-surface-container-low);
   border-radius: 0;
   /* 内容区内缩露出 chrome 边框（右 / 底）；顶栏仍贴顶；与磨砂开关无关 */
-  --chrome-inset: 5px;
+  --chrome-inset: 10px;
   --chrome-content-radius: var(--m3-shape-l-inc); // 20px，四角一致
 }
 
@@ -323,6 +323,8 @@ html.frosted .main-container {
 
 .app-chrome.sidebar-collapsed > .main-column {
   grid-column: 1 / -1;
+  /* 无侧栏时左侧也要露出 chrome 边，与右/底等宽 */
+  margin-left: var(--chrome-inset);
 }
 
 .main-column {
@@ -334,9 +336,22 @@ html.frosted .main-container {
   /* 实色盖住壁纸，避免卡片间隙透底 */
   background: var(--m3-surface-container);
   opacity: 1;
-  /* 右+底内缩，露出 app-chrome 边框；四角圆角一致 */
+  /* 右+底内缩，露出 app-chrome 边框；有侧栏时左缘贴侧栏；四角圆角一致 */
   margin: 0 var(--chrome-inset) var(--chrome-inset) 0;
   border-radius: var(--chrome-content-radius);
+  /* 轻微浮在透明面板上：细描边 + 浅阴影（模糊落在 inset 内，不被 chrome 裁切） */
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+html.dark .main-column,
+.is-dark .main-column {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 4px 10px rgba(0, 0, 0, 0.28);
 }
 
 .main-container {
