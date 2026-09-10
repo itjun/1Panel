@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 #
 # build.py
-# 交互式编译打包部署 1Pannel:
-#   1 - 编译打包启动          → 编译 agent + 前端 + Go，打包后在 bin/ 直接启动
-#                                 (macOS 产出 .app；Windows 产出 1Pannel.exe)
-#   2 - 拷贝到应用程序并启动  → 覆盖式安装到 /Applications 并启动（仅 macOS）
+# 一键更新部署 1Pannel（Windows / macOS）:
+#   1 - 停旧进程，拉代码，编译打包并启动
+#                              → 停止旧进程 → git pull --ff-only → 编译 agent + 前端 + Go
+#                                打包后在 bin/ 直接启动（macOS 产出 .app；Windows 产出 1Pannel.exe）
+#   2 - 拷贝到应用程序并启动  → 全量清理重打包，覆盖安装到 /Applications 并启动（仅 macOS）
 #
 # 用法:
-#   ./build.py        # 交互式菜单选择
-#   ./build.py 1      # 直接执行选项 1
-#   ./build.py 2      # 直接执行选项 2
-# 选项 1：清 bin/、dist、vite 缓存后本地启动。
+#   python build.py        # 交互式菜单选择
+#   python build.py 1      # 直接执行选项 1
+#   python build.py 2      # 直接执行选项 2
+# 选项 1：停旧进程、拉最新代码、清 bin/、dist、vite 缓存后编译启动。
 # 选项 2：全量清理（含 node_modules、.task）再用 bun + vite 彻底重打包，覆盖安装到 /Applications。
-# 依赖: wails3、bun；macOS 另需 open/pkill
+# 依赖: git、wails3、bun；Windows 下 go/wails3/bun 不在 PATH 时会自动探测常见安装位置补全；
+#       macOS 另需 open/pkill
 
 import os
 import shutil
@@ -20,6 +22,11 @@ import subprocess
 import sys
 import time
 from contextlib import contextmanager
+
+# Windows 控制台默认 GBK，中文输出会乱码；强制 UTF-8 输出
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 APP_NAME = "1Pannel"
 BIN_DIR = "bin"
@@ -44,6 +51,44 @@ FULL_CLEAN_PATHS = [
 ]
 
 PACKAGE_ENV = {**os.environ, "PACKAGE_MANAGER": "bun"}
+
+# Windows 下常见安装位置（用于 PATH 缺失时自动探测补全）
+WIN_TOOL_DIRS = [
+    r"C:\Go\bin",
+    os.path.expanduser(r"~\sdk\go\bin"),       # golang.org/dl 官方 zip 解压约定位置
+    os.path.expanduser(r"~\go\bin"),           # go install 产物（wails3、task 等）
+    os.path.expanduser(r"~\.bun\bin"),
+    os.path.expanduser(r"~\scoop\apps\go\current\bin"),
+    os.path.expanduser(r"~\AppData\Local\Programs\Go\bin"),
+]
+
+# 记录哪些工具是探测补全进来的，构建结束后提示用户
+FOUND_TOOLS = {}
+
+
+def ensure_path():
+    """Windows 下把 go/wails3/bun 所在目录补进 PATH，避免'系统找不到指定的文件'"""
+    if sys.platform != "win32":
+        return
+    missing = [t for t in ("wails3", "go", "bun") if shutil.which(t) is None]
+    if not missing:
+        return
+    added = []
+    for d in WIN_TOOL_DIRS:
+        if os.path.isdir(d):
+            os.environ["PATH"] = d + os.pathsep + os.environ["PATH"]
+            added.append(d)
+    for t in missing:
+        if shutil.which(t):
+            FOUND_TOOLS[t] = shutil.which(t)
+    if missing and not all(shutil.which(t) for t in missing):
+        found = "、".join(f"{t}={FOUND_TOOLS[t]}" for t in missing if t in FOUND_TOOLS)
+        lost = "、".join(t for t in missing if t not in FOUND_TOOLS)
+        print(f"!! PATH 缺少 {lost}", file=sys.stderr)
+        if found:
+            print(f"   已自动补全 {found}", file=sys.stderr)
+        sys.exit(1)
+    print(f"==> PATH 自动补全: {', '.join(added)}")
 
 # go:embed all:bin 要求目录始终存在；只清交叉编译产物，再留占位文件
 AGENTRES_BIN = "internal/agentres/bin"
@@ -153,9 +198,11 @@ def build(full: bool = False):
 def stop_running():
     # 先停掉正在运行的 1Pannel，再编译/覆盖安装，避免占用旧二进制
     if IS_WINDOWS:
-        # 返回码非 0 = 没有运行中的实例，与 macOS pkill 分支同语义
+        # 先枚举进程再 kill，拿到 PID 便于确认；taskkill /IM 需要进程名
         proc = subprocess.run(
-            ["taskkill", "/F", "/IM", f"{APP_NAME}.exe"], capture_output=True
+            ["taskkill", "/F", "/IM", f"{APP_NAME}.exe"],
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
         )
         if proc.returncode == 0:
             print(f"==> 已停止正在运行的 {APP_NAME}")
@@ -164,13 +211,34 @@ def stop_running():
             print(f"==> 没有正在运行的 {APP_NAME}")
         return
     proc = subprocess.run(
-        ["pkill", "-f", f"{APP_NAME}.app/Contents/MacOS"], capture_output=True
+        ["pkill", "-f", f"{APP_NAME}.app/Contents/MacOS"],
+        capture_output=True,
     )
     if proc.returncode == 0:
         print(f"==> 已停止正在运行的 {APP_NAME}")
         time.sleep(1)
     else:
         print(f"==> 没有正在运行的 {APP_NAME}")
+
+
+def git_pull():
+    """拉取远程最新代码（仅 fast-forward，避免本地未提交改动被覆盖）"""
+    print("==> git pull --ff-only")
+    proc = subprocess.run(
+        ["git", "pull", "--ff-only"],
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+    )
+    # git pull 输出可能带远程进度（stderr），一并展示
+    output = (proc.stdout or "") + (proc.stderr or "")
+    print(output.rstrip())
+    if proc.returncode != 0:
+        print(
+            f"!! git pull 失败（返回码 {proc.returncode}），已中止。\n"
+            "   请手动处理本地改动或分叉后重试。",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def install():
@@ -196,13 +264,16 @@ def print_menu():
     print("======================================")
     print("  1Pannel 打包部署")
     print("======================================")
-    print("  1 - 编译打包启动（bin/ 本地运行）")
+    print("  1 - 停旧进程，拉代码，编译打包并启动")
     if not IS_WINDOWS:
         print("  2 - 全量清理后打包，覆盖安装到应用程序并启动")
     print("======================================")
 
 
 def main():
+    # Windows 下先补全 PATH（go/wails3/bun），git 不依赖 Go 生态可直接用
+    ensure_path()
+
     choice = sys.argv[1] if len(sys.argv) > 1 else ""
     if not choice:
         print_menu()
@@ -211,6 +282,8 @@ def main():
     if choice == "1":
         with stage("停止旧进程"):
             stop_running()
+        with stage("拉取最新代码"):
+            git_pull()
         build()
         with stage("启动应用"):
             if IS_WINDOWS:
