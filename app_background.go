@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"diteng-pannel/internal/macui"
@@ -29,14 +30,90 @@ var systrayColorPNG []byte
 
 const alertPollTickInterval = 5 * time.Second
 
+// quitPrompting 防止 ⌘Q 与前端快捷键同时触发时叠两个确认框。
+var quitPrompting atomic.Bool
+
 // shouldQuit 拦截 ⌘Q / 应用菜单「退出」/ Application.Quit：
-// 默认挂到后台继续监听告警；托盘「退出应用」或设置里真正退出时 allowQuit=true。
+// 默认先确认「挂后台 / 彻底退出」（可关）；托盘或设置真正退出时 allowQuit=true。
 func (a *App) shouldQuit() bool {
+	return a.decideQuitIntercept()
+}
+
+// decideQuitIntercept 统一处理「想退出」：返回 true 表示允许进程终止。
+func (a *App) decideQuitIntercept() bool {
 	if a.allowQuit.Load() {
 		return true
 	}
-	a.hideToBackground()
-	return false
+	if !loadAskBeforeQuit() {
+		a.hideToBackground()
+		return false
+	}
+	if !quitPrompting.CompareAndSwap(false, true) {
+		return false
+	}
+	defer quitPrompting.Store(false)
+
+	action, askAgain := a.showQuitConfirmDialog()
+	if askAgain != loadAskBeforeQuit() {
+		saveAskBeforeQuit(askAgain)
+		if a.app != nil {
+			a.app.Event.Emit("ask-before-quit-changed", askAgain)
+		}
+	}
+	switch action {
+	case macui.QuitConfirmQuit:
+		a.allowQuit.Store(true)
+		return true
+	case macui.QuitConfirmBackground:
+		a.hideToBackground()
+		return false
+	default:
+		return false
+	}
+}
+
+// requestQuitFromFrontend 处理前端 Ctrl/⌘+Q：走同一套确认；若选退出则真正 Quit。
+func (a *App) requestQuitFromFrontend() {
+	if a.decideQuitIntercept() {
+		a.quitForReal()
+	}
+}
+
+func (a *App) showQuitConfirmDialog() (macui.QuitConfirmAction, bool) {
+	ask := loadAskBeforeQuit()
+	shortcutLabel := "按 Ctrl+Q 退出前先询问"
+	if runtime.GOOS == "darwin" {
+		shortcutLabel = "按 ⌘Q 退出前先询问"
+	}
+	if action, askAgain, ok := macui.ShowQuitConfirm(ask, shortcutLabel); ok {
+		return action, askAgain
+	}
+	return a.showQuitConfirmWails(ask)
+}
+
+// showQuitConfirmWails 非 macOS：三按钮问题框（无抑制勾选，开关在设置页）。
+func (a *App) showQuitConfirmWails(askAgain bool) (macui.QuitConfirmAction, bool) {
+	action := macui.QuitConfirmCancel
+	if a.app == nil {
+		return action, askAgain
+	}
+	dialog := a.app.Dialog.Question().
+		SetTitle("退出 1Pannel？").
+		SetMessage("要退出 1Pannel 还是挂到后台运行？\n挂到后台后，告警与企微仍会送达。")
+	quitBtn := dialog.AddButton("退出 1Pannel").OnClick(func() {
+		action = macui.QuitConfirmQuit
+	})
+	dialog.AddButton("挂到后台运行").OnClick(func() {
+		action = macui.QuitConfirmBackground
+	})
+	cancelBtn := dialog.AddButton("取消")
+	dialog.SetDefaultButton(quitBtn)
+	dialog.SetCancelButton(cancelBtn)
+	if a.mainWindow != nil {
+		dialog.AttachToWindow(a.mainWindow)
+	}
+	dialog.Show()
+	return action, askAgain
 }
 
 // hideToBackground 隐藏主窗与看板，不销毁 WebView，前端轮询继续跑。

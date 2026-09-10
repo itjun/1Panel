@@ -90,6 +90,7 @@ func NewApp() *application.App {
 		notifier:     ns,
 	}
 	desktop.SetService(ns)
+	initAskBeforeQuit()
 
 	app := application.New(application.Options{
 		Name:        "1Pannel",
@@ -283,6 +284,9 @@ func NewApp() *application.App {
 	})
 	app.Event.On("app-hide-to-background", func(*application.CustomEvent) {
 		core.hideToBackground()
+	})
+	app.Event.On("app-request-quit", func(*application.CustomEvent) {
+		core.requestQuitFromFrontend()
 	})
 
 	// 必须显式设菜单：Wails 在 nil 时会装 DefaultApplicationMenu（含 View→Reload），

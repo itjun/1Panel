@@ -69,6 +69,19 @@ func (s *System) SetTrafficLightsHidden(hidden bool) {
 	}
 }
 
+// GetAskBeforeQuit ⌘Q / 应用菜单退出前是否先确认（挂后台或彻底退出）。
+func (s *System) GetAskBeforeQuit() bool {
+	return loadAskBeforeQuit()
+}
+
+// SetAskBeforeQuit 设置「退出前询问」；与确认框内勾选写入同一份配置。
+func (s *System) SetAskBeforeQuit(ask bool) {
+	saveAskBeforeQuit(ask)
+	if s.app != nil {
+		s.app.Event.Emit("ask-before-quit-changed", ask)
+	}
+}
+
 // SetFrostedChrome 热切换主窗与全部看板窗的磨砂材质。
 // 开启：透明底 + macOS Visual Effect；关闭：主窗 RGB(244,244,244)、看板 RGB(15,17,21)。
 func (s *System) SetFrostedChrome(enabled bool) {
