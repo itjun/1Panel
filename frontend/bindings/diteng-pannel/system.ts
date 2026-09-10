@@ -50,6 +50,13 @@ export function FocusMainWindow(): $CancellablePromise<void> {
 }
 
 /**
+ * GetAskBeforeQuit ⌘Q / 应用菜单退出前是否先确认（挂后台或彻底退出）。
+ */
+export function GetAskBeforeQuit(): $CancellablePromise<boolean> {
+    return $Call.ByID(289649498);
+}
+
+/**
  * GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）
  * 用于设置页本机信息。不依赖任何主机。
  */
@@ -93,6 +100,13 @@ export function NotifyHostConn($in: $models.HostConnNotify): $CancellablePromise
  */
 export function OpenBoardWindow(groupID: string): $CancellablePromise<void> {
     return $Call.ByID(1404223385, groupID);
+}
+
+/**
+ * SetAskBeforeQuit 设置「退出前询问」；与确认框内勾选写入同一份配置。
+ */
+export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1165354974, ask);
 }
 
 /**

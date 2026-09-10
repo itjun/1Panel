@@ -335,8 +335,20 @@
           <section class="settings-section">
             <h3 class="sec-title">退出应用</h3>
             <p class="sec-desc">
-              关闭窗口或 {{ quitKbd }} 只会挂到后台，告警与企微仍会送达。真正退出后后台监听停止。
+              关闭窗口只会挂到后台。{{ quitKbd }} 可先确认：挂到后台还是彻底退出。真正退出后后台监听停止。
             </p>
+            <div class="sec-row">
+              <div>
+                <h3 class="sec-title">{{ quitKbd }} 退出前询问</h3>
+                <p class="sec-desc sec-desc--inline">
+                  关闭后，{{ quitKbd }} 将直接挂到后台
+                </p>
+              </div>
+              <el-switch
+                :model-value="askBeforeQuit"
+                @change="(v: string | number | boolean) => onAskBeforeQuit(Boolean(v))"
+              />
+            </div>
             <el-button @click="onQuitForReal">退出应用</el-button>
           </section>
         </template>
@@ -347,7 +359,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { Check, Refresh } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Dialogs, Events } from "@wailsio/runtime";
@@ -381,6 +393,7 @@ let egressCache: monitor.EgressInfo | null = null;
 const settings = useSettingsStore();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const quitKbd = isMac ? "⌘Q" : "Ctrl+Q";
+const askBeforeQuit = ref(true);
 const exporting = ref(false);
 const backupImportRef = ref<InstanceType<typeof BackupImportDialog> | null>(
   null
@@ -571,6 +584,15 @@ async function loadEgress(force: boolean) {
   }
 }
 
+async function onAskBeforeQuit(v: boolean) {
+  askBeforeQuit.value = v;
+  try {
+    await api.setAskBeforeQuit(v);
+  } catch (e) {
+    ElMessage.error(formatErr(e));
+  }
+}
+
 async function onExportBackup() {
   const dir = await Dialogs.OpenFile({
     Title: "选择备份位置",
@@ -616,8 +638,31 @@ async function onQuitForReal() {
   void Events.Emit("app-quit-for-real");
 }
 
+let offAskBeforeQuit: (() => void) | null = null;
+
 onMounted(() => {
   void loadEgress(false);
+  void api
+    .getAskBeforeQuit()
+    .then((v) => {
+      askBeforeQuit.value = v;
+    })
+    .catch(() => {});
+  offAskBeforeQuit = Events.On(
+    "ask-before-quit-changed",
+    (ev: { data?: boolean }) => {
+      if (typeof ev?.data === "boolean") {
+        askBeforeQuit.value = ev.data;
+      }
+    }
+  );
+});
+
+onUnmounted(() => {
+  if (offAskBeforeQuit) {
+    offAskBeforeQuit();
+    offAskBeforeQuit = null;
+  }
 });
 </script>
 

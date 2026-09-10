@@ -344,6 +344,11 @@ export const api = {
   setFrostedChrome: async (enabled: boolean): Promise<void> => {
     await System.SetFrostedChrome(enabled);
   },
+  /** ⌘Q / Ctrl+Q 退出前是否先确认 */
+  getAskBeforeQuit: (): Promise<boolean> => System.GetAskBeforeQuit(),
+  setAskBeforeQuit: async (ask: boolean): Promise<void> => {
+    await System.SetAskBeforeQuit(ask);
+  },
   /** 同步原生窗口外观 light/dark/auto（暗色磨砂 → 系统黑色 vibrancy） */
   setThemeAppearance: async (mode: string): Promise<void> => {
     await System.SetThemeAppearance(mode);

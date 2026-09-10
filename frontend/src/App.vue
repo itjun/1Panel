@@ -373,7 +373,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   }
   if (e.code === "KeyQ") {
     e.preventDefault();
-    hideToBackground();
+    void Events.Emit("app-request-quit");
   }
 }
 
