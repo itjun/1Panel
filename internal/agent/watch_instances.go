@@ -112,7 +112,8 @@ func isDeployVerName(name string) bool {
 	return deployVer6RE.FindString(name) == name
 }
 
-// normalizeDeployDate 比较用：6 位 YYMMDD 补成 20YYMMDD，与 8 位对齐
+// normalizeDeployDate 比较用：6 位 YYMMDD 补成 20YYMMDD，与 8 位对齐。
+// 日为 10 时尤其关键：未对齐则 "260903" 字典序大于 "20260910"。
 func normalizeDeployDate(date string) string {
 	if len(date) == 6 {
 		return "20" + date
@@ -120,7 +121,7 @@ func normalizeDeployDate(date string) string {
 	return date
 }
 
-// compareDeployVer 部署版本先后：先比日期再比序号；a>b 返回正数
+// compareDeployVer 部署版本先后：先比对齐后的日期再比序号；a>b 返回正数
 func compareDeployVer(a, b string) int {
 	if a == b {
 		return 0

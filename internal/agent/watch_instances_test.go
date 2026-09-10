@@ -63,6 +63,28 @@ func TestCompareDeployVer(t *testing.T) {
 	if compareDeployVer("260903_1", "260828_3") <= 0 {
 		t.Fatal("old layout date")
 	}
+	// 日=10：未对齐时 "260903" 字典序大于 "20260910"，必须先补成 20YYMMDD
+	if compareDeployVer("20260910_1", "260903_2") <= 0 {
+		t.Fatal("day-10 8-digit must beat older 6-digit")
+	}
+	if compareDeployVer("260910_1", "20260910_1") != 0 {
+		t.Fatal("YYMMDD and YYYYMMDD same calendar day should tie")
+	}
+	if compareDeployVer("20260910_2", "260910_1") <= 0 {
+		t.Fatal("same day higher seq")
+	}
+}
+
+func TestLatestDeployVerInDirDay10(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"260903_2", "20260908_1", "20260910_1"} {
+		if err := os.Mkdir(filepath.Join(root, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := latestDeployVerInDir(root); got != "20260910_1" {
+		t.Fatalf("got %q want 20260910_1", got)
+	}
 }
 
 func TestScreenNameFromCmdline(t *testing.T) {
