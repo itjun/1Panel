@@ -4,10 +4,11 @@
     :class="[bare ? 'enl-bare' : 'enl-card', { 'is-enlarged': enlarged }]"
     @dblclick="onRootDblclick"
   >
-    <!-- 标题模式：卡片头（标题 + 放大按钮），双击由根元素统一处理 -->
-    <div v-if="!bare" class="enl-head">
+    <!-- 标题模式：卡片头；仅 enlargeable 时显示放大按钮 -->
+    <div v-if="!bare && !hideTitle" class="enl-head">
       <span class="enl-title">{{ title }}</span>
       <el-button
+        v-if="enlargeable"
         link
         class="enl-btn"
         :icon="enlarged ? Close : FullScreen"
@@ -22,9 +23,9 @@
     </div>
     <slot v-else />
 
-    <!-- bare 模式：右上角悬浮小角标按钮（绝对定位，不参与父级布局） -->
+    <!-- bare + enlargeable：右上角悬浮小角标（仅图表类卡片开启） -->
     <el-button
-      v-if="bare"
+      v-if="bare && enlargeable"
       link
       class="enl-corner-btn"
       :icon="enlarged ? Close : FullScreen"
@@ -39,10 +40,21 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Close, FullScreen } from "@element-plus/icons-vue";
 import { api } from "@/api";
 
-withDefaults(defineProps<{ title?: string; bare?: boolean }>(), {
-  title: "",
-  bare: false,
-});
+const props = withDefaults(
+  defineProps<{
+    title?: string;
+    bare?: boolean;
+    hideTitle?: boolean;
+    /** 仅图表类卡片开启；表格/信息卡默认不要全屏按钮 */
+    enlargeable?: boolean;
+  }>(),
+  {
+    title: "",
+    bare: false,
+    hideTitle: false,
+    enlargeable: false,
+  }
+);
 
 const emit = defineEmits<{ toggle: [enlarged: boolean] }>();
 
@@ -50,6 +62,7 @@ const rootRef = ref<HTMLElement | null>(null);
 const enlarged = ref(false);
 
 function toggle() {
+  if (!props.enlargeable) return;
   enlarged.value = !enlarged.value;
   // 最大化期间隐藏 macOS 红绿灯，退出时恢复
   api.setTrafficLightsHidden(enlarged.value).catch(() => {});
@@ -58,10 +71,13 @@ function toggle() {
   nextTick(() => window.dispatchEvent(new Event("resize")));
 }
 
-// 双击卡片顶部空白处切换最大化：
+defineExpose({ toggle, enlarged });
+
+// 双击卡片顶部空白处切换最大化（仅 enlargeable）：
 // 仅命中头部区域（标题模式的 .enl-head，或 bare 内容里带 enl-head-zone 标记的头部元素）；
 // 双击按钮/输入框等交互控件不触发（双击它们是选词、点按钮等原有操作）
 function onRootDblclick(e: MouseEvent) {
+  if (!props.enlargeable) return;
   const target = e.target as HTMLElement;
   if (
     target.closest(
@@ -79,10 +95,17 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  // 非图表卡不挂全局 keydown，避免 KeepAlive 多页累积监听拖慢终端输入
+  if (!props.enlargeable) return;
   window.addEventListener("keydown", onKeydown);
 });
 onBeforeUnmount(() => {
-  window.removeEventListener("keydown", onKeydown);
+  if (props.enlargeable) {
+    window.removeEventListener("keydown", onKeydown);
+  }
+  if (enlarged.value) {
+    api.setTrafficLightsHidden(false).catch(() => {});
+  }
 });
 </script>
 
@@ -93,7 +116,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--m3-surface-container-lowest, #fff);
+  background: var(--m3-card, var(--m3-surface-container-lowest, #fff));
   border: 1px solid var(--m3-outline-variant, #cac4d0);
   border-radius: var(--m3-shape-m, 12px);
   padding: 16px;

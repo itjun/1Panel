@@ -31,18 +31,9 @@
           <el-card
             shadow="never"
             class="home-card panel-hover-card"
-            :class="{ 'is-enlarged': enlargedKey === 'overview' }"
-            :style="enlargedKey === 'overview' ? enlargeStyle : undefined"
           >
-            <div class="card-header" @dblclick="openEnlarge('overview')">
+            <div class="card-header">
               <span class="panel-section-title">概览</span>
-              <el-button
-                link
-                class="card-icon-btn card-toggle"
-                :icon="enlargedKey === 'overview' ? Close : FullScreen"
-                :title="enlargedKey === 'overview' ? '退出放大' : '放大'"
-                @click="toggleEnlarge('overview')"
-              />
             </div>
             <el-row :gutter="0" class="stats-grid">
               <el-col :span="6" v-for="s in stats" :key="s.label">
@@ -257,10 +248,8 @@
           <el-card
             shadow="never"
             class="home-card panel-hover-card card-interval"
-            :class="{ 'is-enlarged': enlargedKey === 'disks' }"
-            :style="enlargedKey === 'disks' ? enlargeStyle : undefined"
           >
-            <div class="card-header" @dblclick="openEnlarge('disks')">
+            <div class="card-header">
               <span class="panel-section-title">磁盘</span>
               <div class="card-actions">
                 <el-button
@@ -269,13 +258,6 @@
                   :icon="Refresh"
                   title="刷新"
                   @click="loadDisks"
-                />
-                <el-button
-                  link
-                  class="card-icon-btn card-toggle"
-                  :icon="enlargedKey === 'disks' ? Close : FullScreen"
-                  :title="enlargedKey === 'disks' ? '退出放大' : '放大'"
-                  @click="toggleEnlarge('disks')"
                 />
               </div>
             </div>
@@ -306,18 +288,9 @@
           <el-card
             shadow="never"
             class="home-card panel-hover-card"
-            :class="{ 'is-enlarged': enlargedKey === 'sysinfo' }"
-            :style="enlargedKey === 'sysinfo' ? enlargeStyle : undefined"
           >
-            <div class="card-header" @dblclick="openEnlarge('sysinfo')">
+            <div class="card-header">
               <span class="panel-section-title">系统信息</span>
-              <el-button
-                link
-                class="card-icon-btn card-toggle"
-                :icon="enlargedKey === 'sysinfo' ? Close : FullScreen"
-                :title="enlargedKey === 'sysinfo' ? '退出放大' : '放大'"
-                @click="toggleEnlarge('sysinfo')"
-              />
             </div>
             <div class="kv-list">
               <div class="kv-row">
@@ -356,10 +329,8 @@
           <el-card
             shadow="never"
             class="home-card panel-hover-card card-interval"
-            :class="{ 'is-enlarged': enlargedKey === 'agent' }"
-            :style="enlargedKey === 'agent' ? enlargeStyle : undefined"
           >
-            <div class="card-header" @dblclick="openEnlarge('agent')">
+            <div class="card-header">
               <span class="panel-section-title">Agent</span>
               <div class="card-actions">
                 <el-dropdown v-if="agentInfo?.ok" trigger="click" @command="onAgentCommand">
@@ -396,13 +367,6 @@
                 >
                   离线
                 </el-tag>
-                <el-button
-                  link
-                  class="card-icon-btn card-toggle"
-                  :icon="enlargedKey === 'agent' ? Close : FullScreen"
-                  :title="enlargedKey === 'agent' ? '退出放大' : '放大'"
-                  @click="toggleEnlarge('agent')"
-                />
               </div>
             </div>
             <div class="kv-list">
@@ -435,10 +399,8 @@
           <el-card
             shadow="never"
             class="home-card panel-hover-card card-interval"
-            :class="{ 'is-enlarged': enlargedKey === 'runtimes' }"
-            :style="enlargedKey === 'runtimes' ? enlargeStyle : undefined"
           >
-            <div class="card-header" @dblclick="openEnlarge('runtimes')">
+            <div class="card-header">
               <span class="panel-section-title">运行环境</span>
               <div class="card-actions">
                 <span class="hint">{{ installedRuntimes }} / {{ runtimes.length }} 已安装</span>
@@ -448,13 +410,6 @@
                   :icon="Refresh"
                   title="刷新"
                   @click="loadRuntimes"
-                />
-                <el-button
-                  link
-                  class="card-icon-btn card-toggle"
-                  :icon="enlargedKey === 'runtimes' ? Close : FullScreen"
-                  :title="enlargedKey === 'runtimes' ? '退出放大' : '放大'"
-                  @click="toggleEnlarge('runtimes')"
                 />
               </div>
             </div>

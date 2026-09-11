@@ -65,6 +65,7 @@
         v-for="card in monitorCards"
         :key="card.title"
         bare
+        enlargeable
         :title="card.title"
         :class="['monitor-cell', card.wide ? 'monitor-cell--wide' : '']"
       >

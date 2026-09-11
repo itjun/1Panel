@@ -1,8 +1,10 @@
 <template>
   <div class="tab-root tab-table-page" v-loading="loading && !list.length">
-    <EnlargableCard title="服务">
-      <div class="view-toolbar">
-        <span class="panel-section-title">服务</span>
+    <EnlargableCard bare class="tab-enl">
+      <div class="view-toolbar enl-head-zone">
+        <div class="view-toolbar__chips">
+          <span class="toolbar-meta">{{ filtered.length }} / {{ list.length }}</span>
+        </div>
         <div class="view-toolbar__tools">
           <el-input
             v-model="filter"
@@ -11,7 +13,6 @@
             placeholder="搜索服务名/描述..."
           />
           <el-button :loading="loading" @click="refresh">刷新</el-button>
-          <span class="toolbar-meta">{{ filtered.length }} / {{ list.length }}</span>
         </div>
       </div>
 

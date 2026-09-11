@@ -27,7 +27,7 @@
     />
 
     <div v-if="snap" class="net-body">
-      <!-- IP 总览：高对比卡片，纯 IPv4，可点复制（bare 包装，右上角可最大化） -->
+      <!-- IP 总览：高对比卡片，纯 IPv4，可点复制 -->
       <EnlargableCard
         bare
         title="IP 总览"

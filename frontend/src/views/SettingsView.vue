@@ -660,7 +660,8 @@ onUnmounted(() => {
   min-width: 0;
   padding: 20px 28px 28px;
   box-sizing: border-box;
-  background: var(--m3-surface);
+  /* 与主栏灰画布统一 */
+  background: var(--m3-canvas);
 }
 
 .settings-header {
@@ -786,7 +787,7 @@ onUnmounted(() => {
 .settings-section {
   min-width: 0;
   padding: 18px 20px;
-  background: var(--m3-surface);
+  background: var(--m3-card);
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   box-sizing: border-box;
@@ -847,7 +848,7 @@ onUnmounted(() => {
 }
 
 .alert-rules-form {
-  background: var(--m3-surface);
+  background: var(--m3-card);
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   overflow: hidden;
@@ -865,7 +866,7 @@ onUnmounted(() => {
 .alert-rules-head {
   font: var(--m3-label-medium);
   color: var(--m3-on-surface-variant);
-  background: var(--m3-surface);
+  background: var(--m3-card);
   border-bottom: 1px solid var(--m3-outline-variant);
 }
 
@@ -940,7 +941,7 @@ onUnmounted(() => {
   padding: 12px;
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
-  background: var(--m3-surface-container-lowest);
+  background: var(--m3-card);
   text-align: left;
   cursor: pointer;
   transition: border-color var(--m3-motion-select),

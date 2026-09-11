@@ -1,8 +1,8 @@
 <template>
   <div class="tab-root tab-table-page" v-loading="loading && !list.length">
-    <EnlargableCard title="定时任务">
-      <div class="view-toolbar">
-        <span class="panel-section-title">定时任务</span>
+    <EnlargableCard bare class="tab-enl">
+      <div class="view-toolbar enl-head-zone">
+        <div class="view-toolbar__chips" />
         <div class="view-toolbar__tools">
           <el-button :loading="loading" @click="refresh">刷新</el-button>
         </div>

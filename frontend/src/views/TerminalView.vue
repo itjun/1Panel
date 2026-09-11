@@ -1,5 +1,5 @@
 <template>
-  <EnlargableCard bare title="终端" class="term-enl">
+  <div class="term-enl">
   <div
     class="term-page page-panel"
     data-file-drop-target
@@ -10,7 +10,7 @@
     @drop.prevent="onDropFallback"
   >
     <!-- 会话标签：与顶部 Primary Tabs 同规格（浅色条 + 蓝下划线） -->
-    <div class="term-bar enl-head-zone">
+    <div class="term-bar">
       <div class="term-tabs-scroll" role="tablist" aria-label="终端会话">
         <button
           v-for="(t, idx) in sessions"
@@ -94,7 +94,7 @@
       </button>
     </div>
   </div>
-  </EnlargableCard>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -117,7 +117,6 @@ import {
 import { Plus, UploadFilled } from "@element-plus/icons-vue";
 import { ElMessageBox, ElNotification } from "element-plus";
 import { Terminal as XTerm } from "@xterm/xterm";
-import EnlargableCard from "@/components/EnlargableCard.vue";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -781,6 +780,16 @@ function onNetworkOnline() {
 }
 
 let resizeObs: ResizeObserver | null = null;
+let fitRaf = 0;
+
+function scheduleFitActive() {
+  // 合并同帧多次尺寸抖动，避免 fit → resize PTY → 回流 的连环卡顿
+  if (fitRaf) cancelAnimationFrame(fitRaf);
+  fitRaf = requestAnimationFrame(() => {
+    fitRaf = 0;
+    fitActiveTerminal();
+  });
+}
 
 onMounted(() => {
   window.addEventListener("resize", onWinResize);
@@ -788,7 +797,7 @@ onMounted(() => {
   window.addEventListener("online", onNetworkOnline);
   if (containerRef.value) {
     resizeObs = new ResizeObserver(() => {
-      requestAnimationFrame(() => fitActiveTerminal());
+      scheduleFitActive();
     });
     resizeObs.observe(containerRef.value);
   }
@@ -826,6 +835,10 @@ onDeactivated(() => {
 });
 
 onBeforeUnmount(() => {
+  if (fitRaf) {
+    cancelAnimationFrame(fitRaf);
+    fitRaf = 0;
+  }
   resizeObs?.disconnect();
   resizeObs = null;
   window.removeEventListener("resize", onWinResize);
@@ -847,7 +860,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-/* bare 放大包装层：占满 content-pad--fill 给的剩余空间 */
+/* 占满 content-pad--fill 给的剩余空间 */
 .term-enl {
   flex: 1;
   min-height: 0;
@@ -1160,14 +1173,5 @@ onBeforeUnmount(() => {
   padding-left: 24px;
   font: var(--m3-label-medium);
   color: var(--m3-on-surface-variant);
-}
-
-/* 最大化角标：浅色会话栏上更易辨认 */
-:deep(.enl-corner-btn) {
-  top: 8px;
-  right: 10px;
-  opacity: 0.55;
-  background: var(--m3-surface-container);
-  border: 1px solid var(--m3-outline-variant);
 }
 </style>

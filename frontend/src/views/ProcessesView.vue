@@ -1,7 +1,7 @@
 <template>
   <div class="tab-root tab-table-page" v-loading="view !== 'docker' && loading && !rows.length">
-    <EnlargableCard title="进程">
-    <!-- 三级视图标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
+    <EnlargableCard bare class="tab-enl">
+    <!-- 筛选标签直接铺在主内容，不再套一层工具栏卡片 -->
     <div class="view-toolbar">
       <div class="view-toolbar__chips">
         <TagButton v-model="view" :buttons="viewButtons" />
@@ -843,7 +843,6 @@ async function copyArgs() {
   min-height: 0;
   gap: 8px;
 }
-/* 三级标签卡：照搬 1Panel LayoutContent content-container__search（--el-card-padding: 8px 12px） */
 .filter {
   width: 240px;
 }

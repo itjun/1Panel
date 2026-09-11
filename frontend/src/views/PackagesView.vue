@@ -1,7 +1,7 @@
 <template>
   <div class="tab-root tab-table-page">
-    <EnlargableCard title="软件包">
-      <div class="view-toolbar pkg-toolbar">
+    <EnlargableCard bare class="tab-enl">
+      <div class="view-toolbar pkg-toolbar enl-head-zone">
         <div class="view-toolbar__chips">
           <span v-if="stats" class="pkg-stats">
             共 {{ stats.total }} 个 · 平均依赖 {{ stats.avgDeps }} · 最多
@@ -468,7 +468,7 @@ async function copyRDeps() {
   overflow: auto;
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-s);
-  background: var(--m3-surface-container-lowest);
+  background: var(--m3-card);
 }
 .dep-list {
   margin: 0;
@@ -484,7 +484,7 @@ async function copyRDeps() {
   line-height: 1.45;
 }
 .dep-list li:nth-child(odd) {
-  background: color-mix(in srgb, var(--m3-primary) 4%, transparent);
+  background: var(--m3-table-zebra);
 }
 
 .selectable {

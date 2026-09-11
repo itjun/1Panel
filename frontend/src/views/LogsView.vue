@@ -1,8 +1,8 @@
 <template>
-  <div class="tab-root">
-    <EnlargableCard title="日志">
-    <!-- 三级日志类型标签：照搬 1Panel LayoutContent search 卡 + LogRouter tag-button -->
-    <div class="view-toolbar">
+  <div class="tab-root tab-table-page">
+    <EnlargableCard bare class="tab-enl">
+    <!-- 日志类型筛选：与进程/证书等共用 view-toolbar -->
+    <div class="view-toolbar enl-head-zone">
       <div class="view-toolbar__chips">
         <TagButton
           :model-value="currentLogType"
@@ -161,7 +161,7 @@ watch(
   overflow: hidden;
   border: 1px solid var(--m3-outline-variant, #cac4d0);
   border-radius: var(--m3-shape-m, 12px);
-  background: var(--m3-surface-container-lowest, #fff);
+  background: var(--m3-card, #fff);
   display: flex;
 }
 .log-pre {

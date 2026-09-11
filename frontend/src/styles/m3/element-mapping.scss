@@ -53,9 +53,9 @@
   --el-color-info-light-9: var(--m3-secondary-container);
 
   // ---------- 背景与填充（M3 表面梯度）----------
-  --el-bg-color: var(--m3-surface);
-  --el-bg-color-page: var(--m3-surface-container);
-  --el-bg-color-overlay: var(--m3-surface-container-lowest);
+  --el-bg-color: var(--m3-card);
+  --el-bg-color-page: var(--m3-canvas);
+  --el-bg-color-overlay: var(--m3-card);
 
   --el-fill-color: color-mix(in srgb, var(--m3-on-surface) 5%, var(--m3-surface));
   --el-fill-color-light: var(--m3-surface-container-lowest);

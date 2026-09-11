@@ -15,7 +15,7 @@ body,
   font-family: var(--app-font-family, var(--m3-font-family));
   font-size: var(--app-font-size, 14px);
   color: var(--m3-on-surface);
-  background: var(--m3-surface-container);
+  background: var(--m3-canvas);
   user-select: none;
 }
 
@@ -39,7 +39,7 @@ body,
   --el-card-border-radius: var(--m3-shape-m);
   border: none !important;
   border-radius: var(--m3-shape-m) !important;
-  background: var(--m3-surface-container-lowest) !important;
+  background: var(--m3-card) !important;
   box-sizing: border-box;
   overflow: hidden;
   outline: none !important;
@@ -231,7 +231,7 @@ body,
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--m3-surface-container);
+  background: var(--m3-canvas);
 }
 
 .app-chrome {
@@ -242,7 +242,7 @@ body,
   grid-template-rows: 40px 1fr;
   grid-template-columns: auto 1fr;
   overflow: hidden;
-  background: var(--m3-surface-container-low);
+  background: var(--m3-shell);
   border-radius: 0;
   /* 内容区内缩露出 chrome */
   --chrome-inset: 5px;
@@ -294,7 +294,7 @@ body,
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--m3-surface-container);
+  background: var(--m3-canvas);
   opacity: 1;
   margin: 0 var(--chrome-inset) var(--chrome-inset) 0;
   border-radius: var(--chrome-content-radius);
@@ -377,7 +377,7 @@ html.dark .main-column,
 
 // 二级页统一白底面板（应用监视、证书等整页内容区）
 .page-panel {
-  background: var(--m3-surface-container-lowest);
+  background: var(--m3-card);
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   padding: 20px;
@@ -430,20 +430,30 @@ html.dark .main-column,
   height: 100%;
   min-height: 0;
 
-  // 工具栏 + 表格外壳合成一张卡，避免中间双线/灰影
+  // 工具栏直接铺在灰画布上，表格单独一张白卡（全站统一，禁止页内再叠外壳）
   .view-toolbar {
-    border: 1px solid var(--m3-outline-variant);
-    border-bottom: 1px solid var(--m3-outline-variant);
-    border-radius: var(--m3-shape-m) var(--m3-shape-m) 0 0;
-    background: var(--m3-surface-container-lowest);
+    border: none;
+    border-radius: 0;
+    background: transparent;
     margin-bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .view-toolbar + .table-wrap.m3-table-surface,
   .view-toolbar + .m3-table-surface {
-    border-top: none;
-    border-radius: 0 0 var(--m3-shape-m) var(--m3-shape-m);
+    border-top: 1px solid var(--m3-outline-variant);
+    border-radius: var(--m3-shape-m);
   }
+}
+
+/* bare EnlargableCard：表格页占满主内容，最大化用角标 */
+.tab-enl {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .table-wrap {
@@ -460,7 +470,7 @@ html.dark .main-column,
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   overflow: hidden;
-  background: var(--m3-surface-container-lowest);
+  background: var(--m3-card);
 
   > .el-table,
   > .el-table-v2 {
@@ -478,11 +488,11 @@ html.dark .main-column,
 // el-table-v2 统一 M3 表头 / 行 / 斑马纹 / hover
 .m3-table-v2 {
   .el-table-v2__header-row {
-    background: var(--m3-surface-container);
+    background: var(--m3-table-header);
   }
 
   .el-table-v2__header-cell {
-    background: var(--m3-surface-container) !important;
+    background: var(--m3-table-header) !important;
     font: var(--m3-title-small);
     font-weight: 600;
     color: var(--m3-on-surface);
@@ -507,11 +517,11 @@ html.dark .main-column,
   }
 
   .el-table-v2__row.zebra-row {
-    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
+    background: var(--m3-table-zebra);
   }
 
   .el-table-v2__row:hover {
-    background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-surface-container-lowest));
+    background: var(--m3-table-hover);
   }
 }
 
@@ -533,8 +543,9 @@ html.dark .main-column,
   border-radius: 0;
   overflow: hidden;
   --el-table-border-color: var(--m3-outline-variant);
-  --el-table-header-bg-color: var(--m3-surface-container);
-  --el-table-row-hover-bg-color: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-surface-container-lowest));
+  --el-table-header-bg-color: var(--m3-table-header);
+  --el-table-row-hover-bg-color: var(--m3-table-hover);
+  --el-table-tr-bg-color: var(--m3-table-row);
 
   table {
     table-layout: fixed;
@@ -567,7 +578,7 @@ html.dark .main-column,
     font: var(--m3-title-small);
     font-weight: 600;
     color: var(--m3-on-surface);
-    background: var(--m3-surface-container) !important;
+    background: var(--m3-table-header) !important;
   }
 
   .el-table__header .cell {
@@ -590,7 +601,12 @@ html.dark .main-column,
   }
 
   &.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
+    background: var(--m3-table-zebra);
+  }
+
+  /* 悬停必须压过斑马纹（斑马纹写在 td 上，会盖住 EP 变量） */
+  &.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+    background: var(--m3-table-hover) !important;
   }
 }
 
@@ -633,17 +649,22 @@ html.dark .main-column,
 
   .el-table {
     --el-table-border-color: var(--m3-outline-variant);
-    --el-table-header-bg-color: var(--m3-surface-container);
-    --el-table-row-hover-bg-color: color-mix(in srgb, var(--m3-primary) 6%, var(--m3-surface-container-lowest));
+    --el-table-header-bg-color: var(--m3-table-header);
+    --el-table-row-hover-bg-color: var(--m3-table-hover);
+    --el-table-tr-bg-color: var(--m3-table-row);
 
     .el-table__header th {
       font-weight: 600;
       color: var(--m3-on-surface);
-      background: var(--m3-surface-container) !important;
+      background: var(--m3-table-header) !important;
     }
   }
 
   .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-    background: color-mix(in srgb, var(--m3-primary) 4%, var(--m3-surface-container-lowest));
+    background: var(--m3-table-zebra);
+  }
+
+  .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+    background: var(--m3-table-hover) !important;
   }
 }

@@ -1,7 +1,7 @@
 <template>
   <div class="tab-root notify-page">
-    <EnlargableCard title="通知">
-      <div class="notify-body-layout">
+    <EnlargableCard bare class="tab-enl">
+      <div class="notify-body-layout enl-head-zone">
         <nav class="notify-nav" aria-label="通知分组">
           <button
             v-for="g in NAV_GROUPS"
@@ -292,11 +292,15 @@ watch(
 <style scoped lang="scss">
 .notify-page {
   min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 .notify-body-layout {
+  flex: 1;
+  min-height: 0;
   display: flex;
   gap: 0;
-  min-height: 0;
   min-width: 0;
 }
 .notify-nav {
@@ -361,7 +365,7 @@ watch(
   color: var(--m3-on-surface);
 }
 .alert-rules-form {
-  background: var(--m3-surface);
+  background: var(--m3-card);
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   overflow: hidden;
@@ -377,7 +381,7 @@ watch(
 .alert-rules-head {
   font: var(--m3-label-medium);
   color: var(--m3-on-surface-variant);
-  background: var(--m3-surface);
+  background: var(--m3-card);
   border-bottom: 1px solid var(--m3-outline-variant);
 }
 .alert-rules-row + .alert-rules-row {
@@ -424,7 +428,7 @@ watch(
   border: 1px solid var(--m3-outline-variant);
   border-radius: var(--m3-shape-m);
   overflow: hidden;
-  background: var(--m3-surface);
+  background: var(--m3-card);
 }
 .sub-row {
   display: flex;

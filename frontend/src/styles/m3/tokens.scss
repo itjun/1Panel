@@ -34,10 +34,21 @@
   --m3-surface-dim: #e4e7ed;
   --m3-surface-bright: #ffffff;
   --m3-surface-container-lowest: #ffffff;
-  --m3-surface-container-low: #eef4fd;
+  /* 主体外壳：M3 primary 浅染蓝（比中性灰更能读出品牌蓝） */
+  --m3-surface-container-low: #e8f0fc;
   --m3-surface-container: #f4f4f4;
   --m3-surface-container-high: #eef2f6;
   --m3-surface-container-highest: #e4e7ed;
+
+  // ---------- 布局语义色（全站统一，页面禁止另造底色）----------
+  --m3-shell: var(--m3-surface-container-low); /* 外壳浅蓝 */
+  --m3-canvas: var(--m3-surface-container); /* 内容区灰画布 */
+  --m3-card: var(--m3-surface-container-lowest); /* 卡片/表格白底 */
+  --m3-table-row: var(--m3-card); /* 表格偶数行（白） */
+  --m3-table-zebra: var(--m3-primary-container); /* 表格奇数行（浅蓝） */
+  --m3-table-header: var(--m3-card); /* 表头白底 */
+  /* 悬停要比斑马纹更深一档，才能一眼看出当前行 */
+  --m3-table-hover: color-mix(in srgb, var(--m3-primary) 22%, var(--m3-card));
 
   // 侧栏选中胶囊
   --m3-sidebar-active-bg: var(--m3-secondary-container);
@@ -200,6 +211,14 @@ html.dark {
   --m3-surface-container: #1e2433;
   --m3-surface-container-high: #252d3d;
   --m3-surface-container-highest: #2f3848;
+
+  --m3-shell: var(--m3-surface-container-low);
+  --m3-canvas: var(--m3-surface-container);
+  --m3-card: var(--m3-surface-container-lowest);
+  --m3-table-row: var(--m3-card);
+  --m3-table-zebra: color-mix(in srgb, var(--m3-primary) 18%, var(--m3-card));
+  --m3-table-header: var(--m3-card);
+  --m3-table-hover: color-mix(in srgb, var(--m3-primary) 32%, var(--m3-card));
 
   // 侧栏选中胶囊
   --m3-sidebar-active-bg: var(--m3-secondary-container);

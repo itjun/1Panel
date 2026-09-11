@@ -16,7 +16,7 @@ html.dark {
     .el-table {
         --el-table-bg-color: var(--m3-surface-container-low);
         --el-table-tr-bg-color: var(--m3-surface-container-low);
-        --el-table-header-bg-color: var(--m3-surface-container);
+        --el-table-header-bg-color: var(--m3-table-header);
         --el-table-row-hover-bg-color: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
         --el-table-border: 1px solid var(--m3-outline-variant);
         --el-table-border-color: var(--m3-outline-variant);

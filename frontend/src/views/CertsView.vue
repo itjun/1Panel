@@ -1,7 +1,7 @@
 <template>
   <div class="tab-root tab-table-page" v-loading="loading && !loaded">
-    <EnlargableCard title="证书">
-    <div class="view-toolbar">
+    <EnlargableCard bare class="tab-enl">
+    <div class="view-toolbar enl-head-zone">
       <div class="view-toolbar__chips">
         <span class="toolbar-meta">/etc/nginx/cert · {{ groups.length }} 张</span>
       </div>
