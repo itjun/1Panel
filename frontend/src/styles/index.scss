@@ -3,7 +3,6 @@
 @use "./m3/tokens.scss";
 @use "./element.scss";
 @use "./element-dark.scss";
-@use "./liquid-glass.scss";
 
 html,
 body,
@@ -18,12 +17,6 @@ body,
   color: var(--m3-on-surface);
   background: var(--m3-surface-container);
   user-select: none;
-}
-
-html.frosted,
-html.frosted body,
-html.frosted #app {
-  background: transparent;
 }
 
 // Wails 拖拽
@@ -118,7 +111,7 @@ html.frosted #app {
   }
 }
 
-// 侧栏：M3 Navigation drawer 规格；默认实色 low，磨砂时透明吃父级玻璃
+// 侧栏：M3 Navigation drawer 规格
 // 激活项 secondary-container 胶囊（56dp 高 / 28dp 圆角）
 .panel-sidebar {
   width: var(--panel-menu-width, 280px);
@@ -126,8 +119,6 @@ html.frosted #app {
   max-width: 360px;
   height: 100%;
   background: var(--m3-surface-container-low);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   color: var(--m3-on-surface);
   display: flex;
   flex-direction: column;
@@ -169,7 +160,7 @@ html.frosted #app {
         }
       }
 
-      /* 选中：默认白底蓝字；磨砂下由 tokens 覆盖 --m3-sidebar-active-* */
+      /* 选中：secondary-container 胶囊 */
       &.is-active {
         background-color: var(--m3-sidebar-active-bg) !important;
         color: var(--m3-sidebar-active-fg);
@@ -236,24 +227,11 @@ html.frosted #app {
   }
 }
 
-/* 磨砂：选中胶囊半透明 + 轻描边，去掉实心投影 */
-html.frosted .panel-sidebar {
-  .el-menu-item.is-active {
-    box-shadow: inset 0 0 0 1px var(--m3-sidebar-active-stroke) !important;
-    backdrop-filter: blur(12px) saturate(140%);
-    -webkit-backdrop-filter: blur(12px) saturate(140%);
-  }
-}
-
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--m3-surface-container);
-}
-
-html.frosted .app-shell {
-  background: transparent;
 }
 
 .app-chrome {
@@ -266,23 +244,10 @@ html.frosted .app-shell {
   overflow: hidden;
   background: var(--m3-surface-container-low);
   border-radius: 0;
-  /* 内容区内缩露出 chrome 边框（右 / 底）；顶栏仍贴顶；与磨砂开关无关 */
-  --chrome-inset: 10px;
-  --chrome-content-radius: var(--m3-shape-l-inc); // 20px，四角一致
-}
-
-/* 磨砂：外壳半透明读系统磨砂；内容区必须实色，不能透壁纸 */
-html.frosted .app-chrome {
-  background: var(--lg-fill);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: inset 0 0 0 1px var(--lg-stroke);
-}
-
-html.frosted .main-column,
-html.frosted .main-container {
-  background: var(--m3-surface-container) !important;
-  opacity: 1 !important;
+  /* 内容区内缩露出 chrome */
+  --chrome-inset: 5px;
+  --chrome-content-radius: var(--m3-shape-l-inc); // 20px
+  --sidebar-float-inset: 10px;
 }
 
 .app-chrome > .titlebar-left,
@@ -308,11 +273,8 @@ html.frosted .main-container {
   grid-column: 1;
   min-height: 0;
   height: auto;
-  /* 父级已是 low / 玻璃，不再叠第二层 */
   background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  /* 底缩，底边 chrome 通栏从侧栏下穿过 */
+  color: var(--m3-on-surface);
   margin-bottom: var(--chrome-inset);
 }
 
@@ -323,7 +285,6 @@ html.frosted .main-container {
 
 .app-chrome.sidebar-collapsed > .main-column {
   grid-column: 1 / -1;
-  /* 无侧栏时左侧也要露出 chrome 边，与右/底等宽 */
   margin-left: var(--chrome-inset);
 }
 
@@ -333,13 +294,10 @@ html.frosted .main-container {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  /* 实色盖住壁纸，避免卡片间隙透底 */
   background: var(--m3-surface-container);
   opacity: 1;
-  /* 右+底内缩，露出 app-chrome 边框；有侧栏时左缘贴侧栏；四角圆角一致 */
   margin: 0 var(--chrome-inset) var(--chrome-inset) 0;
   border-radius: var(--chrome-content-radius);
-  /* 轻微浮在透明面板上：细描边 + 浅阴影（模糊落在 inset 内，不被 chrome 裁切） */
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.05),
     0 1px 2px rgba(0, 0, 0, 0.04),

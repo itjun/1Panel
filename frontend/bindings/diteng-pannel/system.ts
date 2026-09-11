@@ -3,7 +3,7 @@
 
 /**
  * System 系统服务：内置脚本上传 / 窗口控制等
- * SetTrafficLightsHidden / SetFrostedChrome 见 system.go
+ * SetTrafficLightsHidden 见 system.go
  * @module
  */
 
@@ -110,16 +110,7 @@ export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
 }
 
 /**
- * SetFrostedChrome 热切换主窗与全部看板窗的磨砂材质。
- * 开启：透明底 + macOS Visual Effect；关闭：主窗 RGB(244,244,244)、看板 RGB(15,17,21)。
- */
-export function SetFrostedChrome(enabled: boolean): $CancellablePromise<void> {
-    return $Call.ByID(4058646694, enabled);
-}
-
-/**
  * SetThemeAppearance 同步窗口原生外观（亮/暗/跟随系统）。
- * 暗色 + 磨砂时强制 DarkAqua，使 NSVisualEffect 呈现系统黑色磨砂。
  * mode: "light" | "dark" | "auto"（其它值按 auto）。
  */
 export function SetThemeAppearance(mode: string): $CancellablePromise<void> {

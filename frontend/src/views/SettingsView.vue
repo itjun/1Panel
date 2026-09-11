@@ -93,21 +93,6 @@
               </button>
             </div>
           </section>
-          <section class="settings-section">
-            <div class="sec-row">
-              <div>
-                <h3 class="sec-title">开启磨砂质感</h3>
-                <p class="sec-desc sec-desc--inline">
-                  开启后外壳改为磨砂半透明；关闭则为浅蓝实色边框。macOS
-                  为窗口磨砂，Windows 11（22H2+）为云母效果；默认关闭。
-                </p>
-              </div>
-              <el-switch
-                :model-value="settings.frostedChrome"
-                @change="(v: string | number | boolean) => settings.setFrostedChrome(Boolean(v))"
-              />
-            </div>
-          </section>
         </template>
 
         <!-- 界面 -->

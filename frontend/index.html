@@ -18,12 +18,6 @@
       html.dark #app {
         background: #141218;
       }
-      /* 磨砂：骨架阶段即透明，配合原生磨砂底（与 index.scss 同规则） */
-      html.frosted,
-      html.frosted body,
-      html.frosted #app {
-        background: transparent;
-      }
       .boot-skel {
         display: grid;
         height: 100%;
@@ -140,21 +134,6 @@
           document.documentElement.className = darkBoot ? "dark" : "light";
           document.documentElement.style.colorScheme = darkBoot ? "dark" : "light";
         }
-        try {
-          // 磨砂默认值按平台：macOS 开，其余关（与 settings store 的
-          // DEFAULTS.frostedChrome 对齐），骨架屏阶段即生效，避免 Vue 挂载后二次切换闪烁
-          var frosted = /Mac|iPhone|iPad/.test(navigator.platform);
-          var s = localStorage.getItem("ipannel.settings.v1");
-          if (s) {
-            var sp = JSON.parse(s);
-            if (sp && typeof sp.frostedChrome === "boolean") {
-              frosted = sp.frostedChrome;
-            }
-          }
-          if (frosted) {
-            document.documentElement.classList.add("frosted");
-          }
-        } catch (e) {}
         try {
           var n = Number(localStorage.getItem("ipannel.sidebarWidth"));
           if (n >= 180 && n <= 320) {

@@ -38,6 +38,11 @@
   --m3-surface-container: #f4f4f4;
   --m3-surface-container-high: #eef2f6;
   --m3-surface-container-highest: #e4e7ed;
+
+  // 侧栏选中胶囊
+  --m3-sidebar-active-bg: var(--m3-secondary-container);
+  --m3-sidebar-active-fg: var(--m3-on-secondary-container);
+  --m3-sidebar-active-stroke: transparent;
   --m3-on-surface-variant: #646a73;
   --m3-inverse-surface: #1f2329;
   --m3-inverse-on-surface: #f4f4f4;
@@ -195,6 +200,12 @@ html.dark {
   --m3-surface-container: #1e2433;
   --m3-surface-container-high: #252d3d;
   --m3-surface-container-highest: #2f3848;
+
+  // 侧栏选中胶囊
+  --m3-sidebar-active-bg: var(--m3-secondary-container);
+  --m3-sidebar-active-fg: var(--m3-on-secondary-container);
+  --m3-sidebar-active-stroke: transparent;
+
   --m3-on-surface-variant: #b0b8c4;
   --m3-inverse-surface: #e4e7ed;
   --m3-inverse-on-surface: #1f2329;

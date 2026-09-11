@@ -8,7 +8,7 @@ import (
 )
 
 // System 系统服务：内置脚本上传 / 窗口控制等
-// SetTrafficLightsHidden / SetFrostedChrome 见 system.go
+// SetTrafficLightsHidden 见 system.go
 type System App
 
 // bootstrapZshScript 是内置的 zsh 环境初始化脚本,编译期嵌入二进制。

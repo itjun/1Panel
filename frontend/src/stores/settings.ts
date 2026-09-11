@@ -14,7 +14,7 @@ import {
 
 export type ThemeKey = "light" | "dark" | "auto";
 
-/** 磨砂窗口材质仅 macOS 支持；Windows 等平台无系统磨砂，默认关闭 */
+/** 平台探测：终端默认字号等 */
 const isMacPlatform = /Mac|iPhone|iPad/.test(navigator.platform);
 const isWinPlatform = /Win/i.test(navigator.platform);
 
@@ -41,8 +41,6 @@ export const ALL_WECOM_ALERT_KINDS: WecomAlertKind[] = [...ALL_ALERT_KINDS];
 
 export interface AppSettings {
   theme: ThemeKey;
-  /** 侧栏/通栏磨砂半透明；默认：macOS 开，其余平台关 */
-  frostedChrome: boolean;
   fontFamily: string;
   fontSize: number; // UI 字号 px 12~18
   terminalFontSize: number; // 终端字号 px 11~20
@@ -187,9 +185,6 @@ export function expandWecomWebhook(raw: string): string {
 
 const STORAGE_KEY = "ipannel.settings.v1";
 
-/** 磨砂默认值迁移标记：见 load() 中的一次性迁移 */
-const FROSTED_MIGRATION_KEY = "ipannel.frostedDefaultByPlatform.migrated";
-
 /** 终端默认字号按平台：只纠正仍停在旧默认（13/15）的用户 */
 const TERM_FONT_MIGRATION_KEY = "ipannel.terminalFontSize.byPlatform.migrated";
 
@@ -199,7 +194,6 @@ const TERM_FAMILY_WIN_MIGRATION_KEY =
 
 const DEFAULTS: AppSettings = {
   theme: "auto",
-  frostedChrome: isMacPlatform,
   fontFamily: FONT_OPTIONS[0].value,
   fontSize: 14,
   terminalFontSize: defaultTerminalFontSize(),
@@ -279,13 +273,6 @@ function load(): AppSettings {
       return { ...DEFAULTS };
     }
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    // 一次性迁移：磨砂默认值曾全平台为 true，改为仅 macOS 后，把存量
-    // 非 mac 用户被旧默认顺带持久化的 true 纠正为 false；标记落地后
-    // 不再干预，此后设置页的显式选择照常生效。
-    if (!isMacPlatform && !localStorage.getItem(FROSTED_MIGRATION_KEY)) {
-      localStorage.setItem(FROSTED_MIGRATION_KEY, "1");
-      if (parsed.frostedChrome === true) parsed.frostedChrome = false;
-    }
     if (!localStorage.getItem(TERM_FONT_MIGRATION_KEY)) {
       localStorage.setItem(TERM_FONT_MIGRATION_KEY, "1");
       const n = Number(parsed.terminalFontSize);
@@ -303,10 +290,6 @@ function load(): AppSettings {
     }
     return {
       theme: (parsed.theme as ThemeKey) || DEFAULTS.theme,
-      frostedChrome:
-        typeof parsed.frostedChrome === "boolean"
-          ? parsed.frostedChrome
-          : DEFAULTS.frostedChrome,
       fontFamily: parsed.fontFamily || DEFAULTS.fontFamily,
       fontSize: clamp(Number(parsed.fontSize) || DEFAULTS.fontSize, 11, 20),
       terminalFontSize: clamp(
@@ -350,7 +333,6 @@ function clamp(n: number, min: number, max: number) {
 export const useSettingsStore = defineStore("settings", () => {
   const initial = load();
   const theme = ref<ThemeKey>(initial.theme);
-  const frostedChrome = ref(initial.frostedChrome);
   const fontFamily = ref(initial.fontFamily);
   const fontSize = ref(initial.fontSize);
   const terminalFontSize = ref(initial.terminalFontSize);
@@ -376,7 +358,6 @@ export const useSettingsStore = defineStore("settings", () => {
   function persist() {
     const data: AppSettings = {
       theme: theme.value,
-      frostedChrome: frostedChrome.value,
       fontFamily: fontFamily.value,
       fontSize: fontSize.value,
       terminalFontSize: terminalFontSize.value,
@@ -445,27 +426,12 @@ export const useSettingsStore = defineStore("settings", () => {
       actual = t;
     }
     const root = document.documentElement;
-    // className 赋值后由 applyFrosted 统一管理 frosted class；
-    // setTheme 单独调用时也补一次，避免主题切换把 frosted 清掉
     root.className = actual;
-    applyFrostedClass();
     root.setAttribute("data-theme", actual);
     root.style.colorScheme = actual;
-    // 同步原生窗口 Aqua/DarkAqua：暗色磨砂才走系统黑色 vibrancy
+    // 同步原生窗口 Aqua/DarkAqua
     void api.setThemeAppearance(t).catch((err) => {
       console.warn("setThemeAppearance failed", err);
-    });
-  }
-
-  /** 仅切 html.frosted class（不动窗口材质）；applyTheme 重建 className 后须重放 */
-  function applyFrostedClass() {
-    document.documentElement.classList.toggle("frosted", frostedChrome.value);
-  }
-
-  function applyFrosted() {
-    applyFrostedClass();
-    void api.setFrostedChrome(frostedChrome.value).catch((err) => {
-      console.warn("setFrostedChrome failed", err);
     });
   }
 
@@ -489,19 +455,12 @@ export const useSettingsStore = defineStore("settings", () => {
 
   function applyAll() {
     applyTheme(theme.value);
-    applyFrosted();
     applyTypography();
   }
 
   function setTheme(t: ThemeKey) {
     theme.value = t;
     applyTheme(t);
-    persist();
-  }
-
-  function setFrostedChrome(v: boolean) {
-    frostedChrome.value = v;
-    applyFrosted();
     persist();
   }
 
@@ -715,7 +674,6 @@ export const useSettingsStore = defineStore("settings", () => {
   /** 仅重置外观/界面/终端/会话；通知相关配置保留 */
   function resetSettings() {
     theme.value = DEFAULTS.theme;
-    frostedChrome.value = DEFAULTS.frostedChrome;
     fontFamily.value = DEFAULTS.fontFamily;
     fontSize.value = DEFAULTS.fontSize;
     terminalFontSize.value = DEFAULTS.terminalFontSize;
@@ -743,7 +701,6 @@ export const useSettingsStore = defineStore("settings", () => {
         const dark = Boolean(ev?.data?.dark);
         const root = document.documentElement;
         root.className = dark ? "dark" : "light";
-        applyFrostedClass();
         root.setAttribute("data-theme", dark ? "dark" : "light");
         root.style.colorScheme = dark ? "dark" : "light";
       }
@@ -754,7 +711,6 @@ export const useSettingsStore = defineStore("settings", () => {
 
   return {
     theme,
-    frostedChrome,
     fontFamily,
     fontSize,
     terminalFontSize,
@@ -770,7 +726,6 @@ export const useSettingsStore = defineStore("settings", () => {
     lastNavGroup,
     setLastNavGroup,
     setTheme,
-    setFrostedChrome,
     cycleTheme,
     setFontFamily,
     setFontSize,

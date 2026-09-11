@@ -26,7 +26,6 @@ import (
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
-	"diteng-pannel/internal/winui"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -60,7 +59,6 @@ type App struct {
 	boardMu      sync.Mutex
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
 
-	frostedChrome   bool                 // 磨砂壳：默认关（零值 false）
 	themeAppearance macui.AppearanceMode // light / dark / auto；零值按 auto
 
 	showMu     sync.Mutex
@@ -155,7 +153,7 @@ func NewApp() *application.App {
 		},
 		URL: "/",
 	}
-	// 默认实色壳（磨砂关）；运行时由 SetFrostedChrome 热切换 Translucent。
+	// 默认实色壳。
 	// Windows/Linux：无系统标题栏/菜单，窗口按钮画在应用内标题栏。
 	// macOS 继续隐藏系统标题栏、保留左上红绿灯（不走 Frameless，否则红绿灯会被藏掉）。
 	if goruntime.GOOS != "darwin" {
@@ -168,20 +166,6 @@ func NewApp() *application.App {
 	core.interceptMainWindowClose(win)
 	core.installBackgroundTray(app)
 
-	// 首帧即磨砂：启动早期（前端 JS 未跑）按镜像文件预置材质，避免实色→磨砂闪烁。
-	// 运行后以 SetFrostedChrome 的前端权威值为准。Windows 映射为云母（Win11 22H2+）。
-	if core.frostedChrome = loadFrostedState(); core.frostedChrome {
-		macui.SetWindowFrosted(win, true)
-		switch goruntime.GOOS {
-		case "darwin":
-			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
-		case "windows":
-			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
-			if !winui.SetWindowMica(win, true) {
-				win.SetBackgroundColour(mainWindowSolidColour)
-			}
-		}
-	}
 	if core.themeAppearance == "" {
 		core.themeAppearance = macui.AppearanceAuto
 	}
@@ -196,9 +180,6 @@ func NewApp() *application.App {
 		core.maybeShowMainWindow()
 		macui.StartSystemAppearanceObserver(func(dark bool) {
 			app.Event.Emit("system-appearance-changed", map[string]any{"dark": dark})
-			if core.frostedChrome {
-				(*System)(core).refreshFrostedMaterials()
-			}
 		})
 		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
 		go func() {

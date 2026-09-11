@@ -705,7 +705,7 @@ onBeforeUnmount(() => {
   border-radius: 9px;
 }
 
-/* 「全部主机」汇总计数：secondary 色系胶囊（磨砂下跟选中半透明） */
+/* 「全部主机」汇总计数：secondary 色系胶囊 */
 .home-count {
   color: var(--m3-sidebar-active-fg);
   background: var(--m3-sidebar-active-bg);
@@ -750,7 +750,7 @@ onBeforeUnmount(() => {
   border-radius: var(--m3-shape-xl);
 }
 
-/* 分组被打开为当前页：与主机项一致的选中胶囊（磨砂下半透明） */
+/* 分组被打开为当前页：与主机项一致的选中胶囊 */
 :deep(.el-sub-menu.is-group-active > .el-sub-menu__title) {
   background-color: var(--m3-sidebar-active-bg) !important;
   box-shadow: inset 0 0 0 1px var(--m3-sidebar-active-stroke);

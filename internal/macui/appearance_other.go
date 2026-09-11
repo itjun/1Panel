@@ -16,9 +16,6 @@ const (
 // SetWindowAppearance 非 macOS 无操作。
 func SetWindowAppearance(win *application.WebviewWindow, mode AppearanceMode) {}
 
-// RefreshWindowFrosted 非 macOS 无操作。
-func RefreshWindowFrosted(win *application.WebviewWindow) {}
-
 // StartSystemAppearanceObserver 非 macOS 无操作。
 func StartSystemAppearanceObserver(cb func(dark bool)) {}
 

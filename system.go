@@ -27,9 +27,8 @@ const (
 	boardWindowMinH = 720
 )
 
-// 磨砂关闭时的实色窗底：主窗浅灰、看板深色（与前端 --lg-fill 降级实色一致）
+// 实色窗底：看板深色
 var (
-	mainWindowSolidColour  = application.NewRGB(244, 244, 244)
 	boardWindowSolidColour = application.NewRGB(15, 17, 21)
 )
 
@@ -82,27 +81,7 @@ func (s *System) SetAskBeforeQuit(ask bool) {
 	}
 }
 
-// SetFrostedChrome 热切换主窗与全部看板窗的磨砂材质。
-// 开启：透明底 + macOS Visual Effect；关闭：主窗 RGB(244,244,244)、看板 RGB(15,17,21)。
-func (s *System) SetFrostedChrome(enabled bool) {
-	s.frostedChrome = enabled
-	saveFrostedState(enabled) // 写镜像，下次启动首帧即磨砂/实色
-
-	s.setFrostedOnWindow(s.mainWindow, mainWindowSolidColour)
-
-	s.boardMu.Lock()
-	boards := make([]*application.WebviewWindow, 0, len(s.boardWindows))
-	for _, w := range s.boardWindows {
-		boards = append(boards, w)
-	}
-	s.boardMu.Unlock()
-	for _, w := range boards {
-		s.setFrostedOnWindow(w, boardWindowSolidColour)
-	}
-}
-
 // SetThemeAppearance 同步窗口原生外观（亮/暗/跟随系统）。
-// 暗色 + 磨砂时强制 DarkAqua，使 NSVisualEffect 呈现系统黑色磨砂。
 // mode: "light" | "dark" | "auto"（其它值按 auto）。
 func (s *System) SetThemeAppearance(mode string) {
 	m := macui.AppearanceAuto
@@ -138,54 +117,6 @@ func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
 		mode = macui.AppearanceAuto
 	}
 	macui.SetWindowAppearance(win, mode)
-	if s.frostedChrome {
-		macui.RefreshWindowFrosted(win)
-	}
-}
-
-func (s *System) refreshFrostedMaterials() {
-	if s.mainWindow != nil {
-		macui.RefreshWindowFrosted(s.mainWindow)
-	}
-	s.boardMu.Lock()
-	boards := make([]*application.WebviewWindow, 0, len(s.boardWindows))
-	for _, w := range s.boardWindows {
-		boards = append(boards, w)
-	}
-	s.boardMu.Unlock()
-	for _, w := range boards {
-		macui.RefreshWindowFrosted(w)
-	}
-}
-
-// setFrostedOnWindow 对单个窗口应用/撤销磨砂。
-// macOS：透明底 + Visual Effect；Windows：透明 WebView2 + 云母（Mica，
-// 仅 Win11 22H2+，不支持时回落实色）；其余平台无系统磨砂，不能把窗口
-// 设成透明底（无兜底材质时会渲染成黑底/怪底），仅保持实色。
-func (s *System) setFrostedOnWindow(win *application.WebviewWindow, solid application.RGBA) {
-	if win == nil {
-		return
-	}
-	macui.SetWindowFrosted(win, s.frostedChrome)
-	if s.frostedChrome {
-		switch runtime.GOOS {
-		case "darwin":
-			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
-		case "windows":
-			// 先令 WebView2 透明（此调用顺带把类刷设为黑色，下一步由云母清掉）
-			win.SetBackgroundColour(application.NewRGBA(0, 0, 0, 0))
-			if !winui.SetWindowMica(win, true) {
-				win.SetBackgroundColour(solid)
-			}
-		default:
-			win.SetBackgroundColour(solid)
-		}
-	} else {
-		if runtime.GOOS == "windows" {
-			winui.SetWindowMica(win, false)
-		}
-		win.SetBackgroundColour(solid)
-	}
 }
 
 // OpenBoardWindow 打开或聚焦该分组的看板窗（普通尺寸，不立刻全屏、不调进程级 kiosk）。
@@ -269,8 +200,7 @@ func (s *System) OpenBoardWindow(groupID string) error {
 	win = s.app.Window.NewWithOptions(opts)
 	s.boardWindows[groupID] = win
 
-	// 按当前磨砂状态补材质（关则为实色，行为一致），并同步主题外观
-	s.setFrostedOnWindow(win, boardWindowSolidColour)
+	win.SetBackgroundColour(boardWindowSolidColour)
 	s.applyAppearanceOnWindow(win)
 
 	gid := groupID

@@ -137,7 +137,6 @@ var (
 )
 
 // SetWindowAppearance 设置窗口 NSAppearance：auto 跟随系统，light/dark 强制。
-// 强制暗色时磨砂才会走系统黑色 vibrancy（即使系统当前是浅色）。
 func SetWindowAppearance(win *application.WebviewWindow, mode AppearanceMode) {
 	if win == nil {
 		return
