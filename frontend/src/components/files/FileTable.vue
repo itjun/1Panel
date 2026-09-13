@@ -15,6 +15,7 @@
       @sort-change="onSortChange"
     >
       <el-table-column type="selection" width="44" align="center" />
+      <el-table-column type="index" label="序" width="64" align="center" />
       <el-table-column
         label="名称"
         prop="name"

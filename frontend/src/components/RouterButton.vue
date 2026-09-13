@@ -1,6 +1,6 @@
 <template>
   <!-- M3 Segmented：灰底上描边胶囊，选中 primary-container -->
-  <div class="router_card" :class="{ compact }">
+  <div class="router_card" :class="{ compact, fluid }">
     <div class="router-nav" role="tablist">
       <div class="router-tabs-scroll">
         <button
@@ -14,6 +14,7 @@
           @click="emit('update:modelValue', b.value)"
         >
           <span class="router-tab__label">{{ b.label }}</span>
+          <span v-if="b.count" class="router-tab__count">{{ b.count }}</span>
         </button>
       </div>
       <div v-if="$slots['route-button']" class="router-actions">
@@ -27,10 +28,12 @@
 withDefaults(
   defineProps<{
     modelValue: string;
-    buttons: { value: string; label: string }[];
+    buttons: { value: string; label: string; count?: number }[];
     compact?: boolean;
+    /** 按文案自适应宽度（语言筛选等长标签） */
+    fluid?: boolean;
   }>(),
-  { compact: false }
+  { compact: false, fluid: false }
 );
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 </script>
@@ -73,6 +76,7 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   box-sizing: border-box;
   margin: 0;
   padding: 0 6px;
@@ -101,6 +105,11 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
     .router-tab__label {
       font-weight: 600;
     }
+
+    .router-tab__count {
+      color: var(--m3-primary);
+      font-weight: 700;
+    }
   }
 }
 
@@ -114,6 +123,14 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
   text-overflow: ellipsis;
   max-width: 100%;
   text-align: center;
+}
+
+.router-tab__count {
+  flex-shrink: 0;
+  font: var(--m3-label-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--m3-on-surface-variant);
+  line-height: 1;
 }
 
 .router-actions {
@@ -142,6 +159,21 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
   .router-tab__label {
     font: var(--m3-label-medium);
+  }
+}
+
+.router_card.fluid {
+  .router-tab {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 52px;
+    padding: 0 12px;
+  }
+
+  .router-tab__label {
+    overflow: visible;
+    text-overflow: clip;
+    max-width: none;
   }
 }
 </style>

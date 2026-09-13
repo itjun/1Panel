@@ -41,19 +41,6 @@
     </div>
 
     <div class="settings-body">
-      <nav class="settings-nav" aria-label="设置分组">
-        <button
-          v-for="g in NAV_GROUPS"
-          :key="g.id"
-          type="button"
-          class="nav-item"
-          :class="{ active: settings.lastNavGroup === g.id }"
-          @click="settings.setLastNavGroup(g.id)"
-        >
-          {{ g.label }}
-        </button>
-      </nav>
-
       <div
         class="settings-pane"
         :class="{ 'is-notify': settings.lastNavGroup === 'notify' }"
@@ -359,18 +346,8 @@ import {
   THEME_OPTIONS,
   expandWecomWebhook,
   useSettingsStore,
-  type SettingsNavGroup,
 } from "@/stores/settings";
 import { ALERT_RULES } from "@/utils/alerts";
-
-const NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
-  { id: "appearance", label: "外观" },
-  { id: "ui", label: "界面" },
-  { id: "terminal", label: "终端" },
-  { id: "session", label: "会话" },
-  { id: "notify", label: "通知" },
-  { id: "app", label: "应用" },
-];
 
 /** 进程内缓存：离开设置页卸载后仍保留，避免每次进出都打 myip */
 let egressCache: monitor.EgressInfo | null = null;
@@ -733,43 +710,12 @@ onUnmounted(() => {
   gap: 0;
 }
 
-.settings-nav {
-  flex: 0 0 148px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 8px 12px 0;
-}
-
-.nav-item {
-  appearance: none;
-  border: none;
-  background: transparent;
-  text-align: left;
-  padding: 10px 20px;
-  border-radius: var(--m3-shape-full);
-  font: var(--m3-label-large);
-  color: var(--m3-on-surface);
-  cursor: pointer;
-  transition: background-color var(--m3-motion-state),
-    color var(--m3-motion-state);
-
-  &:hover {
-    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
-  }
-  &.active {
-    background: var(--m3-primary-container);
-    color: var(--m3-primary);
-    font-weight: 500;
-  }
-}
-
 .settings-pane {
   flex: 1;
   min-width: 0;
   max-width: 760px;
   overflow-y: auto;
-  padding: 4px 0 12px 16px;
+  padding: 4px 0 12px;
   display: flex;
   flex-direction: column;
   gap: 20px;

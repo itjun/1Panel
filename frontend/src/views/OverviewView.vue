@@ -1,7 +1,8 @@
 <template>
-  <div ref="pageRef" v-loading="loading && !overview" class="overview-page">
+  <div ref="pageRef" class="overview-page">
+    <PageSkeleton v-if="loading && !overview" variant="overview" />
     <el-alert
-      v-if="noSample && !overview"
+      v-else-if="noSample && !overview"
       type="warning"
       title="Agent 已连通，尚无采样数据"
       show-icon
@@ -24,7 +25,7 @@
       :title="error"
       show-icon
     />
-    <template v-if="overview">
+    <template v-else-if="overview">
       <el-row :gutter="12">
         <!-- 左栏 16 -->
         <el-col :xs="24" :md="16">
@@ -488,6 +489,7 @@ import {
   shouldToastHostAlert,
 } from "@/utils/wecomHostAlerts";
 import VChartPie from "@/components/VChartPie.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import javaLogo from "@/assets/runtime/java-original.svg";
 import goLogo from "@/assets/runtime/go-original.svg";
 import nodeLogo from "@/assets/runtime/nodejs-original.svg";
@@ -876,10 +878,7 @@ watch(
 
 const loadPercent = computed(() => {
   if (!overview.value?.cpuCount) return 0;
-  return Math.min(
-    100,
-    (overview.value.load1 / overview.value.cpuCount) * 100
-  );
+  return (overview.value.load1 / overview.value.cpuCount) * 100;
 });
 
 const loadLabel = computed(() => {
@@ -1056,6 +1055,8 @@ onBeforeUnmount(() => {
 .overview-page {
   min-width: 0;
   max-width: 100%;
+  /* 首屏无数据时撑满 content-pad，否则 v-loading 转圈贴在顶部 */
+  min-height: 100%;
   overflow: visible;
   padding: 0 0 16px;
   box-sizing: border-box;
@@ -1068,6 +1069,19 @@ onBeforeUnmount(() => {
   :deep(.el-col) {
     min-width: 0;
     max-width: 100%;
+  }
+
+  /* 默认 top:50% + 负 margin 在矮容器里偏上；改用 flex 真正水平垂直居中 */
+  :deep(.el-loading-mask) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  :deep(.el-loading-spinner) {
+    position: static;
+    top: auto;
+    margin-top: 0;
+    width: auto;
   }
 }
 
@@ -1161,7 +1175,7 @@ onBeforeUnmount(() => {
 .home-card.is-enlarged .card-toggle {
   color: var(--m3-error);
 }
-/* 概览指标：浅蓝 tonal 格（primary-container），无描边嵌套 */
+/* 概览指标：白底黑字，与其他卡片一致 */
 .stats-grid {
   :deep(.el-col) {
     padding-left: 6px;
@@ -1180,22 +1194,17 @@ onBeforeUnmount(() => {
   padding: 12px 8px;
   border: none;
   border-radius: var(--m3-shape-s);
-  background: var(--m3-primary-container);
-  transition: background-color var(--m3-motion-state);
-
-  &:hover {
-    background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-primary-container));
-  }
+  background: transparent;
 }
 .stat-label {
   font: var(--m3-label-medium);
-  color: var(--m3-on-primary-container);
+  color: var(--m3-on-surface-variant);
 }
 .stat-value {
   margin-top: 6px;
   font: var(--m3-headline-small);
   font-weight: 500;
-  color: var(--m3-on-primary-container);
+  color: var(--m3-on-surface);
 }
 .input-help {
   font: var(--m3-body-small);

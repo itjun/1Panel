@@ -19,6 +19,19 @@ body,
   user-select: none;
 }
 
+// 全站隐藏纵向滚动条（滚轮 / 触控板仍可滚动；Firefox 标准只能整条藏）
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0 !important;
+}
+
+.el-scrollbar__bar.is-vertical {
+  display: none !important;
+}
+
 // Wails 拖拽
 .drag-region {
   --wails-draggable: drag;
@@ -240,7 +253,8 @@ body,
   min-width: 0;
   display: grid;
   grid-template-rows: 40px 1fr;
-  grid-template-columns: auto 1fr;
+  /* 列1：工作区 rail（64px）· 列2：二级栏 · 列3：主区 */
+  grid-template-columns: 64px auto 1fr;
   overflow: hidden;
   background: var(--m3-shell);
   border-radius: 0;
@@ -248,6 +262,13 @@ body,
   --chrome-inset: 5px;
   --chrome-content-radius: var(--m3-shape-l-inc); // 20px
   --sidebar-float-inset: 10px;
+}
+
+.app-chrome > .workspace-rail {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  min-height: 0;
+  z-index: 1;
 }
 
 .app-chrome > .titlebar-left,
@@ -258,19 +279,19 @@ body,
 
 .app-chrome > .titlebar-left {
   grid-row: 1;
-  grid-column: 1;
+  grid-column: 2;
 }
 
 .app-chrome > .titlebar-right {
   grid-row: 1;
-  grid-column: 2;
+  grid-column: 3;
   /* 与内容卡右缘对齐，露出右侧 chrome 边 */
   margin-right: var(--chrome-inset);
 }
 
 .app-chrome > .panel-sidebar {
   grid-row: 2;
-  grid-column: 1;
+  grid-column: 2;
   min-height: 0;
   height: auto;
   background: transparent;
@@ -280,11 +301,12 @@ body,
 
 .app-chrome > .main-column {
   grid-row: 2;
-  grid-column: 2;
+  grid-column: 3;
 }
 
+/* 收起仅二级栏；rail 永远占第 1 列 */
 .app-chrome.sidebar-collapsed > .main-column {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   margin-left: var(--chrome-inset);
 }
 
@@ -346,7 +368,7 @@ html.dark .main-column,
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px 10px;
+  padding: 4px 12px 10px;
 }
 
 .view-toolbar__chips {
@@ -436,14 +458,12 @@ html.dark .main-column,
     border-radius: 0;
     background: transparent;
     margin-bottom: 0;
-    padding-left: 0;
-    padding-right: 0;
+    padding: 0;
   }
 
-  .view-toolbar + .table-wrap.m3-table-surface,
-  .view-toolbar + .m3-table-surface {
-    border-top: 1px solid var(--m3-outline-variant);
-    border-radius: var(--m3-shape-m);
+  // bare 卡内：标签行与表格卡之间留出呼吸，避免标签贴表格描边
+  .tab-enl {
+    gap: 12px;
   }
 }
 
@@ -607,6 +627,19 @@ html.dark .main-column,
   /* 悬停必须压过斑马纹（斑马纹写在 td 上，会盖住 EP 变量） */
   &.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
     background: var(--m3-table-hover) !important;
+  }
+
+  // 固定高度出现纵滚动条时，EP 常把表体算宽多出滚动条宽，误出横条。
+  // 本站统一表已 table-layout:fixed + 超长省略，不依赖横向滚动。
+  .el-table__header-wrapper,
+  .el-table__body-wrapper {
+    .el-scrollbar__wrap {
+      overflow-x: hidden !important;
+    }
+  }
+
+  .el-scrollbar__bar.is-horizontal {
+    display: none !important;
   }
 }
 

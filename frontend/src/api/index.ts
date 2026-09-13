@@ -15,6 +15,8 @@ import * as System from "../../bindings/diteng-pannel/system";
 import * as Backup from "../../bindings/diteng-pannel/backup";
 import * as AlertHistory from "../../bindings/diteng-pannel/alerthistory";
 import * as NotifySubs from "../../bindings/diteng-pannel/notifysubs";
+import * as LocalApps from "../../bindings/diteng-pannel/localapps";
+import * as LocalSys from "../../bindings/diteng-pannel/localsys";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -24,6 +26,8 @@ export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 export * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
 export * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
+export * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
+export * as localsys from "../../bindings/diteng-pannel/internal/localsys/models";
 export * as main from "../../bindings/diteng-pannel/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
@@ -33,6 +37,8 @@ import type * as alerthistory from "../../bindings/diteng-pannel/internal/alerth
 import type * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
 import type * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 import type * as groups from "../../bindings/diteng-pannel/internal/groups/models";
+import type * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
+import type * as localsys from "../../bindings/diteng-pannel/internal/localsys/models";
 import type * as main from "../../bindings/diteng-pannel/models";
 import type * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
 import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
@@ -246,6 +252,57 @@ export const api = {
   killProcess: async (host: string, pid: number, force: boolean): Promise<void> => {
     await Monitor.KillProcess(host, pid, force);
   },
+
+  /** 本机应用扫描快照（macOS；不经 SSH） */
+  localAppsScan: (): Promise<localapps.Snapshot> => must(LocalApps.Scan()),
+  /** 本机单个进程详情（含线程） */
+  localAppsDetail: (pid: number): Promise<localapps.ProcNode> =>
+    must(LocalApps.ProcDetail(pid)),
+  /** 结束本机进程；force=true 发 SIGKILL */
+  localAppsKill: async (pid: number, force: boolean): Promise<void> => {
+    await LocalApps.Kill(pid, force);
+  },
+
+  /** 本机系统概览 */
+  localSysOverview: (): Promise<localsys.Overview> => must(LocalSys.Overview()),
+  /** 本机系统详细报告（system_profiler） */
+  localSysSystemReport: (force = false): Promise<localsys.SystemReport> =>
+    must(LocalSys.SystemReport(force)),
+  /** 本机网络信息 */
+  localSysNetwork: (): Promise<localsys.NetworkSnapshot> => must(LocalSys.Network()),
+  /** 本机已安装软件 */
+  localSysPackages: (): Promise<localsys.Package[]> => arr(LocalSys.Packages()),
+  /** 本机 Nginx 配置列表 */
+  localSysNginx: (): Promise<localsys.NginxInfo> => must(LocalSys.Nginx()),
+  /** 本机 Nginx 配置文件内容（只读） */
+  localSysNginxRead: (path: string): Promise<string> => str(LocalSys.NginxRead(path)),
+  /** 本机 /etc/hosts */
+  localSysHosts: (): Promise<localsys.HostsInfo> => must(LocalSys.Hosts()),
+
+  /** 本机磁盘占用：开始扫描 */
+  localSysStorageScanStart: (): Promise<localsys.StorageStatus> =>
+    must(LocalSys.StorageScanStart()),
+  /** 本机磁盘占用：扫描状态 */
+  localSysStorageStatus: (): Promise<localsys.StorageStatus> =>
+    must(LocalSys.StorageStatus()),
+  /** 本机磁盘占用：目录树一层 */
+  localSysStorageTree: (path: string): Promise<localsys.StorageNode> =>
+    must(LocalSys.StorageTree(path)),
+  /** 本机磁盘占用：按应用汇总 */
+  localSysStorageApps: (): Promise<localsys.StorageApp[]> =>
+    arr(LocalSys.StorageApps()),
+  /** 本机磁盘占用：大文件榜 */
+  localSysStorageLargeFiles: (): Promise<localsys.StorageFile[]> =>
+    arr(LocalSys.StorageLargeFiles()),
+  /** 在 Finder 中显示 */
+  localSysStorageReveal: async (path: string): Promise<void> => {
+    await LocalSys.StorageReveal(path);
+  },
+  /** 打开「完全磁盘访问」设置 */
+  localSysStorageOpenPrivacy: async (): Promise<void> => {
+    await LocalSys.StorageOpenPrivacy();
+  },
+
   dockerAction: (host: string, action: string, container: string): Promise<string> =>
     str(Monitor.DockerAction(host, action, container)),
   /** 查询单个容器的 docker inspect 原始 JSON（悬浮详情卡片用） */

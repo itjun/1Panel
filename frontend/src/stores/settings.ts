@@ -34,6 +34,16 @@ export type SettingsNavGroup =
   | "notify"
   | "app";
 
+/** 设置二级栏 / 设置页共用的分组列表 */
+export const SETTINGS_NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
+  { id: "appearance", label: "外观" },
+  { id: "ui", label: "界面" },
+  { id: "terminal", label: "终端" },
+  { id: "session", label: "会话" },
+  { id: "notify", label: "通知" },
+  { id: "app", label: "应用" },
+];
+
 /** 主机资源告警中可单独开关企微推送的类型（单一来源见 utils/alerts.ts） */
 export type WecomAlertKind = ResourceAlertKind;
 

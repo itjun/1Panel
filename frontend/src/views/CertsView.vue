@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root tab-table-page" v-loading="loading && !loaded">
+  <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
     <div class="view-toolbar enl-head-zone">
       <div class="view-toolbar__chips">
@@ -10,6 +10,16 @@
         <el-button :icon="Refresh" :loading="loading" @click="loadCerts">刷新</el-button>
       </div>
     </div>
+    <PageSkeleton v-if="loading && !loaded" variant="table" :show-toolbar="false" />
+    <template v-else-if="error && !loaded">
+      <el-alert
+        type="error"
+        :title="error"
+        show-icon
+        :closable="false"
+      />
+    </template>
+    <template v-else-if="loaded">
     <el-alert
       v-if="error"
       type="error"
@@ -18,7 +28,7 @@
       :closable="false"
     />
     <el-alert
-      v-else-if="loaded && result?.noOpenssl"
+      v-else-if="result?.noOpenssl"
       type="warning"
       title="远程主机缺少 openssl，无法解析证书内容"
       show-icon
@@ -32,6 +42,7 @@
       stripe
       class="data-table-unified"
     >
+      <el-table-column type="index" label="序" width="64" align="center" />
       <el-table-column label="证书文件" min-width="200">
         <template #default="{ row }">
           <div class="cert-name-group">
@@ -93,6 +104,7 @@
       v-else-if="!loading && !error && result && result.installed && !result.noOpenssl && groups.length === 0"
       description="/etc/nginx/cert 目录为空"
     />
+    </template>
     </EnlargableCard>
 
     <!-- 上传证书：拖入证书+私钥 → 本地配对校验 → 通过才可上传 -->
@@ -170,6 +182,7 @@ import type { CertInfo, CertListResult, CertPairCheck } from "@/api";
 import { formatErr } from "@/utils/format";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 
 const props = defineProps<{ host: string }>();
 

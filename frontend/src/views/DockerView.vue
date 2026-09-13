@@ -1,6 +1,7 @@
 <template>
-  <div class="tab-root" v-loading="loading && !data">
-    <el-alert v-if="error && !data" type="error" :title="error" show-icon />
+  <div class="tab-root">
+    <PageSkeleton v-if="loading && !data" variant="cards" />
+    <el-alert v-else-if="error && !data" type="error" :title="error" show-icon />
     <template v-else-if="data && !data.available">
       <el-empty description="目标机未安装 Docker，或当前用户没有 docker 权限" />
     </template>
@@ -217,6 +218,7 @@ import { Loading } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import { formatBytes } from "@/utils/format";
 import { copyText } from "@/utils/clipboard";
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root tab-table-page" v-loading="view !== 'docker' && loading && !rows.length">
+  <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
     <!-- 筛选标签直接铺在主内容，不再套一层工具栏卡片 -->
     <div class="view-toolbar">
@@ -17,9 +17,19 @@
           <el-button :icon="Refresh" @click="onRefresh" />
       </div>
     </div>
-    <el-alert v-if="view !== 'docker' && error && !rows.length" type="error" :title="error" show-icon />
+    <PageSkeleton
+      v-if="view !== 'docker' && loading && !rows.length"
+      variant="table"
+      :show-toolbar="false"
+    />
+    <el-alert
+      v-else-if="view !== 'docker' && error && !rows.length"
+      type="error"
+      :title="error"
+      show-icon
+    />
 
-    <div ref="tableWrap" class="table-wrap m3-table-surface m3-table-v2">
+    <div v-else ref="tableWrap" class="table-wrap m3-table-surface m3-table-v2">
       <!-- Docker：沿用原 Docker 标签页的卡片 + inspect 浮层 -->
       <DockerView
         v-if="view === 'docker'"
@@ -202,6 +212,7 @@ import type { RuntimeCounts } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import TagButton from "@/components/TagButton.vue";
 import DockerView from "@/views/DockerView.vue";
 import { copyText } from "@/utils/clipboard";
@@ -209,6 +220,7 @@ import { formatBytes, formatDurationCompact, formatDurationLong } from "@/utils/
 import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,
+  m3TableIndexColumn,
   zebraRowClass,
 } from "@/constants/m3Table";
 
@@ -439,6 +451,7 @@ function actionCell(copyLabel: string, getCmd: (row: ProcInfo | RuntimeProc) => 
 
 /** 全部进程视图列 */
 const allColumns: Column<any>[] = [
+  m3TableIndexColumn(),
   { key: "pid", dataKey: "pid", title: "PID", width: 80 },
   { key: "user", dataKey: "user", title: "用户", width: 90 },
   { key: "cpu", dataKey: "cpu", title: "CPU%", width: 80, sortable: true, cellRenderer: cpuCell },
@@ -474,6 +487,7 @@ const allColumns: Column<any>[] = [
 
 /** 运行时视图列（java 多一列堆内存） */
 const runtimeColumns = computed((): Column<any>[] => [
+  m3TableIndexColumn(),
   { key: "pid", dataKey: "pid", title: "PID", width: 80 },
   {
     key: "user",

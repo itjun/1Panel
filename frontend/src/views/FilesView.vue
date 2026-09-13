@@ -99,7 +99,9 @@
     </div>
 
     <!-- 工具栏 + 表格 + 分页 -->
-    <div class="file-body" v-loading="loading">
+    <div class="file-body">
+      <PageSkeleton v-if="loading && !entries.length" variant="files" />
+      <template v-else>
       <p class="file-hint">注意：1. 搜索结果不支持排序功能 2. 文件夹无法按大小排序。</p>
 
       <div class="file-toolbar">
@@ -191,6 +193,7 @@
           small
         />
       </div>
+      </template>
     </div>
 
     <FilePreviewDrawer ref="previewRef" :host="props.host" />
@@ -244,6 +247,7 @@ import EnlargableCard from "@/components/EnlargableCard.vue";
 import EncodeCheckDialog from "@/components/files/EncodeCheckDialog.vue";
 import FilePreviewDrawer from "@/components/files/FilePreviewDrawer.vue";
 import FileTable from "@/components/files/FileTable.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import UploadProgressDialog from "@/components/files/UploadProgressDialog.vue";
 import {
   useFileNavigation,

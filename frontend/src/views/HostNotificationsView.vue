@@ -158,8 +158,10 @@
                 刷新
               </el-button>
             </div>
-            <div v-loading="loading" class="notify-history">
+            <div class="notify-history">
+              <PageSkeleton v-if="loading && !events.length" variant="notify" />
               <AlertEventList
+                v-else
                 :events="events"
                 :loading="loading"
                 :focus-id="focusId"
@@ -177,6 +179,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { Check } from "@element-plus/icons-vue";
 import AlertEventList from "@/components/alert/AlertEventList.vue";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import {

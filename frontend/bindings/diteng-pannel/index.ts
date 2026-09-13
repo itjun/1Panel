@@ -9,6 +9,8 @@ import * as Files from "./files.js";
 import * as Groups from "./groups.js";
 import * as Hosts from "./hosts.js";
 import * as Icons from "./icons.js";
+import * as LocalApps from "./localapps.js";
+import * as LocalSys from "./localsys.js";
 import * as Monitor from "./monitor.js";
 import * as NotifySubs from "./notifysubs.js";
 import * as Overview from "./overview.js";
@@ -23,6 +25,8 @@ export {
     Groups,
     Hosts,
     Icons,
+    LocalApps,
+    LocalSys,
     Monitor,
     NotifySubs,
     Overview,

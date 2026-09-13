@@ -41,8 +41,9 @@
       show-icon
       :closable="false"
     />
-    <div v-loading="loading && !result" class="log-body">
-      <template v-if="result">
+    <div class="log-body">
+      <PageSkeleton v-if="loading && !result" variant="logs" />
+      <template v-else-if="result">
         <pre
           v-if="result.source"
           ref="preRef"
@@ -71,6 +72,7 @@ import type { monitor } from "@/api";
 import { formatErr } from "@/utils/format";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import TagButton from "@/components/TagButton.vue";
 
 const props = defineProps<{ host: string }>();

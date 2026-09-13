@@ -32,7 +32,7 @@
         class="data-table-unified"
         :empty-text="loading ? '正在扫描（可能需要几十秒）…' : '暂无数据'"
       >
-        <el-table-column label="#" type="index" width="44" />
+        <el-table-column type="index" label="序" width="64" align="center" />
         <el-table-column label="大小" width="110">
           <template #default="{ row }">
             <span class="mono">{{ formatBytes(row.size) }}</span>

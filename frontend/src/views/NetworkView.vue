@@ -1,5 +1,7 @@
 <template>
-  <div class="net-root" v-loading="loading && !snap">
+  <div class="net-root">
+    <PageSkeleton v-if="loading && !snap" variant="network" />
+    <template v-else>
     <div class="toolbar">
       <el-button size="large" :loading="loading" @click="refresh">刷新</el-button>
       <span class="hint">
@@ -191,6 +193,7 @@
           class="data-table-unified no-x-scroll-table"
           :height="ifacesEnlarged ? '100%' : 140"
         >
+          <el-table-column type="index" label="序" width="64" align="center" />
           <el-table-column prop="name" label="接口" min-width="88" />
           <el-table-column label="类型" width="88">
             <template #default="{ row }">
@@ -247,6 +250,7 @@
           :max-height="slowEnlarged ? undefined : 200"
           row-class-name="slow-row"
         >
+          <el-table-column type="index" label="序" width="64" align="center" />
           <el-table-column prop="process" label="进程" width="120" show-overflow-tooltip />
           <el-table-column prop="pid" label="PID" width="80" />
           <el-table-column prop="localAddr" label="本地" min-width="140" show-overflow-tooltip />
@@ -295,6 +299,7 @@
       </el-card>
       </EnlargableCard>
     </div>
+    </template>
   </div>
 </template>
 
@@ -308,6 +313,7 @@ import { ElMessage, ElTag } from "element-plus";
 import type { Column } from "element-plus";
 import { api } from "@/api";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
 import { copyText } from "@/utils/clipboard";
@@ -315,6 +321,7 @@ import { formatBytes } from "@/utils/format";
 import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,
+  m3TableIndexColumn,
 } from "@/constants/m3Table";
 
 export interface NetInterface {
@@ -489,6 +496,7 @@ const connWrap = ref<HTMLDivElement | null>(null);
 const connSize = useContainerSize(connWrap);
 
 const connColumns: Column<any>[] = [
+  m3TableIndexColumn(),
   { key: "state", dataKey: "state", title: "状态", width: 96 },
   { key: "process", dataKey: "process", title: "进程", width: 150, flexGrow: 1, flexShrink: 1 },
   { key: "pid", dataKey: "pid", title: "PID", width: 72 },

@@ -92,6 +92,27 @@ func jarFromCmdline(cmdline string) string {
 	return ""
 }
 
+// resolveJarPath 相对路径用 /proc/<pid>/cwd 拼成绝对路径，便于从目录名抽部署版本。
+func resolveJarPath(procRoot string, pid int, jar string) string {
+	if jar == "" {
+		return ""
+	}
+	if filepath.IsAbs(jar) {
+		return filepath.Clean(jar)
+	}
+	if procRoot == "" {
+		procRoot = "/proc"
+	}
+	if pid <= 0 {
+		return jar
+	}
+	cwd, err := os.Readlink(fmt.Sprintf("%s/%d/cwd", procRoot, pid))
+	if err != nil || cwd == "" {
+		return jar
+	}
+	return filepath.Clean(filepath.Join(cwd, jar))
+}
+
 func deployVerFromPath(path string) string {
 	if path == "" {
 		return ""
@@ -307,6 +328,7 @@ func (w *Watcher) buildJavaInstance(svc ServiceWatch, p javaProc, healthOK bool)
 	if jar == "" && rt == "bun" {
 		jar = wecom.EntryFromCmdline(p.Cmdline)
 	}
+	jar = resolveJarPath(w.proc, p.PID, jar)
 	inst := JavaAppInstance{
 		Service:   svc.Name,
 		Runtime:   rt,

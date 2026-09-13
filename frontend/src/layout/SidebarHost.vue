@@ -109,19 +109,6 @@
       </el-menu>
     </div>
 
-    <div class="sidebar-footer">
-      <button
-        type="button"
-        class="settings-entry"
-        :class="{ active: app.settingsOpen }"
-        :title="isMac ? '设置 (⌘,)' : '设置 (Ctrl+,)'"
-        @click="app.toggleSettings()"
-      >
-        <el-icon><Setting /></el-icon>
-        <span>设置</span>
-      </button>
-    </div>
-
     <div
       class="sidebar-resize-handle"
       title="拖动调整宽度；双击自适应"
@@ -285,7 +272,7 @@
  * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { Folder, Monitor, Setting } from "@element-plus/icons-vue";
+import { Folder, Monitor } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import DistroLogo from "@/components/DistroLogo.vue";
@@ -782,40 +769,6 @@ onBeforeUnmount(() => {
   font: var(--m3-label-small);
   font-size: 10px;
   color: var(--m3-outline);
-}
-
-.settings-entry {
-  appearance: none;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 12px;
-  border: none;
-  border-radius: var(--m3-shape-xl);
-  background: transparent;
-  color: var(--m3-on-surface-variant);
-  font: var(--m3-label-large);
-  cursor: pointer;
-  transition: background-color var(--m3-motion-state),
-    color var(--m3-motion-state);
-
-  .el-icon {
-    font-size: 16px;
-  }
-
-  &:hover {
-    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
-    color: var(--m3-on-surface);
-  }
-
-  &.active {
-    background: var(--m3-sidebar-active-bg);
-    color: var(--m3-sidebar-active-fg);
-    font-weight: 600;
-    box-shadow: inset 0 0 0 1px var(--m3-sidebar-active-stroke);
-  }
 }
 
 .sidebar-resize-handle {

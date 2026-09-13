@@ -98,6 +98,8 @@ func NewApp() *application.App {
 			application.NewService((*Groups)(core)),
 			application.NewService((*Overview)(core)),
 			application.NewService((*Monitor)(core)),
+			application.NewService((*LocalApps)(core)),
+			application.NewService((*LocalSys)(core)),
 			application.NewService((*Agent)(core)),
 			application.NewService((*Files)(core)),
 			application.NewService((*TerminalSvc)(core)),

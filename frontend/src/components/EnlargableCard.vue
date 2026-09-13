@@ -1,7 +1,10 @@
 <template>
   <div
     ref="rootRef"
-    :class="[bare ? 'enl-bare' : 'enl-card', { 'is-enlarged': enlarged }]"
+    :class="[
+      bare ? 'enl-bare' : 'enl-card',
+      { 'is-enlarged': enlarged, 'has-corner-btn': bare && enlargeable },
+    ]"
     @dblclick="onRootDblclick"
   >
     <!-- 标题模式：卡片头；仅 enlargeable 时显示放大按钮 -->
@@ -167,6 +170,12 @@ onBeforeUnmount(() => {
     opacity: 1;
     color: var(--m3-primary);
   }
+}
+
+/* bare 角标占位：避免标题行 / monitor-tags 顶到右上角挡住全屏按钮 */
+.enl-bare.has-corner-btn :deep(.enl-head-zone) {
+  padding-right: 32px;
+  box-sizing: border-box;
 }
 
 /* 最大化状态下的关闭按钮：红色醒目 */

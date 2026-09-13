@@ -24,12 +24,13 @@
       </div>
 
       <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
+      <PageSkeleton v-if="loading && !list.length" variant="table" :show-toolbar="false" />
       <el-empty
-        v-if="!loading && !list.length && !error"
+        v-else-if="!loading && !list.length && !error"
         description="点击刷新加载软件包列表（体积较大，按需拉取）"
       />
 
-      <div v-else ref="tableWrap" v-loading="loading && !list.length" class="table-wrap m3-table-surface m3-table-v2">
+      <div v-else-if="list.length" ref="tableWrap" class="table-wrap m3-table-surface m3-table-v2">
         <el-table-v2
           v-if="size.width.value > 0"
           :columns="pkgColumns"
@@ -128,12 +129,14 @@ import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import { useAppStore } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
 import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,
+  m3TableIndexColumn,
   zebraRowClass,
 } from "@/constants/m3Table";
 
@@ -273,6 +276,7 @@ function depCountCell(n: number, rowData: AptPackage, title: string) {
 }
 
 const pkgColumns = [
+  m3TableIndexColumn(),
   {
     key: "name",
     dataKey: "name",

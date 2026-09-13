@@ -30,6 +30,15 @@ export function formatBytes(bytes: number, decimals = 1): string {
   return `${parseFloat((bytes / Math.pow(k, idx)).toFixed(decimals))} ${BYTE_UNITS[idx]}`;
 }
 
+/** 磁盘容量：十进制（1000）单位，与 macOS「储存空间」口径一致 */
+export function formatBytesSI(bytes: number, decimals = 2): string {
+  if (!bytes || bytes <= 0) return "0 B";
+  const k = 1000;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const idx = Math.min(Math.max(i, 0), BYTE_UNITS.length - 1);
+  return `${parseFloat((bytes / Math.pow(k, idx)).toFixed(decimals))} ${BYTE_UNITS[idx]}`;
+}
+
 /**
  * 按最大值挑一个统一字节单位，给折线 Y 轴用（整轴同一单位，避免刻度 1,800,000,000 B）。
  * 空数据 / 不足 1 KB 时用 B。

@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root tab-table-page" v-loading="loading && !list.length">
+  <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
       <div class="view-toolbar enl-head-zone">
         <div class="view-toolbar__chips" />
@@ -8,9 +8,10 @@
         </div>
       </div>
 
-      <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
+      <PageSkeleton v-if="loading && !list.length" variant="table" :show-toolbar="false" />
+      <el-alert v-else-if="error && !list.length" type="error" :title="error" show-icon />
 
-      <div class="table-wrap m3-table-surface">
+      <div v-else class="table-wrap m3-table-surface">
         <el-table
           :data="rows"
           height="100%"
@@ -19,6 +20,7 @@
           class="data-table-unified copyable-table"
           empty-text="未发现定时任务"
         >
+          <el-table-column type="index" label="序" width="64" align="center" />
           <el-table-column label="来源" width="110">
             <template #default="{ row }">
               <el-tag size="small" type="primary" effect="light">{{ sourceLabel(row.source) }}</el-tag>
@@ -60,6 +62,7 @@ import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import { copyText } from "@/utils/clipboard";
 
 interface Cron {

@@ -6,7 +6,20 @@
  */
 export const M3_TABLE_ROW_HEIGHT = 52;
 export const M3_TABLE_HEADER_HEIGHT = 48;
+/** 「序」列宽：保底可舒适显示三位数（含单元格左右 padding） */
+export const M3_TABLE_INDEX_WIDTH = 64;
 
 export function zebraRowClass({ rowIndex }: { rowIndex: number }): string {
   return rowIndex % 2 === 1 ? "zebra-row" : "";
+}
+
+/** el-table-v2 首列：序（从 1 起） */
+export function m3TableIndexColumn() {
+  return {
+    key: "__seq",
+    title: "序",
+    width: M3_TABLE_INDEX_WIDTH,
+    align: "center" as const,
+    cellRenderer: ({ rowIndex }: { rowIndex: number }) => String(rowIndex + 1),
+  };
 }

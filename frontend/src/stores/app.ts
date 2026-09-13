@@ -22,6 +22,23 @@ export type SubTab =
   | "notifications"
   | "terminal";
 
+/** 工作区：远程主机 / 本机应用 */
+export type Workspace = "remote" | "local";
+
+/** 本机二级栏：页面导航 */
+export type LocalSection =
+  | "overview"
+  | "sysinfo"
+  | "procs"
+  | "packages"
+  | "storage"
+  | "network"
+  | "nginx"
+  | "hosts";
+
+/** 本机应用进程页：语言过滤（页内 chips） */
+export type LocalRuntimeFilter = "all" | import("@/utils/localLang").LocalLangId;
+
 /** 当前主区展示的对象 */
 export interface ActiveView {
   id: string;
@@ -100,6 +117,59 @@ export const useAppStore = defineStore("app", () => {
   }
   function toggleSettings() {
     settingsOpen.value = !settingsOpen.value;
+  }
+
+  /** 工作区：远程主机 / 本机应用（持久化；切到本机不清远程会话） */
+  function loadWorkspace(): Workspace {
+    try {
+      const v = localStorage.getItem("1pannel-workspace");
+      if (v === "local" || v === "remote") return v;
+    } catch {
+      /* ignore */
+    }
+    return "remote";
+  }
+  const workspace = ref<Workspace>(loadWorkspace());
+  function setWorkspace(w: Workspace) {
+    workspace.value = w;
+    // 设置整页盖在主区上；切远程/本机时先关掉，否则仍停在设置页
+    settingsOpen.value = false;
+    try {
+      localStorage.setItem("1pannel-workspace", w);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** 本机二级栏：页面导航（持久化） */
+  function loadLocalSection(): LocalSection {
+    try {
+      const v = localStorage.getItem("1pannel-local-section");
+      if (
+        v === "overview" ||
+        v === "sysinfo" ||
+        v === "procs" ||
+        v === "packages" ||
+        v === "storage" ||
+        v === "network" ||
+        v === "nginx" ||
+        v === "hosts"
+      ) {
+        return v;
+      }
+    } catch {
+      /* ignore */
+    }
+    return "overview";
+  }
+  const localSection = ref<LocalSection>(loadLocalSection());
+  function setLocalSection(v: LocalSection) {
+    localSection.value = v;
+    try {
+      localStorage.setItem("1pannel-local-section", v);
+    } catch {
+      /* ignore */
+    }
   }
 
   /** 后台常挂的主机会话（按打开顺序） */
@@ -491,6 +561,10 @@ export const useAppStore = defineStore("app", () => {
     openSettings,
     closeSettings,
     toggleSettings,
+    workspace,
+    setWorkspace,
+    localSection,
+    setLocalSection,
     refresh,
     rememberOsRelease,
     refreshHostIcon,

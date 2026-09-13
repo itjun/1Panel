@@ -79,7 +79,7 @@
           <el-table-column
             type="index"
             label="序"
-            width="44"
+            width="64"
             fixed
             align="center"
             class-name="group-index-col"

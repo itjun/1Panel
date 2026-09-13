@@ -243,8 +243,8 @@ watch(
   padding: 16px 20px;
   overflow: auto;
   box-sizing: border-box;
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--m3-font-mono);

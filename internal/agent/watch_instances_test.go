@@ -178,3 +178,34 @@ func TestJarFromCmdline(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestResolveJarPath(t *testing.T) {
+	root := t.TempDir()
+	cwd := filepath.Join(root, "workspace", "oss", "20260908_1")
+	if err := os.MkdirAll(cwd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	procDir := filepath.Join(root, "proc", "42")
+	if err := os.MkdirAll(procDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(cwd, filepath.Join(procDir, "cwd")); err != nil {
+		t.Fatal(err)
+	}
+	procRoot := filepath.Join(root, "proc")
+
+	abs := "/root/workspace/oss/20260908_1/diteng-oss.jar"
+	if got := resolveJarPath(procRoot, 42, abs); got != filepath.Clean(abs) {
+		t.Fatalf("abs got %q", got)
+	}
+	want := filepath.Join(cwd, "diteng-oss-202409.01.jar")
+	if got := resolveJarPath(procRoot, 42, "diteng-oss-202409.01.jar"); got != want {
+		t.Fatalf("rel got %q want %q", got, want)
+	}
+	if got := deployVerFromPath(want); got != "20260908_1" {
+		t.Fatalf("deployVer %q", got)
+	}
+	if got := resolveJarPath(procRoot, 99, "app.jar"); got != "app.jar" {
+		t.Fatalf("missing cwd should keep relative, got %q", got)
+	}
+}

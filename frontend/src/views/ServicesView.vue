@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root tab-table-page" v-loading="loading && !list.length">
+  <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
       <div class="view-toolbar enl-head-zone">
         <div class="view-toolbar__chips">
@@ -16,10 +16,11 @@
         </div>
       </div>
 
-      <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
+      <PageSkeleton v-if="loading && !list.length" variant="table" :show-toolbar="false" />
+      <el-alert v-else-if="error && !list.length" type="error" :title="error" show-icon />
 
       <div
-        v-if="list.length"
+        v-else-if="list.length"
         ref="tableWrap"
         class="table-wrap m3-table-surface m3-table-v2"
         @mouseleave="hideCard"
@@ -118,9 +119,11 @@ import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,
+  m3TableIndexColumn,
   zebraRowClass,
 } from "@/constants/m3Table";
 
@@ -216,6 +219,7 @@ function stateTagType(s: Service): "success" | "danger" | "info" | "warning" {
 }
 
 const svcColumns: Column<Service>[] = [
+  m3TableIndexColumn(),
   {
     key: "dot",
     title: "",

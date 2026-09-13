@@ -29,16 +29,22 @@
           :row-class-name="(p) => instRowClass(p.row, latestByService)"
           @row-click="onInstRowClick"
         >
-          <el-table-column type="index" label="#" width="48" align="center" />
-          <el-table-column prop="service" label="标识" width="148">
+          <el-table-column type="index" label="序" width="40" align="center" class-name="col-idx" label-class-name="col-idx" />
+          <el-table-column
+            prop="service"
+            label="标识"
+            width="136"
+            class-name="col-svc-id"
+            label-class-name="col-svc-id"
+          >
             <template #default="{ row }">
-              <div class="svc-id-cell">
+              <div class="svc-id-cell" :title="row.service || ''">
                 <span :class="['svc-id', svcIdClass(row.service)]">{{ row.service }}</span>
                 <span v-if="row.runtime === 'bun'" class="rt-badge">Bun</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="port" label="端口" width="72" align="center">
+          <el-table-column prop="port" label="端口" width="64" align="center" class-name="col-port" label-class-name="col-port">
             <template #default="{ row }">
               <span
                 v-if="row.port && isLatestDeploy(row.deployVer || '', latestDeployVerForRow(row, latestByService))"
@@ -49,7 +55,7 @@
               <span v-else>{{ row.port || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="deployVer" label="部署版本" width="128" show-overflow-tooltip>
+          <el-table-column prop="deployVer" label="部署版本" width="120" show-overflow-tooltip class-name="col-deploy" label-class-name="col-deploy">
             <template #default="{ row }">
               <span
                 v-if="row.deployVer && isLatestDeploy(row.deployVer, latestDeployVerForRow(row, latestByService))"
@@ -60,17 +66,27 @@
               <span v-else>{{ row.deployVer || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="startTime" label="启动时间" width="160" show-overflow-tooltip />
-          <el-table-column prop="screen" label="screen" width="120" show-overflow-tooltip />
-          <el-table-column prop="jarPath" label="路径" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="72" align="center">
+          <el-table-column
+            prop="startTime"
+            label="启动时间"
+            width="200"
+            class-name="col-start-time"
+            label-class-name="col-start-time"
+          />
+          <el-table-column prop="screen" label="screen" width="100" show-overflow-tooltip class-name="col-screen" label-class-name="col-screen" />
+          <el-table-column label="路径" min-width="120" class-name="col-jar-path" label-class-name="col-jar-path">
+            <template #default="{ row }">
+              <span class="jar-path" :title="row.jarPath || ''">{{ shortJarPath(row.jarPath) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="72" align="center" class-name="col-status" label-class-name="col-status">
             <template #default="{ row }">
               <span :class="isOnline(row) ? 'status-online' : 'status-offline'">
                 {{ isOnline(row) ? "在线" : "离线" }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="订阅" width="88" align="center">
+          <el-table-column label="订阅" width="88" align="center" class-name="col-notify" label-class-name="col-notify">
             <template #default="{ row }">
               <span class="notify-cell" @click.stop>
                 <el-switch
@@ -129,6 +145,7 @@
         class="data-table-unified charts-ev-table"
         stripe
       >
+        <el-table-column type="index" label="序" width="64" align="center" />
         <el-table-column prop="layer" label="层" width="90" />
         <el-table-column prop="kind" label="类型" width="80" />
         <el-table-column prop="msg" label="说明" />
@@ -220,6 +237,13 @@ function canSubscribeNotify(service: string) {
 function canShutdown(row: agentcli.JavaAppInstance) {
   if (!row.screen) return false;
   return (row.pid || 0) > 0 || (row.port || 0) > 0;
+}
+
+/** 路径压缩为文件名，悬停看完整路径 */
+function shortJarPath(p: string | undefined): string {
+  if (!p) return "—";
+  const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
+  return parts[parts.length - 1] || p;
 }
 
 /** 实例 HTTP 探活 200 → 在线 */
@@ -620,6 +644,14 @@ onBeforeUnmount(stopTimer);
   align-items: center;
   justify-content: center;
 }
+/* 启动时间列：给足宽度，避免 fixed 布局被挤成省略号 */
+:deep(.col-start-time) {
+  min-width: 200px !important;
+  width: 200px !important;
+}
+:deep(.col-start-time .cell) {
+  font-variant-numeric: tabular-nums;
+}
 :deep(.deploy-latest-row > td.el-table__cell) {
   background: var(--m3-primary-container) !important;
 }
@@ -637,6 +669,39 @@ onBeforeUnmount(stopTimer);
 .page-alert {
   margin-bottom: 4px;
 }
+/* 序 / 标识等固定列：锁宽，剩余宽度交给路径列 */
+:deep(.col-idx) {
+  width: 40px !important;
+  max-width: 40px !important;
+}
+/* 标识最长约 16 字母（jiadamei zhetai） */
+:deep(.col-svc-id) {
+  width: 136px !important;
+  max-width: 136px !important;
+}
+:deep(.col-svc-id .cell) {
+  overflow: hidden;
+}
+:deep(.col-port) {
+  width: 64px !important;
+  max-width: 64px !important;
+}
+:deep(.col-deploy) {
+  width: 120px !important;
+  max-width: 120px !important;
+}
+:deep(.col-screen) {
+  width: 100px !important;
+  max-width: 100px !important;
+}
+:deep(.col-status) {
+  width: 72px !important;
+  max-width: 72px !important;
+}
+:deep(.col-notify) {
+  width: 88px !important;
+  max-width: 88px !important;
+}
 .svc-id-cell {
   display: inline-flex;
   align-items: center;
@@ -644,8 +709,11 @@ onBeforeUnmount(stopTimer);
   flex-wrap: nowrap;
   white-space: nowrap;
   max-width: 100%;
+  overflow: hidden;
 }
 .svc-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
   font-weight: 600;
@@ -684,6 +752,18 @@ onBeforeUnmount(stopTimer);
 }
 .svc-default {
   color: var(--el-text-color-primary);
+}
+.jar-path {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+:deep(.col-jar-path .cell) {
+  overflow: hidden;
 }
 .rt-badge {
   flex-shrink: 0;

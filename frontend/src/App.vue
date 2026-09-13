@@ -10,6 +10,7 @@
         'is-fullscreen': fullscreen,
       }"
     >
+      <WorkspaceRail />
       <div
         class="titlebar-left drag-region"
         @dblclick="toggleMaximise"
@@ -100,9 +101,15 @@
           </button>
         </div>
       </div>
+      <SidebarSettings
+        v-if="app.sidebarOpen && app.settingsOpen"
+      />
       <SidebarHost
-        v-show="app.sidebarOpen"
+        v-else-if="app.sidebarOpen && app.workspace === 'remote'"
         @add-host="addHostOpen = true"
+      />
+      <SidebarLocal
+        v-else-if="app.sidebarOpen && app.workspace === 'local'"
       />
       <div class="main-column">
         <MainArea />
@@ -249,6 +256,9 @@ import {
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
+import SidebarLocal from "@/layout/SidebarLocal.vue";
+import SidebarSettings from "@/layout/SidebarSettings.vue";
+import WorkspaceRail from "@/layout/WorkspaceRail.vue";
 import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
@@ -263,11 +273,13 @@ import {
   stopHostResourceAlertPoll,
   tickHostResourceAlertPoll,
 } from "@/utils/hostResourceAlerts";
+import { useLocalMetricsStore } from "@/stores/localMetrics";
 
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
 // 确保设置 store 初始化并应用主题/字体
 const settings = useSettingsStore();
+const localMetrics = useLocalMetricsStore();
 void app.refresh();
 const addHostOpen = ref(false);
 const saving = ref(false);
@@ -316,6 +328,19 @@ function hideToBackground() {
 
 const titlebarTitle = computed(() => {
   if (app.settingsOpen) return "设置";
+  if (app.workspace === "local") {
+    const map: Record<string, string> = {
+      overview: "系统概览",
+      procs: "应用进程",
+      packages: "软件列表",
+      storage: "磁盘空间",
+      network: "网络信息",
+      nginx: "Nginx",
+      hosts: "Hosts",
+      sysinfo: "关于本机",
+    };
+    return map[app.localSection] || "本机";
+  }
   const tab = app.activeTab;
   if (!tab) return "全部主机";
   if (tab.kind === "group") return app.groupNameOf(tab.id);
@@ -357,11 +382,13 @@ function onGlobalKeydown(e: KeyboardEvent) {
     return;
   }
   if (e.code === "KeyN") {
+    if (app.workspace !== "remote") return;
     e.preventDefault();
     addHostOpen.value = true;
     return;
   }
   if (e.code === "KeyF") {
+    if (app.workspace !== "remote") return;
     e.preventDefault();
     app.setSidebarSearchOpen(true);
     return;
@@ -537,8 +564,11 @@ onMounted(() => {
     startAppWatchAlertPoll();
     startHostResourceAlertPoll();
   });
+  // 本机指标：客户端运行即静默采集（与当前页无关）
+  localMetrics.start();
 });
 onBeforeUnmount(() => {
+  localMetrics.stop();
   stopAppWatchAlertPoll();
   stopHostResourceAlertPoll();
   window.removeEventListener("keydown", onGlobalKeydown, true);
@@ -562,14 +592,12 @@ onBeforeUnmount(() => {
   padding-left: 8px;
   padding-right: 8px;
 }
+/* mac 红绿灯改压在 WorkspaceRail 顶留白，此处不再留 78px */
 .is-mac .titlebar-left {
-  /* 给系统红绿灯留位；与红绿灯共用通栏垂直中线 */
-  padding-left: 78px;
-  min-width: 78px;
+  min-width: 0;
 }
-/* 全屏时红绿灯进系统悬停条，不必再留 78px，否则收缩按钮会偏右 */
 .is-mac.is-fullscreen .titlebar-left {
-  padding-left: 12px;
+  padding-left: 8px;
   min-width: 0;
 }
 .titlebar-right {

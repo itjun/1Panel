@@ -5,8 +5,35 @@
       <SettingsView />
     </div>
 
+    <!-- 本机工作区：顶边与侧栏菜单对齐（统一 4px 顶距） -->
+    <div
+      v-if="!app.settingsOpen && app.workspace === 'local'"
+      class="content-pad content-pad--local"
+      :class="{
+        'content-pad--fill':
+          app.localSection === 'sysinfo' ||
+          app.localSection === 'procs' ||
+          app.localSection === 'packages' ||
+          app.localSection === 'storage' ||
+          app.localSection === 'nginx' ||
+          app.localSection === 'hosts',
+      }"
+    >
+      <LocalOverviewView v-if="app.localSection === 'overview'" />
+      <LocalSysInfoView v-else-if="app.localSection === 'sysinfo'" />
+      <LocalAppsView v-else-if="app.localSection === 'procs'" />
+      <LocalPackagesView v-else-if="app.localSection === 'packages'" />
+      <LocalStorageView v-else-if="app.localSection === 'storage'" />
+      <LocalNetworkView v-else-if="app.localSection === 'network'" />
+      <LocalNginxView v-else-if="app.localSection === 'nginx'" />
+      <LocalHostsView v-else-if="app.localSection === 'hosts'" />
+    </div>
+
     <!-- 全部主机首页：常驻（v-show 切换，零销毁零重载） -->
-    <div v-show="!app.settingsOpen && !app.activeTab" class="content-pad">
+    <div
+      v-show="!app.settingsOpen && app.workspace === 'remote' && !app.activeTab"
+      class="content-pad"
+    >
       <AllHostsOverviewView />
     </div>
 
@@ -17,6 +44,7 @@
       :key="gid"
       v-show="
         !app.settingsOpen &&
+        app.workspace === 'remote' &&
         app.activeTab?.kind === 'group' &&
         app.activeTab.id === gid
       "
@@ -30,6 +58,7 @@
       <div
         v-show="
           !app.settingsOpen &&
+          app.workspace === 'remote' &&
           app.activeTab?.kind === 'host' &&
           app.activeTab.id === hid
         "
@@ -148,6 +177,14 @@ import LogsView from "@/views/LogsView.vue";
 import HostNotificationsView from "@/views/HostNotificationsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
+import LocalAppsView from "@/views/LocalAppsView.vue";
+import LocalOverviewView from "@/views/LocalOverviewView.vue";
+import LocalSysInfoView from "@/views/LocalSysInfoView.vue";
+import LocalPackagesView from "@/views/LocalPackagesView.vue";
+import LocalStorageView from "@/views/LocalStorageView.vue";
+import LocalNetworkView from "@/views/LocalNetworkView.vue";
+import LocalNginxView from "@/views/LocalNginxView.vue";
+import LocalHostsView from "@/views/LocalHostsView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 
 const app = useAppStore();
@@ -244,6 +281,28 @@ function onSubChange(hid: string, v: string) {
       min-height: 0;
       min-width: 0;
     }
+  }
+
+  /* 本机：与侧栏纯文字菜单顶边对齐 */
+  &--local {
+    padding: 4px 16px 16px;
+  }
+
+  /* 本机非 fill 页（概览等）：子页至少撑满可视高度，空态 loading 才能居中 */
+  &--local:not(.content-pad--fill) {
+    display: flex;
+    flex-direction: column;
+
+    > * {
+      flex: 1 0 auto;
+      min-width: 0;
+      width: 100%;
+    }
+  }
+
+  /* 本机表格类 fill 页：工具栏/表格与主内容卡描边留出呼吸，避免贴边 */
+  &--local.content-pad--fill {
+    padding: 12px 16px 16px;
   }
 }
 

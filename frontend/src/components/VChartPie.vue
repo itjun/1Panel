@@ -61,8 +61,10 @@ function getThemeColors() {
 function initChart() {
   if (!el.value) return;
   if (!chart) chart = echarts.init(el.value);
-  const v = Math.max(0, Math.min(100, Number(props.option.data) || 0));
-  const percentText = v.toFixed(2).split(".");
+  const raw = Math.max(0, Number(props.option.data) || 0);
+  // 中心文案可 >100%（负载过载）；圆环仍按满圈封顶，避免极坐标溢出
+  const arc = Math.min(100, raw);
+  const percentText = raw.toFixed(2).split(".");
   const c = getThemeColors();
   chart.setOption(
     {
@@ -107,7 +109,7 @@ function initChart() {
           // M3：纯色数值弧，不用渐变
           color: [props.danger ? c.danger : c.primaryLight2],
           label: { show: false },
-          data: [v],
+          data: [arc],
         },
         {
           type: "pie",

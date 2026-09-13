@@ -60,7 +60,8 @@
     </div>
 
     <!-- 两列网格：宽屏 2×2 + 底行通栏；窄屏自动单列；每卡可单独最大化 -->
-    <div class="monitor-grid">
+    <PageSkeleton v-if="!overview && !error" variant="monitor" />
+    <div v-else-if="overview" class="monitor-grid">
       <EnlargableCard
         v-for="card in monitorCards"
         :key="card.title"
@@ -111,6 +112,7 @@ import { formatErr, formatBytes, bytesToKBps } from "@/utils/format";
 import { isAgentMissing } from "@/utils/format";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import EnlargableCard from "@/components/EnlargableCard.vue";
+import PageSkeleton from "@/components/PageSkeleton.vue";
 
 const props = defineProps<{ host: string }>();
 
@@ -200,7 +202,7 @@ let historyTimer: number | undefined;
 
 const loadPercent = computed(() => {
   if (!overview.value?.cpuCount) return 0;
-  return Math.min(100, (overview.value.load1 / overview.value.cpuCount) * 100);
+  return (overview.value.load1 / overview.value.cpuCount) * 100;
 });
 
 const loadLabel = computed(() => {
