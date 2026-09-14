@@ -5,7 +5,7 @@ import { formatBytes } from "@/utils/format";
 export const ALERT = {
   cpu: 90, // CPU% ≥
   mem: 85, // 内存% >
-  loadRatio: 1.0, // load1 / 核数 >
+  loadRatio: 2.0, // load1 / 核数 >（200%）
   diskAvailBytes: 10 * 1024 * 1024 * 1024, // 任一分区可用 ≤ 10 GB
 };
 
@@ -21,7 +21,7 @@ export const ALERT_RULES = [
   { kind: "cpu", name: "CPU", desc: `CPU ≥ ${ALERT.cpu}%` },
   { kind: "mem", name: "内存", desc: `内存 > ${ALERT.mem}%` },
   { kind: "disk", name: "磁盘", desc: `大分区/物理盘可用 ≤ ${ALERT.diskAvailBytes / GB} GB` },
-  { kind: "load", name: "负载", desc: `load1 / 核数 > ${ALERT.loadRatio}` },
+  { kind: "load", name: "负载", desc: `load1 / 核数 > ${ALERT.loadRatio}（${ALERT.loadRatio * 100}%）` },
 ] as const;
 
 /** 全部资源告警类型（cpu/mem/disk/load） */

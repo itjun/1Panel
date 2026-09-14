@@ -114,6 +114,7 @@ import { computed } from "vue";
 import type { monitor } from "@/api";
 import { formatBytes, formatMemCapacity } from "@/utils/format";
 import {
+  ALERT,
   isCpuAlert,
   isDiskLow,
   isLoadAlert,
@@ -231,11 +232,13 @@ const loadRatioText = computed(() => {
   return `核均 ${ratio.toFixed(2)}`;
 });
 
-/** 负载柱：核均负载映射到 0–100（与告警阈值 1.0 对齐，超 1 即满格） */
+/** 负载柱：核均负载映射到 0–100（与告警阈值对齐，达阈值即满格） */
 const loadBarPct = computed(() => {
   const ov = overview.value;
   if (!ov?.cpuCount) return 0;
-  return clampPct(((ov.load1 || 0) / ov.cpuCount) * 100);
+  return clampPct(
+    ((ov.load1 || 0) / ov.cpuCount / ALERT.loadRatio) * 100
+  );
 });
 
 function clampPct(v: number): number {
