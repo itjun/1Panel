@@ -281,10 +281,16 @@ function initChart() {
           return res;
         },
       },
-      grid: { left: 65, right: 65, bottom: "12%", top: 36 },
+      // 单轴图右侧不需要预留第二 Y 轴；双轴才留右侧刻度区
+      grid: {
+        left: 56,
+        right: dual ? 56 : 12,
+        bottom: "12%",
+        top: 36,
+      },
       legend: {
         top: 0,
-        ...(dual ? { left: "center" } : { right: 65 }),
+        ...(dual ? { left: "center" } : { right: 8 }),
         itemWidth: 8,
         icon: "circle",
         textStyle: { color: regularText },

@@ -62,7 +62,7 @@
       </div>
     </template>
 
-    <!-- 表格页：工具条占位 + 表头 + 行 -->
+    <!-- 表格页：真实 <table> 全宽骨架（表头 + 斑马纹行），对齐 data-table-unified -->
     <template v-else-if="variant === 'table'">
       <div v-if="showToolbar" class="sk-toolbar">
         <div class="sk-line sk-bone title" />
@@ -72,13 +72,42 @@
           <div class="sk-btn sk-bone" />
         </div>
       </div>
-      <div class="sk-table sk-card">
-        <div class="sk-thead">
-          <div v-for="i in cols" :key="'h' + i" class="sk-th sk-bone" />
-        </div>
-        <div v-for="r in rows" :key="'r' + r" class="sk-tr">
-          <div v-for="c in cols" :key="'c' + r + c" class="sk-td sk-bone" :style="tdWidth(c)" />
-        </div>
+      <div class="sk-table-surface" :class="{ 'is-frameless': !framed }">
+        <table class="sk-data-table">
+          <colgroup>
+            <col
+              v-for="c in cols"
+              :key="'col' + c"
+              :style="colStyle(c)"
+            />
+          </colgroup>
+          <thead>
+            <tr>
+              <th
+                v-for="c in cols"
+                :key="'h' + c"
+                :class="cellAlign(c)"
+              >
+                <span class="sk-bone sk-th-bone" :style="headerBoneStyle(c)" />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="r in rows"
+              :key="'r' + r"
+              :class="{ 'is-zebra': r % 2 === 0 }"
+            >
+              <td
+                v-for="c in cols"
+                :key="'c' + r + c"
+                :class="cellAlign(c)"
+              >
+                <span class="sk-bone sk-td-bone" :style="cellBoneStyle(r, c)" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </template>
 
@@ -225,20 +254,50 @@ withDefaults(
       | "notify";
     /** table 变体：是否画顶部工具条（页面已有真实 toolbar 时可关） */
     showToolbar?: boolean;
+    /** table 变体：自带描边圆角；嵌在 .m3-table-surface 内时关掉避免双框 */
+    framed?: boolean;
     rows?: number;
     cols?: number;
   }>(),
   {
     variant: "table",
     showToolbar: true,
+    framed: true,
     rows: 8,
-    cols: 5,
+    cols: 9,
   }
 );
 
-function tdWidth(c: number): Record<string, string> {
-  const widths = ["56px", "28%", "18%", "12%", "22%", "14%"];
-  return { flex: `0 0 ${widths[(c - 1) % widths.length]}`, maxWidth: widths[(c - 1) % widths.length] };
+/** 窄列固定宽，其余均分剩余宽度 → table-layout:fixed 保证铺满 */
+function colStyle(c: number): Record<string, string> {
+  if (c === 1) return { width: "40px" };
+  if (c === 2) return { width: "56px" };
+  return {};
+}
+
+function cellAlign(c: number): string {
+  if (c === 2) return "is-center";
+  // 末尾 4 列按数值列右对齐（贴近应用进程表）
+  if (c >= 7) return "is-end";
+  return "";
+}
+
+function headerBoneStyle(c: number): Record<string, string> {
+  if (c === 1) return { width: "12px" };
+  if (c === 2) return { width: "20px" };
+  const widths = [0, 0, 42, 36, 48, 40, 32, 40, 56, 56, 48];
+  return { width: `${widths[c] ?? 40}px` };
+}
+
+function cellBoneStyle(r: number, c: number): Record<string, string> {
+  if (c === 1) return { width: "10px" };
+  if (c === 2) return { width: "18px" };
+  // 单元格内灰条占列宽大部分，避免右侧大片空白
+  const byCol = [0, 0, 78, 58, 62, 48, 36, 44, 70, 70, 52];
+  const jitter = [0, 6, -4, 8, -6, 4, -8, 2];
+  const base = byCol[c] ?? 55;
+  const w = Math.max(36, Math.min(92, base + jitter[(r + c) % jitter.length]));
+  return { width: `${w}%` };
 }
 
 function logWidth(r: number): string {
@@ -437,29 +496,85 @@ function logWidth(r: number): string {
   flex-shrink: 0;
 }
 
-.sk-table {
+/* 表格骨架：真实 table + 全宽铺满，对齐 .m3-table-surface / .data-table-unified */
+.page-skeleton.is-table {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  width: 100%;
+}
+
+.sk-table-surface {
+  flex: 1;
   min-height: 280px;
+  width: 100%;
+  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border-radius: var(--m3-shape-m, 12px);
+  overflow: hidden;
+  background: var(--m3-card, var(--m3-surface-container-lowest, #fff));
+  box-sizing: border-box;
+
+  &.is-frameless {
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+    background: transparent;
+  }
 }
 
-.sk-thead,
-.sk-tr {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+.sk-data-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border-spacing: 0;
 }
 
-.sk-th {
-  height: 14px;
-  flex: 1;
-  opacity: 0.7;
+.sk-data-table thead th {
+  height: var(--m3-table-header-height, 48px);
+  padding: 0 var(--m3-table-cell-padding-x, 12px);
+  background: var(--m3-table-header, var(--m3-card, #fff));
+  border-bottom: 1px solid var(--m3-outline-variant, #cac4d0);
+  text-align: left;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
-.sk-td {
+.sk-data-table tbody td {
+  height: var(--m3-table-row-height, 52px);
+  padding: 0 var(--m3-table-cell-padding-x, 12px);
+  background: var(--m3-table-row, var(--m3-card, #fff));
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--m3-outline-variant, #cac4d0) 45%, transparent);
+  text-align: left;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.sk-data-table tbody tr.is-zebra td {
+  background: var(--m3-table-zebra, var(--m3-primary-container, #d6e3ff));
+}
+
+.sk-data-table th.is-center,
+.sk-data-table td.is-center {
+  text-align: center;
+}
+
+.sk-data-table th.is-end,
+.sk-data-table td.is-end {
+  text-align: right;
+}
+
+.sk-th-bone,
+.sk-td-bone {
+  display: inline-block;
   height: 12px;
-  flex: 1;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.sk-th-bone {
+  opacity: 0.72;
 }
 
 .sk-egress {

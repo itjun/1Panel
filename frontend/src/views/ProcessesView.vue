@@ -17,11 +17,18 @@
           <el-button :icon="Refresh" @click="onRefresh" />
       </div>
     </div>
-    <PageSkeleton
+    <div
       v-if="view !== 'docker' && loading && !rows.length"
-      variant="table"
-      :show-toolbar="false"
-    />
+      class="table-wrap m3-table-surface m3-table-v2"
+    >
+      <PageSkeleton
+        variant="table"
+        :show-toolbar="false"
+        :framed="false"
+        :cols="8"
+        :rows="10"
+      />
+    </div>
     <el-alert
       v-else-if="view !== 'docker' && error && !rows.length"
       type="error"

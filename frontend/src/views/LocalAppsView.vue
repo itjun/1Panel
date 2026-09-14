@@ -29,7 +29,18 @@
         :title="warnings.join('；')"
       />
 
-      <PageSkeleton v-if="loading && !treeRows.length" variant="table" :show-toolbar="false" />
+      <div
+        v-if="loading && !treeRows.length"
+        class="table-wrap m3-table-surface"
+      >
+        <PageSkeleton
+          variant="table"
+          :show-toolbar="false"
+          :framed="false"
+          :cols="11"
+          :rows="10"
+        />
+      </div>
       <el-alert
         v-else-if="error && !treeRows.length"
         type="error"
