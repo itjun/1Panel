@@ -12,8 +12,8 @@ import (
 // CollectNginx 采集 Nginx 配置列表。
 func CollectNginx() (*NginxInfo, error) {
 	info := &NginxInfo{}
-	bin, err := exec.LookPath("nginx")
-	if err != nil {
+	bin := resolveNginxBin()
+	if bin == "" {
 		return info, nil
 	}
 	info.Installed = true
@@ -33,6 +33,27 @@ func CollectNginx() (*NginxInfo, error) {
 		info.Running = true
 	}
 	return info, nil
+}
+
+// resolveNginxBin 定位 nginx 可执行文件。
+// macOS 从 Dock/Finder 启动时 PATH 通常不含 Homebrew，exec.LookPath 会失败，
+// 因此 LookPath 失败后再探测常见绝对路径。
+func resolveNginxBin() string {
+	if bin, err := exec.LookPath("nginx"); err == nil {
+		return bin
+	}
+	candidates := []string{
+		"/opt/homebrew/bin/nginx",
+		"/opt/homebrew/opt/nginx/bin/nginx",
+		"/usr/local/bin/nginx",
+		"/usr/local/opt/nginx/bin/nginx",
+	}
+	for _, c := range candidates {
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c
+		}
+	}
+	return ""
 }
 
 // nginxIsRunning macOS 上进程名是 "nginx: master process"，pgrep -x nginx 会漏检。
