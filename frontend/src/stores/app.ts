@@ -7,7 +7,11 @@ import { useSettingsStore } from "@/stores/settings";
 export const UNGROUPED_ID = "__ungrouped__";
 /** 拖放到「全部主机」：分组升顶层；主机进未分组 */
 export const ROOT_DROP_ID = "__root__";
+/** 拖放到侧栏顶部置顶区 */
+export const PINNED_DROP_ID = "__pinned__";
 export const MAX_GROUP_DEPTH = 3;
+
+const PINNED_HOSTS_KEY = "1pannel-pinned-hosts";
 
 export type SubTab =
   | "overview"
@@ -122,6 +126,89 @@ export const useAppStore = defineStore("app", () => {
   const sidebarSearchOpen = ref(false);
   function setSidebarSearchOpen(v: boolean) {
     sidebarSearchOpen.value = v;
+  }
+
+  /** 侧栏顶部置顶主机（快捷入口；不改变分组归属；持久化） */
+  function loadPinnedHosts(): string[] {
+    try {
+      const raw = localStorage.getItem(PINNED_HOSTS_KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      const out: string[] = [];
+      const seen = new Set<string>();
+      for (const x of arr) {
+        if (typeof x !== "string") continue;
+        const n = x.trim();
+        if (!n || seen.has(n)) continue;
+        seen.add(n);
+        out.push(n);
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+  const pinnedHosts = ref<string[]>(loadPinnedHosts());
+  function persistPinnedHosts() {
+    try {
+      localStorage.setItem(PINNED_HOSTS_KEY, JSON.stringify(pinnedHosts.value));
+    } catch {
+      /* ignore */
+    }
+  }
+  function prunePinnedHosts(validNames: Set<string>) {
+    const next = pinnedHosts.value.filter((n) => validNames.has(n));
+    if (next.length === pinnedHosts.value.length) return;
+    pinnedHosts.value = next;
+    persistPinnedHosts();
+  }
+  function isPinned(name: string): boolean {
+    return pinnedHosts.value.includes(name);
+  }
+  function pinHost(name: string) {
+    const n = name.trim();
+    if (!n || pinnedHosts.value.includes(n)) return;
+    pinnedHosts.value = [...pinnedHosts.value, n];
+    persistPinnedHosts();
+  }
+  function unpinHost(name: string) {
+    const next = pinnedHosts.value.filter((n) => n !== name);
+    if (next.length === pinnedHosts.value.length) return;
+    pinnedHosts.value = next;
+    persistPinnedHosts();
+  }
+  function togglePinHost(name: string) {
+    if (isPinned(name)) unpinHost(name);
+    else pinHost(name);
+  }
+  /** 在置顶列表内重排：将 from 移到 beforeName 之前；beforeName 空则移到末尾 */
+  function reorderPinnedHost(from: string, beforeName: string | null) {
+    const list = [...pinnedHosts.value];
+    const fromIdx = list.indexOf(from);
+    if (fromIdx < 0) return;
+    list.splice(fromIdx, 1);
+    if (!beforeName) {
+      list.push(from);
+    } else {
+      let toIdx = list.indexOf(beforeName);
+      if (toIdx < 0) toIdx = list.length;
+      list.splice(toIdx, 0, from);
+    }
+    pinnedHosts.value = list;
+    persistPinnedHosts();
+  }
+  function renamePinnedHost(oldName: string, newName: string) {
+    const idx = pinnedHosts.value.indexOf(oldName);
+    if (idx < 0) return;
+    const next = [...pinnedHosts.value];
+    if (next.includes(newName)) {
+      next.splice(idx, 1);
+    } else {
+      next[idx] = newName;
+    }
+    pinnedHosts.value = next;
+    persistPinnedHosts();
   }
 
   /**
@@ -354,11 +441,12 @@ export const useAppStore = defineStore("app", () => {
         }
       }
       osReleaseMap.value = m;
-      // 清理已不存在的主机会话
+      // 清理已不存在的主机会话 / 置顶
       const names = new Set((h || []).map((x) => x.name));
       for (const n of Object.keys(hostSessions.value)) {
         if (!names.has(n)) stopHost(n);
       }
+      prunePinnedHosts(names);
     } finally {
       loading.value = false;
     }
@@ -676,6 +764,7 @@ export const useAppStore = defineStore("app", () => {
     if (!next || next === oldName) return;
     await api.renameHost(oldName, next);
     useSettingsStore().renameNotifyHost(oldName, next);
+    renamePinnedHost(oldName, next);
 
     // 图标记录随别名迁移，避免侧栏闪回默认企鹅
     if (osReleaseMap.value.has(oldName)) {
@@ -732,6 +821,7 @@ export const useAppStore = defineStore("app", () => {
   async function deleteHost(name: string) {
     await api.deleteHost(name);
     stopHost(name);
+    unpinHost(name);
     await refresh();
   }
 
@@ -755,6 +845,12 @@ export const useAppStore = defineStore("app", () => {
     toggleSidebar,
     sidebarSearchOpen,
     setSidebarSearchOpen,
+    pinnedHosts,
+    isPinned,
+    pinHost,
+    unpinHost,
+    togglePinHost,
+    reorderPinnedHost,
     settingsOpen,
     openSettings,
     closeSettings,

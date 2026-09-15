@@ -13,7 +13,7 @@
   >
     <div class="host-board-card__head">
       <div class="host-board-card__title">
-        <span class="host-board-card__name" :title="name">{{ name }}</span>
+        <span class="host-board-card__name" v-tip="name">{{ name }}</span>
         <span v-if="address && showAddr" class="host-board-card__addr mono">{{
           address
         }}</span>

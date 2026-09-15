@@ -65,7 +65,7 @@
             <div v-if="item.rows?.length" class="kv-list">
               <div v-for="(row, ri) in item.rows" :key="ri" class="kv-row">
                 <span class="kv-label">{{ row.label }}</span>
-                <span class="kv-value" :title="row.value">{{ row.value || "—" }}</span>
+                <span class="kv-value" v-tip="row.value">{{ row.value || "—" }}</span>
               </div>
             </div>
             <div
@@ -77,7 +77,7 @@
               <div v-if="child.rows?.length" class="kv-list">
                 <div v-for="(row, ri) in child.rows" :key="ri" class="kv-row">
                   <span class="kv-label">{{ row.label }}</span>
-                  <span class="kv-value" :title="row.value">{{ row.value || "—" }}</span>
+                  <span class="kv-value" v-tip="row.value">{{ row.value || "—" }}</span>
                 </div>
               </div>
               <div
@@ -89,7 +89,7 @@
                 <div v-if="grand.rows?.length" class="kv-list">
                   <div v-for="(row, ri) in grand.rows" :key="ri" class="kv-row">
                     <span class="kv-label">{{ row.label }}</span>
-                    <span class="kv-value" :title="row.value">{{ row.value || "—" }}</span>
+                    <span class="kv-value" v-tip="row.value">{{ row.value || "—" }}</span>
                   </div>
                 </div>
               </div>

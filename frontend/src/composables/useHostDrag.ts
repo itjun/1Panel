@@ -1,10 +1,11 @@
 /**
- * 侧栏拖拽：主机迁组 + 分组移树（指针拖拽，不依赖 HTML5 DnD）。
+ * 侧栏拖拽：主机迁组 / 置顶 + 分组移树（指针拖拽，不依赖 HTML5 DnD）。
  */
 import { onBeforeUnmount, ref } from "vue";
 import { ElMessage } from "element-plus";
 import {
   MAX_GROUP_DEPTH,
+  PINNED_DROP_ID,
   ROOT_DROP_ID,
   UNGROUPED_ID,
   useAppStore,
@@ -34,6 +35,8 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
 
   const dragState = ref<DragState | null>(null);
   const dropTargetId = ref<string | null>(null);
+  /** 置顶区内重排：插到该主机之前；命中区但未指向具体项则为 null（追加末尾） */
+  const pinInsertBefore = ref<string | null>(null);
   const suppressClick = ref(false);
 
   function onHostPointerDown(e: PointerEvent, hostName: string) {
@@ -86,7 +89,12 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
       document.body.style.cursor = "grabbing";
     }
 
-    dropTargetId.value = hitTestDropGroup(e.clientX, e.clientY);
+    const hit = hitTestDrop(e.clientX, e.clientY);
+    dropTargetId.value = hit.dropId;
+    pinInsertBefore.value =
+      st.kind === "host" && hit.dropId === PINNED_DROP_ID
+        ? hit.pinHost
+        : null;
   }
 
   async function onPointerUp(e: PointerEvent) {
@@ -101,19 +109,27 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
 
     const wasActive = st.active;
     const target = dropTargetId.value;
+    const insertBefore = pinInsertBefore.value;
     const kind = st.kind;
     const id = st.id;
 
     dragState.value = null;
     dropTargetId.value = null;
+    pinInsertBefore.value = null;
 
     if (!wasActive) return;
 
     if (target != null) {
       if (kind === "host") {
-        await moveHostToGroup(id, target);
-      } else {
+        if (target === PINNED_DROP_ID) {
+          await pinOrReorderHost(id, insertBefore);
+        } else {
+          await moveHostToGroup(id, target);
+        }
+      } else if (target !== PINNED_DROP_ID) {
         await moveGroupToParent(id, target);
+      } else {
+        ElMessage.info("只能置顶主机，不能置顶分组");
       }
     }
 
@@ -131,9 +147,13 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     document.body.style.cursor = "";
     dragState.value = null;
     dropTargetId.value = null;
+    pinInsertBefore.value = null;
   }
 
-  function hitTestDropGroup(x: number, y: number): string | null {
+  function hitTestDrop(
+    x: number,
+    y: number
+  ): { dropId: string | null; pinHost: string | null } {
     const stack = document.elementsFromPoint(x, y);
     for (const el of stack) {
       if (!(el instanceof HTMLElement)) continue;
@@ -143,16 +163,22 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
       ) {
         continue;
       }
+      const pinNode = el.closest("[data-pin-host]") as HTMLElement | null;
+      const pinHost = pinNode?.dataset.pinHost || null;
       const node = el.closest("[data-drop-group]") as HTMLElement | null;
-      if (node?.dataset.dropGroup) return node.dataset.dropGroup;
+      if (node?.dataset.dropGroup) {
+        return { dropId: node.dataset.dropGroup, pinHost };
+      }
       if (el.classList.contains("el-sub-menu__title")) {
         const inner = el.querySelector(
           "[data-drop-group]"
         ) as HTMLElement | null;
-        if (inner?.dataset.dropGroup) return inner.dataset.dropGroup;
+        if (inner?.dataset.dropGroup) {
+          return { dropId: inner.dataset.dropGroup, pinHost: null };
+        }
       }
     }
-    return null;
+    return { dropId: null, pinHost: null };
   }
 
   function subtreeHeight(node: GroupNode): number {
@@ -218,6 +244,40 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     }
   }
 
+  async function pinOrReorderHost(host: string, beforeName: string | null) {
+    // 插到自身之前无意义
+    const before =
+      beforeName && beforeName !== host ? beforeName : null;
+    if (app.isPinned(host)) {
+      const cur = app.pinnedHosts;
+      const fromIdx = cur.indexOf(host);
+      if (fromIdx < 0) return;
+      // 已在目标位置则提示
+      if (!before) {
+        if (fromIdx === cur.length - 1) {
+          ElMessage.info(`${host} 已置顶`);
+          return;
+        }
+      } else {
+        const toIdx = cur.indexOf(before);
+        if (toIdx === fromIdx + 1 || toIdx === fromIdx) {
+          ElMessage.info(`${host} 已置顶`);
+          return;
+        }
+      }
+      app.reorderPinnedHost(host, before);
+      ElMessage.success(`已调整 ${host} 置顶顺序`);
+      return;
+    }
+    if (before) {
+      app.pinHost(host);
+      app.reorderPinnedHost(host, before);
+    } else {
+      app.pinHost(host);
+    }
+    ElMessage.success(`已置顶 ${host}`);
+  }
+
   async function moveHostToGroup(host: string, groupId: string) {
     const target =
       groupId === UNGROUPED_ID || groupId === ROOT_DROP_ID ? "" : groupId;
@@ -254,6 +314,7 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
   return {
     dragState,
     dropTargetId,
+    pinInsertBefore,
     suppressClick,
     onHostPointerDown,
     onGroupPointerDown,

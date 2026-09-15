@@ -139,6 +139,7 @@ import {
   m3TableIndexColumn,
   zebraRowClass,
 } from "@/constants/m3Table";
+import { tipAttrs } from "@/directives/tip";
 
 interface AptPackage {
   name: string;
@@ -256,7 +257,7 @@ async function openDepDialog(pkg: AptPackage) {
   }
 }
 
-function depCountCell(n: number, rowData: AptPackage, title: string) {
+function depCountCell(n: number, rowData: AptPackage, tip: string) {
   if (n <= 0) {
     return h("span");
   }
@@ -265,7 +266,7 @@ function depCountCell(n: number, rowData: AptPackage, title: string) {
     {
       type: "button",
       class: "pkg-dep-link",
-      title,
+      ...tipAttrs(tip),
       onClick: (e: Event) => {
         e.stopPropagation();
         void openDepDialog(rowData);
@@ -297,7 +298,7 @@ const pkgColumns = [
     flexGrow: 1,
     flexShrink: 1,
     cellRenderer: ({ cellData }: { cellData: string }) =>
-      h("span", { class: "mono cell-ellipsis", title: cellData }, cellData || ""),
+      h("span", { class: "mono cell-ellipsis", ...tipAttrs(cellData) }, cellData || ""),
   },
   {
     key: "depends",

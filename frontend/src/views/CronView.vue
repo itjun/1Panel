@@ -37,7 +37,7 @@
           <el-table-column prop="cmd" label="命令" min-width="280">
             <template #default="{ row }">
               <div class="cmd-cell">
-                <span class="mono copy-text cmd-text" :title="row.cmd">{{ row.cmd }}</span>
+                <span class="mono copy-text cmd-text" v-tip="row.cmd">{{ row.cmd }}</span>
                 <el-button
                   link
                   type="primary"

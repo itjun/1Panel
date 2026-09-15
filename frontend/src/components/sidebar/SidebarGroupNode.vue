@@ -24,7 +24,7 @@
       >
         <span
           class="group-color-dot"
-          title="分组色"
+          v-tip="'分组色'"
           :style="{ backgroundColor: color.accent }"
         />
         <el-icon
@@ -41,7 +41,7 @@
         </span>
         <span
           class="menu-count"
-          :title="`已打开 ${openedCount} / 共 ${hostCount} 台`"
+          v-tip="`已打开 ${openedCount} / 共 ${hostCount} 台`"
           :style="{ color: color.ink, backgroundColor: color.soft }"
         >
           {{ countLabel }}
@@ -80,7 +80,7 @@
         'is-after-groups': hi === 0 && node.children.length > 0,
       }"
       :style="{ paddingLeft: `${12 + depth * 8}px` }"
-      :title="isRunning(h.name) ? '双击停止会话' : undefined"
+      v-tip="isRunning(h.name) ? '双击停止会话' : undefined"
       @pointerdown="$emit('host-pointer-down', $event, h.name)"
       @click="$emit('host-click', h.name)"
       @dblclick.stop="$emit('host-dblclick', h.name)"
@@ -96,7 +96,7 @@
       <span
         v-if="isRunning(h.name)"
         class="run-dot"
-        title="运行中（后台保持）"
+        v-tip="'运行中（后台保持）'"
         :style="{ backgroundColor: color.accent }"
       />
     </el-menu-item>

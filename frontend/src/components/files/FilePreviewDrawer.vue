@@ -53,13 +53,13 @@
           <span
             class="status-item"
             :class="{ 'is-warn': previewNeedsNormalize }"
-            title="文件编码"
+            v-tip="'文件编码'"
           >{{ previewEncoding }}</span>
           <span class="status-sep">|</span>
           <span
             class="status-item"
             :class="{ 'is-warn': previewNeedsNormalize }"
-            title="换行符"
+            v-tip="'换行符'"
           >{{ previewLineEnding }}</span>
           <template v-if="previewNeedsNormalize">
             <span class="status-sep">|</span>

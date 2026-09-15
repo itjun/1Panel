@@ -5,7 +5,7 @@
       type="button"
       class="code-copy"
       :class="{ 'is-copied': copied }"
-      :title="copied ? '已复制' : '复制'"
+      v-tip="copied ? '已复制' : '复制'"
       :aria-label="copied ? '已复制' : '复制'"
       @click="copyContent"
     >

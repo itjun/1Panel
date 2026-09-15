@@ -52,7 +52,7 @@
                   >
                     <div class="ring-pop-row">
                       <span class="ring-pop-label">型号</span>
-                      <span class="ring-pop-value" :title="overview.cpuModel">
+                      <span class="ring-pop-value" v-tip="overview.cpuModel">
                         {{ overview.cpuModel || "—" }}
                       </span>
                     </div>
@@ -196,7 +196,7 @@
                         :class="{ 'is-danger': item.percent > 90 }"
                       >
                         <div class="disk-pop-cell-head">
-                          <span class="disk-pop-name" :title="item.label">{{
+                          <span class="disk-pop-name" v-tip="item.label">{{
                             item.label
                           }}</span>
                           <span class="disk-pop-pct"
@@ -315,7 +315,7 @@
                     :class="{ 'is-danger': diskMountPercent(d) > 90 }"
                   >
                     <div class="disk-head">
-                      <span class="disk-mount" :title="d.mount">{{
+                      <span class="disk-mount" v-tip="d.mount">{{
                         diskMountLabel(d)
                       }}</span>
                       <span class="mono muted"
@@ -344,7 +344,7 @@
                   :class="{ 'is-danger': diskMountPercent(d) > 90 }"
                 >
                   <div class="disk-head">
-                    <span class="disk-mount" :title="d.mount">{{
+                    <span class="disk-mount" v-tip="d.mount">{{
                       diskExternalRowLabel(d)
                     }}</span>
                     <span class="mono muted"

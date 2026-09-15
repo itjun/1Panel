@@ -15,7 +15,7 @@
         link
         class="enl-btn"
         :icon="enlarged ? Close : FullScreen"
-        :title="enlarged ? '退出最大化' : '最大化'"
+        v-tip="enlarged ? '退出最大化' : '最大化'"
         @click="toggle"
       />
     </div>
@@ -32,7 +32,7 @@
       link
       class="enl-corner-btn"
       :icon="enlarged ? Close : FullScreen"
-      :title="enlarged ? '退出最大化' : '最大化'"
+      v-tip="enlarged ? '退出最大化' : '最大化'"
       @click="toggle"
     />
   </div>

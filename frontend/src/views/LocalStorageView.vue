@@ -94,7 +94,7 @@
               <div v-if="row.parts?.length" class="parts">
                 <div v-for="p in row.parts" :key="p.path" class="part-row">
                   <span class="part-label">{{ p.label }}</span>
-                  <span class="mono muted part-path" :title="p.path">{{ p.path }}</span>
+                  <span class="mono muted part-path" v-tip="p.path">{{ p.path }}</span>
                   <span class="mono">{{ formatBytesSI(p.size) }}</span>
                   <el-button link type="primary" @click="reveal(p.path)">显示</el-button>
                 </div>

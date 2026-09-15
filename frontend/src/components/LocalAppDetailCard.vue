@@ -22,7 +22,7 @@
             {{ runtimeLabel(node.runtime) }}
           </span>
         </div>
-        <el-button size="small" text class="close-btn" title="关闭" @click="emit('close')">
+        <el-button size="small" text class="close-btn" v-tip="'关闭'" @click="emit('close')">
           ×
         </el-button>
       </div>

@@ -19,7 +19,7 @@
 
     <div
       class="sidebar-resize-handle"
-      title="拖动调整宽度；双击自适应"
+      v-tip="'拖动调整宽度；双击自适应'"
       @pointerdown="onResizeStart"
       @dblclick="onResizeDblClick"
     />

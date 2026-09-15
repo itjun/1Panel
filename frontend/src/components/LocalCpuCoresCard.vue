@@ -15,7 +15,7 @@
           v-for="c in cores"
           :key="c.index"
           class="core-cell"
-          :title="coreTitle(c)"
+          v-tip="coreTitle(c)"
         >
           <svg class="core-ring" viewBox="0 0 36 36" aria-hidden="true">
             <circle class="core-ring__track" cx="18" cy="18" r="14" />

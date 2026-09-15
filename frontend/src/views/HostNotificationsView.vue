@@ -73,20 +73,20 @@
                   <span class="alert-rules-desc">{{ rule.desc }}</span>
                   <span
                     class="alert-rules-always"
-                    title="已订阅时系统通知开启"
+                    v-tip="'已订阅时系统通知开启'"
                   >
                     <el-icon><Check /></el-icon>
                   </span>
                   <span
                     class="alert-rules-always"
-                    title="已订阅时写入应用内告警历史"
+                    v-tip="'已订阅时写入应用内告警历史'"
                   >
                     <el-icon><Check /></el-icon>
                   </span>
                   <span
                     class="alert-rules-wecom"
                     :class="{ 'is-off': !settings.notifyEnabled }"
-                    :title="
+                    v-tip="
                       settings.notifyEnabled
                         ? '已订阅且总开关开启时推企业微信'
                         : '企微总开关已关闭'

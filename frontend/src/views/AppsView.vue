@@ -38,7 +38,7 @@
             label-class-name="col-svc-id"
           >
             <template #default="{ row }">
-              <div class="svc-id-cell" :title="row.service || ''">
+              <div class="svc-id-cell" v-tip="row.service || ''">
                 <span :class="['svc-id', svcIdClass(row.service)]">{{ row.service }}</span>
                 <span v-if="row.runtime === 'bun'" class="rt-badge">Bun</span>
               </div>
@@ -76,7 +76,7 @@
           <el-table-column prop="screen" label="screen" width="100" show-overflow-tooltip class-name="col-screen" label-class-name="col-screen" />
           <el-table-column label="路径" min-width="120" class-name="col-jar-path" label-class-name="col-jar-path">
             <template #default="{ row }">
-              <span class="jar-path" :title="row.jarPath || ''">{{ shortJarPath(row.jarPath) }}</span>
+              <span class="jar-path" v-tip="row.jarPath || ''">{{ shortJarPath(row.jarPath) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="72" align="center" class-name="col-status" label-class-name="col-status">

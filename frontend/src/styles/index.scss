@@ -746,3 +746,35 @@ html.dark .main-column,
     background: var(--m3-table-hover) !important;
   }
 }
+
+/* ---------- 即时悬停提示（v-tip，替代原生 title） ---------- */
+.app-fast-tip {
+  position: fixed;
+  z-index: 100000;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 5px 10px;
+  border-radius: var(--m3-shape-xs, 4px);
+  background: var(--m3-inverse-surface, #2c2c2c);
+  color: var(--m3-inverse-on-surface, #f5f5f5);
+  font: var(--m3-label-small, 12px/1.35 system-ui, sans-serif);
+  box-shadow: var(--m3-elevation-2, 0 2px 8px rgba(0, 0, 0, 0.18));
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition: none; /* 秒开，不要淡入延迟 */
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.app-fast-tip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-fast-tip {
+    transform: none;
+  }
+}

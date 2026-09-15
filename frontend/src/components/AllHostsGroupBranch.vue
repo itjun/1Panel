@@ -86,7 +86,7 @@ function showPort(port?: string): boolean {
       >
         <span
           class="host-ico-wrap"
-          :title="
+          v-tip="
             osRelease(h.name)
               ? `${osRelease(h.name)}（右键重新识别）`
               : '未识别发行版，右键探测'
@@ -106,7 +106,7 @@ function showPort(port?: string): boolean {
             <span
               v-if="isRunning(h.name)"
               class="run-dot"
-              title="运行中（后台保持）"
+              v-tip="'运行中（后台保持）'"
             />
           </div>
           <div class="host-sub">

@@ -231,6 +231,7 @@ import {
   m3TableIndexColumn,
   zebraRowClass,
 } from "@/constants/m3Table";
+import { tipAttrs } from "@/directives/tip";
 
 interface ProcInfo {
   pid: number;
@@ -381,13 +382,13 @@ const ELLIPSIS_STYLE: Record<string, string> = {
   width: "100%",
   lineHeight: "22px",
 };
-const ellipsisCell = (text: string, cls = "", title?: string) =>
+const ellipsisCell = (text: string, cls = "", tip?: string) =>
   h(
     "span",
     {
       class: ["cell-ellipsis", cls],
       style: ELLIPSIS_STYLE,
-      title: title || text || "",
+      ...tipAttrs(tip || text || ""),
     },
     text || ""
   );

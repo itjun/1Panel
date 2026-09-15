@@ -21,7 +21,7 @@
           v-model="grainMode"
           size="small"
           class="grain-select"
-          title="X 轴采样间隔；实时「自动」= agent 默认采集间隔（5 秒）"
+          v-tip="'X 轴采样间隔；实时「自动」= agent 默认采集间隔（5 秒）'"
         >
           <el-option value="auto" label="自动" />
           <el-option value="5s" label="5 秒" />
@@ -36,7 +36,7 @@
           link
           class="card-icon-btn"
           :icon="Refresh"
-          title="刷新"
+          v-tip="'刷新'"
           @click="refreshMonitor"
         />
       </div>

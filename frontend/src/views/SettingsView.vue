@@ -3,7 +3,7 @@
     <div class="settings-header">
       <h1 class="settings-title">设置</h1>
       <el-button
-        title="仅恢复外观、界面、终端与会话；通知配置保留"
+        v-tip="'仅恢复外观、界面、终端与会话；通知配置保留'"
         @click="settings.resetSettings()"
       >
         恢复默认
@@ -21,7 +21,7 @@
       <span
         v-else-if="egress?.ip"
         class="machine-value"
-        :title="machineTitle"
+        v-tip="machineTitle"
       >
         <span class="machine-ip">{{ egress.ip }}</span>
         <span v-if="egress.location" class="machine-loc">{{
@@ -262,13 +262,13 @@
                 <span class="alert-rules-desc">{{ rule.desc }}</span>
                 <span
                   class="alert-rules-always"
-                  title="该主机订阅此类型后，系统通知开启；点击可跳转到应用内历史"
+                  v-tip="'该主机订阅此类型后，系统通知开启；点击可跳转到应用内历史'"
                 >
                   <el-icon><Check /></el-icon>
                 </span>
                 <span
                   class="alert-rules-always"
-                  title="该主机订阅此类型后，写入应用内告警历史"
+                  v-tip="'该主机订阅此类型后，写入应用内告警历史'"
                 >
                   <el-icon><Check /></el-icon>
                 </span>
