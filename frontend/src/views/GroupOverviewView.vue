@@ -34,7 +34,7 @@
         <div class="page-toolbar__actions">
           <el-button
             class="group-toolbar-btn"
-            title="独立窗口全屏看板：可拖到外屏投屏"
+            v-tip="'独立窗口全屏看板：可拖到外屏投屏'"
             :loading="boardOpening"
             @click="openBoardWindow"
           >
@@ -44,7 +44,7 @@
             class="group-toolbar-btn"
             :loading="batchBusy"
             :disabled="!hosts.length || agentInstall.running"
-            title="为本组全部主机安装 Agent"
+            v-tip="'为本组全部主机安装 Agent'"
             @click="batchInstallAgent"
           >
             安装 Agent
@@ -61,7 +61,7 @@
             v-if="canEditGroup"
             class="group-toolbar-btn group-toolbar-btn--icon"
             :icon="Setting"
-            title="分组设置"
+            v-tip="'分组设置'"
             @click="openGroupSettings"
           />
         </div>
@@ -97,7 +97,7 @@
                     v-if="hostState(row.name).error"
                     :size="18"
                     color="#b3261e"
-                    :title="withErrTime(hostState(row.name).error!, hostState(row.name).errorAt)"
+                    v-tip="withErrTime(hostState(row.name).error!, hostState(row.name).errorAt)"
                   >
                     <WarningFilled />
                   </el-icon>

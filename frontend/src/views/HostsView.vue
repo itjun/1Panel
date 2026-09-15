@@ -81,7 +81,7 @@
       <div
         v-if="rawMode"
         class="hosts-split-handle"
-        title="拖动调整比例；双击恢复各半"
+        v-tip="'拖动调整比例；双击恢复各半'"
         @pointerdown="onResizeStart"
         @dblclick="onResizeDblClick"
       />

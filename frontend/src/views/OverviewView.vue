@@ -58,7 +58,7 @@
                 link
                 class="card-icon-btn card-toggle"
                 :icon="enlargedKey === 'status' ? Close : FullScreen"
-                :title="enlargedKey === 'status' ? '退出放大' : '放大'"
+                v-tip="enlargedKey === 'status' ? '退出放大' : '放大'"
                 @click="toggleEnlarge('status')"
               />
             </div>
@@ -96,7 +96,7 @@
                       <span class="ring-pop-label">型号</span>
                       <span
                         class="ring-pop-value"
-                        :title="overview.cpuModel"
+                        v-tip="overview.cpuModel"
                       >
                         {{ overview.cpuModel || '—' }}
                       </span>
@@ -242,7 +242,7 @@
                   负载 / CPU / 内存 / 流量 / 磁盘 IO 曲线
                 </span>
               </div>
-              <el-button link class="card-icon-btn" :icon="ArrowRight" title="打开监控页" />
+              <el-button link class="card-icon-btn" :icon="ArrowRight" v-tip="'打开监控页'" />
             </div>
           </el-card>
 
@@ -257,7 +257,7 @@
                   link
                   class="card-icon-btn"
                   :icon="Refresh"
-                  title="刷新"
+                  v-tip="'刷新'"
                   @click="loadDisks"
                 />
               </div>
@@ -267,7 +267,7 @@
               v-for="d in mountDiskList"
               :key="d.mount"
               class="disk-row disk-row--clickable"
-              title="点击查看该分区的最大文件"
+              v-tip="'点击查看该分区的最大文件'"
               @click="openLargestFiles(d)"
             >
               <span class="disk-mount">{{ d.mount }}</span>
@@ -316,7 +316,7 @@
               </div>
               <div class="kv-row">
                 <span class="kv-label">CPU 型号</span>
-                <span class="kv-value" :title="overview.cpuModel || undefined">
+                <span class="kv-value" v-tip="overview.cpuModel || undefined">
                   {{ overview.cpuModel || "—" }}
                 </span>
               </div>
@@ -363,7 +363,7 @@
                   effect="plain"
                   size="small"
                   class="agent-tag-btn"
-                  title="未安装或未运行；点击检查"
+                  v-tip="'未安装或未运行；点击检查'"
                   @click="agentInstall.openCheck(host)"
                 >
                   离线
@@ -409,7 +409,7 @@
                   link
                   class="card-icon-btn"
                   :icon="Refresh"
-                  title="刷新"
+                  v-tip="'刷新'"
                   @click="loadRuntimes"
                 />
               </div>
@@ -432,7 +432,7 @@
                     安装
                   </el-button>
                 </template>
-                <span class="rt-path" :title="r.detail || r.path">{{ r.path || "—" }}</span>
+                <span class="rt-path" v-tip="r.detail || r.path">{{ r.path || "—" }}</span>
               </div>
             </div>
           </el-card>
@@ -467,6 +467,7 @@ import LargestFilesDialog from "@/components/LargestFilesDialog.vue";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 import { copyText } from "@/utils/clipboard";
+import { tipAttrs } from "@/directives/tip";
 import {
   formatBytes,
   formatDurationLong,
@@ -582,7 +583,7 @@ async function confirmInstallRuntime(name: string) {
             "code",
             {
               class: "install-runtime-cmd",
-              title: cmd,
+              ...tipAttrs(cmd),
             },
             cmd
           ),

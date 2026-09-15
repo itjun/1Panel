@@ -7,7 +7,7 @@
     :fill="meta.color"
     role="img"
     :aria-label="meta.name"
-    :title="title || meta.name"
+    v-tip="title || meta.name"
   >
     <path :d="meta.path" />
   </svg>

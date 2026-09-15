@@ -21,7 +21,7 @@
         >
           <div class="head">
             <span class="dot" :class="{ on: c.state === 'running' }" />
-            <span class="name" :title="c.name">{{ c.name }}</span>
+            <span class="name" v-tip="c.name">{{ c.name }}</span>
             <el-tag size="small" :type="stateType(c.state)">{{ c.state }}</el-tag>
             <el-dropdown trigger="click">
               <el-button size="small" text :loading="busy === c.name">⋯</el-button>
@@ -44,8 +44,8 @@
               </template>
             </el-dropdown>
           </div>
-          <div class="image muted" :title="c.image">{{ c.image }}</div>
-          <div class="ports muted" :title="c.ports || ''">
+          <div class="image muted" v-tip="c.image">{{ c.image }}</div>
+          <div class="ports muted" v-tip="c.ports || ''">
             {{ c.ports ? shortPorts(c.ports) : "无端口映射" }}
           </div>
           <div class="row">
@@ -64,7 +64,7 @@
             :stroke-width="6"
             :show-text="false"
           />
-          <div class="status muted" :title="c.status">{{ c.status }}</div>
+          <div class="status muted" v-tip="c.status">{{ c.status }}</div>
         </el-card>
         </EnlargableCard>
         <el-empty

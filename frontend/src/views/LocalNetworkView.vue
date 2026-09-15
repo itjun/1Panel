@@ -92,10 +92,10 @@
                 {{ ifc.state === "up" ? "已连接" : "未连接" }}
               </span>
             </span>
-            <span class="col-ip mono" :title="ifc.ipv4 || undefined">
+            <span class="col-ip mono" v-tip="ifc.ipv4 || undefined">
               {{ ifc.ipv4 || "—" }}
             </span>
-            <span class="col-mac mono" :title="ifc.mac || undefined">
+            <span class="col-mac mono" v-tip="ifc.mac || undefined">
               {{ ifc.mac || "—" }}
             </span>
             <span class="col-traffic mono">

@@ -27,20 +27,20 @@
           <span v-else-if="t.closed" class="term-tab__badge is-closed">已断开</span>
           <span
             class="term-tab__close"
-            title="关闭会话"
+            v-tip="'关闭会话'"
             @click.stop="closeSession(t.id)"
           >×</span>
         </button>
         <button
           type="button"
           class="term-tab term-tab--add"
-          title="新开终端会话"
+          v-tip="'新开终端会话'"
           @click="openNew"
         >
           <el-icon :size="16"><Plus /></el-icon>
         </button>
       </div>
-      <span class="term-host" :title="host">{{ host }}</span>
+      <span class="term-host" v-tip="host">{{ host }}</span>
     </div>
 
     <div

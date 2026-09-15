@@ -56,7 +56,7 @@
           {{ result.groups }} 个 / {{ result.icons }} 条
         </el-descriptions-item>
       </el-descriptions>
-      <p v-if="nameDetail" class="hint name-detail" :title="nameDetail">
+      <p v-if="nameDetail" class="hint name-detail" v-tip="nameDetail">
         {{ nameDetail }}
       </p>
     </template>

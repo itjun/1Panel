@@ -19,7 +19,7 @@
           type="primary"
           :icon="Refresh"
           :loading="app.loading"
-          :title="isMac ? '刷新 (⌘R)' : '刷新 (Ctrl+R)'"
+          v-tip="isMac ? '刷新 (⌘R)' : '刷新 (Ctrl+R)'"
           @click="app.refresh()"
         >
           刷新
@@ -249,7 +249,7 @@ function menuCheckResultHtml(
     html +=
       `<div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(127,127,127,0.25)">` +
       `<div style="font-size:13px;color:#64748b;margin-bottom:8px">检查地址</div>` +
-      `<div title="${escapeHtml(url)}" style="font-size:14px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all;color:var(--el-text-color-regular,#303133)">${escapeHtml(url)}</div>` +
+      `<div data-tip="${escapeHtml(url)}" style="font-size:14px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all;color:var(--el-text-color-regular,#303133)">${escapeHtml(url)}</div>` +
       `</div>`;
   }
   return html;

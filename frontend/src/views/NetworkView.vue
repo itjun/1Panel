@@ -50,7 +50,7 @@
             :key="'p' + ip"
             type="button"
             class="ip-value"
-            :title="`点击复制 ${ip}`"
+            v-tip="`点击复制 ${ip}`"
             @click="copyIp(ip)"
           >
             <span class="ip-value__text">{{ ip }}</span>
@@ -86,7 +86,7 @@
             v-if="snap.egressPublicIP"
             type="button"
             class="ip-value ip-value--accent"
-            :title="
+            v-tip="
               snap.egressPublicLoc
                 ? `点击复制 ${pureIp(snap.egressPublicIP)}（${snap.egressPublicLoc}）`
                 : `点击复制 ${pureIp(snap.egressPublicIP)}`
@@ -107,7 +107,7 @@
             :key="'u' + ip"
             type="button"
             class="ip-value"
-            :title="`点击复制 ${ip}`"
+            v-tip="`点击复制 ${ip}`"
             @click="copyIp(ip)"
           >
             <span class="ip-value__text">{{ ip }}</span>
@@ -137,7 +137,7 @@
             :key="'d' + ip"
             type="button"
             class="ip-value"
-            :title="`点击复制 ${ip}`"
+            v-tip="`点击复制 ${ip}`"
             @click="copyIp(ip)"
           >
             <span class="ip-value__text">{{ ip }}</span>
@@ -166,7 +166,7 @@
             v-else
             type="button"
             class="ip-value"
-            :title="`点击复制 ${pureIp(snap.defaultGateway)}`"
+            v-tip="`点击复制 ${pureIp(snap.defaultGateway)}`"
             @click="copyIp(pureIp(snap.defaultGateway))"
           >
             <span class="ip-value__text">{{ pureIp(snap.defaultGateway) }}</span>

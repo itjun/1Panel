@@ -20,7 +20,7 @@
           <el-button
             text
             class="titlebar-btn"
-            :title="app.sidebarOpen ? `收起侧栏 (${kbd('B')})` : `展开侧栏 (${kbd('B')})`"
+            v-tip="app.sidebarOpen ? `收起侧栏 (${kbd('B')})` : `展开侧栏 (${kbd('B')})`"
             @click="app.toggleSidebar()"
           >
             <el-icon>
@@ -55,7 +55,7 @@
             <el-button
               text
               class="titlebar-btn"
-              title="通知中心"
+              v-tip="'通知中心'"
               @click="alertHistory.openDrawer()"
             >
               <el-icon>
@@ -68,7 +68,7 @@
           <button
             type="button"
             class="win-btn"
-            title="最小化"
+            v-tip="'最小化'"
             @click="minimiseWin"
           >
             <svg viewBox="0 0 12 12">
@@ -78,7 +78,7 @@
           <button
             type="button"
             class="win-btn"
-            :title="maximised ? '还原' : '最大化'"
+            v-tip="maximised ? '还原' : '最大化'"
             @click="toggleMaximise"
           >
             <svg v-if="!maximised" viewBox="0 0 12 12">
@@ -92,7 +92,7 @@
           <button
             type="button"
             class="win-btn win-btn-close"
-            :title="`挂到后台 (${kbd('Q')})`"
+            v-tip="`挂到后台 (${kbd('Q')})`"
             @click="hideToBackground"
           >
             <svg viewBox="0 0 12 12">

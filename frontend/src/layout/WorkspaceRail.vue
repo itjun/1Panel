@@ -8,7 +8,7 @@
         type="button"
         class="rail-btn"
         :class="{ active: !app.settingsOpen && app.workspace === 'remote' }"
-        title="远程"
+        v-tip="'远程'"
         @click="app.setWorkspace('remote')"
       >
         <el-icon><Monitor /></el-icon>
@@ -18,7 +18,7 @@
         type="button"
         class="rail-btn"
         :class="{ active: !app.settingsOpen && app.workspace === 'local' }"
-        title="本机"
+        v-tip="'本机'"
         @click="app.setWorkspace('local')"
       >
         <el-icon><Cpu /></el-icon>
@@ -31,7 +31,7 @@
         type="button"
         class="rail-btn"
         :class="{ active: app.settingsOpen }"
-        :title="isMac ? '设置 (⌘,)' : '设置 (Ctrl+,)'"
+        v-tip="isMac ? '设置 (⌘,)' : '设置 (Ctrl+,)'"
         @click="app.toggleSettings()"
       >
         <el-icon><Setting /></el-icon>

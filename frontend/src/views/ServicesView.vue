@@ -126,6 +126,7 @@ import {
   m3TableIndexColumn,
   zebraRowClass,
 } from "@/constants/m3Table";
+import { tipAttrs } from "@/directives/tip";
 
 interface Service {
   name: string;
@@ -193,13 +194,13 @@ const card = reactive({ visible: false, name: "", x: 0, y: 0 });
 const CARD_W = 380;
 const CARD_EST_H = 340;
 
-function ellipsisCell(text: string, title?: string) {
+function ellipsisCell(text: string, tip?: string) {
   return h(
     "span",
     {
       class: "cell-ellipsis",
       style: ELLIPSIS_STYLE,
-      title: title || text || "",
+      ...tipAttrs(tip || text || ""),
     },
     text || ""
   );

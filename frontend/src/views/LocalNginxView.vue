@@ -15,7 +15,7 @@
         <span
           v-if="info?.confPath"
           class="page-toolbar__hint nginx-path"
-          :title="info.confPath"
+          v-tip="info.confPath"
         >
           {{ info.confPath }}
         </span>
@@ -51,7 +51,7 @@
             :class="{ 'is-active': f.path === selected }"
             @click="selectFile(f.path)"
           >
-            <span class="nf-name" :title="f.name">{{ f.name }}</span>
+            <span class="nf-name" v-tip="f.name">{{ f.name }}</span>
             <span class="nf-size">{{ formatSize(f.size) }}</span>
           </button>
           <div v-if="!loading && !(info.files || []).length" class="nf-empty">
