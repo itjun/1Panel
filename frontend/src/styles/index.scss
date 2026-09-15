@@ -155,8 +155,7 @@ body,
 
     .el-menu-item {
       position: relative;
-      /* soft 指示条：右侧微圆，告别胶囊 */
-      border-radius: 0 8px 8px 0;
+      border-radius: 8px;
       background-color: transparent !important;
       margin: 1px 0;
       height: 44px !important;
@@ -219,7 +218,7 @@ body,
         margin-top: 2px;
         height: 44px !important;
         line-height: 44px;
-        border-radius: 0 8px 8px 0;
+        border-radius: 8px;
         color: var(--m3-on-surface-variant);
         box-shadow: none !important;
 
