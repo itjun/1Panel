@@ -9,14 +9,38 @@ import (
 	"sync"
 )
 
-// Data 通知订阅与企微通道（与前端 settings 对齐）。
+// 全局内容类型总闸：资源四类 + 应用探活总类。
+var knownAlertContentKinds = []string{"cpu", "mem", "disk", "load", "app"}
+
+// 通知正文可选字段。
+var knownNotifyContentFields = []string{"hostName", "metric", "threshold", "value", "service"}
+
+// Data 通知订阅与通道（与前端 settings 对齐）。
 // 落盘到系统应用数据目录，重编译 / 换 webview 不会丢。
 type Data struct {
 	// FromDisk 本次 Get 是否来自已有文件（false = 尚未落盘，前端可把 localStorage 迁过来）
 	FromDisk               bool                `json:"fromDisk"`
 	NotifyEnabled          bool                `json:"notifyEnabled"`
 	WecomWebhook           string              `json:"wecomWebhook"`
-	WecomAlertKinds        []string            `json:"wecomAlertKinds"`
+	SystemNotifyEnabled    bool                `json:"systemNotifyEnabled"`
+	InAppNotifyEnabled     bool                `json:"inAppNotifyEnabled"`
+	AlertContentKinds      []string            `json:"alertContentKinds"`
+	NotifyRecoverEnabled   bool                `json:"notifyRecoverEnabled"`
+	NotifyContentFields    []string            `json:"notifyContentFields"`
+	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
+	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
+}
+
+// fileData 仅用于读盘：区分缺省与 false/空数组；并兼容旧字段 wecomAlertKinds。
+type fileData struct {
+	NotifyEnabled          bool                `json:"notifyEnabled"`
+	WecomWebhook           string              `json:"wecomWebhook"`
+	WecomAlertKinds        []string            `json:"wecomAlertKinds"` // 废弃：仅迁移读入
+	SystemNotifyEnabled    *bool               `json:"systemNotifyEnabled"`
+	InAppNotifyEnabled     *bool               `json:"inAppNotifyEnabled"`
+	AlertContentKinds      *[]string           `json:"alertContentKinds"`
+	NotifyRecoverEnabled   *bool               `json:"notifyRecoverEnabled"`
+	NotifyContentFields    *[]string           `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
 }
@@ -76,7 +100,11 @@ func (s *Store) Set(d Data) error {
 
 func emptyData() Data {
 	return Data{
-		WecomAlertKinds:        []string{},
+		SystemNotifyEnabled:    true,
+		InAppNotifyEnabled:     true,
+		AlertContentKinds:      append([]string{}, knownAlertContentKinds...),
+		NotifyRecoverEnabled:   true,
+		NotifyContentFields:    append([]string{}, knownNotifyContentFields...),
 		HostResourceNotifySubs: map[string][]string{},
 		HostAppNotifySubs:      map[string][]string{},
 	}
@@ -90,11 +118,11 @@ func (s *Store) load() error {
 		}
 		return err
 	}
-	var d Data
-	if err := json.Unmarshal(b, &d); err != nil {
+	var raw fileData
+	if err := json.Unmarshal(b, &raw); err != nil {
 		return fmt.Errorf("解析 notify_subs.json 失败: %w", err)
 	}
-	s.data = normalize(d)
+	s.data = normalize(dataFromFile(raw))
 	s.loaded = true
 	return nil
 }
@@ -109,11 +137,79 @@ func (s *Store) saveLocked() error {
 	return os.WriteFile(s.path, b, 0644)
 }
 
+func dataFromFile(raw fileData) Data {
+	d := Data{
+		NotifyEnabled:          raw.NotifyEnabled,
+		WecomWebhook:           raw.WecomWebhook,
+		HostResourceNotifySubs: raw.HostResourceNotifySubs,
+		HostAppNotifySubs:      raw.HostAppNotifySubs,
+	}
+	if raw.SystemNotifyEnabled != nil {
+		d.SystemNotifyEnabled = *raw.SystemNotifyEnabled
+	} else {
+		d.SystemNotifyEnabled = true
+	}
+	if raw.InAppNotifyEnabled != nil {
+		d.InAppNotifyEnabled = *raw.InAppNotifyEnabled
+	} else {
+		d.InAppNotifyEnabled = true
+	}
+	if raw.NotifyRecoverEnabled != nil {
+		d.NotifyRecoverEnabled = *raw.NotifyRecoverEnabled
+	} else {
+		d.NotifyRecoverEnabled = true
+	}
+	d.AlertContentKinds = resolveAlertContentKinds(raw.AlertContentKinds, raw.WecomAlertKinds)
+	d.NotifyContentFields = resolveNotifyContentFields(raw.NotifyContentFields)
+	return d
+}
+
+// resolveAlertContentKinds：字段缺省时用 wecomAlertKinds 迁资源类型并补 app；再缺则全开。
+// 显式空数组表示用户关光，不回退。
+func resolveAlertContentKinds(present *[]string, legacy []string) []string {
+	if present != nil {
+		return filterKnown(compactList(*present), knownAlertContentKinds)
+	}
+	legacyFiltered := filterKnown(compactList(legacy), []string{"cpu", "mem", "disk", "load"})
+	if len(legacyFiltered) > 0 {
+		return append(legacyFiltered, "app")
+	}
+	return append([]string{}, knownAlertContentKinds...)
+}
+
+func resolveNotifyContentFields(present *[]string) []string {
+	if present != nil {
+		return filterKnown(compactList(*present), knownNotifyContentFields)
+	}
+	return append([]string{}, knownNotifyContentFields...)
+}
+
+func filterKnown(in []string, known []string) []string {
+	allow := map[string]bool{}
+	for _, k := range known {
+		allow[k] = true
+	}
+	out := make([]string, 0, len(in))
+	seen := map[string]bool{}
+	for _, v := range in {
+		if !allow[v] || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out
+}
+
 func normalize(d Data) Data {
 	out := Data{
 		NotifyEnabled:          d.NotifyEnabled,
 		WecomWebhook:           strings.TrimSpace(d.WecomWebhook),
-		WecomAlertKinds:        compactList(d.WecomAlertKinds),
+		SystemNotifyEnabled:    d.SystemNotifyEnabled,
+		InAppNotifyEnabled:     d.InAppNotifyEnabled,
+		NotifyRecoverEnabled:   d.NotifyRecoverEnabled,
+		AlertContentKinds:      filterKnown(compactList(d.AlertContentKinds), knownAlertContentKinds),
+		NotifyContentFields:    filterKnown(compactList(d.NotifyContentFields), knownNotifyContentFields),
 		HostResourceNotifySubs: compactHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      compactAppHostMap(d.HostAppNotifySubs),
 	}
@@ -177,7 +273,11 @@ func cloneData(d Data) Data {
 		FromDisk:               d.FromDisk,
 		NotifyEnabled:          d.NotifyEnabled,
 		WecomWebhook:           d.WecomWebhook,
-		WecomAlertKinds:        append([]string{}, d.WecomAlertKinds...),
+		SystemNotifyEnabled:    d.SystemNotifyEnabled,
+		InAppNotifyEnabled:     d.InAppNotifyEnabled,
+		AlertContentKinds:      append([]string{}, d.AlertContentKinds...),
+		NotifyRecoverEnabled:   d.NotifyRecoverEnabled,
+		NotifyContentFields:    append([]string{}, d.NotifyContentFields...),
 		HostResourceNotifySubs: cloneHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      cloneHostMap(d.HostAppNotifySubs),
 	}

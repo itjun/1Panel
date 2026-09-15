@@ -1,6 +1,7 @@
 package notifysubs
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,9 +18,13 @@ func TestSetGetRoundTrip(t *testing.T) {
 	}
 
 	in := Data{
-		NotifyEnabled:   true,
-		WecomWebhook:    " https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=abc ",
-		WecomAlertKinds: []string{"cpu", "mem", "cpu", ""},
+		NotifyEnabled:        true,
+		WecomWebhook:         " https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=abc ",
+		SystemNotifyEnabled:  true,
+		InAppNotifyEnabled:   false,
+		AlertContentKinds:    []string{"cpu", "mem", "cpu", "", "app", "nope"},
+		NotifyRecoverEnabled: true,
+		NotifyContentFields:  []string{"hostName", "metric", "hostName", "bad"},
 		HostResourceNotifySubs: map[string][]string{
 			" diteng-main ": {"cpu", "mem", "cpu"},
 			"dev-box":       {},
@@ -39,8 +44,17 @@ func TestSetGetRoundTrip(t *testing.T) {
 	if !got.NotifyEnabled || got.WecomWebhook != "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=abc" {
 		t.Fatalf("webhook/enabled: %#v", got)
 	}
-	if len(got.WecomAlertKinds) != 2 {
-		t.Fatalf("kinds=%v", got.WecomAlertKinds)
+	if !got.SystemNotifyEnabled || got.InAppNotifyEnabled {
+		t.Fatalf("channel flags: system=%v inApp=%v", got.SystemNotifyEnabled, got.InAppNotifyEnabled)
+	}
+	if !got.NotifyRecoverEnabled {
+		t.Fatal("recover should stay true")
+	}
+	if len(got.AlertContentKinds) != 3 {
+		t.Fatalf("kinds=%v", got.AlertContentKinds)
+	}
+	if len(got.NotifyContentFields) != 2 {
+		t.Fatalf("fields=%v", got.NotifyContentFields)
 	}
 	if len(got.HostResourceNotifySubs["diteng-main"]) != 2 {
 		t.Fatalf("resource=%v", got.HostResourceNotifySubs)
@@ -54,6 +68,18 @@ func TestSetGetRoundTrip(t *testing.T) {
 	emptyApp, okEmpty := got.HostAppNotifySubs["cdcp-main"]
 	if !okEmpty || emptyApp == nil || len(emptyApp) != 0 {
 		t.Fatalf("empty app host should be kept: ok=%v list=%v", okEmpty, emptyApp)
+	}
+
+	raw, err := os.ReadFile(s.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var disk map[string]any
+	if err := json.Unmarshal(raw, &disk); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := disk["wecomAlertKinds"]; ok {
+		t.Fatalf("wecomAlertKinds must not be written: %v", disk)
 	}
 
 	s2 := &Store{path: s.path, data: emptyData()}
@@ -71,6 +97,9 @@ func TestSetGetRoundTrip(t *testing.T) {
 	if !ok2 || len(empty2) != 0 {
 		t.Fatalf("reload should keep empty app host: ok=%v list=%v", ok2, empty2)
 	}
+	if got2.InAppNotifyEnabled {
+		t.Fatal("reload should keep inAppNotifyEnabled=false")
+	}
 	_ = os.Remove(s.path)
 }
 
@@ -84,5 +113,95 @@ func TestMissingFileNotFromDisk(t *testing.T) {
 	}
 	if s.Get().FromDisk {
 		t.Fatal("missing file is not FromDisk")
+	}
+	got := s.Get()
+	if !got.SystemNotifyEnabled || !got.InAppNotifyEnabled || !got.NotifyRecoverEnabled {
+		t.Fatalf("empty defaults should keep channels/recover on: %#v", got)
+	}
+	if len(got.AlertContentKinds) != 5 || len(got.NotifyContentFields) != 5 {
+		t.Fatalf("empty defaults kinds=%v fields=%v", got.AlertContentKinds, got.NotifyContentFields)
+	}
+}
+
+func TestMigrateWecomAlertKinds(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notify_subs.json")
+	legacy := map[string]any{
+		"notifyEnabled":   true,
+		"wecomWebhook":    "https://example/hook",
+		"wecomAlertKinds": []string{"cpu", "disk", "cpu", "bogus"},
+		"hostResourceNotifySubs": map[string][]string{
+			"h1": {"cpu"},
+		},
+		"hostAppNotifySubs": map[string][]string{},
+	}
+	b, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, b, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Store{path: path, data: emptyData()}
+	if err := s.load(); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Get()
+	if !got.SystemNotifyEnabled || !got.InAppNotifyEnabled || !got.NotifyRecoverEnabled {
+		t.Fatalf("legacy missing bools default true: %#v", got)
+	}
+	wantKinds := []string{"cpu", "disk", "app"}
+	if len(got.AlertContentKinds) != len(wantKinds) {
+		t.Fatalf("migrated kinds=%v want %v", got.AlertContentKinds, wantKinds)
+	}
+	for i, k := range wantKinds {
+		if got.AlertContentKinds[i] != k {
+			t.Fatalf("migrated kinds=%v want %v", got.AlertContentKinds, wantKinds)
+		}
+	}
+	if len(got.NotifyContentFields) != 5 {
+		t.Fatalf("fields default all: %v", got.NotifyContentFields)
+	}
+
+	if err := s.Set(got); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var disk map[string]any
+	if err := json.Unmarshal(raw, &disk); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := disk["wecomAlertKinds"]; ok {
+		t.Fatal("rewrite must drop wecomAlertKinds")
+	}
+}
+
+func TestExplicitEmptyAlertContentKinds(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notify_subs.json")
+	body := `{"alertContentKinds":[],"notifyContentFields":[],"systemNotifyEnabled":false}`
+	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Store{path: path, data: emptyData()}
+	if err := s.load(); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Get()
+	if got.SystemNotifyEnabled {
+		t.Fatal("explicit false must stick")
+	}
+	if len(got.AlertContentKinds) != 0 {
+		t.Fatalf("explicit empty kinds must stick: %v", got.AlertContentKinds)
+	}
+	if len(got.NotifyContentFields) != 0 {
+		t.Fatalf("explicit empty fields must stick: %v", got.NotifyContentFields)
+	}
+	if !got.InAppNotifyEnabled || !got.NotifyRecoverEnabled {
+		t.Fatalf("missing bools still default true: %#v", got)
 	}
 }
