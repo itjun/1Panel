@@ -3,6 +3,7 @@ import { api } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 import {
   appendAndNotifyDesktop,
+  buildNotifyCopy,
   sendWecomAlertOnce,
   sendWecomRecover,
 } from "@/utils/alertNotify";
@@ -45,11 +46,19 @@ async function fireAppDown(opts: {
 }): Promise<void> {
   const settings = useSettingsStore();
   if (!settings.isAppNotifySubscribed(opts.host, opts.service)) return;
+  if (!settings.isContentKindEnabled("app")) return;
 
   const key = `${opts.host}|${opts.service}`;
   const kind = appAlertKind(opts.service);
-  const title = `「${opts.host}」${opts.service} 探活异常`;
-  const body = opts.detail || title;
+  const copy = buildNotifyCopy({
+    state: "down",
+    kind: "app",
+    parts: {
+      hostName: opts.host,
+      service: opts.service,
+      value: opts.detail,
+    },
+  });
 
   if (!firedLocal.has(key)) {
     firedLocal.add(key);
@@ -57,8 +66,8 @@ async function fireAppDown(opts: {
       host: opts.host,
       kind,
       state: "down",
-      title,
-      body,
+      title: copy.title,
+      body: copy.body,
     });
   }
 
@@ -67,7 +76,7 @@ async function fireAppDown(opts: {
     webhook,
     host: opts.host,
     kind,
-    detail: opts.detail,
+    detail: copy.body,
   });
 }
 
@@ -75,19 +84,32 @@ async function fireAppUp(opts: {
   host: string;
   service: string;
 }): Promise<void> {
-  // 恢复：只有曾发出过通知才回落；当下是否仍订阅不影响（避免吞掉恢复）
+  // 恢复：只有曾发出过通知才回落；去重态先清，再看闸门
   const key = `${opts.host}|${opts.service}`;
   const hadLocal = firedLocal.delete(key);
   const hadWecom = firedWecom.delete(key);
   if (!hadLocal && !hadWecom) return;
 
+  const settings = useSettingsStore();
+  if (!settings.notifyRecoverEnabled) return;
+  if (!settings.isContentKindEnabled("app")) return;
+
   if (hadLocal) {
+    const copy = buildNotifyCopy({
+      state: "up",
+      kind: "app",
+      parts: {
+        hostName: opts.host,
+        service: opts.service,
+        value: "探活已恢复",
+      },
+    });
     await appendAndNotifyDesktop({
       host: opts.host,
       kind: appAlertKind(opts.service),
       state: "up",
-      title: `「${opts.host}」${opts.service} 已恢复`,
-      body: "探活已恢复",
+      title: copy.title,
+      body: copy.body,
     });
   }
 
