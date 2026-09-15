@@ -45,25 +45,6 @@
         @contextmenu.prevent="openTitlebarMenu"
       >
         <span class="titlebar-title">{{ titlebarTitle }}</span>
-        <div class="titlebar-actions no-drag" @dblclick.stop @contextmenu.stop>
-          <el-badge
-            :value="alertHistory.unread"
-            :hidden="alertHistory.unread <= 0"
-            :max="99"
-            class="titlebar-badge"
-          >
-            <el-button
-              text
-              class="titlebar-btn"
-              v-tip="'通知中心'"
-              @click="alertHistory.openDrawer()"
-            >
-              <el-icon>
-                <Bell />
-              </el-icon>
-            </el-button>
-          </el-badge>
-        </div>
         <div v-if="!isMac" class="win-controls no-drag" @dblclick.stop @contextmenu.stop>
           <button
             type="button"
@@ -111,6 +92,9 @@
       />
       <SidebarLocal
         v-else-if="app.sidebarOpen && app.workspace === 'local'"
+      />
+      <SidebarNotify
+        v-else-if="app.sidebarOpen && app.workspace === 'notify'"
       />
       <div class="main-column">
         <MainArea />
@@ -189,53 +173,6 @@
     <AgentInstallDialog />
     <AgentCheckDialog />
 
-    <!-- 全局通知中心：扁平列表 -->
-    <el-drawer
-      :model-value="alertHistory.drawerOpen"
-      direction="rtl"
-      size="440px"
-      append-to-body
-      class="alert-history-drawer"
-      @update:model-value="(v: boolean) => (v ? alertHistory.openDrawer() : alertHistory.closeDrawer())"
-      @opened="void alertHistory.refresh()"
-    >
-      <template #header>
-        <div class="alert-drawer-head">
-          <span class="alert-drawer-title">通知中心</span>
-          <div class="alert-drawer-actions">
-            <el-button
-              link
-              size="small"
-              type="primary"
-              :disabled="alertHistory.unread <= 0"
-              @click="onMarkAllAlertsRead"
-            >
-              全部已读
-            </el-button>
-            <el-button
-              link
-              size="small"
-              type="danger"
-              :disabled="!alertHistory.events.length"
-              @click="onClearAlertHistory"
-            >
-              清空
-            </el-button>
-          </div>
-        </div>
-      </template>
-      <div v-loading="alertHistory.loading" class="alert-drawer-body">
-        <AlertEventList
-          :events="alertHistory.events"
-          :loading="alertHistory.loading"
-          flat
-          show-host
-          clickable
-          @select="onOpenAlertEvent"
-        />
-      </div>
-    </el-drawer>
-
     <!-- 标题栏右键：展开/收起侧栏 -->
     <Teleport to="body">
       <div
@@ -262,26 +199,22 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
-import { Bell } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
 import { Events, Window } from "@wailsio/runtime";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
-import {
-  useAlertHistoryStore,
-  type AlertEvent,
-} from "@/stores/alertHistory";
+import { useAlertHistoryStore } from "@/stores/alertHistory";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
 import SidebarHost from "@/layout/SidebarHost.vue";
 import SidebarLocal from "@/layout/SidebarLocal.vue";
+import SidebarNotify from "@/layout/SidebarNotify.vue";
 import SidebarSettings from "@/layout/SidebarSettings.vue";
 import WorkspaceRail from "@/layout/WorkspaceRail.vue";
 import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
-import AlertEventList from "@/components/alert/AlertEventList.vue";
 import {
   startAppWatchAlertPoll,
   stopAppWatchAlertPoll,
@@ -386,6 +319,16 @@ const titlebarTitle = computed(() => {
       sysinfo: "关于本机",
     };
     return map[app.localSection] || "本机";
+  }
+  if (app.workspace === "notify") {
+    const map: Record<string, string> = {
+      messages: "全部消息",
+      metricSubs: "指标订阅",
+      appSubs: "应用订阅",
+      channels: "通知频道",
+      content: "通知内容",
+    };
+    return map[app.notifySection] || "通知";
   }
   const tab = app.activeTab;
   if (!tab) return "全部主机";
@@ -502,44 +445,6 @@ async function onAddHost() {
   }
 }
 
-async function onMarkAllAlertsRead() {
-  try {
-    await alertHistory.markAllRead();
-    ElMessage.success("已全部标为已读");
-  } catch (e) {
-    ElMessage.error(formatErr(e));
-  }
-}
-
-async function onClearAlertHistory() {
-  try {
-    await ElMessageBox.confirm(
-      "将清空通知中心全部历史记录，此操作不可恢复。",
-      "清空通知",
-      { type: "warning", confirmButtonText: "清空", cancelButtonText: "取消" }
-    );
-  } catch {
-    return;
-  }
-  try {
-    await alertHistory.clearAll();
-    ElMessage.success("已清空通知中心");
-  } catch (e) {
-    ElMessage.error(formatErr(e));
-  }
-}
-
-function onOpenAlertEvent(ev: AlertEvent) {
-  const host = (ev.host || "").trim();
-  if (!host) return;
-  alertHistory.setFocusEventId(ev.id || "");
-  alertHistory.closeDrawer();
-  app.openHostTab(host, "notifications");
-  if (ev.id && !ev.read) {
-    void alertHistory.markRead(ev.id);
-  }
-}
-
 /** v3 事件订阅：Events.On 返回退订函数，逐个保存后统一释放 */
 const eventOffs: (() => void)[] = [];
 
@@ -604,16 +509,36 @@ onMounted(() => {
       void api.focusMainWindow();
     })
   );
-  // 系统通知点击：打开对应主机「通知」子页并可选定位事件
+  // 系统通知点击：进入通知工作区「消息」并定位对应告警
   eventOffs.push(
     Events.On("alert-open-host", (ev: { data?: { host?: string; eventId?: string } }) => {
       const host = (ev?.data?.host || "").trim();
-      const eventId = (ev?.data?.eventId || "").trim();
-      if (!host) return;
-      if (eventId) alertHistory.setFocusEventId(eventId);
-      app.openHostTab(host, "notifications");
+      const payloadEventId = (ev?.data?.eventId || "").trim();
+
+      const resolveFocusId = (): string => {
+        if (payloadEventId) return payloadEventId;
+        if (!host) return "";
+        const list = alertHistory.events.filter(
+          (e) => (e.host || "").trim() === host
+        );
+        const unread = list.find((e) => !e.read);
+        if (unread?.id) return unread.id;
+        if (list[0]?.id) return list[0].id;
+        return "";
+      };
+
+      const focusId = resolveFocusId();
+      if (focusId) {
+        app.setFocusAlertId(focusId);
+      }
+      app.setWorkspace("notify");
+      app.setNotifySection("messages");
       void api.focusMainWindow();
-      void alertHistory.refresh();
+      void alertHistory.refresh().then(() => {
+        if (app.focusAlertId) return;
+        const again = resolveFocusId();
+        if (again) app.setFocusAlertId(again);
+      });
     })
   );
   eventOffs.push(
@@ -739,32 +664,6 @@ onBeforeUnmount(() => {
   height: 32px;
   user-select: none;
 }
-.titlebar-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  height: 32px;
-}
-.titlebar-badge {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  overflow: visible;
-}
-.titlebar-badge :deep(.el-badge__content) {
-  border: none;
-  top: 50%;
-  left: 50%;
-  right: auto;
-  transform: translate(-50%, -50%);
-  z-index: 1;
-  /* 角标盖在铃铛正中，不挡点击 */
-  pointer-events: none;
-}
 .win-controls {
   display: flex;
   align-items: stretch;
@@ -839,54 +738,5 @@ onBeforeUnmount(() => {
 .titlebar-ctx-menu .ctx-kbd {
   font: var(--m3-body-small);
   color: var(--m3-on-surface-variant);
-}
-
-.alert-history-drawer .alert-drawer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-width: 0;
-  padding-right: 4px;
-}
-.alert-history-drawer .alert-drawer-title {
-  flex: 1;
-  min-width: 0;
-  font: var(--m3-title-large);
-  color: var(--m3-on-surface);
-}
-.alert-history-drawer .alert-drawer-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 4px;
-}
-/* 操作文案用 label-medium，明显小于 title-large，符合 M3 层级 */
-.alert-history-drawer .alert-drawer-actions .el-button {
-  font: var(--m3-label-medium);
-  height: auto;
-  min-height: 0;
-  padding: 4px 6px;
-}
-.alert-history-drawer .alert-drawer-actions .el-button.is-disabled {
-  color: var(--m3-on-surface-variant) !important;
-  opacity: 0.5;
-}
-/* drawer 挂到 body；对齐 M3 side sheet 内边距与表面色 */
-.alert-history-drawer.el-drawer {
-  background: var(--m3-surface-container-lowest);
-}
-.alert-history-drawer .el-drawer__header {
-  margin-bottom: 0;
-  padding: 20px 20px 12px 24px;
-  border-bottom: 1px solid var(--m3-outline-variant);
-}
-.alert-history-drawer .el-drawer__body {
-  padding: 16px 20px 24px;
-  background: var(--m3-surface-container-lowest);
-}
-.alert-history-drawer .alert-drawer-body {
-  min-height: 120px;
 }
 </style>

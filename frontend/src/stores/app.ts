@@ -27,11 +27,10 @@ export type SubTab =
   | "cron"
   | "packages"
   | "logs"
-  | "notifications"
   | "terminal";
 
-/** 工作区：远程主机 / 本机应用 */
-export type Workspace = "remote" | "local";
+/** 工作区：远程主机 / 本机应用 / 通知 */
+export type Workspace = "remote" | "local" | "notify";
 
 /** 本机二级栏：页面导航 */
 export type LocalSection =
@@ -43,6 +42,14 @@ export type LocalSection =
   | "network"
   | "nginx"
   | "hosts";
+
+/** 通知二级栏：页面导航 */
+export type NotifySection =
+  | "messages"
+  | "metricSubs"
+  | "appSubs"
+  | "channels"
+  | "content";
 
 /** 本机应用进程页：语言过滤（页内 chips） */
 export type LocalRuntimeFilter = "all" | import("@/utils/localLang").LocalLangId;
@@ -226,11 +233,11 @@ export const useAppStore = defineStore("app", () => {
     settingsOpen.value = !settingsOpen.value;
   }
 
-  /** 工作区：远程主机 / 本机应用（持久化；切到本机不清远程会话） */
+  /** 工作区：远程主机 / 本机应用 / 通知（持久化；切工作区不清远程会话） */
   function loadWorkspace(): Workspace {
     try {
       const v = localStorage.getItem("1pannel-workspace");
-      if (v === "local" || v === "remote") return v;
+      if (v === "local" || v === "remote" || v === "notify") return v;
     } catch {
       /* ignore */
     }
@@ -239,7 +246,7 @@ export const useAppStore = defineStore("app", () => {
   const workspace = ref<Workspace>(loadWorkspace());
   function setWorkspace(w: Workspace) {
     workspace.value = w;
-    // 设置整页盖在主区上；切远程/本机时先关掉，否则仍停在设置页
+    // 设置整页盖在主区上；切工作区时先关掉，否则仍停在设置页
     settingsOpen.value = false;
     try {
       localStorage.setItem("1pannel-workspace", w);
@@ -277,6 +284,48 @@ export const useAppStore = defineStore("app", () => {
     } catch {
       /* ignore */
     }
+  }
+
+  /** 通知二级栏：页面导航（持久化） */
+  function loadNotifySection(): NotifySection {
+    try {
+      const v = localStorage.getItem("1pannel-notify-section");
+      // 旧值 hostSubs → 指标订阅
+      if (v === "hostSubs") return "metricSubs";
+      if (
+        v === "messages" ||
+        v === "metricSubs" ||
+        v === "appSubs" ||
+        v === "channels" ||
+        v === "content"
+      ) {
+        return v;
+      }
+    } catch {
+      /* ignore */
+    }
+    return "messages";
+  }
+  const notifySection = ref<NotifySection>(loadNotifySection());
+  function setNotifySection(v: NotifySection) {
+    notifySection.value = v;
+    try {
+      localStorage.setItem("1pannel-notify-section", v);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * 系统通知点击后定位到某条告警（后续消息页消费；可先写后读）。
+   * 与 alertHistory.focusEventId 用途相近，此处挂在 app 上方便跨工作区跳转。
+   */
+  const focusAlertId = ref("");
+  function setFocusAlertId(id: string) {
+    focusAlertId.value = (id || "").trim();
+  }
+  function clearFocusAlertId() {
+    focusAlertId.value = "";
   }
 
   /** 后台常挂的主机会话（按打开顺序） */
@@ -859,6 +908,11 @@ export const useAppStore = defineStore("app", () => {
     setWorkspace,
     localSection,
     setLocalSection,
+    notifySection,
+    setNotifySection,
+    focusAlertId,
+    setFocusAlertId,
+    clearFocusAlertId,
     refresh,
     rememberOsRelease,
     refreshHostIcon,

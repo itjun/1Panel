@@ -44,7 +44,7 @@ export const WATCH_SERVICE_GROUPS: {
 ];
 
 /**
- * 应用探活订阅规则（主机「通知 → 订阅设置」展示用）。
+ * 应用探活订阅规则（「通知 → 主机订阅」展示用）。
  * 仅已订阅服务触发；通道与 appWatchAlerts 边沿判定一致。
  */
 export const APP_NOTIFY_RULES = [

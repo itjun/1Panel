@@ -1,18 +1,18 @@
 <template>
   <aside
-    class="panel-sidebar"
+    class="panel-sidebar panel-sidebar--notify"
     :class="{ 'is-resizing': resizing }"
     :style="{ width: width + 'px' }"
   >
     <div class="menu-wrap">
-      <el-menu :default-active="settings.lastNavGroup">
+      <el-menu :default-active="activeId">
         <el-menu-item
-          v-for="g in SETTINGS_NAV_GROUPS"
-          :key="g.id"
-          :index="g.id"
-          @click="settings.setLastNavGroup(g.id)"
+          v-for="item in menuItems"
+          :key="item.id"
+          :index="item.id"
+          @click="app.setNotifySection(item.id)"
         >
-          <span class="menu-title">{{ g.label }}</span>
+          <span class="menu-title">{{ item.label }}</span>
         </el-menu-item>
       </el-menu>
     </div>
@@ -28,24 +28,36 @@
 
 <script setup lang="ts">
 /**
- * 设置工作区二级栏：外观 / 界面 / 终端 / 会话 / 应用。
- * 打开设置时替换远程/本机二级栏；宽度共用 useSidebarResize。
+ * 通知工作区二级栏：全部消息 / 指标订阅 / 应用订阅 / 通知频道 / 通知内容。
  */
-import {
-  SETTINGS_NAV_GROUPS,
-  useSettingsStore,
-} from "@/stores/settings";
+import { computed } from "vue";
+import { useAppStore, type NotifySection } from "@/stores/app";
 import { useSidebarResize } from "@/composables/useSidebarResize";
 
-const settings = useSettingsStore();
+const app = useAppStore();
 const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
+
+const menuItems = computed(() => {
+  return [
+    { id: "messages" as NotifySection, label: "全部消息" },
+    { id: "metricSubs" as NotifySection, label: "指标订阅" },
+    { id: "appSubs" as NotifySection, label: "应用订阅" },
+    { id: "channels" as NotifySection, label: "通知频道" },
+    { id: "content" as NotifySection, label: "通知内容" },
+  ];
+});
+
+const activeId = computed(() => {
+  if (app.settingsOpen) return "__settings__";
+  return app.notifySection;
+});
 </script>
 
 <style scoped lang="scss">
 .panel-sidebar {
   position: relative;
-  min-width: 180px;
-  max-width: 320px;
+  min-width: 160px;
+  max-width: 280px;
   flex-shrink: 0;
 
   &:not(.is-resizing) {
@@ -58,11 +70,24 @@ const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
   }
 }
 
+.panel-sidebar--notify :deep(.el-menu) {
+  padding: 4px 8px;
+}
+
+.panel-sidebar--notify :deep(.el-menu-item) {
+  height: 40px !important;
+  line-height: 40px;
+  margin: 1px 0;
+  padding: 0 14px !important;
+}
+
 .menu-title {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .sidebar-resize-handle {

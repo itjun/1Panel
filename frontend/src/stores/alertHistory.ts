@@ -107,7 +107,7 @@ export const useAlertHistoryStore = defineStore("alertHistory", () => {
   const unread = ref(0);
   const loading = ref(false);
   const drawerOpen = ref(false);
-  /** 打开主机通知页时要滚动/高亮的事件 id */
+  /** 兼容旧定位 API；新路径用 app.focusAlertId（通知 → 全部消息） */
   const focusEventId = ref("");
 
   const byDay = computed(() => groupEventsByDay(events.value));

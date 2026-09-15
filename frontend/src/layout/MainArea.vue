@@ -29,6 +29,21 @@
       <LocalHostsView v-else-if="app.localSection === 'hosts'" />
     </div>
 
+    <!-- 通知工作区：顶边与侧栏菜单对齐 -->
+    <div
+      v-if="!app.settingsOpen && app.workspace === 'notify'"
+      class="content-pad content-pad--local"
+    >
+      <NotifyMessagesView v-if="app.notifySection === 'messages'" />
+      <NotifyHostSubsView
+        v-else-if="
+          app.notifySection === 'metricSubs' || app.notifySection === 'appSubs'
+        "
+      />
+      <NotifyChannelsView v-else-if="app.notifySection === 'channels'" />
+      <NotifyContentView v-else-if="app.notifySection === 'content'" />
+    </div>
+
     <!-- 全部主机首页：常驻（v-show 切换，零销毁零重载） -->
     <div
       v-show="!app.settingsOpen && app.workspace === 'remote' && !app.activeTab"
@@ -146,11 +161,6 @@
             v-show="sessionOf(hid)?.subTab === 'packages'"
             :host="hid"
           />
-          <HostNotificationsView
-            v-if="visitedSub(hid, 'notifications')"
-            v-show="sessionOf(hid)?.subTab === 'notifications'"
-            :host="hid"
-          />
           <!-- KeepAlive：切到其他子页签时终端只停用不卸载，
                避免卸载钩子关闭全部 PTY 会话（切回来就断线） -->
           <KeepAlive>
@@ -182,7 +192,6 @@ import CertsView from "@/views/CertsView.vue";
 import CronView from "@/views/CronView.vue";
 import PackagesView from "@/views/PackagesView.vue";
 import LogsView from "@/views/LogsView.vue";
-import HostNotificationsView from "@/views/HostNotificationsView.vue";
 import TerminalView from "@/views/TerminalView.vue";
 import AllHostsOverviewView from "@/views/AllHostsOverviewView.vue";
 import LocalAppsView from "@/views/LocalAppsView.vue";
@@ -193,6 +202,10 @@ import LocalStorageView from "@/views/LocalStorageView.vue";
 import LocalNetworkView from "@/views/LocalNetworkView.vue";
 import LocalNginxView from "@/views/LocalNginxView.vue";
 import LocalHostsView from "@/views/LocalHostsView.vue";
+import NotifyMessagesView from "@/views/NotifyMessagesView.vue";
+import NotifyHostSubsView from "@/views/NotifyHostSubsView.vue";
+import NotifyChannelsView from "@/views/NotifyChannelsView.vue";
+import NotifyContentView from "@/views/NotifyContentView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 
 const app = useAppStore();
@@ -211,7 +224,6 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "cron", label: "定时任务" },
   { value: "logs", label: "日志" },
   { value: "packages", label: "软件包" },
-  { value: "notifications", label: "通知" },
   { value: "terminal", label: "终端" },
 ];
 

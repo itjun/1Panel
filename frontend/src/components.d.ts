@@ -14,7 +14,6 @@ declare module 'vue' {
     AgentCheckDialog: typeof import('./components/AgentCheckDialog.vue')['default']
     AgentCheckList: typeof import('./components/AgentCheckList.vue')['default']
     AgentInstallDialog: typeof import('./components/AgentInstallDialog.vue')['default']
-    AlertEventList: typeof import('./components/alert/AlertEventList.vue')['default']
     AllHostsGroupBranch: typeof import('./components/AllHostsGroupBranch.vue')['default']
     BackupImportDialog: typeof import('./components/BackupImportDialog.vue')['default']
     BoardModeOverlay: typeof import('./components/board/BoardModeOverlay.vue')['default']

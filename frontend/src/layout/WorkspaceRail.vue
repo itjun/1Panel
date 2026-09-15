@@ -30,6 +30,23 @@
       <button
         type="button"
         class="rail-btn"
+        :class="{ active: !app.settingsOpen && app.workspace === 'notify' }"
+        v-tip="'通知'"
+        @click="app.setWorkspace('notify')"
+      >
+        <el-badge
+          :value="alertHistory.unread"
+          :hidden="alertHistory.unread <= 0"
+          :max="99"
+          class="rail-badge"
+        >
+          <el-icon><Bell /></el-icon>
+        </el-badge>
+        <span class="rail-label">通知</span>
+      </button>
+      <button
+        type="button"
+        class="rail-btn"
         :class="{ active: app.settingsOpen }"
         v-tip="isMac ? '设置 (⌘,)' : '设置 (Ctrl+,)'"
         @click="app.toggleSettings()"
@@ -42,10 +59,12 @@
 </template>
 
 <script setup lang="ts">
-import { Cpu, Monitor, Setting } from "@element-plus/icons-vue";
+import { Bell, Cpu, Monitor, Setting } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
+import { useAlertHistoryStore } from "@/stores/alertHistory";
 
 const app = useAppStore();
+const alertHistory = useAlertHistoryStore();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 </script>
 
@@ -86,6 +105,7 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 4px;
   padding-bottom: 4px;
 }
 
@@ -120,6 +140,18 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   &.active {
     background: var(--m3-sidebar-active-bg);
     color: var(--m3-sidebar-active-fg);
+  }
+}
+
+.rail-badge {
+  display: inline-flex;
+  line-height: 1;
+  overflow: visible;
+
+  :deep(.el-badge__content) {
+    border: none;
+    transform: translateY(-2px) translateX(2px);
+    pointer-events: none;
   }
 }
 
