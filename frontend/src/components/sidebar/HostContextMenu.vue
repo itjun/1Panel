@@ -30,6 +30,9 @@
       <button type="button" class="ctx-item" @click="onRefreshIcon">
         更新图标
       </button>
+      <button type="button" class="ctx-item" @click="onTogglePin">
+        {{ app.isPinned(menu.host) ? "取消置顶" : "置顶" }}
+      </button>
       <div
         class="ctx-item ctx-has-sub"
         @mouseenter="groupSubOpen = true"
@@ -210,6 +213,15 @@ async function onRefreshIcon() {
   } catch (err) {
     ElMessage.error(`更新图标失败: ${formatErr(err)}`);
   }
+}
+
+function onTogglePin() {
+  const host = props.menu?.host;
+  emit("close");
+  if (!host) return;
+  const wasPinned = app.isPinned(host);
+  app.togglePinHost(host);
+  ElMessage.success(wasPinned ? `已取消置顶 ${host}` : `已置顶 ${host}`);
 }
 
 function onMove(groupId: string) {

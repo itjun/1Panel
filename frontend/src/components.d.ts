@@ -81,6 +81,7 @@ declare module 'vue' {
     LocalAppDetailCard: typeof import('./components/LocalAppDetailCard.vue')['default']
     LocalCpuCoresCard: typeof import('./components/LocalCpuCoresCard.vue')['default']
     PageSkeleton: typeof import('./components/PageSkeleton.vue')['default']
+    PinnedHostsStrip: typeof import('./components/sidebar/PinnedHostsStrip.vue')['default']
     RouterButton: typeof import('./components/RouterButton.vue')['default']
     SidebarGroupNode: typeof import('./components/sidebar/SidebarGroupNode.vue')['default']
     TagButton: typeof import('./components/TagButton.vue')['default']

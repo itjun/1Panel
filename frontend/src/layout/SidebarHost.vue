@@ -6,6 +6,20 @@
     @contextmenu="onBlankContext"
   >
     <div class="menu-wrap" ref="menuWrapRef">
+      <PinnedHostsStrip
+        :hosts="app.pinnedHosts"
+        :active-id="activeId"
+        :drop-target-id="dropTargetId"
+        :drag-host-id="dragState?.kind === 'host' ? dragState.id : null"
+        :insert-before="pinInsertBefore"
+        :dragging-host="dragState?.kind === 'host' && !!dragState?.active"
+        :is-running="(n) => app.isRunning(n)"
+        :os-release="(n) => app.osReleaseMap.get(n) || ''"
+        :suppress-click="suppressClick"
+        @open="onHostClick"
+        @context="onHostContext"
+        @item-pointer-down="onHostPointerDown"
+      />
       <!-- unique-opened=false：多分组可同时展开；标题行点开分组页，箭头才负责展开/收起 -->
       <el-menu
         :default-active="activeId"
@@ -27,7 +41,7 @@
           >全部主机</span>
           <span
             class="menu-count home-count"
-            :title="`已打开 ${openedCount(app.hosts)} / 共 ${app.hosts.length} 台`"
+            v-tip="`已打开 ${openedCount(app.hosts)} / 共 ${app.hosts.length} 台`"
           >
             {{ countLabel(app.hosts) }}
           </span>
@@ -54,7 +68,7 @@
 
     <div
       class="sidebar-resize-handle"
-      title="拖动调整宽度；双击自适应"
+      v-tip="'拖动调整宽度；双击自适应'"
       @pointerdown="onResizeStart"
       @dblclick="onResizeDblClick"
     />
@@ -279,6 +293,7 @@ import GroupContextMenu, {
   type GroupCtxMenuState,
 } from "@/components/sidebar/GroupContextMenu.vue";
 import SidebarGroupNode from "@/components/sidebar/SidebarGroupNode.vue";
+import PinnedHostsStrip from "@/components/sidebar/PinnedHostsStrip.vue";
 import { useHostDrag } from "@/composables/useHostDrag";
 import { useSidebarResize } from "@/composables/useSidebarResize";
 import { confirmStopHostSession } from "@/utils/hostSession";
@@ -311,6 +326,7 @@ const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
 const {
   dragState,
   dropTargetId,
+  pinInsertBefore,
   suppressClick,
   onHostPointerDown,
   onGroupPointerDown,
@@ -534,9 +550,9 @@ async function onCtxMove(host: string, groupId: string) {
 
 /** 侧栏空白处右键：添加主机 / 新建分组 */
 function onBlankContext(e: MouseEvent) {
-  // 命中主机行/分组标题/按钮/输入框等交互元素时不接管
+  // 命中主机行/置顶项/分组标题/按钮/输入框等交互元素时不接管
   const el = (e.target as HTMLElement).closest(
-    ".host-item, .el-menu-item, .el-sub-menu__title, .group-title-row, button, input, .sidebar-resize-handle"
+    ".host-item, .pinned-item, .pinned-strip, .el-menu-item, .el-sub-menu__title, .group-title-row, button, input, .sidebar-resize-handle"
   );
   if (el) return;
   e.preventDefault();
