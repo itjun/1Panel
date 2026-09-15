@@ -96,7 +96,7 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 6px;
   padding: 8px 4px;
   border: none;
   border-radius: var(--m3-shape-m);
@@ -108,6 +108,8 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
   .el-icon {
     font-size: 22px;
+    display: block;
+    line-height: 1;
   }
 
   &:hover {
@@ -122,6 +124,8 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 }
 
 .rail-label {
+  display: block;
+  margin-top: 0;
   font: var(--m3-label-small);
   line-height: 1.2;
   max-width: 100%;

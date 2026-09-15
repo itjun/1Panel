@@ -332,7 +332,7 @@ func (i *Installer) upload(host string, opt sshd.ConnectOption, bin []byte, prog
 		}
 		pct := end * 100 / total
 		if prog != nil && pct >= nextAt {
-			prog("upload", pct, fmt.Sprintf("上传 Agent 二进制 %d%%", pct))
+			prog("upload", pct, fmt.Sprintf("上传 Agent 二进制 %d%%（共 %.1f MB）", pct, float64(total)/1024/1024))
 			nextAt = pct + 2
 		}
 	}

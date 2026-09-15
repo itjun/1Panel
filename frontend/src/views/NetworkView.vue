@@ -316,6 +316,7 @@ import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
+import { useAppStore } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes } from "@/utils/format";
 import {
@@ -366,6 +367,7 @@ export interface NetworkSnapshot {
 }
 
 const props = defineProps<{ host: string }>();
+const app = useAppStore();
 const filter = ref("");
 const onlyEstab = ref(false);
 const onlySlow = ref(false);
@@ -373,7 +375,9 @@ const onlySlow = ref(false);
 const { data, error, loading, refresh } = usePolling<NetworkSnapshot>(
   () => api.collectNetwork(props.host) as Promise<NetworkSnapshot>,
   8000,
-  () => [props.host]
+  () => [props.host],
+  // 页面不可见（切走/设置页）时降频轮询
+  () => app.isHostSubActive(props.host, "network")
 );
 
 const snap = computed(() => data.value);

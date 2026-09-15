@@ -300,7 +300,7 @@ async function openNew() {
     rightClickSelectsWord: false,
     // macOS：Option 键作为 Meta（Alt+b/f 跳词等 readline 快捷键可用）
     macOptionIsMeta: true,
-    scrollback: 10000,
+    scrollback: 3000,
     theme: { ...MONOKAI_XTERM_THEME },
     allowProposedApi: true,
   });

@@ -138,3 +138,18 @@ type LogResult struct {
 	Content string `json:"content"` // 日志文本
 	Source  string `json:"source"`  // 数据来源（如 /var/log/syslog；空表示未找到）
 }
+
+// HostsInfo 目标主机 /etc/hosts 内容（字段对齐 localsys.HostsInfo，前端两边共用展示）。
+type HostsInfo struct {
+	Raw     string      `json:"raw"`
+	Entries []HostEntry `json:"entries"`
+}
+
+// HostEntry 解析后的 hosts 行。
+type HostEntry struct {
+	IP       string   `json:"ip"`
+	Names    []string `json:"names"`
+	Comment  string   `json:"comment"`
+	Disabled bool     `json:"disabled"`
+	Raw      string   `json:"raw"`
+}

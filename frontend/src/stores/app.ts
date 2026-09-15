@@ -5,6 +5,9 @@ import type { groups, sshconfig } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
 
 export const UNGROUPED_ID = "__ungrouped__";
+/** 拖放到「全部主机」：分组升顶层；主机进未分组 */
+export const ROOT_DROP_ID = "__root__";
+export const MAX_GROUP_DEPTH = 3;
 
 export type SubTab =
   | "overview"
@@ -13,6 +16,7 @@ export type SubTab =
   | "nginx"
   | "processes"
   | "network"
+  | "hosts"
   | "files"
   | "services"
   | "certs"
@@ -55,13 +59,29 @@ export interface HostSession {
   subtitle: string;
   subTab: SubTab;
   openedAt: number;
-  /** 访问过的子页（常驻保活：v-if 用它决定首挂，v-show 负责切换） */
+  /**
+   * 访问过的子页（按访问时间旧→新；v-if 用它决定首挂，v-show 负责切换）。
+   * LRU 上限：最多保留 MAX_RESIDENT_SUBS 个，超出挤掉最旧的
+   * （overview 永久保留，不参与淘汰；终端走 KeepAlive 不占名额）。
+   */
   visited: SubTab[];
 }
 
+/** 每台主机常驻保活的子页数上限（含 overview；terminal 另计豁免） */
+export const MAX_RESIDENT_SUBS = 4;
+
 export interface GroupNode {
   group: groups.Group | null;
+  /** 本节点直接挂载的主机 */
   hosts: sshconfig.HostConfig[];
+  /** 子分组（树） */
+  children: GroupNode[];
+  /** 深度：根=1；未分组=0 */
+  depth: number;
+  /** 顶层彩虹序号；子节点继承根 */
+  rootIndex: number;
+  /** 子树全部主机（本层+子孙，去重保序） */
+  subtreeHosts: sshconfig.HostConfig[];
 }
 
 export const useAppStore = defineStore("app", () => {
@@ -185,22 +205,135 @@ export const useAppStore = defineStore("app", () => {
   const runningHosts = computed(() => runningOrder.value.slice());
 
   const groupNodes = computed<GroupNode[]>(() => {
-    const assigned = new Set<string>();
-    const nodes: GroupNode[] = [];
-    const sorted = [...groupList.value].sort(
-      (a, b) => (a.order ?? 0) - (b.order ?? 0)
-    );
+    const byParent = new Map<string, groups.Group[]>();
+    const sorted = [...groupList.value].sort((a, b) => {
+      if ((a.order ?? 0) !== (b.order ?? 0)) {
+        return (a.order ?? 0) - (b.order ?? 0);
+      }
+      return (a.name || "").localeCompare(b.name || "");
+    });
     for (const g of sorted) {
-      const hs = hosts.value.filter((h) => (g.hosts || []).includes(h.name));
-      hs.forEach((h) => assigned.add(h.name));
-      nodes.push({ group: g, hosts: hs });
+      const pid = (g.parentId || "").trim();
+      const list = byParent.get(pid) || [];
+      list.push(g);
+      byParent.set(pid, list);
     }
+
+    const assigned = new Set<string>();
+    const hostByName = new Map(hosts.value.map((h) => [h.name, h]));
+
+    function directHosts(g: groups.Group): sshconfig.HostConfig[] {
+      const out: sshconfig.HostConfig[] = [];
+      for (const name of g.hosts || []) {
+        const h = hostByName.get(name);
+        if (h) {
+          out.push(h);
+          assigned.add(h.name);
+        }
+      }
+      return out;
+    }
+
+    function build(g: groups.Group, depth: number, rootIndex: number): GroupNode {
+      const kids = byParent.get(g.id) || [];
+      const children = kids.map((c) => build(c, depth + 1, rootIndex));
+      const hostsHere = directHosts(g);
+      const subtreeHosts: sshconfig.HostConfig[] = [];
+      const seen = new Set<string>();
+      for (const h of hostsHere) {
+        if (!seen.has(h.name)) {
+          seen.add(h.name);
+          subtreeHosts.push(h);
+        }
+      }
+      for (const ch of children) {
+        for (const h of ch.subtreeHosts) {
+          if (!seen.has(h.name)) {
+            seen.add(h.name);
+            subtreeHosts.push(h);
+          }
+        }
+      }
+      return {
+        group: g,
+        hosts: hostsHere,
+        children,
+        depth,
+        rootIndex,
+        subtreeHosts,
+      };
+    }
+
+    const roots = byParent.get("") || [];
+    const nodes: GroupNode[] = roots.map((g, i) => build(g, 1, i));
+
     const rest = hosts.value.filter((h) => !assigned.has(h.name));
     if (rest.length > 0 || nodes.length === 0) {
-      nodes.push({ group: null, hosts: rest });
+      nodes.push({
+        group: null,
+        hosts: rest,
+        children: [],
+        depth: 0,
+        rootIndex: -1,
+        subtreeHosts: rest,
+      });
     }
     return nodes;
   });
+
+  /** DFS 展平树中全部真实分组节点（不含未分组） */
+  function flattenGroupNodes(nodes?: GroupNode[]): GroupNode[] {
+    const src = nodes || groupNodes.value;
+    const out: GroupNode[] = [];
+    const walk = (list: GroupNode[]) => {
+      for (const n of list) {
+        if (!n.group) continue;
+        out.push(n);
+        if (n.children?.length) walk(n.children);
+      }
+    };
+    walk(src);
+    return out;
+  }
+
+  /** 侧栏/快捷键用：按树 DFS 顺序展平全部主机（先子分组再本层，与侧栏一致） */
+  function flattenHostsInTreeOrder(): sshconfig.HostConfig[] {
+    const seen = new Set<string>();
+    const out: sshconfig.HostConfig[] = [];
+    const walk = (list: GroupNode[]) => {
+      for (const n of list) {
+        if (n.group) {
+          if (n.children?.length) walk(n.children);
+          for (const h of n.hosts) {
+            if (!seen.has(h.name)) {
+              seen.add(h.name);
+              out.push(h);
+            }
+          }
+        } else {
+          for (const h of n.hosts) {
+            if (!seen.has(h.name)) {
+              seen.add(h.name);
+              out.push(h);
+            }
+          }
+        }
+      }
+    };
+    walk(groupNodes.value);
+    return out;
+  }
+
+  function findGroupNode(id: string): GroupNode | null {
+    for (const n of flattenGroupNodes()) {
+      if (n.group?.id === id) return n;
+    }
+    return null;
+  }
+
+  function groupDepthOf(id: string): number {
+    return findGroupNode(id)?.depth || 0;
+  }
 
   async function refresh() {
     loading.value = true;
@@ -320,12 +453,17 @@ export const useAppStore = defineStore("app", () => {
       return existing;
     }
 
-    // 超上限：挤掉最早打开且非当前激活的（上限可在设置里调）
+    // 超上限：挤掉最早打开且非当前激活的（上限可在设置里调）。
+    // 有终端子页的主机不许挤——终端是用户特意开的，断开不可恢复，
+    // 宁可临时超出上限也要保留（吃内存不管）
     const settings = useSettingsStore();
     if (runningOrder.value.length >= settings.maxRunningHosts) {
       const victim =
-        runningOrder.value.find((n) => n !== activeView.value?.id) ||
-        runningOrder.value[0];
+        runningOrder.value.find(
+          (n) =>
+            n !== activeView.value?.id &&
+            !hostSessions.value[n]?.visited.includes("terminal")
+        ) || null;
       if (victim) stopHost(victim);
     }
 
@@ -407,8 +545,22 @@ export const useAppStore = defineStore("app", () => {
     activeView.value = { ...activeView.value, subTab: sub };
     const sess = hostSessions.value[name];
     if (sess) {
-      // 记录访问过的子页：MainArea 据此常驻挂载，切回零加载
-      const visited = sess.visited.includes(sub) ? sess.visited : [...sess.visited, sub];
+      // 记录访问过的子页：MainArea 据此常驻挂载，切回零加载。
+      // 按访问顺序排列（旧→新），超出上限挤掉最旧的；
+      // overview 永久保留；terminal 也永久保留——它既是 KeepAlive
+      // 之外的存活性标记（有终端的主机不许被会话上限挤掉），
+      // 也意味着该主机会常驻 overview+terminal+2 个其它子页
+      let visited = sess.visited.includes(sub)
+        ? sess.visited.filter((v) => v !== sub)
+        : sess.visited;
+      visited = [...visited, sub];
+      while (visited.length > MAX_RESIDENT_SUBS) {
+        const evict = visited.find(
+          (v) => v !== "overview" && v !== "terminal" && v !== sub
+        );
+        if (!evict) break;
+        visited = visited.filter((v) => v !== evict);
+      }
       hostSessions.value = {
         ...hostSessions.value,
         [name]: { ...sess, subTab: sub, visited },
@@ -420,6 +572,20 @@ export const useAppStore = defineStore("app", () => {
   function isHostSubActive(host: string, sub: SubTab): boolean {
     const t = activeView.value;
     return t?.kind === "host" && t.id === host && t.subTab === sub;
+  }
+
+  /** 某主机会话当前是否可见（不含子页维度：会话被切走即视为不可见） */
+  function isHostVisible(host: string): boolean {
+    if (settingsOpen.value) return false;
+    const t = activeView.value;
+    return t?.kind === "host" && t.id === host;
+  }
+
+  /** 某分组页当前是否可见（设置页打开或切走即不可见） */
+  function isGroupVisible(groupId: string): boolean {
+    if (settingsOpen.value) return false;
+    const t = activeView.value;
+    return t?.kind === "group" && t.id === groupId;
   }
 
   function sendTerminalCmd(cmd: string) {
@@ -442,11 +608,20 @@ export const useAppStore = defineStore("app", () => {
     pendingTerminalCmd.value = cmd;
   }
 
-  async function createGroup(name: string) {
+  async function createGroup(name: string, parentId?: string) {
     const id = `g_${Date.now().toString(36)}`;
+    const pid = (parentId || "").trim();
+    if (pid) {
+      const d = groupDepthOf(pid);
+      if (d <= 0) throw new Error("父分组不存在");
+      if (d >= MAX_GROUP_DEPTH) {
+        throw new Error(`分组最多 ${MAX_GROUP_DEPTH} 层，无法再新建子分组`);
+      }
+    }
     await api.upsertGroup({
       id,
       name,
+      parentId: pid || undefined,
       order: groupList.value.length,
       hosts: [],
     } as groups.Group);
@@ -465,6 +640,29 @@ export const useAppStore = defineStore("app", () => {
   async function setBoardTitle(id: string, title: string) {
     await api.setBoardTitle(id, title);
     await refresh();
+  }
+
+  async function moveGroup(id: string, parentId: string) {
+    await api.moveGroup(id, parentId);
+    await refresh();
+  }
+
+  async function previewDeleteGroup(id: string) {
+    return api.previewDeleteGroup(id);
+  }
+
+  async function deleteGroup(id: string) {
+    const gid = id.trim();
+    if (!gid || gid === UNGROUPED_ID) return;
+    await api.deleteGroup(gid);
+    await refresh();
+    if (
+      activeView.value?.kind === "group" &&
+      activeView.value.id &&
+      !groupList.value.some((g) => g.id === activeView.value!.id)
+    ) {
+      goHome();
+    }
   }
 
   async function assignHost(host: string, groupID: string) {
@@ -576,6 +774,8 @@ export const useAppStore = defineStore("app", () => {
     goHome,
     setSubTab,
     isHostSubActive,
+    isHostVisible,
+    isGroupVisible,
     stopHost,
     sendTerminalCmd,
     clearTerminalCmd,
@@ -583,6 +783,13 @@ export const useAppStore = defineStore("app", () => {
     createGroup,
     renameGroup,
     setBoardTitle,
+    moveGroup,
+    previewDeleteGroup,
+    deleteGroup,
+    flattenGroupNodes,
+    flattenHostsInTreeOrder,
+    findGroupNode,
+    groupDepthOf,
     renameHost,
     updateHost,
     deleteHost,

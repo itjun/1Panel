@@ -767,6 +767,12 @@ function goMonitor() {
 // 监控卡片已迁移到独立的 MonitorView 一级子页；此处仅保留流量差分（状态环用）
 let timer: number | undefined;
 let slowTimer: number | undefined;
+/** 空闲降频：页面不可见（会话被切走/设置页/切到终端）时，拉取间隔拉长到 30s */
+const IDLE_MIN_INTERVAL_MS = 30_000;
+let lastIdleFetchAt = 0;
+
+/** 本页当前是否可见（终端子页也算不可见——同 terminalActive 口径） */
+const pageVisible = computed(() => app.isHostSubActive(props.host, "overview"));
 
 // 终端正在使用时暂停本机的 3s 采集轮询：隐藏状态下每 3s 的响应解析
 // 与 vdom patch 会占用 WebView 主线程，直接造成终端输入/回显卡顿
@@ -1025,16 +1031,30 @@ watch(terminalActive, (active) => {
   }
 });
 
+// 切回本页立即补刷：降频期间数据最多落后 30s，回来要立刻最新
+watch(pageVisible, (now, prev) => {
+  if (now && !prev && !agentMissing.value) {
+    void loadOverview();
+    void loadAgentStatus();
+  }
+});
+
 onMounted(() => {
   resetHostState();
   void refreshAll();
   void checkAgentInstalled();
   timer = window.setInterval(() => {
     if (terminalActive.value || agentMissing.value) return;
+    // 空闲降频：页面不可见时跳过太近的拉取（间隔拉长到 30s）
+    if (!pageVisible.value && Date.now() - lastIdleFetchAt < IDLE_MIN_INTERVAL_MS) return;
+    lastIdleFetchAt = Date.now();
     void loadOverview();
   }, 2000);
   slowTimer = window.setInterval(() => {
     if (agentMissing.value) return;
+    // 空闲降频：页面不可见时慢轮询也拉长到 30s
+    if (!pageVisible.value && Date.now() - lastIdleFetchAt < IDLE_MIN_INTERVAL_MS) return;
+    lastIdleFetchAt = Date.now();
     void loadDisks();
     void loadDocker();
     void loadRuntimes();

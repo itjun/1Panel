@@ -170,12 +170,13 @@
             <span class="sec-value">{{ settings.maxRunningHosts }} 台</span>
           </div>
           <p class="sec-desc">
-            同时在后台挂起的主机数。超限时自动关闭最早打开的非激活会话。范围 4～24。
+            同时在后台挂起的主机数。超限时自动关闭最早打开、且未开终端的非激活会话。范围
+            4～32。
           </p>
           <el-slider
             :model-value="settings.maxRunningHosts"
             :min="4"
-            :max="24"
+            :max="32"
             :step="2"
             show-stops
             @update:model-value="onMaxRunningHosts"
@@ -286,7 +287,7 @@
           <section class="settings-section">
             <h3 class="sec-title">主机配置</h3>
             <p class="sec-desc">
-              导出或导入本机主机列表、分组与图标。备份不含 SSH 私钥，换机恢复需另行保管密钥。
+              导出或导入本机主机列表、分组与图标。备份含已保存的主机密码，不含 SSH 私钥；换机恢复需另行保管密钥。
             </p>
             <div class="notify-actions">
               <el-button :loading="exporting" @click="onExportBackup">

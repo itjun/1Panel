@@ -20,7 +20,7 @@ func (s *Groups) ListGroups() []groups.Group {
 	return s.groups.List()
 }
 
-// UpsertGroup 创建或更新分组
+// UpsertGroup 创建或更新分组（可带 parentId）
 func (s *Groups) UpsertGroup(g groups.Group) error {
 	if s.groups == nil {
 		return fmt.Errorf("分组存储未初始化")
@@ -44,7 +44,23 @@ func (s *Groups) SetBoardTitle(id, title string) error {
 	return s.groups.SetBoardTitle(id, title)
 }
 
-// DeleteGroup 删除分组
+// MoveGroup 将分组移到新父级；parentID 空表示升为顶层
+func (s *Groups) MoveGroup(id, parentID string) error {
+	if s.groups == nil {
+		return fmt.Errorf("分组存储未初始化")
+	}
+	return s.groups.MoveGroup(id, parentID)
+}
+
+// PreviewDeleteGroup 预览级联删除影响（确认对话框用）
+func (s *Groups) PreviewDeleteGroup(id string) (groups.DeleteStats, error) {
+	if s.groups == nil {
+		return groups.DeleteStats{}, fmt.Errorf("分组存储未初始化")
+	}
+	return s.groups.PreviewDelete(id)
+}
+
+// DeleteGroup 级联删除分组及其子孙
 func (s *Groups) DeleteGroup(id string) error {
 	if s.groups == nil {
 		return fmt.Errorf("分组存储未初始化")
@@ -62,4 +78,12 @@ func (s *Groups) AssignHost(host, groupID string) error {
 		return fmt.Errorf("主机名不能为空")
 	}
 	return s.groups.AssignHost(host, groupID)
+}
+
+// SubtreeHostNames 返回分组子树内主机名
+func (s *Groups) SubtreeHostNames(id string) []string {
+	if s.groups == nil {
+		return nil
+	}
+	return s.groups.SubtreeHostNames(id)
 }

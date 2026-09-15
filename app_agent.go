@@ -297,10 +297,11 @@ func (s *Agent) AgentBatchInstall(hosts []string) ([]AgentBatchResult, error) {
 // AgentInstallEvent 单台安装进度事件（事件名 agent-install-progress），
 // 前端安装对话框据此刷新步骤条。step 取 probe/upload/replace/start/verify/done/error。
 type AgentInstallEvent struct {
-	Host    string `json:"host"`
-	Step    string `json:"step"`
-	Percent int    `json:"percent"` // 0~100；不确定时 -1
-	Text    string `json:"text,omitempty"`
+	Host    string  `json:"host"`
+	Step    string  `json:"step"`
+	Percent int     `json:"percent"` // 0~100；不确定时 -1
+	Text    string  `json:"text,omitempty"`
+	SizeMB  float64 `json:"sizeMB,omitempty"` // agent 二进制实际大小，探测确定架构后随首个 upload 事件下发
 }
 
 // installAgentOn 在单台主机上执行完整安装流程，成功返回安装到的版本号。
@@ -342,6 +343,15 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 	if err != nil {
 		return fail(err)
 	}
+
+	// 上传开始前先把实际大小推给前端（upload 0%），底部等待提示即可显示确切体积；
+	// 不走 emit 闭包：该事件需要携带 SizeMB，闭包签名只接收 (step, text, percent)
+	sizeMB := float64(len(bin)) / 1024 / 1024
+	s.app.Event.Emit("agent-install-progress", AgentInstallEvent{
+		Host: host, Step: "upload", Percent: 0,
+		Text:   fmt.Sprintf("待上传 Agent 二进制（%.1f MB）", sizeMB),
+		SizeMB: sizeMB,
+	})
 
 	if err := s.installer.Install(host, opt, bin, sum, func(step string, percent int, text string) {
 		emit(step, text, percent)

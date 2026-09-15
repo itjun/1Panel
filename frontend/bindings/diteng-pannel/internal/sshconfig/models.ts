@@ -45,4 +45,10 @@ export interface HostConfig {
      * 列表/导出时由 Hosts 服务合并进来。
      */
     "note"?: string;
+
+    /**
+     * Password 本机保存的登录密码：仅备份导出/导入时出现在此结构体；
+     * 不写入 ~/.ssh/config，也不随 ListHosts 下发。
+     */
+    "password"?: string;
 }

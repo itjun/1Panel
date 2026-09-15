@@ -78,8 +78,10 @@
           }"
         >
           <!-- 各子页按会话 subTab 切换；访问过的子页常驻挂载（v-if 首挂 + v-show 切换），
-               切回零加载零销毁——资源换速度。终端例外：KeepAlive 缓存已够快且
-               PTY/拖放钩子依赖 activate/deactivate 生命周期，不并入常驻。 -->
+               切回零加载——资源换速度。子页按 LRU 上限常驻（MAX_RESIDENT_SUBS，
+               超出挤掉最旧的），避免多会话全量常驻把内存顶高。终端例外：
+               KeepAlive 缓存已够快且 PTY/拖放钩子依赖 activate/deactivate
+               生命周期，不并入常驻。 -->
           <OverviewView
             v-show="(sessionOf(hid)?.subTab || 'overview') === 'overview'"
             :host="hid"
@@ -107,6 +109,11 @@
           <NetworkView
             v-if="visitedSub(hid, 'network')"
             v-show="sessionOf(hid)?.subTab === 'network'"
+            :host="hid"
+          />
+          <HostsView
+            v-if="visitedSub(hid, 'hosts')"
+            v-show="sessionOf(hid)?.subTab === 'hosts'"
             :host="hid"
           />
           <FilesView
@@ -168,6 +175,7 @@ import NginxView from "@/views/NginxView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
+import HostsView from "@/views/HostsView.vue";
 import FilesView from "@/views/FilesView.vue";
 import ServicesView from "@/views/ServicesView.vue";
 import CertsView from "@/views/CertsView.vue";
@@ -196,6 +204,7 @@ const subTabs: { value: SubTab; label: string }[] = [
   { value: "nginx", label: "Nginx" },
   { value: "processes", label: "进程" },
   { value: "network", label: "网络" },
+  { value: "hosts", label: "Hosts" },
   { value: "files", label: "文件" },
   { value: "services", label: "服务" },
   { value: "certs", label: "证书" },
@@ -213,6 +222,7 @@ const FILL_SUBS: SubTab[] = [
   "apps",
   "nginx",
   "network",
+  "hosts",
   "monitor",
   "services",
   "certs",

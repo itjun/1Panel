@@ -29,6 +29,11 @@ export interface DiskInfo {
      * disk=物理容器；mount=挂载卷
      */
     "kind": string;
+
+    /**
+     * 物理盘键：如 disk3；外置可与 mount 同键
+     */
+    "parent": string;
 }
 
 /**

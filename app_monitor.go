@@ -178,6 +178,17 @@ func (s *Monitor) CollectNetwork(host string) (monitor.NetworkSnapshot, error) {
 	return v, err
 }
 
+// CollectHosts 目标主机 /etc/hosts（只读，解析后条目 + 原文）
+func (s *Monitor) CollectHosts(host string) (monitor.HostsInfo, error) {
+	cli, err := s.agentClient(host)
+	if err != nil {
+		return monitor.HostsInfo{}, err
+	}
+	var v monitor.HostsInfo
+	err = cli.GetJSON(context.Background(), "/collect/hosts", &v, true)
+	return v, err
+}
+
 // CollectDocker Docker 容器列表与 stats
 func (s *Monitor) CollectDocker(host string) (monitor.DockerInfo, error) {
 	cli, err := s.agentClient(host)

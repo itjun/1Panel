@@ -201,6 +201,7 @@ const TERM_FONT_MIGRATION_KEY = "ipannel.terminalFontSize.byPlatform.migrated";
 /** Windows 终端默认字体改为 Consolas */
 const TERM_FAMILY_WIN_MIGRATION_KEY =
   "ipannel.terminalFontFamily.winConsolas.migrated";
+const MAX_RUNNING_HOSTS_V16_KEY = "ipannel.maxRunningHosts.v16.migrated";
 
 const DEFAULTS: AppSettings = {
   theme: "auto",
@@ -208,7 +209,8 @@ const DEFAULTS: AppSettings = {
   fontSize: 14,
   terminalFontSize: defaultTerminalFontSize(),
   terminalFontFamily: defaultTerminalFontFamily(),
-  maxRunningHosts: 12,
+  // 同时后台会话数：默认 16，设置里可调到 32。
+  maxRunningHosts: 16,
   notifyEnabled: false,
   wecomWebhook: "",
   wecomAlertKinds: [...ALL_WECOM_ALERT_KINDS],
@@ -298,6 +300,14 @@ function load(): AppSettings {
         parsed.terminalFontFamily = TERM_FONT_CONSOLAS;
       }
     }
+    if (!localStorage.getItem(MAX_RUNNING_HOSTS_V16_KEY)) {
+      localStorage.setItem(MAX_RUNNING_HOSTS_V16_KEY, "1");
+      const n = Number(parsed.maxRunningHosts);
+      // 仅抬升旧默认 8 / 12；用户显式改过的其它值保留
+      if (n === 8 || n === 12) {
+        parsed.maxRunningHosts = DEFAULTS.maxRunningHosts;
+      }
+    }
     return {
       theme: (parsed.theme as ThemeKey) || DEFAULTS.theme,
       fontFamily: parsed.fontFamily || DEFAULTS.fontFamily,
@@ -312,7 +322,7 @@ function load(): AppSettings {
       maxRunningHosts: clamp(
         Number(parsed.maxRunningHosts) || DEFAULTS.maxRunningHosts,
         4,
-        24
+        32
       ),
       notifyEnabled:
         typeof parsed.notifyEnabled === "boolean"
@@ -505,7 +515,7 @@ export const useSettingsStore = defineStore("settings", () => {
   }
 
   function setMaxRunningHosts(v: number) {
-    maxRunningHosts.value = clamp(v, 4, 24);
+    maxRunningHosts.value = clamp(v, 4, 32);
     persist();
   }
 

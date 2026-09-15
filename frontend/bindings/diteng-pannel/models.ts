@@ -16,7 +16,7 @@ import * as sshconfig$0 from "./internal/sshconfig/models.js";
 
 /**
  * AddHostInput 是「添加主机」对话框的入参
- * 端口默认 22，公钥/密钥路径由后端自动推断；备注存本机 host_meta.json
+ * 端口默认 22，公钥/密钥路径由后端自动推断；备注与密码存本机 host_meta.json
  */
 export interface AddHostInput {
     /**
@@ -31,7 +31,7 @@ export interface AddHostInput {
     "user": string;
 
     /**
-     * 仅本次使用，不落盘
+     * 必填；验连后写入 host_meta
      */
     "password": string;
 
@@ -57,7 +57,7 @@ export interface AgentBatchResult {
 
 /**
  * BackupData 备份文件内容：主机列表 + 分组 + 主机图标记录
- * 注意：SSH 私钥不在备份内，换机恢复需另行保管 ~/.ssh/id_ed25519
+ * 注意：可含已保存的主机密码；SSH 私钥不在备份内，换机恢复需另行保管 ~/.ssh/id_ed25519
  */
 export interface BackupData {
     "version": number;
@@ -116,7 +116,7 @@ export interface CopyIDInput {
     "port": string;
 
     /**
-     * 仅本次使用，不落盘
+     * 仅本次使用，不落盘（CopySSHID 本身不写 host_meta）
      */
     "password": string;
 
@@ -354,7 +354,7 @@ export interface UpdateHostInput {
     "user": string;
 
     /**
-     * 仅本次使用，不落盘
+     * 必填；验连后写入 host_meta
      */
     "password": string;
 

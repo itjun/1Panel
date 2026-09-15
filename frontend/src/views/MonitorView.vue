@@ -110,11 +110,18 @@ import { api } from "@/api";
 import type { agentcli, monitor } from "@/api";
 import { formatErr, formatBytes, bytesToKBps } from "@/utils/format";
 import { isAgentMissing } from "@/utils/format";
+import { useAppStore } from "@/stores/app";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 
 const props = defineProps<{ host: string }>();
+const app = useAppStore();
+
+/** 空闲降频：页面不可见（切走/设置页）时拉长到 30s 一拍 */
+const IDLE_MIN_INTERVAL_MS = 30_000;
+let lastPollAt = 0;
+const pageVisible = computed(() => app.isHostSubActive(props.host, "monitor"));
 
 /** 五卡 connect 联动分组：按 host 隔离，多主机会话同屏也不互相干扰 */
 const connectGroup = computed(() => `monitor-${props.host}`);
@@ -786,11 +793,21 @@ onMounted(() => {
   void seedLiveCurves();
   timer = window.setInterval(() => {
     if (agentMissing.value) return;
+    // 空闲降频：页面不可见时跳过太近的拉取
+    if (!pageVisible.value && Date.now() - lastPollAt < IDLE_MIN_INTERVAL_MS) return;
+    lastPollAt = Date.now();
     void loadOverview();
   }, 2000);
   historyTimer = window.setInterval(() => {
     if (rangeMode.value !== "live") void loadHistory();
   }, 30000);
+});
+
+// 切回本页立即补刷：实时数据立刻续上
+watch(pageVisible, (now, prev) => {
+  if (now && !prev && !agentMissing.value) {
+    void loadOverview();
+  }
 });
 
 onBeforeUnmount(() => {

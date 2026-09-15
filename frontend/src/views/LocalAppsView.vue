@@ -16,6 +16,14 @@
             class="filter-input"
             placeholder="搜索名称 / 命令 / 路径 / 端口…"
           />
+          <el-button
+            type="danger"
+            plain
+            :disabled="!canKillSelected"
+            @click="killSelected"
+          >
+            {{ killButtonLabel }}
+          </el-button>
           <el-button :icon="Refresh" :loading="loading" @click="refresh" />
         </div>
       </div>
@@ -81,7 +89,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="typeLabel" label="类型" width="110" show-overflow-tooltip />
-          <el-table-column prop="pidLabel" label="PID/线程" min-width="120" show-overflow-tooltip>
+          <el-table-column prop="pidLabel" label="进程数/PID" min-width="120" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="mono">{{ row.pidLabel }}</span>
             </template>
@@ -98,7 +106,7 @@
           </el-table-column>
           <el-table-column label="内存" min-width="110" align="right" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="mono">{{ row.kind === "thr" ? "—" : formatBytes(row.rss || 0) }}</span>
+              <span class="mono">{{ formatBytes(row.rss || 0) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="磁盘读/写" min-width="180" align="right" show-overflow-tooltip>
@@ -145,10 +153,11 @@
 
 <script setup lang="ts">
 /**
- * 本机应用监控：树表（应用 → 进程 → 线程）+ 右键菜单操作。
+ * 本机应用监控：两层树表（应用 → 进程）+ 工具栏/右键结束进程。
  * 过滤：页内 runtime chips + 关键字；展开状态在刷新时合并保留。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ElMessage } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { localapps } from "@/api";
@@ -164,11 +173,15 @@ import { usePolling } from "@/composables/usePolling";
 import { useAppStore, type LocalRuntimeFilter } from "@/stores/app";
 import { LOCAL_LANG_OPTIONS, localLangLabel } from "@/utils/localLang";
 import {
+  confirmAndKillLocalProcs,
+  type LocalKillTarget,
+} from "@/utils/localAppsKill";
+import {
   formatBytes,
   formatDurationLong,
 } from "@/utils/format";
 
-type RowKind = "app" | "proc" | "thr";
+type RowKind = "app" | "proc";
 
 interface TreeRow {
   id: string;
@@ -235,53 +248,22 @@ function runtimeLabel(rt: string) {
   return localLangLabel(rt);
 }
 
-function thrToRow(
-  p: localapps.ProcNode,
-  t: localapps.ThreadNode,
-  runtime: string,
-  index: number
-): TreeRow {
-  // tid 可能为 0（异常/退化）；用 index 兜底保证 row-key 唯一
-  let tidKey: string;
-  if (t.tid) {
-    tidKey = String(t.tid);
-  } else {
-    tidKey = `i${index}`;
-  }
-  const id = `thr:${p.pid}:${tidKey}`;
+function isSelfProc(p: localapps.ProcNode) {
+  return p.extra?.self === "1";
+}
+
+function procToKillTarget(p: localapps.ProcNode): LocalKillTarget | null {
+  if (!p.pid || isSelfProc(p)) return null;
   return {
-    id,
-    kind: "thr",
-    name: t.name || `thread-${tidKey}`,
-    typeLabel: "线程",
-    pidLabel: tidKey,
-    ports: [],
-    cpu: t.cpu || 0,
-    rss: 0,
-    diskReadRate: 0,
-    diskWriteRate: 0,
-    netInRate: 0,
-    netOutRate: 0,
-    rateKnown: false,
-    elapsed: null,
-    cmd: "",
-    card: {
-      kind: "thr",
-      id,
-      name: t.name || `thread-${tidKey}`,
-      runtime,
-      pid: p.pid,
-      tid: t.tid,
-      cpu: t.cpu || 0,
-      state: t.state || "",
-    },
+    pid: p.pid,
+    name: baseName(p.exe) || `pid-${p.pid}`,
+    cmd: p.cmd || (p.args || []).join(" ") || "",
   };
 }
 
 function procToRow(p: localapps.ProcNode, runtime: string): TreeRow {
   const id = `proc:${p.pid}`;
   const threads = p.threads || [];
-  const children = threads.map((t, i) => thrToRow(p, t, runtime, i));
   const cmd = p.cmd || (p.args || []).join(" ") || "";
   const ports = p.ports || [];
   return {
@@ -300,8 +282,6 @@ function procToRow(p: localapps.ProcNode, runtime: string): TreeRow {
     rateKnown: !!p.rateKnown,
     elapsed: p.elapsed != null ? Number(p.elapsed) : null,
     cmd,
-    children: children.length ? children : undefined,
-    hasChildren: children.length > 0,
     card: {
       kind: "proc",
       id,
@@ -327,6 +307,11 @@ function appToRow(a: localapps.AppNode): TreeRow {
   const id = `app:${a.key}`;
   const procs = a.procs || [];
   const children = procs.map((p) => procToRow(p, a.runtime));
+  const killTargets: LocalKillTarget[] = [];
+  for (const p of procs) {
+    const t = procToKillTarget(p);
+    if (t) killTargets.push(t);
+  }
   const portSet = new Set<number>();
   for (const c of children) {
     for (const port of c.ports) {
@@ -334,12 +319,13 @@ function appToRow(a: localapps.AppNode): TreeRow {
     }
   }
   const ports = [...portSet].sort((x, y) => x - y);
+  const procCount = a.procCount || procs.length;
   return {
     id,
     kind: "app",
     name: a.name || a.key,
     typeLabel: runtimeLabel(a.runtime),
-    pidLabel: `${a.procCount || procs.length}p / ${a.threadCount || 0}t`,
+    pidLabel: `×${procCount}`,
     ports,
     cpu: a.cpu || 0,
     rss: a.rss || 0,
@@ -359,8 +345,9 @@ function appToRow(a: localapps.AppNode): TreeRow {
       runtime: a.runtime,
       cpu: a.cpu || 0,
       rss: a.rss || 0,
-      procCount: a.procCount || procs.length,
+      procCount,
       threadCount: a.threadCount || 0,
+      killTargets,
     },
   };
 }
@@ -494,7 +481,6 @@ function formatRate(bps: number) {
 /** 模板行类型在 el-table 里是 DefaultRow，这里放宽入参 */
 function formatIoPair(row: TreeRow | Record<string, unknown>, kind: "disk" | "net") {
   const r = row as TreeRow;
-  if (r.kind === "thr") return "—";
   if (!r.rateKnown) return "—";
   const a = kind === "disk" ? r.diskReadRate || 0 : r.netInRate || 0;
   const b = kind === "disk" ? r.diskWriteRate || 0 : r.netOutRate || 0;
@@ -506,13 +492,13 @@ function formatIoPair(row: TreeRow | Record<string, unknown>, kind: "disk" | "ne
 
 function formatPorts(row: TreeRow | Record<string, unknown>) {
   const r = row as TreeRow;
-  if (r.kind === "thr") return "—";
   if (!r.ports || r.ports.length === 0) return "—";
   return r.ports.join("、");
 }
 
 /* ---------- 单击高亮 / 双击展开 / 右键菜单 / 详情卡 ---------- */
 const selectedId = ref<string | null>(null);
+const selectedRow = ref<TreeRow | null>(null);
 const ctxMenu = ref<LocalAppCtxMenuState | null>(null);
 const detailCard = ref<{
   node: LocalCardNode | null;
@@ -522,6 +508,48 @@ const detailCard = ref<{
 
 const CARD_W = 560;
 const CARD_EST_H = 420;
+
+function findRowById(rows: TreeRow[], id: string): TreeRow | null {
+  for (const r of rows) {
+    if (r.id === id) return r;
+    if (r.children) {
+      const hit = findRowById(r.children, id);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+function killTargetsOf(row: TreeRow | null): LocalKillTarget[] {
+  if (!row) return [];
+  if (row.kind === "proc") {
+    if (!row.card.pid || row.card.extra?.self === "1") return [];
+    return [{ pid: row.card.pid, name: row.name, cmd: row.cmd }];
+  }
+  return row.card.killTargets || [];
+}
+
+const canKillSelected = computed(() => killTargetsOf(selectedRow.value).length > 0);
+
+const killButtonLabel = computed(() => {
+  const row = selectedRow.value;
+  if (row?.kind === "app") return "结束应用";
+  return "结束进程";
+});
+
+watch(
+  treeRows,
+  (rows) => {
+    const id = selectedId.value;
+    if (!id) {
+      selectedRow.value = null;
+      return;
+    }
+    const hit = findRowById(rows, id);
+    selectedRow.value = hit;
+    if (!hit) selectedId.value = null;
+  }
+);
 
 function placeDetailCard(clientX: number, clientY: number) {
   const vw = window.innerWidth;
@@ -549,17 +577,7 @@ watch(
   (rows) => {
     const n = detailCard.value.node;
     if (!n) return;
-    const walk = (list: TreeRow[]): TreeRow | null => {
-      for (const r of list) {
-        if (r.id === n.id) return r;
-        if (r.children) {
-          const hit = walk(r.children);
-          if (hit) return hit;
-        }
-      }
-      return null;
-    };
-    const hit = walk(rows);
+    const hit = findRowById(rows, n.id);
     if (!hit) {
       closeDetail();
       return;
@@ -582,6 +600,11 @@ function isActionEvent(e: MouseEvent) {
 /** 单击只高亮，延迟执行以免干扰双击展开 */
 let clickTimer: number | undefined;
 
+function selectRow(r: TreeRow) {
+  selectedId.value = r.id;
+  selectedRow.value = r;
+}
+
 function onRowClick(
   row: TreeRow | Record<string, unknown>,
   _column: unknown,
@@ -591,11 +614,11 @@ function onRowClick(
   const r = row as TreeRow;
   clearTimeout(clickTimer);
   clickTimer = window.setTimeout(() => {
-    selectedId.value = r.id;
+    selectRow(r);
   }, 220);
 }
 
-/** 双击有子节点的行（应用 / 进程）：展开或收起 */
+/** 双击有子节点的行（应用）：展开或收起 */
 function onRowDblClick(
   row: TreeRow | Record<string, unknown>,
   _column: unknown,
@@ -604,7 +627,7 @@ function onRowDblClick(
   if (isActionEvent(event)) return;
   clearTimeout(clickTimer);
   const r = row as TreeRow;
-  selectedId.value = r.id;
+  selectRow(r);
   if (!r.children || r.children.length === 0) return;
   const set = new Set(expandedKeys.value);
   if (set.has(r.id)) {
@@ -624,7 +647,7 @@ function onRowContextMenu(
   event.stopPropagation();
   clearTimeout(clickTimer);
   const r = row as TreeRow;
-  selectedId.value = r.id;
+  selectRow(r);
 
   const pad = 8;
   let x = event.clientX;
@@ -659,6 +682,23 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", onEsc);
   clearTimeout(clickTimer);
 });
+
+async function killSelected() {
+  const row = selectedRow.value;
+  const targets = killTargetsOf(row);
+  if (!row || !targets.length) {
+    ElMessage.warning("请先选中要结束的应用或进程");
+    return;
+  }
+  let title = "结束进程";
+  let summary: string | undefined;
+  if (row.kind === "app") {
+    title = "结束应用";
+    summary = `确定要结束应用「${row.name}」下的 ${targets.length} 个进程吗？`;
+  }
+  const ok = await confirmAndKillLocalProcs(targets, { title, summary });
+  if (ok) await onKilled();
+}
 
 async function onKilled() {
   ctxMenu.value = null;
@@ -716,5 +756,11 @@ async function onKilled() {
   width: 100%;
   min-height: 0;
   overflow: auto;
+}
+</style>
+
+<style>
+.local-kill-box .el-checkbox {
+  margin-top: 4px;
 }
 </style>

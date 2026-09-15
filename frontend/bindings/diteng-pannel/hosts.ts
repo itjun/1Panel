@@ -49,6 +49,20 @@ export function DeleteHost(name: string): $CancellablePromise<void> {
 }
 
 /**
+ * FormatHostInfo 拼主机信息文本（含已存密码），供右键「复制信息」
+ */
+export function FormatHostInfo(name: string): $CancellablePromise<string> {
+    return $Call.ByID(376042284, name);
+}
+
+/**
+ * GetHostPassword 读取本机已保存的主机密码（供编辑弹窗预填；未保存则空串）
+ */
+export function GetHostPassword(name: string): $CancellablePromise<string> {
+    return $Call.ByID(682744648, name);
+}
+
+/**
  * ListHosts 解析 ~/.ssh/config 返回所有 Host 条目
  * 默认过滤掉 Git 托管服务（github.com / gitee.com 等）
  * 这些通常不是用户想要管理的"服务器"
@@ -74,7 +88,7 @@ export function RenameHost(oldName: string, newName: string): $CancellablePromis
 }
 
 /**
- * SetHostNote 仅更新本机备注（不改 ssh config、不验连）
+ * SetHostNote 仅更新本机备注（不改 ssh config、不验连；保留已存密码）
  */
 export function SetHostNote(name: string, note: string): $CancellablePromise<void> {
     return $Call.ByID(1462312353, name, note);

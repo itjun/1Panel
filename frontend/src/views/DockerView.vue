@@ -217,6 +217,7 @@ import { ElMessage } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import { usePolling } from "@/composables/usePolling";
+import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import { formatBytes } from "@/utils/format";
@@ -294,11 +295,14 @@ interface InspectData {
 const props = defineProps<{ host: string; filter?: string }>();
 const emit = defineEmits<{ (e: "update:count", n: number): void }>();
 const busy = ref<string | null>(null);
+const app = useAppStore();
 
 const { data, error, loading, refresh } = usePolling<DockerInfo>(
   () => api.collectDocker(props.host) as Promise<DockerInfo>,
   5000,
-  () => props.host
+  () => props.host,
+  // 页面不可见（切走/设置页）时降频轮询
+  () => app.isHostSubActive(props.host, "processes")
 );
 
 const filteredContainers = computed(() => {

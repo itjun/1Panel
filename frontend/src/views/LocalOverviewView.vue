@@ -175,30 +175,69 @@
                 </div>
               </el-col>
               <el-col :span="5" align="center">
-                <el-popover trigger="hover" placement="bottom" :width="240">
-                  <div class="ring-popover" :class="{ 'is-danger': diskPercent > 90 }">
-                    <div class="ring-pop-row">
-                      <span>范围</span>
-                      <span class="num">
-                        全部 {{ diskSummary?.count || 0 }}
-                        {{ diskSummary?.scope === "disk" ? " 块磁盘" : " 分区" }}
+                <el-popover
+                  trigger="hover"
+                  placement="bottom"
+                  :width="diskPopWidth"
+                  popper-class="disk-pop-el"
+                >
+                  <div
+                    class="disk-pop"
+                    :class="{
+                      'is-danger': diskPercent > 90,
+                      [`cols-${diskPopCols}`]: true,
+                    }"
+                  >
+                    <div v-if="diskSummaryItems.length" class="disk-pop-grid">
+                      <div
+                        v-for="item in diskSummaryItems"
+                        :key="item.key"
+                        class="disk-pop-cell"
+                        :class="{ 'is-danger': item.percent > 90 }"
+                      >
+                        <div class="disk-pop-cell-head">
+                          <span class="disk-pop-name" :title="item.label">{{
+                            item.label
+                          }}</span>
+                          <span class="disk-pop-pct"
+                            >{{ item.percent.toFixed(0) }}%</span
+                          >
+                        </div>
+                        <div
+                          class="disk-pop-bar"
+                          role="presentation"
+                          :aria-valuenow="Math.round(item.percent)"
+                        >
+                          <i
+                            :style="{
+                              width: `${Math.min(100, Math.max(0, item.percent))}%`,
+                            }"
+                          />
+                        </div>
+                        <div class="disk-pop-meta">
+                          <span>{{ formatBytesSI(item.used) }} 已用</span>
+                          <span>{{ formatBytesSI(item.avail) }} 可用</span>
+                        </div>
+                        <div class="disk-pop-total muted">
+                          共 {{ formatBytesSI(item.total) }}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      v-if="diskSummaryItems.length > 1"
+                      class="disk-pop-foot"
+                    >
+                      <span class="disk-pop-foot-count"
+                        >{{ diskSummaryItems.length }} 块合计</span
+                      >
+                      <span class="disk-pop-foot-stats">
+                        {{ formatBytesSI(diskUsed) }} /
+                        {{ formatBytesSI(diskTotal) }}
+                        <em>{{ diskPercent.toFixed(1) }}%</em>
                       </span>
                     </div>
-                    <div class="ring-pop-row">
-                      <span>总量</span>
-                      <span class="num">{{ formatBytesSI(diskTotal) }}</span>
-                    </div>
-                    <div class="ring-pop-row">
-                      <span>已用</span>
-                      <span class="num">{{ formatBytesSI(diskUsed) }}</span>
-                    </div>
-                    <div class="ring-pop-row">
-                      <span>可用</span>
-                      <span class="num">{{ formatBytesSI(diskFree) }}</span>
-                    </div>
-                    <div class="ring-pop-row">
-                      <span>使用率</span>
-                      <span class="num">{{ diskPercent.toFixed(2) }}%</span>
+                    <div v-if="!diskSummaryItems.length" class="muted">
+                      无磁盘数据
                     </div>
                   </div>
                   <template #reference>
@@ -244,28 +283,86 @@
             </el-row>
           </el-card>
 
-          <!-- 磁盘挂载：紧挨状态 -->
+          <!-- 磁盘分区：本机竖排；外置同风格，进度条换色区分 -->
           <el-card shadow="never" class="home-card panel-hover-card card-interval">
             <div class="card-header">
-              <span class="panel-section-title">磁盘</span>
-              <el-button link type="primary" @click="app.setLocalSection('storage')">
-                查看占用
-              </el-button>
-            </div>
-            <div v-if="!mountDisks.length" class="muted">无磁盘数据</div>
-            <div v-for="d in mountDisks" :key="d.mount" class="disk-row">
-              <div class="disk-head">
-                <span class="disk-mount">{{ d.mount }}</span>
-                <span class="mono muted"
-                  >{{ formatBytesSI(d.used) }} / {{ formatBytesSI(d.total) }}</span
-                >
+              <span class="panel-section-title">磁盘分区</span>
+              <div class="disk-card-actions">
+                <span v-if="externalDiskOverflow > 0" class="muted disk-overflow">
+                  外置已满 {{ MAX_EXTERNAL_DISKS }} 块，另有
+                  {{ externalDiskOverflow }} 块未显示
+                </span>
+                <el-button link type="primary" @click="app.setLocalSection('storage')">
+                  查看占用
+                </el-button>
               </div>
-              <el-progress
-                :percentage="diskMountPercent(d)"
-                :stroke-width="8"
-                :status="diskMountPercent(d) > 90 ? 'exception' : undefined"
-              />
             </div>
+            <div v-if="!internalDiskGroups.length && !externalDiskGroups.length" class="muted">
+              无磁盘数据
+            </div>
+            <template v-else>
+              <div v-if="internalDiskGroups.length" class="disk-section">
+                <div class="disk-section-title">本机磁盘</div>
+                <div
+                  v-for="g in internalDiskGroups"
+                  :key="g.parent"
+                  class="disk-internal-group"
+                >
+                  <div
+                    v-for="d in g.partitions"
+                    :key="d.mount"
+                    class="disk-row is-internal"
+                    :class="{ 'is-danger': diskMountPercent(d) > 90 }"
+                  >
+                    <div class="disk-head">
+                      <span class="disk-mount" :title="d.mount">{{
+                        diskMountLabel(d)
+                      }}</span>
+                      <span class="mono muted"
+                        >{{ formatBytesSI(d.used) }} /
+                        {{ formatBytesSI(d.total) }}</span
+                      >
+                    </div>
+                    <el-progress
+                      :percentage="diskMountPercent(d)"
+                      :stroke-width="8"
+                      :color="
+                        diskMountPercent(d) > 90 ? undefined : INTERNAL_DISK_BAR_COLOR
+                      "
+                      :status="diskMountPercent(d) > 90 ? 'exception' : undefined"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="externalDiskRows.length" class="disk-section">
+                <div class="disk-section-title">外置磁盘</div>
+                <div
+                  v-for="d in externalDiskRows"
+                  :key="d.mount || d.device"
+                  class="disk-row is-external"
+                  :class="{ 'is-danger': diskMountPercent(d) > 90 }"
+                >
+                  <div class="disk-head">
+                    <span class="disk-mount" :title="d.mount">{{
+                      diskExternalRowLabel(d)
+                    }}</span>
+                    <span class="mono muted"
+                      >{{ formatBytesSI(d.used) }} /
+                      {{ formatBytesSI(d.total) }}</span
+                    >
+                  </div>
+                  <el-progress
+                    :percentage="diskMountPercent(d)"
+                    :stroke-width="8"
+                    :color="
+                      diskMountPercent(d) > 90 ? undefined : EXTERNAL_DISK_BAR_COLOR
+                    "
+                    :status="diskMountPercent(d) > 90 ? 'exception' : undefined"
+                  />
+                </div>
+              </div>
+            </template>
           </el-card>
         </el-col>
       </el-row>
@@ -394,12 +491,37 @@ const loadLabel = computed(() => {
   return "运行堵塞";
 });
 
-/** 磁盘环图：优先按 APFS 容器（kind=disk）汇总，避免多卷重复累计 */
-const diskSummary = computed(() => {
+/** 外置硬盘最多展示数量 */
+const MAX_EXTERNAL_DISKS = 16;
+/** 本机 / 外置进度条：本机 primary；外置用同色相的软蓝，避免 secondary 发灰 */
+const INTERNAL_DISK_BAR_COLOR = "#005eeb"; // --m3-primary
+const EXTERNAL_DISK_BAR_COLOR = "#5b8def"; // primary 浅化，仍可读作蓝
+
+type DiskSummaryItem = {
+  key: string;
+  label: string;
+  total: number;
+  used: number;
+  avail: number;
+  percent: number;
+  scope: "disk" | "mount";
+};
+
+function isExternalMountPath(mount?: string | null): boolean {
+  const m = (mount || "").trim();
+  if (!m.startsWith("/Volumes/")) return false;
+  if (m === "/Volumes/Recovery") return false;
+  const name = m.slice("/Volumes/".length);
+  return !!name && !name.includes("/");
+}
+
+/** 弹出 / 环图：本机 1 块 + 外置最多 16 块 */
+const diskSummaryItems = computed((): DiskSummaryItem[] => {
   const all = overview.value?.disks || [];
   const physical = all.filter((d) => d.kind === "disk" && (d.total || 0) > 0);
-  const list = physical.length ? physical : all.filter((d) => d.kind !== "disk");
-  if (!list.length) return null;
+  const list = physical.length
+    ? physical
+    : all.filter((d) => d.kind !== "disk" && (d.total || 0) > 0);
   const byKey = new Map<string, localsys.DiskInfo>();
   for (const d of list) {
     const key = d.filesystem || d.device || d.mount || "";
@@ -408,13 +530,44 @@ const diskSummary = computed(() => {
       byKey.set(key, d);
     }
   }
+  const internal: DiskSummaryItem[] = [];
+  const external: DiskSummaryItem[] = [];
+  for (const [key, d] of byKey) {
+    const total = d.total || 0;
+    if (total <= 0) continue;
+    const used = d.used || 0;
+    const avail = d.avail || d.free || 0;
+    const item: DiskSummaryItem = {
+      key,
+      label: diskPhysicalLabel(d),
+      total,
+      used,
+      avail,
+      percent: (used / total) * 100,
+      scope: d.kind === "disk" ? "disk" : "mount",
+    };
+    if (isExternalMountPath(d.mount) || item.label.includes("外置")) {
+      external.push(item);
+    } else {
+      internal.push(item);
+    }
+  }
+  internal.sort((a, b) => b.total - a.total);
+  external.sort((a, b) => b.total - a.total);
+  return [...internal, ...external.slice(0, MAX_EXTERNAL_DISKS)];
+});
+
+/** 磁盘环图：汇总已展示的盘（含上限内的外置） */
+const diskSummary = computed(() => {
+  const items = diskSummaryItems.value;
+  if (!items.length) return null;
   let total = 0;
   let used = 0;
   let avail = 0;
-  for (const d of byKey.values()) {
-    total += d.total || 0;
-    used += d.used || 0;
-    avail += d.avail || d.free || 0;
+  for (const d of items) {
+    total += d.total;
+    used += d.used;
+    avail += d.avail;
   }
   if (total <= 0) return null;
   return {
@@ -422,14 +575,191 @@ const diskSummary = computed(() => {
     used,
     avail,
     percent: (used / total) * 100,
-    count: byKey.size,
-    scope: physical.length ? ("disk" as const) : ("mount" as const),
+    count: items.length,
+    scope: items.some((d) => d.scope === "disk")
+      ? ("disk" as const)
+      : ("mount" as const),
   };
 });
 
-const mountDisks = computed(() =>
-  (overview.value?.disks || []).filter((d) => d.kind !== "disk")
-);
+function diskPhysicalLabel(d: localsys.DiskInfo): string {
+  const m = (d.mount || "").trim();
+  if (isExternalMountPath(m)) {
+    const name = m.slice("/Volumes/".length);
+    return name ? `${name}（外置）` : "外置磁盘";
+  }
+  if (d.kind === "disk" && (d.device || d.filesystem)) {
+    return `本机磁盘（${d.device || d.filesystem}）`;
+  }
+  return diskMountLabel(d);
+}
+
+function diskParentOf(d: localsys.DiskInfo): string {
+  const p = (d.parent || "").trim();
+  if (p) return p;
+  const device = (d.device || d.filesystem || "").trim();
+  const bare = device.replace(/^\/dev\//, "");
+  const m = /^disk\d+/.exec(bare);
+  if (m) return m[0];
+  if (isExternalMountPath(d.mount)) return (d.mount || "").trim();
+  return device || (d.mount || "").trim() || "unknown";
+}
+
+type DiskGroup = {
+  parent: string;
+  label: string;
+  displayName: string;
+  external: boolean;
+  physical?: localsys.DiskInfo;
+  partitions: localsys.DiskInfo[];
+};
+
+/** 按物理盘分组：本机竖排分区 + 外置最多 16 盘 */
+const diskGroups = computed((): { internal: DiskGroup[]; external: DiskGroup[] } => {
+  const all = overview.value?.disks || [];
+  const mounts = all.filter((d) => d.kind !== "disk");
+  const physicals = all.filter((d) => d.kind === "disk" && (d.total || 0) > 0);
+
+  const byParent = new Map<string, DiskGroup>();
+
+  const ensure = (parent: string, external: boolean): DiskGroup => {
+    let g = byParent.get(parent);
+    if (!g) {
+      g = {
+        parent,
+        label: "",
+        displayName: parent,
+        external,
+        partitions: [],
+      };
+      byParent.set(parent, g);
+    }
+    return g;
+  };
+
+  for (const d of physicals) {
+    const parent = diskParentOf(d);
+    const external = isExternalMountPath(d.mount) || isExternalMountPath(d.filesystem);
+    const g = ensure(parent, external);
+    g.external = g.external || external;
+    g.physical = d;
+    if (external) {
+      g.displayName = diskPhysicalLabel(d);
+      g.label = "";
+    } else {
+      g.label = "";
+      g.displayName = d.device || parent;
+    }
+  }
+
+  for (const d of mounts) {
+    const parent = diskParentOf(d);
+    const external = isExternalMountPath(d.mount);
+    const g = ensure(parent, external);
+    g.external = g.external || external;
+    g.partitions.push(d);
+    if (external && !g.physical) {
+      g.displayName = diskMountLabel(d);
+    }
+  }
+
+  const internal: DiskGroup[] = [];
+  const external: DiskGroup[] = [];
+  for (const g of byParent.values()) {
+    if (!g.partitions.length && !g.physical) continue;
+    // 外置无分区时用 physical 当展示源
+    if (g.external) {
+      if (!g.partitions.length && g.physical) {
+        g.partitions = [g.physical];
+      }
+      external.push(g);
+    } else {
+      if (!g.partitions.length) continue;
+      internal.push(g);
+    }
+  }
+
+  internal.sort((a, b) => {
+    const at = a.physical?.total || a.partitions[0]?.total || 0;
+    const bt = b.physical?.total || b.partitions[0]?.total || 0;
+    return bt - at;
+  });
+  for (const g of internal) {
+    g.partitions.sort((a, b) => {
+      if (a.mount === "/") return -1;
+      if (b.mount === "/") return 1;
+      return (a.mount || "").localeCompare(b.mount || "");
+    });
+  }
+
+  external.sort((a, b) => diskGroupTotal(b) - diskGroupTotal(a));
+  const shown = external.slice(0, MAX_EXTERNAL_DISKS);
+  return { internal, external: shown };
+});
+
+const internalDiskGroups = computed(() => diskGroups.value.internal);
+const externalDiskGroups = computed(() => diskGroups.value.external);
+
+/** 外置：展开为与本机相同的竖排分区行 */
+const externalDiskRows = computed((): localsys.DiskInfo[] => {
+  const rows: localsys.DiskInfo[] = [];
+  for (const g of externalDiskGroups.value) {
+    if (g.partitions.length) {
+      rows.push(...g.partitions);
+    } else if (g.physical) {
+      rows.push(g.physical);
+    }
+  }
+  return rows;
+});
+
+const externalDiskOverflow = computed(() => {
+  const all = overview.value?.disks || [];
+  const parents = new Set<string>();
+  for (const d of all) {
+    if (d.kind === "disk" && isExternalMountPath(d.mount || d.filesystem)) {
+      parents.add(diskParentOf(d));
+    } else if (d.kind !== "disk" && isExternalMountPath(d.mount)) {
+      parents.add(diskParentOf(d));
+    }
+  }
+  return Math.max(0, parents.size - MAX_EXTERNAL_DISKS);
+});
+
+function diskGroupUsed(g: DiskGroup): number {
+  if (g.physical && (g.physical.total || 0) > 0) return g.physical.used || 0;
+  return g.partitions.reduce((s, d) => s + (d.used || 0), 0);
+}
+
+function diskGroupTotal(g: DiskGroup): number {
+  if (g.physical && (g.physical.total || 0) > 0) return g.physical.total || 0;
+  return Math.max(0, ...g.partitions.map((d) => d.total || 0));
+}
+
+function diskGroupPercent(g: DiskGroup): number {
+  const total = diskGroupTotal(g);
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((diskGroupUsed(g) / total) * 100));
+}
+
+function diskMountLabel(d: localsys.DiskInfo): string {
+  const m = (d.mount || "").trim();
+  if (isExternalMountPath(m)) {
+    const name = m.slice("/Volumes/".length);
+    return name ? `${name}（外置）` : m;
+  }
+  return m || d.device || "磁盘";
+}
+
+/** 外置区行标题：分区名即可（区标题已是「外置磁盘」） */
+function diskExternalRowLabel(d: localsys.DiskInfo): string {
+  const m = (d.mount || "").trim();
+  if (isExternalMountPath(m)) {
+    const name = m.slice("/Volumes/".length);
+    return name || m;
+  }
+  return diskMountLabel(d);
+}
 
 function diskMountPercent(d: localsys.DiskInfo): number {
   const total = d.total || 0;
@@ -441,6 +771,23 @@ const diskPercent = computed(() => diskSummary.value?.percent || 0);
 const diskUsed = computed(() => diskSummary.value?.used || 0);
 const diskTotal = computed(() => diskSummary.value?.total || 0);
 const diskFree = computed(() => diskSummary.value?.avail || 0);
+
+/** 弹出网格列数：尽量一屏装下最多 16 外置 + 本机 */
+const diskPopCols = computed(() => {
+  const n = diskSummaryItems.value.length;
+  if (n <= 1) return 1;
+  if (n <= 4) return 2;
+  if (n <= 9) return 3;
+  return 4;
+});
+
+const diskPopWidth = computed(() => {
+  const cols = diskPopCols.value;
+  if (cols <= 1) return 240;
+  if (cols === 2) return 420;
+  if (cols === 3) return 560;
+  return 680;
+});
 
 const tempC = computed(() => {
   const v = overview.value?.tempC;
@@ -676,8 +1023,43 @@ const ioCard = computed(() => ({
   }
 }
 
+.disk-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.disk-overflow {
+  font-size: 12px;
+}
+
+.disk-section {
+  & + & {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--m3-outline-variant, var(--el-border-color-lighter));
+  }
+}
+
+.disk-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--m3-on-surface-variant, var(--el-text-color-secondary));
+  margin-bottom: 8px;
+}
+
+.disk-internal-group {
+  & + & {
+    margin-top: 10px;
+  }
+}
+
 .disk-row {
   margin-bottom: 10px;
+
   &:last-child {
     margin-bottom: 0;
   }
@@ -693,6 +1075,22 @@ const ioCard = computed(() => ({
 
 .disk-mount {
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disk-row.is-internal :deep(.el-progress__text) {
+  color: var(--m3-primary);
+}
+
+.disk-row.is-external :deep(.el-progress__text) {
+  color: #5b8def;
+}
+
+.disk-row.is-danger :deep(.el-progress__text) {
+  color: var(--m3-error, var(--el-color-danger));
 }
 
 .mono {
@@ -747,7 +1145,6 @@ const ioCard = computed(() => ({
     color: var(--m3-primary);
     padding: 4px 0;
     margin-bottom: 2px;
-    border-bottom: 1px solid var(--m3-outline-variant);
   }
 
   .ring-pop-grid {
@@ -755,5 +1152,162 @@ const ioCard = computed(() => ({
     grid-template-columns: 1fr 1fr;
     gap: 8px 16px;
   }
+}
+
+/* 磁盘环图弹出：色块分区，不用线框切割 */
+.disk-pop {
+  --disk-ok: var(--m3-primary, var(--el-color-primary));
+  --disk-warn: var(--m3-error, var(--el-color-danger));
+  --disk-soft: var(--m3-surface-container, var(--el-fill-color-light));
+  --disk-ink: var(--m3-on-surface, var(--el-text-color-primary));
+  --disk-mute: var(--m3-on-surface-variant, var(--el-text-color-secondary));
+  color: var(--disk-ink);
+  font: var(--m3-body-small);
+}
+
+.disk-pop-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.disk-pop.cols-2 .disk-pop-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.disk-pop.cols-3 .disk-pop-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.disk-pop.cols-4 .disk-pop-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.disk-pop-cell {
+  min-width: 0;
+  padding: 10px 11px 9px;
+  border-radius: 10px;
+  background: var(--disk-soft);
+  box-sizing: border-box;
+}
+
+.disk-pop-cell-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.disk-pop-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--disk-ink);
+}
+
+.disk-pop-pct {
+  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--disk-ok);
+}
+
+.disk-pop-cell.is-danger .disk-pop-pct {
+  color: var(--disk-warn);
+}
+
+.disk-pop-bar {
+  margin-top: 8px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--disk-ink) 8%, transparent);
+  overflow: hidden;
+
+  > i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--disk-ok);
+  }
+}
+
+.disk-pop-cell.is-danger .disk-pop-bar > i {
+  background: var(--disk-warn);
+}
+
+.disk-pop-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--disk-mute);
+  font-variant-numeric: tabular-nums;
+
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.disk-pop-total {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.disk-pop-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--disk-ok) 8%, var(--disk-soft));
+}
+
+.disk-pop-foot-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--disk-mute);
+}
+
+.disk-pop-foot-stats {
+  min-width: 0;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--disk-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  em {
+    margin-left: 6px;
+    font-style: normal;
+    color: var(--disk-ok);
+  }
+}
+
+.disk-pop.is-danger .disk-pop-foot {
+  background: color-mix(in srgb, var(--disk-warn) 10%, var(--disk-soft));
+}
+
+.disk-pop.is-danger .disk-pop-foot-stats em {
+  color: var(--disk-warn);
 }
 </style>

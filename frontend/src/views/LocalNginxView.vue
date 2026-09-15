@@ -59,30 +59,45 @@
           </div>
         </aside>
 
-        <pre v-if="previewLoading" class="nginx-preview">加载中…</pre>
-        <pre
-          v-else-if="previewText"
-          class="nginx-preview"
-          tabindex="-1"
-        >{{ previewText }}</pre>
-        <pre v-else class="nginx-preview muted">选择左侧文件预览</pre>
+        <div class="nginx-codearea">
+          <pre v-if="previewLoading" class="nginx-preview">加载中…</pre>
+          <CodePane
+            v-else-if="previewHtml"
+            :html="previewHtml"
+            :text="previewText"
+          />
+          <pre
+            v-else-if="previewText"
+            class="nginx-preview"
+            tabindex="-1"
+          >{{ previewText }}</pre>
+          <pre v-else class="nginx-preview muted">选择左侧文件预览</pre>
+        </div>
       </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { api } from "@/api";
 import type { localsys } from "@/api";
+import CodePane from "@/components/CodePane.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import { usePolling } from "@/composables/usePolling";
 import { useAppStore } from "@/stores/app";
+import { nginxHighlightHtml } from "@/utils/nginxHighlight";
 
 const app = useAppStore();
 const selected = ref("");
 const previewText = ref("");
 const previewLoading = ref(false);
+const previewError = ref(false);
+
+/* 读取失败原文不高亮（走普通 pre 分支展示） */
+const previewHtml = computed(() =>
+  previewError.value ? "" : nginxHighlightHtml(previewText.value)
+);
 
 const { data: info, error, loading, refresh } = usePolling<localsys.NginxInfo>(
   () => api.localSysNginx(),
@@ -113,9 +128,11 @@ watch(
 async function selectFile(path: string) {
   selected.value = path;
   previewLoading.value = true;
+  previewError.value = false;
   try {
     previewText.value = await api.localSysNginxRead(path);
   } catch (e) {
+    previewError.value = true;
     previewText.value = `# 读取失败: ${e instanceof Error ? e.message : String(e)}`;
   } finally {
     previewLoading.value = false;
@@ -190,7 +207,7 @@ function formatSize(n: number) {
   min-height: 0;
   overflow: auto;
   padding: 10px;
-  background: var(--m3-surface-container);
+  background: var(--m3-card);
   border-right: 1px solid var(--m3-outline-variant);
   box-sizing: border-box;
 }
@@ -217,13 +234,16 @@ function formatSize(n: number) {
   }
 
   &.is-active {
-    background: var(--m3-surface-container-lowest);
-    color: var(--m3-primary);
-    box-shadow: inset 0 0 0 1px
-      color-mix(in srgb, var(--m3-primary) 28%, var(--m3-outline-variant));
+    background: var(--m3-primary-container);
+    color: var(--m3-on-primary-container);
 
     .nf-name {
       font-weight: 600;
+    }
+
+    .nf-size {
+      color: inherit;
+      opacity: 0.75;
     }
   }
 }
@@ -250,6 +270,14 @@ function formatSize(n: number) {
   color: var(--m3-on-surface-variant);
 }
 
+/* 右栏代码区：grid 单元，CodePane 靠 flex:1 撑满 */
+.nginx-codearea {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
 .nginx-preview {
   margin: 0;
   min-height: 0;
@@ -258,7 +286,7 @@ function formatSize(n: number) {
   overflow: auto;
   box-sizing: border-box;
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--m3-font-mono);

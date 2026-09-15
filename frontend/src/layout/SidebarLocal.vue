@@ -82,9 +82,9 @@ const activeId = computed(() => {
 }
 
 .panel-sidebar--local :deep(.el-menu-item) {
-  height: 48px !important;
-  line-height: 48px;
-  margin: 2px 0;
+  height: 40px !important;
+  line-height: 40px;
+  margin: 1px 0;
   padding: 0 14px !important;
 }
 

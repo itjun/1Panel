@@ -24,6 +24,7 @@
               :stroke-width="4"
               class="upload-progress"
             />
+            <p v-if="s.text" class="upload-size-hint">{{ s.text }}</p>
           </template>
         </el-step>
       </el-steps>
@@ -52,9 +53,7 @@
     </div>
 
     <template #footer>
-      <p v-if="store.running" class="running-hint">
-        正在安装，请稍候…（上传约 10MB，视网络可能需要一两分钟）
-      </p>
+      <p v-if="store.running" class="running-hint">{{ runningHint }}</p>
       <p v-else-if="store.checking" class="running-hint">正在检查 Agent…</p>
       <template v-else>
         <el-button
@@ -72,11 +71,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import AgentCheckList from "@/components/AgentCheckList.vue";
 import type { InstallStepState } from "@/stores/agentInstall";
 import { useAgentInstallStore } from "@/stores/agentInstall";
 
 const store = useAgentInstallStore();
+
+/** 底部等待提示文案；探测确定架构后附带 agent 二进制实际大小 */
+const runningHint = computed(() =>
+  store.binaryMB > 0
+    ? `正在安装，请稍候…（Agent 二进制 ${store.binaryMB.toFixed(1)} MB，视网络可能需要一两分钟）`
+    : "正在安装，请稍候…（视网络可能需要一两分钟）"
+);
 
 type ElStepStatus = "" | "error" | "success" | "wait" | "process" | "finish";
 
@@ -103,6 +110,13 @@ function elStatus(state: InstallStepState): ElStepStatus {
   width: 92%;
   max-width: 360px;
   margin: 6px 0 2px;
+}
+
+.upload-size-hint {
+  margin: 0 0 4px;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  line-height: 1.45;
 }
 
 .install-result {

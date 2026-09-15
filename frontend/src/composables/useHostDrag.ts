@@ -1,16 +1,26 @@
 /**
- * 侧栏主机拖拽分组：指针拖拽（不依赖 HTML5 DnD）、分组标题命中检测、迁移分组。
- * 从 SidebarHost.vue 抽出，行为保持不变。
+ * 侧栏拖拽：主机迁组 + 分组移树（指针拖拽，不依赖 HTML5 DnD）。
  */
 import { onBeforeUnmount, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import {
+  MAX_GROUP_DEPTH,
+  ROOT_DROP_ID,
+  UNGROUPED_ID,
+  useAppStore,
+  type GroupNode,
+} from "@/stores/app";
 
-/** 移动超过该像素才算拖拽，避免误触 */
 const DRAG_THRESHOLD = 6;
 
+function isRootDrop(dropId: string): boolean {
+  return dropId === ROOT_DROP_ID || dropId === UNGROUPED_ID;
+}
+
 export interface DragState {
-  host: string;
+  kind: "host" | "group";
+  id: string;
+  label: string;
   startX: number;
   startY: number;
   x: number;
@@ -24,15 +34,29 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
 
   const dragState = ref<DragState | null>(null);
   const dropTargetId = ref<string | null>(null);
-  /** 抑制 pointer 拖拽结束后的 click */
   const suppressClick = ref(false);
 
   function onHostPointerDown(e: PointerEvent, hostName: string) {
-    // 只响应主键；侧栏调宽时不抢
     if (e.button !== 0 || opts?.isBlocked?.()) return;
-    // 不 preventDefault，以便仍可滚动；拖起来后再禁选中
+    beginDrag(e, "host", hostName, hostName);
+  }
+
+  function onGroupPointerDown(e: PointerEvent, groupId: string, name: string) {
+    if (e.button !== 0 || opts?.isBlocked?.()) return;
+    if (!groupId || groupId === UNGROUPED_ID) return;
+    beginDrag(e, "group", groupId, name);
+  }
+
+  function beginDrag(
+    e: PointerEvent,
+    kind: "host" | "group",
+    id: string,
+    label: string
+  ) {
     dragState.value = {
-      host: hostName,
+      kind,
+      id,
+      label,
       startX: e.clientX,
       startY: e.clientY,
       x: e.clientX,
@@ -40,12 +64,12 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
       active: false,
       pointerId: e.pointerId,
     };
-    window.addEventListener("pointermove", onHostPointerMove);
-    window.addEventListener("pointerup", onHostPointerUp);
-    window.addEventListener("pointercancel", onHostPointerUp);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
   }
 
-  function onHostPointerMove(e: PointerEvent) {
+  function onPointerMove(e: PointerEvent) {
     const st = dragState.value;
     if (!st || e.pointerId !== st.pointerId) return;
 
@@ -62,77 +86,141 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
       document.body.style.cursor = "grabbing";
     }
 
-    // 命中分组标题
-    const gid = hitTestDropGroup(e.clientX, e.clientY);
-    dropTargetId.value = gid;
+    dropTargetId.value = hitTestDropGroup(e.clientX, e.clientY);
   }
 
-  async function onHostPointerUp(e: PointerEvent) {
+  async function onPointerUp(e: PointerEvent) {
     const st = dragState.value;
     if (!st || e.pointerId !== st.pointerId) return;
 
-    window.removeEventListener("pointermove", onHostPointerMove);
-    window.removeEventListener("pointerup", onHostPointerUp);
-    window.removeEventListener("pointercancel", onHostPointerUp);
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
 
-    const host = st.host;
     const wasActive = st.active;
     const target = dropTargetId.value;
+    const kind = st.kind;
+    const id = st.id;
 
     dragState.value = null;
     dropTargetId.value = null;
 
-    if (!wasActive) {
-      // 纯点击，交给 click 处理 openHostTab
-      return;
-    }
+    if (!wasActive) return;
 
-    // 拖拽结束：若落在分组上则分配
     if (target != null) {
-      await moveHostToGroup(host, target);
+      if (kind === "host") {
+        await moveHostToGroup(id, target);
+      } else {
+        await moveGroupToParent(id, target);
+      }
     }
 
-    // 吞掉随后的 click
     setTimeout(() => {
       suppressClick.value = false;
     }, 0);
   }
 
-  /** 强制取消拖拽（如右键菜单打开时），避免幽灵残留 */
   function cancelDrag() {
     if (!dragState.value) return;
-    window.removeEventListener("pointermove", onHostPointerMove);
-    window.removeEventListener("pointerup", onHostPointerUp);
-    window.removeEventListener("pointercancel", onHostPointerUp);
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
     dragState.value = null;
     dropTargetId.value = null;
   }
 
-  /** 从坐标向上找带 data-drop-group 的节点 */
   function hitTestDropGroup(x: number, y: number): string | null {
     const stack = document.elementsFromPoint(x, y);
     for (const el of stack) {
       if (!(el instanceof HTMLElement)) continue;
-      // 幽灵自身忽略
-      if (el.classList.contains("host-drag-ghost")) continue;
+      if (
+        el.classList.contains("host-drag-ghost") ||
+        el.classList.contains("group-drag-ghost")
+      ) {
+        continue;
+      }
       const node = el.closest("[data-drop-group]") as HTMLElement | null;
       if (node?.dataset.dropGroup) return node.dataset.dropGroup;
-      // Element Plus 标题栏：有时 data 在子节点，父级是 .el-sub-menu__title
       if (el.classList.contains("el-sub-menu__title")) {
-        const inner = el.querySelector("[data-drop-group]") as HTMLElement | null;
+        const inner = el.querySelector(
+          "[data-drop-group]"
+        ) as HTMLElement | null;
         if (inner?.dataset.dropGroup) return inner.dataset.dropGroup;
       }
     }
     return null;
   }
 
+  function subtreeHeight(node: GroupNode): number {
+    if (!node.children?.length) return 1;
+    let max = 0;
+    for (const c of node.children) {
+      const h = subtreeHeight(c);
+      if (h > max) max = h;
+    }
+    return max + 1;
+  }
+
+  function isDescendantOf(ancestorId: string, nodeId: string): boolean {
+    const anc = app.findGroupNode(ancestorId);
+    if (!anc) return false;
+    const walk = (n: GroupNode): boolean => {
+      for (const c of n.children || []) {
+        if (c.group?.id === nodeId) return true;
+        if (walk(c)) return true;
+      }
+      return false;
+    };
+    return walk(anc);
+  }
+
+  async function moveGroupToParent(groupId: string, dropId: string) {
+    if (groupId === dropId) {
+      ElMessage.info("不能移到自身");
+      return;
+    }
+    if (!isRootDrop(dropId) && isDescendantOf(groupId, dropId)) {
+      ElMessage.warning("不能将分组移到自己的子分组下");
+      return;
+    }
+
+    const dragged = app.findGroupNode(groupId);
+    if (!dragged) return;
+    const height = subtreeHeight(dragged);
+    const newDepth = isRootDrop(dropId) ? 1 : app.groupDepthOf(dropId) + 1;
+    if (newDepth + height - 1 > MAX_GROUP_DEPTH) {
+      ElMessage.warning(`移动后将超过 ${MAX_GROUP_DEPTH} 层，已取消`);
+      return;
+    }
+
+    const parentId = isRootDrop(dropId) ? "" : dropId;
+    const curParent = (dragged.group?.parentId || "").trim();
+    if (curParent === parentId) {
+      const label = isRootDrop(dropId)
+        ? "顶层"
+        : app.groupList.find((g) => g.id === dropId)?.name || "分组";
+      ElMessage.info(`已在「${label}」下`);
+      return;
+    }
+
+    try {
+      await app.moveGroup(groupId, parentId);
+      const label = isRootDrop(dropId)
+        ? "顶层"
+        : app.groupList.find((g) => g.id === dropId)?.name || "分组";
+      ElMessage.success(`已将分组移至「${label}」`);
+    } catch (err) {
+      ElMessage.error(`移动失败: ${err}`);
+    }
+  }
+
   async function moveHostToGroup(host: string, groupId: string) {
-    const target = groupId === UNGROUPED_ID ? "" : groupId;
-    // 若已在该组则跳过
+    const target =
+      groupId === UNGROUPED_ID || groupId === ROOT_DROP_ID ? "" : groupId;
     if (target) {
       const g = app.groupList.find((x) => x.id === target);
       if (g?.hosts?.includes(host)) {
@@ -140,7 +228,6 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
         return;
       }
     } else {
-      // 未分组：若当前不在任何组则跳过
       const inAny = app.groupList.some((g) => (g.hosts || []).includes(host));
       if (!inAny) {
         ElMessage.info(`${host} 已在未分组`);
@@ -151,7 +238,7 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     try {
       await app.assignHost(host, target);
       const label =
-        groupId === UNGROUPED_ID
+        groupId === UNGROUPED_ID || groupId === ROOT_DROP_ID
           ? "未分组"
           : app.groupList.find((g) => g.id === groupId)?.name || "分组";
       ElMessage.success(`已将 ${host} 移至「${label}」`);
@@ -169,7 +256,9 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     dropTargetId,
     suppressClick,
     onHostPointerDown,
+    onGroupPointerDown,
     cancelDrag,
     moveHostToGroup,
+    moveGroupToParent,
   };
 }

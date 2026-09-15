@@ -56,9 +56,12 @@ export function useSidebarResize() {
       if (!h.name) continue;
       maxText = Math.max(maxText, ctx.measureText(h.name).width);
     }
-    for (const node of app.groupNodes) {
+    for (const node of app.flattenGroupNodes()) {
       const name = node.group?.name || "未分组";
       maxText = Math.max(maxText, ctx.measureText(name).width);
+    }
+    if (app.groupNodes.some((n) => !n.group)) {
+      maxText = Math.max(maxText, ctx.measureText("未分组").width);
     }
     return clampWidth(Math.ceil(maxText + HOST_ROW_CHROME));
   }

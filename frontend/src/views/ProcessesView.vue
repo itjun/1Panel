@@ -218,6 +218,7 @@ import { api } from "@/api";
 import type { RuntimeCounts } from "@/api";
 import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
+import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import TagButton from "@/components/TagButton.vue";
@@ -269,6 +270,7 @@ interface JavaProcDetail {
 }
 
 const props = defineProps<{ host: string }>();
+const app = useAppStore();
 
 /** 运行时视图定义（与后端 runtimeCommFilter 对应）；顺序即标签展示顺序 */
 const RUNTIME_TABS = [
@@ -299,7 +301,9 @@ const { data, error, loading, refresh } = usePolling<ProcInfo[] | RuntimeProc[]>
     return api.collectRuntimeProcs(props.host, view.value) as Promise<RuntimeProc[]>;
   },
   5000,
-  () => [props.host, view.value]
+  () => [props.host, view.value],
+  // 页面不可见（切走/设置页）时降频轮询
+  () => app.isHostSubActive(props.host, "processes")
 );
 
 function onRefresh() {
@@ -317,7 +321,8 @@ const rows = computed(() => data.value || []);
 const { data: runtimeCounts } = usePolling<RuntimeCounts>(
   () => api.collectRuntimeCounts(props.host) as Promise<RuntimeCounts>,
   30000,
-  () => [props.host]
+  () => [props.host],
+  () => app.isHostSubActive(props.host, "processes")
 );
 
 /** 标签按钮：全部进程 + 各运行时 + Docker（带数量徽标） */

@@ -102,6 +102,7 @@ func main() {
 		{"home-dir", "/collect/home-dir"},
 		{"dir-root", "/collect/dir?path=/"},
 		{"certs", "/collect/certs"},
+		{"hosts", "/collect/hosts"},
 		{"os-release", "/collect/os-release"},
 		{"logs", "/collect/logs?type=system&lines=3"},
 	}

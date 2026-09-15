@@ -71,84 +71,18 @@
       </div>
     </section>
 
-    <!-- 按分组分段 -->
+    <!-- 按分组树渲染：子分组嵌在父节点下，树线对齐 -->
     <div v-if="app.hosts.length > 0" class="group-sections">
-      <section
-        v-for="(node, idx) in groups"
+      <AllHostsGroupBranch
+        v-for="node in groupTree"
         :key="node.key"
-        class="group-section"
-      >
-        <div class="group-head">
-          <span
-            class="group-color-dot"
-            :style="{ backgroundColor: colorOf(node, idx).accent }"
-          />
-          <span
-            class="group-name"
-            :style="{ color: colorOf(node, idx).ink }"
-          >
-            {{ node.title }}
-          </span>
-          <span
-            class="group-count"
-            :style="{
-              color: colorOf(node, idx).ink,
-              backgroundColor: colorOf(node, idx).soft,
-            }"
-          >
-            {{ node.hosts.length }}
-          </span>
-        </div>
-
-        <div v-if="node.hosts.length === 0" class="group-empty">
-          该分组暂无主机
-        </div>
-        <div v-else class="host-grid">
-          <div
-            v-for="h in node.hosts"
-            :key="h.name"
-            class="host-card"
-            :class="{ 'is-running': app.isRunning(h.name) }"
-            @click="openHost(h.name)"
-          >
-            <span
-              class="host-ico-wrap"
-              :title="
-                app.osReleaseMap.get(h.name)
-                  ? `${app.osReleaseMap.get(h.name)}（右键重新识别）`
-                  : '未识别发行版，右键探测'
-              "
-              @click.stop
-              @contextmenu.prevent="onRefreshOneIcon(h.name)"
-            >
-              <DistroLogo
-                :os-release="app.osReleaseMap.get(h.name) || ''"
-                :size="22"
-                class="host-ico"
-              />
-            </span>
-            <div class="host-info">
-              <div class="host-name">
-                {{ h.name }}
-                <span
-                  v-if="app.isRunning(h.name)"
-                  class="run-dot"
-                  title="运行中（后台保持）"
-                />
-              </div>
-              <div class="host-sub">
-                {{ h.user || "?" }}@{{ h.hostName || "?" }}
-              </div>
-              <div v-if="h.note" class="host-note" :title="h.note">
-                {{ h.note }}
-              </div>
-              <div v-if="showPort(h.port)" class="host-port">
-                端口 {{ h.port }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+        :node="node"
+        :nested="false"
+        :is-running="(n) => app.isRunning(n)"
+        :os-release="(n) => app.osReleaseMap.get(n) || ''"
+        @open-host="openHost"
+        @refresh-icon="onRefreshOneIcon"
+      />
     </div>
   </div>
 </template>
@@ -158,12 +92,13 @@ import { computed, onBeforeUnmount, onMounted, reactive } from "vue";
 import { Picture, Refresh } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Events } from "@wailsio/runtime";
-import DistroLogo from "@/components/DistroLogo.vue";
+import AllHostsGroupBranch, {
+  type HostGroupTreeNode,
+} from "@/components/AllHostsGroupBranch.vue";
 import { api } from "@/api";
-import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import { useAppStore, UNGROUPED_ID, type GroupNode } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
-import type { sshconfig } from "@/api";
 import type { main } from "@/api";
 
 const app = useAppStore();
@@ -245,60 +180,40 @@ async function loadMenuChecks() {
 }
 
 /**
- * 分组色板：与 SidebarHost 保持一致，概览页分组色与侧栏呼应。
- * accent=色条/圆点，soft=浅底，ink=文字/图标
+ * 分组树：本层主机 + 子分组（与侧栏同色板，按顶层 rootIndex）。
  */
-const GROUP_PALETTE = [
-  { accent: "#005eeb", soft: "rgba(0, 94, 235, 0.12)", ink: "#005eeb" },
-  { accent: "#196eed", soft: "rgba(25, 110, 237, 0.12)", ink: "#196eed" },
-  { accent: "#337eef", soft: "rgba(51, 126, 239, 0.12)", ink: "#337eef" },
-  { accent: "#4c8ef1", soft: "rgba(76, 142, 241, 0.12)", ink: "#4c8ef1" },
-  { accent: "#669ef3", soft: "rgba(102, 158, 243, 0.12)", ink: "#669ef3" },
-  { accent: "#505f79", soft: "rgba(80, 95, 121, 0.12)", ink: "#505f79" },
-  { accent: "#0077cc", soft: "rgba(0, 119, 204, 0.12)", ink: "#0077cc" },
-  { accent: "#0066b3", soft: "rgba(0, 102, 179, 0.12)", ink: "#0066b3" },
-  { accent: "#004494", soft: "rgba(0, 68, 148, 0.12)", ink: "#004494" },
-  { accent: "#7faef5", soft: "rgba(127, 174, 245, 0.12)", ink: "#669ef3" },
-] as const;
-
-const UNGROUPED_COLOR = {
-  accent: "#909399",
-  soft: "rgba(144, 147, 153, 0.12)",
-  ink: "#646a73",
-} as const;
-
-type GroupColor = {
-  accent: string;
-  soft: string;
-  ink: string;
-};
-
-interface GroupSection {
-  key: string;
-  title: string;
-  hosts: sshconfig.HostConfig[];
-  ungrouped: boolean;
-}
-
-/** 分组结构 + 主机基本信息（含端口）来自 store，本地即时数据 */
-const groups = computed<GroupSection[]>(() =>
-  app.groupNodes.map((n) => ({
-    key: n.group?.id || UNGROUPED_ID,
-    title: n.group?.name || "未分组",
+function toTreeNode(n: GroupNode): HostGroupTreeNode {
+  return {
+    key: n.group!.id,
+    title: n.group!.name || "未命名",
     hosts: n.hosts,
-    ungrouped: !n.group,
-  }))
-);
-
-function colorOf(node: GroupSection, index: number): GroupColor {
-  if (node.ungrouped) return UNGROUPED_COLOR;
-  return GROUP_PALETTE[index % GROUP_PALETTE.length];
+    totalCount: n.subtreeHosts.length,
+    rootIndex: n.rootIndex,
+    depth: n.depth,
+    children: (n.children || [])
+      .filter((c) => !!c.group)
+      .map((c) => toTreeNode(c)),
+  };
 }
 
-/** 默认 22 端口不展示，减少视觉噪音 */
-function showPort(port?: string): boolean {
-  return !!port && port !== "22";
-}
+const groupTree = computed<HostGroupTreeNode[]>(() => {
+  const roots = app.groupNodes
+    .filter((n) => !!n.group)
+    .map((n) => toTreeNode(n));
+  const ug = app.groupNodes.find((n) => !n.group);
+  if (ug) {
+    roots.push({
+      key: UNGROUPED_ID,
+      title: "未分组",
+      hosts: ug.hosts,
+      totalCount: ug.subtreeHosts.length,
+      rootIndex: -1,
+      depth: 0,
+      children: [],
+    });
+  }
+  return roots;
+});
 
 function openHost(name: string) {
   app.openHostTab(name);
@@ -488,7 +403,7 @@ async function onRefreshIcons() {
   color: var(--el-text-color-secondary);
 }
 
-/* ---------- 分组分段 ---------- */
+/* ---------- 分组树 ---------- */
 .group-sections {
   display: flex;
   flex-direction: column;
@@ -508,33 +423,29 @@ async function onRefreshIcons() {
   margin-bottom: 12px;
 }
 .group-color-dot {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .group-name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 650;
   letter-spacing: 0.02em;
+  line-height: 1.3;
 }
 .group-count {
-  font-size: 11px;
-  font-weight: 600;
-  min-width: 18px;
-  height: 18px;
-  line-height: 18px;
-  text-align: center;
-  padding: 0 6px;
-  border-radius: 9px;
-}
-.group-empty {
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
-  padding: 4px 0 8px;
+  font-weight: 600;
+  min-width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  padding: 0 7px;
+  border-radius: 10px;
 }
 
-/* ---------- 主机卡片网格 ---------- */
+/* ---------- 主机卡片网格（菜单检查复用） ---------- */
 .host-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -584,14 +495,6 @@ async function onRefreshIcons() {
   margin-top: 2px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.host-note {
-  margin-top: 2px;
-  font: var(--m3-body-small);
-  color: var(--m3-on-surface-variant);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -23,7 +23,7 @@ export function ListGroupOverview(): $CancellablePromise<$models.GroupOverview[]
 }
 
 /**
- * ListOneGroupOverview 只采集指定分组，避免「打开一个分组却扫全库」导致长时间加载中
+ * ListOneGroupOverview 只采集指定分组子树内全部主机
  */
 export function ListOneGroupOverview(groupID: string): $CancellablePromise<$models.GroupOverview> {
     return $Call.ByID(1478451225, groupID);

@@ -50,22 +50,69 @@ func (s *Overview) ListGroupOverview() ([]GroupOverview, error) {
 	return out, nil
 }
 
-// ListOneGroupOverview 只采集指定分组，避免「打开一个分组却扫全库」导致长时间加载中
+// ListOneGroupOverview 只采集指定分组子树内全部主机
 func (s *Overview) ListOneGroupOverview(groupID string) (GroupOverview, error) {
-	buckets, err := s.buildGroupBuckets()
+	hosts, err := sshconfig.Parse()
 	if err != nil {
 		return GroupOverview{}, err
 	}
-	for _, b := range buckets {
-		if b.id == groupID {
-			return GroupOverview{
-				GroupID:   b.id,
-				GroupName: b.name,
-				Hosts:     s.collectHostSnapshots(b.hosts, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) }),
-			}, nil
+	hostMap := map[string]sshconfig.HostConfig{}
+	for _, h := range hosts {
+		if sshconfig.IsGitHost(h) {
+			continue
+		}
+		hostMap[h.Name] = h
+	}
+
+	if groupID == "__ungrouped__" {
+		assigned := map[string]bool{}
+		if s.groups != nil {
+			for _, g := range s.groups.List() {
+				for _, name := range g.Hosts {
+					assigned[name] = true
+				}
+			}
+		}
+		var hs []sshconfig.HostConfig
+		for _, h := range hostMap {
+			if !assigned[h.Name] {
+				hs = append(hs, h)
+			}
+		}
+		return GroupOverview{
+			GroupID:   groupID,
+			GroupName: "未分组",
+			Hosts:     s.collectHostSnapshots(hs, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) }),
+		}, nil
+	}
+
+	name := groupID
+	var names []string
+	if s.groups != nil {
+		for _, g := range s.groups.List() {
+			if g.ID == groupID {
+				name = g.Name
+				break
+			}
+		}
+		names = s.groups.SubtreeHostNames(groupID)
+	}
+	var hs []sshconfig.HostConfig
+	seen := map[string]bool{}
+	for _, n := range names {
+		if seen[n] {
+			continue
+		}
+		seen[n] = true
+		if h, ok := hostMap[n]; ok {
+			hs = append(hs, h)
 		}
 	}
-	return GroupOverview{GroupID: groupID, GroupName: groupID, Hosts: []HostOverviewSnapshot{}}, nil
+	return GroupOverview{
+		GroupID:   groupID,
+		GroupName: name,
+		Hosts:     s.collectHostSnapshots(hs, 5, func(h, os string) { rememberOS(s.hostIcons, h, os) }),
+	}, nil
 }
 
 type groupBucket struct {

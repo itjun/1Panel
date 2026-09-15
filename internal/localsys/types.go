@@ -67,7 +67,8 @@ type DiskInfo struct {
 	Free       uint64  `json:"free"`
 	Avail      uint64  `json:"avail"`
 	Percent    float64 `json:"percent"`
-	Kind       string  `json:"kind"` // disk=物理容器；mount=挂载卷
+	Kind       string  `json:"kind"`   // disk=物理容器；mount=挂载卷
+	Parent     string  `json:"parent"` // 物理盘键：如 disk3；外置可与 mount 同键
 }
 
 // Runtime 已安装的运行时版本。

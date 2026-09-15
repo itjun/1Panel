@@ -241,20 +241,70 @@ func listMountDisks() []DiskInfo {
 		if total > 0 {
 			pct = float64(used) / float64(total) * 100
 		}
-		disks = append(disks, DiskInfo{
+		fsType := "apfs"
+		if strings.HasPrefix(mount, "/Volumes/") {
+			fsType = "volume" // 外置卷；具体格式不必每次 diskutil
+		}
+		item := DiskInfo{
 			Mount:      mount,
 			Device:     device,
 			Filesystem: device,
-			FSType:     "apfs",
+			FSType:     fsType,
 			Total:      total,
 			Used:       used,
 			Free:       avail,
 			Avail:      avail,
 			Percent:    pct,
 			Kind:       "mount",
-		})
+			Parent:     DiskParentKey(device, mount),
+		}
+		disks = append(disks, item)
+		// /Volumes/* 外置卷（ExFAT/HFS 等）不在 apfs list 里，
+		// 额外记一条 kind=disk，供顶部环图与内置 APFS 容器一并汇总
+		if isExternalVolumeMount(mount) {
+			ext := item
+			ext.Kind = "disk"
+			ext.Filesystem = mount // 去重键：避免和 APFS diskN 撞车
+			// Parent 与 mount 条目一致，便于按物理盘分组
+			disks = append(disks, ext)
+		}
 	}
 	return disks
+}
+
+// DiskParentKey 从设备节点或挂载路径得到物理盘分组键。
+// /dev/disk3s5、/dev/disk3s1s1 → disk3；无法解析时回退 device/mount。
+func DiskParentKey(device, mount string) string {
+	d := strings.TrimPrefix(strings.TrimSpace(device), "/dev/")
+	if strings.HasPrefix(d, "disk") {
+		i := len("disk")
+		for i < len(d) && d[i] >= '0' && d[i] <= '9' {
+			i++
+		}
+		if i > len("disk") {
+			return d[:i]
+		}
+	}
+	m := strings.TrimSpace(mount)
+	if isExternalVolumeMount(m) {
+		return m
+	}
+	if d != "" {
+		return d
+	}
+	return m
+}
+
+// isExternalVolumeMount：用户挂载的外置卷（/Volumes/名称），排除系统恢复卷
+func isExternalVolumeMount(mount string) bool {
+	if !strings.HasPrefix(mount, "/Volumes/") {
+		return false
+	}
+	if mount == "/Volumes/Recovery" {
+		return false
+	}
+	name := strings.TrimPrefix(mount, "/Volumes/")
+	return name != "" && !strings.Contains(name, "/")
 }
 
 func shouldSkipMount(mount string) bool {
@@ -268,7 +318,10 @@ func shouldSkipMount(mount string) bool {
 		strings.HasPrefix(mount, "/System/Volumes/iSCPreboot"),
 		strings.HasPrefix(mount, "/System/Volumes/Hardware"),
 		strings.HasPrefix(mount, "/Volumes/Recovery"),
-		strings.HasPrefix(mount, "/private/var/vm"):
+		strings.HasPrefix(mount, "/private/var/vm"),
+		// iOS/visionOS 模拟器 cryptex 临时盘，不是用户物理存储
+		strings.Contains(mount, "/com.apple.security.cryptexd/"),
+		strings.Contains(mount, "SimulatorRuntime"):
 		return true
 	default:
 		return false
@@ -285,24 +338,27 @@ func listAPFSContainers() []DiskInfo {
 }
 
 // ParseAPFSContainers 解析 diskutil apfs list 文本（供单测）。
+// 注意：非末尾容器的行带 "|" 树形前缀，必须剥掉才能匹配字段。
+// 模拟器 / disk image 容器不进入 kind=disk（避免顶部环图被 18GB 临时盘带歪）。
 func ParseAPFSContainers(raw string) []DiskInfo {
 	var disks []DiskInfo
 	var cur *DiskInfo
+	skip := false
 	flush := func() {
-		if cur != nil && cur.Total > 0 {
+		if cur != nil && cur.Total > 0 && !skip {
 			if cur.Percent == 0 && cur.Total > 0 {
 				cur.Percent = float64(cur.Used) / float64(cur.Total) * 100
 			}
 			disks = append(disks, *cur)
 		}
 		cur = nil
+		skip = false
 	}
 	sc := bufio.NewScanner(strings.NewReader(raw))
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
+		line := normalizeDiskutilLine(sc.Text())
 		if strings.HasPrefix(line, "+-- Container ") || strings.HasPrefix(line, "Container ") {
 			flush()
-			// +-- Container disk3 UUID
 			fields := strings.Fields(line)
 			name := ""
 			for _, f := range fields {
@@ -317,6 +373,7 @@ func ParseAPFSContainers(raw string) []DiskInfo {
 				Filesystem: name,
 				FSType:     "apfs",
 				Kind:       "disk",
+				Parent:     name,
 			}
 			continue
 		}
@@ -326,6 +383,7 @@ func ParseAPFSContainers(raw string) []DiskInfo {
 		if v, ok := cutAfter(line, "APFS Container Reference:"); ok {
 			cur.Device = v
 			cur.Filesystem = v
+			cur.Parent = v
 			continue
 		}
 		if v, ok := cutAfter(line, "Size (Capacity Ceiling):"); ok {
@@ -339,10 +397,30 @@ func ParseAPFSContainers(raw string) []DiskInfo {
 		if v, ok := cutAfter(line, "Capacity Not Allocated:"); ok {
 			cur.Free = parseBytesField(v)
 			cur.Avail = cur.Free
+			continue
+		}
+		// 卷名含 Simulator → 整容器视为临时盘，不进物理汇总
+		if v, ok := cutAfter(line, "Name:"); ok {
+			name := strings.TrimSpace(v)
+			if i := strings.Index(name, " ("); i > 0 {
+				name = name[:i]
+			}
+			if strings.Contains(name, "Simulator") {
+				skip = true
+			}
 		}
 	}
 	flush()
 	return disks
+}
+
+// normalizeDiskutilLine 去掉 diskutil 树形输出的 "|" 前缀与两侧空白。
+func normalizeDiskutilLine(s string) string {
+	s = strings.TrimSpace(s)
+	for strings.HasPrefix(s, "|") {
+		s = strings.TrimSpace(strings.TrimPrefix(s, "|"))
+	}
+	return s
 }
 
 func cutAfter(line, prefix string) (string, bool) {

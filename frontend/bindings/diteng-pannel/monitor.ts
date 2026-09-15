@@ -45,6 +45,13 @@ export function CollectDocker(host: string): $CancellablePromise<monitor$0.Docke
 }
 
 /**
+ * CollectHosts 目标主机 /etc/hosts（只读，解析后条目 + 原文）
+ */
+export function CollectHosts(host: string): $CancellablePromise<monitor$0.HostsInfo> {
+    return $Call.ByID(1615812787, host);
+}
+
+/**
  * CollectJava Java 进程列表
  */
 export function CollectJava(host: string): $CancellablePromise<monitor$0.ProcInfo[] | null> {

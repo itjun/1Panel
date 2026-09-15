@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-root tab-table-page local-hosts">
+  <div class="tab-root tab-table-page remote-hosts">
     <div class="view-toolbar">
       <div class="view-toolbar__chips">
         <span class="panel-section-title">Hosts</span>
@@ -97,31 +97,43 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
-import type { localsys } from "@/api";
+import type { monitor } from "@/api";
 import CodePane from "@/components/CodePane.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import { useHostsSplit } from "@/composables/useHostsSplit";
 import { usePolling } from "@/composables/usePolling";
+import { useAgentInstallStore } from "@/stores/agentInstall";
 import { useAppStore } from "@/stores/app";
 import { plainCodeHtml } from "@/utils/plainCode";
 
+const props = defineProps<{ host: string }>();
+
 const app = useAppStore();
+const agentInstall = useAgentInstallStore();
 const rawMode = ref(false);
 const keyword = ref("");
 const { tablePercent, resizing, bodyRef, onResizeStart, onResizeDblClick } =
   useHostsSplit();
 
-const { data: info, error, loading, refresh } = usePolling<localsys.HostsInfo>(
-  () => api.localSysHosts(),
+const { data: info, error, loading, refresh } = usePolling<monitor.HostsInfo>(
+  () => api.collectHosts(props.host),
   0,
-  () => "local-hosts",
-  () =>
-    app.workspace === "local" &&
-    app.localSection === "hosts" &&
-    !app.settingsOpen
+  () => [props.host],
+  // 页面不可见（切走/设置页）时不拉取
+  () => app.isHostSubActive(props.host, "hosts")
+);
+
+// 安装/更新 agent 成功后立即重拉（旧版缺 /collect/hosts 会 404，装完应自动恢复）
+watch(
+  () => agentInstall.lastInstalled,
+  (evt) => {
+    if (evt?.host === props.host) {
+      void refresh();
+    }
+  }
 );
 
 const filteredEntries = computed(() => {
@@ -138,7 +150,7 @@ const rawHtml = computed(() => plainCodeHtml(info.value?.raw || ""));
 </script>
 
 <style scoped lang="scss">
-.local-hosts {
+.remote-hosts {
   gap: 12px;
 }
 

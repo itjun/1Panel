@@ -36,16 +36,23 @@
         </div>
       </aside>
 
-      <pre
-        v-if="nginxLoading && !nginxPreviewText"
-        class="nginx-preview"
-      >加载中…</pre>
-      <pre
-        v-else-if="nginxPreviewText"
-        class="nginx-preview"
-        tabindex="-1"
-      >{{ nginxPreviewText }}</pre>
-      <pre v-else class="nginx-preview muted">选择左侧文件预览</pre>
+      <div class="nginx-codearea">
+        <pre
+          v-if="nginxLoading && !nginxPreviewText"
+          class="nginx-preview"
+        >加载中…</pre>
+        <CodePane
+          v-else-if="nginxPreviewHtml"
+          :html="nginxPreviewHtml"
+          :text="nginxCopyText"
+        />
+        <pre
+          v-else-if="nginxPreviewText"
+          class="nginx-preview"
+          tabindex="-1"
+        >{{ nginxPreviewText }}</pre>
+        <pre v-else class="nginx-preview muted">选择左侧文件预览</pre>
+      </div>
     </div>
   </div>
 </template>
@@ -54,6 +61,8 @@
 import { computed, ref, watch } from "vue";
 import { api } from "@/api";
 import type { monitor } from "@/api";
+import CodePane from "@/components/CodePane.vue";
+import { nginxHighlightHtml } from "@/utils/nginxHighlight";
 
 const NGINX_DIR = "/etc/nginx/conf.d";
 
@@ -71,6 +80,19 @@ const nginxPreviewText = computed(() => {
   if (!f) return "";
   if (f.error) return `# 读取失败: ${f.error}`;
   return f.content;
+});
+
+/* 读取失败原文不高亮（走普通 pre 分支展示） */
+const nginxPreviewHtml = computed(() => {
+  const f = nginxFiles.value.find((x) => x.path === nginxSelected.value);
+  if (!f || f.error) return "";
+  return nginxHighlightHtml(f.content);
+});
+
+/* 选中文件的原始内容用于复制（读取失败的文件不提供复制） */
+const nginxCopyText = computed(() => {
+  const f = nginxFiles.value.find((x) => x.path === nginxSelected.value);
+  return f && !f.error ? f.content : "";
 });
 
 function formatSize(n: number) {
@@ -170,7 +192,7 @@ watch(
   min-height: 0;
   overflow: auto;
   padding: 10px;
-  background: var(--m3-surface-container);
+  background: var(--m3-card);
   border-right: 1px solid var(--m3-outline-variant);
   box-sizing: border-box;
 }
@@ -197,13 +219,16 @@ watch(
   }
 
   &.is-active {
-    background: var(--m3-surface-container-lowest);
-    color: var(--m3-primary);
-    box-shadow: inset 0 0 0 1px
-      color-mix(in srgb, var(--m3-primary) 28%, var(--m3-outline-variant));
+    background: var(--m3-primary-container);
+    color: var(--m3-on-primary-container);
 
     .nf-name {
       font-weight: 600;
+    }
+
+    .nf-size {
+      color: inherit;
+      opacity: 0.75;
     }
   }
 }
@@ -236,6 +261,14 @@ watch(
   color: var(--m3-on-surface-variant);
 }
 
+/* 右栏代码区：grid 单元，CodePane 靠 flex:1 撑满 */
+.nginx-codearea {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
 .nginx-preview {
   margin: 0;
   min-height: 0;
@@ -244,7 +277,7 @@ watch(
   overflow: auto;
   box-sizing: border-box;
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--m3-font-mono);

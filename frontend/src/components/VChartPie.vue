@@ -26,11 +26,16 @@ const props = defineProps<{
 const el = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
 
-// 隐藏时数据更新只记账不重绘；恢复显示自动补渲染 + 容器尺寸变化自动 resize
+// 隐藏时数据更新只记账不重绘；恢复显示自动补渲染 + 容器尺寸变化自动 resize；
+// 长期隐藏（60s）自动 dispose 释放 canvas 内存，恢复时由 initChart 重建重画
 const { renderWhenVisible } = useChartVisibility(
   el,
   () => initChart(),
-  () => chart?.resize()
+  () => chart?.resize(),
+  () => {
+    chart?.dispose();
+    chart = null;
+  }
 );
 
 function isDark() {

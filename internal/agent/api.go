@@ -225,6 +225,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /collect/certs", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
 		return c.CollectCerts("local", local)
 	}))
+	mux.HandleFunc("GET /collect/hosts", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
+		return c.CollectHosts("local", local)
+	}))
 	mux.HandleFunc("GET /collect/largest-files", s.collect(func(c *monitor.Collector, q url.Values) (any, error) {
 		root := q.Get("root")
 		if root == "" {

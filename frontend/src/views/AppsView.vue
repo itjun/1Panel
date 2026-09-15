@@ -652,19 +652,24 @@ onBeforeUnmount(stopTimer);
 :deep(.col-start-time .cell) {
   font-variant-numeric: tabular-nums;
 }
+/* 最新版用 M3 success 绿，和表格主题蓝区分 */
 :deep(.deploy-latest-row > td.el-table__cell) {
-  background: var(--m3-primary-container) !important;
+  background: var(--el-color-success-light-9) !important;
 }
 :deep(.deploy-latest-row > td.el-table__cell:first-child) {
-  box-shadow: inset 3px 0 0 var(--m3-primary);
+  box-shadow: inset 3px 0 0 var(--el-color-success);
 }
 :deep(.el-table--enable-row-hover .el-table__body .deploy-latest-row:hover > td.el-table__cell),
 :deep(.el-table__body .deploy-latest-row.current-row > td.el-table__cell) {
-  background: color-mix(in srgb, var(--m3-primary) 8%, var(--m3-primary-container)) !important;
+  background: color-mix(
+    in srgb,
+    var(--el-color-success) 14%,
+    var(--el-color-success-light-9)
+  ) !important;
 }
 .latest-highlight {
   font-weight: 600;
-  color: var(--m3-on-primary-container);
+  color: var(--el-color-success);
 }
 .page-alert {
   margin-bottom: 4px;

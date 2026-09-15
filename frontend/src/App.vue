@@ -106,7 +106,8 @@
       />
       <SidebarHost
         v-else-if="app.sidebarOpen && app.workspace === 'remote'"
-        @add-host="addHostOpen = true"
+        ref="sidebarHostRef"
+        @add-host="onAddHostRequest"
       />
       <SidebarLocal
         v-else-if="app.sidebarOpen && app.workspace === 'local'"
@@ -127,7 +128,7 @@
     >
       <p class="m3-form-dialog__hint">
         验证连通后会推送本机公钥并写入
-        <code>~/.ssh/config</code>，密码仅本次使用、不落盘。
+        <code>~/.ssh/config</code>；密码会保存在本机，并随备份导出。
       </p>
       <el-form label-position="top" require-asterisk-position="right" @submit.prevent="onAddHost">
         <el-form-item label="别名" required>
@@ -135,6 +136,24 @@
         </el-form-item>
         <el-form-item label="地址" required>
           <el-input v-model="form.hostName" placeholder="IP 或域名" />
+        </el-form-item>
+        <el-form-item label="分组">
+          <!-- teleported=false：下拉挂在对话框内，避免被全局 .el-overlay(z=99998) 挡住 -->
+          <el-select
+            v-model="form.groupId"
+            placeholder="未分组"
+            clearable
+            filterable
+            :teleported="false"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="n in app.flattenGroupNodes()"
+              :key="n.group!.id"
+              :label="`${'　'.repeat(Math.max(n.depth - 1, 0))}${n.group!.name}`"
+              :value="n.group!.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="用户" required>
           <el-input v-model="form.user" placeholder="root" />
@@ -144,7 +163,7 @@
             v-model="form.password"
             type="password"
             show-password
-            placeholder="仅用于本次验证与推送公钥"
+            placeholder="用于验证、推送公钥，并保存在本机"
             @keyup.enter="onAddHost"
           />
         </el-form-item>
@@ -242,13 +261,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Bell } from "@element-plus/icons-vue";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
 import { Events, Window } from "@wailsio/runtime";
-import { useAppStore } from "@/stores/app";
+import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import {
   useAlertHistoryStore,
   type AlertEvent,
@@ -283,13 +302,40 @@ const localMetrics = useLocalMetricsStore();
 void app.refresh();
 const addHostOpen = ref(false);
 const saving = ref(false);
+const preferredAddGroupId = ref<string | null>(null);
+const sidebarHostRef = ref<{ openCreateGroup?: () => void } | null>(null);
 const form = reactive({
   name: "",
   hostName: "",
+  groupId: "",
   user: "root",
   password: "",
   note: "",
 });
+
+/** 打开添加弹窗：优先用右键传入的分组，否则按当前分组 tab 预选 */
+watch(addHostOpen, (open) => {
+  if (!open) {
+    preferredAddGroupId.value = null;
+    return;
+  }
+  const preferred = (preferredAddGroupId.value || "").trim();
+  if (preferred && preferred !== UNGROUPED_ID) {
+    form.groupId = preferred;
+    return;
+  }
+  const tab = app.activeTab;
+  if (tab?.kind === "group" && tab.id && tab.id !== UNGROUPED_ID) {
+    form.groupId = tab.id;
+  } else {
+    form.groupId = "";
+  }
+});
+
+function onAddHostRequest(groupId?: string) {
+  preferredAddGroupId.value = groupId?.trim() || null;
+  addHostOpen.value = true;
+}
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 function kbd(key: string): string {
@@ -367,9 +413,24 @@ function onSettingsEsc(e: KeyboardEvent) {
   app.closeSettings();
 }
 
-/** 设置 / 侧栏 / 添加主机 / 搜索 / 刷新 / 退出（tooltip 按平台写 ⌘ 或 Ctrl） */
+/** 设置 / 侧栏 / 添加主机 / 新建分组 / 搜索 / 刷新 / 退出 */
 function onGlobalKeydown(e: KeyboardEvent) {
-  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+
+  // ⌘⇧N / Ctrl+Shift+N：新建分组（须在无 Shift 的 ⌘N 之前处理）
+  if (e.shiftKey && e.code === "KeyN") {
+    if (app.workspace !== "remote") return;
+    e.preventDefault();
+    if (!app.sidebarOpen) app.setSidebarOpen(true);
+    // 侧栏可能刚挂载，多等一帧再调 expose
+    void nextTick(() => {
+      void nextTick(() => sidebarHostRef.value?.openCreateGroup?.());
+    });
+    return;
+  }
+
+  if (e.shiftKey) return;
+
   const isComma = e.key === "," || e.code === "Comma" || e.key === "，";
   if (isComma) {
     e.preventDefault();
@@ -384,6 +445,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   if (e.code === "KeyN") {
     if (app.workspace !== "remote") return;
     e.preventDefault();
+    preferredAddGroupId.value = null;
     addHostOpen.value = true;
     return;
   }
@@ -421,10 +483,15 @@ async function onAddHost() {
       password: form.password, // 密码不 trim
       note: form.note.trim(),
     });
+    const groupId = (form.groupId || "").trim();
+    if (groupId) {
+      await app.assignHost(name, groupId);
+    }
     ElMessage.success("已添加（公钥已推送）");
     addHostOpen.value = false;
     form.name = "";
     form.hostName = "";
+    form.groupId = "";
     form.password = "";
     form.note = "";
     await app.refresh();

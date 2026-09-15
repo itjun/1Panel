@@ -8,8 +8,9 @@
     />
     <div
       v-if="menu"
+      ref="menuEl"
       class="host-ctx-menu"
-      :style="{ left: menu.x + 'px', top: menu.y + 'px' }"
+      :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
       @mousedown.stop
     >
       <button type="button" class="ctx-item" @click="openDetail">
@@ -37,10 +38,10 @@
       >
         复制 cd && cmd
       </button>
-      <template v-if="menu.node.kind === 'proc' && menu.node.pid && !isSelf">
+      <template v-if="canKill">
         <div class="ctx-divider" />
-        <button type="button" class="ctx-item is-danger" @click="killProc">
-          结束进程
+        <button type="button" class="ctx-item is-danger" @click="killSelected">
+          {{ menu.node.kind === "app" ? "结束应用" : "结束进程" }}
         </button>
       </template>
     </div>
@@ -49,14 +50,18 @@
 
 <script setup lang="ts">
 /**
- * 本机应用树行右键菜单：查看详情（独立卡片）/ 复制 / 结束进程。
+ * 本机应用树行右键菜单：查看详情（独立卡片）/ 复制 / 结束进程或应用。
  * 样式复用 HostContextMenu 的 .host-ctx-menu（挂 body）。
  */
-import { computed, h, reactive } from "vue";
-import { ElCheckbox, ElMessage, ElMessageBox } from "element-plus";
-import { api } from "@/api";
+import { computed, nextTick, reactive, ref, watch } from "vue";
+import { ElMessage } from "element-plus";
 import { copyText } from "@/utils/clipboard";
+import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { formatBytes, formatDurationLong, formatErr } from "@/utils/format";
+import {
+  confirmAndKillLocalProcs,
+  type LocalKillTarget,
+} from "@/utils/localAppsKill";
 import { localLangLabel } from "@/utils/localLang";
 
 export type LocalCardKind = "app" | "proc" | "thr";
@@ -82,6 +87,8 @@ export interface LocalCardNode {
   ports?: number[];
   extra?: Record<string, string> | null;
   state?: string;
+  /** 应用行：可结束的子进程列表（已排除自身） */
+  killTargets?: LocalKillTarget[];
 }
 
 export interface LocalAppCtxMenuState {
@@ -99,6 +106,25 @@ const emit = defineEmits<{
   detail: [payload: { node: LocalCardNode; x: number; y: number }];
 }>();
 
+const menuEl = ref<HTMLElement | null>(null);
+const pos = reactive({ x: 0, y: 0 });
+
+watch(
+  () => props.menu,
+  async (m) => {
+    if (!m) return;
+    pos.x = m.x;
+    pos.y = m.y;
+    await nextTick();
+    const el = menuEl.value;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const next = clampContextMenuPos(m.x, m.y, r.width, r.height);
+    pos.x = next.x;
+    pos.y = next.y;
+  }
+);
+
 const node = computed(() => props.menu?.node ?? null);
 
 const extraEntries = computed(() => {
@@ -113,6 +139,21 @@ const extraEntries = computed(() => {
 const startCmd = computed(() => (node.value?.cmd || "").trim());
 
 const isSelf = computed(() => node.value?.extra?.self === "1");
+
+const killTargets = computed((): LocalKillTarget[] => {
+  const n = node.value;
+  if (!n) return [];
+  if (n.kind === "proc") {
+    if (!n.pid || isSelf.value) return [];
+    return [{ pid: n.pid, name: n.name, cmd: n.cmd }];
+  }
+  if (n.kind === "app") {
+    return n.killTargets || [];
+  }
+  return [];
+});
+
+const canKill = computed(() => killTargets.value.length > 0);
 
 const cdAndCmd = computed(() => {
   const cwd = (node.value?.cwd || "").trim();
@@ -220,63 +261,24 @@ async function copyCdAndCmd() {
   }
 }
 
-async function killProc() {
+async function killSelected() {
   const n = node.value;
+  const targets = killTargets.value;
   emit("close");
-  if (!n || n.kind !== "proc" || !n.pid) return;
-  if (n.extra?.self === "1") {
+  if (!n || !targets.length) return;
+  if (n.kind === "proc" && isSelf.value) {
     ElMessage.warning("不能结束本程序自身");
     return;
   }
 
-  const state = reactive({ force: false });
-  try {
-    await ElMessageBox({
-      title: "结束进程",
-      message: () =>
-        h("div", { class: "local-kill-box" }, [
-          h(
-            "p",
-            { style: "margin: 0 0 8px; white-space: pre-wrap; word-break: break-all;" },
-            `确定要结束进程 ${n.pid} 吗？\n${(n.cmd || "").slice(0, 160)}`
-          ),
-          h(
-            ElCheckbox,
-            {
-              modelValue: state.force,
-              "onUpdate:modelValue": (v: string | number | boolean) => {
-                state.force = !!v;
-              },
-            },
-            () => "强制结束（SIGKILL）"
-          ),
-        ]),
-      showCancelButton: true,
-      confirmButtonText: "结束进程",
-      cancelButtonText: "取消",
-      confirmButtonClass: "el-button--danger",
-      type: "warning",
-    });
-  } catch {
-    return;
+  let title = "结束进程";
+  let summary: string | undefined;
+  if (n.kind === "app") {
+    title = "结束应用";
+    summary = `确定要结束应用「${n.name}」下的 ${targets.length} 个进程吗？`;
   }
 
-  try {
-    await api.localAppsKill(n.pid, state.force);
-    let okMsg = "已发送 SIGTERM";
-    if (state.force) {
-      okMsg = "已发送 SIGKILL";
-    }
-    ElMessage.success(okMsg);
-    emit("killed");
-  } catch (e) {
-    ElMessage.error(`结束失败: ${formatErr(e)}`);
-  }
+  const ok = await confirmAndKillLocalProcs(targets, { title, summary });
+  if (ok) emit("killed");
 }
 </script>
-
-<style>
-.local-kill-box .el-checkbox {
-  margin-top: 4px;
-}
-</style>

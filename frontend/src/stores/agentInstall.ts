@@ -16,6 +16,7 @@ export interface InstallStep {
   label: string;
   state: InstallStepState;
   percent: number; // 仅 upload 有意义（0~100）
+  text: string; // Go 侧最近一次事件文本（如「上传 Agent 二进制 40%（共 12.0 MB）」）
 }
 
 const STEP_DEFS: { key: InstallStepKey; label: string }[] = [
@@ -32,6 +33,7 @@ interface InstallProgressEvent {
   step: string;
   percent: number;
   text?: string;
+  sizeMB?: number; // agent 二进制实际大小（MB），随首个 upload 事件下发
 }
 
 export const useAgentInstallStore = defineStore("agentInstall", () => {
@@ -41,6 +43,8 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
   const error = ref("");
   const resultText = ref(""); // 完成文案（含安装到的版本）
   const steps = ref<InstallStep[]>([]);
+  /** agent 二进制实际大小（MB），探测确定架构后填充；0 表示尚未知 */
+  const binaryMB = ref(0);
   /** 最近一次安装成功；概览/分组页 watch 后刷新 Agent 状态 */
   const lastInstalled = ref<{ host: string; seq: number } | null>(null);
 
@@ -108,6 +112,9 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
       markRunningError();
       return;
     }
+    if (d.step === "upload" && d.sizeMB && d.sizeMB > 0) {
+      binaryMB.value = d.sizeMB;
+    }
     const idx = steps.value.findIndex((s) => s.key === d.step);
     if (idx < 0) {
       return;
@@ -120,6 +127,9 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
     steps.value[idx].state = "running";
     if (d.percent >= 0) {
       steps.value[idx].percent = d.percent;
+    }
+    if (d.text) {
+      steps.value[idx].text = d.text;
     }
   }
 
@@ -141,11 +151,13 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
     host.value = h;
     error.value = "";
     resultText.value = "";
+    binaryMB.value = 0;
     checkReport.value = null;
     steps.value = STEP_DEFS.map((d) => ({
       ...d,
       state: "pending" as const,
       percent: 0,
+      text: "",
     }));
     visible.value = true;
     running.value = true;
@@ -180,6 +192,7 @@ export const useAgentInstallStore = defineStore("agentInstall", () => {
     error,
     resultText,
     steps,
+    binaryMB,
     lastInstalled,
     checkOpen,
     checkHost,

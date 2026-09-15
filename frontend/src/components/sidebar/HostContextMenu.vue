@@ -9,8 +9,9 @@
     />
     <div
       v-if="menu"
+      ref="menuEl"
       class="host-ctx-menu"
-      :style="{ left: menu.x + 'px', top: menu.y + 'px' }"
+      :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
       @mousedown.stop
     >
       <button type="button" class="ctx-item" @click="onOpen">
@@ -22,6 +23,9 @@
       </button>
       <button type="button" class="ctx-item" @click="onEdit">
         编辑…
+      </button>
+      <button type="button" class="ctx-item" @click="onCopyInfo">
+        复制信息
       </button>
       <button type="button" class="ctx-item" @click="onRefreshIcon">
         更新图标
@@ -43,16 +47,17 @@
             未分组
           </button>
           <button
-            v-for="g in app.groupList"
-            :key="g.id"
+            v-for="n in migrateNodes"
+            :key="n.group!.id"
             type="button"
             class="ctx-item"
-            :class="{ 'is-current': currentGroupIdOf(menu.host) === g.id }"
-            @click="onMove(g.id)"
+            :class="{ 'is-current': currentGroupIdOf(menu.host) === n.group!.id }"
+            :style="{ paddingLeft: `${12 + (n.depth - 1) * 12}px` }"
+            @click="onMove(n.group!.id)"
           >
-            {{ g.name }}
+            {{ n.group!.name }}
           </button>
-          <div v-if="app.groupList.length === 0" class="ctx-empty">
+          <div v-if="migrateNodes.length === 0" class="ctx-empty">
             暂无分组，请先新建
           </div>
         </div>
@@ -93,11 +98,13 @@
  * 主机右键菜单分组：打开 → 编辑整理 → 环境安装 → 危险操作。
  * 「编辑…」与「迁移分组」通过事件回抛父组件（编辑弹窗与拖拽迁移逻辑在父级）。
  */
-import { ref, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
+import { copyText } from "@/utils/clipboard";
+import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { formatErr } from "@/utils/format";
 import { confirmStopHostSession } from "@/utils/hostSession";
 
@@ -118,11 +125,26 @@ const emit = defineEmits<{
 const app = useAppStore();
 const agentInstall = useAgentInstallStore();
 const groupSubOpen = ref(false);
+const menuEl = ref<HTMLElement | null>(null);
+const pos = reactive({ x: 0, y: 0 });
+
+const migrateNodes = computed(() => app.flattenGroupNodes());
 
 watch(
   () => props.menu,
-  () => {
+  async (m) => {
     groupSubOpen.value = false;
+    if (!m) return;
+    // 先落到点击处，挂载后再按真实高度上移/左移，避免贴底被裁
+    pos.x = m.x;
+    pos.y = m.y;
+    await nextTick();
+    const el = menuEl.value;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const next = clampContextMenuPos(m.x, m.y, r.width, r.height);
+    pos.x = next.x;
+    pos.y = next.y;
   }
 );
 
@@ -163,6 +185,19 @@ function onEdit() {
   const host = props.menu?.host;
   emit("close");
   if (host) emit("edit", host);
+}
+
+async function onCopyInfo() {
+  const host = props.menu?.host;
+  emit("close");
+  if (!host) return;
+  try {
+    const text = await api.formatHostInfo(host);
+    await copyText(text);
+    ElMessage.success("已复制主机信息");
+  } catch (err) {
+    ElMessage.error(`复制失败: ${formatErr(err)}`);
+  }
 }
 
 async function onRefreshIcon() {

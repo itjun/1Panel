@@ -88,13 +88,16 @@ html {
     display: none !important;
 }
 
-/* M3 Menu / 浮层：白底 + 描边 + elevation（白卡上仅靠弱阴影看不清边界） */
+/* M3 Menu / 浮层：白底 + 描边 + elevation（白卡上仅靠弱阴影看不清边界）
+   注意：上面把 .el-overlay 提到 99998，select/date 等 teleported 浮层默认约 2xxx，
+   会被挡在对话框遮罩后面点不到——必须抬到遮罩之上。 */
 .el-popper.is-light,
 .el-popover.el-popper,
 .el-select__popper.el-popper,
 .el-picker__popper.el-popper,
 .el-autocomplete__popper.el-popper,
 .el-cascader__popper.el-popper {
+  z-index: 100000 !important;
   background: var(--m3-surface-container-lowest) !important;
   border: 1px solid var(--m3-outline-variant) !important;
   border-radius: var(--m3-shape-s);
@@ -502,6 +505,13 @@ html {
 .m3-form-dialog.el-dialog {
   .el-dialog__body {
     padding-top: 0;
+    overflow: visible; /* 允许 teleported=false 的 select 下拉伸出 */
+  }
+
+  /* 对话框内挂载的 select 下拉：盖住后面的表单项 */
+  .el-select-dropdown,
+  .el-select__popper {
+    z-index: 10;
   }
 
   .m3-form-dialog__hint {

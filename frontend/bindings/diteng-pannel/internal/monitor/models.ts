@@ -196,6 +196,25 @@ export interface FileEntry {
 }
 
 /**
+ * HostEntry 解析后的 hosts 行。
+ */
+export interface HostEntry {
+    "ip": string;
+    "names": string[] | null;
+    "comment": string;
+    "disabled": boolean;
+    "raw": string;
+}
+
+/**
+ * HostsInfo 目标主机 /etc/hosts 内容（字段对齐 localsys.HostsInfo，前端两边共用展示）。
+ */
+export interface HostsInfo {
+    "raw": string;
+    "entries": HostEntry[] | null;
+}
+
+/**
  * JavaProcDetail 单个运行时进程的补充详情（悬浮卡片按需查询）
  */
 export interface JavaProcDetail {

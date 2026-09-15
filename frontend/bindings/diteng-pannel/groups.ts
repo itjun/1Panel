@@ -22,7 +22,7 @@ export function AssignHost(host: string, groupID: string): $CancellablePromise<v
 }
 
 /**
- * DeleteGroup 删除分组
+ * DeleteGroup 级联删除分组及其子孙
  */
 export function DeleteGroup(id: string): $CancellablePromise<void> {
     return $Call.ByID(507923990, id);
@@ -33,6 +33,20 @@ export function DeleteGroup(id: string): $CancellablePromise<void> {
  */
 export function ListGroups(): $CancellablePromise<groups$0.Group[] | null> {
     return $Call.ByID(2129141988);
+}
+
+/**
+ * MoveGroup 将分组移到新父级；parentID 空表示升为顶层
+ */
+export function MoveGroup(id: string, parentID: string): $CancellablePromise<void> {
+    return $Call.ByID(1787977512, id, parentID);
+}
+
+/**
+ * PreviewDeleteGroup 预览级联删除影响（确认对话框用）
+ */
+export function PreviewDeleteGroup(id: string): $CancellablePromise<groups$0.DeleteStats> {
+    return $Call.ByID(238917970, id);
 }
 
 /**
@@ -50,7 +64,14 @@ export function SetBoardTitle(id: string, title: string): $CancellablePromise<vo
 }
 
 /**
- * UpsertGroup 创建或更新分组
+ * SubtreeHostNames 返回分组子树内主机名
+ */
+export function SubtreeHostNames(id: string): $CancellablePromise<string[] | null> {
+    return $Call.ByID(3086637332, id);
+}
+
+/**
+ * UpsertGroup 创建或更新分组（可带 parentId）
  */
 export function UpsertGroup(g: groups$0.Group): $CancellablePromise<void> {
     return $Call.ByID(1043270622, g);

@@ -151,20 +151,26 @@ body,
     background: none !important;
     border-right: none !important;
     width: 100%;
-    padding: 8px;
+    padding: 6px 8px;
 
     .el-menu-item {
-      border-radius: var(--m3-shape-xl); // 28dp 胶囊
+      position: relative;
+      /* soft 指示条：右侧微圆，告别胶囊 */
+      border-radius: 0 8px 8px 0;
       background-color: transparent !important;
-      margin: 2px 0;
-      height: 56px !important;
-      line-height: 56px;
+      margin: 1px 0;
+      height: 44px !important;
+      line-height: 44px;
       color: var(--m3-on-surface-variant);
       box-sizing: border-box;
+      box-shadow: none !important;
 
-      /* 状态层：hover 淡蓝底 */
       &:hover {
-        background-color: color-mix(in srgb, var(--m3-primary) 8%, transparent) !important;
+        background-color: color-mix(
+          in srgb,
+          var(--m3-on-surface) 6%,
+          transparent
+        ) !important;
         color: var(--m3-on-surface);
 
         .el-icon,
@@ -173,21 +179,31 @@ body,
         }
       }
 
-      /* 选中：secondary-container 胶囊 */
+      /* 选中：soft 底 + 主色字；主机靠右侧运行点标识，不再画左侧竖条 */
       &.is-active {
-        background-color: var(--m3-sidebar-active-bg) !important;
-        color: var(--m3-sidebar-active-fg);
-        box-shadow: 0 1px 3px rgba(0, 94, 235, 0.12);
+        background-color: color-mix(
+          in srgb,
+          var(--group-accent, var(--m3-primary)) 12%,
+          transparent
+        ) !important;
+        color: var(--group-ink, var(--m3-primary));
 
         .el-icon,
-        span {
-          color: var(--m3-sidebar-active-fg);
+        .menu-title {
+          color: var(--group-ink, var(--m3-primary));
+        }
+
+        .menu-count {
+          color: var(--group-ink, var(--m3-sidebar-active-fg)) !important;
+          background-color: var(
+            --m3-surface-container-lowest,
+            #fff
+          ) !important;
         }
       }
     }
 
     .el-sub-menu {
-      /* 分组下有主机被选中：仅分组标题字色变化 */
       &.is-active .el-sub-menu__title {
         color: var(--m3-on-surface);
 
@@ -198,15 +214,21 @@ body,
       }
 
       .el-sub-menu__title {
-        background-color: transparent !important;
-        margin-top: 4px;
-        height: 56px !important;
-        line-height: 56px;
-        border-radius: var(--m3-shape-xl);
+        position: relative;
+        background-color: transparent;
+        margin-top: 2px;
+        height: 44px !important;
+        line-height: 44px;
+        border-radius: 0 8px 8px 0;
         color: var(--m3-on-surface-variant);
+        box-shadow: none !important;
 
         &:hover {
-          background-color: color-mix(in srgb, var(--m3-on-surface-variant) 8%, transparent) !important;
+          background-color: color-mix(
+            in srgb,
+            var(--m3-on-surface) 6%,
+            transparent
+          );
           color: var(--m3-on-surface);
 
           .el-icon,
@@ -216,14 +238,37 @@ body,
         }
       }
 
+      /* 打开分组页：soft 底（须压过默认透明） */
+      &.is-group-active > .el-sub-menu__title {
+        background-color: var(
+          --group-soft,
+          color-mix(in srgb, var(--m3-primary) 12%, transparent)
+        ) !important;
+        color: var(--group-ink, var(--m3-primary));
+
+        .el-icon,
+        .group-name {
+          color: var(--group-ink, var(--m3-primary));
+        }
+
+        /* 计数胶囊：白底 + ink 字，避免与标题 soft 同色融掉 */
+        .menu-count {
+          color: var(--group-ink, var(--m3-primary)) !important;
+          background-color: var(
+            --m3-surface-container-lowest,
+            #fff
+          ) !important;
+        }
+      }
+
       .el-menu {
         padding: 0;
 
         .el-menu-item {
-          padding-left: 32px !important;
-          margin: 2px 0;
-          height: 48px !important;
-          line-height: 48px;
+          /* 缩进由 SidebarGroupNode 按 depth 内联控制，这里只定行高 */
+          margin: 1px 0;
+          height: 40px !important;
+          line-height: 40px;
         }
       }
     }

@@ -66,11 +66,21 @@ let chart: echarts.ECharts | null = null;
 /** 内容指纹：option 引用每次变，但数据未变时跳过 setOption，避免清掉 connect 轴指针 */
 let lastOptionFp = "";
 
-// 隐藏时数据更新只记账不重绘；恢复显示自动补渲染 + 容器尺寸变化自动 resize
+// 隐藏时数据更新只记账不重绘；恢复显示自动补渲染 + 容器尺寸变化自动 resize；
+// 长期隐藏（60s）自动 dispose 释放 canvas 内存，恢复时由 initChart 重建重画
 const { renderWhenVisible } = useChartVisibility(
   el,
   () => initChart(),
-  () => chart?.resize()
+  () => chart?.resize(),
+  () => {
+    if (chart) {
+      // 置空分组再销毁：dispose 会把实例从 connect 联动列表移除
+      chart.group = "";
+      chart.dispose();
+      chart = null;
+      lastOptionFp = "";
+    }
+  }
 );
 
 function isDark() {

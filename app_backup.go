@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ type Backup App
 const backupVersion = 1
 
 // BackupData 备份文件内容：主机列表 + 分组 + 主机图标记录
-// 注意：SSH 私钥不在备份内，换机恢复需另行保管 ~/.ssh/id_ed25519
+// 注意：可含已保存的主机密码；SSH 私钥不在备份内，换机恢复需另行保管 ~/.ssh/id_ed25519
 type BackupData struct {
 	Version    int                    `json:"version"`
 	ExportedAt int64                  `json:"exportedAt"`
@@ -53,7 +54,8 @@ func (s *Backup) ExportBackup(dir string) (string, error) {
 	}
 	if s.hostMeta != nil {
 		for i := range hosts {
-			hosts[i].Note = s.hostMeta.Get(hosts[i].Name)
+			hosts[i].Note = s.hostMeta.GetNote(hosts[i].Name)
+			hosts[i].Password = s.hostMeta.GetPassword(hosts[i].Name)
 		}
 	}
 	hostSet := make(map[string]bool, len(hosts))
@@ -161,14 +163,16 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 		if strings.ContainsAny(h.Name, " \t*") {
 			return nil, fmt.Errorf("备份中主机别名 %q 含空格或通配符 *，无法导入", h.Name)
 		}
-		for _, v := range []string{h.Name, h.HostName, h.User, h.Port, h.IdentityFile, h.ProxyJump, h.HostKeyAlgos, h.Note} {
+		for _, v := range []string{h.Name, h.HostName, h.User, h.Port, h.IdentityFile, h.ProxyJump, h.HostKeyAlgos, h.Note, h.Password} {
 			if strings.ContainsAny(v, "\n\r") {
 				return nil, fmt.Errorf("备份中主机 %q 的字段含换行符，无法导入", h.Name)
 			}
 		}
 		note := strings.TrimSpace(h.Note)
-		// Note 不写入 ssh config，AppendHost 前清空，导入后再写 host_meta
+		password := h.Password // 密码不 trim
+		// Note / Password 不写入 ssh config，AppendHost 前清空，导入后再写 host_meta
 		h.Note = ""
+		h.Password = ""
 		if !existing[h.Name] {
 			if err := sshconfig.AppendHost(h); err != nil {
 				return nil, fmt.Errorf("写入主机 %s 失败: %w", h.Name, err)
@@ -176,10 +180,8 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 			existing[h.Name] = true
 			localByName[h.Name] = h
 			res.Added = append(res.Added, h.Name)
-			if s.hostMeta != nil {
-				if err := s.hostMeta.Set(h.Name, note); err != nil {
-					return nil, fmt.Errorf("写入主机备注 %s 失败: %w", h.Name, err)
-				}
+			if err := s.writeHostMeta(h.Name, note, password); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -197,35 +199,120 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 		// 关旧连接，下次用备份里的参数重连
 		s.sshMgr.Close(h.Name)
 		res.Overwritten = append(res.Overwritten, h.Name)
-		if s.hostMeta != nil {
-			if err := s.hostMeta.Set(h.Name, note); err != nil {
-				return nil, fmt.Errorf("写入主机备注 %s 失败: %w", h.Name, err)
-			}
+		if err := s.writeHostMeta(h.Name, note, password); err != nil {
+			return nil, err
 		}
 	}
 
 	if s.groups != nil {
 		current := s.groups.List()
+		// 预构建 backupID -> 落盘 ID，并按深度排序后写入，保证父先于子
+		idMap := map[string]string{}
+		pending := make([]groups.Group, 0, len(data.Groups))
 		for _, g := range data.Groups {
 			if g.ID == "" || strings.TrimSpace(g.Name) == "" {
 				continue
 			}
-			// 分组引用剔除不存在的主机，避免悬空引用
 			keep := make([]string, 0, len(g.Hosts))
 			for _, h := range g.Hosts {
 				if existing[h] {
 					keep = append(keep, h)
 				}
 			}
-			// 目标分组先按名字找，再按 ID 找（本地导入后改过名的情况）；
-			// 找到即合并——保留本地名称与排序，避免重复导入回滚用户的改名
+			g.Hosts = keep
+			g.ParentID = strings.TrimSpace(g.ParentID)
 			target := findGroupByName(current, g.Name)
 			if target == nil {
 				target = findGroupByID(current, g.ID)
 			}
 			if target != nil {
+				idMap[g.ID] = target.ID
+			} else {
+				idMap[g.ID] = g.ID
+			}
+			pending = append(pending, g)
+		}
+
+		// 重映射 parentId 后预检整棵将合并的树
+		proposed := map[string]groups.Group{}
+		for _, g := range current {
+			proposed[g.ID] = g
+		}
+		for _, g := range pending {
+			localID := idMap[g.ID]
+			parentID := ""
+			if g.ParentID != "" {
+				mapped, ok := idMap[g.ParentID]
+				if !ok {
+					// 父级可能是本地已有、不在本次备份条目中
+					if findGroupByID(current, g.ParentID) != nil {
+						mapped = g.ParentID
+					} else {
+						return nil, fmt.Errorf("分组 %s 的父级 %s 无效", g.Name, g.ParentID)
+					}
+				}
+				parentID = mapped
+			}
+			base, ok := proposed[localID]
+			if !ok {
+				base = groups.Group{ID: localID, Name: g.Name, Order: g.Order, BoardTitle: g.BoardTitle}
+			} else {
+				// 合并：保留本地名称/排序/看板标题，更新父级与主机并集
+				merged := append([]string{}, base.Hosts...)
+				for _, h := range g.Hosts {
+					if !containsStr(merged, h) {
+						merged = append(merged, h)
+					}
+				}
+				base.Hosts = merged
+			}
+			if base.Name == "" {
+				base.Name = g.Name
+			}
+			if findGroupByID(current, localID) == nil {
+				base.Name = g.Name
+				base.Order = g.Order
+				base.BoardTitle = g.BoardTitle
+				base.Hosts = append([]string{}, g.Hosts...)
+			}
+			base.ParentID = parentID
+			base.ID = localID
+			proposed[localID] = base
+		}
+		proposedList := make([]groups.Group, 0, len(proposed))
+		for _, g := range proposed {
+			proposedList = append(proposedList, g)
+		}
+		if err := groups.ValidateGroupList(proposedList); err != nil {
+			return nil, fmt.Errorf("导入分组树校验失败: %w", err)
+		}
+
+		// 按深度升序落盘
+		sort.SliceStable(pending, func(i, j int) bool {
+			di := backupGroupDepth(pending[i], pending)
+			dj := backupGroupDepth(pending[j], pending)
+			if di != dj {
+				return di < dj
+			}
+			return pending[i].Name < pending[j].Name
+		})
+		for _, g := range pending {
+			localID := idMap[g.ID]
+			parentID := ""
+			if g.ParentID != "" {
+				if mapped, ok := idMap[g.ParentID]; ok {
+					parentID = mapped
+				} else if findGroupByID(current, g.ParentID) != nil {
+					parentID = g.ParentID
+				}
+			}
+			target := findGroupByID(current, localID)
+			if target == nil {
+				target = findGroupByName(current, g.Name)
+			}
+			if target != nil {
 				merged := append([]string{}, target.Hosts...)
-				for _, h := range keep {
+				for _, h := range g.Hosts {
 					if !containsStr(merged, h) {
 						merged = append(merged, h)
 					}
@@ -233,24 +320,35 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 				if err := s.groups.Upsert(groups.Group{
 					ID:         target.ID,
 					Name:       target.Name,
-					BoardTitle: target.BoardTitle, // 合并保留本地看板标题
+					ParentID:   parentID,
+					BoardTitle: target.BoardTitle,
 					Order:      target.Order,
 					Hosts:      merged,
 				}); err != nil {
 					return nil, fmt.Errorf("合并分组 %s 失败: %w", g.Name, err)
 				}
+				// Upsert 在 ParentID 空时会保留原父；显式改父用 MoveGroup
+				if parentID != strings.TrimSpace(target.ParentID) {
+					if err := s.groups.MoveGroup(target.ID, parentID); err != nil {
+						return nil, fmt.Errorf("调整分组 %s 父级失败: %w", g.Name, err)
+					}
+				}
 			} else {
 				if err := s.groups.Upsert(groups.Group{
 					ID:         g.ID,
 					Name:       g.Name,
+					ParentID:   parentID,
 					BoardTitle: g.BoardTitle,
 					Order:      g.Order,
-					Hosts:      keep,
+					Hosts:      g.Hosts,
 				}); err != nil {
 					return nil, fmt.Errorf("导入分组 %s 失败: %w", g.Name, err)
 				}
 			}
 			res.Groups++
+		}
+		if err := s.groups.ValidateTree(); err != nil {
+			return nil, fmt.Errorf("导入后分组树校验失败: %w", err)
 		}
 	}
 
@@ -273,6 +371,20 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 	return res, nil
 }
 
+// writeHostMeta 导入后写回备注与密码；hostMeta 未初始化则跳过
+func (s *Backup) writeHostMeta(name, note, password string) error {
+	if s.hostMeta == nil {
+		return nil
+	}
+	if err := s.hostMeta.SetNote(name, note); err != nil {
+		return fmt.Errorf("写入主机备注 %s 失败: %w", name, err)
+	}
+	if err := s.hostMeta.SetPassword(name, password); err != nil {
+		return fmt.Errorf("写入主机密码 %s 失败: %w", name, err)
+	}
+	return nil
+}
+
 func findGroupByName(list []groups.Group, name string) *groups.Group {
 	for i := range list {
 		if list[i].Name == name {
@@ -289,6 +401,33 @@ func findGroupByID(list []groups.Group, id string) *groups.Group {
 		}
 	}
 	return nil
+}
+
+// backupGroupDepth 按备份条目自身的 parentId 链估算深度（根=1）
+func backupGroupDepth(g groups.Group, all []groups.Group) int {
+	byID := make(map[string]groups.Group, len(all))
+	for _, x := range all {
+		byID[x.ID] = x
+	}
+	d := 1
+	cur := strings.TrimSpace(g.ParentID)
+	seen := map[string]bool{}
+	for cur != "" {
+		if seen[cur] {
+			return groups.MaxDepth + 9
+		}
+		seen[cur] = true
+		p, ok := byID[cur]
+		if !ok {
+			return d
+		}
+		d++
+		if d > groups.MaxDepth+5 {
+			return d
+		}
+		cur = strings.TrimSpace(p.ParentID)
+	}
+	return d
 }
 
 func containsStr(list []string, s string) bool {

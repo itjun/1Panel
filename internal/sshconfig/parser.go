@@ -20,6 +20,9 @@ type HostConfig struct {
 	// Note 本机备注：存 Application Support 的 host_meta.json，不写入 ~/.ssh/config；
 	// 列表/导出时由 Hosts 服务合并进来。
 	Note string `json:"note,omitempty"`
+	// Password 本机保存的登录密码：仅备份导出/导入时出现在此结构体；
+	// 不写入 ~/.ssh/config，也不随 ListHosts 下发。
+	Password string `json:"password,omitempty"`
 }
 
 // ConfigPath 返回 ~/.ssh/config 的绝对路径

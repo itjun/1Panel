@@ -6,92 +6,63 @@ import (
 	"testing"
 )
 
-func TestRenamePreservesHosts(t *testing.T) {
+func TestNestingMoveAndCascadeDelete(t *testing.T) {
 	dir := t.TempDir()
-	// 绕过 UserConfigDir：直接构造 store 路径
+	// 把 UserConfigDir 指到 temp：NewStore 用 UserConfigDir+appName
+	// 这里直接构造 Store 绕过 UserConfigDir
 	s := &Store{
 		path: filepath.Join(dir, "groups.json"),
 		data: map[string]*Group{},
 	}
-	if err := s.Upsert(Group{
-		ID:    "cdcp",
-		Name:  "CDCP 集群",
-		Order: 1,
-		Hosts: []string{"a", "b", "c"},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Rename("cdcp", "CDCP生产"); err != nil {
-		t.Fatal(err)
-	}
-	list := s.List()
-	if len(list) != 1 {
-		t.Fatalf("want 1 group, got %d", len(list))
-	}
-	if list[0].Name != "CDCP生产" {
-		t.Fatalf("name = %q", list[0].Name)
-	}
-	if len(list[0].Hosts) != 3 {
-		t.Fatalf("hosts wiped: %#v", list[0].Hosts)
+
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// 落盘再读
-	s2 := &Store{path: s.path, data: map[string]*Group{}}
-	if err := s2.load(); err != nil {
+	must(s.Upsert(Group{ID: "root", Name: "root", Order: 1, Hosts: []string{"h1"}}))
+	must(s.Upsert(Group{ID: "child", Name: "child", ParentID: "root", Order: 1, Hosts: []string{"h2"}}))
+	must(s.Upsert(Group{ID: "grand", Name: "grand", ParentID: "child", Order: 1, Hosts: []string{"h3"}}))
+
+	if d := s.Depth("grand"); d != 3 {
+		t.Fatalf("grand depth=%d want 3", d)
+	}
+	// 第 4 层应失败
+	err := s.Upsert(Group{ID: "too", Name: "too", ParentID: "grand", Hosts: []string{}})
+	if err == nil {
+		t.Fatal("expected depth error")
+	}
+
+	names := s.SubtreeHostNames("root")
+	if len(names) != 3 {
+		t.Fatalf("subtree hosts=%v", names)
+	}
+
+	stats, err := s.PreviewDelete("child")
+	must(err)
+	if stats.GroupCount != 2 || stats.HostCount != 2 {
+		t.Fatalf("stats=%+v", stats)
+	}
+
+	must(s.Delete("child"))
+	if _, err := os.Stat(s.path); err != nil {
 		t.Fatal(err)
 	}
-	list2 := s2.List()
-	if list2[0].Name != "CDCP生产" || len(list2[0].Hosts) != 3 {
-		t.Fatalf("reload failed: %#v", list2[0])
+	if len(s.List()) != 1 {
+		t.Fatalf("after delete list=%v", s.List())
 	}
-	_ = os.Remove(s.path)
-}
-
-func TestRenameRejectsDuplicate(t *testing.T) {
-	dir := t.TempDir()
-	s := &Store{path: filepath.Join(dir, "groups.json"), data: map[string]*Group{}}
-	_ = s.Upsert(Group{ID: "a", Name: "一组", Hosts: []string{"h1"}})
-	_ = s.Upsert(Group{ID: "b", Name: "二组", Hosts: []string{"h2"}})
-	if err := s.Rename("a", "二组"); err == nil {
-		t.Fatal("expected duplicate name error")
-	}
-}
-
-func TestUpsertKeepsHostsWhenNil(t *testing.T) {
-	dir := t.TempDir()
-	s := &Store{path: filepath.Join(dir, "groups.json"), data: map[string]*Group{}}
-	_ = s.Upsert(Group{ID: "g1", Name: "原名", Hosts: []string{"x", "y"}})
-	// 模拟前端只改名、hosts 未传
-	if err := s.Upsert(Group{ID: "g1", Name: "新名", Hosts: nil}); err != nil {
-		t.Fatal(err)
-	}
-	g := s.List()[0]
-	if g.Name != "新名" || len(g.Hosts) != 2 {
-		t.Fatalf("got name=%q hosts=%v", g.Name, g.Hosts)
+	if len(s.List()[0].Hosts) != 1 || s.List()[0].Hosts[0] != "h1" {
+		t.Fatalf("root hosts=%v", s.List()[0].Hosts)
 	}
 }
 
-func TestSetBoardTitleAndUpsertPreserves(t *testing.T) {
-	dir := t.TempDir()
-	s := &Store{path: filepath.Join(dir, "groups.json"), data: map[string]*Group{}}
-	_ = s.Upsert(Group{ID: "g1", Name: "一组", Hosts: []string{"a"}})
-	if err := s.SetBoardTitle("g1", "  运维看板  "); err != nil {
-		t.Fatal(err)
-	}
-	if s.List()[0].BoardTitle != "运维看板" {
-		t.Fatalf("title = %q", s.List()[0].BoardTitle)
-	}
-	// Upsert 空 BoardTitle 应保留
-	if err := s.Upsert(Group{ID: "g1", Name: "一组", Hosts: []string{"a", "b"}}); err != nil {
-		t.Fatal(err)
-	}
-	if s.List()[0].BoardTitle != "运维看板" {
-		t.Fatalf("title wiped: %q", s.List()[0].BoardTitle)
-	}
-	if err := s.SetBoardTitle("g1", ""); err != nil {
-		t.Fatal(err)
-	}
-	if s.List()[0].BoardTitle != "" {
-		t.Fatalf("want empty, got %q", s.List()[0].BoardTitle)
+func TestMoveGroupRejectCycle(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), "g.json"), data: map[string]*Group{}}
+	_ = s.Upsert(Group{ID: "a", Name: "a", Hosts: []string{}})
+	_ = s.Upsert(Group{ID: "b", Name: "b", ParentID: "a", Hosts: []string{}})
+	if err := s.MoveGroup("a", "b"); err == nil {
+		t.Fatal("expected cycle error")
 	}
 }

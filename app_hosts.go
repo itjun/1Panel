@@ -32,7 +32,7 @@ func listNonGitHosts() ([]sshconfig.HostConfig, error) {
 	return out, nil
 }
 
-// attachHostNotes 把本机备注合并进 HostConfig.Note（不改 ssh config）
+// attachHostNotes 把本机备注合并进 HostConfig.Note（不改 ssh config；不下发密码）
 func (s *Hosts) attachHostNotes(hosts []sshconfig.HostConfig) []sshconfig.HostConfig {
 	if s.hostMeta == nil || len(hosts) == 0 {
 		return hosts
@@ -40,7 +40,8 @@ func (s *Hosts) attachHostNotes(hosts []sshconfig.HostConfig) []sshconfig.HostCo
 	out := make([]sshconfig.HostConfig, len(hosts))
 	copy(out, hosts)
 	for i := range out {
-		out[i].Note = s.hostMeta.Get(out[i].Name)
+		out[i].Note = s.hostMeta.GetNote(out[i].Name)
+		out[i].Password = "" // 列表不下发密码
 	}
 	return out
 }
@@ -106,8 +107,11 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 		return err
 	}
 	if s.hostMeta != nil {
-		if err := s.hostMeta.Set(input.Name, input.Note); err != nil {
+		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
 			application.Get().Logger.Warn("保存主机备注失败", "error", err)
+		}
+		if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
+			application.Get().Logger.Warn("保存主机密码失败", "error", err)
 		}
 	}
 	return nil
@@ -247,14 +251,17 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 	// 关闭旧连接，下次用新参数重连
 	s.sshMgr.Close(input.Name)
 	if s.hostMeta != nil {
-		if err := s.hostMeta.Set(input.Name, input.Note); err != nil {
+		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
 			application.Get().Logger.Warn("保存主机备注失败", "error", err)
+		}
+		if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
+			application.Get().Logger.Warn("保存主机密码失败", "error", err)
 		}
 	}
 	return nil
 }
 
-// SetHostNote 仅更新本机备注（不改 ssh config、不验连）
+// SetHostNote 仅更新本机备注（不改 ssh config、不验连；保留已存密码）
 func (s *Hosts) SetHostNote(name, note string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -263,7 +270,51 @@ func (s *Hosts) SetHostNote(name, note string) error {
 	if s.hostMeta == nil {
 		return fmt.Errorf("主机备注存储未初始化")
 	}
-	return s.hostMeta.Set(name, note)
+	return s.hostMeta.SetNote(name, note)
+}
+
+// GetHostPassword 读取本机已保存的主机密码（供编辑弹窗预填；未保存则空串）
+func (s *Hosts) GetHostPassword(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("主机别名不能为空")
+	}
+	if s.hostMeta == nil {
+		return "", nil
+	}
+	return s.hostMeta.GetPassword(name), nil
+}
+
+// FormatHostInfo 拼主机信息文本（含已存密码），供右键「复制信息」
+func (s *Hosts) FormatHostInfo(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("主机别名不能为空")
+	}
+	hosts, err := sshconfig.Parse()
+	if err != nil {
+		return "", fmt.Errorf("读取 ssh config 失败: %w", err)
+	}
+	var cfg *sshconfig.HostConfig
+	for i := range hosts {
+		if hosts[i].Name == name {
+			cfg = &hosts[i]
+			break
+		}
+	}
+	if cfg == nil {
+		return "", fmt.Errorf("未找到主机别名: %s", name)
+	}
+	password := ""
+	note := ""
+	if s.hostMeta != nil {
+		password = s.hostMeta.GetPassword(name)
+		note = s.hostMeta.GetNote(name)
+	}
+	return fmt.Sprintf(
+		"主机：%s\n地址：%s\n用户：%s\n密码：%s\n备注：%s",
+		cfg.Name, cfg.HostName, cfg.User, password, note,
+	), nil
 }
 
 // DeleteHost 从 ~/.ssh/config 删除主机别名，并清理分组引用与连接池

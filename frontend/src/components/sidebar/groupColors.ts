@@ -1,26 +1,9 @@
 import { UNGROUPED_ID } from "@/stores/app";
 
 /**
- * 分组色板：1Panel 蓝阶梯（accent=色条/圆点，soft=浅底，ink=文字/图标）
+ * 分组区分色（顶层一轮换）：accent=竖条/色点/文件夹，soft=浅底/选中，ink=文字。
+ * 「明快柔色」：饱和度够认、避开红橙黄与品牌蓝 #005eeb。
  */
-const GROUP_PALETTE = [
-  { accent: "#005eeb", soft: "rgba(0, 94, 235, 0.12)", ink: "#005eeb" },
-  { accent: "#196eed", soft: "rgba(25, 110, 237, 0.12)", ink: "#196eed" },
-  { accent: "#337eef", soft: "rgba(51, 126, 239, 0.12)", ink: "#337eef" },
-  { accent: "#4c8ef1", soft: "rgba(76, 142, 241, 0.12)", ink: "#4c8ef1" },
-  { accent: "#669ef3", soft: "rgba(102, 158, 243, 0.12)", ink: "#669ef3" },
-  { accent: "#505f79", soft: "rgba(80, 95, 121, 0.12)", ink: "#505f79" },
-  { accent: "#0077cc", soft: "rgba(0, 119, 204, 0.12)", ink: "#0077cc" },
-  { accent: "#0066b3", soft: "rgba(0, 102, 179, 0.12)", ink: "#0066b3" },
-  { accent: "#004494", soft: "rgba(0, 68, 148, 0.12)", ink: "#004494" },
-  { accent: "#7faef5", soft: "rgba(127, 174, 245, 0.12)", ink: "#669ef3" },
-] as const;
-
-const UNGROUPED_COLOR = {
-  accent: "#909399",
-  soft: "rgba(144, 147, 153, 0.12)",
-  ink: "#646a73",
-} as const;
 
 export type GroupColor = {
   accent: string;
@@ -28,7 +11,36 @@ export type GroupColor = {
   ink: string;
 };
 
-export function groupColor(groupId: string, index: number): GroupColor {
-  if (groupId === UNGROUPED_ID) return UNGROUPED_COLOR;
-  return GROUP_PALETTE[index % GROUP_PALETTE.length];
+function c(accent: string, softAlpha: number, ink: string): GroupColor {
+  const r = parseInt(accent.slice(1, 3), 16);
+  const g = parseInt(accent.slice(3, 5), 16);
+  const b = parseInt(accent.slice(5, 7), 16);
+  return {
+    accent,
+    soft: `rgba(${r}, ${g}, ${b}, ${softAlpha})`,
+    ink,
+  };
+}
+
+const GROUP_PALETTE: readonly GroupColor[] = [
+  c("#14b8a6", 0.18, "#0f766e"), // aqua
+  c("#8b5cf6", 0.16, "#7c3aed"), // violet
+  c("#10b981", 0.16, "#059669"), // green
+  c("#06b6d4", 0.16, "#0891b2"), // cyan
+  c("#c026d3", 0.14, "#a21caf"), // fuchsia
+  c("#0ea5e9", 0.14, "#0284c7"), // sky
+  c("#22c55e", 0.16, "#16a34a"), // lime-green
+  c("#818cf8", 0.16, "#6366f1"), // periwinkle
+];
+
+const UNGROUPED_COLOR: GroupColor = {
+  accent: "#8a9099",
+  soft: "rgba(138, 144, 153, 0.14)",
+  ink: "#646a73",
+};
+
+/** 按顶层序号取区分色；未分组用中性灰 */
+export function groupColor(groupId: string, rootIndex: number): GroupColor {
+  if (groupId === UNGROUPED_ID || rootIndex < 0) return UNGROUPED_COLOR;
+  return GROUP_PALETTE[rootIndex % GROUP_PALETTE.length];
 }

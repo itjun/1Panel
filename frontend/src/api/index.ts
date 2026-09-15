@@ -81,6 +81,10 @@ export const api = {
   deleteHost: async (name: string): Promise<void> => {
     await Hosts.DeleteHost(name);
   },
+  getHostPassword: (name: string): Promise<string> =>
+    str(Hosts.GetHostPassword(name)),
+  formatHostInfo: (name: string): Promise<string> =>
+    str(Hosts.FormatHostInfo(name)),
 
   listGroups: () => arr(Groups.ListGroups()),
   upsertGroup: async (g: groups.Group): Promise<void> => {
@@ -92,12 +96,18 @@ export const api = {
   setBoardTitle: async (id: string, title: string): Promise<void> => {
     await Groups.SetBoardTitle(id, title);
   },
+  moveGroup: async (id: string, parentID: string): Promise<void> => {
+    await Groups.MoveGroup(id, parentID);
+  },
+  previewDeleteGroup: (id: string) =>
+    must(Groups.PreviewDeleteGroup(id)),
   deleteGroup: async (id: string): Promise<void> => {
     await Groups.DeleteGroup(id);
   },
   assignHost: async (host: string, groupID: string): Promise<void> => {
     await Groups.AssignHost(host, groupID);
   },
+  subtreeHostNames: (id: string) => arr(Groups.SubtreeHostNames(id)),
 
   listGroupOverview: () => arr(Overview.ListGroupOverview()),
   listOneGroupOverview: (groupID: string): Promise<main.GroupOverview> =>
@@ -186,6 +196,9 @@ export const api = {
   collectRuntimes: (host: string) => arr(Monitor.CollectRuntimes(host)),
   collectNetwork: (host: string): Promise<monitor.NetworkSnapshot> =>
     must(Monitor.CollectNetwork(host)),
+  /** 远程主机 /etc/hosts（只读） */
+  collectHosts: (host: string): Promise<monitor.HostsInfo> =>
+    must(Monitor.CollectHosts(host)),
   collectDocker: (host: string): Promise<monitor.DockerInfo> =>
     must(Monitor.CollectDocker(host)),
   collectServices: (host: string) => arr(Monitor.CollectServices(host)),

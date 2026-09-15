@@ -12,6 +12,8 @@ export type {
     DockerInfo,
     EgressInfo,
     FileEntry,
+    HostEntry,
+    HostsInfo,
     JavaProcDetail,
     LargeFile,
     LargeFilesResult,

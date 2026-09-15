@@ -490,12 +490,14 @@ function withErrTime(err: string, at?: number): string {
 
 const refreshing = ref(false);
 
-/** 当前组内主机列表（来自 store 的 groups.json + hosts.json：同步可用，立即渲染） */
+/** 当前组内主机列表：子树全部主机（本层+子孙） */
 const hosts = computed<sshconfig.HostConfig[]>(() => {
-  const node = app.groupNodes.find(
-    (n) => (n.group?.id ?? UNGROUPED_ID) === props.groupId
-  );
-  return node?.hosts ?? [];
+  if (props.groupId === UNGROUPED_ID) {
+    const node = app.groupNodes.find((n) => !n.group);
+    return node?.hosts ?? [];
+  }
+  const node = app.findGroupNode(props.groupId);
+  return node?.subtreeHosts ?? [];
 });
 
 /** 每主机独立的指标状态：key=host.name */
@@ -506,6 +508,9 @@ let activeGroupId = props.groupId;
 const inFlight = new Set<string>();
 let prevAlertKeys = new Set<string>();
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+/** 空闲降频：分组页不可见时两次轮询的最小间隔 */
+const IDLE_MIN_INTERVAL_MS = 30_000;
+let lastPollAt = 0;
 
 function hostState(name: string): HostSnap {
   let s = hostStates.value[name];
@@ -742,6 +747,12 @@ function startPoll() {
   stopPoll();
   pollTimer = setInterval(() => {
     if (activeGroupId !== props.groupId) return;
+    // 空闲降频：分组页被切走（或设置页打开）时拉长到 30s 一拍，
+    // 可见时按原 3s 节奏
+    if (!app.isGroupVisible(props.groupId) && Date.now() - lastPollAt < IDLE_MIN_INTERVAL_MS) {
+      return;
+    }
+    lastPollAt = Date.now();
     // 静默轮询：不切 loading（避免列表跳动）
     for (const h of hosts.value) {
       void loadOne(h.name, false);
@@ -1057,6 +1068,18 @@ watch(
     if (info && hosts.value.some((h) => h.name === info.host)) {
       resumeHostAfterAgentReady(info.host);
       void loadAgentStatuses();
+    }
+  }
+);
+
+// 切回本分组页立即补刷：降频期间数据最多落后 30s，回来要立刻最新
+watch(
+  () => app.isGroupVisible(props.groupId),
+  (now, prev) => {
+    if (now && !prev) {
+      for (const h of hosts.value) {
+        void loadOne(h.name, false);
+      }
     }
   }
 );

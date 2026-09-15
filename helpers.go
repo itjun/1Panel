@@ -13,18 +13,18 @@ type CopyIDInput struct {
 	HostName      string `json:"hostName"` // IP/域名
 	User          string `json:"user"`
 	Port          string `json:"port"`
-	Password      string `json:"password"`      // 仅本次使用，不落盘
+	Password      string `json:"password"`      // 仅本次使用，不落盘（CopySSHID 本身不写 host_meta）
 	PublicKeyFile string `json:"publicKeyFile"` // 默认 ~/.ssh/id_ed25519.pub
 	IdentityFile  string `json:"identityFile"`  // 写入 ssh config 的密钥路径
 }
 
 // AddHostInput 是「添加主机」对话框的入参
-// 端口默认 22，公钥/密钥路径由后端自动推断；备注存本机 host_meta.json
+// 端口默认 22，公钥/密钥路径由后端自动推断；备注与密码存本机 host_meta.json
 type AddHostInput struct {
 	Name     string `json:"name"`     // Host 别名
 	HostName string `json:"hostName"` // IP/域名
 	User     string `json:"user"`
-	Password string `json:"password"` // 仅本次使用，不落盘
+	Password string `json:"password"` // 必填；验连后写入 host_meta
 	Note     string `json:"note"`     // 本机备注，可选
 }
 
@@ -34,7 +34,7 @@ type UpdateHostInput struct {
 	Name     string `json:"name"`     // 现有 Host 别名
 	HostName string `json:"hostName"` // 新 IP/域名
 	User     string `json:"user"`     // 登录用户
-	Password string `json:"password"` // 仅本次使用，不落盘
+	Password string `json:"password"` // 必填；验连后写入 host_meta
 	Note     string `json:"note"`     // 本机备注，可选
 }
 

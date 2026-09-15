@@ -11,14 +11,15 @@ import (
 	"time"
 )
 
-// Record 一台主机的本机备注（不写入 ~/.ssh/config）
+// Record 一台主机的本机元数据（备注 + 密码，不写入 ~/.ssh/config）
 type Record struct {
 	Host      string `json:"host"`
-	Note      string `json:"note"`
+	Note      string `json:"note,omitempty"`
+	Password  string `json:"password,omitempty"`
 	UpdatedAt int64  `json:"updatedAt"`
 }
 
-// Store 本机持久化主机备注，数据目录与分组 / 图标一致
+// Store 本机持久化主机备注与密码，数据目录与分组 / 图标一致
 type Store struct {
 	path string
 	mu   sync.RWMutex
@@ -49,13 +50,16 @@ func NewStore(appName string) (*Store, error) {
 	return s, nil
 }
 
-// List 返回全部记录，按主机名排序
+// List 返回全部有备注或密码的记录，按主机名排序
 func (s *Store) List() []Record {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]Record, 0, len(s.data))
 	for _, r := range s.data {
-		if r == nil || strings.TrimSpace(r.Note) == "" {
+		if r == nil {
+			continue
+		}
+		if strings.TrimSpace(r.Note) == "" && r.Password == "" {
 			continue
 		}
 		out = append(out, *r)
@@ -66,8 +70,13 @@ func (s *Store) List() []Record {
 	return out
 }
 
-// Get 读取一台主机的备注
+// Get 读取一台主机的备注（兼容旧调用名）
 func (s *Store) Get(host string) string {
+	return s.GetNote(host)
+}
+
+// GetNote 读取一台主机的备注
+func (s *Store) GetNote(host string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	r, ok := s.data[host]
@@ -77,8 +86,24 @@ func (s *Store) Get(host string) string {
 	return r.Note
 }
 
-// Set 写入或清空备注；内容未变则不落盘。note 为空时删除记录。
+// GetPassword 读取一台主机保存的密码（未保存则空串）
+func (s *Store) GetPassword(host string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	r, ok := s.data[host]
+	if !ok || r == nil {
+		return ""
+	}
+	return r.Password
+}
+
+// Set 写入或清空备注（兼容旧调用）；保留已有密码。两者皆空则删除记录。
 func (s *Store) Set(host, note string) error {
+	return s.SetNote(host, note)
+}
+
+// SetNote 写入或清空备注；保留已有密码。备注与密码皆空时删除记录。
+func (s *Store) SetNote(host, note string) error {
 	host = strings.TrimSpace(host)
 	note = strings.TrimSpace(note)
 	if host == "" {
@@ -86,25 +111,64 @@ func (s *Store) Set(host, note string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if note == "" {
-		if _, ok := s.data[host]; !ok {
+	existing, ok := s.data[host]
+	password := ""
+	if ok && existing != nil {
+		password = existing.Password
+		if existing.Note == note {
+			return nil
+		}
+	}
+	if note == "" && password == "" {
+		if !ok {
 			return nil
 		}
 		delete(s.data, host)
 		return s.saveLocked()
 	}
-	if existing, ok := s.data[host]; ok && existing.Note == note {
-		return nil
-	}
 	s.data[host] = &Record{
 		Host:      host,
 		Note:      note,
+		Password:  password,
 		UpdatedAt: time.Now().Unix(),
 	}
 	return s.saveLocked()
 }
 
-// Rename 主机改别名时同步备注
+// SetPassword 写入或清空密码；保留已有备注。备注与密码皆空时删除记录。
+// 密码不 trim，保留用户输入原样。
+func (s *Store) SetPassword(host, password string) error {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return fmt.Errorf("主机名不能为空")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.data[host]
+	note := ""
+	if ok && existing != nil {
+		note = existing.Note
+		if existing.Password == password {
+			return nil
+		}
+	}
+	if note == "" && password == "" {
+		if !ok {
+			return nil
+		}
+		delete(s.data, host)
+		return s.saveLocked()
+	}
+	s.data[host] = &Record{
+		Host:      host,
+		Note:      note,
+		Password:  password,
+		UpdatedAt: time.Now().Unix(),
+	}
+	return s.saveLocked()
+}
+
+// Rename 主机改别名时同步备注与密码
 func (s *Store) Rename(oldName, newName string) error {
 	oldName = strings.TrimSpace(oldName)
 	newName = strings.TrimSpace(newName)
@@ -125,7 +189,7 @@ func (s *Store) Rename(oldName, newName string) error {
 	return s.saveLocked()
 }
 
-// Delete 删除一台主机的备注
+// Delete 删除一台主机的备注与密码
 func (s *Store) Delete(host string) error {
 	host = strings.TrimSpace(host)
 	if host == "" {
@@ -174,5 +238,5 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, b, 0644)
+	return os.WriteFile(s.path, b, 0600)
 }

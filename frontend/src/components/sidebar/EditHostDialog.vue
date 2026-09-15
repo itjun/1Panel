@@ -1,5 +1,5 @@
 <template>
-  <!-- 编辑主机：改 IP/用户，须密码验连后保存；备注仅存本机 -->
+  <!-- 编辑主机：改 IP/用户，须密码验连后保存；备注与密码存本机 -->
   <el-dialog
     v-model="open"
     title="编辑主机"
@@ -12,7 +12,7 @@
   >
     <p class="m3-form-dialog__hint">
       保存前会用密码测试 SSH 连通性，通过后更新
-      <code>~/.ssh/config</code> 并推送本机公钥。别名请用「重命名」。备注仅保存在本机。
+      <code>~/.ssh/config</code> 并推送本机公钥。密码会更新本机保存，并随备份导出。别名请用「重命名」。
     </p>
     <el-form
       label-position="top"
@@ -41,7 +41,7 @@
           v-model="form.password"
           type="password"
           show-password
-          placeholder="用于测试连接，不落盘"
+          placeholder="用于测试连接，并保存在本机"
           :disabled="saving"
           @keyup.enter="onSave"
         />
@@ -69,11 +69,12 @@
 
 <script setup lang="ts">
 /**
- * 编辑主机弹窗：密码仅用于验连（不落盘），验证通过后回写 ~/.ssh/config。
- * 备注写入本机 host_meta.json。父组件通过 openFor(hostName) 打开。
+ * 编辑主机弹窗：密码必填，验连通过后回写 ~/.ssh/config，并更新本机 host_meta 密码。
+ * 父组件通过 openFor(hostName) 打开。
  */
 import { reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
+import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { formatErr } from "@/utils/format";
 
@@ -98,7 +99,7 @@ function resetForm() {
   saving.value = false;
 }
 
-function openFor(hostName: string) {
+async function openFor(hostName: string) {
   const h = app.hosts.find((x) => x.name === hostName);
   form.name = hostName;
   form.hostName = h?.hostName || "";
@@ -106,6 +107,11 @@ function openFor(hostName: string) {
   form.password = "";
   form.note = h?.note || "";
   open.value = true;
+  try {
+    form.password = await api.getHostPassword(hostName);
+  } catch {
+    // 预填失败不影响编辑；用户可手动输入
+  }
 }
 
 async function onSave() {
