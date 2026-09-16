@@ -1,7 +1,6 @@
 <template>
   <el-config-provider :locale="zhCn" size="default">
     <div class="app-shell">
-    <!-- 两列通栏：左列 mac 红绿灯 + 侧栏开关；右列标题（非 mac 再加窗口按钮） -->
     <div
       class="app-chrome"
       :class="{
@@ -11,77 +10,6 @@
       }"
     >
       <WorkspaceRail />
-      <div
-        class="titlebar-left drag-region"
-        @dblclick="toggleMaximise"
-        @contextmenu.prevent="openTitlebarMenu"
-      >
-        <div class="titlebar-tools no-drag" @dblclick.stop @contextmenu.stop>
-          <el-button
-            text
-            class="titlebar-btn"
-            v-tip="app.sidebarOpen ? `收起侧栏 (${kbd('B')})` : `展开侧栏 (${kbd('B')})`"
-            @click="app.toggleSidebar()"
-          >
-            <el-icon>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M9 3v18" />
-              </svg>
-            </el-icon>
-          </el-button>
-        </div>
-      </div>
-      <div
-        class="titlebar-right drag-region"
-        @dblclick="toggleMaximise"
-        @contextmenu.prevent="openTitlebarMenu"
-      >
-        <span class="titlebar-title">{{ titlebarTitle }}</span>
-        <div v-if="!isMac" class="win-controls no-drag" @dblclick.stop @contextmenu.stop>
-          <button
-            type="button"
-            class="win-btn"
-            v-tip="'最小化'"
-            @click="minimiseWin"
-          >
-            <svg viewBox="0 0 12 12">
-              <path d="M2 6h8" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="win-btn"
-            v-tip="maximised ? '还原' : '最大化'"
-            @click="toggleMaximise"
-          >
-            <svg v-if="!maximised" viewBox="0 0 12 12">
-              <rect x="2.5" y="2.5" width="7" height="7" rx="0.5" />
-            </svg>
-            <svg v-else viewBox="0 0 12 12">
-              <path d="M4 3.5h4.5V8" />
-              <rect x="2.5" y="4.5" width="5.5" height="4.5" rx="0.4" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="win-btn win-btn-close"
-            v-tip="`挂到后台 (${kbd('Q')})`"
-            @click="hideToBackground"
-          >
-            <svg viewBox="0 0 12 12">
-              <path d="M3 3l6 6M9 3l-6 6" />
-            </svg>
-          </button>
-        </div>
-      </div>
       <SidebarSettings
         v-if="app.sidebarOpen && app.settingsOpen"
       />
@@ -173,18 +101,18 @@
     <AgentInstallDialog />
     <AgentCheckDialog />
 
-    <!-- 标题栏右键：展开/收起侧栏 -->
+    <!-- 壳层右键：展开/收起侧栏 -->
     <Teleport to="body">
       <div
-        v-if="titlebarMenu"
-        class="titlebar-ctx-backdrop"
-        @mousedown="closeTitlebarMenu"
-        @contextmenu.prevent="closeTitlebarMenu"
+        v-if="chromeMenu"
+        class="chrome-ctx-backdrop"
+        @mousedown="closeChromeMenu"
+        @contextmenu.prevent="closeChromeMenu"
       />
       <div
-        v-if="titlebarMenu"
-        class="titlebar-ctx-menu"
-        :style="{ left: titlebarMenu.x + 'px', top: titlebarMenu.y + 'px' }"
+        v-if="chromeMenu"
+        class="chrome-ctx-menu"
+        :style="{ left: chromeMenu.x + 'px', top: chromeMenu.y + 'px' }"
         @mousedown.stop
       >
         <button type="button" class="ctx-item" @click="onToggleSidebarFromMenu">
@@ -198,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
@@ -215,6 +143,7 @@ import WorkspaceRail from "@/layout/WorkspaceRail.vue";
 import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
+import { chromeDragKey, type ChromeDragApi } from "@/composables/useChromeDrag";
 import {
   startAppWatchAlertPoll,
   stopAppWatchAlertPoll,
@@ -277,19 +206,19 @@ function kbd(key: string): string {
 
 const maximised = ref(false);
 const fullscreen = ref(false);
-const titlebarMenu = ref<{ x: number; y: number } | null>(null);
+const chromeMenu = ref<{ x: number; y: number } | null>(null);
 
-function openTitlebarMenu(e: MouseEvent) {
-  titlebarMenu.value = { x: e.clientX, y: e.clientY };
+function openChromeMenu(e: MouseEvent) {
+  chromeMenu.value = { x: e.clientX, y: e.clientY };
 }
 
-function closeTitlebarMenu() {
-  titlebarMenu.value = null;
+function closeChromeMenu() {
+  chromeMenu.value = null;
 }
 
 function onToggleSidebarFromMenu() {
   app.toggleSidebar();
-  closeTitlebarMenu();
+  closeChromeMenu();
 }
 
 async function toggleMaximise() {
@@ -305,36 +234,16 @@ function hideToBackground() {
   void Events.Emit("app-hide-to-background");
 }
 
-const titlebarTitle = computed(() => {
-  if (app.settingsOpen) return "设置";
-  if (app.workspace === "local") {
-    const map: Record<string, string> = {
-      overview: "系统概览",
-      procs: "应用进程",
-      packages: "软件列表",
-      storage: "磁盘空间",
-      network: "网络信息",
-      nginx: "Nginx",
-      hosts: "Hosts",
-      sysinfo: "关于本机",
-    };
-    return map[app.localSection] || "本机";
-  }
-  if (app.workspace === "notify") {
-    const map: Record<string, string> = {
-      messages: "全部消息",
-      metricSubs: "指标订阅",
-      appSubs: "应用订阅",
-      channels: "通知频道",
-      content: "通知内容",
-    };
-    return map[app.notifySection] || "通知";
-  }
-  const tab = app.activeTab;
-  if (!tab) return "全部主机";
-  if (tab.kind === "group") return app.groupNameOf(tab.id);
-  return app.hostSessions[tab.id]?.title || tab.title || tab.id;
-});
+const chromeDragApi: ChromeDragApi = {
+  openMenu: openChromeMenu,
+  toggleMaximise,
+  minimiseWin,
+  hideToBackground,
+  maximised,
+  isMac,
+  kbd,
+};
+provide(chromeDragKey, chromeDragApi);
 
 /** 可见的 Element Plus 遮罩（关闭态的 dialog 会留下 display:none 的 overlay） */
 function hasVisibleOverlay(): boolean {
@@ -570,143 +479,13 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped>
-.titlebar-left,
-.titlebar-right {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  height: 100%;
-  min-height: 0;
-  background: transparent;
-}
-.titlebar-left {
-  padding-left: 8px;
-  padding-right: 8px;
-}
-/* mac 红绿灯改压在 WorkspaceRail 顶留白，此处不再留 78px */
-.is-mac .titlebar-left {
-  min-width: 0;
-}
-.is-mac.is-fullscreen .titlebar-left {
-  padding-left: 8px;
-  min-width: 0;
-}
-.titlebar-right {
-  min-width: 0;
-  padding: 0 8px 0 20px;
-  gap: 8px;
-}
-.is-mac .titlebar-right {
-  padding-right: 20px;
-}
-.sidebar-collapsed .titlebar-right {
-  padding-left: 8px;
-}
-.titlebar-tools {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 32px;
-  flex-shrink: 0;
-}
-.titlebar-btn {
-  width: 32px;
-  height: 32px;
-  min-height: 32px !important;
-  padding: 0 !important;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  border-radius: var(--m3-shape-full);
-  color: var(--m3-on-surface-variant);
-  --el-button-size: 32px;
-  --el-button-hover-text-color: var(--m3-on-surface);
-  --el-button-hover-bg-color: color-mix(
-    in srgb,
-    var(--m3-on-surface) 8%,
-    transparent
-  );
-}
-.titlebar-btn :deep(span) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-.titlebar-btn :deep(.el-icon) {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.titlebar-btn :deep(.el-icon svg) {
-  width: 18px;
-  height: 18px;
-}
-/* M3 紧凑标题栏：title-small（14/20，字重 500） */
-.titlebar-title {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  font: var(--m3-title-small);
-  font-weight: 500;
-  color: var(--m3-on-surface);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 20px;
-  height: 32px;
-  user-select: none;
-}
-.win-controls {
-  display: flex;
-  align-items: stretch;
-  height: 40px;
-  margin-right: -8px;
-}
-.win-btn {
-  width: 46px;
-  height: 40px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--m3-on-surface-variant);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.win-btn svg {
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.25;
-  stroke-linecap: round;
-}
-.win-btn:hover {
-  background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
-  color: var(--m3-on-surface);
-}
-.win-btn-close:hover {
-  background: var(--m3-error);
-  color: var(--m3-on-error);
-}
-</style>
-
 <style lang="scss">
-.titlebar-ctx-backdrop {
+.chrome-ctx-backdrop {
   position: fixed;
   inset: 0;
   z-index: 4000;
 }
-.titlebar-ctx-menu {
+.chrome-ctx-menu {
   position: fixed;
   z-index: 4001;
   min-width: 168px;
@@ -716,7 +495,7 @@ onBeforeUnmount(() => {
   background: var(--m3-surface-container-lowest);
   box-shadow: var(--m3-elevation-3);
 }
-.titlebar-ctx-menu .ctx-item {
+.chrome-ctx-menu .ctx-item {
   width: 100%;
   display: flex;
   align-items: center;
@@ -732,10 +511,10 @@ onBeforeUnmount(() => {
   text-align: left;
   cursor: pointer;
 }
-.titlebar-ctx-menu .ctx-item:hover {
+.chrome-ctx-menu .ctx-item:hover {
   background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
 }
-.titlebar-ctx-menu .ctx-kbd {
+.chrome-ctx-menu .ctx-kbd {
   font: var(--m3-body-small);
   color: var(--m3-on-surface-variant);
 }
