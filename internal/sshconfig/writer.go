@@ -483,5 +483,40 @@ func writeConfigAtomic(path, content string) error {
 			return fmt.Errorf("备份 ssh config 失败: %w", err)
 		}
 	}
-	return os.WriteFile(path, []byte(content), 0600)
+
+	// 临时文件必须与目标同目录：同卷 rename 原子替换，崩溃不会像 WriteFile
+	// 那样把正在使用的 config 截断成半成品。
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".sshconfig-*.tmp")
+	if err != nil {
+		return fmt.Errorf("创建临时 ssh config 失败: %w", err)
+	}
+	tmpName := tmp.Name()
+	replaced := false
+	defer func() {
+		if !replaced {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		return fmt.Errorf("写入临时 ssh config 失败: %w", err)
+	}
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return fmt.Errorf("设置临时 ssh config 权限失败: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("同步临时 ssh config 失败: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("关闭临时 ssh config 失败: %w", err)
+	}
+
+	if err := replaceFile(tmpName, path); err != nil {
+		return fmt.Errorf("替换 ssh config 失败: %w", err)
+	}
+	replaced = true
+	return nil
 }
