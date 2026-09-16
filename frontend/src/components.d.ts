@@ -85,7 +85,6 @@ declare module 'vue' {
     RouterButton: typeof import('./components/RouterButton.vue')['default']
     SidebarDragCap: typeof import('./components/SidebarDragCap.vue')['default']
     SidebarGroupNode: typeof import('./components/sidebar/SidebarGroupNode.vue')['default']
-    SidebarToggleButton: typeof import('./components/SidebarToggleButton.vue')['default']
     TagButton: typeof import('./components/TagButton.vue')['default']
     UploadProgressDialog: typeof import('./components/files/UploadProgressDialog.vue')['default']
     VChartLine: typeof import('./components/VChartLine.vue')['default']

@@ -4,7 +4,6 @@
     @dblclick="chrome.toggleMaximise()"
     @contextmenu.prevent="chrome.openMenu($event)"
   >
-    <SidebarToggleButton />
     <span v-if="title" class="main-chrome-title">{{ title }}</span>
     <div v-if="$slots.default" class="main-chrome-slot no-drag" @dblclick.stop @contextmenu.stop>
       <slot />
@@ -15,7 +14,6 @@
 </template>
 
 <script setup lang="ts">
-import SidebarToggleButton from "@/components/SidebarToggleButton.vue";
 import WinWindowControls from "@/components/WinWindowControls.vue";
 import { useChromeDrag } from "@/composables/useChromeDrag";
 
