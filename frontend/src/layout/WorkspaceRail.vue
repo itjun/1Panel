@@ -1,9 +1,14 @@
 <template>
-  <aside class="workspace-rail drag-region" aria-label="工作区">
+  <aside
+    class="workspace-rail drag-region"
+    aria-label="工作区"
+    @dblclick="chrome.toggleMaximise()"
+    @contextmenu.prevent="chrome.openMenu($event)"
+  >
     <!-- 顶留 40px：mac 红绿灯落在此处 -->
     <div class="rail-traffic" aria-hidden="true" />
 
-    <div class="rail-nav no-drag">
+    <div class="rail-nav no-drag" @dblclick.stop @contextmenu.stop>
       <button
         type="button"
         class="rail-btn"
@@ -26,7 +31,7 @@
       </button>
     </div>
 
-    <div class="rail-footer no-drag">
+    <div class="rail-footer no-drag" @dblclick.stop @contextmenu.stop>
       <button
         type="button"
         class="rail-btn"
@@ -62,9 +67,11 @@
 import { Bell, Cpu, Monitor, Setting } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import { useAlertHistoryStore } from "@/stores/alertHistory";
+import { useChromeDrag } from "@/composables/useChromeDrag";
 
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
+const chrome = useChromeDrag();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 </script>
 
