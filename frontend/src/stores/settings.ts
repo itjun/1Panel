@@ -31,7 +31,6 @@ export type SettingsNavGroup =
   | "ui"
   | "terminal"
   | "session"
-  | "notify"
   | "app";
 
 /** 设置二级栏 / 设置页共用的分组列表 */
@@ -40,14 +39,37 @@ export const SETTINGS_NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
   { id: "ui", label: "界面" },
   { id: "terminal", label: "终端" },
   { id: "session", label: "会话" },
-  { id: "notify", label: "通知" },
   { id: "app", label: "应用" },
 ];
 
-/** 主机资源告警中可单独开关企微推送的类型（单一来源见 utils/alerts.ts） */
+/** 主机资源告警中可单独开关的类型（单一来源见 utils/alerts.ts）；兼容旧名 */
 export type WecomAlertKind = ResourceAlertKind;
 
 export const ALL_WECOM_ALERT_KINDS: WecomAlertKind[] = [...ALL_ALERT_KINDS];
+
+/** 全局内容类型总闸：资源四类 + 应用探活总类 */
+export type AlertContentKind = ResourceAlertKind | "app";
+
+export const ALL_ALERT_CONTENT_KINDS: AlertContentKind[] = [
+  ...ALL_ALERT_KINDS,
+  "app",
+];
+
+/** 通知正文可选字段 */
+export type NotifyContentField =
+  | "hostName"
+  | "metric"
+  | "threshold"
+  | "value"
+  | "service";
+
+export const ALL_NOTIFY_CONTENT_FIELDS: NotifyContentField[] = [
+  "hostName",
+  "metric",
+  "threshold",
+  "value",
+  "service",
+];
 
 export interface AppSettings {
   theme: ThemeKey;
@@ -61,8 +83,19 @@ export interface AppSettings {
   notifyEnabled: boolean;
   /** 企微机器人 Webhook 完整 URL 或 key */
   wecomWebhook: string;
-  /** 哪些资源告警类型推企微；缺字段时按四条全开迁移 */
-  wecomAlertKinds: WecomAlertKind[];
+  /** 系统通知（OS）总开关；缺省 true */
+  systemNotifyEnabled: boolean;
+  /** 应用内通知总开关；缺省 true */
+  inAppNotifyEnabled: boolean;
+  /**
+   * 全局内容类型总闸（cpu/mem/disk/load/app）。
+   * 缺字段时用旧 wecomAlertKinds 迁资源类型并补 app；再缺则全开。
+   */
+  alertContentKinds: AlertContentKind[];
+  /** 是否发送恢复/up；缺省 true */
+  notifyRecoverEnabled: boolean;
+  /** 通知正文字段勾选；缺省全开 */
+  notifyContentFields: NotifyContentField[];
   /**
    * 按主机订阅的资源告警类型（cpu/mem/disk/load）。
    * 未订该类型则企微 / 系统通知 / 应用内历史都不发。
@@ -213,7 +246,11 @@ const DEFAULTS: AppSettings = {
   maxRunningHosts: 16,
   notifyEnabled: false,
   wecomWebhook: "",
-  wecomAlertKinds: [...ALL_WECOM_ALERT_KINDS],
+  systemNotifyEnabled: true,
+  inAppNotifyEnabled: true,
+  alertContentKinds: [...ALL_ALERT_CONTENT_KINDS],
+  notifyRecoverEnabled: true,
+  notifyContentFields: [...ALL_NOTIFY_CONTENT_FIELDS],
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
 };
@@ -263,14 +300,45 @@ function loadHostResourceNotifySubs(
   return out;
 }
 
-function isWecomAlertKind(k: unknown): k is WecomAlertKind {
-  return isResourceAlertKind(k);
+function isAlertContentKind(k: unknown): k is AlertContentKind {
+  return ALL_ALERT_CONTENT_KINDS.includes(k as AlertContentKind);
 }
 
-/** 缺字段或非法类型时四条全开；合法数组则按内容过滤（可为空） */
-function loadWecomAlertKinds(v: unknown): WecomAlertKind[] {
-  if (!Array.isArray(v)) return [...ALL_WECOM_ALERT_KINDS];
-  return v.filter(isWecomAlertKind);
+function isNotifyContentField(k: unknown): k is NotifyContentField {
+  return ALL_NOTIFY_CONTENT_FIELDS.includes(k as NotifyContentField);
+}
+
+/**
+ * alertContentKinds 缺省：用旧 wecomAlertKinds 迁资源类型并补 app；再缺则全开。
+ * 显式空数组表示用户关光，不回退。
+ */
+function loadAlertContentKinds(
+  v: unknown,
+  legacyWecomKinds?: unknown
+): AlertContentKind[] {
+  if (Array.isArray(v)) {
+    return [...new Set(v.filter(isAlertContentKind))];
+  }
+  if (Array.isArray(legacyWecomKinds)) {
+    const resources = legacyWecomKinds.filter(
+      isResourceAlertKind
+    ) as ResourceAlertKind[];
+    if (resources.length) {
+      return [...new Set<AlertContentKind>([...resources, "app"])];
+    }
+  }
+  return [...ALL_ALERT_CONTENT_KINDS];
+}
+
+/** 缺字段全开；合法数组按枚举过滤（可为空） */
+function loadNotifyContentFields(v: unknown): NotifyContentField[] {
+  if (!Array.isArray(v)) return [...ALL_NOTIFY_CONTENT_FIELDS];
+  return [...new Set(v.filter(isNotifyContentField))];
+}
+
+function loadBoolDefaultTrue(v: unknown): boolean {
+  if (typeof v === "boolean") return v;
+  return true;
 }
 
 function load(): AppSettings {
@@ -332,7 +400,22 @@ function load(): AppSettings {
         typeof parsed.wecomWebhook === "string"
           ? parsed.wecomWebhook
           : DEFAULTS.wecomWebhook,
-      wecomAlertKinds: loadWecomAlertKinds(parsed.wecomAlertKinds),
+      systemNotifyEnabled: loadBoolDefaultTrue(
+        (parsed as { systemNotifyEnabled?: unknown }).systemNotifyEnabled
+      ),
+      inAppNotifyEnabled: loadBoolDefaultTrue(
+        (parsed as { inAppNotifyEnabled?: unknown }).inAppNotifyEnabled
+      ),
+      alertContentKinds: loadAlertContentKinds(
+        (parsed as { alertContentKinds?: unknown }).alertContentKinds,
+        (parsed as { wecomAlertKinds?: unknown }).wecomAlertKinds
+      ),
+      notifyRecoverEnabled: loadBoolDefaultTrue(
+        (parsed as { notifyRecoverEnabled?: unknown }).notifyRecoverEnabled
+      ),
+      notifyContentFields: loadNotifyContentFields(
+        (parsed as { notifyContentFields?: unknown }).notifyContentFields
+      ),
       hostResourceNotifySubs: loadHostResourceNotifySubs(
         (parsed as { hostResourceNotifySubs?: unknown }).hostResourceNotifySubs,
         (parsed as { wecomSubscribedHosts?: unknown }).wecomSubscribedHosts
@@ -360,7 +443,15 @@ export const useSettingsStore = defineStore("settings", () => {
   const maxRunningHosts = ref(initial.maxRunningHosts);
   const notifyEnabled = ref(initial.notifyEnabled);
   const wecomWebhook = ref(initial.wecomWebhook);
-  const wecomAlertKinds = ref<WecomAlertKind[]>([...initial.wecomAlertKinds]);
+  const systemNotifyEnabled = ref(initial.systemNotifyEnabled);
+  const inAppNotifyEnabled = ref(initial.inAppNotifyEnabled);
+  const alertContentKinds = ref<AlertContentKind[]>([
+    ...initial.alertContentKinds,
+  ]);
+  const notifyRecoverEnabled = ref(initial.notifyRecoverEnabled);
+  const notifyContentFields = ref<NotifyContentField[]>([
+    ...initial.notifyContentFields,
+  ]);
   const hostResourceNotifySubs = ref<Record<string, ResourceAlertKind[]>>({
     ...initial.hostResourceNotifySubs,
   });
@@ -385,7 +476,11 @@ export const useSettingsStore = defineStore("settings", () => {
       maxRunningHosts: maxRunningHosts.value,
       notifyEnabled: notifyEnabled.value,
       wecomWebhook: wecomWebhook.value,
-      wecomAlertKinds: [...wecomAlertKinds.value],
+      systemNotifyEnabled: systemNotifyEnabled.value,
+      inAppNotifyEnabled: inAppNotifyEnabled.value,
+      alertContentKinds: [...alertContentKinds.value],
+      notifyRecoverEnabled: notifyRecoverEnabled.value,
+      notifyContentFields: [...notifyContentFields.value],
       hostResourceNotifySubs: { ...hostResourceNotifySubs.value },
       hostAppNotifySubs: { ...hostAppNotifySubs.value },
     };
@@ -398,7 +493,11 @@ export const useSettingsStore = defineStore("settings", () => {
       fromDisk: true,
       notifyEnabled: notifyEnabled.value,
       wecomWebhook: wecomWebhook.value,
-      wecomAlertKinds: [...wecomAlertKinds.value],
+      systemNotifyEnabled: systemNotifyEnabled.value,
+      inAppNotifyEnabled: inAppNotifyEnabled.value,
+      alertContentKinds: [...alertContentKinds.value],
+      notifyRecoverEnabled: notifyRecoverEnabled.value,
+      notifyContentFields: [...notifyContentFields.value],
       hostResourceNotifySubs: { ...hostResourceNotifySubs.value },
       hostAppNotifySubs: { ...hostAppNotifySubs.value },
     };
@@ -422,12 +521,25 @@ export const useSettingsStore = defineStore("settings", () => {
         wecomWebhook.value =
           typeof d.wecomWebhook === "string" ? d.wecomWebhook : "";
         webhookDraft.value = expandWecomWebhook(wecomWebhook.value);
-        wecomAlertKinds.value = loadWecomAlertKinds(d.wecomAlertKinds);
+        systemNotifyEnabled.value = loadBoolDefaultTrue(d.systemNotifyEnabled);
+        inAppNotifyEnabled.value = loadBoolDefaultTrue(d.inAppNotifyEnabled);
+        alertContentKinds.value = loadAlertContentKinds(
+          d.alertContentKinds,
+          (d as { wecomAlertKinds?: unknown }).wecomAlertKinds
+        );
+        notifyRecoverEnabled.value = loadBoolDefaultTrue(
+          d.notifyRecoverEnabled
+        );
+        notifyContentFields.value = loadNotifyContentFields(
+          d.notifyContentFields
+        );
         hostResourceNotifySubs.value = loadHostResourceNotifySubs(
           d.hostResourceNotifySubs
         );
         hostAppNotifySubs.value = loadHostAppNotifySubs(d.hostAppNotifySubs);
         persist();
+        // 磁盘仍可能带旧 wecomAlertKinds；写回一次去掉并补齐新字段
+        persistNotifyDisk();
         return;
       }
       persistNotifyDisk();
@@ -521,6 +633,21 @@ export const useSettingsStore = defineStore("settings", () => {
 
   function setNotifyEnabled(v: boolean) {
     notifyEnabled.value = v;
+    persistNotify();
+  }
+
+  function setSystemNotifyEnabled(v: boolean) {
+    systemNotifyEnabled.value = v;
+    persistNotify();
+  }
+
+  function setInAppNotifyEnabled(v: boolean) {
+    inAppNotifyEnabled.value = v;
+    persistNotify();
+  }
+
+  function setNotifyRecoverEnabled(v: boolean) {
+    notifyRecoverEnabled.value = v;
     persistNotify();
   }
 
@@ -624,6 +751,66 @@ export const useSettingsStore = defineStore("settings", () => {
     persistNotify();
   }
 
+  /**
+   * 整表替换单机订阅（不落盘）。
+   * 资源：空数组删除该主机 key；应用：空数组仍保留 name: []（与 setAppNotifySubscribed 关空一致）。
+   */
+  function replaceHostNotifySubsInMemory(
+    host: string,
+    resourceKinds: ResourceAlertKind[],
+    appServices: string[]
+  ) {
+    const name = (host || "").trim();
+    if (!name) return;
+
+    const kinds = [
+      ...new Set(resourceKinds.filter(isResourceAlertKind)),
+    ] as ResourceAlertKind[];
+    const resMap = { ...hostResourceNotifySubs.value };
+    if (kinds.length) resMap[name] = kinds;
+    else delete resMap[name];
+    hostResourceNotifySubs.value = resMap;
+
+    const services = [
+      ...new Set(
+        appServices.filter(isWatchServiceName) as WatchServiceName[]
+      ),
+    ];
+    hostAppNotifySubs.value = {
+      ...hostAppNotifySubs.value,
+      [name]: services,
+    };
+  }
+
+  /** 整表替换单机订阅并立即 persistNotify */
+  function replaceHostNotifySubs(
+    host: string,
+    resourceKinds: ResourceAlertKind[],
+    appServices: string[]
+  ) {
+    replaceHostNotifySubsInMemory(host, resourceKinds, appServices);
+    persistNotify();
+  }
+
+  /** 多机整表替换，最后只 persistNotify 一次 */
+  function applyNotifySubsToHosts(
+    hosts: string[],
+    resourceKinds: ResourceAlertKind[],
+    appServices: string[]
+  ) {
+    const names = [
+      ...new Set(
+        (hosts || [])
+          .map((h) => (h || "").trim())
+          .filter(Boolean)
+      ),
+    ];
+    for (const name of names) {
+      replaceHostNotifySubsInMemory(name, resourceKinds, appServices);
+    }
+    if (names.length) persistNotify();
+  }
+
   /** 有应用订阅的主机名（全局探活轮询用） */
   function hostsWithAppNotifySubs(): string[] {
     return Object.keys(hostAppNotifySubs.value).filter(
@@ -673,22 +860,56 @@ export const useSettingsStore = defineStore("settings", () => {
     if (changed) persistNotify();
   }
 
-  /** 该资源告警类型是否推企微（须该主机已订阅该类型；系统/应用内通知由订阅决定） */
+  function isContentKindEnabled(kind: string): boolean {
+    if (!isAlertContentKind(kind)) return false;
+    return alertContentKinds.value.includes(kind);
+  }
+
+  function setContentKindEnabled(kind: AlertContentKind, on: boolean) {
+    if (!isAlertContentKind(kind)) return;
+    const has = alertContentKinds.value.includes(kind);
+    if (on) {
+      if (has) return;
+      alertContentKinds.value = [...alertContentKinds.value, kind];
+    } else {
+      if (!has) return;
+      alertContentKinds.value = alertContentKinds.value.filter((k) => k !== kind);
+    }
+    persistNotify();
+  }
+
+  function isNotifyContentFieldEnabled(field: string): boolean {
+    if (!isNotifyContentField(field)) return false;
+    return notifyContentFields.value.includes(field);
+  }
+
+  function setNotifyContentFieldEnabled(
+    field: NotifyContentField,
+    on: boolean
+  ) {
+    if (!isNotifyContentField(field)) return;
+    const has = notifyContentFields.value.includes(field);
+    if (on) {
+      if (has) return;
+      notifyContentFields.value = [...notifyContentFields.value, field];
+    } else {
+      if (!has) return;
+      notifyContentFields.value = notifyContentFields.value.filter(
+        (f) => f !== field
+      );
+    }
+    persistNotify();
+  }
+
+  /** 兼容旧设置页：资源类型是否在全局内容总闸中开启 */
   function isWecomKindEnabled(kind: string): boolean {
-    if (!isWecomAlertKind(kind)) return false;
-    return wecomAlertKinds.value.includes(kind);
+    if (!isResourceAlertKind(kind)) return false;
+    return isContentKindEnabled(kind);
   }
 
   function setWecomKindEnabled(kind: WecomAlertKind, on: boolean) {
-    const has = wecomAlertKinds.value.includes(kind);
-    if (on) {
-      if (has) return;
-      wecomAlertKinds.value = [...wecomAlertKinds.value, kind];
-    } else {
-      if (!has) return;
-      wecomAlertKinds.value = wecomAlertKinds.value.filter((k) => k !== kind);
-    }
-    persistNotify();
+    if (!isResourceAlertKind(kind)) return;
+    setContentKindEnabled(kind, on);
   }
 
   /** 仅重置外观/界面/终端/会话；通知相关配置保留 */
@@ -738,7 +959,11 @@ export const useSettingsStore = defineStore("settings", () => {
     maxRunningHosts,
     notifyEnabled,
     wecomWebhook,
-    wecomAlertKinds,
+    systemNotifyEnabled,
+    inAppNotifyEnabled,
+    alertContentKinds,
+    notifyRecoverEnabled,
+    notifyContentFields,
     hostResourceNotifySubs,
     hostAppNotifySubs,
     webhookDraft,
@@ -753,6 +978,9 @@ export const useSettingsStore = defineStore("settings", () => {
     setTerminalFontFamily,
     setMaxRunningHosts,
     setNotifyEnabled,
+    setSystemNotifyEnabled,
+    setInAppNotifyEnabled,
+    setNotifyRecoverEnabled,
     setWecomWebhook,
     effectiveWecomWebhook,
     listResourceNotifySubs,
@@ -762,10 +990,16 @@ export const useSettingsStore = defineStore("settings", () => {
     hasAppNotifyConfig,
     isAppNotifySubscribed,
     setAppNotifySubscribed,
+    replaceHostNotifySubs,
+    applyNotifySubsToHosts,
     hostsWithAppNotifySubs,
     hostsWithResourceNotifySubs,
     hydrateNotifySubs,
     renameNotifyHost,
+    isContentKindEnabled,
+    setContentKindEnabled,
+    isNotifyContentFieldEnabled,
+    setNotifyContentFieldEnabled,
     isWecomKindEnabled,
     setWecomKindEnabled,
     resetSettings,

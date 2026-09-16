@@ -41,10 +41,7 @@
     </div>
 
     <div class="settings-body">
-      <div
-        class="settings-pane"
-        :class="{ 'is-notify': settings.lastNavGroup === 'notify' }"
-      >
+      <div class="settings-pane">
         <!-- 外观 -->
         <template v-if="settings.lastNavGroup === 'appearance'">
           <section class="settings-section">
@@ -183,105 +180,6 @@
           />
         </section>
 
-        <!-- 通知 -->
-        <template v-else-if="settings.lastNavGroup === 'notify'">
-          <section class="settings-section">
-            <div class="sec-row">
-              <div>
-                <h3 class="sec-title">启用企微通知</h3>
-                <p class="sec-desc sec-desc--inline">
-                  总开关。关闭后不向企业微信推送。资源告警与应用探活都须到各主机「通知」页按需订阅，未订阅不发任何通道；主机断开不推送。
-                </p>
-              </div>
-              <el-switch
-                :model-value="settings.notifyEnabled"
-                @change="onNotifyEnabled"
-              />
-            </div>
-          </section>
-
-          <section class="settings-section">
-            <h3 class="sec-title">通知地址</h3>
-            <p class="sec-desc">
-              企业微信群机器人 Webhook 完整 URL，或只填
-              <code>key=</code> 后面的 UUID。不会写入 git。新地址必须先点「测试」，
-              确认企业微信群收到消息后再保存。仅已订阅的资源告警与应用探活会用此地址。
-            </p>
-            <el-input
-              v-model="settings.webhookDraft"
-              type="textarea"
-              :autosize="{ minRows: 2, maxRows: 3 }"
-              :disabled="!settings.notifyEnabled"
-              spellcheck="false"
-              class="webhook-input"
-              placeholder="在此粘贴完整 Webhook URL"
-              @keydown="onWebhookKeydown"
-              @paste="onWebhookPaste"
-            />
-            <div class="notify-actions">
-              <el-button :disabled="!settings.notifyEnabled" @click="copyWebhook">
-                复制
-              </el-button>
-              <el-button
-                :disabled="!settings.notifyEnabled"
-                :loading="testingWebhook"
-                @click="testWebhook"
-              >
-                测试
-              </el-button>
-              <el-button
-                :type="canSaveWebhook ? 'primary' : 'default'"
-                :disabled="!settings.notifyEnabled"
-                @click="saveWebhook"
-              >
-                保存
-              </el-button>
-            </div>
-            <p class="sec-hint">{{ webhookHint }}</p>
-          </section>
-
-          <section class="settings-section">
-            <h3 class="sec-title">通道设置</h3>
-            <p class="sec-desc">
-              已订阅的主机走哪些通道。系统通知与应用通知固定开启；企业微信可按类型关闭。订阅请到各主机「通知」页按需打开。
-            </p>
-            <div class="alert-rules-form">
-              <div class="alert-rules-head">
-                <span>类型</span>
-                <span>条件</span>
-                <span>系统通知</span>
-                <span>应用通知</span>
-                <span>企业微信</span>
-              </div>
-              <div
-                v-for="rule in ALERT_RULES"
-                :key="rule.kind"
-                class="alert-rules-row"
-              >
-                <span class="alert-rules-name">{{ rule.name }}</span>
-                <span class="alert-rules-desc">{{ rule.desc }}</span>
-                <span
-                  class="alert-rules-always"
-                  v-tip="'该主机订阅此类型后，系统通知开启；点击可跳转到应用内历史'"
-                >
-                  <el-icon><Check /></el-icon>
-                </span>
-                <span
-                  class="alert-rules-always"
-                  v-tip="'该主机订阅此类型后，写入应用内告警历史'"
-                >
-                  <el-icon><Check /></el-icon>
-                </span>
-                <el-checkbox
-                  :model-value="settings.isWecomKindEnabled(rule.kind)"
-                  :disabled="!settings.notifyEnabled"
-                  @change="(v: string | number | boolean) => settings.setWecomKindEnabled(rule.kind, Boolean(v))"
-                />
-              </div>
-            </div>
-          </section>
-        </template>
-
         <!-- 应用 -->
         <template v-else-if="settings.lastNavGroup === 'app'">
           <section class="settings-section">
@@ -332,23 +230,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { Check, Refresh } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Dialogs, Events } from "@wailsio/runtime";
 import { api } from "@/api";
 import type { monitor } from "@/api";
 import { formatErr } from "@/utils/format";
-import { copyText, readText } from "@/utils/clipboard";
 import BackupImportDialog from "@/components/BackupImportDialog.vue";
 import {
   FONT_OPTIONS,
   TERMINAL_FONT_OPTIONS,
   THEME_OPTIONS,
-  expandWecomWebhook,
   useSettingsStore,
 } from "@/stores/settings";
-import { ALERT_RULES } from "@/utils/alerts";
 
 /** 进程内缓存：离开设置页卸载后仍保留，避免每次进出都打 myip */
 let egressCache: monitor.EgressInfo | null = null;
@@ -361,7 +256,6 @@ const exporting = ref(false);
 const backupImportRef = ref<InstanceType<typeof BackupImportDialog> | null>(
   null
 );
-const testingWebhook = ref(false);
 const egress = ref<monitor.EgressInfo | null>(egressCache);
 const egressLoading = ref(false);
 const uiPreviewStyle = computed(() => ({
@@ -393,136 +287,6 @@ function onTermFontSize(v: number | number[]) {
 
 function onMaxRunningHosts(v: number | number[]) {
   settings.setMaxRunningHosts(Array.isArray(v) ? v[0] : v);
-}
-
-const draftNorm = computed(() => settings.webhookDraft.trim());
-const savedExpanded = computed(() => expandWecomWebhook(settings.wecomWebhook));
-const webhookDirty = computed(
-  () => expandWecomWebhook(draftNorm.value) !== savedExpanded.value
-);
-const webhookTested = computed(
-  () => !!draftNorm.value && settings.webhookTested === draftNorm.value
-);
-const canSaveWebhook = computed(() => {
-  if (!settings.notifyEnabled) return false;
-  if (!webhookDirty.value) return false;
-  if (!draftNorm.value) return true;
-  return webhookTested.value;
-});
-const webhookHint = computed(() => {
-  if (!settings.notifyEnabled) return "通知已关闭，地址不会发送。";
-  if (!draftNorm.value) {
-    return savedExpanded.value
-      ? "清空后保存将删除已保存的地址，无需测试。"
-      : "先把完整 Webhook 粘贴进输入框，再点测试；通过后才能保存。";
-  }
-  if (webhookDirty.value && !webhookTested.value) {
-    return "地址已修改。请先测试，确认企业微信群收到消息后再保存。";
-  }
-  if (webhookDirty.value && webhookTested.value) {
-    return "测试已通过，可以保存。请再到企业微信群确认已收到测试消息。";
-  }
-  return "当前为已保存地址。可点测试，确认群内仍能收到。";
-});
-
-watch(
-  () => settings.webhookDraft,
-  (v) => {
-    if (settings.webhookTested && settings.webhookTested !== v.trim()) {
-      settings.webhookTested = "";
-    }
-  }
-);
-
-function insertWebhookText(el: HTMLTextAreaElement | HTMLInputElement, text: string) {
-  const start = el.selectionStart ?? settings.webhookDraft.length;
-  const end = el.selectionEnd ?? start;
-  const cur = settings.webhookDraft;
-  settings.webhookDraft = cur.slice(0, start) + text + cur.slice(end);
-  const pos = start + text.length;
-  requestAnimationFrame(() => {
-    el.focus();
-    el.setSelectionRange(pos, pos);
-  });
-}
-
-async function pasteIntoWebhook(el: EventTarget | null) {
-  const text = (await readText()).trim();
-  if (!text) {
-    ElMessage.warning("剪贴板为空，请先复制 Webhook 地址");
-    return;
-  }
-  if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-    insertWebhookText(el, text);
-    return;
-  }
-  settings.webhookDraft = text;
-}
-
-function onWebhookKeydown(e: Event | KeyboardEvent) {
-  if (!(e instanceof KeyboardEvent)) return;
-  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
-  if (e.code !== "KeyV") return;
-  e.preventDefault();
-  void pasteIntoWebhook(e.target);
-}
-
-function onWebhookPaste(e: ClipboardEvent) {
-  const native = e.clipboardData?.getData("text") || "";
-  if (native) return;
-  e.preventDefault();
-  void pasteIntoWebhook(e.target);
-}
-
-async function copyWebhook() {
-  const url = expandWecomWebhook(draftNorm.value);
-  if (!url) {
-    ElMessage.warning("请先粘贴完整通知地址");
-    return;
-  }
-  try {
-    await copyText(url);
-    ElMessage.success("已复制完整地址");
-  } catch {
-    ElMessage.error("复制失败");
-  }
-}
-
-async function testWebhook() {
-  const url = expandWecomWebhook(draftNorm.value);
-  if (!url) {
-    ElMessage.warning("请先粘贴完整通知地址，再点测试");
-    return;
-  }
-  testingWebhook.value = true;
-  try {
-    await api.testWecomWebhook(url);
-    settings.webhookTested = draftNorm.value;
-    ElMessage.success("测试已发出，请到企业微信群确认收到消息");
-  } catch (e) {
-    settings.webhookTested = "";
-    ElMessage.error(formatErr(e));
-  } finally {
-    testingWebhook.value = false;
-  }
-}
-
-function saveWebhook() {
-  if (!settings.notifyEnabled) return;
-  if (!webhookDirty.value) {
-    ElMessage.info("当前地址已保存，无需再保存");
-    return;
-  }
-  if (draftNorm.value && !webhookTested.value) {
-    ElMessage.warning("请先测试通过，再保存");
-    return;
-  }
-  settings.setWecomWebhook(expandWecomWebhook(draftNorm.value));
-  ElMessage.success(draftNorm.value ? "通知地址已保存" : "已清除通知地址");
-}
-
-async function onNotifyEnabled(v: string | number | boolean) {
-  settings.setNotifyEnabled(Boolean(v));
 }
 
 async function loadEgress(force: boolean) {
@@ -722,10 +486,6 @@ onUnmounted(() => {
   gap: 20px;
   scrollbar-width: none;
 
-  &.is-notify {
-    max-width: 1120px;
-  }
-
   &::-webkit-scrollbar {
     display: none;
   }
@@ -767,12 +527,6 @@ onUnmounted(() => {
   }
 }
 
-.sec-hint {
-  margin: 8px 0 0;
-  font: var(--m3-body-small);
-  color: var(--m3-on-surface-variant);
-}
-
 .sec-row {
   display: flex;
   align-items: center;
@@ -792,86 +546,6 @@ onUnmounted(() => {
   gap: 10px;
   align-items: center;
   margin-top: 10px;
-}
-
-.alert-rules-form {
-  background: var(--m3-card);
-  border: 1px solid var(--m3-outline-variant);
-  border-radius: var(--m3-shape-m);
-  overflow: hidden;
-}
-
-.alert-rules-head,
-.alert-rules-row {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) 80px 80px 80px;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 18px;
-}
-
-.alert-rules-head {
-  font: var(--m3-label-medium);
-  color: var(--m3-on-surface-variant);
-  background: var(--m3-card);
-  border-bottom: 1px solid var(--m3-outline-variant);
-}
-
-.alert-rules-row + .alert-rules-row {
-  border-top: 1px solid var(--m3-outline-variant);
-}
-
-.alert-rules-row {
-  transition: background-color var(--m3-motion-state);
-}
-
-.alert-rules-row:hover {
-  background: color-mix(in srgb, var(--m3-on-surface) 3%, var(--m3-surface));
-}
-
-.alert-rules-name {
-  font: var(--m3-body-large);
-  color: var(--m3-on-surface);
-  font-weight: 500;
-}
-
-.alert-rules-desc {
-  font: var(--m3-body-medium);
-  color: var(--m3-on-surface-variant);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.alert-rules-row :deep(.el-checkbox) {
-  justify-self: center;
-  margin-right: 0;
-  height: auto;
-}
-
-/* 已订阅后固定开启的通道列：静态勾图标（非可交互） */
-.alert-rules-always {
-  justify-self: center;
-  display: inline-flex;
-  align-items: center;
-  color: var(--m3-on-surface-variant);
-  font-size: 16px;
-}
-
-.webhook-input {
-  width: 100%;
-
-  :deep(.el-textarea__inner) {
-    background: var(--m3-surface);
-    font-family: var(--m3-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, monospace);
-    font-size: 13px;
-    line-height: 1.55;
-    letter-spacing: 0;
-    resize: none !important;
-    word-break: break-all;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
-  }
 }
 
 .theme-grid {

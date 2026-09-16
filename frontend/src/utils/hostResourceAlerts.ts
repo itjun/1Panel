@@ -4,19 +4,21 @@ import { useSettingsStore } from "@/stores/settings";
 import {
   ALERT,
   ALL_ALERT_KINDS,
-  diskLowMessage,
   isCpuAlert,
   isDiskLow,
   isLoadAlert,
   isMemAlert,
   type ResourceAlertKind,
 } from "@/utils/alerts";
+import { formatBytes } from "@/utils/format";
+import type { NotifyTextParts } from "@/utils/alertNotify";
 import { clearHostWecom, fireHostWecom } from "@/utils/wecomHostAlerts";
 
 /** 上一拍各主机已触发的资源告警类型（首次只建基线，不告警） */
 const prevKinds = new Map<string, Set<ResourceAlertKind>>();
 
 const POLL_MS = 5000;
+const GB = 1024 * 1024 * 1024;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let ticking = false;
@@ -34,23 +36,70 @@ function collectKinds(
   return out;
 }
 
-function detailOf(
+function metricLabel(kind: ResourceAlertKind): string {
+  switch (kind) {
+    case "cpu":
+      return "CPU";
+    case "mem":
+      return "内存";
+    case "disk":
+      return "磁盘";
+    case "load":
+      return "负载";
+    default:
+      return kind;
+  }
+}
+
+/** 结构化正文字段，供 notifyContentFields 勾选拼装 */
+function partsOf(
   host: string,
   kind: ResourceAlertKind,
   ov: monitor.Overview,
   disks: monitor.DiskInfo[] | null | undefined
-): string {
+): NotifyTextParts {
+  const base: NotifyTextParts = {
+    hostName: host,
+    metric: metricLabel(kind),
+  };
   switch (kind) {
     case "cpu":
-      return `「${host}」CPU ${ov.cpuPercent.toFixed(1)}% ≥ ${ALERT.cpu}%`;
+      return {
+        ...base,
+        value: `${ov.cpuPercent.toFixed(1)}%`,
+        threshold: `≥ ${ALERT.cpu}%`,
+      };
     case "mem":
-      return `「${host}」内存 ${ov.memPercent.toFixed(1)}% 超过 ${ALERT.mem}%`;
+      return {
+        ...base,
+        value: `${ov.memPercent.toFixed(1)}%`,
+        threshold: `> ${ALERT.mem}%`,
+      };
     case "load":
-      return `「${host}」负载 ${ov.load1.toFixed(2)} / ${ov.cpuCount} 核 超过警戒`;
-    case "disk":
-      return diskLowMessage(host, disks);
+      return {
+        ...base,
+        value: `${ov.load1.toFixed(2)} / ${ov.cpuCount} 核`,
+        threshold: `> ${ALERT.loadRatio}`,
+      };
+    case "disk": {
+      const thr = ALERT.diskAvailBytes;
+      const candidates = (disks || []).filter((d) => (d.total || 0) > thr);
+      let value = `可用不足 ${ALERT.diskAvailBytes / GB} GB`;
+      if (candidates.length) {
+        const worst = [...candidates].sort(
+          (a, b) => (a.avail || 0) - (b.avail || 0)
+        )[0];
+        const mount = worst.mount || worst.filesystem || "磁盘";
+        value = `${mount} 可用 ${formatBytes(worst.avail)}`;
+      }
+      return {
+        ...base,
+        value,
+        threshold: `≤ ${ALERT.diskAvailBytes / GB} GB`,
+      };
+    }
     default:
-      return `「${host}」${kind}超阈值`;
+      return base;
   }
 }
 
@@ -108,7 +157,7 @@ async function pollHost(host: string): Promise<void> {
         key: `${host}|${kind}`,
         host,
         kind,
-        detail: detailOf(host, kind, ov, disks),
+        parts: partsOf(host, kind, ov, disks),
       });
     } else if (!on && was) {
       prev.delete(kind);
@@ -116,6 +165,10 @@ async function pollHost(host: string): Promise<void> {
         key: `${host}|${kind}`,
         host,
         kind,
+        parts: {
+          hostName: host,
+          metric: metricLabel(kind),
+        },
       });
     }
   }

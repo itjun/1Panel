@@ -32,8 +32,11 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
-// macTitleBarHeight 与前端 .app-chrome 首行、InvisibleTitleBarHeight 保持一致。
-const macTitleBarHeight = 40
+// macTrafficLightBand 红绿灯垂直居中带高度，对齐前端 WorkspaceRail .rail-traffic。
+const macTrafficLightBand = 40
+
+// macInvisibleTitleBarHeight 原生窄拖拽兜底带；与通栏无关，避免吞主区顶部点击。
+const macInvisibleTitleBarHeight = 12
 
 // App 是应用核心对象：持有全部共享依赖。
 // 对外暴露的前端方法不再直接挂在 App 上，而是按域拆分为多个 v3 Service
@@ -150,7 +153,7 @@ func NewApp() *application.App {
 		DefaultContextMenuDisabled: true,
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHidden,
-			InvisibleTitleBarHeight: macTitleBarHeight,
+			InvisibleTitleBarHeight: macInvisibleTitleBarHeight,
 			Backdrop:                application.MacBackdropNormal,
 		},
 		URL: "/",
@@ -355,12 +358,12 @@ func (a *App) forceShowMainWindow() {
 	a.syncTrafficLights()
 }
 
-// syncTrafficLights 将 macOS 红绿灯垂直居中到自定义通栏。
+// syncTrafficLights 将 macOS 红绿灯垂直居中到 WorkspaceRail 顶留白带。
 func (a *App) syncTrafficLights() {
 	if a.mainWindow == nil {
 		return
 	}
-	macui.InstallCenteredTrafficLights(a.mainWindow, macTitleBarHeight)
+	macui.InstallCenteredTrafficLights(a.mainWindow, macTrafficLightBand)
 }
 
 // markReady 在 ApplicationStarted（Wails 运行态就绪）后标记窗口 API 可安全调用。

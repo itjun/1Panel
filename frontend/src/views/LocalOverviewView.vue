@@ -996,14 +996,14 @@ const ioCard = computed(() => ({
 }
 
 .card-interval {
-  margin-top: 10px;
+  margin-top: 16px;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 14px;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -1044,11 +1044,11 @@ const ioCard = computed(() => ({
 }
 
 .disk-section-title {
-  font-size: 12px;
+  font: var(--m3-title-small);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 20px;
   color: var(--m3-on-surface-variant, var(--el-text-color-secondary));
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .disk-internal-group {

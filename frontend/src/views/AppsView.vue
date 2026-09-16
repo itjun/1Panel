@@ -5,7 +5,7 @@
 
     <div class="page-toolbar">
       <span class="panel-section-title">应用监视</span>
-      <span class="page-toolbar__hint">实例表点行看曲线；订阅列只读，订阅请到本机「通知」页。下架前请到「Nginx」标签核对切流。</span>
+      <span class="page-toolbar__hint">实例表点行看曲线；订阅列只读，订阅请到「通知 → 主机订阅」。下架前请到「Nginx」标签核对切流。</span>
       <div class="page-toolbar__actions">
         <el-button @click="loadAll">刷新</el-button>
         <el-button @click="openCfg">监视配置</el-button>
@@ -171,7 +171,7 @@
 
     <el-dialog v-model="cfgOpen" title="下发 watch.yml" width="720px" append-to-body>
       <p class="sec-desc">
-        服务清单与探活路径在此编辑。企微总开关 / 地址在「设置 → 通知」；应用探活默认不通知，请在本机「通知」页按服务订阅。
+        服务清单与探活路径在此编辑。企微总开关 / 地址在「通知 → 通知频道」；应用探活默认不通知，请到「通知 → 主机订阅」按服务订阅。
       </p>
       <el-input v-model="yamlText" type="textarea" :rows="18" class="yaml-box" />
       <template #footer>

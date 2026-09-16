@@ -4,8 +4,10 @@ import {
 } from "@/utils/alerts";
 import {
   appendAndNotifyDesktop,
+  buildNotifyCopy,
   sendWecomAlertOnce,
   sendWecomRecover,
+  type NotifyTextParts,
 } from "@/utils/alertNotify";
 import { useSettingsStore } from "@/stores/settings";
 
@@ -51,26 +53,54 @@ function kindLabel(kind: HostWecomKind): string {
   }
 }
 
+function resourceParts(
+  host: string,
+  kind: HostWecomKind,
+  parts?: NotifyTextParts,
+  detail?: string
+): NotifyTextParts {
+  if (parts) {
+    return {
+      hostName: parts.hostName || host,
+      metric: parts.metric || kindLabel(kind),
+      threshold: parts.threshold,
+      value: parts.value,
+      service: parts.service,
+    };
+  }
+  return {
+    hostName: host,
+    metric: kindLabel(kind),
+    value: (detail || "").trim() || undefined,
+  };
+}
+
 /**
- * 主机资源告警出口（须该主机已订阅该类型）：
- * - 系统通知 + 应用内历史
- * - 总开关开启、该告警类型勾选且有 Webhook：再推企业微信
- * 应用内 toast 由 Overview/GroupOverview 自行弹出，同样按订阅过滤。
+ * 主机资源告警出口：
+ * 1. 主机订阅该类型
+ * 2. 全局内容类型开启
+ * 3. 再按频道：系统/应用内 / 企微(notifyEnabled+webhook)
+ * 正文字段按 notifyContentFields 勾选。
  */
 export async function fireHostWecom(opts: {
   key: string;
   host: string;
   kind: HostWecomKind;
-  detail: string;
+  detail?: string;
+  parts?: NotifyTextParts;
 }): Promise<void> {
   // 客户端与目标主机断开不告警（多监控端各自断线会刷屏）
   if (opts.kind === "conn") return;
 
   const settings = useSettingsStore();
   if (!settings.isResourceNotifySubscribed(opts.host, opts.kind)) return;
+  if (!settings.isContentKindEnabled(opts.kind)) return;
 
-  const title = `「${opts.host}」${kindLabel(opts.kind)}超阈值`;
-  const body = opts.detail || title;
+  const copy = buildNotifyCopy({
+    state: "down",
+    kind: "resource",
+    parts: resourceParts(opts.host, opts.kind, opts.parts, opts.detail),
+  });
 
   // 系统通知 + 历史：进程内按 key 去重直到回落
   if (!firedLocal.has(opts.key)) {
@@ -79,19 +109,18 @@ export async function fireHostWecom(opts: {
       host: opts.host,
       kind: opts.kind,
       state: "down",
-      title,
-      body,
+      title: copy.title,
+      body: copy.body,
     });
   }
 
-  if (!settings.isWecomKindEnabled(opts.kind)) return;
   const webhook = settings.effectiveWecomWebhook();
   if (!webhook) return;
   await sendWecomAlertOnce(firedWecom, opts.key, {
     webhook,
     host: opts.host,
     kind: opts.kind,
-    detail: opts.detail,
+    detail: copy.body,
   });
 }
 
@@ -99,6 +128,7 @@ export async function clearHostWecom(opts: {
   key: string;
   host: string;
   kind: HostWecomKind;
+  parts?: NotifyTextParts;
 }): Promise<void> {
   if (opts.kind === "conn") return;
 
@@ -106,15 +136,24 @@ export async function clearHostWecom(opts: {
   const hadWecom = firedWecom.delete(opts.key);
   if (!hadLocal && !hadWecom) return;
 
+  const settings = useSettingsStore();
+  // 恢复总闸关：清去重态后三通道都不发
+  if (!settings.notifyRecoverEnabled) return;
+  // 内容类型当下关闭也不发恢复
+  if (!settings.isContentKindEnabled(opts.kind)) return;
+
   if (hadLocal) {
-    const title = `「${opts.host}」${kindLabel(opts.kind)}已回落`;
-    const body = `${kindLabel(opts.kind)}已恢复到阈值以下`;
+    const copy = buildNotifyCopy({
+      state: "up",
+      kind: "resource",
+      parts: resourceParts(opts.host, opts.kind, opts.parts),
+    });
     await appendAndNotifyDesktop({
       host: opts.host,
       kind: opts.kind,
       state: "up",
-      title,
-      body,
+      title: copy.title,
+      body: copy.body,
     });
   }
 

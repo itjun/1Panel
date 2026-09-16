@@ -265,7 +265,7 @@ function onTitlePointerDown(e: PointerEvent) {
   background: color-mix(in srgb, var(--m3-primary) 12%, transparent) !important;
   outline: 2px dashed var(--m3-primary);
   outline-offset: -2px;
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
 }
 
 .is-drag-source > :deep(.el-sub-menu__title) {
@@ -299,7 +299,7 @@ function onTitlePointerDown(e: PointerEvent) {
 .is-group-active > :deep(.el-sub-menu__title) {
   background-color: var(--group-soft, var(--m3-sidebar-active-bg)) !important;
   color: var(--group-ink, var(--m3-primary));
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
 
   .group-name,
   .group-folder-ico {

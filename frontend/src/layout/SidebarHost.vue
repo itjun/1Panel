@@ -5,6 +5,7 @@
     :style="{ width: width + 'px' }"
     @contextmenu="onBlankContext"
   >
+    <SidebarDragCap />
     <div class="menu-wrap" ref="menuWrapRef">
       <PinnedHostsStrip
         :hosts="app.pinnedHosts"
@@ -278,7 +279,7 @@
 <script setup lang="ts">
 /**
  * 侧栏：主机/分组树、搜索输入、拖拽分组、右键菜单、宽度调整。
- * 侧栏开关在 App 通栏；⌘F 搜索在窗口正中弹出。
+ * 侧栏开关在主区壳顶；⌘F 搜索在窗口正中弹出。
  * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
@@ -296,6 +297,7 @@ import SidebarGroupNode from "@/components/sidebar/SidebarGroupNode.vue";
 import PinnedHostsStrip from "@/components/sidebar/PinnedHostsStrip.vue";
 import { useHostDrag } from "@/composables/useHostDrag";
 import { useSidebarResize } from "@/composables/useSidebarResize";
+import SidebarDragCap from "@/components/SidebarDragCap.vue";
 import { confirmStopHostSession } from "@/utils/hostSession";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { formatErr } from "@/utils/format";
@@ -646,6 +648,9 @@ onBeforeUnmount(() => {
   min-width: 180px;
   max-width: 320px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 
   &:not(.is-resizing) {
     transition: width var(--m3-motion-state);
@@ -805,7 +810,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--m3-primary) 12%, transparent) !important;
   outline: 2px dashed var(--m3-primary);
   outline-offset: -2px;
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
 }
 
 .menu-count {

@@ -64,7 +64,7 @@ func (s *System) SetTrafficLightsHidden(hidden bool) {
 	w.SetMinimiseButtonState(st)
 	w.SetMaximiseButtonState(st)
 	if !hidden {
-		macui.InstallCenteredTrafficLights(w, macTitleBarHeight)
+		macui.InstallCenteredTrafficLights(w, macTrafficLightBand)
 	}
 }
 
@@ -187,7 +187,7 @@ func (s *System) OpenBoardWindow(groupID string) error {
 		DefaultContextMenuDisabled: true,
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHidden,
-			InvisibleTitleBarHeight: macTitleBarHeight,
+			InvisibleTitleBarHeight: macInvisibleTitleBarHeight,
 			Backdrop:                application.MacBackdropNormal,
 		},
 	}
