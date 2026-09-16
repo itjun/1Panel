@@ -56,6 +56,89 @@ html {
   --el-tag-text-color: var(--m3-on-surface-variant);
 }
 
+/* 默认档按钮：实心 / 空心同一盒子。边框永远 1px，靠颜色区分，禁止 border:none 把空心抽矮。
+   html 前缀压过 EP 按需加载的 .el-button（同权后到者胜）。 */
+html .el-button {
+  --el-button-size: var(--m3-button-height);
+  box-sizing: border-box;
+  height: var(--m3-button-height);
+  min-height: var(--m3-button-height);
+  padding: 0 var(--m3-button-padding-x);
+  font: var(--m3-label-large);
+  line-height: 1;
+  font-weight: 500;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--m3-shape-full);
+}
+
+html .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.is-link):not(.is-text):not(.el-button--text) {
+  background-color: var(--m3-surface-container-lowest);
+  border-color: var(--m3-outline);
+  color: var(--m3-on-surface);
+
+  &:hover,
+  &:focus {
+    background-color: color-mix(in srgb, var(--m3-on-surface) 8%, var(--m3-surface-container-lowest));
+    border-color: var(--m3-outline);
+    border-width: 1px;
+    color: var(--m3-on-surface);
+  }
+}
+
+html .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
+  background-color: var(--m3-primary);
+  border-color: var(--m3-primary);
+  color: var(--m3-on-primary);
+
+  &:hover,
+  &:focus {
+    background-color: color-mix(in srgb, var(--m3-primary) 88%, #000);
+    border-color: color-mix(in srgb, var(--m3-primary) 88%, #000);
+    border-width: 1px;
+    color: var(--m3-on-primary);
+  }
+}
+
+html .el-button--large {
+  --el-button-size: var(--m3-button-height-large);
+  height: var(--m3-button-height-large);
+  min-height: var(--m3-button-height-large);
+  padding: 0 16px;
+}
+
+html .el-button--small {
+  --el-button-size: var(--m3-button-height-small);
+  height: var(--m3-button-height-small);
+  min-height: var(--m3-button-height-small);
+  padding: 0 8px;
+  font: var(--m3-label-medium);
+  line-height: 1;
+}
+
+html .el-button.is-circle {
+  width: var(--m3-button-height);
+  padding: 0;
+}
+
+html .el-button--large.is-circle {
+  width: var(--m3-button-height-large);
+}
+
+html .el-button--small.is-circle {
+  width: var(--m3-button-height-small);
+}
+
+html .el-button.is-link,
+html .el-button.is-text,
+html .el-button--text {
+  height: auto;
+  min-height: 0;
+  padding: 2px 4px;
+  border-color: transparent;
+  background-color: transparent;
+}
+
 .el-notification {
     z-index: 99999 !important;
 }
@@ -609,22 +692,20 @@ html {
   .el-dialog__footer {
     .el-button {
       min-width: 80px;
-      height: 32px;
+      height: var(--m3-button-height);
+      min-height: var(--m3-button-height);
       padding: 0 16px;
-      border-radius: var(--m3-shape-full);
-      font: var(--m3-label-large);
-      font-weight: 500;
     }
 
     .el-button:not(.el-button--primary) {
-      background: transparent;
-      border-color: var(--m3-outline-variant);
-      color: var(--m3-primary);
+      background: var(--m3-surface-container-lowest);
+      border-color: var(--m3-outline);
+      color: var(--m3-on-surface);
 
       &:hover {
-        background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+        background: color-mix(in srgb, var(--m3-on-surface) 8%, var(--m3-surface-container-lowest));
         border-color: var(--m3-outline);
-        color: var(--m3-primary);
+        color: var(--m3-on-surface);
       }
     }
   }
@@ -716,28 +797,50 @@ html {
     [class*='el-icon'] + span {
         margin-left: 6px;
     }
-
-    span {
-        vertical-align: text-top !important;
-    }
 }
 
-/* M3 segmented button（全局）：el-radio-button 组统一走此规格
-   整组满圆角描边容器，段间细分隔线；选中 secondary-container 而非实心 primary */
+/* 分段控件：外沿 32px（含 1px 边框），段内 flex 居中，和旁边的按钮/下拉一条中线 */
 .el-radio-group:has(> .el-radio-button) {
     display: inline-flex;
-    border: 1px solid var(--m3-outline-variant);
+    align-items: stretch;
+    height: var(--m3-button-height);
+    box-sizing: border-box;
+    border: 1px solid var(--m3-outline);
     border-radius: var(--m3-shape-full);
     overflow: hidden;
     background: var(--m3-surface-container-lowest);
+    vertical-align: middle;
+    line-height: 0;
+}
+
+.el-radio-group:has(> .el-radio-button) .el-radio-button {
+    display: flex;
+    height: 100%;
+    vertical-align: stretch;
 }
 
 .el-radio-group:has(> .el-radio-button) .el-radio-button__inner {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0 14px !important;
+    font: var(--m3-label-large);
+    line-height: 1 !important;
+    border-radius: 0 !important;
+    box-sizing: border-box;
     background-color: transparent !important;
     box-shadow: none !important;
     color: var(--m3-on-surface) !important;
+    border: none !important;
     border-left: 1px solid var(--m3-outline-variant) !important;
     transition: background-color var(--m3-motion-state);
+
+    span {
+        display: block;
+        line-height: 1;
+        vertical-align: middle;
+    }
 
     &:hover {
         background-color: color-mix(in srgb, var(--m3-on-surface) var(--m3-state-hover-percent, 8%), transparent) !important;
@@ -752,7 +855,6 @@ html {
     color: var(--m3-primary) !important;
     background-color: var(--m3-primary-container) !important;
     box-shadow: none !important;
-    border-color: var(--m3-outline-variant) !important;
 
     &:hover {
         color: var(--m3-primary) !important;

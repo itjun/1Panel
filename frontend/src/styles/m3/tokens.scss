@@ -41,9 +41,18 @@
   --m3-surface-container-highest: #e4e7ed;
 
   // ---------- 布局语义色（全站统一，页面禁止另造底色）----------
-  --m3-shell: var(--m3-surface-container-low); /* 外壳浅蓝 */
-  --m3-canvas: var(--m3-surface-container); /* 内容区灰画布 */
+  --m3-shell: var(--m3-surface-container-low); /* 功能栏：有色壳蓝 */
+  --m3-list: #eef0f3; /* 列表栏：去色浅冷灰，介于壳与白画布 */
+  --m3-canvas: var(--m3-surface-container); /* 旧画布灰，卡片页内仍可用 */
+  --m3-content: #ffffff; /* 内容列：最亮白画布 */
   --m3-card: var(--m3-surface-container-lowest); /* 卡片/表格白底 */
+  --m3-chrome-height: 56px; /* 内容列通栏：对齐企微内容头，32px 控件上下各 12px */
+  --m3-rail-width: 80px; /* 功能栏宽：包住 mac 红绿灯后再接内容分界线 */
+  /* 默认档操作按钮：实心/空心同一盒子（含 1px 边框） */
+  --m3-button-height: 32px;
+  --m3-button-height-small: 24px;
+  --m3-button-height-large: 40px;
+  --m3-button-padding-x: 12px;
   --m3-table-row: var(--m3-card); /* 表格偶数行（白） */
   --m3-table-zebra: var(--m3-primary-container); /* 表格奇数行（浅蓝） */
   --m3-table-header: var(--m3-card); /* 表头白底 */
@@ -213,8 +222,12 @@ html.dark {
   --m3-surface-container-highest: #2f3848;
 
   --m3-shell: var(--m3-surface-container-low);
+  --m3-list: #151922; /* 去色，介于壳蓝与内容 */
   --m3-canvas: var(--m3-surface-container);
+  --m3-content: var(--m3-surface-container); /* 暗色内容列略亮于列表 */
   --m3-card: var(--m3-surface-container-lowest);
+  --m3-chrome-height: 56px;
+  --m3-rail-width: 80px;
   --m3-table-row: var(--m3-card);
   --m3-table-zebra: color-mix(in srgb, var(--m3-primary) 18%, var(--m3-card));
   --m3-table-header: var(--m3-card);
