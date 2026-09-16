@@ -1,7 +1,8 @@
 /**
- * 侧栏拖拽：主机迁组 / 置顶 + 分组移树（指针拖拽，不依赖 HTML5 DnD）。
+ * 主机/分组拖拽：迁组、置顶、分组移树（指针拖拽，不依赖 HTML5 DnD）。
+ * 由 App provide，侧栏与看板共用同一套 drop 命中与幽灵。
  */
-import { onBeforeUnmount, ref } from "vue";
+import { inject, onBeforeUnmount, ref, type InjectionKey } from "vue";
 import { ElMessage } from "element-plus";
 import {
   MAX_GROUP_DEPTH,
@@ -322,4 +323,17 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     moveHostToGroup,
     moveGroupToParent,
   };
+}
+
+export type HostDragApi = ReturnType<typeof useHostDrag>;
+
+export const hostDragKey: InjectionKey<HostDragApi> = Symbol("hostDrag");
+
+/** 侧栏 / 看板注入 App 提供的拖拽 API */
+export function useInjectedHostDrag(): HostDragApi {
+  const api = inject(hostDragKey);
+  if (!api) {
+    throw new Error("useInjectedHostDrag() 须在 App provide hostDrag 之后使用");
+  }
+  return api;
 }

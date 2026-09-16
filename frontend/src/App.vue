@@ -101,6 +101,24 @@
     <AgentInstallDialog />
     <AgentCheckDialog />
 
+    <!-- 主机/分组拖拽幽灵：侧栏与看板共用 -->
+    <Teleport to="body">
+      <div
+        v-if="dragState?.active"
+        :class="dragState.kind === 'group' ? 'group-drag-ghost' : 'host-drag-ghost'"
+        :style="{
+          left: dragState.x + 12 + 'px',
+          top: dragState.y + 12 + 'px',
+        }"
+      >
+        <el-icon>
+          <Folder v-if="dragState.kind === 'group'" />
+          <Monitor v-else />
+        </el-icon>
+        {{ dragState.label }}
+      </div>
+    </Teleport>
+
     <!-- 壳层右键：展开/收起侧栏 -->
     <Teleport to="body">
       <div
@@ -144,6 +162,7 @@ import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
 import { chromeDragKey, type ChromeDragApi } from "@/composables/useChromeDrag";
+import { hostDragKey, useHostDrag } from "@/composables/useHostDrag";
 import {
   startAppWatchAlertPoll,
   stopAppWatchAlertPoll,
@@ -156,8 +175,12 @@ import {
 } from "@/utils/hostResourceAlerts";
 import { useLocalMetricsStore } from "@/stores/localMetrics";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
+import { Folder, Monitor } from "@element-plus/icons-vue";
 
 const app = useAppStore();
+const hostDrag = useHostDrag();
+const { dragState } = hostDrag;
+provide(hostDragKey, hostDrag);
 const alertHistory = useAlertHistoryStore();
 // 确保设置 store 初始化并应用主题/字体
 const settings = useSettingsStore();
@@ -267,7 +290,29 @@ function onSettingsEsc(e: KeyboardEvent) {
   app.closeSettings();
 }
 
-/** 设置 / 侧栏 / 添加主机 / 新建分组 / 搜索 / 刷新 / 退出 */
+/** 终端聚焦时不抢快捷键（xterm 把焦点放在 helper textarea） */
+function isTerminalFocused(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  if (el.classList?.contains("xterm-helper-textarea")) return true;
+  if (el.closest?.(".xterm, .term-body, .term-page")) return true;
+  return false;
+}
+
+/** 在已打开主机间循环切换 */
+function cycleRunningHost(dir: 1 | -1) {
+  const list = app.runningHosts;
+  if (list.length === 0) return;
+  const cur = app.activeTab?.kind === "host" ? app.activeTab.id : "";
+  let idx = cur ? list.indexOf(cur) : -1;
+  if (idx < 0) {
+    idx = dir === 1 ? -1 : 0;
+  }
+  const next = list[(idx + dir + list.length) % list.length];
+  if (next) app.openHostTab(next);
+}
+
+/** 设置 / 侧栏 / 添加主机 / 新建分组 / 搜索 / 刷新 / 退出 / 回首页 / 切主机 */
 function onGlobalKeydown(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
 
@@ -280,6 +325,20 @@ function onGlobalKeydown(e: KeyboardEvent) {
     void nextTick(() => {
       void nextTick(() => sidebarHostRef.value?.openCreateGroup?.());
     });
+    return;
+  }
+
+  // ⌘⇧H：回全部主机；⌘⇧[ / ⌘⇧]：在已打开主机间切换（终端聚焦时不拦截）
+  if (e.shiftKey && (e.code === "KeyH" || e.code === "BracketLeft" || e.code === "BracketRight")) {
+    if (isTerminalFocused()) return;
+    if (app.workspace !== "remote") return;
+    if (e.code === "KeyH") {
+      e.preventDefault();
+      app.goHome();
+      return;
+    }
+    e.preventDefault();
+    cycleRunningHost(e.code === "BracketRight" ? 1 : -1);
     return;
   }
 
@@ -519,5 +578,32 @@ onBeforeUnmount(() => {
 .chrome-ctx-menu .ctx-kbd {
   font: var(--m3-body-small);
   color: var(--m3-on-surface-variant);
+}
+
+/* 拖拽幽灵挂 body（侧栏与看板共用） */
+.host-drag-ghost,
+.group-drag-ghost {
+  position: fixed;
+  z-index: 99999;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--m3-shape-m);
+  background: var(--m3-surface-container-high);
+  color: var(--m3-on-surface);
+  font: var(--m3-label-large);
+  box-shadow: var(--m3-elevation-3);
+  border: 1px solid var(--m3-outline-variant);
+  pointer-events: none;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html.dark .host-drag-ghost,
+html.dark .group-drag-ghost {
+  background: var(--m3-surface-container-high);
+  color: var(--m3-on-surface);
 }
 </style>

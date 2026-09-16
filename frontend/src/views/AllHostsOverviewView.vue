@@ -64,15 +64,27 @@
         :nested="false"
         :is-running="(n) => app.isRunning(n)"
         :os-release="(n) => app.osReleaseMap.get(n) || ''"
+        :status-by-host="statusByHost"
         @open-host="openHost"
         @refresh-icon="onRefreshOneIcon"
+        @open-group="openGroup"
+        @open-board="openBoard"
+        @host-context="onHostContext"
       />
     </div>
+
+    <HostContextMenu
+      :menu="ctxMenu"
+      @close="closeCtxMenu"
+      @edit="(host) => editRef?.openFor(host)"
+      @move="onCtxMove"
+    />
+    <EditHostDialog ref="editRef" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { Picture, Refresh } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Events } from "@wailsio/runtime";
@@ -80,6 +92,12 @@ import AllHostsGroupBranch, {
   type HostGroupTreeNode,
 } from "@/components/AllHostsGroupBranch.vue";
 import ChromeTeleport from "@/components/ChromeTeleport.vue";
+import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
+import HostContextMenu, {
+  type CtxMenuState,
+} from "@/components/sidebar/HostContextMenu.vue";
+import { useFleetStatus } from "@/composables/useFleetStatus";
+import { useInjectedHostDrag } from "@/composables/useHostDrag";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID, type GroupNode } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
@@ -88,6 +106,13 @@ import type { main } from "@/api";
 
 const app = useAppStore();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const { cancelDrag, moveHostToGroup, suppressClick } = useInjectedHostDrag();
+const ctxMenu = ref<CtxMenuState | null>(null);
+const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
+
+/** 仅在全部主机首页可见时轮询舰队状态 */
+const fleetEnabled = computed(() => app.isHomeActive());
+const { statusByHost } = useFleetStatus({ enabled: fleetEnabled });
 
 type MenuCheckStatus = "" | "ok" | "bad";
 
@@ -172,6 +197,7 @@ function toTreeNode(n: GroupNode): HostGroupTreeNode {
     key: n.group!.id,
     title: n.group!.name || "未命名",
     hosts: n.hosts,
+    hostNames: n.subtreeHosts.map((h) => h.name),
     totalCount: n.subtreeHosts.length,
     rootIndex: n.rootIndex,
     depth: n.depth,
@@ -191,6 +217,7 @@ const groupTree = computed<HostGroupTreeNode[]>(() => {
       key: UNGROUPED_ID,
       title: "未分组",
       hosts: ug.hosts,
+      hostNames: ug.subtreeHosts.map((h) => h.name),
       totalCount: ug.subtreeHosts.length,
       rootIndex: -1,
       depth: 0,
@@ -201,7 +228,42 @@ const groupTree = computed<HostGroupTreeNode[]>(() => {
 });
 
 function openHost(name: string) {
+  if (suppressClick.value) return;
   app.openHostTab(name);
+}
+
+function closeCtxMenu() {
+  ctxMenu.value = null;
+}
+
+function onHostContext(e: MouseEvent, name: string) {
+  cancelDrag();
+  const pad = 8;
+  let x = e.clientX;
+  let y = e.clientY;
+  const approxW = 200;
+  const approxH = 480;
+  if (x + approxW > window.innerWidth - pad) x = window.innerWidth - approxW - pad;
+  if (y + approxH > window.innerHeight - pad) y = window.innerHeight - approxH - pad;
+  if (x < pad) x = pad;
+  if (y < pad) y = pad;
+  ctxMenu.value = { host: name, x, y };
+}
+
+async function onCtxMove(host: string, groupId: string) {
+  await moveHostToGroup(host, groupId || UNGROUPED_ID);
+}
+
+function openGroup(id: string, title: string) {
+  app.openGroupTab(id, title);
+}
+
+async function openBoard(groupId: string) {
+  try {
+    await api.openBoardWindow(groupId);
+  } catch (e) {
+    ElMessage.error(`打开看板失败: ${formatErr(e)}`);
+  }
 }
 
 function escapeHtml(s: string): string {
@@ -392,7 +454,7 @@ async function onRefreshIcons() {
 .group-sections {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 28px;
 }
 .menu-check-section {
   margin-bottom: 22px;

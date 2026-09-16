@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"diteng-pannel/internal/agentcli"
@@ -22,6 +23,8 @@ type HostOverviewSnapshot struct {
 	Overview monitor.Overview   `json:"overview"`
 	Disks    []monitor.DiskInfo `json:"disks"` // 物理盘/池(kind=disk) + 挂载分区(kind=mount)
 	Error    string             `json:"error,omitempty"`
+	// NotInstalled：SSH 已通，但 Agent 未装/未跑（与 SSH 掉线区分）
+	NotInstalled bool `json:"notInstalled,omitempty"`
 }
 
 // GroupOverview 一个分组的概览数据
@@ -193,6 +196,7 @@ func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int,
 			}
 			cli, err := s.agentPool.GetWithOpt(host.Name, connectOptionFromHostConfig(host))
 			if err != nil {
+				// 配置/拿客户端失败：按 SSH/配置侧问题，不标未装 Agent
 				snap.Error = err.Error()
 				results[idx] = snap
 				return
@@ -201,6 +205,10 @@ func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int,
 			var cur agentcli.CurrentResponse
 			if err := cli.GetJSON(ctx, "/metrics/current", &cur); err != nil {
 				snap.Error = err.Error()
+				// SSH 通但 Agent 未装/不可达 → 与 SSH 掉线区分
+				if errors.Is(err, agentcli.ErrNotInstalled) || errors.Is(err, agentcli.ErrAgentUnreachable) {
+					snap.NotInstalled = true
+				}
 				results[idx] = snap
 				return
 			}

@@ -14,6 +14,7 @@
       v-if="hostNavHost"
       v-show="hostNavMode"
       :host="hostNavHost"
+      :status-by-host="statusByHost"
     />
     <div v-show="!hostNavMode" class="menu-wrap" ref="menuWrapRef">
       <PinnedHostsStrip
@@ -30,50 +31,77 @@
         @context="onHostContext"
         @item-pointer-down="onHostPointerDown"
       />
-      <!-- unique-opened=false：多分组可同时展开；标题行点开分组页，箭头才负责展开/收起 -->
-      <el-menu
-        :default-active="activeId"
-        :default-openeds="openedGroups"
-        :unique-opened="false"
-      >
-        <!-- 固定首页项：回全部主机概览（与主机项同样走 el-menu 选中逻辑） -->
-        <el-menu-item
-          index="__home__"
-          class="home-item"
-          :class="{ 'is-drop-target': dropTargetId === ROOT_DROP_ID }"
+
+      <RunningHostsList title="已打开" :status-by-host="statusByHost" />
+
+      <!-- 分组目录：只列分组名 + 在线/告警摘要，点分组滚动到看板对应区块 -->
+      <div class="group-dir">
+        <div class="group-dir__head">
+          <span class="group-dir__title">分组</span>
+          <button
+            type="button"
+            class="group-dir__add"
+            v-tip="isMac ? '新建分组 (⌘⇧N)' : '新建分组 (Ctrl+Shift+N)'"
+            @click="openCreateGroup()"
+          >
+            +
+          </button>
+        </div>
+        <button
+          type="button"
+          class="group-dir__item home-item"
+          :class="{
+            'is-active': activeId === '__home__',
+            'is-drop-target': dropTargetId === ROOT_DROP_ID,
+            'is-flash': flashGroupId === ROOT_DROP_ID,
+          }"
           data-drop-group="__root__"
-          @click="app.goHome()"
+          @click="onHomeClick"
         >
           <el-icon><Monitor /></el-icon>
+          <span class="group-dir__name" data-drop-group="__root__">全部主机</span>
           <span
-            class="menu-title"
-            data-drop-group="__root__"
-          >全部主机</span>
-          <span
-            class="menu-count home-count"
-            v-tip="`已打开 ${openedCount(app.hosts)} / 共 ${app.hosts.length} 台`"
+            class="group-dir__count"
+            v-tip="`共 ${app.hosts.length} 台`"
           >
-            {{ countLabel(app.hosts) }}
+            {{ app.hosts.length }}
           </span>
-        </el-menu-item>
-        <SidebarGroupNode
-          v-for="node in app.groupNodes"
-          :key="node.group?.id || UNGROUPED_ID"
-          :node="node"
-          :active-id="activeId"
-          :drop-target-id="dropTargetId"
-          :drag-state="dragState"
-          :is-running="(n) => app.isRunning(n)"
-          :os-release="(n) => app.osReleaseMap.get(n) || ''"
-          @open-group="openGroup"
-          @group-context="onGroupContext"
-          @host-pointer-down="onHostPointerDown"
-          @host-click="onHostClick"
-          @host-dblclick="onHostDblClick"
-          @host-context="onHostContext"
-          @group-pointer-down="onGroupPointerDown"
-        />
-      </el-menu>
+        </button>
+        <button
+          v-for="entry in groupDirEntries"
+          :key="entry.id"
+          type="button"
+          class="group-dir__item"
+          :class="{
+            'is-active': activeId === entry.id,
+            'is-drop-target': dropTargetId === entry.id,
+            'is-flash': flashGroupId === entry.id,
+          }"
+          :data-drop-group="entry.id"
+          :style="{
+            paddingLeft: `${10 + Math.max(entry.depth - 1, 0) * 10}px`,
+            '--group-accent': entry.color.accent,
+            '--group-ink': entry.color.ink,
+            '--group-soft': entry.color.soft,
+          }"
+          @click="onGroupDirClick(entry.id, entry.name)"
+          @contextmenu.prevent="onGroupContext($event, entry.id, entry.name)"
+          @pointerdown="onGroupPointerDown($event, entry.id, entry.name)"
+        >
+          <span
+            class="group-dir__dot"
+            :style="{ backgroundColor: entry.color.accent }"
+          />
+          <span class="group-dir__name">{{ entry.name }}</span>
+          <span
+            class="group-dir__meta"
+            :style="{ color: entry.color.ink }"
+            v-tip="groupMetaTip(entry)"
+          >
+            {{ groupMetaLabel(entry) }}
+          </span>
+        </button>
+      </div>
     </div>
 
     <div
@@ -83,23 +111,7 @@
       @dblclick="onResizeDblClick"
     />
 
-    <!-- 拖拽幽灵：跟随指针，不依赖 HTML5 DnD（Wails/EP 菜单更稳） -->
-    <Teleport to="body">
-      <div
-        v-if="dragState?.active"
-        :class="dragState.kind === 'group' ? 'group-drag-ghost' : 'host-drag-ghost'"
-        :style="{
-          left: dragState.x + 12 + 'px',
-          top: dragState.y + 12 + 'px',
-        }"
-      >
-        <el-icon>
-          <Folder v-if="dragState.kind === 'group'" />
-          <Monitor v-else />
-        </el-icon>
-        {{ dragState.label }}
-      </div>
-    </Teleport>
+    <!-- 拖拽幽灵已提升到 App，侧栏与看板共用 -->
 
     <!-- 主机右键菜单（打开/重命名/编辑/删除/迁移分组等在子组件内处理） -->
     <HostContextMenu
@@ -287,12 +299,12 @@
 
 <script setup lang="ts">
 /**
- * 侧栏：主机/分组树、搜索输入、拖拽分组、右键菜单、宽度调整。
+ * 侧栏：置顶 + 已打开主机 + 分组目录；主机详情时切 HostFunctionNav。
  * 侧栏开关在主区壳顶；⌘F 搜索在窗口正中弹出。
  * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { Folder, Monitor } from "@element-plus/icons-vue";
+import { Monitor } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useAppStore, UNGROUPED_ID, ROOT_DROP_ID } from "@/stores/app";
 import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
@@ -302,13 +314,18 @@ import HostContextMenu, {
 import GroupContextMenu, {
   type GroupCtxMenuState,
 } from "@/components/sidebar/GroupContextMenu.vue";
-import SidebarGroupNode from "@/components/sidebar/SidebarGroupNode.vue";
 import PinnedHostsStrip from "@/components/sidebar/PinnedHostsStrip.vue";
+import RunningHostsList from "@/components/sidebar/RunningHostsList.vue";
+import DistroLogo from "@/components/DistroLogo.vue";
+import { groupColor } from "@/components/sidebar/groupColors";
 import HostFunctionNav from "@/layout/HostFunctionNav.vue";
-import { useHostDrag } from "@/composables/useHostDrag";
+import {
+  summarizeFleet,
+  useFleetStatus,
+} from "@/composables/useFleetStatus";
+import { useInjectedHostDrag } from "@/composables/useHostDrag";
 import { useSidebarResize } from "@/composables/useSidebarResize";
 import SidebarDragCap from "@/components/SidebarDragCap.vue";
-import { confirmStopHostSession } from "@/utils/hostSession";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { formatErr } from "@/utils/format";
 
@@ -325,6 +342,14 @@ const createGroupOpen = ref(false);
 const createGroupParentId = ref("");
 const newGroupName = ref("");
 const menuWrapRef = ref<HTMLElement | null>(null);
+const flashGroupId = ref("");
+let flashTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 远程侧栏可见即参与舰队轮询（与看板共享同一份 statusByHost） */
+const fleetEnabled = computed(
+  () => app.workspace === "remote" && !app.settingsOpen
+);
+const { statusByHost } = useFleetStatus({ enabled: fleetEnabled });
 
 const groupSettingsOpen = ref(false);
 const groupSettingsSaving = ref(false);
@@ -340,12 +365,23 @@ const {
   dropTargetId,
   pinInsertBefore,
   suppressClick,
-  onHostPointerDown,
-  onGroupPointerDown,
+  onHostPointerDown: beginHostDrag,
+  onGroupPointerDown: beginGroupDrag,
   cancelDrag,
   moveHostToGroup,
   moveGroupToParent,
-} = useHostDrag({ isBlocked: () => resizing.value });
+} = useInjectedHostDrag();
+
+/** 调宽中不启拖拽，避免与 resize 抢指针 */
+function onHostPointerDown(e: PointerEvent, hostName: string) {
+  if (resizing.value) return;
+  beginHostDrag(e, hostName);
+}
+
+function onGroupPointerDown(e: PointerEvent, groupId: string, name: string) {
+  if (resizing.value) return;
+  beginGroupDrag(e, groupId, name);
+}
 
 const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
 
@@ -362,13 +398,44 @@ const hostNavHost = computed(() =>
   hostNavMode.value ? app.activeTab?.id || "" : ""
 );
 
-const openedGroups = computed(() => {
-  // 只默认展开顶层分组，嵌套子目录保持收起，避免「文件夹 / 主机 / 文件夹」夹杂
-  const ids = app.groupNodes
-    .filter((n) => n.group && (n.depth ?? 0) === 1)
-    .map((n) => n.group!.id);
-  if (app.groupNodes.some((n) => !n.group)) ids.push(UNGROUPED_ID);
-  return ids;
+type GroupDirEntry = {
+  id: string;
+  name: string;
+  depth: number;
+  hostNames: string[];
+  total: number;
+  color: ReturnType<typeof groupColor>;
+};
+
+/** 分组目录：树序展平，只列分组名（不含主机行）；末尾附未分组 */
+const groupDirEntries = computed<GroupDirEntry[]>(() => {
+  const out: GroupDirEntry[] = [];
+  for (const n of app.flattenGroupNodes()) {
+    const id = n.group!.id;
+    const name = n.group!.name || "未命名";
+    const hostNames = n.subtreeHosts.map((h) => h.name);
+    out.push({
+      id,
+      name,
+      depth: n.depth ?? 0,
+      hostNames,
+      total: hostNames.length,
+      color: groupColor(id, n.rootIndex),
+    });
+  }
+  const ug = app.groupNodes.find((n) => !n.group);
+  if (ug) {
+    const hostNames = ug.subtreeHosts.map((h) => h.name);
+    out.push({
+      id: UNGROUPED_ID,
+      name: "未分组",
+      depth: 0,
+      hostNames,
+      total: hostNames.length,
+      color: groupColor(UNGROUPED_ID, -1),
+    });
+  }
+  return out;
 });
 
 const searchHits = computed(() => {
@@ -397,15 +464,63 @@ function openGroup(id: string, name: string) {
   app.openGroupTab(id, name);
 }
 
-/** 已打开（后台保持会话）的主机数 */
-function openedCount(list: { name: string }[]): number {
-  return list.filter((h) => app.isRunning(h.name)).length;
+function groupMetaLabel(entry: GroupDirEntry): string {
+  if (entry.total === 0) return "0";
+  const sum = summarizeFleet(entry.hostNames, statusByHost.value);
+  if (statusByHost.value.size === 0) return `${entry.total}`;
+  return `${sum.online}/${entry.total}`;
 }
 
-/** 计数标记文案：有已打开时显示「已打开/总数」，否则仅总数 */
-function countLabel(list: { name: string }[]): string {
-  const opened = openedCount(list);
-  return opened > 0 ? `${opened}/${list.length}` : `${list.length}`;
+function groupMetaTip(entry: GroupDirEntry): string {
+  if (entry.total === 0) return "暂无主机";
+  const sum = summarizeFleet(entry.hostNames, statusByHost.value);
+  if (statusByHost.value.size === 0) {
+    return `共 ${entry.total} 台`;
+  }
+  const parts = [`${sum.online} 台在线`];
+  if (sum.noAgent > 0) parts.push(`${sum.noAgent} 台未装`);
+  if (sum.sshDown > 0) parts.push(`${sum.sshDown} 台掉线`);
+  if (sum.alert > 0) parts.push(`${sum.alert} 台告警`);
+  parts.push(`共 ${entry.total} 台`);
+  return parts.join(" · ");
+}
+
+function flashGroup(id: string) {
+  flashGroupId.value = id;
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => {
+    flashGroupId.value = "";
+    flashTimer = null;
+  }, 1200);
+}
+
+function onHomeClick() {
+  app.goHome();
+  flashGroup(ROOT_DROP_ID);
+  void nextTick(() => {
+    const el = document.querySelector(".all-hosts");
+    el?.scrollTo?.({ top: 0, behavior: "smooth" });
+  });
+}
+
+/** 优先滚动并高亮看板对应分组；找不到锚点时退回打开分组页 */
+async function onGroupDirClick(id: string, name: string) {
+  if (suppressClick.value) return;
+  if (!app.isHomeActive()) {
+    app.goHome();
+    await nextTick();
+    await nextTick();
+  }
+  const sel = `[data-group-anchor="${CSS.escape(id)}"]`;
+  const el = document.querySelector(sel) as HTMLElement | null;
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    flashGroup(id);
+    el.classList.add("is-group-flash");
+    window.setTimeout(() => el.classList.remove("is-group-flash"), 1200);
+    return;
+  }
+  openGroup(id, name);
 }
 
 /** 收起搜索并清空 query（收起即重置） */
@@ -431,12 +546,6 @@ function onHostClick(name: string) {
   app.openHostTab(name);
   // 打开主机即收起搜索、清空过滤（搜索目的达成）
   closeSearch();
-}
-
-/** 双击运行中主机：与右键「停止会话」同一确认流 */
-async function onHostDblClick(name: string) {
-  cancelDrag();
-  await confirmStopHostSession(app, name);
 }
 
 // ---------- 主机 / 分组右键菜单 ----------
@@ -570,9 +679,9 @@ async function onCtxMove(host: string, groupId: string) {
 /** 侧栏空白处右键：添加主机 / 新建分组 */
 function onBlankContext(e: MouseEvent) {
   if (hostNavMode.value) return;
-  // 命中主机行/置顶项/分组标题/按钮/输入框等交互元素时不接管
+  // 命中主机行/置顶项/分组目录项/按钮/输入框等交互元素时不接管
   const el = (e.target as HTMLElement).closest(
-    ".host-item, .pinned-item, .pinned-strip, .el-menu-item, .el-sub-menu__title, .group-title-row, button, input, .sidebar-resize-handle"
+    ".host-item, .pinned-item, .pinned-strip, .running-hosts__item, .group-dir__item, .group-dir__add, button, input, .sidebar-resize-handle"
   );
   if (el) return;
   e.preventDefault();
@@ -657,6 +766,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onWindowKeydown);
   window.removeEventListener("keydown", onNumSwitchKeydown);
+  if (flashTimer) clearTimeout(flashTimer);
 });
 </script>
 
@@ -824,8 +934,96 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ---------- 首页「全部主机」计数靠右 ---------- */
-.menu-title {
+/* ---------- 分组目录 ---------- */
+.group-dir {
+  padding: 4px 6px 12px;
+  border-top: 1px solid var(--m3-outline-variant);
+  margin-top: 4px;
+}
+
+.group-dir__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 4px;
+}
+
+.group-dir__title {
+  flex: 1;
+  min-width: 0;
+  font: var(--m3-label-small);
+  font-weight: 600;
+  color: var(--m3-on-surface-variant);
+}
+
+.group-dir__add {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
+    color: var(--m3-on-surface);
+  }
+}
+
+.group-dir__item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  margin: 1px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+  font: var(--m3-label-large);
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+  transition: background-color var(--m3-motion-state);
+
+  &:hover {
+    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
+    color: var(--m3-on-surface);
+  }
+
+  &.is-active,
+  &.is-flash {
+    background: color-mix(
+      in srgb,
+      var(--group-accent, var(--m3-primary)) 12%,
+      transparent
+    );
+    color: var(--group-ink, var(--m3-primary));
+  }
+
+  &.is-drop-target {
+    background: color-mix(in srgb, var(--m3-primary) 12%, transparent) !important;
+    outline: 2px dashed var(--m3-primary);
+    outline-offset: -2px;
+  }
+}
+
+.group-dir__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.group-dir__name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -833,27 +1031,23 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.home-item.is-drop-target {
-  background: color-mix(in srgb, var(--m3-primary) 12%, transparent) !important;
-  outline: 2px dashed var(--m3-primary);
-  outline-offset: -2px;
-  border-radius: 8px;
-}
-
-.menu-count {
-  margin-left: auto;
+.group-dir__count,
+.group-dir__meta {
+  flex-shrink: 0;
   font-size: 11px;
   font-weight: 600;
-  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
   min-width: 18px;
   height: 18px;
   line-height: 18px;
   text-align: center;
   padding: 0 6px;
   border-radius: 9px;
+  background: var(--group-soft, var(--m3-sidebar-active-bg));
+  color: var(--group-ink, var(--m3-sidebar-active-fg));
 }
 
-.home-count {
+.home-item .group-dir__count {
   color: var(--m3-sidebar-active-fg);
   background: var(--m3-sidebar-active-bg);
 }
@@ -889,33 +1083,6 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* 幽灵挂 body，非 scoped；右键菜单样式在 HostContextMenu.vue 中统一提供 */
-.host-drag-ghost,
-.group-drag-ghost {
-  position: fixed;
-  z-index: 99999;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: var(--m3-shape-m);
-  background: var(--m3-surface-container-high);
-  color: var(--m3-on-surface);
-  font: var(--m3-label-large);
-  box-shadow: var(--m3-elevation-3);
-  border: 1px solid var(--m3-outline-variant);
-  pointer-events: none;
-  max-width: 240px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-html.dark .host-drag-ghost,
-html.dark .group-drag-ghost {
-  background: var(--m3-surface-container-high);
-  color: var(--m3-on-surface);
-}
-
 /* ⌘F 搜索对话框（append-to-body） */
 .host-search-dialog.el-dialog {
   border-radius: var(--m3-shape-xl);

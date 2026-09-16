@@ -40,14 +40,16 @@
         v-tip="'通知'"
         @click="app.setWorkspace('notify')"
       >
-        <el-badge
-          :value="alertHistory.unread"
-          :hidden="alertHistory.unread <= 0"
-          :max="99"
-          class="rail-badge"
-        >
-          <el-icon><Bell /></el-icon>
-        </el-badge>
+        <span class="rail-icon-slot">
+          <span
+            v-if="alertHistory.unread > 0"
+            class="rail-count"
+            :aria-label="'未读 ' + alertHistory.unread"
+          >
+            {{ alertHistory.unread > 99 ? "99+" : alertHistory.unread }}
+          </span>
+          <el-icon v-else><Bell /></el-icon>
+        </span>
         <span class="rail-label">通知</span>
       </button>
       <button
@@ -163,16 +165,30 @@ function onRemoteClick() {
   }
 }
 
-.rail-badge {
+/* 图标槽：铃铛或未读数字都占同一居中位置 */
+.rail-icon-slot {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   line-height: 1;
-  overflow: visible;
+}
 
-  :deep(.el-badge__content) {
-    border: none;
-    transform: translateY(-2px) translateX(2px);
-    pointer-events: none;
-  }
+.rail-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 11px;
+  box-sizing: border-box;
+  background: var(--el-color-danger, #f56c6c);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .rail-label {

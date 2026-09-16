@@ -1,27 +1,20 @@
 <template>
   <div class="host-fn">
     <button type="button" class="host-fn__back" @click="app.goHome()">
-      ← 全部主机
+      <span class="host-fn__back-arrow" aria-hidden="true">←</span>
+      <span class="host-fn__back-text">全部主机</span>
     </button>
 
-    <el-dropdown trigger="click" @command="onSwitchHost">
-      <button type="button" class="host-fn__host">
-        <span class="host-fn__host-name">{{ host }}</span>
-        <span class="host-fn__caret">▾</span>
-      </button>
-      <template #dropdown>
-        <el-dropdown-menu>
-          <el-dropdown-item
-            v-for="name in app.runningHosts"
-            :key="name"
-            :command="name"
-            :class="{ 'is-current': name === host }"
-          >
-            {{ name }}
-          </el-dropdown-item>
-        </el-dropdown-menu>
-      </template>
-    </el-dropdown>
+    <div class="host-fn__current" :title="host">
+      <span class="host-fn__current-label">当前</span>
+      <span class="host-fn__current-name">{{ host }}</span>
+    </div>
+
+    <RunningHostsList
+      compact
+      title="已打开"
+      :status-by-host="statusByHost"
+    />
 
     <nav class="host-fn__list" aria-label="主机功能">
       <button
@@ -41,11 +34,14 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import RunningHostsList from "@/components/sidebar/RunningHostsList.vue";
+import type { FleetHostStatus } from "@/composables/useFleetStatus";
 import { useAppStore } from "@/stores/app";
 import { hostSubTabButtons } from "@/constants/hostSubTabs";
 
 const props = defineProps<{
   host: string;
+  statusByHost?: Map<string, FleetHostStatus>;
 }>();
 
 const app = useAppStore();
@@ -57,10 +53,6 @@ const current = computed(
 const tabs = computed(() =>
   hostSubTabButtons(app.terminalSessionCount[props.host] || 0)
 );
-
-function onSwitchHost(name: string) {
-  if (name && name !== props.host) app.openHostTab(name);
-}
 </script>
 
 <style scoped lang="scss">
@@ -71,45 +63,68 @@ function onSwitchHost(name: string) {
   flex: 1;
 }
 
-.host-fn__back,
-.host-fn__host {
+.host-fn__back {
   appearance: none;
-  width: 100%;
+  width: calc(100% - 12px);
+  margin: 8px 6px 4px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 40px;
+  gap: 8px;
+  min-height: 44px;
   padding: 0 14px;
-  border: none;
-  background: transparent;
-  color: var(--m3-on-surface);
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+  color: var(--m3-primary);
   font: var(--m3-label-large);
+  font-weight: 700;
   cursor: pointer;
   text-align: left;
   box-sizing: border-box;
+  transition:
+    background-color var(--m3-motion-state),
+    border-color var(--m3-motion-state);
 
   &:hover {
-    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
+    background: color-mix(in srgb, var(--m3-primary) 14%, transparent);
+    border-color: color-mix(in srgb, var(--m3-primary) 40%, transparent);
   }
 }
 
-.host-fn__back {
+.host-fn__back-arrow {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.host-fn__back-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.host-fn__current {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 14px 2px;
+}
+
+.host-fn__current-label {
+  flex-shrink: 0;
+  font: var(--m3-label-small);
   color: var(--m3-on-surface-variant);
 }
 
-.host-fn__host-name {
+.host-fn__current-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font: var(--m3-label-large);
   font-weight: 600;
-}
-
-.host-fn__caret {
-  flex-shrink: 0;
-  color: var(--m3-on-surface-variant);
-  font-size: 12px;
+  color: var(--m3-on-surface);
 }
 
 .host-fn__list {
@@ -117,6 +132,8 @@ function onSwitchHost(name: string) {
   min-height: 0;
   overflow: auto;
   padding: 4px 0 8px;
+  border-top: 1px solid var(--m3-outline-variant);
+  margin-top: 4px;
 }
 
 .host-fn__item {

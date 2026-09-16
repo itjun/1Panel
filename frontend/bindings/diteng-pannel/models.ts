@@ -237,6 +237,11 @@ export interface HostOverviewSnapshot {
      */
     "disks": monitor$0.DiskInfo[] | null;
     "error"?: string;
+
+    /**
+     * NotInstalled：SSH 已通，但 Agent 未装/未跑（与 SSH 掉线区分）
+     */
+    "notInstalled"?: boolean;
 }
 
 /**
