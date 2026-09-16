@@ -296,55 +296,38 @@ body,
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-rows: 40px 1fr;
+  grid-template-rows: 1fr;
   /* 列1：工作区 rail（64px）· 列2：二级栏 · 列3：主区 */
   grid-template-columns: 64px auto 1fr;
   overflow: hidden;
   background: var(--m3-shell);
   border-radius: 0;
-  /* 内容区内缩露出 chrome */
+  /* 内容区内缩露出 chrome（顶/右/下等宽） */
   --chrome-inset: 5px;
   --chrome-content-radius: var(--m3-shape-l-inc); // 20px
   --sidebar-float-inset: 10px;
 }
 
 .app-chrome > .workspace-rail {
-  grid-row: 1 / -1;
+  grid-row: 1;
   grid-column: 1;
   min-height: 0;
   z-index: 1;
 }
 
-.app-chrome > .titlebar-left,
-.app-chrome > .titlebar-right {
-  background: transparent;
-  color: var(--m3-on-surface);
-}
-
-.app-chrome > .titlebar-left {
-  grid-row: 1;
-  grid-column: 2;
-}
-
-.app-chrome > .titlebar-right {
-  grid-row: 1;
-  grid-column: 3;
-  /* 与内容卡右缘对齐，露出右侧 chrome 边 */
-  margin-right: var(--chrome-inset);
-}
-
 .app-chrome > .panel-sidebar {
-  grid-row: 2;
+  grid-row: 1;
   grid-column: 2;
   min-height: 0;
   height: auto;
   background: transparent;
   color: var(--m3-on-surface);
+  margin-top: var(--chrome-inset);
   margin-bottom: var(--chrome-inset);
 }
 
 .app-chrome > .main-column {
-  grid-row: 2;
+  grid-row: 1;
   grid-column: 3;
 }
 
@@ -362,7 +345,7 @@ body,
   overflow: hidden;
   background: var(--m3-canvas);
   opacity: 1;
-  margin: 0 var(--chrome-inset) var(--chrome-inset) 0;
+  margin: var(--chrome-inset) var(--chrome-inset) var(--chrome-inset) 0;
   border-radius: var(--chrome-content-radius);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.05),
