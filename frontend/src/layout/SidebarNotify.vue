@@ -4,6 +4,7 @@
     :class="{ 'is-resizing': resizing }"
     :style="{ width: width + 'px' }"
   >
+    <SidebarDragCap />
     <div class="menu-wrap">
       <el-menu :default-active="activeId">
         <el-menu-item
@@ -33,6 +34,7 @@
 import { computed } from "vue";
 import { useAppStore, type NotifySection } from "@/stores/app";
 import { useSidebarResize } from "@/composables/useSidebarResize";
+import SidebarDragCap from "@/components/SidebarDragCap.vue";
 
 const app = useAppStore();
 const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
@@ -59,6 +61,9 @@ const activeId = computed(() => {
   min-width: 160px;
   max-width: 280px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 
   &:not(.is-resizing) {
     transition: width var(--m3-motion-state);

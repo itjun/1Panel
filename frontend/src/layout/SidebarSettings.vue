@@ -4,6 +4,7 @@
     :class="{ 'is-resizing': resizing }"
     :style="{ width: width + 'px' }"
   >
+    <SidebarDragCap />
     <div class="menu-wrap">
       <el-menu :default-active="settings.lastNavGroup">
         <el-menu-item
@@ -36,6 +37,7 @@ import {
   useSettingsStore,
 } from "@/stores/settings";
 import { useSidebarResize } from "@/composables/useSidebarResize";
+import SidebarDragCap from "@/components/SidebarDragCap.vue";
 
 const settings = useSettingsStore();
 const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
@@ -47,6 +49,8 @@ const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
   min-width: 180px;
   max-width: 320px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 
   &:not(.is-resizing) {
     transition: width var(--m3-motion-state);
