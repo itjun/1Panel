@@ -150,10 +150,6 @@ export function useFileNavigation(
   }
 
   function addTab() {
-    if (pathTabs.value.length >= 8) {
-      ElMessage.warning("最多 8 个路径标签");
-      return;
-    }
     const id = `tab-${++tabSeq}`;
     const start = homeDir.value || "/";
     pathTabs.value.push({ id, label: tabLabelFromPath(start), path: start });

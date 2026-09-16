@@ -19,6 +19,8 @@ declare module 'vue' {
     BoardModeOverlay: typeof import('./components/board/BoardModeOverlay.vue')['default']
     BoardSparkline: typeof import('./components/board/BoardSparkline.vue')['default']
     BoardWindowApp: typeof import('./components/board/BoardWindowApp.vue')['default']
+    ChromeScope: typeof import('./components/ChromeScope.vue')['default']
+    ChromeTeleport: typeof import('./components/ChromeTeleport.vue')['default']
     CodePane: typeof import('./components/CodePane.vue')['default']
     DistroLogo: typeof import('./components/DistroLogo.vue')['default']
     EditHostDialog: typeof import('./components/sidebar/EditHostDialog.vue')['default']
@@ -89,6 +91,7 @@ declare module 'vue' {
     UploadProgressDialog: typeof import('./components/files/UploadProgressDialog.vue')['default']
     VChartLine: typeof import('./components/VChartLine.vue')['default']
     VChartPie: typeof import('./components/VChartPie.vue')['default']
+    ViewToolbar: typeof import('./components/ViewToolbar.vue')['default']
     WinWindowControls: typeof import('./components/WinWindowControls.vue')['default']
   }
   export interface GlobalDirectives {

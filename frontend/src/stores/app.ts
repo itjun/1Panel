@@ -21,6 +21,7 @@ export type SubTab =
   | "processes"
   | "network"
   | "hosts"
+  | "apt"
   | "files"
   | "services"
   | "certs"
@@ -331,6 +332,19 @@ export const useAppStore = defineStore("app", () => {
   /** 后台常挂的主机会话（按打开顺序） */
   const hostSessions = ref<Record<string, HostSession>>({});
   const runningOrder = ref<string[]>([]);
+  /** 每台主机当前打开的终端会话数（给「终端」标签角标） */
+  const terminalSessionCount = ref<Record<string, number>>({});
+  function setTerminalSessionCount(host: string, n: number) {
+    const name = (host || "").trim();
+    if (!name) return;
+    const nextN = Math.max(0, Math.floor(n));
+    const cur = terminalSessionCount.value[name] || 0;
+    if (cur === nextN) return;
+    const next = { ...terminalSessionCount.value };
+    if (nextN <= 0) delete next[name];
+    else next[name] = nextN;
+    terminalSessionCount.value = next;
+  }
   /** 访问过的分组页（常驻保活，按打开顺序） */
   const visitedGroupIds = ref<string[]>([]);
 
@@ -623,6 +637,7 @@ export const useAppStore = defineStore("app", () => {
     delete next[name];
     hostSessions.value = next;
     runningOrder.value = runningOrder.value.filter((n) => n !== name);
+    setTerminalSessionCount(name, 0);
     if (activeView.value?.kind === "host" && activeView.value.id === name) {
       const fallback = runningOrder.value[runningOrder.value.length - 1];
       if (fallback) {
@@ -709,6 +724,26 @@ export const useAppStore = defineStore("app", () => {
   function isHostSubActive(host: string, sub: SubTab): boolean {
     const t = activeView.value;
     return t?.kind === "host" && t.id === host && t.subTab === sub;
+  }
+
+  function isLocalSectionActive(section: LocalSection): boolean {
+    return (
+      !settingsOpen.value &&
+      workspace.value === "local" &&
+      localSection.value === section
+    );
+  }
+
+  function isNotifySectionActive(section: NotifySection): boolean {
+    return (
+      !settingsOpen.value &&
+      workspace.value === "notify" &&
+      notifySection.value === section
+    );
+  }
+
+  function isHomeActive(): boolean {
+    return !settingsOpen.value && workspace.value === "remote" && !activeTab.value;
   }
 
   /** 某主机会话当前是否可见（不含子页维度：会话被切走即视为不可见） */
@@ -839,6 +874,11 @@ export const useAppStore = defineStore("app", () => {
       runningOrder.value = runningOrder.value.map((n) =>
         n === oldName ? next : n
       );
+      const termN = terminalSessionCount.value[oldName] || 0;
+      if (termN > 0) {
+        setTerminalSessionCount(oldName, 0);
+        setTerminalSessionCount(next, termN);
+      }
     }
     if (activeView.value?.kind === "host" && activeView.value.id === oldName) {
       activeView.value = {
@@ -886,6 +926,8 @@ export const useAppStore = defineStore("app", () => {
     iconsRefreshing,
     pendingTerminalCmd,
     hostSessions,
+    terminalSessionCount,
+    setTerminalSessionCount,
     runningHosts,
     runningOrder,
     visitedGroupIds,
@@ -924,6 +966,9 @@ export const useAppStore = defineStore("app", () => {
     goHome,
     setSubTab,
     isHostSubActive,
+    isLocalSectionActive,
+    isNotifySectionActive,
+    isHomeActive,
     isHostVisible,
     isGroupVisible,
     stopHost,

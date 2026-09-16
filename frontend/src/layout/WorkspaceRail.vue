@@ -5,16 +5,17 @@
     @dblclick="chrome.toggleMaximise()"
     @contextmenu.prevent="chrome.openMenu($event)"
   >
+    <!-- 整条功能条右键：展开/收起侧栏（⌘B）；按钮区也要打开，不能 stop 掉 -->
     <!-- 顶留 40px：mac 红绿灯落在此处 -->
     <div class="rail-traffic" aria-hidden="true" />
 
-    <div class="rail-nav no-drag" @dblclick.stop @contextmenu.stop>
+    <div class="rail-nav no-drag" @dblclick.stop @contextmenu.prevent.stop="chrome.openMenu($event)">
       <button
         type="button"
         class="rail-btn"
         :class="{ active: !app.settingsOpen && app.workspace === 'remote' }"
         v-tip="'远程'"
-        @click="app.setWorkspace('remote')"
+        @click="onRemoteClick"
       >
         <el-icon><Monitor /></el-icon>
         <span class="rail-label">远程</span>
@@ -31,7 +32,7 @@
       </button>
     </div>
 
-    <div class="rail-footer no-drag" @dblclick.stop @contextmenu.stop>
+    <div class="rail-footer no-drag" @dblclick.stop @contextmenu.prevent.stop="chrome.openMenu($event)">
       <button
         type="button"
         class="rail-btn"
@@ -73,6 +74,18 @@ const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
 const chrome = useChromeDrag();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+
+function onRemoteClick() {
+  if (
+    !app.settingsOpen &&
+    app.workspace === "remote" &&
+    app.activeTab?.kind === "host"
+  ) {
+    app.goHome();
+    return;
+  }
+  app.setWorkspace("remote");
+}
 </script>
 
 <style scoped lang="scss">
@@ -81,8 +94,8 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   flex-direction: column;
   align-items: center;
   box-sizing: border-box;
-  width: 64px;
-  min-width: 64px;
+  width: var(--m3-rail-width, 80px);
+  min-width: var(--m3-rail-width, 80px);
   height: 100%;
   min-height: 0;
   padding: 0 0 8px;

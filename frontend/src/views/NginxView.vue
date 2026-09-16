@@ -1,7 +1,6 @@
 <template>
   <div class="nginx-page page-panel">
     <div class="page-toolbar nginx-toolbar">
-      <span class="panel-section-title">Nginx 配置</span>
       <span class="page-toolbar__hint nginx-path">/etc/nginx/conf.d</span>
       <div class="page-toolbar__actions">
         <el-button :loading="nginxLoading" @click="loadNginx">刷新</el-button>
@@ -182,7 +181,6 @@ watch(
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border-top: 1px solid var(--m3-outline-variant);
 }
 
 .nginx-files {
@@ -293,10 +291,7 @@ watch(
   }
 }
 
-/* 工具栏：贴顶，底部分隔线交给下方分栏 */
 .nginx-toolbar {
   margin: 0;
-  padding: 14px 20px;
-  border-bottom: none;
 }
 </style>

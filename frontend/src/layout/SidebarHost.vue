@@ -1,12 +1,21 @@
 <template>
   <aside
     class="panel-sidebar"
-    :class="{ 'is-resizing': resizing, 'is-host-dragging': !!dragState }"
+    :class="{
+      'is-resizing': resizing,
+      'is-host-dragging': !!dragState,
+      'is-fn-nav': hostNavMode,
+    }"
     :style="{ width: width + 'px' }"
     @contextmenu="onBlankContext"
   >
     <SidebarDragCap />
-    <div class="menu-wrap" ref="menuWrapRef">
+    <HostFunctionNav
+      v-if="hostNavHost"
+      v-show="hostNavMode"
+      :host="hostNavHost"
+    />
+    <div v-show="!hostNavMode" class="menu-wrap" ref="menuWrapRef">
       <PinnedHostsStrip
         :hosts="app.pinnedHosts"
         :active-id="activeId"
@@ -295,6 +304,7 @@ import GroupContextMenu, {
 } from "@/components/sidebar/GroupContextMenu.vue";
 import SidebarGroupNode from "@/components/sidebar/SidebarGroupNode.vue";
 import PinnedHostsStrip from "@/components/sidebar/PinnedHostsStrip.vue";
+import HostFunctionNav from "@/layout/HostFunctionNav.vue";
 import { useHostDrag } from "@/composables/useHostDrag";
 import { useSidebarResize } from "@/composables/useSidebarResize";
 import SidebarDragCap from "@/components/SidebarDragCap.vue";
@@ -344,6 +354,13 @@ const activeId = computed(() => {
   if (app.settingsOpen) return "__settings__";
   return app.activeTabId || "__home__";
 });
+
+const hostNavMode = computed(
+  () => !app.settingsOpen && app.activeTab?.kind === "host"
+);
+const hostNavHost = computed(() =>
+  hostNavMode.value ? app.activeTab?.id || "" : ""
+);
 
 const openedGroups = computed(() => {
   // 只默认展开顶层分组，嵌套子目录保持收起，避免「文件夹 / 主机 / 文件夹」夹杂
@@ -552,6 +569,7 @@ async function onCtxMove(host: string, groupId: string) {
 
 /** 侧栏空白处右键：添加主机 / 新建分组 */
 function onBlankContext(e: MouseEvent) {
+  if (hostNavMode.value) return;
   // 命中主机行/置顶项/分组标题/按钮/输入框等交互元素时不接管
   const el = (e.target as HTMLElement).closest(
     ".host-item, .pinned-item, .pinned-strip, .el-menu-item, .el-sub-menu__title, .group-title-row, button, input, .sidebar-resize-handle"
@@ -652,6 +670,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   min-height: 0;
 
+  :deep(.host-fn) {
+    flex: 1;
+    min-height: 0;
+  }
+
   &:not(.is-resizing) {
     transition: width var(--m3-motion-state);
   }
@@ -660,6 +683,10 @@ onBeforeUnmount(() => {
   &.is-host-dragging {
     transition: none;
     user-select: none;
+  }
+
+  &.is-fn-nav .menu-wrap {
+    display: none;
   }
 }
 

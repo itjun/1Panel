@@ -1,7 +1,7 @@
 <template>
   <div class="notify-page">
     <p class="notify-page__lead">
-      全局通道总闸与企微 Webhook。某台主机是否真的收到通知，还要看「主机订阅」和「通知内容」。
+      全局通道总闸与企微 Webhook。某台主机是否真的收到通知，还要看「主机订阅」和「内容设置」。
     </p>
 
     <section class="ns-block">
@@ -239,7 +239,8 @@ function onNotifyEnabled(v: string | number | boolean) {
 
 <style scoped lang="scss">
 .notify-page {
-  max-width: 720px;
+  width: 100%;
+  max-width: none;
   padding: 12px 16px 28px;
   display: flex;
   flex-direction: column;
@@ -251,7 +252,6 @@ function onNotifyEnabled(v: string | number | boolean) {
   font: var(--m3-body-small);
   color: var(--m3-on-surface-variant);
   line-height: 1.5;
-  max-width: 48em;
 }
 
 .ns-block {

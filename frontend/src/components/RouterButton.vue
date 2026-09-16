@@ -1,5 +1,4 @@
 <template>
-  <!-- M3 Segmented：灰底上描边胶囊，选中 primary-container -->
   <div class="router_card" :class="{ compact, fluid }">
     <div class="router-nav" role="tablist">
       <div class="router-tabs-scroll">
@@ -13,8 +12,19 @@
           :aria-selected="modelValue === b.value"
           @click="emit('update:modelValue', b.value)"
         >
-          <span class="router-tab__label">{{ b.label }}</span>
-          <span v-if="b.count" class="router-tab__count">{{ b.count }}</span>
+          <el-badge
+            v-if="b.badge"
+            :value="b.badge"
+            :max="99"
+            :hidden="b.badge <= 0"
+            class="router-tab__badge"
+          >
+            <span class="router-tab__label">{{ b.label }}</span>
+          </el-badge>
+          <template v-else>
+            <span class="router-tab__label">{{ b.label }}</span>
+            <span v-if="b.count" class="router-tab__count">{{ b.count }}</span>
+          </template>
         </button>
       </div>
       <div v-if="$slots['route-button']" class="router-actions">
@@ -28,7 +38,7 @@
 withDefaults(
   defineProps<{
     modelValue: string;
-    buttons: { value: string; label: string; count?: number }[];
+    buttons: { value: string; label: string; count?: number; badge?: number }[];
     compact?: boolean;
     /** 按文案自适应宽度（语言筛选等长标签） */
     fluid?: boolean;
@@ -42,17 +52,28 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 .router_card {
   width: 100%;
   min-width: 0;
+  height: 100%;
 }
 
 .router-nav {
-  display: inline-flex;
+  display: flex;
   max-width: 100%;
+  height: 100%;
   align-items: stretch;
-  border: 1px solid var(--m3-outline-variant);
-  border-radius: var(--m3-shape-full);
-  background: var(--m3-surface-container-lowest);
   overflow: hidden;
   box-sizing: border-box;
+}
+
+.router-tab__badge {
+  display: inline-flex;
+  line-height: 1;
+  overflow: visible;
+
+  :deep(.el-badge__content) {
+    border: none;
+    transform: translateY(-2px) translateX(6px);
+    pointer-events: none;
+  }
 }
 
 .router-tabs-scroll {
@@ -60,6 +81,7 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
   align-items: stretch;
   min-width: 0;
   max-width: 100%;
+  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -70,37 +92,32 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 }
 
 .router-tab {
-  /* 等宽段：按最长文案「定时任务」定宽，文字居中，视觉整齐 */
-  flex: 0 0 80px;
-  width: 80px;
+  position: relative;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
   box-sizing: border-box;
   margin: 0;
-  padding: 0 6px;
-  height: 36px;
+  padding: 0 12px;
+  height: 100%;
+  overflow: visible;
   border: none;
   border-radius: 0;
-  border-left: 1px solid var(--m3-outline-variant);
   background: transparent;
-  color: var(--m3-on-surface);
+  color: var(--m3-on-surface-variant);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--m3-motion-state), color var(--m3-motion-state);
-
-  &:first-child {
-    border-left: none;
-  }
+  transition: color var(--m3-motion-state);
 
   &:hover:not(.is-active) {
-    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
+    color: var(--m3-on-surface);
   }
 
   &.is-active {
     color: var(--m3-primary);
-    background: var(--m3-primary-container);
+    background: transparent;
 
     .router-tab__label {
       font-weight: 600;
@@ -109,6 +126,17 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
     .router-tab__count {
       color: var(--m3-primary);
       font-weight: 700;
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 0;
+      height: 2px;
+      background: var(--m3-primary);
+      border-radius: 1px 1px 0 0;
     }
   }
 }
@@ -119,10 +147,6 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
   line-height: 20px;
   white-space: nowrap;
   letter-spacing: 0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  text-align: center;
 }
 
 .router-tab__count {
@@ -139,22 +163,21 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 10px;
-  border-left: 1px solid var(--m3-outline-variant);
 }
 
 .router_card.compact {
   display: inline-flex;
   width: max-content;
+  height: auto;
 
   .router-nav {
     width: max-content;
+    height: auto;
   }
 
   .router-tab {
-    flex: 0 0 64px;
-    width: 64px;
-    padding: 0 4px;
     height: 28px;
+    padding: 0 8px;
   }
 
   .router-tab__label {
@@ -164,16 +187,8 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
 .router_card.fluid {
   .router-tab {
-    flex: 0 0 auto;
-    width: auto;
-    min-width: 52px;
+    min-width: 0;
     padding: 0 12px;
-  }
-
-  .router-tab__label {
-    overflow: visible;
-    text-overflow: clip;
-    max-width: none;
   }
 }
 </style>

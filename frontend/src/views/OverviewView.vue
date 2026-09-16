@@ -1,5 +1,12 @@
 <template>
   <div ref="pageRef" class="overview-page">
+    <div class="page-toolbar overview-toolbar">
+      <div class="overview-ident">
+        <span class="overview-ident__name">{{ overview?.hostname || host }}</span>
+        <span class="overview-ident__ip">{{ overview?.ipAddress || "—" }}</span>
+      </div>
+    </div>
+    <div class="overview-body">
     <PageSkeleton v-if="loading && !overview" variant="overview" />
     <el-alert
       v-else-if="noSample && !overview"
@@ -33,9 +40,6 @@
             shadow="never"
             class="home-card panel-hover-card"
           >
-            <div class="card-header">
-              <span class="panel-section-title">概览</span>
-            </div>
             <el-row :gutter="0" class="stats-grid">
               <el-col :span="6" v-for="s in stats" :key="s.label">
                 <div class="stat-cell">
@@ -439,6 +443,7 @@
         </el-col>
       </el-row>
     </template>
+    </div>
 
     <div
       v-if="enlargedKey"
@@ -1072,14 +1077,49 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-/* 滚动交给外层 .content-pad；本页不设 height:100% + overflow:auto，避免双滚动条 */
 .overview-page {
   min-width: 0;
   max-width: 100%;
-  /* 首屏无数据时撑满 content-pad，否则 v-loading 转圈贴在顶部 */
-  min-height: 100%;
-  overflow: visible;
-  padding: 0 0 16px;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.overview-ident {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  height: 100%;
+}
+
+.overview-ident__name {
+  font: var(--m3-title-medium);
+  font-weight: 600;
+  color: var(--m3-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 24px;
+}
+
+.overview-ident__ip {
+  font: var(--m3-body-medium);
+  font-family: var(--m3-font-mono);
+  color: var(--m3-on-surface-variant);
+  white-space: nowrap;
+}
+
+.overview-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
   box-sizing: border-box;
 
   /* el-row gutter 用负 margin，会顶破父级宽度 → 横向滚动条 */
@@ -1092,7 +1132,6 @@ onBeforeUnmount(() => {
     max-width: 100%;
   }
 
-  /* 默认 top:50% + 负 margin 在矮容器里偏上；改用 flex 真正水平垂直居中 */
   :deep(.el-loading-mask) {
     display: flex;
     align-items: center;

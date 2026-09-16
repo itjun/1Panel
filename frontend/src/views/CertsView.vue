@@ -1,15 +1,13 @@
 <template>
   <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
-    <div class="view-toolbar enl-head-zone">
-      <div class="view-toolbar__chips">
-        <span class="toolbar-meta">/etc/nginx/cert · {{ groups.length }} 张</span>
-      </div>
-      <div class="view-toolbar__tools">
-        <el-button :icon="Plus" @click="openUpload">上传证书</el-button>
+    <ViewToolbar>
+      <span class="toolbar-meta">/etc/nginx/cert · {{ groups.length }} 张</span>
+      <template #tools>
+        <el-button type="primary" :icon="Plus" @click="openUpload">上传证书</el-button>
         <el-button :icon="Refresh" :loading="loading" @click="loadCerts">刷新</el-button>
-      </div>
-    </div>
+      </template>
+    </ViewToolbar>
     <PageSkeleton v-if="loading && !loaded" variant="table" :show-toolbar="false" />
     <template v-else-if="error && !loaded">
       <el-alert
@@ -183,6 +181,7 @@ import { formatErr } from "@/utils/format";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
+import ViewToolbar from "@/components/ViewToolbar.vue";
 
 const props = defineProps<{ host: string }>();
 

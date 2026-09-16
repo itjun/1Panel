@@ -3,10 +3,9 @@
     <el-alert v-if="error && !overview" type="error" :title="error" show-icon />
 
     <!-- 顶部工具条：不占大卡片，把纵向空间留给五张图 -->
-    <div class="monitor-toolbar">
+    <div class="page-toolbar monitor-toolbar">
       <div class="card-title-group">
-        <span class="panel-section-title">监控</span>
-        <el-radio-group v-model="rangeMode" size="small" class="range-group">
+        <el-radio-group v-model="rangeMode" class="range-group">
           <el-radio-button value="live">实时</el-radio-button>
           <el-radio-button value="30m">30分</el-radio-button>
           <el-radio-button value="1h">1时</el-radio-button>
@@ -19,7 +18,6 @@
         <span class="grain-label">粒度</span>
         <el-select
           v-model="grainMode"
-          size="small"
           class="grain-select"
           v-tip="'X 轴采样间隔；实时「自动」= agent 默认采集间隔（5 秒）'"
         >
@@ -33,18 +31,17 @@
         </el-select>
         <span v-if="grainHint" class="grain-hint">{{ grainHint }}</span>
         <el-button
-          link
-          class="card-icon-btn"
+          class="monitor-refresh"
           :icon="Refresh"
           v-tip="'刷新'"
           @click="refreshMonitor"
         />
       </div>
+    </div>
       <div v-if="rangeMode === 'custom'" class="custom-range-row">
         <el-date-picker
           v-model="customRange"
           type="datetimerange"
-          size="small"
           range-separator="至"
           start-placeholder="开始时间"
           end-placeholder="结束时间"
@@ -57,7 +54,6 @@
           最多 7 天；细粒度（5/10/15 秒）依赖 raw，长区间可能自动抽稀
         </span>
       </div>
-    </div>
 
     <!-- 两列网格：宽屏 2×2 + 底行通栏；窄屏自动单列；每卡可单独最大化 -->
     <PageSkeleton v-if="!overview && !error" variant="monitor" />
@@ -832,35 +828,55 @@ onBeforeUnmount(() => {
 }
 
 .monitor-toolbar {
-  flex-shrink: 0;
-  padding: 4px 2px 0;
+  flex-wrap: nowrap;
 }
 
 .card-title-group {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  row-gap: 4px;
+  gap: 10px;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: nowrap;
 }
 
 .range-group {
-  margin-left: 4px;
+  flex-shrink: 0;
+  height: var(--m3-button-height);
 }
 
 .grain-label {
-  margin-left: 8px;
+  flex-shrink: 0;
   color: var(--m3-on-surface-variant, #49454f);
-  font-size: 13px;
+  font: var(--m3-label-large);
+  line-height: 1;
 }
 
 .grain-select {
-  width: 96px;
+  width: 112px;
+  flex-shrink: 0;
+  height: var(--m3-button-height);
+
+  :deep(.el-select__wrapper) {
+    height: var(--m3-button-height);
+    min-height: var(--m3-button-height);
+  }
 }
 
 .grain-hint {
+  flex-shrink: 0;
   color: var(--m3-on-surface-variant, #49454f);
-  font-size: 12px;
+  font: var(--m3-body-small);
+  line-height: 1;
+}
+
+.monitor-refresh.el-button {
+  width: var(--m3-button-height);
+  min-width: var(--m3-button-height);
+  height: var(--m3-button-height);
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .custom-range-row {
@@ -869,6 +885,12 @@ onBeforeUnmount(() => {
   gap: 10px;
   flex-wrap: wrap;
   padding: 6px 0 0;
+
+  :deep(.el-input__wrapper),
+  :deep(.el-date-editor) {
+    height: var(--m3-button-height);
+    min-height: var(--m3-button-height);
+  }
 }
 .custom-range-hint {
   color: var(--m3-on-surface-variant, #49454f);

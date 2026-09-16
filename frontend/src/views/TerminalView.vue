@@ -1,7 +1,7 @@
 <template>
   <div class="term-enl">
   <div
-    class="term-page page-panel"
+    class="term-page"
     data-file-drop-target
     :class="{ 'is-dragover': dragOver }"
     @dragenter.prevent="onDragEnter"
@@ -9,20 +9,36 @@
     @dragleave.prevent="onDragLeave"
     @drop.prevent="onDropFallback"
   >
-    <!-- 会话标签：与顶部 Primary Tabs 同规格（浅色条 + 蓝下划线） -->
+    <!-- 会话标签：序号 + 可拖排序；+ 钉右侧，栏满时点 + 提示 -->
     <div class="term-bar">
-      <div class="term-tabs-scroll" role="tablist" aria-label="终端会话">
+      <div
+        ref="tabsListRef"
+        class="term-tabs-scroll"
+        :class="{ 'is-reordering': !!tabDraggingId }"
+        role="tablist"
+        aria-label="终端会话"
+        @pointerdown="onTabPointerDown"
+        @click.capture="onTabClickCapture"
+      >
         <button
           v-for="(t, idx) in sessions"
           :key="t.id"
           type="button"
           role="tab"
           class="term-tab"
-          :class="{ 'is-active': t.id === activeId, closed: t.closed }"
+          :class="{
+            'is-active': t.id === activeId,
+            closed: t.closed,
+            'is-dragging': tabDraggingId === t.id,
+          }"
+          :data-tab-id="t.id"
           :aria-selected="t.id === activeId"
+          :title="sessionTitle(t, idx)"
           @click="activate(t.id)"
+          @contextmenu.prevent.stop="onTabContextMenu($event, t.id)"
         >
-          <span class="term-tab__label">会话 {{ idx + 1 }}</span>
+          <span class="term-tab__idx">{{ idx + 1 }}</span>
+          <span class="term-tab__label">{{ sessionName(t) }}</span>
           <span v-if="t.reconnecting" class="term-tab__badge is-reconnecting">重连中</span>
           <span v-else-if="t.closed" class="term-tab__badge is-closed">已断开</span>
           <span
@@ -31,23 +47,35 @@
             @click.stop="closeSession(t.id)"
           >×</span>
         </button>
-        <button
-          type="button"
-          class="term-tab term-tab--add"
-          v-tip="'新开终端会话'"
-          @click="openNew"
-        >
-          <el-icon :size="16"><Plus /></el-icon>
-        </button>
       </div>
-      <span class="term-host" v-tip="host">{{ host }}</span>
+      <button
+        type="button"
+        class="term-tab term-tab--add"
+        v-tip="'新开终端会话'"
+        @click="openNew"
+      >
+        <el-icon :size="16"><Plus /></el-icon>
+      </button>
     </div>
 
-    <div
-      ref="containerRef"
-      class="term-body"
-      @contextmenu.prevent
-    />
+    <div class="term-stage" :class="{ 'is-empty': sessions.length === 0 }">
+      <div
+        ref="containerRef"
+        class="term-body"
+        v-show="sessions.length > 0"
+        @contextmenu.prevent
+      />
+      <div v-if="sessions.length === 0" class="term-empty">
+        <button
+          type="button"
+          class="term-empty-add"
+          @click="openNew"
+        >
+          <el-icon :size="32"><Plus /></el-icon>
+        </button>
+        <p class="term-empty-hint">点击打开终端会话</p>
+      </div>
+    </div>
 
     <!-- 拖拽上传遮罩：仅 UI 反馈；路径来自 Wails file:drop（需 data-file-drop-target） -->
     <div class="term-drop-overlay">
@@ -93,6 +121,34 @@
         <span class="ctx-kbd">⌘V</span>
       </button>
     </div>
+
+    <!-- 会话标签右键：改标题 / 复制会话 / 关闭 -->
+    <div
+      v-if="tabCtxMenu"
+      class="term-ctx"
+      :style="{ left: tabCtxMenu.x + 'px', top: tabCtxMenu.y + 'px' }"
+      @click.stop
+      @contextmenu.prevent
+    >
+      <button type="button" class="ctx-item" @click="renameSession(tabCtxMenu.id)">
+        修改标题
+      </button>
+      <button
+        type="button"
+        class="ctx-item"
+        @click="duplicateSession(tabCtxMenu.id)"
+      >
+        复制会话
+      </button>
+      <div class="ctx-sep" />
+      <button
+        type="button"
+        class="ctx-item ctx-item--danger"
+        @click="closeSession(tabCtxMenu.id)"
+      >
+        关闭会话
+      </button>
+    </div>
   </div>
   </div>
 </template>
@@ -115,7 +171,7 @@ import {
   watch,
 } from "vue";
 import { Plus, UploadFilled } from "@element-plus/icons-vue";
-import { ElMessageBox, ElNotification } from "element-plus";
+import { ElMessage, ElMessageBox, ElNotification } from "element-plus";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -128,6 +184,11 @@ import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
 import { formatErr } from "@/utils/format";
 import { registerFileDrop } from "@/utils/fileDrop";
+import {
+  TAB_BAR_FULL_MSG,
+  tabBarIsFull,
+  useTabReorder,
+} from "@/composables/useTabStrip";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
@@ -167,6 +228,8 @@ interface Session {
   closed: boolean;
   reconnecting: boolean;
   el: HTMLDivElement;
+  /** 自定义标签名；空则显示「会话」 */
+  title?: string;
   /** v3 Events.On 返回的退订函数（销毁会话时调用） */
   offData?: () => void;
   offExit?: () => void;
@@ -198,8 +261,18 @@ interface CtxMenu {
 const containerRef = ref<HTMLDivElement | null>(null);
 // shallowRef：避免 Vue 对 XTerm 实例做深度代理
 const sessions = shallowRef<Session[]>([]);
+const tabsListRef = ref<HTMLElement | null>(null);
+const {
+  draggingId: tabDraggingId,
+  onPointerDown: onTabPointerDown,
+  onClickCapture: onTabClickCapture,
+} = useTabReorder(sessions, {
+  listRef: tabsListRef,
+  itemSelector: ".term-tab:not(.term-tab--add)",
+});
 const activeId = ref<string | null>(null);
 const ctxMenu = ref<CtxMenu | null>(null);
+const tabCtxMenu = ref<{ x: number; y: number; id: string } | null>(null);
 let seq = 0;
 let opening = false;
 /** 打开新会话前暂存的 pending（避免 open 过程中 store 被清空） */
@@ -254,8 +327,6 @@ const pct = computed(() => {
   if (!t) return 0;
   return Math.min(100, Math.round((uploadState.value.uploaded / t) * 100));
 });
-
-
 function patchSession(id: string, patch: Partial<Session>) {
   sessions.value = sessions.value.map((s) =>
     s.id === id ? { ...s, ...patch } : s
@@ -285,9 +356,111 @@ function notifyDisconnect() {
   }, 2000);
 }
 
-async function openNew() {
+function sessionName(t: Session) {
+  return (t.title || "").trim() || "会话";
+}
+
+function sessionTitle(t: Session, idx: number) {
+  return `${idx + 1} ${sessionName(t)}`;
+}
+
+function shellQuote(path: string) {
+  if (path === "~") return "~";
+  return `'${path.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function dumpTermText(term: XTerm): string {
+  const buf = term.buffer.active;
+  const lines: string[] = [];
+  for (let i = 0; i < buf.length; i++) {
+    lines.push(buf.getLine(i)?.translateToString(true) ?? "");
+  }
+  return lines.join("\n");
+}
+
+/** 从提示符推断 cwd（`in ~` / `in /path`）；读不到再向 PTY 问一次 pwd */
+function inferCwdFromBuffer(term: XTerm): string | null {
+  const matches = [...dumpTermText(term).matchAll(/\bin (~|\/[^\s\[\]]+)/g)];
+  const last = matches[matches.length - 1];
+  return last?.[1] ?? null;
+}
+
+async function queryRemoteCwd(s: Session): Promise<string | null> {
+  const inferred = inferCwdFromBuffer(s.term);
+  if (inferred) return inferred;
+  if (!s.sessionID || s.closed) return null;
+  const marker = `__PANE_CWD_${Date.now()}__`;
+  try {
+    await api.writeTerminal(
+      s.sessionID,
+      `printf '%s%s\\n' '${marker}' "$PWD"\n`
+    );
+  } catch {
+    return null;
+  }
+  await new Promise((r) => setTimeout(r, 450));
+  const text = dumpTermText(s.term);
+  const hit = text.match(new RegExp(marker + "([^\\s]+)"));
+  return hit?.[1] ?? null;
+}
+
+function onTabContextMenu(ev: MouseEvent, id: string) {
+  ctxMenu.value = null;
+  const pad = 8;
+  const w = 200;
+  const h = 148;
+  let x = ev.clientX;
+  let y = ev.clientY;
+  if (x + w > window.innerWidth - pad) x = window.innerWidth - w - pad;
+  if (y + h > window.innerHeight - pad) y = window.innerHeight - h - pad;
+  tabCtxMenu.value = { x, y, id };
+}
+
+async function renameSession(id: string) {
+  tabCtxMenu.value = null;
+  const idx = sessions.value.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  const t = sessions.value[idx];
+  try {
+    const { value } = await ElMessageBox.prompt("会话标题", "修改标题", {
+      inputValue: sessionName(t),
+      confirmButtonText: "保存",
+      cancelButtonText: "取消",
+      inputValidator: (v: string) => {
+        if (!v || !v.trim()) return "标题不能为空";
+        if (v.trim().length > 32) return "最多 32 个字";
+        return true;
+      },
+    });
+    patchSession(id, { title: String(value).trim() });
+  } catch {
+    /* 取消 */
+  }
+}
+
+async function duplicateSession(id: string) {
+  tabCtxMenu.value = null;
+  const s = sessions.value.find((x) => x.id === id);
+  if (!s) return;
+  const cwd = await queryRemoteCwd(s);
+  const startCmd = cwd ? `cd ${shellQuote(cwd)}` : undefined;
+  if (!startCmd) {
+    ElMessage.info("未能读取当前目录，已打开新会话");
+  }
+  const srcTitle = (s.title || "").trim();
+  await openNew({
+    startCmd,
+    title: srcTitle ? `${srcTitle} 副本` : undefined,
+  });
+}
+
+async function openNew(opts?: { startCmd?: string; title?: string }) {
   const container = containerRef.value;
   if (!container || opening) return;
+  if (tabBarIsFull(tabsListRef.value, ".term-tab:not(.term-tab--add)")) {
+    ElMessage.warning(TAB_BAR_FULL_MSG);
+    return;
+  }
   opening = true;
 
   const id = `term-${Date.now()}-${seq++}`;
@@ -334,6 +507,7 @@ async function openNew() {
     closed: false,
     reconnecting: false,
     el,
+    title: opts?.title,
   };
   sessions.value = [...sessions.value, tab];
   activeId.value = id;
@@ -416,7 +590,7 @@ async function openNew() {
       }
       if (!first) term.write("\r\n\x1b[32m[已重新连接]\x1b[0m\r\n");
       // 若有待执行命令（如软件包「检查更新」），连接后稍等再写入
-      const pending = pendingTerminalCmd.value || pendingCmdLocal;
+      const pending = opts?.startCmd || pendingTerminalCmd.value || pendingCmdLocal;
       if (pending) {
         pendingCmdLocal = null;
         app.clearTerminalCmd();
@@ -465,9 +639,9 @@ async function openNew() {
       }
       void connect(false);
     } else {
-      // 正常退出（exit）：不重连
-      term.write("\r\n\x1b[33m[连接已关闭]\x1b[0m\r\n");
-      patchSession(id, { closed: true, reconnecting: false });
+      // 正常退出（exit / Ctrl+D）：关掉该标签，不重连、不留「已断开」尸页
+      ctl.stopped = true;
+      void removeSession(id);
     }
   });
 
@@ -527,31 +701,33 @@ async function destroySession(t: Session) {
   }
 }
 
-async function closeSession(id: string) {
+async function removeSession(id: string) {
   const idx = sessions.value.findIndex((x) => x.id === id);
   if (idx < 0) return;
   const t = sessions.value[idx];
-  // 手动关闭前确认：会话断开不可恢复
-  try {
-    await ElMessageBox.confirm(
-      `确定关闭「会话 ${idx + 1}」吗？该终端的远程连接将断开。`,
-      "关闭会话",
-      { type: "warning", confirmButtonText: "关闭", cancelButtonText: "取消" }
-    );
-  } catch {
-    return; // 用户取消
-  }
   await destroySession(t);
   const next = sessions.value.filter((x) => x.id !== id);
   sessions.value = next;
   if (activeId.value === id) {
     activeId.value = next.length ? next[next.length - 1].id : null;
   }
-  if (next.length === 0) {
-    // 全部关掉后自动再开一个，避免空壳
-    await nextTick();
-    void openNew();
+}
+
+async function closeSession(id: string) {
+  tabCtxMenu.value = null;
+  const idx = sessions.value.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  const t = sessions.value[idx];
+  try {
+    await ElMessageBox.confirm(
+      `确定关闭「${sessionTitle(t, idx)}」吗？该终端的远程连接将断开。`,
+      "关闭会话",
+      { type: "warning", confirmButtonText: "关闭", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
   }
+  await removeSession(id);
 }
 
 function activate(id: string) {
@@ -696,6 +872,12 @@ async function teardownAll() {
   }
 }
 
+watch(
+  () => sessions.value.length,
+  (n) => app.setTerminalSessionCount(props.host, n),
+  { immediate: true }
+);
+
 // 切换会话：把对应 DOM 挂回容器并 fit
 watch(activeId, () => {
   void mountActive();
@@ -715,6 +897,7 @@ function flushPendingTerminalCmd(cmd: string | null | undefined) {
     return;
   }
   pendingCmdLocal = cmd;
+  if (sessions.value.length === 0) void openNew();
 }
 
 watch(pendingTerminalCmd, (cmd) => {
@@ -724,10 +907,11 @@ watch(pendingTerminalCmd, (cmd) => {
 // 换主机：关掉旧会话，重新开
 watch(
   () => props.host,
-  async () => {
+  async (next, prev) => {
+    if (prev) app.setTerminalSessionCount(prev, 0);
     await teardownAll();
     await nextTick();
-    void openNew();
+    app.setTerminalSessionCount(next, sessions.value.length);
   }
 );
 
@@ -770,6 +954,7 @@ function onWinResize() {
 
 function onDocClick() {
   ctxMenu.value = null;
+  tabCtxMenu.value = null;
 }
 
 /** 浏览器 online：本机网络恢复后，立刻踢所有重连中的 Tab */
@@ -801,10 +986,7 @@ onMounted(() => {
     });
     resizeObs.observe(containerRef.value);
   }
-  // 等容器布局稳定再开
-  setTimeout(() => {
-    if (sessions.value.length === 0) void openNew();
-  }, 50);
+  // 默认不自动开会话；概览「安装」等投递命令时由 flushPendingTerminalCmd 再开
   // v3：拖放经 LIFO 分发器，仅在终端页激活时注册（KeepAlive 失活即出栈）；
   // 上传进度各自订阅
   offProgress = Events.On(
@@ -847,6 +1029,7 @@ onBeforeUnmount(() => {
   offDrop?.();
   offDrop = null;
   offProgress?.();
+  app.setTerminalSessionCount(props.host, 0);
   if (uploadToastTimer) {
     clearTimeout(uploadToastTimer);
     uploadToastTimer = null;
@@ -885,13 +1068,17 @@ onBeforeUnmount(() => {
 .term-bar {
   flex-shrink: 0;
   display: flex;
-  align-items: stretch;
-  gap: 12px;
-  min-height: 44px;
-  padding: 0 12px 0 4px;
+  align-items: center;
+  gap: 4px;
+  height: var(--m3-chrome-height);
+  min-height: var(--m3-chrome-height);
+  max-height: var(--m3-chrome-height);
+  padding: 0 20px 0 4px;
+  overflow: hidden;
   border-bottom: 1px solid var(--m3-outline-variant);
   background: var(--m3-surface-container-lowest);
   box-sizing: border-box;
+  user-select: none;
 }
 
 .term-tabs-scroll {
@@ -918,12 +1105,12 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 0 14px;
   min-width: 72px;
-  height: 44px;
+  height: var(--m3-chrome-height, 40px);
   border: none;
   border-radius: 0;
   background: transparent;
   color: var(--m3-on-surface-variant);
-  cursor: pointer;
+  cursor: grab;
   position: relative;
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
@@ -962,10 +1149,17 @@ onBeforeUnmount(() => {
     text-decoration: line-through;
   }
 
+  &.is-dragging {
+    opacity: 0.45;
+  }
+
   &--add {
-    min-width: 44px;
+    flex-shrink: 0;
+    min-width: 32px;
+    width: 32px;
     padding: 0;
     justify-content: center;
+    cursor: pointer;
     color: var(--m3-on-surface-variant);
 
     &::after {
@@ -979,11 +1173,26 @@ onBeforeUnmount(() => {
   }
 }
 
+.term-tabs-scroll.is-reordering .term-tab:not(.term-tab--add) {
+  cursor: grabbing;
+}
+
+.term-tab__idx {
+  font: var(--m3-title-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+}
+
+.term-tab.is-active .term-tab__idx {
+  color: var(--m3-primary);
+}
+
 .term-tab__label {
   font: var(--m3-title-small);
   font-weight: 500;
   line-height: 20px;
-  max-width: 120px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1025,17 +1234,55 @@ onBeforeUnmount(() => {
   }
 }
 
-.term-host {
-  flex-shrink: 0;
-  align-self: center;
-  max-width: 36%;
-  padding-right: 28px;
-  font: var(--m3-label-small);
+.term-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+
+  &.is-empty {
+    background: var(--m3-content);
+  }
+}
+
+.term-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.term-empty-add {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: 50%;
+  background: var(--m3-card);
   color: var(--m3-on-surface-variant);
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--m3-elevation-1, none);
+
+  &:hover {
+    color: var(--m3-primary);
+    border-color: var(--m3-primary);
+    background: var(--m3-primary-container);
+  }
+}
+
+.term-empty-hint {
+  margin: 0;
+  font: var(--m3-body-medium);
+  color: var(--m3-on-surface-variant);
 }
 
 .term-body {
@@ -1173,5 +1420,15 @@ onBeforeUnmount(() => {
   padding-left: 24px;
   font: var(--m3-label-medium);
   color: var(--m3-on-surface-variant);
+}
+
+.ctx-sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--m3-outline-variant);
+}
+
+.ctx-item--danger {
+  color: var(--m3-error);
 }
 </style>

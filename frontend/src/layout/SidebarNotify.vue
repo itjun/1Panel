@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 /**
- * 通知工作区二级栏：全部消息 / 指标订阅 / 应用订阅 / 通知频道 / 通知内容。
+ * 通知工作区二级栏：全部消息 / 指标订阅 / 应用订阅 / 频道设置 / 内容设置。
  */
 import { computed } from "vue";
 import { useAppStore, type NotifySection } from "@/stores/app";
@@ -44,8 +44,8 @@ const menuItems = computed(() => {
     { id: "messages" as NotifySection, label: "全部消息" },
     { id: "metricSubs" as NotifySection, label: "指标订阅" },
     { id: "appSubs" as NotifySection, label: "应用订阅" },
-    { id: "channels" as NotifySection, label: "通知频道" },
-    { id: "content" as NotifySection, label: "通知内容" },
+    { id: "channels" as NotifySection, label: "频道设置" },
+    { id: "content" as NotifySection, label: "内容设置" },
   ];
 });
 
