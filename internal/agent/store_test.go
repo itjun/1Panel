@@ -94,9 +94,12 @@ func TestRangeRawAndAutoAgg(t *testing.T) {
 func TestAggregator(t *testing.T) {
 	st := newTestStore(t)
 	now := time.Now().Unix()
-	// 两个已关闭的桶：每个桶 3 个样本
-	b1 := (now - 700) / 300 * 300
-	b2 := (now - 400) / 300 * 300
+	// 两个已关闭的桶：每个桶 3 个样本。
+	// 锚定在「最近一个已关闭的桶」上：否则 now 的相位会让聚合范围里多出一个空桶，
+	// 而聚合器会给空桶写零值占位行（见 aggregateBucket），断言就会随机失败。
+	closedEdge := now/aggInterval*aggInterval - aggInterval
+	b2 := closedEdge
+	b1 := b2 - aggInterval
 	for _, b := range []int64{b1, b2} {
 		for i := 0; i < 3; i++ {
 			if err := st.insertSample(&Sample{TS: b + int64(i)*100, CPUPercent: float64(20 + i*10),

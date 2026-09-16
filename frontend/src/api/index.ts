@@ -22,6 +22,7 @@ import * as LocalSys from "../../bindings/diteng-pannel/localsys";
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
 export * as aptsource from "../../bindings/diteng-pannel/internal/aptsource/models";
 export * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
+export * as agentapi from "../../bindings/diteng-pannel/internal/agentapi/models";
 export * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";

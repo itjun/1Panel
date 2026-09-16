@@ -898,7 +898,7 @@ export const useAppStore = defineStore("app", () => {
     password: string;
     note?: string;
   }) {
-    await api.updateHost(input);
+    await api.updateHost({ ...input, note: input.note ?? "" });
     // 关旧会话参数：若正在跑，停掉让用户重新打开
     if (hostSessions.value[input.name]) {
       stopHost(input.name);

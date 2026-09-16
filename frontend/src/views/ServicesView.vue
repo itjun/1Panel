@@ -205,6 +205,11 @@ function ellipsisCell(text: string, tip?: string) {
   );
 }
 
+/** el-table-v2 把 cellRenderer 的 cellData 也标成行类型（EP 类型 quirk），运行时是单元格原始值 */
+function cellText(v: unknown): string {
+  return v == null ? "" : String(v);
+}
+
 function dotClass(s: Service): string {
   if (s.active === "failed") return "is-failed";
   if (s.active === "inactive") return "is-inactive";
@@ -235,7 +240,7 @@ const svcColumns: Column<Service>[] = [
     width: 220,
     flexGrow: 1,
     flexShrink: 1,
-    cellRenderer: ({ cellData }) => ellipsisCell(cellData),
+    cellRenderer: ({ cellData }) => ellipsisCell(cellText(cellData)),
   },
   {
     key: "description",
@@ -244,7 +249,8 @@ const svcColumns: Column<Service>[] = [
     width: 280,
     flexGrow: 2,
     flexShrink: 1,
-    cellRenderer: ({ cellData }) => ellipsisCell(cellData || "—", cellData || ""),
+    cellRenderer: ({ cellData }) =>
+      ellipsisCell(cellText(cellData) || "—", cellText(cellData)),
   },
   {
     key: "state",

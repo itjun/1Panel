@@ -85,7 +85,7 @@
           label-class-name="col-fit-label"
         >
           <template #default="{ row }">
-            {{ summaryOf(row) }}
+            {{ summaryOf(row as AlertEvent) }}
           </template>
         </el-table-column>
       </el-table>

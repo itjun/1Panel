@@ -134,7 +134,7 @@ function showItemTitle(
   sec: localsys.ReportSection,
   item: localsys.ReportItem
 ): boolean {
-  if (sec.items.length > 1) return true;
+  if ((sec.items || []).length > 1) return true;
   if ((item.children || []).length > 0) return true;
   const n = (item.name || "").trim();
   return (

@@ -52,7 +52,7 @@
         type="button"
         class="term-tab term-tab--add"
         v-tip="'新开终端会话'"
-        @click="openNew"
+        @click="() => openNew()"
       >
         <el-icon :size="16"><Plus /></el-icon>
       </button>
@@ -69,7 +69,7 @@
         <button
           type="button"
           class="term-empty-add"
-          @click="openNew"
+          @click="() => openNew()"
         >
           <el-icon :size="32"><Plus /></el-icon>
         </button>

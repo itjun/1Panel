@@ -58,7 +58,8 @@ if (appVue.includes("TabColumn")) fail("App.vue still references TabColumn");
 ok("App.vue shell markers present");
 
 const overview = fs.readFileSync(path.join(root, "src/views/OverviewView.vue"), "utf8");
-for (const needle of ["VChartPie", "VChartLine", "系统信息", "监控"]) {
+// 折线图随「监控」子页签独立后已从概览移除（91fae1d），概览只保留饼图 + 系统信息
+for (const needle of ["VChartPie", "系统信息", "监控"]) {
   if (!overview.includes(needle)) fail(`OverviewView missing ${needle}`);
 }
 ok("OverviewView dashboard markers present");

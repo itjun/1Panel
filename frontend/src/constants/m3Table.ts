@@ -1,3 +1,5 @@
+import { h } from "vue";
+
 /**
  * M3 数据表统一尺寸（唯一来源）。
  * - el-table：靠 CSS 变量 `--m3-table-row-height` / `--m3-table-header-height`（见 index.scss `.data-table-unified`）
@@ -20,6 +22,7 @@ export function m3TableIndexColumn() {
     title: "序",
     width: M3_TABLE_INDEX_WIDTH,
     align: "center" as const,
-    cellRenderer: ({ rowIndex }: { rowIndex: number }) => String(rowIndex + 1),
+    cellRenderer: ({ rowIndex }: { rowIndex: number }) =>
+      h("span", String(rowIndex + 1)),
   };
 }

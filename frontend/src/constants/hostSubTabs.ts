@@ -19,7 +19,10 @@ export const HOST_SUB_TABS: { value: SubTab; label: string }[] = [
   { value: "terminal", label: "终端" },
 ];
 
-export function hostSubTabButtons(terminalCount: number) {
+/** 终端角标：只有「终端」项可能带 badge，其余项无该字段（类型上必须是可选，模板才取得到） */
+export function hostSubTabButtons(
+  terminalCount: number
+): { value: SubTab; label: string; badge?: number }[] {
   return HOST_SUB_TABS.map((b) =>
     b.value === "terminal" && terminalCount > 0
       ? { ...b, badge: terminalCount }

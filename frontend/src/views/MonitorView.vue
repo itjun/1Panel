@@ -103,7 +103,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Refresh } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
-import type { agentcli, monitor } from "@/api";
+import type { agentcli, agentapi, monitor } from "@/api";
 import { formatErr, formatBytes, bytesToKBps } from "@/utils/format";
 import { isAgentMissing } from "@/utils/format";
 import { useAppStore } from "@/stores/app";
@@ -184,7 +184,7 @@ const customDefaultValue = computed(() => {
   return new Date(Date.now() - CUSTOM_DEFAULT_SPAN_MS);
 });
 
-const history = ref<agentcli.RangePoint[]>([]);
+const history = ref<agentapi.RangePoint[]>([]);
 const historyLoading = ref(false);
 
 // ---------- live 曲线（滑动窗口 100 点，与 traffic 同款） ----------
@@ -266,13 +266,13 @@ function takeLiveChartSlot(now = Date.now()): boolean {
 
 /** 按目标间隔把点归桶：每桶保留最后一点，ts 对齐到桶起点 */
 function downsampleBySec(
-  pts: agentcli.RangePoint[],
+  pts: agentapi.RangePoint[],
   everySec: number
-): agentcli.RangePoint[] {
+): agentapi.RangePoint[] {
   if (!pts.length || everySec <= 1) return pts;
-  const out: agentcli.RangePoint[] = [];
+  const out: agentapi.RangePoint[] = [];
   let bucket = Number.NaN;
-  let last: agentcli.RangePoint | null = null;
+  let last: agentapi.RangePoint | null = null;
   for (const p of pts) {
     const b = Math.floor(p.ts / everySec) * everySec;
     if (b !== bucket) {

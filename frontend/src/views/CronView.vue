@@ -41,7 +41,7 @@
                   link
                   type="primary"
                   class="copy-btn"
-                  @click="copyCronLine(row)"
+                  @click="copyCronLine(row as CronRow)"
                 >
                   复制
                 </el-button>

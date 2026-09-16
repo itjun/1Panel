@@ -46,7 +46,7 @@
           <el-table-column prop="port" label="端口" width="64" align="center" class-name="col-port" label-class-name="col-port">
             <template #default="{ row }">
               <span
-                v-if="row.port && isLatestDeploy(row.deployVer || '', latestDeployVerForRow(row, latestByService))"
+                v-if="row.port && isLatestDeploy(row.deployVer || '', latestDeployVerForRow(row as agentapi.JavaAppInstance, latestByService))"
                 class="latest-highlight"
               >
                 {{ row.port }}
@@ -57,7 +57,7 @@
           <el-table-column prop="deployVer" label="部署版本" width="120" show-overflow-tooltip class-name="col-deploy" label-class-name="col-deploy">
             <template #default="{ row }">
               <span
-                v-if="row.deployVer && isLatestDeploy(row.deployVer, latestDeployVerForRow(row, latestByService))"
+                v-if="row.deployVer && isLatestDeploy(row.deployVer, latestDeployVerForRow(row as agentapi.JavaAppInstance, latestByService))"
                 class="latest-highlight"
               >
                 {{ row.deployVer }}
@@ -80,8 +80,8 @@
           </el-table-column>
           <el-table-column prop="status" label="状态" width="72" align="center" class-name="col-status" label-class-name="col-status">
             <template #default="{ row }">
-              <span :class="isOnline(row) ? 'status-online' : 'status-offline'">
-                {{ isOnline(row) ? "在线" : "离线" }}
+              <span :class="isOnline(row as agentapi.JavaAppInstance) ? 'status-online' : 'status-offline'">
+                {{ isOnline(row as agentapi.JavaAppInstance) ? "在线" : "离线" }}
               </span>
             </template>
           </el-table-column>
@@ -103,12 +103,12 @@
           <el-table-column label="操作" width="80" align="center" fixed="right">
             <template #default="{ row }">
               <span
-                v-if="canShutdown(row)"
+                v-if="canShutdown(row as agentapi.JavaAppInstance)"
                 class="shutdown-action"
                 role="button"
                 tabindex="0"
-                @click.stop="openShutdown(row)"
-                @keydown.enter.stop="openShutdown(row)"
+                @click.stop="openShutdown(row as agentapi.JavaAppInstance)"
+                @keydown.enter.stop="openShutdown(row as agentapi.JavaAppInstance)"
               >
                 下架
               </span>
@@ -185,7 +185,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
-import type { agentcli } from "@/api";
+import type { agentcli, agentapi } from "@/api";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
@@ -203,8 +203,8 @@ const error = ref("");
 const status = ref<agentcli.WatchStatus[]>([]);
 const instances = ref<agentcli.JavaAppInstance[]>([]);
 const selected = ref("");
-const jarPts = ref<agentcli.JarRangePoint[]>([]);
-const hostPts = ref<agentcli.RangePoint[]>([]);
+const jarPts = ref<agentapi.JarRangePoint[]>([]);
+const hostPts = ref<agentapi.RangePoint[]>([]);
 const events = ref<agentcli.WatchEventRow[]>([]);
 const cfgOpen = ref(false);
 const yamlText = ref("");
