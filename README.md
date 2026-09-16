@@ -24,7 +24,7 @@
 
 ```bash
 # 安装 Wails CLI（首次）
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.9
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.14
 go install github.com/go-task/task/v3/cmd/task@latest
 
 # 开发模式（热重载）
@@ -33,6 +33,8 @@ task dev
 # 构建 + 打包 .app（macOS 通用包 = task darwin:package:universal）
 task darwin:package
 ```
+
+> **版本对齐**：Wails CLI（`wails3`）、`go.mod` 中的 `github.com/wailsapp/wails/v3`、前端 `@wailsio/runtime` 必须同一版本（当前以 `go.mod` 为准）。不要自行升 beta；漂移时用 `task wails:check` 检查。
 
 构建产物：`build/bin/1Pannel.app`（macOS）/ `build/bin/1Pannel.exe`（Windows）。
 

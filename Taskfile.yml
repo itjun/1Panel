@@ -19,8 +19,14 @@ includes:
   linux: ./build/linux/Taskfile.yml
 
 tasks:
+  wails:check:
+    summary: Ensure Wails CLI / go.mod / @wailsio/runtime versions match
+    cmds:
+      - ./scripts/check-wails-version.sh
+
   build:
     summary: Builds the application
+    deps: [wails:check]
     cmds:
       # 先交叉编译 agent 产物：面板 go:embed 内嵌它，版本号与面板一致
       - task: agent:build
@@ -65,5 +71,6 @@ tasks:
 
   dev:
     summary: Runs the application in development mode
+    deps: [wails:check]
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
