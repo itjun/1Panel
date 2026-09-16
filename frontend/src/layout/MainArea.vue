@@ -1,59 +1,72 @@
 <template>
   <div class="main-container">
     <!-- 设置整页：离开即卸载；底下主机/分组/首页仍 v-show 常驻 -->
-    <div v-if="app.settingsOpen" class="content-pad content-pad--fill">
-      <SettingsView />
+    <div v-if="app.settingsOpen" class="workspace-shell">
+      <MainChromeBar title="设置" />
+      <div class="content-pad content-pad--fill">
+        <SettingsView />
+      </div>
     </div>
 
-    <!-- 本机工作区：顶边与侧栏菜单对齐（统一 4px 顶距） -->
+    <!-- 本机工作区 -->
     <div
       v-if="!app.settingsOpen && app.workspace === 'local'"
-      class="content-pad content-pad--local"
-      :class="{
-        'content-pad--fill':
-          app.localSection === 'sysinfo' ||
-          app.localSection === 'procs' ||
-          app.localSection === 'packages' ||
-          app.localSection === 'storage' ||
-          app.localSection === 'nginx' ||
-          app.localSection === 'hosts',
-      }"
+      class="workspace-shell"
     >
-      <LocalOverviewView v-if="app.localSection === 'overview'" />
-      <LocalSysInfoView v-else-if="app.localSection === 'sysinfo'" />
-      <LocalAppsView v-else-if="app.localSection === 'procs'" />
-      <LocalPackagesView v-else-if="app.localSection === 'packages'" />
-      <LocalStorageView v-else-if="app.localSection === 'storage'" />
-      <LocalNetworkView v-else-if="app.localSection === 'network'" />
-      <LocalNginxView v-else-if="app.localSection === 'nginx'" />
-      <LocalHostsView v-else-if="app.localSection === 'hosts'" />
+      <MainChromeBar :title="localTitle" />
+      <div
+        class="content-pad content-pad--local"
+        :class="{
+          'content-pad--fill':
+            app.localSection === 'sysinfo' ||
+            app.localSection === 'procs' ||
+            app.localSection === 'packages' ||
+            app.localSection === 'storage' ||
+            app.localSection === 'nginx' ||
+            app.localSection === 'hosts',
+        }"
+      >
+        <LocalOverviewView v-if="app.localSection === 'overview'" />
+        <LocalSysInfoView v-else-if="app.localSection === 'sysinfo'" />
+        <LocalAppsView v-else-if="app.localSection === 'procs'" />
+        <LocalPackagesView v-else-if="app.localSection === 'packages'" />
+        <LocalStorageView v-else-if="app.localSection === 'storage'" />
+        <LocalNetworkView v-else-if="app.localSection === 'network'" />
+        <LocalNginxView v-else-if="app.localSection === 'nginx'" />
+        <LocalHostsView v-else-if="app.localSection === 'hosts'" />
+      </div>
     </div>
 
-    <!-- 通知工作区：顶边与侧栏菜单对齐 -->
+    <!-- 通知工作区 -->
     <div
       v-if="!app.settingsOpen && app.workspace === 'notify'"
-      class="content-pad content-pad--local"
+      class="workspace-shell"
     >
-      <NotifyMessagesView v-if="app.notifySection === 'messages'" />
-      <NotifyHostSubsView
-        v-else-if="
-          app.notifySection === 'metricSubs' || app.notifySection === 'appSubs'
-        "
-      />
-      <NotifyChannelsView v-else-if="app.notifySection === 'channels'" />
-      <NotifyContentView v-else-if="app.notifySection === 'content'" />
+      <MainChromeBar :title="notifyTitle" />
+      <div class="content-pad content-pad--local">
+        <NotifyMessagesView v-if="app.notifySection === 'messages'" />
+        <NotifyHostSubsView
+          v-else-if="
+            app.notifySection === 'metricSubs' || app.notifySection === 'appSubs'
+          "
+        />
+        <NotifyChannelsView v-else-if="app.notifySection === 'channels'" />
+        <NotifyContentView v-else-if="app.notifySection === 'content'" />
+      </div>
     </div>
 
     <!-- 全部主机首页：常驻（v-show 切换，零销毁零重载） -->
     <div
       v-show="!app.settingsOpen && app.workspace === 'remote' && !app.activeTab"
-      class="content-pad"
+      class="workspace-shell"
     >
-      <AllHostsOverviewView />
+      <MainChromeBar title="全部主机" />
+      <div class="content-pad">
+        <AllHostsOverviewView />
+      </div>
     </div>
 
-    <!-- 分组视图：访问过的分组全部常驻，仅 v-show 切换；
-         组内主机监控由 GroupOverviewView 自带 3s 轮询保持常热 -->
+    <!-- 分组视图：访问过的分组全部常驻，仅 v-show 切换 -->
     <div
       v-for="gid in app.visitedGroupIds"
       :key="gid"
@@ -63,9 +76,12 @@
         app.activeTab?.kind === 'group' &&
         app.activeTab.id === gid
       "
-      class="content-pad"
+      class="workspace-shell"
     >
-      <GroupOverviewView :group-id="gid" :group-name="app.groupNameOf(gid)" />
+      <MainChromeBar :title="app.groupNameOf(gid)" />
+      <div class="content-pad">
+        <GroupOverviewView :group-id="gid" :group-name="app.groupNameOf(gid)" />
+      </div>
     </div>
 
     <!-- 多主机会话：已打开的全部挂载，仅用 v-show 切换，避免销毁重载 -->
@@ -79,24 +95,19 @@
         "
         class="host-shell"
       >
-        <div class="router-tabs">
+        <MainChromeBar>
           <RouterButton
             :model-value="sessionOf(hid)?.subTab || 'overview'"
             :buttons="subTabs"
             @update:model-value="(v: string) => onSubChange(hid, v)"
           />
-        </div>
+        </MainChromeBar>
         <div
           class="content-pad"
           :class="{
             'content-pad--fill': isFillSub(sessionOf(hid)?.subTab),
           }"
         >
-          <!-- 各子页按会话 subTab 切换；访问过的子页常驻挂载（v-if 首挂 + v-show 切换），
-               切回零加载——资源换速度。子页按 LRU 上限常驻（MAX_RESIDENT_SUBS，
-               超出挤掉最旧的），避免多会话全量常驻把内存顶高。终端例外：
-               KeepAlive 缓存已够快且 PTY/拖放钩子依赖 activate/deactivate
-               生命周期，不并入常驻。 -->
           <OverviewView
             v-show="(sessionOf(hid)?.subTab || 'overview') === 'overview'"
             :host="hid"
@@ -161,8 +172,6 @@
             v-show="sessionOf(hid)?.subTab === 'packages'"
             :host="hid"
           />
-          <!-- KeepAlive：切到其他子页签时终端只停用不卸载，
-               避免卸载钩子关闭全部 PTY 会话（切回来就断线） -->
           <KeepAlive>
             <TerminalView
               v-if="sessionOf(hid)?.subTab === 'terminal'"
@@ -176,7 +185,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useAppStore, type SubTab } from "@/stores/app";
+import MainChromeBar from "@/components/MainChromeBar.vue";
 import RouterButton from "@/components/RouterButton.vue";
 import OverviewView from "@/views/OverviewView.vue";
 import MonitorView from "@/views/MonitorView.vue";
@@ -209,6 +220,31 @@ import NotifyContentView from "@/views/NotifyContentView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 
 const app = useAppStore();
+
+const localTitle = computed(() => {
+  const map: Record<string, string> = {
+    overview: "系统概览",
+    procs: "应用进程",
+    packages: "软件列表",
+    storage: "磁盘空间",
+    network: "网络信息",
+    nginx: "Nginx",
+    hosts: "Hosts",
+    sysinfo: "关于本机",
+  };
+  return map[app.localSection] || "本机";
+});
+
+const notifyTitle = computed(() => {
+  const map: Record<string, string> = {
+    messages: "全部消息",
+    metricSubs: "指标订阅",
+    appSubs: "应用订阅",
+    channels: "通知频道",
+    content: "通知内容",
+  };
+  return map[app.notifySection] || "通知";
+});
 
 const subTabs: { value: SubTab; label: string }[] = [
   { value: "overview", label: "概览" },
@@ -262,24 +298,22 @@ function onSubChange(hid: string, v: string) {
 </script>
 
 <style scoped lang="scss">
+.workspace-shell,
 .host-shell {
   flex: 1;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px 20px 20px;
   box-sizing: border-box;
 }
 
-/* 子页标签：Segmented 直接浮在灰画布，无白卡外框 */
-.router-tabs {
-  flex-shrink: 0;
-  margin-bottom: 12px;
+.host-shell {
+  padding: 0 20px 20px;
+}
+
+.workspace-shell {
   padding: 0;
-  background: transparent;
-  border: none;
-  box-sizing: border-box;
 }
 
 .content-pad {
@@ -288,7 +322,7 @@ function onSubChange(hid: string, v: string) {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px 20px 20px;
+  padding: 8px 20px 20px;
   box-sizing: border-box;
   background: transparent;
 
@@ -297,7 +331,6 @@ function onSubChange(hid: string, v: string) {
     flex-direction: column;
     padding: 0;
     overflow: hidden;
-    /* 终端等全高视图：子组件必须能吃掉剩余高度 */
     > * {
       flex: 1 1 auto;
       min-height: 0;
@@ -305,12 +338,10 @@ function onSubChange(hid: string, v: string) {
     }
   }
 
-  /* 本机：与侧栏纯文字菜单顶边对齐 */
   &--local {
     padding: 4px 16px 16px;
   }
 
-  /* 本机非 fill 页（概览等）：子页至少撑满可视高度，空态 loading 才能居中 */
   &--local:not(.content-pad--fill) {
     display: flex;
     flex-direction: column;
@@ -322,7 +353,6 @@ function onSubChange(hid: string, v: string) {
     }
   }
 
-  /* 本机表格类 fill 页：工具栏/表格与主内容卡描边留出呼吸，避免贴边 */
   &--local.content-pad--fill {
     padding: 12px 16px 16px;
   }
@@ -330,5 +360,13 @@ function onSubChange(hid: string, v: string) {
 
 .host-shell .content-pad:not(.content-pad--fill) {
   padding: 4px 0 12px;
+}
+
+.workspace-shell > .content-pad {
+  padding-top: 4px;
+}
+
+.workspace-shell > .content-pad--fill {
+  padding: 0 16px 16px;
 }
 </style>
