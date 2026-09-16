@@ -274,7 +274,7 @@
               <el-progress
                 :percentage="Math.min(100, d.percent)"
                 :stroke-width="8"
-                :status="d.percent > 90 ? 'exception' : undefined"
+                :status="isDiskLow([d]) ? 'exception' : undefined"
                 style="flex: 1"
               />
               <span class="disk-size">
