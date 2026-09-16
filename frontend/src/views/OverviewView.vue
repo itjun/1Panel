@@ -1126,26 +1126,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
   box-sizing: border-box;
 
-  /* M3 Outlined Card：12dp 圆角已由全局 el-card；内边距 16dp；标题 title-medium */
+  /* 内边距由全局 .panel-hover-card 统一；标题用全局 .panel-section-title */
   :deep(.el-card__body) {
-    padding: 16px;
     max-width: 100%;
     box-sizing: border-box;
     background: transparent;
   }
-
-  .panel-section-title {
-    font: var(--m3-title-medium);
-    font-weight: 500;
-    line-height: 24px;
-  }
-}
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  min-height: 32px;
 }
 /* 放大态：卡片提升铺满主内容区，内部列表撑满滚动 */
 .home-card.is-enlarged {

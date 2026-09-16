@@ -933,7 +933,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
   /* 给右上角最大化角标留空，避免压住标签 */
   padding-right: 28px;
 }
