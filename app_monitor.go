@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"diteng-pannel/internal/agentcli"
+	"diteng-pannel/internal/aptsource"
 	"diteng-pannel/internal/monitor"
 )
 
@@ -391,4 +393,38 @@ func (s *Monitor) DockerInspect(host string, container string) (string, error) {
 	var raw string
 	err = cli.GetJSON(context.Background(), "/collect/docker-inspect?"+q("container", container), &raw, true)
 	return raw, err
+}
+
+// CollectAptSources 远程 /etc/apt 源文件 + 发行版。
+func (s *Monitor) CollectAptSources(host string) (aptsource.Snapshot, error) {
+	cli, err := s.agentClient(host)
+	if err != nil {
+		return aptsource.Snapshot{}, err
+	}
+	var v aptsource.Snapshot
+	err = cli.GetJSON(context.Background(), "/collect/apt-sources", &v, true)
+	return v, err
+}
+
+// ProbeAptMirrors 在目标机上测官方 + 国内镜像。
+func (s *Monitor) ProbeAptMirrors(host string) ([]aptsource.ProbeHit, error) {
+	cli, err := s.agentClient(host)
+	if err != nil {
+		return nil, err
+	}
+	var v []aptsource.ProbeHit
+	err = cli.PostJSON(context.Background(), "/op/apt-probe", map[string]any{}, &v)
+	return v, err
+}
+
+// ApplyAptMirror 改写归档源并 apt-get update。official=true 恢复官方；否则 mirror 为镜像 id 或主机名。
+func (s *Monitor) ApplyAptMirror(host string, mirror string, official bool) (aptsource.ApplyResult, error) {
+	cli, err := s.agentClient(host)
+	if err != nil {
+		return aptsource.ApplyResult{}, err
+	}
+	var v aptsource.ApplyResult
+	err = cli.PostJSONTimeout(context.Background(), "/op/apt-apply",
+		aptsource.ApplyReq{Mirror: mirror, Official: official}, &v, 120*time.Second)
+	return v, err
 }
