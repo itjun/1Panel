@@ -31,19 +31,6 @@ type Sample struct {
 	DiskUsed, DiskTotal           uint64 // 根分区容量（statfs）
 }
 
-// HostInfo 变化频率低的主机信息，定时刷新
-type HostInfo struct {
-	Hostname    string `json:"hostname"`
-	Arch        string `json:"arch"`
-	Kernel      string `json:"kernel"`
-	OSRelease   string `json:"osRelease"`
-	CPUModel    string `json:"cpuModel"`
-	CPUCount    int    `json:"cpuCount"`
-	IPAddress   string `json:"ipAddress"`
-	Uptime      uint64 `json:"uptime"`      // 秒
-	CollectedAt int64  `json:"collectedAt"` // 本信息采集时间（Unix 秒）
-}
-
 // MetricCollector 直读 /proc 采集核心指标，零 fork、微秒级开销。
 // procRoot 可注入，便于用构造的目录内容做单元测试。
 type MetricCollector struct {

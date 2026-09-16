@@ -44,7 +44,7 @@ go run ./cmd/agenttest cdcp-beta            # 数据面全链路验证（隧道+
 go run ./cmd/agentinstall-test cdcp-beta    # 安装/更新/回滚链路验证
 ```
 
-版本号单一来源：`internal/agentres/VERSION`。改 `cmd/spanel-agent` / `internal/agent` 后跑 `task agent:build` 会按源码哈希升补丁号（若已手动改过 VERSION 则不重复加）。`go test ./internal/agentres` 会检查 `SOURCE.sha256` 是否跟上。需要大版本时直接改 `VERSION` 再 build。
+版本号单一来源：`internal/agentres/VERSION`。改 `cmd/spanel-agent` / `internal/agent` / `internal/agentapi` 后跑 `task agent:build` 会按源码哈希升补丁号（若已手动改过 VERSION 则不重复加）。`go test ./internal/agentres` 会检查 `SOURCE.sha256` 是否跟上。需要大版本时直接改 `VERSION` 再 build。
 ## 关键设计
 
 - **WAL**：`journal_mode=WAL` + `synchronous=NORMAL` + `busy_timeout=5000`（DSN 每连接生效）；`auto_vacuum=INCREMENTAL` 建库前设置；writer 独占单连接 + reader 只读连接。
@@ -57,7 +57,7 @@ go run ./cmd/agentinstall-test cdcp-beta    # 安装/更新/回滚链路验证
 - **按需采集缓存**（agent 侧，均为惰性缓存）：Go 进程识别（`debug/buildinfo` 纯 Go 实现，15s）、docker stats（CLI 采样周期秒级，15s）、docker ps 容器映射（classifyDeploy 用，15s）、出口 IP（外网请求，10min）。各页面实时性不受影响（容器列表/连接/端口等仍每次实时）。
 - **更新**：sftp 上传 → sha256 校验 → `mv` 原子替换（旧版转 `.old`）→ restart → 隧道健康检查版本号；失败自动回滚 `.old`。schema 迁移用 `PRAGMA user_version`，只加不改。
 - **批量部署**：面板分组页「安装 Agent」→ `AgentBatchInstall`（全部主机并行，单台失败不影响其余，进度窗逐台展示）；主机列表有 Agent 状态徽章（版本/可更新/未装）。
-- **HTTP API 契约类型**在 `internal/agentcli`（面板侧）与 `internal/agent`（agent 侧）各一份，json tag 保持一致。
+- **HTTP API 契约类型**单一来源是 `internal/agentapi`；`internal/agent` 与 `internal/agentcli` 以类型别名引用（Wails 绑定名仍是 `agentcli.*`）。
 
 ## 预留：Uploader
 

@@ -56,6 +56,7 @@ func HashAgentSources(root string) (string, error) {
 	roots := []string{
 		filepath.Join(root, "cmd", "spanel-agent"),
 		filepath.Join(root, "internal", "agent"),
+		filepath.Join(root, "internal", "agentapi"), // HTTP JSON 契约；改 tag 必须重编 agent
 		// agent 链入的采集实现；改这里也必须升 agent 版本并重编
 		filepath.Join(root, "internal", "monitor"),
 	}

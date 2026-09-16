@@ -275,19 +275,8 @@ func (s *Server) auth(next http.Handler) http.Handler {
 
 // ============ 读库端点 ============
 
-type healthResponse struct {
-	Version      string  `json:"version"`
-	UptimeSec    int64   `json:"uptimeSec"`
-	RSSKB        int64   `json:"rssKB"`      // 自身常驻内存
-	CPUTimeSec   float64 `json:"cpuTimeSec"` // 自身累计 CPU 时间（秒）
-	Written      uint64  `json:"writtenSamples"`
-	Dropped      uint64  `json:"droppedSamples"`
-	LastWriteErr string  `json:"lastWriteErr"`
-	DiskLow      bool    `json:"diskLow"`
-}
-
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	h := healthResponse{
+	h := Health{
 		Version:    s.version,
 		UptimeSec:  int64(time.Since(s.startTime).Seconds()),
 		RSSKB:      selfRSSKB(),
@@ -313,7 +302,7 @@ func (s *Server) handleCurrent(w http.ResponseWriter, _ *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"metrics": cur, "info": s.hostInfo()})
+	writeJSON(w, http.StatusOK, CurrentResponse{Metrics: *cur, Info: s.hostInfo()})
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, _ *http.Request) {
@@ -349,7 +338,7 @@ func (s *Server) handleRange(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"src": src, "points": pts})
+	writeJSON(w, http.StatusOK, RangeResponse{Src: src, Points: pts})
 }
 
 func (s *Server) handleSummary(w http.ResponseWriter, _ *http.Request) {
@@ -409,7 +398,7 @@ func (s *Server) handleWatchRange(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"points": pts})
+	writeJSON(w, http.StatusOK, WatchRangeResponse{Points: pts})
 }
 
 func (s *Server) handleWatchEvents(w http.ResponseWriter, r *http.Request) {
@@ -441,7 +430,7 @@ func (s *Server) handleAdminWatchGet(w http.ResponseWriter, _ *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"yaml": string(b)})
+	writeJSON(w, http.StatusOK, WatchYAML{YAML: string(b)})
 }
 
 func (s *Server) handleAdminWatchPost(w http.ResponseWriter, r *http.Request) {
@@ -449,9 +438,7 @@ func (s *Server) handleAdminWatchPost(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "监视未启用")
 		return
 	}
-	var req struct {
-		YAML string `json:"yaml"`
-	}
+	var req WatchYAML
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.YAML) == "" {
 		writeErr(w, http.StatusBadRequest, "需要 yaml 字段")
 		return
@@ -508,19 +495,12 @@ func (s *Server) handleKill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-type appShutdownReq struct {
-	Service string `json:"service"`
-	PID     int    `json:"pid"`
-	Port    int    `json:"port"`
-	Screen  string `json:"screen"`
-}
-
 func (s *Server) handleAppShutdown(w http.ResponseWriter, r *http.Request) {
 	if s.watcher == nil {
 		writeErr(w, http.StatusNotFound, "监视未启用")
 		return
 	}
-	var req appShutdownReq
+	var req AppShutdownReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "参数无效")
 		return
@@ -553,7 +533,7 @@ func (s *Server) handleAppShutdown(w http.ResponseWriter, r *http.Request) {
 		Msg:     msg,
 	})
 	s.store.WriteEvent("info", msg)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "stopped": stopped, "msg": msg})
+	writeJSON(w, http.StatusOK, AppShutdownResult{OK: true, Stopped: stopped, Msg: msg})
 }
 
 type dockerReq struct {

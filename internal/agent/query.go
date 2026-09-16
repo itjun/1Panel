@@ -8,51 +8,6 @@ import (
 	"time"
 )
 
-// CurrentPoint 最新一条采样（/metrics/current 的动态部分）
-type CurrentPoint struct {
-	TS             int64   `json:"ts"`
-	CPUPercent     float64 `json:"cpuPercent"`
-	Load1          float64 `json:"load1"`
-	Load5          float64 `json:"load5"`
-	Load15         float64 `json:"load15"`
-	MemUsed        uint64  `json:"memUsed"`
-	MemTotal       uint64  `json:"memTotal"`
-	SwapUsed       uint64  `json:"swapUsed"`
-	SwapTotal      uint64  `json:"swapTotal"`
-	NetRxBytes     uint64  `json:"netRxBytes"`
-	NetTxBytes     uint64  `json:"netTxBytes"`
-	NetRxKBps      float64 `json:"netRxKBps"`
-	NetTxKBps      float64 `json:"netTxKBps"`
-	DiskReadBytes  uint64  `json:"diskReadBytes"`
-	DiskWriteBytes uint64  `json:"diskWriteBytes"`
-	DiskReadKBps   float64 `json:"diskReadKBps"`
-	DiskWriteKBps  float64 `json:"diskWriteKBps"`
-	DiskIOCount    uint64  `json:"diskIOCount"`
-	DiskUsed       uint64  `json:"diskUsed"`
-	DiskTotal      uint64  `json:"diskTotal"`
-}
-
-// RangePoint 历史序列统一数据点（raw 与 agg 两种来源都折算成它）
-type RangePoint struct {
-	TS            int64   `json:"ts"`
-	CPUPercent    float64 `json:"cpuPercent"`
-	Load1         float64 `json:"load1"`
-	MemUsed       uint64  `json:"memUsed"`
-	NetRxKBps     float64 `json:"netRxKBps"`
-	NetTxKBps     float64 `json:"netTxKBps"`
-	DiskReadKBps  float64 `json:"diskReadKBps"`
-	DiskWriteKBps float64 `json:"diskWriteKBps"`
-}
-
-// SummaryRange 一个时间窗的摘要
-type SummaryRange struct {
-	Name       string  `json:"name"` // 1h / 6h / 24h / 7d
-	CPUAvg     float64 `json:"cpuAvg"`
-	CPUMax     float64 `json:"cpuMax"`
-	Load1Max   float64 `json:"load1Max"`
-	MemUsedMax uint64  `json:"memUsedMax"`
-}
-
 // ErrNoData 尚无任何采样（刚安装）
 var ErrNoData = errors.New("尚无采样数据")
 
@@ -228,20 +183,6 @@ func (st *Store) Events(from, to int64, limit int) ([]Event, error) {
 		evs = append(evs, e)
 	}
 	return evs, rows.Err()
-}
-
-// JarRangePoint JAR 时间序列
-type JarRangePoint struct {
-	TS         int64   `json:"ts"`
-	Service    string  `json:"service"`
-	PID        int     `json:"pid"`
-	Port       int     `json:"port"`
-	RSS        uint64  `json:"rss"`
-	CPUPercent float64 `json:"cpuPercent"`
-	HeapUsed   uint64  `json:"heapUsed"`
-	HeapMax    uint64  `json:"heapMax"`
-	GCPauseMs  float64 `json:"gcPauseMs"`
-	HealthOK   bool    `json:"healthOk"`
 }
 
 // QueryJarRange 按服务查 jar_samples

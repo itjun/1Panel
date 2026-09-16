@@ -63,22 +63,6 @@ type JarSample struct {
 	HealthOK   bool
 }
 
-// WatchEvent 分层探活状态变化
-type WatchEvent struct {
-	TS      int64  `json:"ts"`
-	Service string `json:"service"`
-	Layer   string `json:"layer"` // process / health / ingress
-	Kind    string `json:"kind"`  // down / up
-	Msg     string `json:"msg"`
-}
-
-// Event agent 生命周期事件（events 表）
-type Event struct {
-	TS    int64  `json:"ts"`
-	Level string `json:"level"` // info / warn / error
-	Msg   string `json:"msg"`
-}
-
 // OpenStore 打开（必要时创建）数据库。dir 需已存在。
 func OpenStore(dir string) (*Store, error) {
 	dbPath := filepath.Join(dir, "agent.db")

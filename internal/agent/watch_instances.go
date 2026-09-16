@@ -17,25 +17,6 @@ import (
 	"diteng-pannel/internal/wecom"
 )
 
-// JavaAppInstance 应用监视页 Java 实例行（/watch/instances）
-type JavaAppInstance struct {
-	Service         string `json:"service"`
-	Runtime         string `json:"runtime"` // java / bun
-	PID             int    `json:"pid"`
-	Port            int    `json:"port"`
-	DeployVer       string `json:"deployVer"`
-	LatestDeployVer string `json:"latestDeployVer"` // 该 jar 所在服务目录下最新日期版本
-	StartTime       string `json:"startTime"`
-	Screen          string `json:"screen"`
-	JarPath         string `json:"jarPath"`
-	HealthUp        bool   `json:"healthUp"`
-	ProcessUp       bool   `json:"processUp"`
-	IngressUp       bool   `json:"ingressUp"`
-	IngressOn       bool   `json:"ingressOn"`
-	Status          string `json:"status"` // UP / DOWN / UNHEALTHY
-	Group           string `json:"group"`  // std / pro / other
-}
-
 var (
 	// 新布局 YYYYMMDD_N（如 20260908_6）；须优先于 6 位，否则会从中误切出 260908_6
 	deployVer8RE = regexp.MustCompile(`\d{8}_\d+`)

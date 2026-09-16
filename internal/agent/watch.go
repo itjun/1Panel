@@ -534,17 +534,6 @@ func kindName(k string) string {
 	return "挂了"
 }
 
-// WatchStatus 当前各服务分层状态（给面板卡片）
-type WatchStatus struct {
-	Service   string `json:"service"`
-	Runtime   string `json:"runtime"`
-	ProcessUp bool   `json:"processUp"`
-	HealthUp  bool   `json:"healthUp"`
-	IngressUp bool   `json:"ingressUp"`
-	IngressOn bool   `json:"ingressOn"`
-	Instances int    `json:"instances"`
-}
-
 func (w *Watcher) StatusSnapshot() []WatchStatus {
 	w.mu.Lock()
 	cfg := w.cfg
