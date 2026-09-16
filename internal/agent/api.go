@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"diteng-pannel/internal/aptsource"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/sshd"
 )
@@ -228,6 +229,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /collect/hosts", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
 		return c.CollectHosts("local", local)
 	}))
+	mux.HandleFunc("GET /collect/apt-sources", s.handleAptSources)
 	mux.HandleFunc("GET /collect/largest-files", s.collect(func(c *monitor.Collector, q url.Values) (any, error) {
 		root := q.Get("root")
 		if root == "" {
@@ -251,6 +253,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /op/app-shutdown", s.handleAppShutdown)
 	mux.HandleFunc("POST /op/docker", s.handleDockerAction)
 	mux.HandleFunc("POST /op/delete-paths", s.handleDeletePaths)
+	mux.HandleFunc("POST /op/apt-probe", s.handleAptProbe)
+	mux.HandleFunc("POST /op/apt-apply", s.handleAptApply)
 
 	// 管理
 	mux.HandleFunc("GET /admin/stats", s.handleAdminStats)
@@ -641,6 +645,55 @@ func (s *Server) handleAdminCleanup(w http.ResponseWriter, r *http.Request) {
 }
 
 // ============ 工具 ============
+
+func (s *Server) handleAptSources(w http.ResponseWriter, _ *http.Request) {
+	snap, err := aptsource.Collect()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Server) handleAptProbe(w http.ResponseWriter, _ *http.Request) {
+	d, err := aptsource.Collect()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !d.Distro.Apt {
+		writeErr(w, http.StatusBadRequest, "仅支持 apt（Debian / Ubuntu）")
+		return
+	}
+	if d.Distro.Codename == "" {
+		writeErr(w, http.StatusBadRequest, "无法识别 VERSION_CODENAME")
+		return
+	}
+	writeJSON(w, http.StatusOK, aptsource.ProbeAll(d.Distro))
+}
+
+func (s *Server) handleAptApply(w http.ResponseWriter, r *http.Request) {
+	var req aptsource.ApplyReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "无效请求")
+		return
+	}
+	res, err := aptsource.Apply(req)
+	if err != nil {
+		if res.Changed > 0 {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{
+				"error":     err.Error(),
+				"backupDir": res.BackupDir,
+				"updateOut": res.UpdateOut,
+				"changed":   res.Changed,
+			})
+			return
+		}
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

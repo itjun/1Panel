@@ -121,7 +121,8 @@ const CONTENT_FIELDS: {
 
 <style scoped lang="scss">
 .notify-page {
-  max-width: 720px;
+  width: 100%;
+  max-width: none;
   padding: 12px 16px 28px;
   display: flex;
   flex-direction: column;
@@ -133,7 +134,6 @@ const CONTENT_FIELDS: {
   font: var(--m3-body-small);
   color: var(--m3-on-surface-variant);
   line-height: 1.5;
-  max-width: 48em;
 }
 
 .ns-block {

@@ -1,118 +1,53 @@
 <template>
-  <div class="tab-root tab-table-page local-hosts">
-    <div class="view-toolbar">
-      <div class="view-toolbar__chips">
-        <span class="panel-section-title">Hosts</span>
-        <span class="page-toolbar__hint">/etc/hosts · 只读</span>
-      </div>
-      <div class="view-toolbar__tools">
-        <el-input
-          v-model="keyword"
-          clearable
-          class="filter-input"
-          placeholder="搜索域名 / IP…"
-        />
-        <el-button
-          :disabled="!info?.raw"
-          :type="rawMode ? 'primary' : 'default'"
-          @click="rawMode = !rawMode"
-        >
-          {{ rawMode ? "收起原文" : "查看原文" }}
-        </el-button>
-        <el-button :icon="Refresh" :loading="loading" @click="refresh" />
-      </div>
-    </div>
+  <div class="nginx-page page-panel">
+    <ChromeTeleport :when="app.isLocalSectionActive('hosts')">
+      <span class="chrome-meta nginx-path">/etc/hosts</span>
+      <el-button :icon="Refresh" :loading="loading" @click="refresh">刷新</el-button>
+    </ChromeTeleport>
 
-    <PageSkeleton v-if="loading && !info" variant="table" :show-toolbar="false" />
+    <PageSkeleton v-if="loading && !info" variant="nginx" />
     <el-alert
       v-else-if="error && !info"
       type="error"
       :title="error"
       show-icon
       :closable="false"
-      class="hosts-alert"
+      class="nginx-alert"
     />
 
-    <div
-      v-else-if="info"
-      ref="bodyRef"
-      class="hosts-body"
-      :class="{ 'is-raw': rawMode, 'is-resizing': resizing }"
-      :style="
-        rawMode
-          ? {
-              gridTemplateColumns: `${tablePercent}fr 5px ${100 - tablePercent}fr`,
-            }
-          : undefined
-      "
-    >
-      <div class="table-wrap m3-table-surface">
-        <el-table
-          :data="filteredEntries"
-          stripe
-          :fit="false"
-          class="data-table-unified hosts-entries-table"
-          height="100%"
-          style="width: 100%"
-        >
-          <el-table-column type="index" label="序" width="52" align="center" />
-          <!-- 主机名 / IP / 状态固定宽，注释吃剩余 -->
-          <el-table-column label="主机名" width="200" show-overflow-tooltip>
-            <template #default="{ row }">
-              <span :class="{ disabled: row.disabled }">
-                {{ (row.names || []).join(" ") }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="ip" label="IP" width="152" show-overflow-tooltip>
-            <template #default="{ row }">
-              <span class="mono" :class="{ disabled: row.disabled }">{{ row.ip }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="88">
-            <template #default="{ row }">
-              {{ row.disabled ? "已注释" : "生效" }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="comment" label="注释" show-overflow-tooltip />
-        </el-table>
+    <div v-else class="nginx-split">
+      <aside class="nginx-files" aria-label="hosts 文件">
+        <button type="button" class="nf-item is-active">
+          <span class="nf-name">hosts</span>
+          <span class="nf-size">{{ formatSize(rawSize) }}</span>
+        </button>
+      </aside>
+
+      <div class="nginx-codearea">
+        <CodePane
+          v-if="info?.raw"
+          :html="rawHtml"
+          :text="info.raw"
+        />
+        <pre v-else class="nginx-preview muted">暂无内容</pre>
       </div>
-
-      <div
-        v-if="rawMode"
-        class="hosts-split-handle"
-        v-tip="'拖动调整比例；双击恢复各半'"
-        @pointerdown="onResizeStart"
-        @dblclick="onResizeDblClick"
-      />
-
-      <CodePane
-        v-if="rawMode"
-        class="hosts-raw"
-        :html="rawHtml"
-        :text="info.raw || ''"
-      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { Refresh } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import type { localsys } from "@/api";
+import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import CodePane from "@/components/CodePane.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
-import { useHostsSplit } from "@/composables/useHostsSplit";
 import { usePolling } from "@/composables/usePolling";
 import { useAppStore } from "@/stores/app";
-import { plainCodeHtml } from "@/utils/plainCode";
+import { hostsHighlightHtml } from "@/utils/hostsHighlight";
 
 const app = useAppStore();
-const rawMode = ref(false);
-const keyword = ref("");
-const { tablePercent, resizing, bodyRef, onResizeStart, onResizeDblClick } =
-  useHostsSplit();
 
 const { data: info, error, loading, refresh } = usePolling<localsys.HostsInfo>(
   () => api.localSysHosts(),
@@ -124,135 +59,130 @@ const { data: info, error, loading, refresh } = usePolling<localsys.HostsInfo>(
     !app.settingsOpen
 );
 
-const filteredEntries = computed(() => {
-  const list = info.value?.entries || [];
-  const q = keyword.value.trim().toLowerCase();
-  if (!q) return list;
-  return list.filter((e) => {
-    if ((e.ip || "").toLowerCase().includes(q)) return true;
-    return (e.names || []).some((n) => (n || "").toLowerCase().includes(q));
-  });
-});
+const rawHtml = computed(() => hostsHighlightHtml(info.value?.raw || ""));
+const rawSize = computed(() => (info.value?.raw || "").length);
 
-const rawHtml = computed(() => plainCodeHtml(info.value?.raw || ""));
+function formatSize(n: number) {
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / (1024 * 1024)).toFixed(1) + " MB";
+}
 </script>
 
 <style scoped lang="scss">
-.local-hosts {
-  gap: 12px;
+.nginx-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 0;
 }
 
-.page-toolbar__hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+.nginx-path {
+  font-family: var(--m3-font-mono);
 }
 
-.hosts-alert {
+.nginx-alert {
+  margin: 0 20px 12px;
   flex-shrink: 0;
 }
 
-.hosts-body {
+.nginx-split {
+  display: grid;
+  grid-template-columns: 260px 1fr;
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: row;
-  gap: 0;
   overflow: hidden;
-
-  &.is-raw {
-    display: grid;
-    border: 1px solid var(--m3-outline-variant);
-    border-radius: var(--m3-shape-s);
-  }
-
-  &.is-resizing {
-    user-select: none;
-    cursor: col-resize;
-  }
 }
 
-.table-wrap {
-  flex: 1 1 auto;
-  min-width: 0;
+.nginx-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-height: 0;
-  overflow-x: auto;
+  overflow: auto;
+  padding: 10px;
+  background: var(--m3-card);
+  border-right: 1px solid var(--m3-outline-variant);
+  box-sizing: border-box;
 }
 
-/* 序+主机名+IP+状态保底；注释无固定宽，吃掉剩余 */
-.hosts-entries-table {
-  width: 100% !important;
-  min-width: 492px;
-}
+.nf-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--m3-shape-s);
+  background: transparent;
+  color: var(--m3-on-surface);
+  font: var(--m3-body-medium);
+  text-align: left;
+  cursor: default;
+  box-sizing: border-box;
 
-.table-wrap :deep(.hosts-entries-table) {
-  table {
-    width: 100% !important;
-    table-layout: fixed;
-  }
+  &.is-active {
+    background: var(--m3-primary-container);
+    color: var(--m3-on-primary-container);
 
-  .el-table__header-wrapper,
-  .el-table__body-wrapper {
-    .el-scrollbar__wrap {
-      overflow-x: auto !important;
+    .nf-name {
+      font-weight: 600;
+    }
+
+    .nf-size {
+      color: inherit;
+      opacity: 0.75;
     }
   }
-
-  .el-scrollbar__bar.is-horizontal {
-    display: block !important;
-  }
 }
 
-.hosts-split-handle {
-  position: relative;
-  z-index: 2;
-  cursor: col-resize;
-  touch-action: none;
-  background: transparent;
-
-  &::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 1px;
-    width: 2px;
-    height: 100%;
-    border-radius: 1px;
-    background: var(--m3-outline-variant);
-    transition: background var(--m3-motion-state);
-  }
-
-  &:hover::after,
-  .hosts-body.is-resizing &::after {
-    background: var(--m3-primary);
-  }
+.nf-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--m3-font-mono);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.hosts-raw {
+.nf-size {
+  flex-shrink: 0;
+  font: var(--m3-label-small);
+  color: var(--m3-on-surface-variant);
+}
+
+.nginx-codearea {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
 
-.mono {
-  font-family: var(--m3-font-mono, ui-monospace, Menlo, monospace);
-}
+.nginx-preview {
+  margin: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 16px 20px;
+  overflow: auto;
+  box-sizing: border-box;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--m3-font-mono);
+  color: var(--m3-on-surface);
+  background: var(--m3-surface-container-lowest);
+  user-select: text;
+  cursor: text;
+  outline: none;
 
-.disabled {
-  opacity: 0.55;
-  text-decoration: line-through;
-}
-
-@media (max-width: 900px) {
-  .hosts-body.is-raw {
-    grid-template-columns: 1fr !important;
-    grid-template-rows: minmax(0, 58%) 0 minmax(0, 42%);
-  }
-
-  .hosts-split-handle {
-    display: none;
-  }
-
-  .hosts-raw {
-    border-top: 1px solid var(--m3-outline-variant);
+  &.muted {
+    color: var(--m3-on-surface-variant);
+    cursor: default;
   }
 }
 </style>

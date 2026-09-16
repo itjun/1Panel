@@ -20,6 +20,7 @@ import * as LocalSys from "../../bindings/diteng-pannel/localsys";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
+export * as aptsource from "../../bindings/diteng-pannel/internal/aptsource/models";
 export * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
 export * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
@@ -199,6 +200,10 @@ export const api = {
   /** 远程主机 /etc/hosts（只读） */
   collectHosts: (host: string): Promise<monitor.HostsInfo> =>
     must(Monitor.CollectHosts(host)),
+  collectAptSources: (host: string) => must(Monitor.CollectAptSources(host)),
+  probeAptMirrors: (host: string) => arr(Monitor.ProbeAptMirrors(host)),
+  applyAptMirror: (host: string, mirror: string, official: boolean) =>
+    must(Monitor.ApplyAptMirror(host, mirror, official)),
   collectDocker: (host: string): Promise<monitor.DockerInfo> =>
     must(Monitor.CollectDocker(host)),
   collectServices: (host: string) => arr(Monitor.CollectServices(host)),

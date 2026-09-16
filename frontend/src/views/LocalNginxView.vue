@@ -2,27 +2,17 @@
   <div class="nginx-page page-panel">
     <PageSkeleton v-if="loading && !info" variant="nginx" />
     <template v-else>
-      <div class="page-toolbar nginx-toolbar">
-        <span class="panel-section-title">Nginx 配置</span>
+      <ChromeTeleport :when="app.isLocalSectionActive('nginx')">
         <span
           v-if="info"
-          class="nginx-badge"
-          :class="info.running ? 'is-on' : 'is-off'"
+          class="chrome-meta"
         >
           {{ info.running ? "运行中" : "未运行" }}
+          <template v-if="info.version"> · v{{ info.version }}</template>
+          <template v-if="info.confPath"> · {{ info.confPath }}</template>
         </span>
-        <span v-if="info?.version" class="nginx-meta">v{{ info.version }}</span>
-        <span
-          v-if="info?.confPath"
-          class="page-toolbar__hint nginx-path"
-          v-tip="info.confPath"
-        >
-          {{ info.confPath }}
-        </span>
-        <div class="page-toolbar__actions">
-          <el-button :loading="loading" @click="refresh">刷新</el-button>
-        </div>
-      </div>
+        <el-button :loading="loading" @click="refresh">刷新</el-button>
+      </ChromeTeleport>
 
       <el-alert
         v-if="error"
@@ -82,6 +72,7 @@
 import { computed, ref, watch } from "vue";
 import { api } from "@/api";
 import type { localsys } from "@/api";
+import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import CodePane from "@/components/CodePane.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import { usePolling } from "@/composables/usePolling";
@@ -197,7 +188,6 @@ function formatSize(n: number) {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border-top: 1px solid var(--m3-outline-variant);
 }
 
 .nginx-files {
@@ -304,10 +294,6 @@ function formatSize(n: number) {
 
 .nginx-toolbar {
   margin: 0;
-  padding: 14px 20px;
-  border-bottom: none;
-  flex-wrap: wrap;
-  row-gap: 8px;
 }
 
 @media (max-width: 900px) {

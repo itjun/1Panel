@@ -155,6 +155,7 @@ import {
   tickHostResourceAlertPoll,
 } from "@/utils/hostResourceAlerts";
 import { useLocalMetricsStore } from "@/stores/localMetrics";
+import { clampContextMenuPos } from "@/utils/contextMenuPos";
 
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
@@ -209,7 +210,8 @@ const fullscreen = ref(false);
 const chromeMenu = ref<{ x: number; y: number } | null>(null);
 
 function openChromeMenu(e: MouseEvent) {
-  chromeMenu.value = { x: e.clientX, y: e.clientY };
+  e.preventDefault();
+  chromeMenu.value = clampContextMenuPos(e.clientX, e.clientY, 200, 56);
 }
 
 function closeChromeMenu() {

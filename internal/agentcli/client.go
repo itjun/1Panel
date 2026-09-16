@@ -25,6 +25,7 @@ const AgentPort = "127.0.0.1:39190"
 const (
 	fastTimeout    = 5 * time.Second
 	slowTimeout    = 45 * time.Second
+	longTimeout    = 120 * time.Second
 	statusCacheTTL = 30 * time.Second
 )
 
@@ -332,7 +333,15 @@ func (c *Client) GetJSON(ctx context.Context, path string, out any, slow ...bool
 
 // PostJSON POST JSON body 并反序列化响应
 func (c *Client) PostJSON(ctx context.Context, path string, body, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, slowTimeout)
+	return c.PostJSONTimeout(ctx, path, body, out, slowTimeout)
+}
+
+// PostJSONTimeout 与 PostJSON 相同，可指定超时（apt-get update 等）。
+func (c *Client) PostJSONTimeout(ctx context.Context, path string, body, out any, d time.Duration) error {
+	if d <= 0 {
+		d = slowTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, d)
 	defer cancel()
 
 	var reader io.Reader

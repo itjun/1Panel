@@ -1,8 +1,8 @@
 <template>
   <div class="host-subs">
-    <header class="host-subs__toolbar">
-      <RouterButton v-model="groupFilter" fluid :buttons="groupButtons" />
-    </header>
+    <ChromeTeleport>
+      <RouterButton v-model="groupFilter" compact :buttons="groupButtons" />
+    </ChromeTeleport>
 
     <div class="host-subs__table-wrap">
       <el-empty
@@ -97,6 +97,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import RouterButton from "@/components/RouterButton.vue";
+import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import { useAppStore } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { ALERT_RULES } from "@/utils/alerts";
@@ -180,11 +181,6 @@ const visibleHosts = computed(() => {
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
-}
-
-.host-subs__toolbar {
-  flex: 0 0 auto;
-  padding: 10px 12px;
 }
 
 .host-subs__table-wrap {

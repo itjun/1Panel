@@ -2,10 +2,12 @@
   <div class="main-container">
     <!-- 设置整页：离开即卸载；底下主机/分组/首页仍 v-show 常驻 -->
     <div v-if="app.settingsOpen" class="workspace-shell">
-      <MainChromeBar title="设置" />
-      <div class="content-pad content-pad--fill">
-        <SettingsView />
-      </div>
+      <ChromeScope>
+        <MainChromeBar title="设置" />
+        <div class="content-pad content-pad--fill">
+          <SettingsView />
+        </div>
+      </ChromeScope>
     </div>
 
     <!-- 本机工作区 -->
@@ -13,28 +15,30 @@
       v-if="!app.settingsOpen && app.workspace === 'local'"
       class="workspace-shell"
     >
-      <MainChromeBar :title="localTitle" />
-      <div
-        class="content-pad content-pad--local"
-        :class="{
-          'content-pad--fill':
-            app.localSection === 'sysinfo' ||
-            app.localSection === 'procs' ||
-            app.localSection === 'packages' ||
-            app.localSection === 'storage' ||
-            app.localSection === 'nginx' ||
-            app.localSection === 'hosts',
-        }"
-      >
-        <LocalOverviewView v-if="app.localSection === 'overview'" />
-        <LocalSysInfoView v-else-if="app.localSection === 'sysinfo'" />
-        <LocalAppsView v-else-if="app.localSection === 'procs'" />
-        <LocalPackagesView v-else-if="app.localSection === 'packages'" />
-        <LocalStorageView v-else-if="app.localSection === 'storage'" />
-        <LocalNetworkView v-else-if="app.localSection === 'network'" />
-        <LocalNginxView v-else-if="app.localSection === 'nginx'" />
-        <LocalHostsView v-else-if="app.localSection === 'hosts'" />
-      </div>
+      <ChromeScope>
+        <MainChromeBar :title="localTitle" />
+        <div
+          class="content-pad content-pad--local"
+          :class="{
+            'content-pad--fill':
+              app.localSection === 'sysinfo' ||
+              app.localSection === 'procs' ||
+              app.localSection === 'packages' ||
+              app.localSection === 'storage' ||
+              app.localSection === 'nginx' ||
+              app.localSection === 'hosts',
+          }"
+        >
+          <LocalOverviewView v-if="app.localSection === 'overview'" />
+          <LocalSysInfoView v-else-if="app.localSection === 'sysinfo'" />
+          <LocalAppsView v-else-if="app.localSection === 'procs'" />
+          <LocalPackagesView v-else-if="app.localSection === 'packages'" />
+          <LocalStorageView v-else-if="app.localSection === 'storage'" />
+          <LocalNetworkView v-else-if="app.localSection === 'network'" />
+          <LocalNginxView v-else-if="app.localSection === 'nginx'" />
+          <LocalHostsView v-else-if="app.localSection === 'hosts'" />
+        </div>
+      </ChromeScope>
     </div>
 
     <!-- 通知工作区 -->
@@ -42,17 +46,19 @@
       v-if="!app.settingsOpen && app.workspace === 'notify'"
       class="workspace-shell"
     >
-      <MainChromeBar :title="notifyTitle" />
-      <div class="content-pad content-pad--local">
-        <NotifyMessagesView v-if="app.notifySection === 'messages'" />
-        <NotifyHostSubsView
-          v-else-if="
-            app.notifySection === 'metricSubs' || app.notifySection === 'appSubs'
-          "
-        />
-        <NotifyChannelsView v-else-if="app.notifySection === 'channels'" />
-        <NotifyContentView v-else-if="app.notifySection === 'content'" />
-      </div>
+      <ChromeScope>
+        <MainChromeBar :title="notifyTitle" />
+        <div class="content-pad content-pad--fill">
+          <NotifyMessagesView v-if="app.notifySection === 'messages'" />
+          <NotifyHostSubsView
+            v-else-if="
+              app.notifySection === 'metricSubs' || app.notifySection === 'appSubs'
+            "
+          />
+          <NotifyChannelsView v-else-if="app.notifySection === 'channels'" />
+          <NotifyContentView v-else-if="app.notifySection === 'content'" />
+        </div>
+      </ChromeScope>
     </div>
 
     <!-- 全部主机首页：常驻（v-show 切换，零销毁零重载） -->
@@ -60,10 +66,12 @@
       v-show="!app.settingsOpen && app.workspace === 'remote' && !app.activeTab"
       class="workspace-shell"
     >
-      <MainChromeBar title="全部主机" />
-      <div class="content-pad">
-        <AllHostsOverviewView />
-      </div>
+      <ChromeScope>
+        <MainChromeBar title="全部主机" />
+        <div class="content-pad">
+          <AllHostsOverviewView />
+        </div>
+      </ChromeScope>
     </div>
 
     <!-- 分组视图：访问过的分组全部常驻，仅 v-show 切换 -->
@@ -78,10 +86,12 @@
       "
       class="workspace-shell"
     >
-      <MainChromeBar :title="app.groupNameOf(gid)" />
-      <div class="content-pad">
-        <GroupOverviewView :group-id="gid" :group-name="app.groupNameOf(gid)" />
-      </div>
+      <ChromeScope>
+        <MainChromeBar :title="app.groupNameOf(gid)" />
+        <div class="content-pad">
+          <GroupOverviewView :group-id="gid" :group-name="app.groupNameOf(gid)" />
+        </div>
+      </ChromeScope>
     </div>
 
     <!-- 多主机会话：已打开的全部挂载，仅用 v-show 切换，避免销毁重载 -->
@@ -95,13 +105,8 @@
         "
         class="host-shell"
       >
-        <MainChromeBar>
-          <RouterButton
-            :model-value="sessionOf(hid)?.subTab || 'overview'"
-            :buttons="subTabs"
-            @update:model-value="(v: string) => onSubChange(hid, v)"
-          />
-        </MainChromeBar>
+        <ChromeScope>
+        <MainChromeBar v-if="!isMac" />
         <div
           class="content-pad"
           :class="{
@@ -142,6 +147,11 @@
             v-show="sessionOf(hid)?.subTab === 'hosts'"
             :host="hid"
           />
+          <AptView
+            v-if="visitedSub(hid, 'apt')"
+            v-show="sessionOf(hid)?.subTab === 'apt'"
+            :host="hid"
+          />
           <FilesView
             v-if="visitedSub(hid, 'files')"
             v-show="sessionOf(hid)?.subTab === 'files'"
@@ -179,6 +189,7 @@
             />
           </KeepAlive>
         </div>
+        </ChromeScope>
       </div>
     </template>
   </div>
@@ -187,8 +198,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useAppStore, type SubTab } from "@/stores/app";
+import ChromeScope from "@/components/ChromeScope.vue";
 import MainChromeBar from "@/components/MainChromeBar.vue";
-import RouterButton from "@/components/RouterButton.vue";
 import OverviewView from "@/views/OverviewView.vue";
 import MonitorView from "@/views/MonitorView.vue";
 import AppsView from "@/views/AppsView.vue";
@@ -197,6 +208,7 @@ import GroupOverviewView from "@/views/GroupOverviewView.vue";
 import ProcessesView from "@/views/ProcessesView.vue";
 import NetworkView from "@/views/NetworkView.vue";
 import HostsView from "@/views/HostsView.vue";
+import AptView from "@/views/AptView.vue";
 import FilesView from "@/views/FilesView.vue";
 import ServicesView from "@/views/ServicesView.vue";
 import CertsView from "@/views/CertsView.vue";
@@ -220,6 +232,7 @@ import NotifyContentView from "@/views/NotifyContentView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 
 const app = useAppStore();
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 const localTitle = computed(() => {
   const map: Record<string, string> = {
@@ -240,42 +253,28 @@ const notifyTitle = computed(() => {
     messages: "全部消息",
     metricSubs: "指标订阅",
     appSubs: "应用订阅",
-    channels: "通知频道",
-    content: "通知内容",
+    channels: "频道设置",
+    content: "内容设置",
   };
   return map[app.notifySection] || "通知";
 });
 
-const subTabs: { value: SubTab; label: string }[] = [
-  { value: "overview", label: "概览" },
-  { value: "monitor", label: "监控" },
-  { value: "apps", label: "应用" },
-  { value: "nginx", label: "Nginx" },
-  { value: "processes", label: "进程" },
-  { value: "network", label: "网络" },
-  { value: "hosts", label: "Hosts" },
-  { value: "files", label: "文件" },
-  { value: "services", label: "服务" },
-  { value: "certs", label: "证书" },
-  { value: "cron", label: "定时任务" },
-  { value: "logs", label: "日志" },
-  { value: "packages", label: "软件包" },
-  { value: "terminal", label: "终端" },
-];
-
 const FILL_SUBS: SubTab[] = [
+  "overview",
   "terminal",
   "files",
   "processes",
   "apps",
   "nginx",
-  "network",
   "hosts",
+  "apt",
   "monitor",
+  "network",
   "services",
   "certs",
   "cron",
   "packages",
+  "logs",
 ];
 
 function sessionOf(hid: string) {
@@ -290,11 +289,6 @@ function visitedSub(hid: string, sub: SubTab) {
 function isFillSub(sub?: SubTab) {
   return !!sub && FILL_SUBS.includes(sub);
 }
-
-function onSubChange(hid: string, v: string) {
-  if (app.activeTabId !== hid) app.openHostTab(hid);
-  app.setSubTab(hid, v as SubTab);
-}
 </script>
 
 <style scoped lang="scss">
@@ -308,10 +302,7 @@ function onSubChange(hid: string, v: string) {
   box-sizing: border-box;
 }
 
-.host-shell {
-  padding: 0 20px 20px;
-}
-
+.host-shell,
 .workspace-shell {
   padding: 0;
 }
@@ -322,7 +313,7 @@ function onSubChange(hid: string, v: string) {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 8px 20px 20px;
+  padding: 12px 16px 16px;
   box-sizing: border-box;
   background: transparent;
 
@@ -338,10 +329,6 @@ function onSubChange(hid: string, v: string) {
     }
   }
 
-  &--local {
-    padding: 4px 16px 16px;
-  }
-
   &--local:not(.content-pad--fill) {
     display: flex;
     flex-direction: column;
@@ -352,21 +339,5 @@ function onSubChange(hid: string, v: string) {
       width: 100%;
     }
   }
-
-  &--local.content-pad--fill {
-    padding: 12px 16px 16px;
-  }
-}
-
-.host-shell .content-pad:not(.content-pad--fill) {
-  padding: 4px 0 12px;
-}
-
-.workspace-shell > .content-pad {
-  padding-top: 4px;
-}
-
-.workspace-shell > .content-pad--fill {
-  padding: 0 16px 16px;
 }
 </style>

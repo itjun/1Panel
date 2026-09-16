@@ -35,15 +35,13 @@
         </template>
       </el-alert>
       <div class="preview-code" role="region" aria-label="文件预览">
-        <div
-          v-for="(line, idx) in previewLines"
-          :key="idx"
-          class="preview-line"
-        >
-          <span class="line-no" aria-hidden="true">{{ idx + 1 }}</span>
-          <span class="line-text">{{ line.length ? line : " " }}</span>
-        </div>
-        <div v-if="!previewLoading && previewLines.length === 0" class="preview-empty">
+        <CodePane
+          v-if="!previewLoading && previewHtml"
+          :html="previewHtml"
+          :text="preview?.content || ''"
+          searchable
+        />
+        <div v-else-if="!previewLoading && !previewHtml" class="preview-empty">
           (空文件)
         </div>
       </div>
@@ -88,6 +86,8 @@ import { computed, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { filetext } from "@/api";
+import CodePane from "@/components/CodePane.vue";
+import { highlightFileHtml } from "@/utils/codeHighlight";
 import { splitTextLines } from "@/utils/format";
 
 const props = defineProps<{ host: string }>();
@@ -101,6 +101,12 @@ const previewConverting = ref(false);
 const previewLines = computed(() => {
   if (!preview.value) return [];
   return splitTextLines(preview.value.content ?? "");
+});
+const previewHtml = computed(() => {
+  const text = preview.value?.content ?? "";
+  if (!text) return "";
+  const path = preview.value?.path || previewPath.value || preview.value?.name || "";
+  return highlightFileHtml(text, path);
 });
 const previewEncoding = computed(() => preview.value?.encoding || "—");
 const previewLineEnding = computed(() => preview.value?.lineEnding || "—");
@@ -191,11 +197,9 @@ defineExpose({ openFile });
 .preview-code {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .preview-line {
   display: flex;

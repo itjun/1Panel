@@ -1,40 +1,24 @@
 <template>
   <div class="all-hosts">
-    <!-- 顶栏 -->
-    <div class="summary-bar">
-      <div class="summary-left">
-        <span class="meta">共 {{ app.hosts.length }} 台</span>
-        <el-tag
-          v-if="app.runningHosts.length"
-          size="small"
-          type="success"
-          effect="dark"
-        >
-          运行中 {{ app.runningHosts.length }}
-        </el-tag>
-      </div>
-      <div class="summary-right">
-        <el-button
-          link
-          type="primary"
-          :icon="Refresh"
-          :loading="app.loading"
-          v-tip="isMac ? '刷新 (⌘R)' : '刷新 (Ctrl+R)'"
-          @click="app.refresh()"
-        >
-          刷新
-        </el-button>
-        <el-button
-          link
-          type="primary"
-          :icon="Picture"
-          :loading="app.iconsRefreshing"
-          @click="onRefreshIcons"
-        >
-          检查图标
-        </el-button>
-      </div>
-    </div>
+    <ChromeTeleport :when="app.isHomeActive()">
+      <span class="chrome-meta">
+        共 {{ app.hosts.length }} 台
+        <template v-if="app.runningHosts.length">
+          · 运行中 {{ app.runningHosts.length }}
+        </template>
+      </span>
+      <el-button
+        :icon="Refresh"
+        :loading="app.loading"
+        v-tip="isMac ? '刷新 (⌘R)' : '刷新 (Ctrl+R)'"
+        @click="app.refresh()"
+      >
+        刷新
+      </el-button>
+      <el-button :icon="Picture" :loading="app.iconsRefreshing" @click="onRefreshIcons">
+        检查图标
+      </el-button>
+    </ChromeTeleport>
 
     <el-empty
       v-if="app.hosts.length === 0"
@@ -95,6 +79,7 @@ import { Events } from "@wailsio/runtime";
 import AllHostsGroupBranch, {
   type HostGroupTreeNode,
 } from "@/components/AllHostsGroupBranch.vue";
+import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import { api } from "@/api";
 import { useAppStore, UNGROUPED_ID, type GroupNode } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";

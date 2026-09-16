@@ -97,9 +97,9 @@
   --el-disabled-border-color: color-mix(in srgb, var(--m3-on-surface) 12%, var(--m3-surface));
 
   // ---------- 组件级 M3 覆盖 ----------
-  // 按钮：full 圆角（M3 按钮 shape = full）
+  // 按钮：full 圆角；高度走 --m3-button-height（EP 默认档 Sass 写死 32，CSS 再锁一次）
   --el-button-border-radius: var(--m3-shape-full);
-  --el-button-size: 40px; // M3 小号按钮高度
+  --el-button-size: var(--m3-button-height);
 
   // 对话框：xl 28dp 圆角
   --el-dialog-border-radius: var(--m3-shape-xl);

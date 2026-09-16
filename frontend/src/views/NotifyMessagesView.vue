@@ -1,25 +1,21 @@
 <template>
   <div class="notify-messages">
-    <div class="notify-messages__top">
-      <div class="notify-messages__filters">
-        <RouterButton v-model="kindFilter" fluid :buttons="kindButtons" />
-        <RouterButton v-model="stateFilter" fluid :buttons="stateButtons" />
-      </div>
-      <div class="notify-messages__tools">
-        <el-button
-          type="primary"
-          plain
-          :disabled="alertHistory.unread <= 0"
-          :loading="markingAll"
-          @click="onMarkAllRead"
-        >
-          全部已读
-        </el-button>
-        <el-button :loading="alertHistory.loading" @click="reload">
-          刷新
-        </el-button>
-      </div>
-    </div>
+    <ChromeTeleport>
+      <RouterButton v-model="kindFilter" compact :buttons="kindButtons" />
+      <RouterButton v-model="stateFilter" compact :buttons="stateButtons" />
+      <el-button
+        type="primary"
+        plain
+        :disabled="alertHistory.unread <= 0"
+        :loading="markingAll"
+        @click="onMarkAllRead"
+      >
+        全部已读
+      </el-button>
+      <el-button :loading="alertHistory.loading" @click="reload">
+        刷新
+      </el-button>
+    </ChromeTeleport>
 
     <div class="notify-messages__table-wrap">
       <PageSkeleton
@@ -102,6 +98,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { TableInstance } from "element-plus";
 import RouterButton from "@/components/RouterButton.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
+import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import { useAppStore } from "@/stores/app";
 import {
   useAlertHistoryStore,
@@ -247,31 +244,6 @@ watch(
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
-}
-
-.notify-messages__top {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px 0;
-}
-
-.notify-messages__filters {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.notify-messages__tools {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-top: 2px;
 }
 
 .notify-messages__table-wrap {

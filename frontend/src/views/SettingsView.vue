@@ -1,14 +1,13 @@
 <template>
   <div class="settings-page">
-    <div class="settings-header">
-      <h1 class="settings-title">设置</h1>
+    <ChromeTeleport>
       <el-button
         v-tip="'仅恢复外观、界面、终端与会话；通知配置保留'"
         @click="settings.resetSettings()"
       >
         恢复默认
       </el-button>
-    </div>
+    </ChromeTeleport>
 
     <div class="settings-machine">
       <span class="machine-label">本机</span>
@@ -238,6 +237,7 @@ import { api } from "@/api";
 import type { monitor } from "@/api";
 import { formatErr } from "@/utils/format";
 import BackupImportDialog from "@/components/BackupImportDialog.vue";
+import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import {
   FONT_OPTIONS,
   TERMINAL_FONT_OPTIONS,
@@ -402,23 +402,7 @@ onUnmounted(() => {
   min-width: 0;
   padding: 20px 28px 28px;
   box-sizing: border-box;
-  /* 与主栏灰画布统一 */
-  background: var(--m3-canvas);
-}
-
-.settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.settings-title {
-  margin: 0;
-  font: var(--m3-headline-small);
-  font-weight: 400;
-  color: var(--m3-on-surface);
+  background: var(--m3-content);
 }
 
 .settings-machine {

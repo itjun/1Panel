@@ -1,39 +1,31 @@
 <template>
   <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
-    <!-- 日志类型筛选：与进程/证书等共用 view-toolbar -->
-    <div class="view-toolbar enl-head-zone">
-      <div class="view-toolbar__chips">
-        <TagButton
-          :model-value="currentLogType"
-          :buttons="logTypeButtons"
-          @update:model-value="(v: string) => { currentLogType = v; loadLog(); }"
+    <ViewToolbar>
+      <TagButton
+        :model-value="currentLogType"
+        :buttons="logTypeButtons"
+        @update:model-value="(v: string) => { currentLogType = v; loadLog(); }"
+      />
+      <template #tools>
+        <el-select v-model="lines" style="width: 110px" @change="loadLog">
+          <el-option :value="100" label="100 行" />
+          <el-option :value="500" label="500 行" />
+          <el-option :value="1000" label="1000 行" />
+          <el-option :value="2000" label="2000 行" />
+        </el-select>
+        <el-input
+          v-model="search"
+          placeholder="搜索过滤"
+          clearable
+          style="width: 180px"
+          :prefix-icon="Search"
         />
-      </div>
-      <div class="view-toolbar__tools">
-          <el-select v-model="lines" style="width: 110px" @change="loadLog">
-            <el-option :value="100" label="100 行" />
-            <el-option :value="500" label="500 行" />
-            <el-option :value="1000" label="1000 行" />
-            <el-option :value="2000" label="2000 行" />
-          </el-select>
-          <el-input
-            v-model="search"
-            placeholder="搜索过滤"
-            clearable
-            style="width: 180px"
-            :prefix-icon="Search"
-          />
-          <el-button
-            type="primary"
-            :icon="Refresh"
-            :loading="loading"
-            @click="loadLog"
-          >
-            刷新
-          </el-button>
-      </div>
-    </div>
+        <el-button :icon="Refresh" :loading="loading" @click="loadLog">
+          刷新
+        </el-button>
+      </template>
+    </ViewToolbar>
     <el-alert
       v-if="error"
       type="error"
@@ -74,6 +66,7 @@ import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import TagButton from "@/components/TagButton.vue";
+import ViewToolbar from "@/components/ViewToolbar.vue";
 
 const props = defineProps<{ host: string }>();
 

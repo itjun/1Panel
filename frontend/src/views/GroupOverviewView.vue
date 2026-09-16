@@ -1,73 +1,39 @@
 <template>
-  <div class="group-overview page-panel">
+  <div class="group-overview">
+    <ChromeTeleport :when="app.isGroupVisible(groupId)">
+      <span class="chrome-meta">
+        正常 {{ okCount }}
+        <template v-if="alertCount > 0"> · 告警 {{ alertCount }}</template>
+        <template v-if="errCount > 0"> · 失败 {{ errCount }}</template>
+      </span>
+      <el-button
+        v-tip="'独立窗口全屏看板：可拖到外屏投屏'"
+        :loading="boardOpening"
+        @click="openBoardWindow"
+      >
+        看板模式
+      </el-button>
+      <el-button
+        :loading="batchBusy"
+        :disabled="!hosts.length || agentInstall.running"
+        v-tip="'为本组全部主机安装 Agent'"
+        @click="batchInstallAgent"
+      >
+        安装 Agent
+      </el-button>
+      <el-button :icon="Refresh" :loading="refreshing" @click="refreshAll">
+        刷新
+      </el-button>
+      <el-button
+        v-if="canEditGroup"
+        :icon="Setting"
+        v-tip="'分组设置'"
+        @click="openGroupSettings"
+      />
+    </ChromeTeleport>
     <template v-if="hosts.length">
-      <div class="page-toolbar">
-        <span class="panel-section-title">{{ groupName || "分组概览" }}</span>
-        <div class="group-stats">
-          <el-tag
-            round
-            effect="light"
-            type="success"
-            class="group-stat-chip"
-          >
-            正常 {{ okCount }}
-          </el-tag>
-          <el-tag
-            v-if="alertCount > 0"
-            round
-            effect="light"
-            type="warning"
-            class="group-stat-chip"
-          >
-            告警 {{ alertCount }}
-          </el-tag>
-          <el-tag
-            v-if="errCount > 0"
-            round
-            effect="light"
-            type="danger"
-            class="group-stat-chip"
-          >
-            失败 {{ errCount }}
-          </el-tag>
-        </div>
-        <div class="page-toolbar__actions">
-          <el-button
-            class="group-toolbar-btn"
-            v-tip="'独立窗口全屏看板：可拖到外屏投屏'"
-            :loading="boardOpening"
-            @click="openBoardWindow"
-          >
-            看板模式
-          </el-button>
-          <el-button
-            class="group-toolbar-btn"
-            :loading="batchBusy"
-            :disabled="!hosts.length || agentInstall.running"
-            v-tip="'为本组全部主机安装 Agent'"
-            @click="batchInstallAgent"
-          >
-            安装 Agent
-          </el-button>
-          <el-button
-            class="group-toolbar-btn"
-            :icon="Refresh"
-            :loading="refreshing"
-            @click="refreshAll"
-          >
-            刷新
-          </el-button>
-          <el-button
-            v-if="canEditGroup"
-            class="group-toolbar-btn group-toolbar-btn--icon"
-            :icon="Setting"
-            v-tip="'分组设置'"
-            @click="openGroupSettings"
-          />
-        </div>
-      </div>
 
-      <div class="host-list-wrap m3-table-surface">
+      <div class="host-list-wrap">
         <el-table
           :data="hosts"
           size="default"
@@ -372,6 +338,7 @@ import {
   ElSkeleton,
   ElSkeletonItem,
 } from "element-plus";
+import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import DistroLogo from "@/components/DistroLogo.vue";
 import { api } from "@/api";
 import { Events } from "@wailsio/runtime";
@@ -1179,6 +1146,7 @@ startPoll();
 .group-overview {
   min-height: 200px;
   box-sizing: border-box;
+  background: transparent;
 }
 
 .group-stats {
@@ -1246,8 +1214,9 @@ startPoll();
 }
 
 .host-list-wrap {
-  overflow: hidden;
   min-width: 0;
+  overflow: visible;
+  background: transparent;
 }
 
 .host-list-table {

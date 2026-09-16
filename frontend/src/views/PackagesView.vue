@@ -1,14 +1,12 @@
 <template>
   <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
-      <div class="view-toolbar pkg-toolbar enl-head-zone">
-        <div class="view-toolbar__chips">
-          <span v-if="stats" class="pkg-stats">
-            共 {{ stats.total }} 个 · 平均依赖 {{ stats.avgDeps }} · 最多
-            {{ stats.maxDeps }} 依赖
-          </span>
-        </div>
-        <div class="view-toolbar__tools">
+      <ViewToolbar>
+        <span v-if="stats" class="pkg-stats">
+          共 {{ stats.total }} 个 · 平均依赖 {{ stats.avgDeps }} · 最多
+          {{ stats.maxDeps }} 依赖
+        </span>
+        <template #tools>
           <el-input
             v-model="filter"
             clearable
@@ -20,8 +18,8 @@
           <el-button type="primary" @click="runInTerminal('apt update && apt upgrade -y')">
             升级所有
           </el-button>
-        </div>
-      </div>
+        </template>
+      </ViewToolbar>
 
       <el-alert v-if="error && !list.length" type="error" :title="error" show-icon />
       <PageSkeleton v-if="loading && !list.length" variant="table" :show-toolbar="false" />
@@ -130,6 +128,7 @@ import { usePolling } from "@/composables/usePolling";
 import { useContainerSize } from "@/composables/useContainerSize";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
+import ViewToolbar from "@/components/ViewToolbar.vue";
 import { useAppStore } from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";

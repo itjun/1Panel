@@ -1,11 +1,9 @@
 <template>
   <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
-      <div class="view-toolbar enl-head-zone">
-        <div class="view-toolbar__chips">
-          <span class="toolbar-meta">{{ filtered.length }} / {{ list.length }}</span>
-        </div>
-        <div class="view-toolbar__tools">
+      <ViewToolbar>
+        <span class="toolbar-meta">{{ filtered.length }} / {{ list.length }}</span>
+        <template #tools>
           <el-input
             v-model="filter"
             clearable
@@ -13,8 +11,8 @@
             placeholder="搜索服务名/描述..."
           />
           <el-button :loading="loading" @click="refresh">刷新</el-button>
-        </div>
-      </div>
+        </template>
+      </ViewToolbar>
 
       <PageSkeleton v-if="loading && !list.length" variant="table" :show-toolbar="false" />
       <el-alert v-else-if="error && !list.length" type="error" :title="error" show-icon />
@@ -120,6 +118,7 @@ import { useContainerSize } from "@/composables/useContainerSize";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
+import ViewToolbar from "@/components/ViewToolbar.vue";
 import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,

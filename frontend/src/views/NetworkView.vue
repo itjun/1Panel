@@ -2,8 +2,8 @@
   <div class="net-root">
     <PageSkeleton v-if="loading && !snap" variant="network" />
     <template v-else>
-    <div class="toolbar">
-      <el-button size="large" :loading="loading" @click="refresh">刷新</el-button>
+    <div class="page-toolbar toolbar">
+      <el-button :loading="loading" @click="refresh">刷新</el-button>
       <span class="hint">
         连接 {{ snap?.connTotal ?? 0 }} · 已建立
         {{ snap?.connEstablished ?? 0 }} · 监听
@@ -546,11 +546,7 @@ function connRowClass({ rowData }: { rowData: NetConnection }) {
   overflow: hidden; /* 页面本身不出现滚动条 */
 }
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 .hint {
   font-size: 12px;

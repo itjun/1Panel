@@ -1,12 +1,11 @@
 <template>
   <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
-      <div class="view-toolbar enl-head-zone">
-        <div class="view-toolbar__chips" />
-        <div class="view-toolbar__tools">
+      <ViewToolbar>
+        <template #tools>
           <el-button :loading="loading" @click="refresh">刷新</el-button>
-        </div>
-      </div>
+        </template>
+      </ViewToolbar>
 
       <PageSkeleton v-if="loading && !list.length" variant="table" :show-toolbar="false" />
       <el-alert v-else-if="error && !list.length" type="error" :title="error" show-icon />
@@ -63,6 +62,7 @@ import { usePolling } from "@/composables/usePolling";
 import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
+import ViewToolbar from "@/components/ViewToolbar.vue";
 import { copyText } from "@/utils/clipboard";
 
 interface Cron {

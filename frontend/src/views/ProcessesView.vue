@@ -1,22 +1,19 @@
 <template>
   <div class="tab-root tab-table-page">
     <EnlargableCard bare class="tab-enl">
-    <!-- 筛选标签直接铺在主内容，不再套一层工具栏卡片 -->
-    <div class="view-toolbar">
-      <div class="view-toolbar__chips">
-        <TagButton v-model="view" :buttons="viewButtons" />
-      </div>
-      <div class="view-toolbar__tools">
-          <el-input
-            v-model="filter"
-            clearable
-            class="filter-input"
-            :placeholder="filterPlaceholder"
-          />
-          <span class="count">{{ view === "docker" ? dockerFilteredCount : filtered.length }} 个</span>
-          <el-button :icon="Refresh" @click="onRefresh" />
-      </div>
-    </div>
+    <ViewToolbar>
+      <TagButton v-model="view" :buttons="viewButtons" />
+      <template #tools>
+        <el-input
+          v-model="filter"
+          clearable
+          class="filter-input"
+          :placeholder="filterPlaceholder"
+        />
+        <span class="count">{{ view === "docker" ? dockerFilteredCount : filtered.length }} 个</span>
+        <el-button :icon="Refresh" @click="onRefresh">刷新</el-button>
+      </template>
+    </ViewToolbar>
     <div
       v-if="view !== 'docker' && loading && !rows.length"
       class="table-wrap m3-table-surface m3-table-v2"
@@ -222,6 +219,7 @@ import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import TagButton from "@/components/TagButton.vue";
+import ViewToolbar from "@/components/ViewToolbar.vue";
 import DockerView from "@/views/DockerView.vue";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatDurationCompact, formatDurationLong } from "@/utils/format";

@@ -15,7 +15,7 @@ body,
   font-family: var(--app-font-family, var(--m3-font-family));
   font-size: var(--app-font-size, 14px);
   color: var(--m3-on-surface);
-  background: var(--m3-canvas);
+  background: var(--m3-shell);
   user-select: none;
 }
 
@@ -132,8 +132,9 @@ html.dark .panel-hover-card,
 .tag-button.el-button {
   margin-right: 8px;
   border-radius: var(--m3-shape-s);
-  height: 32px;
-  padding: 0 12px;
+  height: var(--m3-button-height);
+  min-height: var(--m3-button-height);
+  padding: 0 var(--m3-button-padding-x);
   font: var(--m3-label-large);
   border: 1px solid var(--m3-outline-variant);
   background: transparent;
@@ -167,7 +168,7 @@ html.dark .panel-hover-card,
   min-width: 200px;
   max-width: 360px;
   height: 100%;
-  background: var(--m3-surface-container-low);
+  background: var(--m3-list);
   color: var(--m3-on-surface);
   display: flex;
   flex-direction: column;
@@ -324,7 +325,7 @@ html.dark .panel-hover-card,
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--m3-canvas);
+  background: var(--m3-shell);
 }
 
 .app-chrome {
@@ -333,15 +334,11 @@ html.dark .panel-hover-card,
   min-width: 0;
   display: grid;
   grid-template-rows: 1fr;
-  /* 列1：工作区 rail（64px）· 列2：二级栏 · 列3：主区 */
-  grid-template-columns: 64px auto 1fr;
+  /* 列1：工作区 rail（包住红绿灯）· 列2：二级栏 · 列3：主区 */
+  grid-template-columns: var(--m3-rail-width, 80px) auto 1fr;
   overflow: hidden;
   background: var(--m3-shell);
   border-radius: 0;
-  /* 内容区内缩露出 chrome（顶/右/下等宽） */
-  --chrome-inset: 5px;
-  --chrome-content-radius: var(--m3-shape-l-inc); // 20px
-  --sidebar-float-inset: 10px;
 }
 
 .app-chrome > .workspace-rail {
@@ -349,6 +346,7 @@ html.dark .panel-hover-card,
   grid-column: 1;
   min-height: 0;
   z-index: 1;
+  border-right: 1px solid var(--m3-outline-variant);
 }
 
 .app-chrome > .panel-sidebar {
@@ -356,10 +354,10 @@ html.dark .panel-hover-card,
   grid-column: 2;
   min-height: 0;
   height: auto;
-  background: transparent;
+  margin: 0;
+  background: var(--m3-list);
   color: var(--m3-on-surface);
-  margin-top: var(--chrome-inset);
-  margin-bottom: var(--chrome-inset);
+  border-right: 1px solid var(--m3-outline-variant);
 }
 
 .app-chrome > .main-column {
@@ -370,7 +368,6 @@ html.dark .panel-hover-card,
 /* 收起仅二级栏；rail 永远占第 1 列 */
 .app-chrome.sidebar-collapsed > .main-column {
   grid-column: 2 / -1;
-  margin-left: var(--chrome-inset);
 }
 
 .main-column {
@@ -379,22 +376,11 @@ html.dark .panel-hover-card,
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--m3-canvas);
+  background: var(--m3-content);
   opacity: 1;
-  margin: var(--chrome-inset) var(--chrome-inset) var(--chrome-inset) 0;
-  border-radius: var(--chrome-content-radius);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.05),
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 4px 10px rgba(0, 0, 0, 0.05);
-}
-
-html.dark .main-column,
-.is-dark .main-column {
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.35),
-    0 4px 10px rgba(0, 0, 0, 0.28);
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .main-container {
@@ -403,9 +389,130 @@ html.dark .main-column,
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--m3-surface-container);
+  background: var(--m3-content);
   opacity: 1;
   overflow: hidden;
+}
+
+/* 内容列功能条：查询 / 筛选 / 主操作，单独一行，不和主机标签挤 */
+.content-toolbar,
+.chrome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.content-toolbar {
+  width: 100%;
+  height: var(--m3-chrome-height);
+  min-height: var(--m3-chrome-height);
+  max-height: var(--m3-chrome-height);
+  padding: 0 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-bottom: 1px solid var(--m3-outline-variant);
+}
+
+.chrome-actions {
+  max-width: 58%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.content-toolbar,
+.chrome-actions {
+
+  .chrome-meta {
+    flex-shrink: 1;
+    min-width: 0;
+    margin-right: 8px;
+    font: var(--m3-body-small);
+    color: var(--m3-on-surface-variant);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chrome-filters {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-right: 4px;
+  }
+
+  .chrome-filter {
+    appearance: none;
+    height: var(--m3-button-height);
+    padding: 0 var(--m3-button-padding-x);
+    border: none;
+    background: transparent;
+    color: var(--m3-on-surface-variant);
+    font: var(--m3-label-large);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--m3-on-surface);
+    }
+
+    &.is-active {
+      color: var(--m3-primary);
+      font-weight: 600;
+    }
+  }
+
+  .el-button {
+    height: var(--m3-button-height);
+    min-height: var(--m3-button-height);
+    padding: 0 var(--m3-button-padding-x);
+    border-width: 1px;
+    border-style: solid;
+    box-shadow: none;
+    font: var(--m3-label-large);
+    line-height: 1;
+
+    & + .el-button {
+      margin-left: 0;
+    }
+
+    &.is-disabled,
+    &:disabled {
+      opacity: 0.5;
+    }
+  }
+
+  .el-button--danger:not(.el-button--primary) {
+    color: var(--m3-error);
+    background: transparent;
+    border-color: var(--m3-outline);
+
+    &:hover,
+    &:focus {
+      background: color-mix(in srgb, var(--m3-error) 10%, transparent);
+      border-color: var(--m3-outline);
+      color: var(--m3-error);
+    }
+  }
+
+  .el-input {
+    width: 180px;
+  }
+
+  .el-select {
+    width: 132px;
+  }
+
+  .el-input__wrapper,
+  .el-select__wrapper {
+    min-height: var(--m3-button-height);
+    height: var(--m3-button-height);
+    box-shadow: none !important;
+    background: color-mix(in srgb, var(--m3-on-surface) 5%, transparent);
+    border: 1px solid var(--m3-outline-variant);
+  }
 }
 
 .monitor-tags {
@@ -425,13 +532,19 @@ html.dark .main-column,
   color: var(--m3-tertiary) !important;
 }
 
-// 二级页工具栏：Filter Chip 行 + 搜索/操作区
+// 二级页工具栏：与通栏同一盒子
 .view-toolbar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 4px 12px 10px;
+  height: var(--m3-chrome-height);
+  min-height: var(--m3-chrome-height);
+  max-height: var(--m3-chrome-height);
+  padding: 0 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-bottom: 1px solid var(--m3-outline-variant);
 }
 
 .view-toolbar__chips {
@@ -473,18 +586,28 @@ html.dark .main-column,
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-bottom: 14px;
-  margin-bottom: 12px;
+  height: var(--m3-chrome-height);
+  min-height: var(--m3-chrome-height);
+  max-height: var(--m3-chrome-height);
+  padding: 0 16px;
+  margin: 0;
+  border: none;
   border-bottom: 1px solid var(--m3-outline-variant);
+  box-sizing: border-box;
+  overflow: hidden;
   flex-shrink: 0;
-  background: transparent;
+  background: var(--m3-content);
 }
 
 .page-toolbar__hint {
   flex: 1;
   min-width: 0;
-  font: var(--m3-body-small);
+  font: var(--m3-title-small);
   color: var(--m3-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
 }
 
 .page-toolbar__actions {
@@ -515,18 +638,21 @@ html.dark .main-column,
   height: 100%;
   min-height: 0;
 
-  // 工具栏直接铺在灰画布上，表格单独一张白卡（全站统一，禁止页内再叠外壳）
   .view-toolbar {
-    border: none;
     border-radius: 0;
-    background: transparent;
     margin-bottom: 0;
-    padding: 0;
   }
 
-  // bare 卡内：标签行与表格卡之间留出呼吸，避免标签贴表格描边
   .tab-enl {
-    gap: 12px;
+    gap: 0;
+  }
+
+  /* 表贴内容列边：表头接在通栏底边，不再套卡 */
+  .m3-table-surface {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
   }
 }
 
