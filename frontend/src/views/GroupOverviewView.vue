@@ -1,6 +1,16 @@
 <template>
-  <div class="group-overview">
+  <div
+    class="group-overview"
+    :class="{ 'is-drop-target': dropTargetId === groupId }"
+    :data-drop-group="groupId"
+  >
     <ChromeTeleport :when="app.isGroupVisible(groupId)">
+      <el-segmented
+        v-model="viewMode"
+        :options="viewModeOptions"
+        size="small"
+        class="group-view-segmented"
+      />
       <span class="chrome-meta">
         正常 {{ okCount }}
         <template v-if="alertCount > 0"> · 告警 {{ alertCount }}</template>
@@ -11,7 +21,7 @@
         :loading="boardOpening"
         @click="openBoardWindow"
       >
-        看板模式
+        弹出看板
       </el-button>
       <el-button
         :loading="batchBusy"
@@ -32,16 +42,32 @@
       />
     </ChromeTeleport>
     <template v-if="hosts.length">
-
-      <div class="host-list-wrap">
+      <div v-if="viewMode === 'table'" class="host-list-wrap">
         <el-table
           :data="hosts"
           size="default"
-          stripe
           class="host-list-table data-table-unified"
           :row-class-name="tableRowClass"
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
         >
+          <el-table-column
+            width="36"
+            fixed
+            align="center"
+            class-name="group-drag-col"
+          >
+            <template #default="{ row }">
+              <span
+                class="host-drag-handle"
+                title="拖动以移至其他分组"
+                @pointerdown.stop="onHostPointerDown($event, row.name)"
+                @click.stop
+                @dblclick.stop
+              >
+                ⠿
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column
             type="index"
             label="序"
@@ -202,9 +228,26 @@
           </el-table-column>
         </el-table>
       </div>
+
+      <div v-else class="board-embed-wrap">
+        <BoardModeOverlay
+          embedded
+          :group-name="groupName"
+          :board-title="boardTitle"
+          :hosts="hosts"
+          :cards="boardCards"
+          @open-host="openHost"
+        />
+      </div>
     </template>
 
-    <el-empty v-else description="该分组暂无主机，可将侧栏主机拖入分组" />
+    <div v-else class="group-empty">
+      <p class="group-empty__title">拖主机进来</p>
+      <p class="group-empty__hint">
+        从侧栏或其它分组把主机拖到本页，或点击下方添加
+      </p>
+      <el-button type="primary" @click="openAddHost">添加主机</el-button>
+    </div>
 
     <!-- 批量安装进度：各主机步骤实时更新 -->
     <el-dialog
@@ -340,10 +383,14 @@ import {
 } from "element-plus";
 import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import DistroLogo from "@/components/DistroLogo.vue";
+import BoardModeOverlay, {
+  type BoardHostCard,
+} from "@/components/board/BoardModeOverlay.vue";
 import { api } from "@/api";
 import { Events } from "@wailsio/runtime";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
+import { useInjectedHostDrag } from "@/composables/useHostDrag";
 import {
   clearHostWecom,
   fireHostWecom,
@@ -368,6 +415,19 @@ import {
 } from "@/utils/alerts";
 import type { agentcli, monitor, sshconfig } from "@/api";
 
+const VIEW_MODE_KEY = "1pannel-group-view-mode";
+type GroupViewMode = "table" | "board";
+
+function readViewMode(): GroupViewMode {
+  try {
+    const v = localStorage.getItem(VIEW_MODE_KEY);
+    if (v === "board") return "board";
+  } catch {
+    /* 忽略 */
+  }
+  return "table";
+}
+
 const props = defineProps<{
   groupId: string;
   groupName: string;
@@ -375,6 +435,24 @@ const props = defineProps<{
 
 const app = useAppStore();
 const agentInstall = useAgentInstallStore();
+const {
+  onHostPointerDown,
+  dropTargetId,
+} = useInjectedHostDrag();
+
+const viewMode = ref<GroupViewMode>(readViewMode());
+const viewModeOptions = [
+  { label: "表格", value: "table" },
+  { label: "看板", value: "board" },
+];
+
+watch(viewMode, (m) => {
+  try {
+    localStorage.setItem(VIEW_MODE_KEY, m);
+  } catch {
+    /* 忽略 */
+  }
+});
 
 const canEditGroup = computed(() => props.groupId !== UNGROUPED_ID);
 
@@ -470,6 +548,21 @@ const hosts = computed<sshconfig.HostConfig[]>(() => {
 /** 每主机独立的指标状态：key=host.name */
 const hostStates = ref<Record<string, HostSnap>>({});
 
+/** 看板卡片：映射页内 hostStates（暂不传 trends） */
+const boardCards = computed<Record<string, BoardHostCard>>(() => {
+  const out: Record<string, BoardHostCard> = {};
+  for (const h of hosts.value) {
+    const s = hostStates.value[h.name] || { loading: true };
+    out[h.name] = {
+      loading: s.loading,
+      overview: s.overview,
+      disks: s.disks,
+      error: s.error ? withErrTime(s.error, s.errorAt) : undefined,
+    };
+  }
+  return out;
+});
+
 /** 当前活跃组 id，防止旧组请求覆盖新组 */
 let activeGroupId = props.groupId;
 const inFlight = new Set<string>();
@@ -490,6 +583,12 @@ function hostState(name: string): HostSnap {
 
 function openHost(name: string) {
   app.openHostTab(name);
+}
+
+/** 打开添加主机弹窗（App 监听 app-add-host） */
+function openAddHost() {
+  const gid = props.groupId === UNGROUPED_ID ? "" : props.groupId;
+  void Events.Emit("app-add-host", { groupId: gid });
 }
 
 /** 看板独立窗：打开或聚焦 Name=board-{groupId} 的普通窗（可再全屏） */
@@ -1144,9 +1243,86 @@ startPoll();
 
 <style scoped lang="scss">
 .group-overview {
-  min-height: 200px;
+  min-height: 0;
+  height: 100%;
   box-sizing: border-box;
   background: transparent;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 16px 16px;
+
+  &.is-drop-target {
+    outline: 2px solid var(--m3-primary);
+    outline-offset: -2px;
+    border-radius: var(--m3-shape-m, 12px);
+    background: color-mix(in srgb, var(--m3-primary) 6%, transparent);
+  }
+}
+
+.board-embed-wrap {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.group-empty {
+  flex: 1;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  border: 2px dashed var(--m3-outline-variant);
+  border-radius: var(--m3-shape-l, 16px);
+  background: color-mix(in srgb, var(--m3-surface-container) 60%, transparent);
+  box-sizing: border-box;
+}
+
+.group-empty__title {
+  margin: 0;
+  font: var(--m3-headline-small);
+  font-weight: 600;
+  color: var(--m3-on-surface);
+}
+
+.group-empty__hint {
+  margin: 0 0 8px;
+  max-width: 360px;
+  font: var(--m3-body-medium);
+  color: var(--m3-on-surface-variant);
+  line-height: 1.5;
+}
+
+.host-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 24px;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: var(--m3-on-surface-variant);
+  opacity: 0.4;
+  cursor: grab;
+  user-select: none;
+  border-radius: 4px;
+  touch-action: none;
+
+  &:hover {
+    opacity: 0.85;
+    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .group-stats {
@@ -1215,13 +1391,21 @@ startPoll();
 
 .host-list-wrap {
   min-width: 0;
-  overflow: visible;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
   background: transparent;
 }
 
 .host-list-table {
   width: 100%;
   cursor: pointer;
+
+  :deep(.group-drag-col .cell) {
+    overflow: visible;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
 
   :deep(.group-index-col .cell) {
     overflow: visible;

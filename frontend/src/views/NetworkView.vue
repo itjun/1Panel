@@ -189,7 +189,6 @@
         <el-table
           :data="snap.interfaces || []"
           size="default"
-          stripe
           class="data-table-unified no-x-scroll-table"
           :height="ifacesEnlarged ? '100%' : 140"
         >
@@ -244,7 +243,6 @@
         <el-table
           :data="snap.slowConnections"
           size="default"
-          stripe
           class="data-table-unified"
           :height="slowEnlarged ? '100%' : undefined"
           :max-height="slowEnlarged ? undefined : 200"

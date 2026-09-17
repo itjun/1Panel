@@ -6,15 +6,9 @@
     </button>
 
     <div class="host-fn__current" :title="host">
-      <span class="host-fn__current-label">当前</span>
+      <span class="host-fn__current-label">当前主机：</span>
       <span class="host-fn__current-name">{{ host }}</span>
     </div>
-
-    <RunningHostsList
-      compact
-      title="已打开"
-      :status-by-host="statusByHost"
-    />
 
     <nav class="host-fn__list" aria-label="主机功能">
       <button
@@ -34,14 +28,11 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import RunningHostsList from "@/components/sidebar/RunningHostsList.vue";
-import type { FleetHostStatus } from "@/composables/useFleetStatus";
 import { useAppStore } from "@/stores/app";
 import { hostSubTabButtons } from "@/constants/hostSubTabs";
 
 const props = defineProps<{
   host: string;
-  statusByHost?: Map<string, FleetHostStatus>;
 }>();
 
 const app = useAppStore();
@@ -61,6 +52,7 @@ const tabs = computed(() =>
   flex-direction: column;
   min-height: 0;
   flex: 1;
+  border-top: 1px solid var(--m3-outline-variant);
 }
 
 .host-fn__back {
@@ -70,14 +62,14 @@ const tabs = computed(() =>
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: 36px;
   padding: 0 14px;
   border: 1px solid var(--m3-outline-variant);
   border-radius: 10px;
   background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
   color: var(--m3-primary);
   font: var(--m3-label-large);
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   text-align: left;
   box-sizing: border-box;
@@ -105,9 +97,9 @@ const tabs = computed(() =>
 .host-fn__current {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
-  padding: 6px 14px 2px;
+  padding: 6px 14px 4px;
 }
 
 .host-fn__current-label {
@@ -132,8 +124,6 @@ const tabs = computed(() =>
   min-height: 0;
   overflow: auto;
   padding: 4px 0 8px;
-  border-top: 1px solid var(--m3-outline-variant);
-  margin-top: 4px;
 }
 
 .host-fn__item {

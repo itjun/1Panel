@@ -3,6 +3,8 @@ import { computed, nextTick, ref } from "vue";
 import { api } from "@/api";
 import type { groups, sshconfig } from "@/api";
 import { useSettingsStore } from "@/stores/settings";
+import { ElMessage } from "element-plus";
+import { TAB_BAR_FULL_MSG } from "@/composables/useTabStrip";
 
 export const UNGROUPED_ID = "__ungrouped__";
 /** 拖放到「全部主机」：分组升顶层；主机进未分组 */
@@ -648,7 +650,24 @@ export const useAppStore = defineStore("app", () => {
     }
   }
 
+  // 顶部主标签栏判满回调：由 MainTabsBar 挂载时注册，未挂载则不拦
+  let tabBarFullChecker: (() => boolean) | null = null;
+
+  function registerTabBarFullChecker(fn: (() => boolean) | null) {
+    tabBarFullChecker = fn;
+  }
+
+  function tabBarIsFullNow(): boolean {
+    if (!tabBarFullChecker) return false;
+    return tabBarFullChecker();
+  }
+
   function openHostTab(name: string, subTab?: SubTab) {
+    // 要新开标签且栏已满 → 拦截；已打开的主机只切换，不拦
+    if (!hostSessions.value[name] && tabBarIsFullNow()) {
+      ElMessage.warning(TAB_BAR_FULL_MSG);
+      return;
+    }
     const sess = ensureSession(name);
     if (!sess) return;
     settingsOpen.value = false;
@@ -666,6 +685,10 @@ export const useAppStore = defineStore("app", () => {
   }
 
   function openGroupTab(id: string, title: string) {
+    if (!visitedGroupIds.value.includes(id) && tabBarIsFullNow()) {
+      ElMessage.warning(TAB_BAR_FULL_MSG);
+      return;
+    }
     settingsOpen.value = false;
     activeView.value = {
       id,
@@ -677,6 +700,51 @@ export const useAppStore = defineStore("app", () => {
     if (!visitedGroupIds.value.includes(id)) {
       visitedGroupIds.value = [...visitedGroupIds.value, id];
     }
+  }
+
+  /** 关闭分组标签：从常驻列表移除；若正看该分组则回首页 */
+  function closeGroupTab(id: string) {
+    const gid = (id || "").trim();
+    if (!gid) return;
+    if (!visitedGroupIds.value.includes(gid)) return;
+    visitedGroupIds.value = visitedGroupIds.value.filter((x) => x !== gid);
+    if (activeView.value?.kind === "group" && activeView.value.id === gid) {
+      goHome();
+    }
+  }
+
+  /** 调整已打开主机标签顺序 */
+  function reorderRunningHost(fromIndex: number, toIndex: number) {
+    const list = [...runningOrder.value];
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= list.length ||
+      toIndex >= list.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+    const [item] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, item);
+    runningOrder.value = list;
+  }
+
+  /** 调整已访问分组标签顺序 */
+  function reorderVisitedGroup(fromIndex: number, toIndex: number) {
+    const list = [...visitedGroupIds.value];
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= list.length ||
+      toIndex >= list.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+    const [item] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, item);
+    visitedGroupIds.value = list;
   }
 
   /** 分组显示名（常驻分组页的 group-name 派生源，改名后自动更新） */
@@ -962,6 +1030,10 @@ export const useAppStore = defineStore("app", () => {
     isRunning,
     openHostTab,
     openGroupTab,
+    registerTabBarFullChecker,
+    closeGroupTab,
+    reorderRunningHost,
+    reorderVisitedGroup,
     groupNameOf,
     goHome,
     setSubTab,

@@ -5,7 +5,6 @@
       :data="rows"
       height="100%"
       size="default"
-      stripe
       highlight-current-row
       row-key="path"
       empty-text="空目录"

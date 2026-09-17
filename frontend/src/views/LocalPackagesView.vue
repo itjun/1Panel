@@ -28,7 +28,6 @@
       <div v-else-if="filtered.length" class="table-wrap m3-table-surface">
         <el-table
           :data="filtered"
-          stripe
           style="width: 100%"
           class="data-table-unified"
           height="100%"

@@ -146,7 +146,9 @@ const props = withDefaults(
   { density: "md" }
 );
 
-const emit = defineEmits<{ open: [name: string] }>();
+const emit = defineEmits<{
+  open: [name: string];
+}>();
 
 const overview = computed(() => props.overview || null);
 const error = computed(() => props.error || "");

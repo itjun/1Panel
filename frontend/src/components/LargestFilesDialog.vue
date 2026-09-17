@@ -28,7 +28,6 @@
         v-loading="loading"
         :data="files"
         max-height="480"
-        stripe
         class="data-table-unified"
         :empty-text="loading ? '正在扫描（可能需要几十秒）…' : '暂无数据'"
       >

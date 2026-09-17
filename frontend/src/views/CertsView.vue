@@ -37,7 +37,6 @@
       :data="groups"
       height="100%"
       size="default"
-      stripe
       class="data-table-unified"
     >
       <el-table-column type="index" label="序" width="64" align="center" />

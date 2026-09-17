@@ -21,7 +21,6 @@
         <el-table
           :data="sec.rows"
           size="default"
-          stripe
           highlight-current-row
           class="data-table-unified"
           :show-header="secIdx === 0"
@@ -142,7 +141,6 @@
         v-if="events.length"
         :data="events"
         class="data-table-unified charts-ev-table"
-        stripe
       >
         <el-table-column type="index" label="序" width="64" align="center" />
         <el-table-column prop="layer" label="层" width="90" />

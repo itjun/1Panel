@@ -1,11 +1,12 @@
 <template>
   <div
     class="board-mode is-dark"
-    role="dialog"
-    aria-modal="true"
+    :class="{ 'is-embedded': embedded }"
+    :role="embedded ? undefined : 'dialog'"
+    :aria-modal="embedded ? undefined : 'true'"
     aria-label="看板模式"
   >
-    <header class="board-mode__bar drag-region">
+    <header v-if="!embedded" class="board-mode__bar drag-region">
       <div class="board-mode__titles">
         <span class="board-mode__group">{{ groupName || "分组" }}</span>
         <span class="board-mode__count">{{ hosts.length }} 台</span>
@@ -83,15 +84,23 @@ export interface BoardHostTrend {
 
 const emptyTrend: BoardHostTrend = { cpu: [], mem: [] };
 
-const props = defineProps<{
-  groupName: string;
-  /** 看板正中标题；空则不显示 */
-  boardTitle?: string;
-  hosts: sshconfig.HostConfig[];
-  cards: Record<string, BoardHostCard>;
-  /** 每主机近 1h 趋势；缺省则空数组 */
-  trends?: Record<string, BoardHostTrend>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    groupName: string;
+    /** 看板正中标题；空则不显示 */
+    boardTitle?: string;
+    hosts: sshconfig.HostConfig[];
+    cards: Record<string, BoardHostCard>;
+    /** 每主机近 1h 趋势；缺省则空数组 */
+    trends?: Record<string, BoardHostTrend>;
+    /**
+     * 嵌入分组页时为 true：去掉全屏/独立窗顶栏 chrome，
+     * 改为撑满父容器的面板；独立看板窗口不传。
+     */
+    embedded?: boolean;
+  }>(),
+  { embedded: false }
+);
 
 const emit = defineEmits<{
   exit: [];
@@ -193,6 +202,7 @@ function onOpen(name: string) {
 }
 
 async function toggleFullscreen() {
+  if (props.embedded) return;
   try {
     const fs = await Window.IsFullscreen();
     if (fs) {
@@ -208,6 +218,7 @@ async function toggleFullscreen() {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (props.embedded) return;
   if (e.key === "Escape") {
     e.preventDefault();
     emit("exit");
@@ -220,6 +231,10 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  if (props.embedded) {
+    // 嵌入页：无时钟顶栏、无全屏快捷键
+    return;
+  }
   startClock();
   window.addEventListener("keydown", onKeydown);
   fsEventOffs.push(
@@ -266,6 +281,17 @@ onBeforeUnmount(() => {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+
+  &.is-embedded {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 12px;
+    border-radius: var(--m3-shape-m, 12px);
+    gap: 0;
+  }
 }
 
 .board-mode__bar {

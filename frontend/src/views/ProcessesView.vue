@@ -52,7 +52,6 @@
         :height="size.height.value"
         :row-height="M3_TABLE_ROW_HEIGHT"
         :header-height="M3_TABLE_HEADER_HEIGHT"
-        :row-class="zebraRowClass"
         :sort-by="sortBy"
         :row-event-handlers="allRowEventHandlers"
         @column-sort="onColumnSort"
@@ -60,7 +59,7 @@
         <template #empty>暂无数据</template>
       </el-table-v2>
 
-      <!-- 运行时进程视图（java/go/node/bun/python，虚拟化 + 行悬浮详情卡） -->
+      <!-- 运行时进程视图（java/go/node/bun/python，虚拟化；左键点行出详情卡，右键出菜单） -->
       <el-table-v2
         v-else-if="view !== 'all' && size.width.value > 0"
         :columns="runtimeColumns"
@@ -69,7 +68,6 @@
         :height="size.height.value"
         :row-height="M3_TABLE_ROW_HEIGHT"
         :header-height="M3_TABLE_HEADER_HEIGHT"
-        :row-class="zebraRowClass"
         :sort-by="sortBy"
         :row-event-handlers="rowEventHandlers"
         @column-sort="onColumnSort"
@@ -84,26 +82,19 @@
     />
     </EnlargableCard>
 
-    <!-- 跟随鼠标的详情卡片：固定定位 + 视口内自动避让；
-         悬浮时不参与鼠标事件，点击行固定（pinned）后可交互、可选择文本、可复制 -->
+    <!-- 点击行弹出的详情卡片：固定定位 + 视口内自动避让；
+         可交互、可选择文本、可复制；点 × 或点卡片外任意处关闭 -->
     <Teleport to="body">
       <div
         v-if="card.visible && card.proc && view !== 'docker'"
         class="java-hover-card"
-        :class="{ pinned: card.pinned }"
         :style="{ left: card.x + 'px', top: card.y + 'px' }"
       >
         <div class="detail-title">
           {{ card.proc.entry ? baseName(card.proc.entry) : appName(card.proc) }}
           <span class="pid-tag mono">PID {{ card.proc.pid }}</span>
           <span class="flex-spacer" />
-          <el-button
-            v-if="card.pinned"
-            size="small"
-            text
-            class="close-btn"
-            @click="unpin"
-          >
+          <el-button size="small" text class="close-btn" @click="closeCard">
             ×
           </el-button>
         </div>
@@ -182,27 +173,30 @@
             <span class="v mono break">{{ card.proc.args || "—" }}</span>
           </div>
         </div>
-        <div v-if="card.pinned" class="card-actions">
+        <div class="card-actions">
           <el-button size="small" @click="copyProcInfo">复制进程信息</el-button>
           <el-button size="small" @click="copyArgs">复制命令行</el-button>
         </div>
       </div>
     </Teleport>
+
+    <!-- 行右键菜单：原操作列能力（复制命令 / 结束 / 强制结束） -->
+    <ProcContextMenu
+      :menu="ctxMenu"
+      @close="ctxMenu = null"
+      @copy="onCtxCopy"
+      @kill="onCtxKill"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h, reactive, ref, watch } from "vue";
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import {
-  ElButton,
-  ElDropdown,
-  ElDropdownItem,
-  ElDropdownMenu,
   ElMessage,
   ElMessageBox,
   ElTag,
   TableV2SortOrder,
-  TableV2FixedDir,
 } from "element-plus";
 import type {
   Column,
@@ -221,13 +215,13 @@ import PageSkeleton from "@/components/PageSkeleton.vue";
 import TagButton from "@/components/TagButton.vue";
 import ViewToolbar from "@/components/ViewToolbar.vue";
 import DockerView from "@/views/DockerView.vue";
+import ProcContextMenu, { type ProcCtxMenuState } from "@/components/ProcContextMenu.vue";
 import { copyText } from "@/utils/clipboard";
-import { formatBytes, formatDurationCompact, formatDurationLong } from "@/utils/format";
+import { formatBytes, formatDurationLong } from "@/utils/format";
 import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,
   m3TableIndexColumn,
-  zebraRowClass,
 } from "@/constants/m3Table";
 import { tipAttrs } from "@/directives/tip";
 
@@ -393,7 +387,7 @@ const ellipsisCell = (text: string, cls = "", tip?: string) =>
 
 const elapsedCell = ({ cellData }: { cellData: number }) =>
   ellipsisCell(
-    formatDurationCompact(cellData || 0),
+    formatDurationLong(cellData || 0),
     "mono",
     formatDurationLong(cellData || 0)
   );
@@ -417,49 +411,6 @@ function heapCell({ rowData }: { rowData: RuntimeProc }) {
   return h("span", { class: "mono" }, `${xms}~${xmx}`);
 }
 
-/** 操作列：复制命令 / TERM / KILL（两个视图仅文案与取命令字段不同） */
-function actionCell(copyLabel: string, getCmd: (row: ProcInfo | RuntimeProc) => string) {
-  return ({ rowData }: { rowData: ProcInfo | RuntimeProc }) =>
-    h(
-      ElDropdown,
-      { trigger: "click", class: "proc-actions" },
-      {
-        default: () =>
-          h(
-            ElButton,
-            {
-              size: "small",
-              text: true,
-              // 拦住冒泡：否则行 onClick 会把详情卡钉住，和菜单叠在一起
-              onClick: (e: MouseEvent) => {
-                e.stopPropagation();
-                hideProcCard();
-              },
-            },
-            () => "⋯"
-          ),
-        dropdown: () =>
-          h(ElDropdownMenu, () => [
-            h(
-              ElDropdownItem,
-              { onClick: () => copyCmd(getCmd(rowData)) },
-              () => copyLabel
-            ),
-            h(
-              ElDropdownItem,
-              { divided: true, onClick: () => kill(rowData.pid, getCmd(rowData), false) },
-              () => "结束进程 (TERM)"
-            ),
-            h(
-              ElDropdownItem,
-              { onClick: () => kill(rowData.pid, getCmd(rowData), true) },
-              () => "强制结束 (KILL)"
-            ),
-          ]),
-      }
-    );
-}
-
 /** 全部进程视图列 */
 const allColumns: Column<any>[] = [
   m3TableIndexColumn(),
@@ -472,28 +423,11 @@ const allColumns: Column<any>[] = [
     key: "elapsed",
     dataKey: "elapsed",
     title: "运行时长",
-    width: 110,
+    width: 200,
     flexShrink: 0,
     cellRenderer: elapsedCell,
   },
-  {
-    key: "cmd",
-    dataKey: "cmd",
-    title: "启动命令",
-    width: 300,
-    minWidth: 160,
-    flexGrow: 1,
-    flexShrink: 1,
-    cellRenderer: ({ cellData }: { cellData: string }) => ellipsisCell(cellData),
-  },
-  {
-    key: "actions",
-    title: "操作",
-    width: 72,
-    align: "right" as const,
-    fixed: TableV2FixedDir.RIGHT,
-    cellRenderer: actionCell("复制启动命令", (r) => (r as ProcInfo).cmd || ""),
-  },
+  // 启动命令不直接列在表里（太长）：左键点行出详情卡，右键出菜单
 ];
 
 /** 运行时视图列（java 多一列堆内存） */
@@ -551,28 +485,11 @@ const runtimeColumns = computed((): Column<any>[] => [
     key: "elapsed",
     dataKey: "elapsed",
     title: "运行时长",
-    width: 110,
+    width: 200,
     flexShrink: 0,
     cellRenderer: elapsedCell,
   },
-  {
-    key: "args",
-    dataKey: "args",
-    title: "启动命令",
-    width: 280,
-    minWidth: 160,
-    flexGrow: 1,
-    flexShrink: 1,
-    cellRenderer: ({ cellData }: { cellData: string }) => ellipsisCell(cellData),
-  },
-  {
-    key: "actions",
-    title: "操作",
-    width: 72,
-    align: "right" as const,
-    fixed: TableV2FixedDir.RIGHT,
-    cellRenderer: actionCell("复制命令行", (r) => (r as RuntimeProc).args || ""),
-  },
+  // 启动命令不直接列在表里（太长）：左键点行出详情卡，右键出菜单
 ]);
 
 /** CPU 排序状态（原 sort-method 迁移为 computed 排序） */
@@ -607,34 +524,25 @@ function procAsCard(p: ProcInfo): RuntimeProc {
   };
 }
 
-/** 运行时视图行事件：悬浮详情卡 + 点击固定（对应原 cell-mouse-* / cell-click） */
+/** 行事件：左键弹详情卡（再点同行收起、点其它行切换），右键弹操作菜单 */
 const rowEventHandlers: RowEventHandlers = {
-  onMouseenter: ({ rowData, event }) =>
-    onRowEnter(rowData as RuntimeProc, event as MouseEvent),
-  onMouseleave: () => scheduleHide(),
   onClick: ({ rowData, event }) =>
-    onCellClick(rowData as RuntimeProc, event as MouseEvent),
+    onRowClick(rowData as RuntimeProc, event as MouseEvent),
+  onContextmenu: ({ rowData, event }) =>
+    onRowContextmenu(rowData as RuntimeProc, event as MouseEvent),
 };
 
 const allRowEventHandlers: RowEventHandlers = {
-  onMouseenter: ({ rowData, event }) =>
-    onRowEnter(procAsCard(rowData as ProcInfo), event as MouseEvent),
-  onMouseleave: () => scheduleHide(),
   onClick: ({ rowData, event }) =>
-    onCellClick(procAsCard(rowData as ProcInfo), event as MouseEvent),
+    onRowClick(procAsCard(rowData as ProcInfo), event as MouseEvent),
+  onContextmenu: ({ rowData, event }) =>
+    onRowContextmenu(rowData as ProcInfo, event as MouseEvent),
 };
 
-function isActionEvent(e: MouseEvent) {
-  const t = e.target as HTMLElement | null;
-  if (!t) return false;
-  return !!t.closest(".proc-actions, .el-dropdown, .el-dropdown-menu, .el-button");
-}
-
-/** 切换视图时收起详情卡片（固定中的也一并取消）并重置排序 */
+/** 切换视图时收起详情卡与右键菜单并重置排序 */
 watch(view, () => {
-  clearTimeout(hideTimer);
-  card.visible = false;
-  card.pinned = false;
+  closeCard();
+  ctxMenu.value = null;
   sortBy.value = { key: "", order: TableV2SortOrder.ASC };
 });
 
@@ -685,7 +593,7 @@ async function kill(pid: number, cmd: string, force: boolean) {
 
 /* ---------- 运行时进程详情卡片（原 Java 标签页迁入后泛化） ---------- */
 
-/** 详情按 PID 缓存；首次悬浮时查询一次（失败返回 null，卡片照常显示列表已有信息） */
+/** 详情按 PID 缓存；首次打开卡片时查询一次（失败返回 null，卡片照常显示列表已有信息） */
 const detailMap = reactive<Record<number, JavaProcDetail | null>>({});
 const pending = new Set<number>();
 function detailOf(pid: number): JavaProcDetail | null | undefined {
@@ -699,18 +607,15 @@ function detailOf(pid: number): JavaProcDetail | null | undefined {
   return detailMap[pid];
 }
 
-/** 跟随鼠标的悬浮卡片：行数据直接引用，无需回列表查找；
- *  点击行进入 pinned 状态（位置固定、可交互、可复制），再点同行或 × 取消 */
+/** 点击行弹出的详情卡（位置贴鼠标、视口内避让；可交互可复制） */
 const card = reactive({
   visible: false,
-  pinned: false,
   proc: null as RuntimeProc | null,
   x: 0,
   y: 0,
 });
 const CARD_W = 420;
 const CARD_EST_H = 420;
-let hideTimer: number | undefined;
 
 function placeCard(e: MouseEvent) {
   const vw = window.innerWidth;
@@ -722,43 +627,62 @@ function placeCard(e: MouseEvent) {
   card.x = x;
   card.y = y;
 }
-function onRowEnter(row: RuntimeProc, e: MouseEvent) {
-  if (card.pinned) return; // 固定期间不跟随不切换
-  if (isActionEvent(e)) return;
-  clearTimeout(hideTimer);
-  card.proc = row;
-  placeCard(e);
-  card.visible = true;
-  void detailOf(row.pid);
-}
-/** 行间移动会连续触发 mouseleave，延迟隐藏避免闪烁 */
-function scheduleHide() {
-  if (card.pinned) return;
-  clearTimeout(hideTimer);
-  hideTimer = window.setTimeout(() => (card.visible = false), 200);
-}
-/** 点击行：固定卡片（再点同一行取消固定，点其他行切换固定目标） */
-function onCellClick(row: RuntimeProc, e: MouseEvent) {
-  if (isActionEvent(e)) return;
-  if (card.pinned && card.proc?.pid === row.pid) {
-    card.pinned = false;
-    card.visible = false;
+/** 左键点行：弹卡片（再点同一行收起，点其它行切换目标） */
+function onRowClick(row: RuntimeProc, e: MouseEvent) {
+  if (card.visible && card.proc?.pid === row.pid) {
+    closeCard();
     return;
   }
   card.proc = row;
-  card.pinned = true;
   placeCard(e);
   card.visible = true;
   void detailOf(row.pid);
 }
-function hideProcCard() {
-  clearTimeout(hideTimer);
-  card.pinned = false;
+function closeCard() {
   card.visible = false;
 }
-function unpin() {
-  hideProcCard();
+
+/* ---------- 行右键菜单（原操作列能力） ---------- */
+
+const ctxMenu = ref<ProcCtxMenuState | null>(null);
+
+/** 当前视图下取行的命令文本（all=cmd，运行时=args） */
+function cmdOfRow(r: ProcInfo | RuntimeProc): string {
+  return view.value === "all" ? (r as ProcInfo).cmd || "" : (r as RuntimeProc).args || "";
 }
+
+function onRowContextmenu(r: ProcInfo | RuntimeProc, e: MouseEvent) {
+  e.preventDefault();
+  ctxMenu.value = {
+    x: e.clientX,
+    y: e.clientY,
+    pid: r.pid,
+    cmd: cmdOfRow(r),
+    copyLabel: view.value === "all" ? "复制启动命令" : "复制命令行",
+  };
+}
+function onCtxCopy() {
+  const cmd = ctxMenu.value?.cmd || "";
+  ctxMenu.value = null;
+  void copyCmd(cmd);
+}
+function onCtxKill(force: boolean) {
+  const m = ctxMenu.value;
+  ctxMenu.value = null;
+  if (!m) return;
+  void kill(m.pid, m.cmd, force);
+}
+
+/** 点卡片外（非表格区）收起详情卡：点表格行由行点击自己切换 */
+function onWindowMouseDown(e: MouseEvent) {
+  if (!card.visible) return;
+  const t = e.target as HTMLElement | null;
+  if (!t) return;
+  if (t.closest(".java-hover-card, .el-table-v2, .el-overlay, .el-message-box")) return;
+  closeCard();
+}
+onMounted(() => window.addEventListener("mousedown", onWindowMouseDown, true));
+onBeforeUnmount(() => window.removeEventListener("mousedown", onWindowMouseDown, true));
 
 /** 运行时视图列展示辅助 */
 function deployLabel(p: RuntimeProc): string {
@@ -893,7 +817,7 @@ async function copyArgs() {
   flex: 1;
   min-height: 0;
 }
-/* 虚拟化表格：行高固定 34px，超长命令必须裁切，不能换行叠到下一行 */
+/* 虚拟化表格：超长单元格（用户/入口等）单行裁切，不换行叠行 */
 .cell-ellipsis {
   display: block;
   min-width: 0;
@@ -906,28 +830,20 @@ async function copyArgs() {
 </style>
 
 <style>
-/* 跟随鼠标的详情卡片（Teleport 到 body，scoped 不生效）；
-   pointer-events:none 保证不挡鼠标、不闪烁 */
+/* 点击行弹出的详情卡（Teleport 到 body，scoped 不生效）：可交互、可选择文本 */
 .java-hover-card {
   position: fixed;
-  z-index: 3000;
+  z-index: 3001;
   width: 420px;
   max-height: 70vh;
   overflow-y: auto;
   padding: 16px;
   border-radius: var(--m3-shape-m, 12px);
   background: var(--m3-surface-container-lowest, #ecebf0);
-  border: 1px solid var(--m3-outline-variant, #cac4d0);
-  box-shadow: var(--m3-elevation-2);
+  border: 1px solid var(--m3-primary, #3f6ad8);
+  box-shadow: var(--m3-elevation-3);
   font: var(--m3-body-small);
   color: var(--m3-on-surface, #1a1a1d);
-  pointer-events: none;
-}
-.java-hover-card.pinned {
-  pointer-events: auto;
-  z-index: 3001;
-  border-color: var(--m3-primary);
-  box-shadow: var(--m3-elevation-3);
 }
 .java-hover-card .flex-spacer {
   flex: 1;

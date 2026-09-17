@@ -4,52 +4,34 @@
     :class="{
       'is-resizing': resizing,
       'is-host-dragging': !!dragState,
-      'is-fn-nav': hostNavMode,
+      'is-host-active': hostNavActive,
     }"
     :style="{ width: width + 'px' }"
     @contextmenu="onBlankContext"
   >
     <SidebarDragCap />
-    <HostFunctionNav
-      v-if="hostNavHost"
-      v-show="hostNavMode"
-      :host="hostNavHost"
-      :status-by-host="statusByHost"
-    />
-    <div v-show="!hostNavMode" class="menu-wrap" ref="menuWrapRef">
-      <PinnedHostsStrip
-        :hosts="app.pinnedHosts"
-        :active-id="activeId"
-        :drop-target-id="dropTargetId"
-        :drag-host-id="dragState?.kind === 'host' ? dragState.id : null"
-        :insert-before="pinInsertBefore"
-        :dragging-host="dragState?.kind === 'host' && !!dragState?.active"
-        :is-running="(n) => app.isRunning(n)"
-        :os-release="(n) => app.osReleaseMap.get(n) || ''"
-        :suppress-click="suppressClick"
-        @open="onHostClick"
-        @context="onHostContext"
-        @item-pointer-down="onHostPointerDown"
-      />
 
-      <RunningHostsList title="已打开" :status-by-host="statusByHost" />
-
-      <!-- 分组目录：只列分组名 + 在线/告警摘要，点分组滚动到看板对应区块 -->
-      <div class="group-dir">
-        <div class="group-dir__head">
-          <span class="group-dir__title">分组</span>
+    <div
+      class="menu-wrap"
+      :class="{ 'is-collapsed': hostNavActive }"
+      ref="menuWrapRef"
+    >
+      <div class="group-tree">
+        <div class="group-tree__head">
+          <span class="group-tree__title">分组</span>
           <button
             type="button"
-            class="group-dir__add"
+            class="group-tree__add"
             v-tip="isMac ? '新建分组 (⌘⇧N)' : '新建分组 (Ctrl+Shift+N)'"
             @click="openCreateGroup()"
           >
             +
           </button>
         </div>
+
         <button
           type="button"
-          class="group-dir__item home-item"
+          class="tree-row tree-row--home"
           :class="{
             'is-active': activeId === '__home__',
             'is-drop-target': dropTargetId === ROOT_DROP_ID,
@@ -58,51 +40,90 @@
           data-drop-group="__root__"
           @click="onHomeClick"
         >
-          <el-icon><Monitor /></el-icon>
-          <span class="group-dir__name" data-drop-group="__root__">全部主机</span>
-          <span
-            class="group-dir__count"
-            v-tip="`共 ${app.hosts.length} 台`"
-          >
+          <el-icon class="tree-home-ico"><Monitor /></el-icon>
+          <span class="tree-name" data-drop-group="__root__">全部主机</span>
+          <span class="tree-badge" v-tip="`共 ${app.hosts.length} 台`">
             {{ app.hosts.length }}
           </span>
         </button>
-        <button
-          v-for="entry in groupDirEntries"
-          :key="entry.id"
-          type="button"
-          class="group-dir__item"
-          :class="{
-            'is-active': activeId === entry.id,
-            'is-drop-target': dropTargetId === entry.id,
-            'is-flash': flashGroupId === entry.id,
-          }"
-          :data-drop-group="entry.id"
-          :style="{
-            paddingLeft: `${10 + Math.max(entry.depth - 1, 0) * 10}px`,
-            '--group-accent': entry.color.accent,
-            '--group-ink': entry.color.ink,
-            '--group-soft': entry.color.soft,
-          }"
-          @click="onGroupDirClick(entry.id, entry.name)"
-          @contextmenu.prevent="onGroupContext($event, entry.id, entry.name)"
-          @pointerdown="onGroupPointerDown($event, entry.id, entry.name)"
-        >
-          <span
-            class="group-dir__dot"
-            :style="{ backgroundColor: entry.color.accent }"
-          />
-          <span class="group-dir__name">{{ entry.name }}</span>
-          <span
-            class="group-dir__meta"
-            :style="{ color: entry.color.ink }"
-            v-tip="groupMetaTip(entry)"
+
+        <template v-for="row in treeRows" :key="row.key">
+          <!-- 分组行 -->
+          <button
+            v-if="row.kind === 'group'"
+            type="button"
+            class="tree-row tree-row--group"
+            :class="{
+              'is-active': activeId === row.id,
+              'is-drop-target': dropTargetId === row.id,
+              'is-flash': flashGroupId === row.id,
+            }"
+            :data-drop-group="row.id"
+            :style="{
+              paddingLeft: `${TREE_PAD + row.depth * 16}px`,
+              '--group-accent': row.color.accent,
+              '--group-ink': row.color.ink,
+              '--group-soft': row.color.soft,
+            }"
+            @click="onGroupRowClick(row)"
+            @contextmenu.prevent="onGroupContext($event, row.id, row.name)"
+            @pointerdown="onGroupPointerDown($event, row.id, row.name)"
           >
-            {{ groupMetaLabel(entry) }}
-          </span>
-        </button>
+            <span
+              class="tree-chevron"
+              :class="{ 'is-open': isExpanded(row.id) }"
+              @click.stop="toggleExpanded(row.id)"
+            >
+              ›
+            </span>
+            <span
+              class="tree-dot"
+              :style="{ backgroundColor: row.color.accent }"
+            />
+            <span class="tree-name">{{ row.name }}</span>
+            <span
+              class="tree-badge"
+              :style="{ color: row.color.ink }"
+              v-tip="row.tip"
+            >
+              {{ row.badge }}
+            </span>
+          </button>
+
+          <!-- 主机行（直属） -->
+          <button
+            v-else
+            type="button"
+            class="tree-row tree-row--host"
+            :class="{
+              'is-active': isHostRowActive(row.name),
+              'is-running': app.isRunning(row.name),
+              'is-drag-source':
+                dragState?.kind === 'host' && dragState.id === row.name,
+            }"
+            :style="{ paddingLeft: `${TREE_PAD + row.depth * 16}px` }"
+            @pointerdown="onHostPointerDown($event, row.name)"
+            @dblclick="onHostDblClick(row.name)"
+            @contextmenu.prevent="onHostContext($event, row.name)"
+          >
+            <DistroLogo
+              :os-release="app.osReleaseMap.get(row.name) || ''"
+              :size="16"
+              class="tree-host-ico"
+            />
+            <span class="tree-name">{{ row.name }}</span>
+            <span
+              v-if="hostHasAlert(row.name)"
+              class="tree-alert"
+              v-tip="'有资源告警'"
+            />
+          </button>
+        </template>
       </div>
     </div>
+
+    <!-- 主机标签激活时：树在上，下方功能菜单 -->
+    <HostFunctionNav v-if="hostNavHost" :host="hostNavHost" />
 
     <div
       class="sidebar-resize-handle"
@@ -111,9 +132,6 @@
       @dblclick="onResizeDblClick"
     />
 
-    <!-- 拖拽幽灵已提升到 App，侧栏与看板共用 -->
-
-    <!-- 主机右键菜单（打开/重命名/编辑/删除/迁移分组等在子组件内处理） -->
     <HostContextMenu
       :menu="ctxMenu"
       @close="closeCtxMenu"
@@ -132,7 +150,6 @@
       @delete="onGroupCtxDelete"
     />
 
-    <!-- 侧栏空白处右键菜单：添加主机 / 新建分组 -->
     <Teleport to="body">
       <div
         v-if="blankCtx"
@@ -157,7 +174,6 @@
       </div>
     </Teleport>
 
-    <!-- 编辑主机弹窗 -->
     <EditHostDialog ref="editRef" />
 
     <el-dialog
@@ -223,7 +239,6 @@
       </template>
     </el-dialog>
 
-    <!-- ⌘F / Ctrl+F：M3 搜索对话框 -->
     <el-dialog
       :model-value="app.sidebarSearchOpen"
       title="搜索主机"
@@ -276,7 +291,7 @@
             role="option"
             class="host-search__hit"
             :class="{ 'is-first': idx === 0 }"
-            @click="onHostClick(h.name)"
+            @click="onSearchHit(h.name)"
           >
             <DistroLogo
               :os-release="app.osReleaseMap.get(h.name) || ''"
@@ -299,14 +314,19 @@
 
 <script setup lang="ts">
 /**
- * 侧栏：置顶 + 已打开主机 + 分组目录；主机详情时切 HostFunctionNav。
- * 侧栏开关在主区壳顶；⌘F 搜索在窗口正中弹出。
- * 拖拽与调宽逻辑在 composables，右键菜单与编辑弹窗在 components/sidebar。
+ * 远程侧栏：可展开分组树（全部主机 / 分组+直属主机）。置顶主机在「全部主机」页顶部展示。
+ * 单击主机 → 右侧信息栏；双击 → 打开主机标签；单击分组 → 打开分组页。
+ * 主机标签激活时树可压矮，下方挂 HostFunctionNav。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Monitor } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { useAppStore, UNGROUPED_ID, ROOT_DROP_ID } from "@/stores/app";
+import {
+  useAppStore,
+  UNGROUPED_ID,
+  ROOT_DROP_ID,
+  type GroupNode,
+} from "@/stores/app";
 import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
 import HostContextMenu, {
   type CtxMenuState,
@@ -314,10 +334,8 @@ import HostContextMenu, {
 import GroupContextMenu, {
   type GroupCtxMenuState,
 } from "@/components/sidebar/GroupContextMenu.vue";
-import PinnedHostsStrip from "@/components/sidebar/PinnedHostsStrip.vue";
-import RunningHostsList from "@/components/sidebar/RunningHostsList.vue";
 import DistroLogo from "@/components/DistroLogo.vue";
-import { groupColor } from "@/components/sidebar/groupColors";
+import { groupColor, type GroupColor } from "@/components/sidebar/groupColors";
 import HostFunctionNav from "@/layout/HostFunctionNav.vue";
 import {
   summarizeFleet,
@@ -328,6 +346,9 @@ import { useSidebarResize } from "@/composables/useSidebarResize";
 import SidebarDragCap from "@/components/SidebarDragCap.vue";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { formatErr } from "@/utils/format";
+
+const TREE_PAD = 10;
+const EXPANDED_KEY = "1pannel-group-tree-expanded";
 
 const emit = defineEmits<{
   addHost: [groupId?: string];
@@ -345,7 +366,6 @@ const menuWrapRef = ref<HTMLElement | null>(null);
 const flashGroupId = ref("");
 let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 远程侧栏可见即参与舰队轮询（与看板共享同一份 statusByHost） */
 const fleetEnabled = computed(
   () => app.workspace === "remote" && !app.settingsOpen
 );
@@ -363,7 +383,6 @@ const { width, resizing, onResizeStart, onResizeDblClick } = useSidebarResize();
 const {
   dragState,
   dropTargetId,
-  pinInsertBefore,
   suppressClick,
   onHostPointerDown: beginHostDrag,
   onGroupPointerDown: beginGroupDrag,
@@ -372,7 +391,6 @@ const {
   moveGroupToParent,
 } = useInjectedHostDrag();
 
-/** 调宽中不启拖拽，避免与 resize 抢指针 */
 function onHostPointerDown(e: PointerEvent, hostName: string) {
   if (resizing.value) return;
   beginHostDrag(e, hostName);
@@ -385,56 +403,188 @@ function onGroupPointerDown(e: PointerEvent, groupId: string, name: string) {
 
 const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
 
-/** 无激活主机时选中首页项；设置整页打开时取消菜单选中 */
 const activeId = computed(() => {
   if (app.settingsOpen) return "__settings__";
   return app.activeTabId || "__home__";
 });
 
-const hostNavMode = computed(
-  () => !app.settingsOpen && app.activeTab?.kind === "host"
+const hostNavActive = computed(
+  () => !app.settingsOpen && app.activeView?.kind === "host"
 );
 const hostNavHost = computed(() =>
-  hostNavMode.value ? app.activeTab?.id || "" : ""
+  hostNavActive.value ? app.activeView?.id || "" : ""
 );
 
-type GroupDirEntry = {
+function loadExpanded(): { set: Set<string>; hasStored: boolean } {
+  try {
+    const raw = localStorage.getItem(EXPANDED_KEY);
+    if (raw === null) return { set: new Set(), hasStored: false };
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return { set: new Set(), hasStored: false };
+    return {
+      set: new Set(arr.filter((x): x is string => typeof x === "string")),
+      hasStored: true,
+    };
+  } catch {
+    return { set: new Set(), hasStored: false };
+  }
+}
+
+const loadedExpanded = loadExpanded();
+const expandedIds = ref<Set<string>>(loadedExpanded.set);
+let expandedInitialized = loadedExpanded.hasStored;
+
+function persistExpanded() {
+  try {
+    localStorage.setItem(
+      EXPANDED_KEY,
+      JSON.stringify([...expandedIds.value])
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function isExpanded(id: string): boolean {
+  return expandedIds.value.has(id);
+}
+
+function toggleExpanded(id: string) {
+  const next = new Set(expandedIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  expandedIds.value = next;
+  persistExpanded();
+}
+
+function expandId(id: string) {
+  if (expandedIds.value.has(id)) return;
+  const next = new Set(expandedIds.value);
+  next.add(id);
+  expandedIds.value = next;
+  persistExpanded();
+}
+
+/** 首次无记忆时：展开有内容的节点 */
+function seedExpandedIfNeeded() {
+  if (expandedInitialized) return;
+  const next = new Set<string>();
+  const walk = (list: GroupNode[]) => {
+    for (const n of list) {
+      const id = n.group?.id || UNGROUPED_ID;
+      if (n.hosts.length > 0 || (n.children && n.children.length > 0)) {
+        next.add(id);
+      }
+      if (n.children?.length) walk(n.children);
+    }
+  };
+  walk(app.groupNodes);
+  expandedIds.value = next;
+  expandedInitialized = true;
+  persistExpanded();
+}
+
+watch(
+  () => app.groupNodes,
+  () => seedExpandedIfNeeded(),
+  { immediate: true }
+);
+
+type GroupTreeRow = {
+  kind: "group";
+  key: string;
   id: string;
   name: string;
   depth: number;
-  hostNames: string[];
-  total: number;
-  color: ReturnType<typeof groupColor>;
+  color: GroupColor;
+  badge: string;
+  tip: string;
 };
 
-/** 分组目录：树序展平，只列分组名（不含主机行）；末尾附未分组 */
-const groupDirEntries = computed<GroupDirEntry[]>(() => {
-  const out: GroupDirEntry[] = [];
-  for (const n of app.flattenGroupNodes()) {
-    const id = n.group!.id;
-    const name = n.group!.name || "未命名";
-    const hostNames = n.subtreeHosts.map((h) => h.name);
-    out.push({
-      id,
-      name,
-      depth: n.depth ?? 0,
-      hostNames,
-      total: hostNames.length,
-      color: groupColor(id, n.rootIndex),
-    });
+type HostTreeRow = {
+  kind: "host";
+  key: string;
+  name: string;
+  depth: number;
+};
+
+type TreeRow = GroupTreeRow | HostTreeRow;
+
+function fleetBadge(directNames: string[], subtreeNames: string[]): {
+  badge: string;
+  tip: string;
+} {
+  const directTotal = directNames.length;
+  const subTotal = subtreeNames.length;
+  const directSum = summarizeFleet(directNames, statusByHost.value);
+  const subSum = summarizeFleet(subtreeNames, statusByHost.value);
+  const hasStatus = statusByHost.value.size > 0;
+
+  let badge: string;
+  if (directTotal === 0) {
+    badge = "0";
+  } else if (!hasStatus) {
+    badge = `${directTotal}`;
+  } else {
+    badge = `${directSum.online}/${directTotal}`;
   }
-  const ug = app.groupNodes.find((n) => !n.group);
-  if (ug) {
-    const hostNames = ug.subtreeHosts.map((h) => h.name);
-    out.push({
-      id: UNGROUPED_ID,
-      name: "未分组",
-      depth: 0,
-      hostNames,
-      total: hostNames.length,
-      color: groupColor(UNGROUPED_ID, -1),
-    });
+
+  if (subTotal === 0) {
+    return { badge, tip: "暂无主机" };
   }
+  if (!hasStatus) {
+    return {
+      badge,
+      tip:
+        directTotal === subTotal
+          ? `共 ${subTotal} 台`
+          : `本级 ${directTotal} 台 · 含子树共 ${subTotal} 台`,
+    };
+  }
+  const parts = [`本级 ${directSum.online}/${directTotal}`];
+  if (subTotal !== directTotal) {
+    parts.push(`含子树 ${subSum.online}/${subTotal}`);
+  }
+  if (subSum.noAgent > 0) parts.push(`${subSum.noAgent} 台未装`);
+  if (subSum.sshDown > 0) parts.push(`${subSum.sshDown} 台掉线`);
+  if (subSum.alert > 0) parts.push(`${subSum.alert} 台告警`);
+  return { badge, tip: parts.join(" · ") };
+}
+
+/** 按展开状态生成可见行：分组 → 直属主机 → 子分组 */
+const treeRows = computed<TreeRow[]>(() => {
+  const out: TreeRow[] = [];
+  const walk = (list: GroupNode[], depth: number) => {
+    for (const n of list) {
+      const id = n.group?.id || UNGROUPED_ID;
+      const name = n.group?.name || "未分组";
+      const color = groupColor(id, n.rootIndex);
+      const directNames = n.hosts.map((h) => h.name);
+      const subNames = n.subtreeHosts.map((h) => h.name);
+      const meta = fleetBadge(directNames, subNames);
+      out.push({
+        kind: "group",
+        key: `g-${id}`,
+        id,
+        name,
+        depth,
+        color,
+        badge: meta.badge,
+        tip: meta.tip,
+      });
+      if (!isExpanded(id)) continue;
+      for (const h of n.hosts) {
+        out.push({
+          kind: "host",
+          key: `h-${id}-${h.name}`,
+          name: h.name,
+          depth: depth + 1,
+        });
+      }
+      if (n.children?.length) walk(n.children, depth + 1);
+    }
+  };
+  walk(app.groupNodes, 0);
   return out;
 });
 
@@ -453,36 +603,19 @@ const searchHits = computed(() => {
   return out;
 });
 
+function hostHasAlert(name: string): boolean {
+  return !!statusByHost.value.get(name)?.alert;
+}
+
+function isHostRowActive(name: string): boolean {
+  if (app.activeView?.kind === "host" && app.activeView.id === name) return true;
+  return false;
+}
+
 function openFirstHit() {
   const first = searchHits.value[0];
   if (!first) return;
-  onHostClick(first.name);
-}
-
-function openGroup(id: string, name: string) {
-  if (suppressClick.value) return;
-  app.openGroupTab(id, name);
-}
-
-function groupMetaLabel(entry: GroupDirEntry): string {
-  if (entry.total === 0) return "0";
-  const sum = summarizeFleet(entry.hostNames, statusByHost.value);
-  if (statusByHost.value.size === 0) return `${entry.total}`;
-  return `${sum.online}/${entry.total}`;
-}
-
-function groupMetaTip(entry: GroupDirEntry): string {
-  if (entry.total === 0) return "暂无主机";
-  const sum = summarizeFleet(entry.hostNames, statusByHost.value);
-  if (statusByHost.value.size === 0) {
-    return `共 ${entry.total} 台`;
-  }
-  const parts = [`${sum.online} 台在线`];
-  if (sum.noAgent > 0) parts.push(`${sum.noAgent} 台未装`);
-  if (sum.sshDown > 0) parts.push(`${sum.sshDown} 台掉线`);
-  if (sum.alert > 0) parts.push(`${sum.alert} 台告警`);
-  parts.push(`共 ${entry.total} 台`);
-  return parts.join(" · ");
+  onSearchHit(first.name);
 }
 
 function flashGroup(id: string) {
@@ -497,33 +630,26 @@ function flashGroup(id: string) {
 function onHomeClick() {
   app.goHome();
   flashGroup(ROOT_DROP_ID);
-  void nextTick(() => {
-    const el = document.querySelector(".all-hosts");
-    el?.scrollTo?.({ top: 0, behavior: "smooth" });
-  });
 }
 
-/** 优先滚动并高亮看板对应分组；找不到锚点时退回打开分组页 */
-async function onGroupDirClick(id: string, name: string) {
+/** 单击分组名 → 打开分组页；点箭头只折叠 */
+function onGroupRowClick(row: GroupTreeRow) {
   if (suppressClick.value) return;
-  if (!app.isHomeActive()) {
-    app.goHome();
-    await nextTick();
-    await nextTick();
-  }
-  const sel = `[data-group-anchor="${CSS.escape(id)}"]`;
-  const el = document.querySelector(sel) as HTMLElement | null;
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-    flashGroup(id);
-    el.classList.add("is-group-flash");
-    window.setTimeout(() => el.classList.remove("is-group-flash"), 1200);
-    return;
-  }
-  openGroup(id, name);
+  app.openGroupTab(row.id, row.name);
 }
 
-/** 收起搜索并清空 query（收起即重置） */
+function onHostDblClick(name: string) {
+  if (suppressClick.value) return;
+  app.openHostTab(name);
+  closeSearch();
+}
+
+function onSearchHit(name: string) {
+  if (suppressClick.value) return;
+  app.openHostTab(name);
+  closeSearch();
+}
+
 function closeSearch() {
   app.setSidebarSearchOpen(false);
   query.value = "";
@@ -541,15 +667,6 @@ function onSearchOpened() {
   });
 }
 
-function onHostClick(name: string) {
-  if (suppressClick.value) return;
-  app.openHostTab(name);
-  // 打开主机即收起搜索、清空过滤（搜索目的达成）
-  closeSearch();
-}
-
-// ---------- 主机 / 分组右键菜单 ----------
-
 const ctxMenu = ref<CtxMenuState | null>(null);
 const groupCtxMenu = ref<GroupCtxMenuState | null>(null);
 const blankCtx = ref<{ x: number; y: number } | null>(null);
@@ -563,12 +680,10 @@ function closeGroupCtxMenu() {
 }
 
 function onHostContext(e: MouseEvent, name: string) {
-  // 先关掉拖拽态，避免右键后幽灵残留
   cancelDrag();
   closeGroupCtxMenu();
   blankCtx.value = null;
 
-  // 粗估：真实高度由 HostContextMenu 挂载后按 DOM 再钳一次
   const pad = 8;
   let x = e.clientX;
   let y = e.clientY;
@@ -591,7 +706,7 @@ function onGroupContext(e: MouseEvent, id: string, name: string) {
 }
 
 function onGroupCtxOpen(id: string, name: string) {
-  openGroup(id, name);
+  app.openGroupTab(id, name);
 }
 
 function onGroupCtxSettings(id: string, name: string) {
@@ -676,12 +791,9 @@ async function onCtxMove(host: string, groupId: string) {
   await moveHostToGroup(host, groupId || UNGROUPED_ID);
 }
 
-/** 侧栏空白处右键：添加主机 / 新建分组 */
 function onBlankContext(e: MouseEvent) {
-  if (hostNavMode.value) return;
-  // 命中主机行/置顶项/分组目录项/按钮/输入框等交互元素时不接管
   const el = (e.target as HTMLElement).closest(
-    ".host-item, .pinned-item, .pinned-strip, .running-hosts__item, .group-dir__item, .group-dir__add, button, input, .sidebar-resize-handle"
+    ".tree-row, .tree-chevron, .group-tree__add, .host-fn, button, input, .sidebar-resize-handle"
   );
   if (el) return;
   e.preventDefault();
@@ -690,10 +802,12 @@ function onBlankContext(e: MouseEvent) {
   const next = clampContextMenuPos(e.clientX, e.clientY, 220, 100);
   blankCtx.value = next;
 }
+
 function onBlankAddHost() {
   blankCtx.value = null;
   emit("addHost");
 }
+
 function onBlankCreateGroup() {
   blankCtx.value = null;
   openCreateGroup();
@@ -715,15 +829,15 @@ async function submitCreateGroup() {
     ElMessage.warning("名称不能为空");
     return;
   }
+  const parentId = createGroupParentId.value;
   try {
-    const id = await app.createGroup(
-      name,
-      createGroupParentId.value || undefined
-    );
+    const id = await app.createGroup(name, parentId || undefined);
     ElMessage.success("已创建");
     createGroupOpen.value = false;
     newGroupName.value = "";
     createGroupParentId.value = "";
+    if (parentId) expandId(parentId);
+    expandId(id);
     app.openGroupTab(id, name);
   } catch (err) {
     ElMessage.error(`创建失败: ${formatErr(err)}`);
@@ -732,7 +846,6 @@ async function submitCreateGroup() {
 
 defineExpose({ openCreateGroup });
 
-/** Cmd/Ctrl + 1~9：按侧栏树序展平后的主机顺序打开 */
 function onNumSwitchKeydown(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
   const n = Number(e.key);
@@ -794,10 +907,184 @@ onBeforeUnmount(() => {
     transition: none;
     user-select: none;
   }
+}
 
-  &.is-fn-nav .menu-wrap {
-    display: none;
+.menu-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+
+  &.is-collapsed {
+    flex: 0 1 auto;
+    max-height: 42%;
+    border-bottom: 1px solid var(--m3-outline-variant);
   }
+}
+
+.group-tree {
+  padding: 4px 6px 12px;
+  min-width: 0;
+}
+
+.group-tree__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 4px;
+}
+
+.group-tree__title {
+  flex: 1;
+  min-width: 0;
+  font: var(--m3-label-small);
+  font-weight: 600;
+  color: var(--m3-on-surface-variant);
+}
+
+.group-tree__add {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
+    color: var(--m3-on-surface);
+  }
+}
+
+.tree-row {
+  appearance: none;
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 8px 0 10px;
+  margin: 1px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--m3-on-surface-variant);
+  font: var(--m3-label-large);
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+  transition: background-color var(--m3-motion-state);
+
+  &:hover {
+    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
+    color: var(--m3-on-surface);
+  }
+
+  &.is-active,
+  &.is-flash {
+    background: color-mix(
+      in srgb,
+      var(--group-accent, var(--m3-primary)) 12%,
+      transparent
+    );
+    color: var(--group-ink, var(--m3-primary));
+  }
+
+  &.is-drop-target {
+    background: color-mix(in srgb, var(--m3-primary) 12%, transparent) !important;
+    outline: 2px dashed var(--m3-primary);
+    outline-offset: -2px;
+  }
+
+  &.is-drag-source {
+    opacity: 0.45;
+  }
+
+}
+
+.tree-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--m3-on-surface-variant);
+  transform: rotate(0deg);
+  transition: transform var(--m3-motion-state);
+  border-radius: 4px;
+
+  &.is-open {
+    transform: rotate(90deg);
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
+    color: var(--m3-on-surface);
+  }
+}
+
+.tree-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tree-home-ico {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-left: 2px;
+}
+
+.tree-host-ico {
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--group-soft, var(--m3-sidebar-active-bg));
+  color: var(--group-ink, var(--m3-sidebar-active-fg));
+}
+
+.tree-row--home .tree-badge {
+  color: var(--m3-sidebar-active-fg);
+  background: var(--m3-sidebar-active-bg);
+}
+
+.tree-alert {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
 }
 
 .host-search {
@@ -934,124 +1221,6 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ---------- 分组目录 ---------- */
-.group-dir {
-  padding: 4px 6px 12px;
-  border-top: 1px solid var(--m3-outline-variant);
-  margin-top: 4px;
-}
-
-.group-dir__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 8px 4px;
-}
-
-.group-dir__title {
-  flex: 1;
-  min-width: 0;
-  font: var(--m3-label-small);
-  font-weight: 600;
-  color: var(--m3-on-surface-variant);
-}
-
-.group-dir__add {
-  appearance: none;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--m3-on-surface-variant);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-
-  &:hover {
-    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
-    color: var(--m3-on-surface);
-  }
-}
-
-.group-dir__item {
-  appearance: none;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 10px;
-  margin: 1px 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--m3-on-surface-variant);
-  font: var(--m3-label-large);
-  cursor: pointer;
-  text-align: left;
-  box-sizing: border-box;
-  transition: background-color var(--m3-motion-state);
-
-  &:hover {
-    background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
-    color: var(--m3-on-surface);
-  }
-
-  &.is-active,
-  &.is-flash {
-    background: color-mix(
-      in srgb,
-      var(--group-accent, var(--m3-primary)) 12%,
-      transparent
-    );
-    color: var(--group-ink, var(--m3-primary));
-  }
-
-  &.is-drop-target {
-    background: color-mix(in srgb, var(--m3-primary) 12%, transparent) !important;
-    outline: 2px dashed var(--m3-primary);
-    outline-offset: -2px;
-  }
-}
-
-.group-dir__dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.group-dir__name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.group-dir__count,
-.group-dir__meta {
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  min-width: 18px;
-  height: 18px;
-  line-height: 18px;
-  text-align: center;
-  padding: 0 6px;
-  border-radius: 9px;
-  background: var(--group-soft, var(--m3-sidebar-active-bg));
-  color: var(--group-ink, var(--m3-sidebar-active-fg));
-}
-
-.home-item .group-dir__count {
-  color: var(--m3-sidebar-active-fg);
-  background: var(--m3-sidebar-active-bg);
-}
-
 .sidebar-resize-handle {
   position: absolute;
   top: 0;
@@ -1083,7 +1252,6 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* ⌘F 搜索对话框（append-to-body） */
 .host-search-dialog.el-dialog {
   border-radius: var(--m3-shape-xl);
   box-shadow: var(--m3-elevation-3);

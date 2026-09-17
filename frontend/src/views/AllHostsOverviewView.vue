@@ -2,10 +2,8 @@
   <div class="all-hosts">
     <ChromeTeleport :when="app.isHomeActive()">
       <span class="chrome-meta">
-        共 {{ app.hosts.length }} 台
-        <template v-if="app.runningHosts.length">
-          · 运行中 {{ app.runningHosts.length }}
-        </template>
+        共 {{ app.hosts.length }} 台 · 在线 {{ fleetOnlineCount }} · 已打开
+        {{ app.runningHosts.length }}
       </span>
       <el-button
         :icon="Refresh"
@@ -18,45 +16,110 @@
       <el-button :icon="Picture" :loading="app.iconsRefreshing" @click="onRefreshIcons">
         检查图标
       </el-button>
+      <el-popover
+        placement="bottom-end"
+        :width="280"
+        trigger="click"
+        :teleported="true"
+      >
+        <template #reference>
+          <el-button class="menu-check-btn">
+            <span
+              class="menu-check-dot"
+              :class="{
+                'is-ok': menuCheckTone === 'ok',
+                'is-bad': menuCheckTone === 'bad',
+              }"
+            />
+            菜单检查
+          </el-button>
+        </template>
+        <div class="menu-check-pop">
+          <div class="menu-check-pop__title">菜单检查</div>
+          <button
+            v-for="item in menuChecks"
+            :key="item.id"
+            type="button"
+            class="menu-check-pop__item"
+            :class="{ 'is-checking': item.checking }"
+            :disabled="item.checking"
+            @click="onMenuCheck(item)"
+          >
+            <span
+              class="menu-check-dot"
+              :class="{
+                'is-ok': item.status === 'ok',
+                'is-bad': item.status === 'bad',
+              }"
+            />
+            <span class="menu-check-pop__label">{{ item.label }}</span>
+            <span class="menu-check-pop__hint">
+              {{ item.checking ? "检查中…" : "点击检查" }}
+            </span>
+          </button>
+        </div>
+      </el-popover>
     </ChromeTeleport>
 
     <el-empty
-      v-if="app.hosts.length === 0"
+      v-if="app.hosts.length === 0 && app.groupList.length === 0"
       description="暂无主机，右键侧栏空白处可添加主机或新建分组"
     />
 
-    <!-- 菜单检查（独立模块，与主机分组并列） -->
-    <section class="group-section menu-check-section">
-      <div class="group-head">
-        <span class="group-color-dot" style="background-color: #0f766e" />
-        <span class="group-name" style="color: #0f766e">菜单检查</span>
-        <span
-          class="group-count"
-          style="color: #0f766e; background-color: rgba(15, 118, 110, 0.12)"
-        >
-          {{ menuChecks.length }}
+    <!-- 置顶主机：有置顶或正在拖主机时显示，可作为置顶落点 / 块内排序 -->
+    <section
+      v-if="showPinnedSection"
+      class="pinned-section"
+      :class="{ 'is-drop-target': dropTargetId === PINNED_DROP_ID }"
+      :data-drop-group="PINNED_DROP_ID"
+    >
+      <div class="pinned-section__head">
+        <span class="pinned-section__dot" />
+        <span class="pinned-section__name">置顶</span>
+        <span class="pinned-section__count">{{ app.pinnedHosts.length }}</span>
+        <span v-if="app.pinnedHosts.length > 0" class="pinned-section__summary">
+          {{ pinnedSummaryText }}
         </span>
       </div>
-      <div class="host-grid">
-        <div
-          v-for="item in menuChecks"
-          :key="item.id"
-          class="host-card menu-check-card"
-          :class="{ 'is-checking': item.checking }"
-          @click="onMenuCheck(item)"
-        >
-          <div class="host-info">
-            <div class="host-name">{{ item.label }}</div>
-            <div class="host-sub">
-              {{ item.checking ? "检查中…" : "点击检查" }}
-            </div>
-          </div>
-        </div>
+      <p v-if="pinnedHostConfigs.length === 0" class="pinned-section__hint">
+        拖到此处置顶
+      </p>
+      <div v-else class="pinned-grid">
+        <HostCard
+          v-for="h in pinnedHostConfigs"
+          :key="'pin-' + h.name"
+          :host="h"
+          :reach="statusByHost.get(h.name)?.reach ?? null"
+          :os-release="app.osReleaseMap.get(h.name) || ''"
+          :running="app.isRunning(h.name)"
+          :selected="selectedPinnedHost === h.name"
+          :drag-source="dragState?.kind === 'host' && dragState.id === h.name"
+          :insert-before="
+            pinInsertBefore === h.name &&
+            dragState?.kind === 'host' &&
+            dragState.id !== h.name
+          "
+          :data-pin-host="h.name"
+          @pointerdown="onHostPointerDown($event, h.name)"
+          @click="onPinnedCardClick(h.name)"
+          @dblclick="openHost(h.name)"
+          @contextmenu="onHostContext($event, h.name)"
+          @refresh-icon="onRefreshOneIcon(h.name)"
+        />
       </div>
     </section>
 
+    <div
+      v-if="app.hosts.length > 0 || app.groupList.length > 0"
+      class="page-toolbar"
+    >
+      <el-button type="primary" plain @click="promptCreateRootGroup">
+        ＋ 新建分组
+      </el-button>
+    </div>
+
     <!-- 按分组树渲染：子分组嵌在父节点下，树线对齐 -->
-    <div v-if="app.hosts.length > 0" class="group-sections">
+    <div v-if="app.hosts.length > 0 || app.groupList.length > 0" class="group-sections">
       <AllHostsGroupBranch
         v-for="node in groupTree"
         :key="node.key"
@@ -84,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { Picture, Refresh } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Events } from "@wailsio/runtime";
@@ -92,27 +155,87 @@ import AllHostsGroupBranch, {
   type HostGroupTreeNode,
 } from "@/components/AllHostsGroupBranch.vue";
 import ChromeTeleport from "@/components/ChromeTeleport.vue";
+import HostCard from "@/components/HostCard.vue";
 import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
 import HostContextMenu, {
   type CtxMenuState,
 } from "@/components/sidebar/HostContextMenu.vue";
-import { useFleetStatus } from "@/composables/useFleetStatus";
+import {
+  summarizeFleet,
+  useFleetStatus,
+} from "@/composables/useFleetStatus";
 import { useInjectedHostDrag } from "@/composables/useHostDrag";
 import { api } from "@/api";
-import { useAppStore, UNGROUPED_ID, type GroupNode } from "@/stores/app";
+import {
+  useAppStore,
+  PINNED_DROP_ID,
+  UNGROUPED_ID,
+  type GroupNode,
+} from "@/stores/app";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
-import type { main } from "@/api";
+import type { main, sshconfig } from "@/api";
 
 const app = useAppStore();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-const { cancelDrag, moveHostToGroup, suppressClick } = useInjectedHostDrag();
+const {
+  dragState,
+  dropTargetId,
+  pinInsertBefore,
+  onHostPointerDown,
+  cancelDrag,
+  moveHostToGroup,
+  suppressClick,
+  pendingCreateChild,
+} = useInjectedHostDrag();
 const ctxMenu = ref<CtxMenuState | null>(null);
 const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
 
 /** 仅在全部主机首页可见时轮询舰队状态 */
 const fleetEnabled = computed(() => app.isHomeActive());
 const { statusByHost } = useFleetStatus({ enabled: fleetEnabled });
+
+const fleetOnlineCount = computed(() => {
+  const names = app.hosts.map((h) => h.name);
+  return summarizeFleet(names, statusByHost.value).online;
+});
+
+/* ---------- 置顶主机区块 ---------- */
+
+/** 有置顶主机，或正在拖主机（空落点提示）时显示 */
+const showPinnedSection = computed(() => {
+  if (app.pinnedHosts.length > 0) return true;
+  return dragState.value?.kind === "host" && !!dragState.value.active;
+});
+
+/** 按置顶顺序取主机配置；已删除的主机名跳过 */
+const pinnedHostConfigs = computed(() => {
+  const byName = new Map(app.hosts.map((h) => [h.name, h]));
+  const out: sshconfig.HostConfig[] = [];
+  for (const name of app.pinnedHosts) {
+    const h = byName.get(name);
+    if (h) out.push(h);
+  }
+  return out;
+});
+
+const pinnedSummaryText = computed(() => {
+  const names = app.pinnedHosts;
+  if (statusByHost.value.size === 0) return `共 ${names.length} 台`;
+  const s = summarizeFleet(names, statusByHost.value);
+  const parts = [`${s.online} 台在线`];
+  if (s.noAgent > 0) parts.push(`${s.noAgent} 台未装`);
+  if (s.sshDown > 0) parts.push(`${s.sshDown} 台掉线`);
+  if (s.alert > 0) parts.push(`${s.alert} 台告警`);
+  return parts.join(" · ");
+});
+
+const selectedPinnedHost = ref<string | null>(null);
+
+function onPinnedCardClick(name: string) {
+  if (suppressClick.value) return;
+  selectedPinnedHost.value = name;
+}
 
 type MenuCheckStatus = "" | "ok" | "bad";
 
@@ -145,7 +268,16 @@ const menuChecks = reactive<MenuCheckItem[]>([
   },
 ]);
 
+const menuCheckTone = computed<"ok" | "bad" | "">(() => {
+  if (menuChecks.some((i) => i.status === "bad")) return "bad";
+  if (menuChecks.length > 0 && menuChecks.every((i) => i.status === "ok")) {
+    return "ok";
+  }
+  return "";
+});
+
 let offMenuCheck: (() => void) | null = null;
+let handlingCreateChild = false;
 
 function applyMenuResult(r: main.MenuCheckResult) {
   if (!r?.id) return;
@@ -265,6 +397,64 @@ async function openBoard(groupId: string) {
     ElMessage.error(`打开看板失败: ${formatErr(e)}`);
   }
 }
+
+async function promptCreateRootGroup() {
+  try {
+    const { value } = await ElMessageBox.prompt("请输入分组名称", "新建分组", {
+      confirmButtonText: "创建",
+      cancelButtonText: "取消",
+      inputPattern: /\S+/,
+      inputErrorMessage: "名称不能为空",
+    });
+    const name = (value || "").trim();
+    if (!name) return;
+    await app.createGroup(name);
+    ElMessage.success("已创建分组");
+  } catch (e) {
+    if (e === "cancel" || e === "close") return;
+    ElMessage.error(`创建失败: ${formatErr(e)}`);
+  }
+}
+
+/** 拖到「新建子分组」区后：命名 → 创建 → 可选 assign / moveGroup */
+watch(pendingCreateChild, async (pending) => {
+  if (!pending || handlingCreateChild) return;
+  handlingCreateChild = true;
+  const { parentId, hostName, groupId } = pending;
+  pendingCreateChild.value = null;
+  const parentName =
+    app.groupList.find((g) => g.id === parentId)?.name || "分组";
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `在「${parentName}」下新建子分组`,
+      "新建子分组",
+      {
+        confirmButtonText: "创建",
+        cancelButtonText: "取消",
+        inputPattern: /\S+/,
+        inputErrorMessage: "名称不能为空",
+      }
+    );
+    const name = (value || "").trim();
+    if (!name) return;
+    const newId = await app.createGroup(name, parentId);
+    if (hostName) {
+      await app.assignHost(hostName, newId);
+      ElMessage.success(`已创建「${name}」并移入 ${hostName}`);
+    } else if (groupId && groupId !== parentId) {
+      // 拖的是分组：移入新建子分组（自身色块则只创建）
+      await app.moveGroup(groupId, newId);
+      ElMessage.success(`已创建「${name}」并移入该分组`);
+    } else {
+      ElMessage.success(`已创建「${name}」`);
+    }
+  } catch (e) {
+    if (e === "cancel" || e === "close") return;
+    ElMessage.error(`创建失败: ${formatErr(e)}`);
+  } finally {
+    handlingCreateChild = false;
+  }
+});
 
 function escapeHtml(s: string): string {
   return s
@@ -430,58 +620,130 @@ async function onRefreshIcons() {
 .all-hosts {
   min-height: 200px;
 }
-.summary-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.summary-left,
-.summary-right {
+
+.page-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  margin-bottom: 16px;
 }
-.meta {
+
+.menu-check-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu-check-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--el-text-color-placeholder, #a8abb2);
+
+  &.is-ok {
+    background: #1e8e3e;
+  }
+
+  &.is-bad {
+    background: #d93025;
+  }
+}
+
+.menu-check-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menu-check-pop__title {
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 6px;
+  color: var(--el-text-color-primary);
+}
+
+.menu-check-pop__item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    background: var(--el-fill-color-light, rgba(0, 0, 0, 0.04));
+  }
+
+  &:disabled,
+  &.is-checking {
+    cursor: wait;
+    opacity: 0.75;
+  }
+}
+
+.menu-check-pop__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.menu-check-pop__hint {
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
 
-/* ---------- 分组树 ---------- */
-.group-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
+/* ---------- 置顶主机 ---------- */
+.pinned-section {
+  position: relative;
+  min-width: 0;
+  padding: 14px 16px 16px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  /* 与分组色块同结构，但用主色做中性强调，区别于任何分组配色 */
+  background: color-mix(in srgb, var(--m3-primary) 6%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--m3-primary) 22%, transparent);
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
+
+  &.is-drop-target {
+    background: color-mix(in srgb, var(--m3-primary) 14%, transparent);
+    outline: 2px dashed var(--m3-primary);
+    outline-offset: 2px;
+  }
 }
-.menu-check-section {
-  margin-bottom: 22px;
-}
-.menu-check-card.is-checking {
-  opacity: 0.75;
-  cursor: wait;
-}
-.group-head {
+
+.pinned-section__head {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+  min-height: 24px;
 }
-.group-color-dot {
+
+.pinned-section__dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+  background: var(--m3-primary);
 }
-.group-name {
-  font-size: 18px;
+
+.pinned-section__name {
+  font-size: 16px;
   font-weight: 650;
   letter-spacing: 0.02em;
   line-height: 1.3;
+  color: var(--m3-primary);
 }
-.group-count {
+
+.pinned-section__count {
   font-size: 12px;
   font-weight: 600;
   min-width: 20px;
@@ -490,77 +752,42 @@ async function onRefreshIcons() {
   text-align: center;
   padding: 0 7px;
   border-radius: 10px;
+  color: var(--m3-primary);
+  background: color-mix(in srgb, var(--m3-primary) 14%, transparent);
 }
 
-/* ---------- 主机卡片网格（菜单检查复用） ---------- */
-.host-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-}
-.host-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--m3-surface-container-lowest, #fff);
-  border: none;
-  border-radius: var(--m3-shape-m, 12px);
-  box-sizing: border-box;
-  cursor: pointer;
-  outline: none;
-  box-shadow: inset 0 0 0 1px var(--m3-outline-variant, #cac4d0);
-  transition: box-shadow var(--m3-motion-select);
-
-  &:hover {
-    box-shadow: inset 0 0 0 2px var(--m3-primary);
-  }
-}
-.host-ico-wrap {
-  display: flex;
-  flex-shrink: 0;
-  cursor: context-menu;
-}
-.host-ico {
-  flex-shrink: 0;
-}
-.host-info {
-  min-width: 0;
-  flex: 1;
-}
-.host-name {
-  font-size: 14px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.host-sub {
-  margin-top: 2px;
+.pinned-section__summary {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 500;
+  opacity: 0.78;
   white-space: nowrap;
-}
-.host-port {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-}
-.run-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--m3-primary, #6750a4);
-  flex-shrink: 0;
+  color: var(--m3-primary);
 }
 
-html.dark .host-card {
-  background: var(--m3-surface-container-low, #1a1a1d);
+.pinned-section__hint {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--m3-primary) 55%, transparent);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  pointer-events: none;
+}
+
+/* 紧凑一排：卡片比分组内略窄 */
+.pinned-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+/* ---------- 分组树 ---------- */
+.group-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
 }
 </style>
 

@@ -459,11 +459,7 @@ html .el-button--text {
             padding: var(--m3-table-cell-padding-y, 12px) var(--m3-table-cell-padding-x, 12px);
         }
 
-        /* 斑马纹：蓝白相间（全站 --m3-table-zebra） */
-        &.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-            background: var(--m3-table-zebra);
-        }
-
+        /* 行统一白底（无斑马纹）；行界靠 EP 自带行线 */
         &.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
             background: var(--m3-table-hover) !important;
         }

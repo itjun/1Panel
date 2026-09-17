@@ -31,7 +31,6 @@
           :height="size.height.value"
           :row-height="M3_TABLE_ROW_HEIGHT"
           :header-height="M3_TABLE_HEADER_HEIGHT"
-          :row-class="zebraRowClass"
           :row-event-handlers="rowEventHandlers"
         >
           <template #empty>无匹配服务</template>
@@ -123,7 +122,6 @@ import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,
   m3TableIndexColumn,
-  zebraRowClass,
 } from "@/constants/m3Table";
 import { tipAttrs } from "@/directives/tip";
 

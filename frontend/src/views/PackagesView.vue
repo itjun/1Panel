@@ -37,7 +37,6 @@
           :height="size.height.value"
           :row-height="M3_TABLE_ROW_HEIGHT"
           :header-height="M3_TABLE_HEADER_HEIGHT"
-          :row-class="zebraRowClass"
           :sort-by="sortBy"
           @column-sort="onColumnSort"
         >
@@ -136,7 +135,6 @@ import {
   M3_TABLE_HEADER_HEIGHT,
   M3_TABLE_ROW_HEIGHT,
   m3TableIndexColumn,
-  zebraRowClass,
 } from "@/constants/m3Table";
 import { tipAttrs } from "@/directives/tip";
 
@@ -486,9 +484,10 @@ async function copyRDeps() {
   font-family: var(--m3-font-mono);
   font-size: 13px;
   line-height: 1.45;
+  border-bottom: 1px solid color-mix(in srgb, var(--m3-outline-variant) 45%, transparent);
 }
-.dep-list li:nth-child(odd) {
-  background: var(--m3-table-zebra);
+.dep-list li:last-child {
+  border-bottom: none;
 }
 
 .selectable {

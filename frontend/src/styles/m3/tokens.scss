@@ -53,10 +53,9 @@
   --m3-button-height-small: 24px;
   --m3-button-height-large: 40px;
   --m3-button-padding-x: 12px;
-  --m3-table-row: var(--m3-card); /* 表格偶数行（白） */
-  --m3-table-zebra: var(--m3-primary-container); /* 表格奇数行（浅蓝） */
-  --m3-table-header: var(--m3-card); /* 表头白底 */
-  /* 悬停要比斑马纹更深一档，才能一眼看出当前行 */
+  --m3-table-row: var(--m3-card); /* 表格行统一白底 */
+  --m3-table-header: var(--m3-table-row); /* 表头同底色，靠行线分界 */
+  /* 悬停是行内唯一的状态色（蓝），一眼看出当前行 */
   --m3-table-hover: color-mix(in srgb, var(--m3-primary) 22%, var(--m3-card));
 
   // 侧栏选中胶囊
@@ -229,8 +228,7 @@ html.dark {
   --m3-chrome-height: 56px;
   --m3-rail-width: 80px;
   --m3-table-row: var(--m3-card);
-  --m3-table-zebra: color-mix(in srgb, var(--m3-primary) 18%, var(--m3-card));
-  --m3-table-header: var(--m3-card);
+  --m3-table-header: var(--m3-table-row);
   --m3-table-hover: color-mix(in srgb, var(--m3-primary) 32%, var(--m3-card));
 
   // 侧栏选中胶囊

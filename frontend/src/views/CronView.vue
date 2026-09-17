@@ -15,7 +15,6 @@
           :data="rows"
           height="100%"
           size="default"
-          stripe
           class="data-table-unified copyable-table"
           empty-text="未发现定时任务"
         >

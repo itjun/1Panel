@@ -25,7 +25,10 @@
         v-else-if="app.sidebarOpen && app.workspace === 'notify'"
       />
       <div class="main-column">
-        <MainArea />
+        <MainTabsBar v-if="app.workspace === 'remote'" />
+        <div class="main-column-body">
+          <MainArea />
+        </div>
       </div>
     </div>
 
@@ -159,6 +162,7 @@ import SidebarNotify from "@/layout/SidebarNotify.vue";
 import SidebarSettings from "@/layout/SidebarSettings.vue";
 import WorkspaceRail from "@/layout/WorkspaceRail.vue";
 import MainArea from "@/layout/MainArea.vue";
+import MainTabsBar from "@/layout/MainTabsBar.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
 import { chromeDragKey, type ChromeDragApi } from "@/composables/useChromeDrag";
@@ -280,14 +284,15 @@ function hasVisibleOverlay(): boolean {
   return false;
 }
 
-/** Esc：先让弹窗 / 侧栏搜索自己关掉；都没有再退出设置整页 */
+/** Esc：关闭设置整页 */
 function onSettingsEsc(e: KeyboardEvent) {
   if (e.key !== "Escape") return;
-  if (!app.settingsOpen) return;
   if (app.sidebarSearchOpen) return;
   if (hasVisibleOverlay()) return;
-  e.preventDefault();
-  app.closeSettings();
+  if (app.settingsOpen) {
+    e.preventDefault();
+    app.closeSettings();
+  }
 }
 
 /** 终端聚焦时不抢快捷键（xterm 把焦点放在 helper textarea） */
@@ -299,20 +304,61 @@ function isTerminalFocused(): boolean {
   return false;
 }
 
-/** 在已打开主机间循环切换 */
-function cycleRunningHost(dir: 1 | -1) {
-  const list = app.runningHosts;
-  if (list.length === 0) return;
-  const cur = app.activeTab?.kind === "host" ? app.activeTab.id : "";
-  let idx = cur ? list.indexOf(cur) : -1;
-  if (idx < 0) {
-    idx = dir === 1 ? -1 : 0;
+type FlatTab =
+  | { kind: "home" }
+  | { kind: "group"; id: string; name: string }
+  | { kind: "host"; name: string };
+
+/** 标签栏扁平顺序：全部主机 → 分组 → 主机 */
+function flatMainTabs(): FlatTab[] {
+  const items: FlatTab[] = [{ kind: "home" }];
+  for (const id of app.visitedGroupIds) {
+    items.push({ kind: "group", id, name: app.groupNameOf(id) });
   }
-  const next = list[(idx + dir + list.length) % list.length];
-  if (next) app.openHostTab(next);
+  for (const name of app.runningHosts) {
+    items.push({ kind: "host", name });
+  }
+  return items;
 }
 
-/** 设置 / 侧栏 / 添加主机 / 新建分组 / 搜索 / 刷新 / 退出 / 回首页 / 切主机 */
+/** 在「全部主机 + 分组 + 主机」标签间循环切换 */
+function cycleMainTab(dir: 1 | -1) {
+  const list = flatMainTabs();
+  if (list.length === 0) return;
+  const tab = app.activeTab;
+  let idx = 0;
+  if (!tab) {
+    idx = 0;
+  } else if (tab.kind === "group") {
+    const i = list.findIndex((x) => x.kind === "group" && x.id === tab.id);
+    idx = i >= 0 ? i : 0;
+  } else if (tab.kind === "host") {
+    const i = list.findIndex((x) => x.kind === "host" && x.name === tab.id);
+    idx = i >= 0 ? i : 0;
+  }
+  const next = list[(idx + dir + list.length) % list.length];
+  if (!next) return;
+  if (next.kind === "home") {
+    app.goHome();
+  } else if (next.kind === "group") {
+    app.openGroupTab(next.id, next.name);
+  } else {
+    app.openHostTab(next.name);
+  }
+}
+
+/** 关闭当前主区标签（全部主机时 noop） */
+function closeActiveMainTab() {
+  const tab = app.activeTab;
+  if (!tab) return;
+  if (tab.kind === "host") {
+    app.stopHost(tab.id);
+  } else if (tab.kind === "group") {
+    app.closeGroupTab(tab.id);
+  }
+}
+
+/** 设置 / 侧栏 / 添加主机 / 新建分组 / 搜索 / 刷新 / 退出 / 回首页 / 切标签 / 关标签 */
 function onGlobalKeydown(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
 
@@ -328,7 +374,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
     return;
   }
 
-  // ⌘⇧H：回全部主机；⌘⇧[ / ⌘⇧]：在已打开主机间切换（终端聚焦时不拦截）
+  // ⌘⇧H：回全部主机；⌘⇧[ / ⌘⇧]：在标签栏扁平列表间切换（终端聚焦时不拦截）
   if (e.shiftKey && (e.code === "KeyH" || e.code === "BracketLeft" || e.code === "BracketRight")) {
     if (isTerminalFocused()) return;
     if (app.workspace !== "remote") return;
@@ -338,11 +384,20 @@ function onGlobalKeydown(e: KeyboardEvent) {
       return;
     }
     e.preventDefault();
-    cycleRunningHost(e.code === "BracketRight" ? 1 : -1);
+    cycleMainTab(e.code === "BracketRight" ? 1 : -1);
     return;
   }
 
   if (e.shiftKey) return;
+
+  // ⌘W：关闭当前标签（终端聚焦时不拦截）
+  if (e.code === "KeyW") {
+    if (isTerminalFocused()) return;
+    if (app.workspace !== "remote") return;
+    e.preventDefault();
+    closeActiveMainTab();
+    return;
+  }
 
   const isComma = e.key === "," || e.code === "Comma" || e.key === "，";
   if (isComma) {
@@ -477,6 +532,14 @@ onMounted(() => {
       if (!name) return;
       app.openHostTab(name, "monitor");
       void api.focusMainWindow();
+    })
+  );
+  // 分组页空状态「添加主机」：打开添加弹窗并预选当前分组
+  eventOffs.push(
+    Events.On("app-add-host", (ev: { data?: { groupId?: string } }) => {
+      const gid = (ev?.data?.groupId || "").trim();
+      preferredAddGroupId.value = gid || null;
+      addHostOpen.value = true;
     })
   );
   // 系统通知点击：进入通知工作区「消息」并定位对应告警

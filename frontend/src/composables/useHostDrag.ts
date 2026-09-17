@@ -15,8 +15,19 @@ import {
 
 const DRAG_THRESHOLD = 6;
 
+/** 色块底部「新建子分组」drop 区前缀，后接父分组 id */
+export const NEW_CHILD_DROP_PREFIX = "__new_child__:";
+
 function isRootDrop(dropId: string): boolean {
   return dropId === ROOT_DROP_ID || dropId === UNGROUPED_ID;
+}
+
+function isNewChildDrop(dropId: string): boolean {
+  return dropId.startsWith(NEW_CHILD_DROP_PREFIX);
+}
+
+function newChildParentId(dropId: string): string {
+  return dropId.slice(NEW_CHILD_DROP_PREFIX.length);
 }
 
 export interface DragState {
@@ -31,6 +42,13 @@ export interface DragState {
   pointerId: number;
 }
 
+/** 拖到「新建子分组」区后，由页面弹出命名对话框 */
+export type PendingCreateChild = {
+  parentId: string;
+  hostName?: string;
+  groupId?: string;
+};
+
 export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
   const app = useAppStore();
 
@@ -39,6 +57,8 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
   /** 置顶区内重排：插到该主机之前；命中区但未指向具体项则为 null（追加末尾） */
   const pinInsertBefore = ref<string | null>(null);
   const suppressClick = ref(false);
+  /** 拖到新建子分组区松手后由页面消费 */
+  const pendingCreateChild = ref<PendingCreateChild | null>(null);
 
   function onHostPointerDown(e: PointerEvent, hostName: string) {
     if (e.button !== 0 || opts?.isBlocked?.()) return;
@@ -121,7 +141,20 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     if (!wasActive) return;
 
     if (target != null) {
-      if (kind === "host") {
+      if (isNewChildDrop(target)) {
+        const parentId = newChildParentId(target);
+        if (!parentId || parentId === UNGROUPED_ID) {
+          ElMessage.warning("无法在此创建子分组");
+        } else if (app.groupDepthOf(parentId) >= MAX_GROUP_DEPTH) {
+          ElMessage.warning(`分组最多 ${MAX_GROUP_DEPTH} 层，无法再新建子分组`);
+        } else {
+          pendingCreateChild.value = {
+            parentId,
+            hostName: kind === "host" ? id : undefined,
+            groupId: kind === "group" ? id : undefined,
+          };
+        }
+      } else if (kind === "host") {
         if (target === PINNED_DROP_ID) {
           await pinOrReorderHost(id, insertBefore);
         } else {
@@ -166,6 +199,16 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
       }
       const pinNode = el.closest("[data-pin-host]") as HTMLElement | null;
       const pinHost = pinNode?.dataset.pinHost || null;
+      // 新建子分组区优先于整块色块的迁组命中
+      const newChild = el.closest(
+        "[data-drop-new-child]"
+      ) as HTMLElement | null;
+      if (newChild?.dataset.dropNewChild) {
+        return {
+          dropId: NEW_CHILD_DROP_PREFIX + newChild.dataset.dropNewChild,
+          pinHost: null,
+        };
+      }
       const node = el.closest("[data-drop-group]") as HTMLElement | null;
       if (node?.dataset.dropGroup) {
         return { dropId: node.dataset.dropGroup, pinHost };
@@ -317,6 +360,7 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     dropTargetId,
     pinInsertBefore,
     suppressClick,
+    pendingCreateChild,
     onHostPointerDown,
     onGroupPointerDown,
     cancelDrag,

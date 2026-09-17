@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
  * 全部主机概览分组节点。
- * 层级用缩进 + 左侧细色条表达；主机卡片支持右键菜单与拖拽迁组。
+ * 单击高亮、双击打开；标题区表格/看板入口与分组管理菜单；底部可新建子分组 drop 区。
  */
-import DistroLogo from "@/components/DistroLogo.vue";
+import HostCard from "@/components/HostCard.vue";
 import { groupColor, type GroupColor } from "@/components/sidebar/groupColors";
 import type { sshconfig } from "@/api";
 import {
@@ -11,8 +11,19 @@ import {
   type FleetHostStatus,
   type FleetReach,
 } from "@/composables/useFleetStatus";
-import { useInjectedHostDrag } from "@/composables/useHostDrag";
-import { computed } from "vue";
+import {
+  NEW_CHILD_DROP_PREFIX,
+  useInjectedHostDrag,
+} from "@/composables/useHostDrag";
+import {
+  MAX_GROUP_DEPTH,
+  UNGROUPED_ID,
+  useAppStore,
+} from "@/stores/app";
+import { formatErr } from "@/utils/format";
+import { Grid, Monitor, MoreFilled } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { computed, ref } from "vue";
 
 defineOptions({ name: "AllHostsGroupBranch" });
 
@@ -45,10 +56,33 @@ const emit = defineEmits<{
   (e: "host-context", ev: MouseEvent, name: string): void;
 }>();
 
-const { dragState, dropTargetId, suppressClick, onHostPointerDown } =
-  useInjectedHostDrag();
+const app = useAppStore();
+const {
+  dragState,
+  dropTargetId,
+  suppressClick,
+  onHostPointerDown,
+  onGroupPointerDown,
+} = useInjectedHostDrag();
 
 const color: GroupColor = groupColor(props.node.key, props.node.rootIndex);
+
+const isUngrouped = computed(() => props.node.key === UNGROUPED_ID);
+
+const canCreateChild = computed(() => {
+  if (isUngrouped.value) return false;
+  return props.node.depth < MAX_GROUP_DEPTH;
+});
+
+const hasParent = computed(() => {
+  if (isUngrouped.value) return false;
+  const g = app.groupList.find((x) => x.id === props.node.key);
+  return !!(g?.parentId || "").trim();
+});
+
+const newChildDropId = computed(
+  () => NEW_CHILD_DROP_PREFIX + props.node.key
+);
 
 const fleetSummary = computed(() =>
   summarizeFleet(props.node.hostNames, props.statusByHost)
@@ -67,20 +101,101 @@ function hostReach(name: string): FleetReach | null {
   return props.statusByHost.get(name)?.reach ?? null;
 }
 
-function cardTip(name: string): string | undefined {
-  const r = hostReach(name);
-  if (r === "ssh_down") return "SSH 接不上";
-  if (r === "no_agent") return "SSH 通，未装或未运行 Agent";
-  return undefined;
-}
-
-function showPort(port?: string): boolean {
-  return !!port && port !== "22";
-}
+/** 单击仅做卡片高亮（本组件内局部状态，递归分组各自独立） */
+const selectedHost = ref<string | null>(null);
 
 function onCardClick(name: string) {
   if (suppressClick.value) return;
+  selectedHost.value = name;
+}
+
+function onCardDblClick(name: string) {
+  if (suppressClick.value) return;
   emit("open-host", name);
+}
+
+async function onRename() {
+  if (isUngrouped.value) return;
+  try {
+    const { value } = await ElMessageBox.prompt("请输入新的分组名称", "重命名", {
+      inputValue: props.node.title,
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      inputPattern: /\S+/,
+      inputErrorMessage: "名称不能为空",
+    });
+    const next = (value || "").trim();
+    if (!next || next === props.node.title) return;
+    await app.renameGroup(props.node.key, next);
+    ElMessage.success("已重命名");
+  } catch (e) {
+    if (e === "cancel" || e === "close") return;
+    ElMessage.error(`重命名失败: ${formatErr(e)}`);
+  }
+}
+
+async function onCreateChild() {
+  if (!canCreateChild.value) return;
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `在「${props.node.title}」下新建子分组`,
+      "新建子分组",
+      {
+        confirmButtonText: "创建",
+        cancelButtonText: "取消",
+        inputPattern: /\S+/,
+        inputErrorMessage: "名称不能为空",
+      }
+    );
+    const name = (value || "").trim();
+    if (!name) return;
+    await app.createGroup(name, props.node.key);
+    ElMessage.success("已创建子分组");
+  } catch (e) {
+    if (e === "cancel" || e === "close") return;
+    ElMessage.error(`创建失败: ${formatErr(e)}`);
+  }
+}
+
+async function onMoveToRoot() {
+  if (!hasParent.value) return;
+  try {
+    await app.moveGroup(props.node.key, "");
+    ElMessage.success("已移到顶层");
+  } catch (e) {
+    ElMessage.error(`移动失败: ${formatErr(e)}`);
+  }
+}
+
+async function onRelease() {
+  if (isUngrouped.value) return;
+  try {
+    await ElMessageBox.confirm(
+      "释放后主机回到未分组，分组本身删除",
+      `释放分组「${props.node.title}」`,
+      {
+        type: "warning",
+        confirmButtonText: "释放",
+        cancelButtonText: "取消",
+        confirmButtonClass: "el-button--danger",
+      }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await app.deleteGroup(props.node.key);
+    ElMessage.success(`已释放分组 ${props.node.title}`);
+  } catch (e) {
+    ElMessage.error(`释放失败: ${formatErr(e)}`);
+  }
+}
+
+function onMenuCommand(cmd: string) {
+  if (cmd === "rename") void onRename();
+  else if (cmd === "create-child") void onCreateChild();
+  else if (cmd === "move-root") void onMoveToRoot();
+  else if (cmd === "release") void onRelease();
 }
 </script>
 
@@ -90,6 +205,8 @@ function onCardClick(name: string) {
     :class="{
       'is-nested': nested,
       'is-drop-target': dropTargetId === node.key,
+      'is-drag-source':
+        dragState?.kind === 'group' && dragState.id === node.key,
     }"
     :data-group-anchor="node.key"
     :data-drop-group="node.key"
@@ -100,6 +217,15 @@ function onCardClick(name: string) {
     }"
   >
     <div class="group-branch__head">
+      <span
+        v-if="!isUngrouped"
+        class="group-drag-handle"
+        data-drag-group
+        title="拖动以调整分组层级"
+        @pointerdown.stop="onGroupPointerDown($event, node.key, node.title)"
+      >
+        ⠿
+      </span>
       <span
         class="group-color-dot"
         :style="{ backgroundColor: color.accent }"
@@ -127,18 +253,60 @@ function onCardClick(name: string) {
       <span class="group-head-actions">
         <button
           type="button"
-          class="group-head-link"
+          class="group-head-icon-btn"
+          v-tip="'打开分组表格页'"
           @click.stop="emit('open-group', node.key, node.title)"
         >
-          分组页
+          <el-icon :size="14"><Grid /></el-icon>
+          <span>表格</span>
         </button>
         <button
           type="button"
-          class="group-head-link"
+          class="group-head-icon-btn"
+          v-tip="'打开看板窗口'"
           @click.stop="emit('open-board', node.key)"
         >
-          看板窗口
+          <el-icon :size="14"><Monitor /></el-icon>
+          <span>看板</span>
         </button>
+        <el-dropdown
+          v-if="!isUngrouped"
+          trigger="click"
+          @command="onMenuCommand"
+        >
+          <button
+            type="button"
+            class="group-head-icon-btn is-more"
+            v-tip="'分组管理'"
+            @click.stop
+          >
+            <el-icon :size="16"><MoreFilled /></el-icon>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="rename">重命名</el-dropdown-item>
+              <el-dropdown-item
+                v-if="canCreateChild"
+                command="create-child"
+              >
+                新建子分组
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-if="hasParent"
+                command="move-root"
+              >
+                移到顶层
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="release"
+                divided
+                style="color: var(--el-color-danger)"
+              >
+                释放分组
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </span>
     </div>
 
@@ -150,61 +318,21 @@ function onCardClick(name: string) {
     </div>
 
     <div v-if="node.hosts.length > 0" class="host-grid">
-      <div
+      <HostCard
         v-for="h in node.hosts"
         :key="h.name"
-        class="host-card"
-        :class="{
-          'is-running': isRunning(h.name),
-          'is-ssh-down': hostReach(h.name) === 'ssh_down',
-          'is-no-agent': hostReach(h.name) === 'no_agent',
-          'is-drag-source':
-            dragState?.kind === 'host' && dragState.id === h.name,
-        }"
-        :title="cardTip(h.name)"
+        :host="h"
+        :reach="hostReach(h.name)"
+        :os-release="osRelease(h.name)"
+        :running="isRunning(h.name)"
+        :selected="selectedHost === h.name"
+        :drag-source="dragState?.kind === 'host' && dragState.id === h.name"
         @pointerdown="onHostPointerDown($event, h.name)"
         @click="onCardClick(h.name)"
-        @contextmenu.prevent="emit('host-context', $event, h.name)"
-      >
-        <span
-          class="host-ico-wrap"
-          v-tip="
-            osRelease(h.name)
-              ? `${osRelease(h.name)}（右键重新识别）`
-              : '未识别发行版，右键探测'
-          "
-          @click.stop
-          @contextmenu.prevent.stop="emit('refresh-icon', h.name)"
-        >
-          <DistroLogo
-            :os-release="osRelease(h.name)"
-            :size="22"
-            class="host-ico"
-          />
-        </span>
-        <div class="host-info">
-          <div class="host-name">
-            {{ h.name }}
-            <span
-              v-if="isRunning(h.name)"
-              class="run-dot"
-              v-tip="'已打开会话（后台保持）'"
-            />
-            <span
-              v-if="hostReach(h.name) === 'no_agent'"
-              class="no-agent-badge"
-            >
-              未装
-            </span>
-          </div>
-          <div class="host-sub">
-            {{ h.user || "?" }}@{{ h.hostName || "?" }}
-          </div>
-          <div v-if="showPort(h.port)" class="host-port">
-            端口 {{ h.port }}
-          </div>
-        </div>
-      </div>
+        @dblclick="onCardDblClick(h.name)"
+        @contextmenu="emit('host-context', $event, h.name)"
+        @refresh-icon="emit('refresh-icon', h.name)"
+      />
     </div>
 
     <div v-if="node.children.length > 0" class="nest-stack">
@@ -222,6 +350,15 @@ function onCardClick(name: string) {
         @open-board="(id) => emit('open-board', id)"
         @host-context="(e, n) => emit('host-context', e, n)"
       />
+    </div>
+
+    <div
+      v-if="canCreateChild"
+      class="new-child-drop"
+      :class="{ 'is-drop-target': dropTargetId === newChildDropId }"
+      :data-drop-new-child="node.key"
+    >
+      拖到这里新建子分组
     </div>
   </section>
 </template>
@@ -259,6 +396,10 @@ function onCardClick(name: string) {
     outline: 2px dashed var(--group-accent, var(--m3-primary));
     outline-offset: 2px;
   }
+
+  &.is-drag-source {
+    opacity: 0.55;
+  }
 }
 
 /*
@@ -283,6 +424,33 @@ function onCardClick(name: string) {
   margin-bottom: 14px;
   min-height: 28px;
   flex-wrap: wrap;
+}
+
+.group-drag-handle {
+  flex-shrink: 0;
+  width: 18px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: var(--group-ink, var(--m3-on-surface-variant));
+  opacity: 0.45;
+  cursor: grab;
+  user-select: none;
+  border-radius: 4px;
+  touch-action: none;
+
+  &:hover {
+    opacity: 0.85;
+    background: var(--group-soft, rgba(0, 0, 0, 0.05));
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .nest-stack {
@@ -336,22 +504,29 @@ function onCardClick(name: string) {
   margin-left: auto;
 }
 
-.group-head-link {
+.group-head-icon-btn {
   appearance: none;
   border: none;
   background: transparent;
-  padding: 2px 8px;
+  padding: 3px 8px;
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 600;
   line-height: 20px;
   color: var(--group-ink, var(--m3-primary));
-  opacity: 0.72;
+  opacity: 0.82;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 
   &:hover {
     opacity: 1;
     background: var(--group-soft, rgba(0, 0, 0, 0.05));
+  }
+
+  &.is-more {
+    padding: 3px 6px;
   }
 }
 
@@ -361,140 +536,37 @@ function onCardClick(name: string) {
   padding: 4px 0 8px;
 }
 
+.new-child-drop {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1.5px dashed
+    color-mix(in srgb, var(--group-accent, var(--m3-outline)) 55%, transparent);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--group-ink, var(--el-text-color-secondary));
+  opacity: 0.72;
+  text-align: center;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+
+  &.is-drop-target {
+    opacity: 1;
+    background: color-mix(
+      in srgb,
+      var(--group-accent, var(--m3-primary)) 12%,
+      transparent
+    );
+    border-color: var(--group-accent, var(--m3-primary));
+    border-style: solid;
+  }
+}
+
 .host-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 14px;
-}
-
-.host-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--m3-surface-container-lowest, #fff);
-  border: none;
-  border-radius: var(--m3-shape-m, 12px);
-  box-sizing: border-box;
-  cursor: grab;
-  outline: none;
-  touch-action: none;
-  box-shadow: inset 0 0 0 1px var(--m3-outline-variant, #cac4d0);
-  transition:
-    box-shadow var(--m3-motion-select),
-    opacity var(--m3-motion-state),
-    background-color 0.2s ease;
-
-  &:hover {
-    box-shadow: inset 0 0 0 2px var(--m3-primary);
-  }
-
-  &:active {
-    cursor: grabbing;
-  }
-
-  &.is-drag-source {
-    opacity: 0.45;
-  }
-
-  /* SSH 接不上：整卡红 */
-  &.is-ssh-down {
-    background: color-mix(in srgb, #d93025 12%, #fff);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, #d93025 45%, transparent);
-
-    &:hover {
-      box-shadow: inset 0 0 0 2px #d93025;
-    }
-  }
-
-  /* SSH 通但未装 Agent：灰卡 */
-  &.is-no-agent {
-    background: color-mix(in srgb, #9aa0a6 14%, #fff);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, #9aa0a6 40%, transparent);
-
-    &:hover {
-      box-shadow: inset 0 0 0 2px #80868b;
-    }
-  }
-}
-
-.host-ico-wrap {
-  display: flex;
-  flex-shrink: 0;
-  cursor: context-menu;
-}
-
-.host-ico {
-  flex-shrink: 0;
-}
-
-.host-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.host-name {
-  font-size: 14px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.host-sub {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.host-port {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-}
-
-/* 仅「已打开」显示绿色小点，不作在线指示 */
-.run-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #1e8e3e;
-  flex-shrink: 0;
-}
-
-.no-agent-badge {
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 16px;
-  padding: 0 6px;
-  border-radius: 8px;
-  color: #5f6368;
-  background: color-mix(in srgb, #9aa0a6 22%, #fff);
-}
-
-:global(html.dark) .host-card {
-  background: var(--m3-surface-container-low, #1a1a1d);
-
-  &.is-ssh-down {
-    background: color-mix(in srgb, #d93025 22%, #1a1a1d);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, #d93025 55%, transparent);
-  }
-
-  &.is-no-agent {
-    background: color-mix(in srgb, #9aa0a6 18%, #1a1a1d);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, #9aa0a6 45%, transparent);
-  }
-}
-
-:global(html.dark) .no-agent-badge {
-  color: #dadce0;
-  background: color-mix(in srgb, #9aa0a6 28%, #1a1a1d);
 }
 </style>

@@ -88,7 +88,7 @@
     >
       <ChromeScope>
         <MainChromeBar :title="app.groupNameOf(gid)" />
-        <div class="content-pad">
+        <div class="content-pad content-pad--fill">
           <GroupOverviewView :group-id="gid" :group-name="app.groupNameOf(gid)" />
         </div>
       </ChromeScope>

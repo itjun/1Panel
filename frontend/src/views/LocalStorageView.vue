@@ -83,7 +83,6 @@
       <div v-if="tab === 'apps'" class="table-wrap m3-table-surface">
         <el-table
           :data="filteredApps"
-          stripe
           style="width: 100%"
           class="data-table-unified"
           height="100%"
@@ -155,7 +154,6 @@
         <div class="table-wrap m3-table-surface tree-table">
           <el-table
             :data="treeChildren"
-            stripe
             style="width: 100%"
             class="data-table-unified"
             height="100%"
@@ -195,7 +193,6 @@
       <div v-else class="table-wrap m3-table-surface">
         <el-table
           :data="filteredLarge"
-          stripe
           style="width: 100%"
           class="data-table-unified"
           height="100%"

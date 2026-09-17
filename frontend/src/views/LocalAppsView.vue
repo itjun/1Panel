@@ -67,7 +67,6 @@
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
           :expand-row-keys="expandedKeys"
           :current-row-key="selectedId || undefined"
-          stripe
           highlight-current-row
           style="width: 100%"
           class="data-table-unified local-apps-table"

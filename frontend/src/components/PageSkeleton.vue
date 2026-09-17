@@ -93,11 +93,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="r in rows"
-              :key="'r' + r"
-              :class="{ 'is-zebra': r % 2 === 0 }"
-            >
+            <tr v-for="r in rows" :key="'r' + r">
               <td
                 v-for="c in cols"
                 :key="'c' + r + c"
@@ -549,10 +545,6 @@ function logWidth(r: number): string {
   text-align: left;
   vertical-align: middle;
   box-sizing: border-box;
-}
-
-.sk-data-table tbody tr.is-zebra td {
-  background: var(--m3-table-zebra, var(--m3-primary-container, #d6e3ff));
 }
 
 .sk-data-table th.is-center,

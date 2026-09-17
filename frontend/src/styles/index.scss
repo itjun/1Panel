@@ -313,6 +313,22 @@ html.dark .panel-hover-card,
   box-shadow: none;
 }
 
+/* 标签栏下方：主区 + 右侧信息栏（横向 flex，不占侧栏 grid 列） */
+.main-column-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.main-column-body > .main-container {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 .main-container {
   flex: 1;
   min-width: 0;
@@ -624,7 +640,7 @@ html.dark .panel-hover-card,
   min-height: 0;
 }
 
-// el-table-v2 统一 M3 表头 / 行 / 斑马纹 / hover
+// el-table-v2 统一 M3 表头 / 行 / hover
 .m3-table-v2 {
   .el-table-v2__header-row {
     background: var(--m3-table-header);
@@ -653,10 +669,6 @@ html.dark .panel-hover-card,
   .el-table-v2__row-cell > * {
     min-width: 0;
     max-width: 100%;
-  }
-
-  .el-table-v2__row.zebra-row {
-    background: var(--m3-table-zebra);
   }
 
   .el-table-v2__row:hover {
@@ -739,11 +751,8 @@ html.dark .panel-hover-card,
     display: none;
   }
 
-  &.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-    background: var(--m3-table-zebra);
-  }
-
-  /* 悬停必须压过斑马纹（斑马纹写在 td 上，会盖住 EP 变量） */
+  // 表格行统一白底，不再蓝白相间；行与行靠 EP 自带的 hairline 行线分界
+  /* 悬停是行内唯一的状态色（蓝） */
   &.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
     background: var(--m3-table-hover) !important;
   }
@@ -810,10 +819,6 @@ html.dark .panel-hover-card,
       color: var(--m3-on-surface);
       background: var(--m3-table-header) !important;
     }
-  }
-
-  .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-    background: var(--m3-table-zebra);
   }
 
   .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
