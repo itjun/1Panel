@@ -120,7 +120,7 @@
     <HostContextMenu
       :menu="ctxMenu"
       @close="closeCtxMenu"
-      @edit="(host) => editRef?.openFor(host)"
+      @edit="(host) => (editHostName = host)"
       @move="onCtxMove"
     />
     <GroupContextMenu
@@ -132,7 +132,11 @@
       @add-host="onGroupMenuAddHost"
       @delete="onGroupMenuDelete"
     />
-    <EditHostDialog ref="editRef" />
+    <EditHostDrawer
+      :host="editHost"
+      :os-release="editOsRelease"
+      @close="editHostName = null"
+    />
   </div>
 </template>
 
@@ -145,7 +149,7 @@ import AllHostsGroupBranch, {
 } from "@/components/AllHostsGroupBranch.vue";
 import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import HostCard from "@/components/HostCard.vue";
-import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
+import EditHostDrawer from "@/components/sidebar/HostEditDrawer.vue";
 import HostContextMenu, {
   type CtxMenuState,
 } from "@/components/sidebar/HostContextMenu.vue";
@@ -180,7 +184,20 @@ const {
 } = useInjectedHostDrag();
 const ctxMenu = ref<CtxMenuState | null>(null);
 const groupCtxMenu = ref<GroupCtxMenuState | null>(null);
-const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
+const editHostName = ref<string | null>(null);
+const editHost = computed(
+  () => app.hosts.find((h) => h.name === editHostName.value) || null
+);
+const editOsRelease = computed(
+  () => (editHostName.value && app.osReleaseMap.get(editHostName.value)) || ""
+);
+// 编辑抽屉跟随当前主机：切到其他主机即自动收起
+watch(
+  () => app.activeSession?.host,
+  (host) => {
+    if (editHostName.value && host !== editHostName.value) editHostName.value = null;
+  }
+);
 
 // 首页不默认全量 listGroupOverview；缺状态时只显示台数
 const fleetEnabled = computed(() => false);

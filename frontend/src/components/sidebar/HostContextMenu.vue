@@ -16,22 +16,19 @@
     >
       <div v-if="batchCount > 1" class="ctx-batch-hint">已选 {{ batchCount }} 台</div>
       <button type="button" class="ctx-item" @click="onOpenTerminal">
-        连接终端
+        打开终端
       </button>
       <button type="button" class="ctx-item" @click="onOpenInfo">
-        开概览
+        打开概览
       </button>
       <button type="button" class="ctx-item" @click="onOpenSftp">
-        开文件
+        打开XFPT
       </button>
       <button type="button" class="ctx-item" @click="onOpenMonitor">
-        开监控
+        打开监控
       </button>
       <template v-if="batchCount <= 1">
       <div class="ctx-divider" />
-      <button type="button" class="ctx-item" @click="onRename">
-        重命名
-      </button>
       <button type="button" class="ctx-item" @click="onEdit">
         编辑…
       </button>
@@ -110,7 +107,7 @@
 
 <script setup lang="ts">
 /**
- * 主机右键菜单：连接终端/概览/文件/监控 → 编辑整理 → 环境安装 → 危险操作。
+ * 主机右键菜单：打开终端/概览/XFPT/监控 → 编辑整理 → 环境安装 → 危险操作。
  * 多选时只保留前四项，并对已选主机逐台打开。
  * 「编辑…」与「迁移分组」通过事件回抛父组件（编辑弹窗与拖拽迁移逻辑在父级）。
  */
@@ -207,28 +204,6 @@ function onOpenSftp() {
 
 function onOpenMonitor() {
   openEach("monitor");
-}
-
-async function onRename() {
-  const host = props.menu?.host;
-  emit("close");
-  if (!host) return;
-  try {
-    const { value } = await ElMessageBox.prompt("新的主机别名", "重命名", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputValue: host,
-      inputPattern: /^[^\s]+$/,
-      inputErrorMessage: "别名不能为空或包含空格",
-    });
-    const next = value.trim();
-    if (!next || next === host) return;
-    await app.renameHost(host, next);
-    ElMessage.success(`已重命名为 ${next}`);
-  } catch (err) {
-    if (err === "cancel" || err === "close") return;
-    ElMessage.error(`重命名失败: ${formatErr(err)}`);
-  }
 }
 
 function onEdit() {

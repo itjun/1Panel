@@ -265,6 +265,19 @@
       </button>
     </div>
   </Teleport>
+
+  <!-- 单台右键：与主机列表页共用同一份 HostContextMenu -->
+  <HostContextMenu
+    :menu="hostMenu"
+    @close="hostMenu = null"
+    @edit="(host) => (editHostName = host)"
+    @move="onHostCtxMove"
+  />
+  <HostEditDrawer
+    :host="editHost"
+    :os-release="editOsRelease"
+    @close="editHostName = null"
+  />
 </template>
 
 <script setup lang="ts">
@@ -273,11 +286,16 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, nextTick, ref, watch } from "vue";
 import { HOST_SUB_TABS } from "@/constants/hostSubTabs";
 import {
+  UNGROUPED_ID,
   useAppStore,
   type SubTab,
   type TerminalDesk,
   type WorkspaceSession,
 } from "@/stores/app";
+import HostContextMenu, {
+  type CtxMenuState,
+} from "@/components/sidebar/HostContextMenu.vue";
+import HostEditDrawer from "@/components/sidebar/HostEditDrawer.vue";
 import { useAlertHistoryStore } from "@/stores/alertHistory";
 import type { SettingsSection } from "@/stores/settings";
 import { parseAppAlertKind } from "@/utils/watchServices";
@@ -290,7 +308,8 @@ import { SPLIT_TITLE } from "@/utils/workspaceMigrate";
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
 const chrome = useChromeDrag();
-const { hostSessionDropTarget: hostCardDropTarget } = useInjectedHostDrag();
+const { hostSessionDropTarget: hostCardDropTarget, moveHostToGroup } =
+  useInjectedHostDrag();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const deskCount = computed(() => app.terminalDesks.length);
 
@@ -326,6 +345,22 @@ type DeskMenu = { id: string; host: string; title: string; x: number; y: number 
 const deskMenu = ref<DeskMenu | null>(null);
 type HostSessionMenu = { ids: string[]; x: number; y: number };
 const hostSessionMenu = ref<HostSessionMenu | null>(null);
+const hostMenu = ref<CtxMenuState | null>(null);
+const editHostName = ref<string | null>(null);
+const editHost = computed(
+  () => app.hosts.find((h) => h.name === editHostName.value) || null
+);
+const editOsRelease = computed(
+  () => (editHostName.value && app.osReleaseMap.get(editHostName.value)) || ""
+);
+// 编辑抽屉跟随当前主机：切到其他主机、或离开主机列表（终端/通知/设置）即自动收起
+watch(
+  () => [app.activeSession?.host, listKind.value] as const,
+  ([host, kind]) => {
+    if (!editHostName.value) return;
+    if (host !== editHostName.value || kind !== "hosts") editHostName.value = null;
+  }
+);
 const selectedHostSessionIds = ref<string[]>([]);
 const hostSessionDragId = ref("");
 const hostSessionDropId = ref("");
@@ -423,8 +458,17 @@ function openHostSessionMenu(e: MouseEvent, session: WorkspaceSession) {
   const ids = selectedHostSessionIds.value.filter((id) =>
     app.workspaceSessions.some((item) => item.id === id)
   );
+  // 单台右键走与主机列表一致的菜单；多台才出现批量终端菜单
+  if (ids.length < 2) {
+    hostMenu.value = { host: session.host, x: e.clientX, y: e.clientY };
+    return;
+  }
   const pos = clampContextMenuPos(e.clientX, e.clientY, 210, 168);
   hostSessionMenu.value = { ids, x: pos.x, y: pos.y };
+}
+
+async function onHostCtxMove(host: string, groupId: string) {
+  await moveHostToGroup(host, groupId || UNGROUPED_ID);
 }
 
 async function closeHostSessionsFromMenu() {
