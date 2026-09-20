@@ -13,13 +13,43 @@
       v-if="!app.settingsOpen && app.workspace === 'notify'"
       class="workspace-shell"
     >
-      <ChromeScope>
-        <MainChromeBar title="通知" />
-        <div class="content-pad content-pad--fill">
-          <NotifyMessagesView v-if="app.notifySection === 'messages'" />
-          <NotifySetupView v-else />
+      <div class="workspace-stage">
+        <div
+          v-if="app.visitedNotifySections.includes('metricMessages')"
+          v-show="app.notifySection === 'metricMessages'"
+          class="session-fill"
+        >
+          <NotifyMessagesView kind="metric" />
         </div>
-      </ChromeScope>
+        <div
+          v-if="app.visitedNotifySections.includes('appMessages')"
+          v-show="app.notifySection === 'appMessages'"
+          class="session-fill"
+        >
+          <NotifyMessagesView kind="app" />
+        </div>
+        <div
+          v-if="app.visitedNotifySections.includes('metricSubs')"
+          v-show="app.notifySection === 'metricSubs'"
+          class="session-fill"
+        >
+          <NotifySubsView kind="metric" />
+        </div>
+        <div
+          v-if="app.visitedNotifySections.includes('appSubs')"
+          v-show="app.notifySection === 'appSubs'"
+          class="session-fill"
+        >
+          <NotifySubsView kind="app" />
+        </div>
+        <div
+          v-if="app.visitedNotifySections.includes('setup')"
+          v-show="app.notifySection === 'setup'"
+          class="session-fill"
+        >
+          <NotifySetupView />
+        </div>
+      </div>
     </div>
 
     <div
@@ -94,6 +124,7 @@ import TerminalModule from "@/layout/TerminalModule.vue";
 import SettingsView from "@/views/SettingsView.vue";
 import SessionBody from "@/layout/SessionBody.vue";
 import NotifyMessagesView from "@/views/NotifyMessagesView.vue";
+import NotifySubsView from "@/views/NotifySubsView.vue";
 import NotifySetupView from "@/views/NotifySetupView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
 

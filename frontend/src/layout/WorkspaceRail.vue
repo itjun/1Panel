@@ -81,12 +81,40 @@
         <button
           type="button"
           class="app-nav__sess"
-          :class="{ active: app.notifySection === 'messages' }"
-          @pointerdown="(e) => pointerAction(e, () => app.setNotifySection('messages'))"
-          @click="clickAction(() => app.setNotifySection('messages'))"
+          :class="{ active: app.notifySection === 'metricMessages' }"
+          @pointerdown="(e) => pointerAction(e, () => app.setNotifySection('metricMessages'))"
+          @click="clickAction(() => app.setNotifySection('metricMessages'))"
         >
-          消息
-          <span v-if="alertHistory.unread > 0" class="app-nav__sess-count">{{ alertHistory.unread }}</span>
+          指标消息
+          <span v-if="metricUnread > 0" class="app-nav__sess-count">{{ metricUnread > 99 ? "99+" : metricUnread }}</span>
+        </button>
+        <button
+          type="button"
+          class="app-nav__sess"
+          :class="{ active: app.notifySection === 'appMessages' }"
+          @pointerdown="(e) => pointerAction(e, () => app.setNotifySection('appMessages'))"
+          @click="clickAction(() => app.setNotifySection('appMessages'))"
+        >
+          应用消息
+          <span v-if="appUnread > 0" class="app-nav__sess-count">{{ appUnread > 99 ? "99+" : appUnread }}</span>
+        </button>
+        <button
+          type="button"
+          class="app-nav__sess"
+          :class="{ active: app.notifySection === 'metricSubs' }"
+          @pointerdown="(e) => pointerAction(e, () => app.setNotifySection('metricSubs'))"
+          @click="clickAction(() => app.setNotifySection('metricSubs'))"
+        >
+          指标订阅
+        </button>
+        <button
+          type="button"
+          class="app-nav__sess"
+          :class="{ active: app.notifySection === 'appSubs' }"
+          @pointerdown="(e) => pointerAction(e, () => app.setNotifySection('appSubs'))"
+          @click="clickAction(() => app.setNotifySection('appSubs'))"
+        >
+          应用订阅
         </button>
         <button
           type="button"
@@ -95,7 +123,7 @@
           @pointerdown="(e) => pointerAction(e, () => app.setNotifySection('setup'))"
           @click="clickAction(() => app.setNotifySection('setup'))"
         >
-          设置
+          通知设置
         </button>
       </template>
 
@@ -252,6 +280,7 @@ import {
 } from "@/stores/app";
 import { useAlertHistoryStore } from "@/stores/alertHistory";
 import type { SettingsSection } from "@/stores/settings";
+import { parseAppAlertKind } from "@/utils/watchServices";
 import { useChromeDrag } from "@/composables/useChromeDrag";
 import { useInjectedHostDrag } from "@/composables/useHostDrag";
 import { clickAction, pointerAction } from "@/utils/pointerAction";
@@ -264,6 +293,17 @@ const chrome = useChromeDrag();
 const { hostSessionDropTarget: hostCardDropTarget } = useInjectedHostDrag();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const deskCount = computed(() => app.terminalDesks.length);
+
+function isAppAlertEvent(kind: string): boolean {
+  return !!parseAppAlertKind(kind) || (kind || "").startsWith("app:");
+}
+
+const metricUnread = computed(
+  () => alertHistory.events.filter((e) => !e.read && !isAppAlertEvent(e.kind)).length
+);
+const appUnread = computed(
+  () => alertHistory.events.filter((e) => !e.read && isAppAlertEvent(e.kind)).length
+);
 const listKind = computed(() => {
   if (app.settingsOpen) return "settings";
   if (app.workspace === "notify") return "notify";

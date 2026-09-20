@@ -185,8 +185,13 @@ export type LocalSection =
   | "nginx"
   | "hosts";
 
-/** 通知页：消息列表，或同一页里的通道、内容与主机订阅 */
-export type NotifySection = "messages" | "setup";
+/** 通知页标签：指标消息 / 应用消息 / 指标订阅 / 应用订阅 / 设置 */
+export type NotifySection =
+  | "metricMessages"
+  | "appMessages"
+  | "metricSubs"
+  | "appSubs"
+  | "setup";
 
 /** 巡检二级栏：页面导航 */
 export type InspectSection = "menuCheck";
@@ -452,25 +457,26 @@ export const useAppStore = defineStore("app", () => {
     }
   }
 
-  /** 通知页：消息 / 设置（持久化）。旧的五段导航收进「设置」。 */
+  /** 通知页标签：指标消息 / 应用消息 / 指标订阅 / 应用订阅 / 设置（持久化）。旧值按语义归位。 */
   function loadNotifySection(): NotifySection {
     try {
       const v = localStorage.getItem("1pannel-notify-section");
-      if (v === "messages") return "messages";
       if (
-        v === "setup" ||
-        v === "hostSubs" ||
+        v === "metricMessages" ||
+        v === "appMessages" ||
         v === "metricSubs" ||
         v === "appSubs" ||
-        v === "channels" ||
-        v === "content"
+        v === "setup"
       ) {
-        return "setup";
+        return v;
       }
+      if (v === "messages") return "metricMessages";
+      if (v === "subs" || v === "hostSubs") return "metricSubs";
+      if (v === "channels" || v === "content") return "setup";
     } catch {
       /* ignore */
     }
-    return "messages";
+    return "metricMessages";
   }
   const notifySection = ref<NotifySection>(loadNotifySection());
   const visitedNotifySections = ref<NotifySection[]>([notifySection.value]);

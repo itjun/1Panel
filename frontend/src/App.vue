@@ -163,6 +163,7 @@ import {
 import { useLocalMetricsStore } from "@/stores/localMetrics";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { isTermAppShortcut } from "@/utils/termKeys";
+import { parseAppAlertKind } from "@/utils/watchServices";
 import { Folder, Monitor } from "@element-plus/icons-vue";
 
 const app = useAppStore();
@@ -581,17 +582,28 @@ onMounted(() => {
         return "";
       };
 
+      /** 按告警类型落到「指标消息」或「应用消息」 */
+      const sectionOfEvent = (id: string): "metricMessages" | "appMessages" => {
+        const ev = alertHistory.events.find((e) => e.id === id);
+        if (!ev) return "metricMessages";
+        const isApp = !!parseAppAlertKind(ev.kind) || (ev.kind || "").startsWith("app:");
+        return isApp ? "appMessages" : "metricMessages";
+      };
+
       const focusId = resolveFocusId();
       if (focusId) {
         app.setFocusAlertId(focusId);
       }
       app.setWorkspace("notify");
-      app.setNotifySection("messages");
+      app.setNotifySection(sectionOfEvent(focusId));
       void api.focusMainWindow();
       void alertHistory.refresh().then(() => {
         if (app.focusAlertId) return;
         const again = resolveFocusId();
-        if (again) app.setFocusAlertId(again);
+        if (again) {
+          app.setFocusAlertId(again);
+          app.setNotifySection(sectionOfEvent(again));
+        }
       });
     })
   );

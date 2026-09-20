@@ -1,21 +1,28 @@
 <template>
   <div class="notify-messages">
-    <ChromeTeleport>
-      <RouterButton v-model="kindFilter" compact :buttons="kindButtons" />
+    <div class="page-toolbar notify-messages__bar">
+      <RouterButton
+        v-if="kind === 'metric'"
+        v-model="kindFilter"
+        compact
+        :buttons="kindButtons"
+      />
       <RouterButton v-model="stateFilter" compact :buttons="stateButtons" />
-      <el-button
-        type="primary"
-        plain
-        :disabled="alertHistory.unread <= 0"
-        :loading="markingAll"
-        @click="onMarkAllRead"
-      >
-        全部已读
-      </el-button>
-      <el-button :loading="alertHistory.loading" @click="reload">
-        刷新
-      </el-button>
-    </ChromeTeleport>
+      <div class="page-toolbar__actions">
+        <el-button
+          type="primary"
+          plain
+          :disabled="alertHistory.unread <= 0"
+          :loading="markingAll"
+          @click="onMarkAllRead"
+        >
+          全部已读
+        </el-button>
+        <el-button :loading="alertHistory.loading" @click="reload">
+          刷新
+        </el-button>
+      </div>
+    </div>
 
     <div class="notify-messages__table-wrap">
       <PageSkeleton
@@ -98,7 +105,6 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { TableInstance } from "element-plus";
 import RouterButton from "@/components/RouterButton.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
-import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import { useAppStore } from "@/stores/app";
 import {
   useAlertHistoryStore,
@@ -107,6 +113,10 @@ import {
   type AlertEvent,
 } from "@/stores/alertHistory";
 import { parseAppAlertKind } from "@/utils/watchServices";
+
+const props = defineProps<{
+  kind: "metric" | "app";
+}>();
 
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
@@ -123,7 +133,6 @@ const kindButtons = [
   { value: "mem", label: "内存" },
   { value: "disk", label: "磁盘" },
   { value: "load", label: "负载" },
-  { value: "app", label: "应用" },
 ];
 
 const stateButtons = [
@@ -132,19 +141,24 @@ const stateButtons = [
   { value: "up", label: "恢复" },
 ];
 
+function isAppEvent(ev: AlertEvent): boolean {
+  return !!parseAppAlertKind(ev.kind) || (ev.kind || "").startsWith("app:");
+}
+
 function matchKind(ev: AlertEvent, kind: string): boolean {
   if (kind === "all") return true;
-  if (kind === "app") {
-    return !!parseAppAlertKind(ev.kind) || (ev.kind || "").startsWith("app:");
-  }
   return ev.kind === kind;
 }
 
 const filteredEvents = computed(() => {
-  const kind = kindFilter.value;
   const state = stateFilter.value;
   return alertHistory.events.filter((e) => {
-    if (!matchKind(e, kind)) return false;
+    if (props.kind === "app") {
+      if (!isAppEvent(e)) return false;
+    } else {
+      if (isAppEvent(e)) return false;
+      if (!matchKind(e, kindFilter.value)) return false;
+    }
     if (state !== "all" && e.state !== state) return false;
     return true;
   });
@@ -244,6 +258,10 @@ watch(
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
+}
+
+.notify-messages__bar {
+  gap: 12px;
 }
 
 .notify-messages__table-wrap {
