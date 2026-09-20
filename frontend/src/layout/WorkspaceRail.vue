@@ -220,7 +220,7 @@
     >
       <template v-if="deskMenu.host">
         <button
-          v-for="tab in HOST_SUB_TABS"
+          v-for="tab in DESK_MENU_TABS"
           :key="tab.value"
           type="button"
           class="ctx-item"
@@ -249,9 +249,16 @@
       @mousedown.stop
     >
       <div class="ctx-batch-hint">已选 {{ hostSessionMenu.ids.length }} 台主机</div>
-      <button type="button" class="ctx-item is-danger" @click="closeHostSessionsFromMenu">
-        关闭主机连接
+      <button
+        v-for="tab in batchOpenTabs"
+        :key="tab.value"
+        type="button"
+        class="ctx-item"
+        @click="batchOpenHostTab(tab.value)"
+      >
+        打开{{ tab.label }}
       </button>
+      <div class="ctx-divider" />
       <button type="button" class="ctx-item" @click="openSelectedTerminals">
         单独打开终端
       </button>
@@ -262,6 +269,10 @@
         @click="mergeSelectedTerminals"
       >
         合并打开终端
+      </button>
+      <div class="ctx-divider" />
+      <button type="button" class="ctx-item is-danger" @click="closeHostSessionsFromMenu">
+        关闭主机连接
       </button>
     </div>
   </Teleport>
@@ -342,6 +353,10 @@ function deskLabel(d: TerminalDesk): string {
 }
 
 type DeskMenu = { id: string; host: string; title: string; x: number; y: number };
+/** 终端标签右键只留常用跳转（概览/XFPT/监控），其余入口去主机管理页找。 */
+const DESK_MENU_TABS = HOST_SUB_TABS.filter((t) =>
+  ["overview", "files", "monitor"].includes(t.value)
+);
 const deskMenu = ref<DeskMenu | null>(null);
 type HostSessionMenu = { ids: string[]; x: number; y: number };
 const hostSessionMenu = ref<HostSessionMenu | null>(null);
@@ -463,8 +478,25 @@ function openHostSessionMenu(e: MouseEvent, session: WorkspaceSession) {
     hostMenu.value = { host: session.host, x: e.clientX, y: e.clientY };
     return;
   }
-  const pos = clampContextMenuPos(e.clientX, e.clientY, 210, 168);
+  const pos = clampContextMenuPos(e.clientX, e.clientY, 210, 340);
   hostSessionMenu.value = { ids, x: pos.x, y: pos.y };
+}
+
+/** 批量打开子页：文案与终端 desk 右键菜单的「打开X」格式保持一致，标签取自 HOST_SUB_TABS */
+const batchOpenTabs: { value: SubTab; label: string }[] = [
+  { value: "terminal", label: "终端" },
+  ...HOST_SUB_TABS.filter((tab) => ["overview", "files", "monitor"].includes(tab.value)),
+];
+
+/** 批量打开子页：与列表页多选右键的逐台 openHostTab 一致 */
+function batchOpenHostTab(sub: SubTab) {
+  const hosts = selectedHostNames();
+  hostSessionMenu.value = null;
+  for (const host of hosts) {
+    app.openHostTab(host, sub);
+  }
+  selectedHostSessionIds.value = [];
+  hostSessionAnchorId = "";
 }
 
 async function onHostCtxMove(host: string, groupId: string) {
@@ -503,6 +535,9 @@ async function openSelectedTerminals() {
     app.openAnotherTerminal(host);
     await waitForTerminalDeskRender();
   }
+  // 批量动作完成后清空多选，避免选中高亮残留
+  selectedHostSessionIds.value = [];
+  hostSessionAnchorId = "";
 }
 
 async function waitForTerminalDeskRender() {
@@ -532,6 +567,9 @@ async function mergeSelectedTerminals() {
     return source ? [{ sourceId, targetId, host: source.host }] : [];
   });
   app.queueTerminalDeskMerges(jobs);
+  // 批量动作完成后清空多选，避免选中高亮残留
+  selectedHostSessionIds.value = [];
+  hostSessionAnchorId = "";
 }
 
 watch(
@@ -544,7 +582,7 @@ watch(
 
 function openDeskMenu(e: MouseEvent, desk: TerminalDesk) {
   app.activateTerminalDesk(desk.id);
-  const approxH = desk.host ? 280 : 96;
+  const approxH = desk.host ? 220 : 96;
   const pos = clampContextMenuPos(e.clientX, e.clientY, 180, approxH);
   deskMenu.value = {
     id: desk.id,
