@@ -210,9 +210,6 @@ const apiImpl = {
   collectHosts: (host: string): Promise<monitor.HostsInfo> =>
     must(Monitor.CollectHosts(host)),
   collectAptSources: (host: string) => must(Monitor.CollectAptSources(host)),
-  probeAptMirrors: (host: string) => arr(Monitor.ProbeAptMirrors(host)),
-  applyAptMirror: (host: string, mirror: string, official: boolean) =>
-    must(Monitor.ApplyAptMirror(host, mirror, official)),
   collectDocker: (host: string): Promise<monitor.DockerInfo> =>
     must(Monitor.CollectDocker(host)),
   collectServices: (host: string) => arr(Monitor.CollectServices(host)),

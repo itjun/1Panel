@@ -10,22 +10,6 @@
       </span>
       <div class="page-toolbar__actions">
         <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-        <el-button
-          type="primary"
-          :loading="probing"
-          :disabled="!canWrite"
-          @click="probeAndApply"
-        >
-          测速优选
-        </el-button>
-        <el-button
-          type="primary"
-          :loading="applying"
-          :disabled="!canWrite || probing"
-          @click="restoreOfficial"
-        >
-          恢复官方
-        </el-button>
       </div>
     </div>
 
@@ -77,7 +61,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { Refresh } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import CodePane from "@/components/CodePane.vue";
 import { aptHighlightHtml } from "@/utils/aptHighlight";
@@ -94,26 +77,15 @@ type AptSnap = {
   };
   files?: AptFile[];
 };
-type ProbeHit = {
-  id: string;
-  name: string;
-  host: string;
-  ok: boolean;
-  ms: number;
-  error?: string;
-};
 
 const props = defineProps<{ host: string }>();
 
 const snap = ref<AptSnap | null>(null);
 const selected = ref("");
 const loading = ref(false);
-const probing = ref(false);
-const applying = ref(false);
 const error = ref("");
 
 const files = computed(() => snap.value?.files || []);
-const canWrite = computed(() => !!snap.value?.distro?.apt && files.value.length > 0);
 
 const current = computed(() => files.value.find((f) => f.path === selected.value));
 const previewText = computed(() => current.value?.content || "");
@@ -142,91 +114,6 @@ async function load() {
     snap.value = null;
   } finally {
     loading.value = false;
-  }
-}
-
-function rankText(hits: ProbeHit[]): string {
-  const rows = [...hits].sort((a, b) => {
-    if (a.ok !== b.ok) return a.ok ? -1 : 1;
-    return a.ms - b.ms;
-  });
-  return rows
-    .map((h) =>
-      h.ok ? `${h.name}  ${h.ms}ms` : `${h.name}  失败${h.error ? "（" + h.error + "）" : ""}`
-    )
-    .join("\n");
-}
-
-async function probeAndApply() {
-  probing.value = true;
-  try {
-    const hits = (await api.probeAptMirrors(props.host)) as ProbeHit[];
-    const ok = hits.filter((h) => h.ok);
-    if (!ok.length) {
-      ElMessage.error("所有镜像均不可达");
-      return;
-    }
-    const best = ok.reduce((a, b) => (a.ms <= b.ms ? a : b));
-    const distro = snap.value?.distro;
-    const label = [distro?.name, distro?.codename].filter(Boolean).join(" ");
-    try {
-      await ElMessageBox.confirm(
-        `测速结果：\n${rankText(hits)}\n\n将把 ${label || "归档源"} 改为「${best.name}」（${best.ms}ms），并执行 apt-get update。写前会备份现有源文件。`,
-        "测速优选",
-        {
-          type: "warning",
-          confirmButtonText: "应用",
-          cancelButtonText: "取消",
-          customClass: "apt-probe-confirm",
-        }
-      );
-    } catch {
-      return;
-    }
-    await doApply(best.id, false);
-  } catch (e) {
-    ElMessage.error(`测速失败: ${formatErr(e)}`);
-  } finally {
-    probing.value = false;
-  }
-}
-
-async function restoreOfficial() {
-  const distro = snap.value?.distro;
-  const label = [distro?.name, distro?.codename].filter(Boolean).join(" ");
-  try {
-    await ElMessageBox.confirm(
-      `将把 ${label || "归档源"} 恢复为官方源，并执行 apt-get update。写前会备份现有源文件。`,
-      "恢复官方",
-      { type: "warning", confirmButtonText: "恢复", cancelButtonText: "取消" }
-    );
-  } catch {
-    return;
-  }
-  await doApply("", true);
-}
-
-async function doApply(mirror: string, official: boolean) {
-  applying.value = true;
-  try {
-    const r = (await api.applyAptMirror(props.host, mirror, official)) as {
-      backupDir?: string;
-      name?: string;
-      changed?: number;
-    };
-    if (!r.changed) {
-      ElMessage.info("源文件无需改动");
-    } else {
-      ElMessage.success(
-        `已应用「${r.name || (official ? "官方" : mirror)}」` +
-          (r.backupDir ? `，备份 ${r.backupDir}` : "")
-      );
-    }
-    await load();
-  } catch (e) {
-    ElMessage.error(`改写失败: ${formatErr(e)}`);
-  } finally {
-    applying.value = false;
   }
 }
 
@@ -345,12 +232,5 @@ watch(
   &.muted {
     color: var(--m3-on-surface-variant);
   }
-}
-</style>
-
-<style>
-.apt-probe-confirm .el-message-box__message {
-  white-space: pre-wrap;
-  line-height: 1.45;
 }
 </style>

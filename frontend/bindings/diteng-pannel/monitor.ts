@@ -20,14 +20,7 @@ import * as aptsource$0 from "./internal/aptsource/models.js";
 import * as monitor$0 from "./internal/monitor/models.js";
 
 /**
- * ApplyAptMirror 改写归档源并 apt-get update。official=true 恢复官方；否则 mirror 为镜像 id 或主机名。
- */
-export function ApplyAptMirror(host: string, mirror: string, official: boolean): $CancellablePromise<aptsource$0.ApplyResult> {
-    return $Call.ByID(3248517534, host, mirror, official);
-}
-
-/**
- * CollectAptSources 远程 /etc/apt 源文件 + 发行版。
+ * CollectAptSources 远程 /etc/apt 源文件 + 发行版（只读查看）。
  */
 export function CollectAptSources(host: string): $CancellablePromise<aptsource$0.Snapshot> {
     return $Call.ByID(986192323, host);
@@ -209,13 +202,6 @@ export function KillProcess(host: string, pid: number, force: boolean): $Cancell
  */
 export function ListDir(host: string, dir: string): $CancellablePromise<monitor$0.FileEntry[] | null> {
     return $Call.ByID(255385153, host, dir);
-}
-
-/**
- * ProbeAptMirrors 在目标机上测官方 + 国内镜像。
- */
-export function ProbeAptMirrors(host: string): $CancellablePromise<aptsource$0.ProbeHit[] | null> {
-    return $Call.ByID(1648979109, host);
 }
 
 /**
