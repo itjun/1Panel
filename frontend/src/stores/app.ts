@@ -1074,11 +1074,9 @@ export const useAppStore = defineStore("app", () => {
     if (!host) {
       return { id: newTermDeskId("new"), host: "", title: "新建终端", crossHost: false };
     }
-    const n = terminalDesks.value.filter((d) => d.host === host && !d.crossHost).length;
-    const title = n === 0 ? "终端" : `终端 ${n + 1}`;
     const id = newTermDeskId(host);
     noteDeskHosts(id, [host]);
-    return { id, host, title, crossHost: false };
+    return { id, host, title: "终端", crossHost: false };
   }
 
   function noteDeskHosts(id: string, hosts: string[]) {
@@ -1163,11 +1161,9 @@ export const useAppStore = defineStore("app", () => {
     const desk = deskOf(deskId);
     if (!desk || !name) return;
     if (!hosts.value.some((h) => h.name === name)) return;
-    const n = terminalDesks.value.filter((d) => d.id !== deskId && d.host === name && !d.crossHost).length;
-    const title = n === 0 ? "终端" : `终端 ${n + 1}`;
     noteDeskHosts(deskId, [name]);
-    patchDesk(deskId, { host: name, title, titleCustom: false });
-    rememberDesk({ ...desk, host: name, title, titleCustom: false });
+    patchDesk(deskId, { host: name, title: "终端", titleCustom: false });
+    rememberDesk({ ...desk, host: name, title: "终端", titleCustom: false });
   }
 
   /** 明确再开一个会话。 */

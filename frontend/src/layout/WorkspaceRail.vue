@@ -322,7 +322,8 @@ const chrome = useChromeDrag();
 const { hostSessionDropTarget: hostCardDropTarget, moveHostToGroup } =
   useInjectedHostDrag();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-const deskCount = computed(() => app.terminalDesks.length);
+/** 未选主机的「新建终端」占位标签不计入角标。 */
+const deskCount = computed(() => app.terminalDesks.filter((d) => d.host).length);
 
 function isAppAlertEvent(kind: string): boolean {
   return !!parseAppAlertKind(kind) || (kind || "").startsWith("app:");
