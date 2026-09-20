@@ -15,6 +15,14 @@ export function CloseTerminal(sessionID: string): $CancellablePromise<void> {
 }
 
 /**
+ * DisconnectHost 断开主机的全部连接：关闭该主机所有终端会话（独立连接一并释放），
+ * 再关闭连接池中该主机的连接。前端关闭主机标签时调用。
+ */
+export function DisconnectHost(host: string): $CancellablePromise<void> {
+    return $Call.ByID(3951750474, host);
+}
+
+/**
  * OpenTerminal 打开一个终端会话（独立 SSH 连接 + Wails 事件推送）
  * eventName 是前端订阅输出的 Wails 事件名
  * cols/rows 为 xterm fit 后的真实行列，开 PTY 时就用正确尺寸，避免开局乱码

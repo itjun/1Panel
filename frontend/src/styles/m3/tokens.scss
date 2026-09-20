@@ -43,13 +43,13 @@
   // ---------- 布局语义色（全站统一，页面禁止另造底色）----------
   --m3-shell: var(--m3-surface-container-low); /* 功能栏：有色壳蓝 */
   --m3-list: #eef0f3; /* 列表栏：去色浅冷灰，介于壳与白画布 */
-  --m3-canvas: var(--m3-surface-container); /* 旧画布灰，卡片页内仍可用 */
-  --m3-content: #ffffff; /* 内容列：最亮白画布 */
-  --m3-card: var(--m3-surface-container-lowest); /* 卡片/表格白底 */
+  --m3-content: var(--m3-surface-container); /* 内容列底层：灰画布，卡片/表格白底浮于其上 */
+  --m3-card: var(--m3-surface-container-lowest); /* 卡片/表格/输入框白底 */
   --m3-chrome-height: 56px; /* 内容列通栏：对齐企微内容头，32px 控件上下各 12px */
   --m3-rail-width: 80px; /* 功能栏宽：包住 mac 红绿灯后再接内容分界线 */
   /* 默认档操作按钮：实心/空心同一盒子（含 1px 边框） */
   --m3-button-height: 32px;
+  --m3-space: 8px;
   --m3-button-height-small: 24px;
   --m3-button-height-large: 40px;
   --m3-button-padding-x: 12px;
@@ -58,10 +58,21 @@
   /* 悬停是行内唯一的状态色（蓝），一眼看出当前行 */
   --m3-table-hover: color-mix(in srgb, var(--m3-primary) 22%, var(--m3-card));
 
-  // 侧栏选中胶囊
-  --m3-sidebar-active-bg: var(--m3-secondary-container);
-  --m3-sidebar-active-fg: var(--m3-on-secondary-container);
+  // 导航选中：浅蓝底 + 主色字（功能条 / 侧栏 / 功能菜单共用）
+  --m3-nav-active-bg: var(--m3-primary-container);
+  --m3-nav-active-fg: var(--m3-primary);
+  --m3-sidebar-active-bg: var(--m3-nav-active-bg);
+  --m3-sidebar-active-fg: var(--m3-nav-active-fg);
   --m3-sidebar-active-stroke: transparent;
+  --m3-success: #4a6e5a;
+  --m3-status-online: #1e8e3e;
+  --m3-status-running: var(--m3-status-online);
+  --m3-status-warn: #f9ab00;
+  --m3-status-alert: var(--m3-error);
+  --m3-status-offline: #9aa0a6;
+  --m3-focus-ring: 2px solid var(--m3-primary);
+  --m3-state-hover-percent: 8%;
+  --m3-shape-extra-small: var(--m3-shape-xs);
   --m3-on-surface-variant: #646a73;
   --m3-inverse-surface: #1f2329;
   --m3-inverse-on-surface: #f4f4f4;
@@ -186,68 +197,4 @@
     --m3-duration-extra-long3: 0ms;
     --m3-duration-extra-long4: 0ms;
   }
-}
-
-// ---------- 暗色方案（1Panel 蓝暗色）----------
-html.dark {
-  --m3-primary: #669ef3;
-  --m3-on-primary: #002d6e;
-  --m3-primary-container: #003d8f;
-  --m3-on-primary-container: #d6e3ff;
-
-  --m3-secondary: #b8c8dc;
-  --m3-on-secondary: #253140;
-  --m3-secondary-container: #2a3441;
-  --m3-on-secondary-container: #d6e3ff;
-
-  --m3-tertiary: #f0c78a;
-  --m3-on-tertiary: #4a3600;
-  --m3-tertiary-container: #5c4a1a;
-  --m3-on-tertiary-container: #fdebd0;
-
-  --m3-error: #f89898;
-  --m3-on-error: #601410;
-  --m3-error-container: #8c1d18;
-  --m3-on-error-container: #fde2e2;
-
-  --m3-surface: #141820;
-  --m3-on-surface: #e4e7ed;
-  --m3-surface-dim: #141820;
-  --m3-surface-bright: #2a3140;
-  --m3-surface-container-lowest: #0e1118;
-  --m3-surface-container-low: #1a2030;
-  --m3-surface-container: #1e2433;
-  --m3-surface-container-high: #252d3d;
-  --m3-surface-container-highest: #2f3848;
-
-  --m3-shell: var(--m3-surface-container-low);
-  --m3-list: #151922; /* 去色，介于壳蓝与内容 */
-  --m3-canvas: var(--m3-surface-container);
-  --m3-content: var(--m3-surface-container); /* 暗色内容列略亮于列表 */
-  --m3-card: var(--m3-surface-container-lowest);
-  --m3-chrome-height: 56px;
-  --m3-rail-width: 80px;
-  --m3-table-row: var(--m3-card);
-  --m3-table-header: var(--m3-table-row);
-  --m3-table-hover: color-mix(in srgb, var(--m3-primary) 32%, var(--m3-card));
-
-  // 侧栏选中胶囊
-  --m3-sidebar-active-bg: var(--m3-secondary-container);
-  --m3-sidebar-active-fg: var(--m3-on-secondary-container);
-  --m3-sidebar-active-stroke: transparent;
-
-  --m3-on-surface-variant: #b0b8c4;
-  --m3-inverse-surface: #e4e7ed;
-  --m3-inverse-on-surface: #1f2329;
-  --m3-surface-tint: #669ef3;
-
-  --m3-outline: #8a919c;
-  --m3-outline-variant: #3a4252;
-
-  // 暗色阴影加深一档
-  --m3-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px 1px rgba(0, 0, 0, 0.25);
-  --m3-elevation-2: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px 2px rgba(0, 0, 0, 0.25);
-  --m3-elevation-3: 0 1px 3px rgba(0, 0, 0, 0.5), 0 4px 8px 3px rgba(0, 0, 0, 0.25);
-  --m3-elevation-4: 0 2px 3px rgba(0, 0, 0, 0.5), 0 6px 10px 4px rgba(0, 0, 0, 0.25);
-  --m3-elevation-5: 0 4px 4px rgba(0, 0, 0, 0.5), 0 8px 12px 6px rgba(0, 0, 0, 0.25);
 }

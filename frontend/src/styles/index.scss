@@ -2,7 +2,6 @@
 // 令牌定义 -> EP 映射 -> 全局基础样式
 @use "./m3/tokens.scss";
 @use "./element.scss";
-@use "./element-dark.scss";
 
 html,
 body,
@@ -42,6 +41,18 @@ body,
   -webkit-app-region: no-drag;
 }
 
+/* xterm 自己建 DOM，不走 Vue class。拖拽区用 CSS 继承，这里钉死，避免合成层把点击算成窗口拖拽。 */
+.xterm,
+.xterm * {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+.xterm-helper-textarea {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
 // M3 卡片间距（拉开区块，增强层次）
 .card-interval {
   margin-top: 16px;
@@ -72,21 +83,6 @@ body,
       inset 0 0 0 2px var(--m3-primary),
       0 1px 2px rgba(0, 0, 0, 0.05),
       0 6px 18px rgba(0, 0, 0, 0.08) !important;
-  }
-}
-
-html.dark .panel-hover-card,
-.is-dark .panel-hover-card {
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.35),
-    0 6px 18px rgba(0, 0, 0, 0.28) !important;
-
-  &:hover {
-    box-shadow:
-      inset 0 0 0 2px var(--m3-primary),
-      0 1px 2px rgba(0, 0, 0, 0.4),
-      0 8px 22px rgba(0, 0, 0, 0.35) !important;
   }
 }
 
@@ -195,8 +191,8 @@ html.dark .panel-hover-card,
       border-radius: 8px;
       background-color: transparent !important;
       margin: 1px 0;
-      height: 44px !important;
-      line-height: 44px;
+      height: 40px !important;
+      line-height: 40px;
       color: var(--m3-on-surface-variant);
       box-sizing: border-box;
       box-shadow: none !important;
@@ -215,22 +211,17 @@ html.dark .panel-hover-card,
         }
       }
 
-      /* 选中：soft 底 + 主色字；主机靠右侧运行点标识，不再画左侧竖条 */
       &.is-active {
-        background-color: color-mix(
-          in srgb,
-          var(--group-accent, var(--m3-primary)) 12%,
-          transparent
-        ) !important;
-        color: var(--group-ink, var(--m3-primary));
+        background-color: var(--m3-nav-active-bg) !important;
+        color: var(--m3-nav-active-fg);
 
         .el-icon,
         .menu-title {
-          color: var(--group-ink, var(--m3-primary));
+          color: var(--m3-nav-active-fg);
         }
 
         .menu-count {
-          color: var(--group-ink, var(--m3-sidebar-active-fg)) !important;
+          color: var(--m3-nav-active-fg) !important;
           background-color: var(
             --m3-surface-container-lowest,
             #fff
@@ -262,42 +253,48 @@ html.dark .panel-hover-card,
   flex: 1;
   min-height: 0;
   min-width: 0;
-  display: grid;
-  grid-template-rows: 1fr;
-  /* 列1：工作区 rail（包住红绿灯）· 列2：二级栏 · 列3：主区 */
-  grid-template-columns: var(--m3-rail-width, 80px) auto 1fr;
+  display: flex;
+  flex-direction: row;
   overflow: hidden;
   background: var(--m3-shell);
   border-radius: 0;
 }
 
-.app-chrome > .workspace-rail {
-  grid-row: 1;
-  grid-column: 1;
-  min-height: 0;
-  z-index: 1;
-  border-right: 1px solid var(--m3-outline-variant);
-}
-
-.app-chrome > .panel-sidebar {
-  grid-row: 1;
-  grid-column: 2;
-  min-height: 0;
-  height: auto;
-  margin: 0;
-  background: var(--m3-list);
-  color: var(--m3-on-surface);
-  border-right: 1px solid var(--m3-outline-variant);
+.app-chrome > .workspace-rail,
+.app-chrome > .app-nav {
+  position: relative;
+  flex: 0 0 auto;
+  height: 100%;
+  z-index: 80;
 }
 
 .app-chrome > .main-column {
-  grid-row: 1;
-  grid-column: 3;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* 收起仅二级栏；rail 永远占第 1 列 */
-.app-chrome.sidebar-collapsed > .main-column {
-  grid-column: 2 / -1;
+.app-chrome.is-term {
+  --m3-shell: #171717;
+  --m3-content: #0e0e0e;
+  --m3-list: #141414;
+  --m3-card: #1c1c1c;
+  --m3-surface: #1c1c1c;
+  --m3-surface-container-lowest: #1c1c1c;
+  --m3-surface-container: #141414;
+  --m3-surface-container-high: #222;
+  --m3-on-surface: #ececec;
+  --m3-on-surface-variant: #a3a3a3;
+  --m3-outline: #3a3a3a;
+  --m3-outline-variant: #2c2c2c;
+  --m3-nav-active-bg: #1e3328;
+  --m3-nav-active-fg: #8fdbb0;
+  --m3-primary: #8fdbb0;
+  --m3-primary-container: #1e3328;
+  --m3-error: #f07178;
+  background: #0e0e0e;
+  color: #ececec;
 }
 
 .main-column {
@@ -572,8 +569,8 @@ html.dark .panel-hover-card,
 
 // 子标签页：工具栏 + 可伸缩表格区
 :root {
-  --m3-table-row-height: 52px;
-  --m3-table-header-height: 48px;
+  --m3-table-row-height: 44px;
+  --m3-table-header-height: 40px;
   --m3-table-cell-padding-y: 12px;
   --m3-table-cell-padding-x: 12px;
 }

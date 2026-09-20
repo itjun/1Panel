@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"diteng-pannel/internal/filetext"
 	"diteng-pannel/internal/sshd"
@@ -19,9 +22,9 @@ type Files App
 
 // ============ 文件上传（SFTP）+ 进度 + 可选编码规范化 ============
 
-const uploadProgressEvent = "upload:progress"       // 前端监听的事件名
-const uploadChunkSize = 32 * 1024                   // 分块上传粒度
-const uploadNormalizeLimit = 8 * 1024 * 1024        // 超过 8MB 的文件不做编码转换
+const uploadProgressEvent = "upload:progress" // 前端监听的事件名
+const uploadChunkSize = 32 * 1024             // 分块上传粒度
+const uploadNormalizeLimit = 8 * 1024 * 1024  // 超过 8MB 的文件不做编码转换
 
 // UploadProgress 上传进度事件 payload（整体百分比 + 当前文件）
 type UploadProgress struct {
@@ -186,7 +189,94 @@ func (s *Files) UploadPaths(host string, localPaths []string, convertPaths []str
 	return nil
 }
 
-// openSFTP 建立一次 SFTP 会话（复用 sshd.Manager 的 SSH 长连接）
+// UploadPathsAs 按冲突策略上传。mode 为 overwrite（删掉同名项再写入）或 rename（自动加「 1」「 2」）。
+func (s *Files) UploadPathsAs(host string, localPaths []string, remoteDir, mode string) error {
+	mode, err := normalizeConflictMode(mode)
+	if err != nil {
+		return err
+	}
+	remoteDir = path.Clean(strings.TrimSpace(remoteDir))
+	if remoteDir == "" || remoteDir == "." {
+		return fmt.Errorf("远程目录为空")
+	}
+	var total int64
+	for _, p := range localPaths {
+		_ = filepath.Walk(p, func(_ string, info os.FileInfo, walkErr error) error {
+			if walkErr == nil && info != nil && !info.IsDir() {
+				total += info.Size()
+			}
+			return nil
+		})
+	}
+	sc, err := openSFTP(s.sshMgr, host)
+	if err != nil {
+		return err
+	}
+	defer sc.Close()
+
+	prog := &progressTracker{total: total}
+	finish := func() {
+		application.Get().Event.Emit(uploadProgressEvent, UploadProgress{
+			Uploaded: prog.total, Total: prog.total, Done: true,
+		})
+	}
+	reserved := map[string]bool{}
+	for _, p := range localPaths {
+		info, statErr := os.Stat(p)
+		if statErr != nil {
+			finish()
+			return fmt.Errorf("本地文件不存在: %w", statErr)
+		}
+		destName, replace, nameErr := pickConflictName(filepath.Base(p), mode, reserved, func(name string) bool {
+			_, err := sc.Stat(path.Join(remoteDir, name))
+			return err == nil
+		})
+		if nameErr != nil {
+			finish()
+			return nameErr
+		}
+		if replace {
+			if err := removeRemoteIfPresent(sc, path.Join(remoteDir, destName)); err != nil {
+				finish()
+				return err
+			}
+		}
+		if info.IsDir() {
+			if err := uploadDirAs(sc, p, remoteDir, destName, prog); err != nil {
+				finish()
+				return err
+			}
+			continue
+		}
+		if _, err := uploadFileNamed(sc, p, remoteDir, destName, false, prog); err != nil {
+			finish()
+			return err
+		}
+	}
+	finish()
+	return nil
+}
+
+func uploadDirAs(sc *sftp.Client, localDir, remoteDir, destName string, prog *progressTracker) error {
+	return filepath.Walk(localDir, func(fp string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, rerr := filepath.Rel(localDir, fp)
+		if rerr != nil {
+			return rerr
+		}
+		target := path.Join(remoteDir, destName, filepath.ToSlash(rel))
+		if fi.IsDir() {
+			return sc.MkdirAll(target)
+		}
+		_, e := uploadFileNamed(sc, fp, path.Dir(target), path.Base(target), false, prog)
+		return e
+	})
+}
+
+// openSFTP 建立一次 SFTP 会话（复用 sshd.Manager 的 SSH 长连接）。
+// 连接池里的 client 可能已经断了：创建失败时丢掉这只，再拨一次。
 func openSFTP(mgr *sshd.Manager, host string) (*sftp.Client, error) {
 	opt, err := connectOptionFor(host)
 	if err != nil {
@@ -197,25 +287,68 @@ func openSFTP(mgr *sshd.Manager, host string) (*sftp.Client, error) {
 		return nil, fmt.Errorf("连接失败: %w", err)
 	}
 	sc, err := sftp.NewClient(client)
+	if err == nil {
+		return sc, nil
+	}
+	if !sshConnDead(err) {
+		return nil, fmt.Errorf("SFTP 会话创建失败: %w", err)
+	}
+	mgr.DropClient(host, client)
+	client, err = mgr.GetClient(host, opt)
+	if err != nil {
+		return nil, fmt.Errorf("连接失败: %w", err)
+	}
+	sc, err = sftp.NewClient(client)
 	if err != nil {
 		return nil, fmt.Errorf("SFTP 会话创建失败: %w", err)
 	}
 	return sc, nil
 }
 
+// sshConnDead 判断是不是「这条 SSH 已经不能用了」，而不是目录不存在这类业务错误。
+func sshConnDead(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, kw := range []string{
+		"eof",
+		"use of closed",
+		"connection reset",
+		"broken pipe",
+		"connection lost",
+		"forcibly closed",
+		"disconnected",
+		"unexpected packet",
+	} {
+		if strings.Contains(msg, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // uploadFileSc 上传单个文件（已建立 SFTP 会话）；normalize 时对非标准文本做内存转换后写
 func uploadFileSc(sc *sftp.Client, localPath, remoteDir string, normalize bool, prog *progressTracker) (string, error) {
+	return uploadFileNamed(sc, localPath, remoteDir, path.Base(localPath), normalize, prog)
+}
+
+// uploadFileNamed 同上，远程文件名用 destName。冲突改名时 destName 已是「名字 1」。
+func uploadFileNamed(sc *sftp.Client, localPath, remoteDir, destName string, normalize bool, prog *progressTracker) (string, error) {
 	if err := sc.MkdirAll(remoteDir); err != nil {
 		return "", fmt.Errorf("创建远程目录失败: %w", err)
 	}
-	remotePath := path.Join(remoteDir, path.Base(localPath))
+	remotePath := path.Join(remoteDir, destName)
 	remoteFile, err := sc.Create(remotePath)
 	if err != nil {
 		return "", fmt.Errorf("创建远程文件失败: %w", err)
 	}
 	defer remoteFile.Close()
 
-	current := path.Base(localPath)
+	current := destName
 
 	// normalize 分支：若需要转换，全量读 → 转换 → 一次写出
 	if normalize {

@@ -153,7 +153,7 @@ function runtimeLabel(rt: string) {
   box-sizing: border-box;
   border-radius: var(--m3-shape-m, 12px);
   background: var(--m3-surface-container-lowest, #fff);
-  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border: 1px solid var(--m3-outline-variant, #e4e7ed);
   box-shadow: var(--m3-elevation-3);
   font: var(--m3-body-small);
   color: var(--m3-on-surface, #1a1a1d);

@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: var(--m3-card, var(--m3-surface-container-lowest, #fff));
-  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border: 1px solid var(--m3-outline-variant, #e4e7ed);
   border-radius: var(--m3-shape-m, 12px);
   padding: 16px;
   box-sizing: border-box;
@@ -163,7 +163,7 @@ onBeforeUnmount(() => {
   z-index: 5;
   padding: 4px;
   color: var(--m3-on-surface-variant);
-  background: var(--m3-surface-container-high, #ecebf0);
+  background: var(--m3-surface-container-high, #eef2f6);
   border-radius: var(--m3-shape-full);
   opacity: 0.35;
   &:hover {

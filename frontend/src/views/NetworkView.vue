@@ -594,14 +594,6 @@ function connRowClass({ rowData }: { rowData: NetConnection }) {
   }
 }
 
-html.dark .ip-card {
-  background: var(--el-bg-color);
-  box-shadow: none;
-  &.is-empty {
-    background: var(--el-fill-color-darker, #1f1f1f);
-  }
-}
-
 .ip-card__head {
   display: flex;
   align-items: center;
@@ -615,7 +607,7 @@ html.dark .ip-card {
   border-radius: 50%;
   flex-shrink: 0;
   &--private {
-    background: var(--m3-primary, #6750a4);
+    background: var(--m3-primary, #005eeb);
   }
   &--public {
     background: var(--m3-tertiary, #7d5260);
@@ -624,14 +616,14 @@ html.dark .ip-card {
     background: var(--m3-secondary, #625b71);
   }
   &--gw {
-    background: var(--m3-outline, #79747e);
+    background: var(--m3-outline, #646a73);
   }
 }
 
 .ip-card__title {
   font: var(--m3-label-medium);
   font-weight: 600;
-  color: var(--m3-on-surface-variant, #49454f);
+  color: var(--m3-on-surface-variant, #646a73);
   letter-spacing: 0.02em;
 }
 
@@ -724,7 +716,7 @@ html.dark .ip-card {
   border: none;
   border-radius: var(--m3-shape-full);
   background: transparent;
-  color: var(--m3-primary, #6750a4);
+  color: var(--m3-primary, #005eeb);
   font: var(--m3-label-medium);
   text-align: center;
   cursor: pointer;

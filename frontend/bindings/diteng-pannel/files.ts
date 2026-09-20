@@ -13,6 +13,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as filetext$0 from "./internal/filetext/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as monitor$0 from "./internal/monitor/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -24,6 +27,70 @@ import * as $models from "./models.js";
  */
 export function CheckLocalPaths(localPaths: string[] | null): $CancellablePromise<$models.LocalTextCheck[] | null> {
     return $Call.ByID(1159685526, localPaths);
+}
+
+/**
+ * DeleteLocalPaths 删除本机文件或目录（递归）。拒绝删除主目录和盘符根下的系统目录本身。
+ */
+export function DeleteLocalPaths(paths: string[] | null): $CancellablePromise<void> {
+    return $Call.ByID(963859463, paths);
+}
+
+/**
+ * DeleteSftpPaths 用 SFTP 删除远程文件或目录（递归，不走 agent）。
+ */
+export function DeleteSftpPaths(host: string, paths: string[] | null): $CancellablePromise<void> {
+    return $Call.ByID(1019214649, host, paths);
+}
+
+/**
+ * DownloadSftp 把远程文件或目录下到本地目录，返回本地完整路径。
+ * 目录按原名递归拷贝到 localDir 下。
+ */
+export function DownloadSftp(host: string, remotePath: string, localDir: string): $CancellablePromise<string> {
+    return $Call.ByID(892953152, host, remotePath, localDir);
+}
+
+/**
+ * DownloadSftpPaths 一次连接下载多个远程文件或目录到同一本机目录。
+ */
+export function DownloadSftpPaths(host: string, remotePaths: string[] | null, localDir: string): $CancellablePromise<void> {
+    return $Call.ByID(2153427740, host, remotePaths, localDir);
+}
+
+/**
+ * DownloadSftpPathsAs 按冲突策略下载。mode 为 overwrite 或 rename。
+ */
+export function DownloadSftpPathsAs(host: string, remotePaths: string[] | null, localDir: string, mode: string): $CancellablePromise<void> {
+    return $Call.ByID(3228000380, host, remotePaths, localDir, mode);
+}
+
+/**
+ * ListLocalDir 列本机目录，给 SFTP 左栏用。
+ */
+export function ListLocalDir(dir: string): $CancellablePromise<monitor$0.FileEntry[] | null> {
+    return $Call.ByID(2114530487, dir);
+}
+
+/**
+ * ListSftp 用 SFTP 列远程目录（不走 agent）。
+ */
+export function ListSftp(host: string, dir: string): $CancellablePromise<monitor$0.FileEntry[] | null> {
+    return $Call.ByID(3610524352, host, dir);
+}
+
+/**
+ * LocalExistingNames 返回本机目录里已经存在的名字。给拖拽冲突弹窗用。
+ */
+export function LocalExistingNames(dir: string, names: string[] | null): $CancellablePromise<string[] | null> {
+    return $Call.ByID(3027083171, dir, names);
+}
+
+/**
+ * LocalHomeDir 本机用户家目录。
+ */
+export function LocalHomeDir(): $CancellablePromise<string> {
+    return $Call.ByID(3741253410);
 }
 
 /**
@@ -41,6 +108,20 @@ export function NormalizeFileToLinux(host: string, file: string): $CancellablePr
  */
 export function ReadFilePreview(host: string, file: string): $CancellablePromise<filetext$0.Preview> {
     return $Call.ByID(2484376929, host, file);
+}
+
+/**
+ * SftpExistingNames 返回远程目录里已经存在的名字。给拖拽冲突弹窗用。
+ */
+export function SftpExistingNames(host: string, dir: string, names: string[] | null): $CancellablePromise<string[] | null> {
+    return $Call.ByID(1544993891, host, dir, names);
+}
+
+/**
+ * SftpHomeDir 远程登录用户家目录。
+ */
+export function SftpHomeDir(host: string): $CancellablePromise<string> {
+    return $Call.ByID(1536006882, host);
 }
 
 /**
@@ -71,4 +152,11 @@ export function UploadFile(host: string, localPath: string, remoteDir: string, n
  */
 export function UploadPaths(host: string, localPaths: string[] | null, convertPaths: string[] | null, remoteDir: string): $CancellablePromise<void> {
     return $Call.ByID(2239550740, host, localPaths, convertPaths, remoteDir);
+}
+
+/**
+ * UploadPathsAs 按冲突策略上传。mode 为 overwrite（删掉同名项再写入）或 rename（自动加「 1」「 2」）。
+ */
+export function UploadPathsAs(host: string, localPaths: string[] | null, remoteDir: string, mode: string): $CancellablePromise<void> {
+    return $Call.ByID(1938285556, host, localPaths, remoteDir, mode);
 }

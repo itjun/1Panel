@@ -83,10 +83,6 @@ const { renderWhenVisible } = useChartVisibility(
   }
 );
 
-function isDark() {
-  return document.documentElement.classList.contains("dark");
-}
-
 /** 只取影响画面的字段做指纹，忽略对象引用差异 */
 function optionFingerprint(opt: LineOption): string {
   return JSON.stringify({
@@ -124,12 +120,12 @@ function initChart() {
   const root = getComputedStyle(document.documentElement);
   const get = (name: string, fallback: string) =>
     root.getPropertyValue(name).trim() || fallback;
-  const primary = get("--m3-primary", "#6750a4");
+  const primary = get("--m3-primary", "#005eeb");
   const secondary = get("--m3-secondary", "#625b71");
   const tertiary = get("--m3-tertiary", "#7d5260");
-  const regularText = get("--m3-on-surface-variant", "#49454f");
-  const secondaryText = get("--m3-on-surface-variant", "#49454f");
-  const borderColor = get("--m3-outline-variant", "#cac4d0");
+  const regularText = get("--m3-on-surface-variant", "#646a73");
+  const secondaryText = get("--m3-on-surface-variant", "#646a73");
+  const borderColor = get("--m3-outline-variant", "#e4e7ed");
   const tooltipBg = get("--m3-surface-container-lowest", "#ffffff");
   const danger = get("--m3-error", "#b3261e");
 
@@ -139,7 +135,7 @@ function initChart() {
     primary,
     secondary,
     tertiary,
-    get("--m3-outline", "#79747e"),
+    get("--m3-outline", "#c9cdd4"),
   ];
   const seriesColor = (index: number) => seriesStyle[index] || seriesStyle[0];
 
@@ -190,7 +186,7 @@ function initChart() {
   const splitLine = {
     lineStyle: {
       type: "dashed" as const,
-      opacity: isDark() ? 0.1 : 1,
+      opacity: 1,
       color: borderColor,
     },
   };

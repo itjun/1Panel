@@ -1,10 +1,34 @@
 <template>
   <div class="all-hosts">
+    <ChromeTeleport :when="app.isHomeActive()" to="center">
+      <el-input
+        ref="searchInputRef"
+        v-model="searchQuery"
+        clearable
+        class="host-filter__input"
+        :placeholder="isMac ? '筛选主机名 / 地址 / 用户 (⌘F)' : '筛选主机名 / 地址 / 用户 (Ctrl+F)'"
+        @keydown.esc="onSearchEsc"
+      >
+        <template #prefix>
+          <el-icon class="host-filter__icon"><Search /></el-icon>
+        </template>
+      </el-input>
+    </ChromeTeleport>
+
     <ChromeTeleport :when="app.isHomeActive()">
       <span class="chrome-meta">
-        共 {{ app.hosts.length }} 台 · 在线 {{ fleetOnlineCount }} · 已打开
-        {{ app.runningHosts.length }}
+        <template v-if="searchQuery.trim()">
+          匹配 {{ filteredHostCount }} / {{ app.hosts.length }} 台 · 已打开
+          {{ app.runningHosts.length }}
+        </template>
+        <template v-else>
+          共 {{ app.hosts.length }} 台 · 在线 {{ fleetOnlineCount }} · 已打开
+          {{ app.runningHosts.length }}
+        </template>
       </span>
+      <el-button :icon="Plus" @click="promptCreateRootGroup">
+        新建分组
+      </el-button>
       <el-button
         :icon="Refresh"
         :loading="app.loading"
@@ -16,54 +40,16 @@
       <el-button :icon="Picture" :loading="app.iconsRefreshing" @click="onRefreshIcons">
         检查图标
       </el-button>
-      <el-popover
-        placement="bottom-end"
-        :width="280"
-        trigger="click"
-        :teleported="true"
-      >
-        <template #reference>
-          <el-button class="menu-check-btn">
-            <span
-              class="menu-check-dot"
-              :class="{
-                'is-ok': menuCheckTone === 'ok',
-                'is-bad': menuCheckTone === 'bad',
-              }"
-            />
-            菜单检查
-          </el-button>
-        </template>
-        <div class="menu-check-pop">
-          <div class="menu-check-pop__title">菜单检查</div>
-          <button
-            v-for="item in menuChecks"
-            :key="item.id"
-            type="button"
-            class="menu-check-pop__item"
-            :class="{ 'is-checking': item.checking }"
-            :disabled="item.checking"
-            @click="onMenuCheck(item)"
-          >
-            <span
-              class="menu-check-dot"
-              :class="{
-                'is-ok': item.status === 'ok',
-                'is-bad': item.status === 'bad',
-              }"
-            />
-            <span class="menu-check-pop__label">{{ item.label }}</span>
-            <span class="menu-check-pop__hint">
-              {{ item.checking ? "检查中…" : "点击检查" }}
-            </span>
-          </button>
-        </div>
-      </el-popover>
     </ChromeTeleport>
 
     <el-empty
       v-if="app.hosts.length === 0 && app.groupList.length === 0"
       description="暂无主机，右键侧栏空白处可添加主机或新建分组"
+    />
+
+    <el-empty
+      v-else-if="searchQuery.trim() && filteredHostCount === 0"
+      description="无匹配主机"
     />
 
     <!-- 置顶主机：有置顶或正在拖主机时显示，可作为置顶落点 / 块内排序 -->
@@ -76,23 +62,24 @@
       <div class="pinned-section__head">
         <span class="pinned-section__dot" />
         <span class="pinned-section__name">置顶</span>
-        <span class="pinned-section__count">{{ app.pinnedHosts.length }}</span>
-        <span v-if="app.pinnedHosts.length > 0" class="pinned-section__summary">
+        <span class="pinned-section__count">{{ visiblePinnedHosts.length }}</span>
+        <span v-if="visiblePinnedHosts.length > 0" class="pinned-section__summary">
           {{ pinnedSummaryText }}
         </span>
       </div>
-      <p v-if="pinnedHostConfigs.length === 0" class="pinned-section__hint">
-        拖到此处置顶
+      <p v-if="visiblePinnedHosts.length === 0" class="pinned-section__hint">
+        {{ searchQuery.trim() ? "无匹配的置顶主机" : "拖到此处置顶" }}
       </p>
       <div v-else class="pinned-grid">
         <HostCard
-          v-for="h in pinnedHostConfigs"
+          v-for="h in visiblePinnedHosts"
           :key="'pin-' + h.name"
+          dense
           :host="h"
           :reach="statusByHost.get(h.name)?.reach ?? null"
           :os-release="app.osReleaseMap.get(h.name) || ''"
           :running="app.isRunning(h.name)"
-          :selected="selectedPinnedHost === h.name"
+          :selected="selectedHostName === h.name"
           :drag-source="dragState?.kind === 'host' && dragState.id === h.name"
           :insert-before="
             pinInsertBefore === h.name &&
@@ -101,7 +88,7 @@
           "
           :data-pin-host="h.name"
           @pointerdown="onHostPointerDown($event, h.name)"
-          @click="onPinnedCardClick(h.name)"
+          @click="onSelectHost(h.name)"
           @dblclick="openHost(h.name)"
           @contextmenu="onHostContext($event, h.name)"
           @refresh-icon="onRefreshOneIcon(h.name)"
@@ -109,30 +96,24 @@
       </div>
     </section>
 
-    <div
-      v-if="app.hosts.length > 0 || app.groupList.length > 0"
-      class="page-toolbar"
-    >
-      <el-button type="primary" plain @click="promptCreateRootGroup">
-        ＋ 新建分组
-      </el-button>
-    </div>
-
     <!-- 按分组树渲染：子分组嵌在父节点下，树线对齐 -->
-    <div v-if="app.hosts.length > 0 || app.groupList.length > 0" class="group-sections">
+    <div v-if="filteredGroupTree.length > 0" class="group-sections">
       <AllHostsGroupBranch
-        v-for="node in groupTree"
+        v-for="node in filteredGroupTree"
         :key="node.key"
         :node="node"
         :nested="false"
+        :selected-host="selectedHostName"
         :is-running="(n) => app.isRunning(n)"
         :os-release="(n) => app.osReleaseMap.get(n) || ''"
         :status-by-host="statusByHost"
+        @select-host="onSelectHost"
         @open-host="openHost"
         @refresh-icon="onRefreshOneIcon"
         @open-group="openGroup"
         @open-board="openBoard"
         @host-context="onHostContext"
+        @group-context="onGroupHeadContext"
       />
     </div>
 
@@ -142,15 +123,23 @@
       @edit="(host) => editRef?.openFor(host)"
       @move="onCtxMove"
     />
+    <GroupContextMenu
+      :menu="groupCtxMenu"
+      @close="groupCtxMenu = null"
+      @open="onGroupMenuOpen"
+      @open-board="openBoard"
+      @settings="onGroupMenuSettings"
+      @add-host="onGroupMenuAddHost"
+      @delete="onGroupMenuDelete"
+    />
     <EditHostDialog ref="editRef" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { Picture, Refresh } from "@element-plus/icons-vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Picture, Plus, Refresh, Search } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Events } from "@wailsio/runtime";
 import AllHostsGroupBranch, {
   type HostGroupTreeNode,
 } from "@/components/AllHostsGroupBranch.vue";
@@ -160,6 +149,9 @@ import EditHostDialog from "@/components/sidebar/EditHostDialog.vue";
 import HostContextMenu, {
   type CtxMenuState,
 } from "@/components/sidebar/HostContextMenu.vue";
+import GroupContextMenu, {
+  type GroupCtxMenuState,
+} from "@/components/sidebar/GroupContextMenu.vue";
 import {
   summarizeFleet,
   useFleetStatus,
@@ -172,9 +164,8 @@ import {
   UNGROUPED_ID,
   type GroupNode,
 } from "@/stores/app";
-import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
-import type { main, sshconfig } from "@/api";
+import type { sshconfig } from "@/api";
 
 const app = useAppStore();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -186,13 +177,13 @@ const {
   cancelDrag,
   moveHostToGroup,
   suppressClick,
-  pendingCreateChild,
 } = useInjectedHostDrag();
 const ctxMenu = ref<CtxMenuState | null>(null);
+const groupCtxMenu = ref<GroupCtxMenuState | null>(null);
 const editRef = ref<InstanceType<typeof EditHostDialog> | null>(null);
 
-/** 仅在全部主机首页可见时轮询舰队状态 */
-const fleetEnabled = computed(() => app.isHomeActive());
+// 首页不默认全量 listGroupOverview；缺状态时只显示台数
+const fleetEnabled = computed(() => false);
 const { statusByHost } = useFleetStatus({ enabled: fleetEnabled });
 
 const fleetOnlineCount = computed(() => {
@@ -202,10 +193,14 @@ const fleetOnlineCount = computed(() => {
 
 /* ---------- 置顶主机区块 ---------- */
 
-/** 有置顶主机，或正在拖主机（空落点提示）时显示 */
+/** 有置顶主机，或正在拖主机（空落点提示）时显示；搜索无匹配则隐藏（拖拽时仍显示） */
 const showPinnedSection = computed(() => {
-  if (app.pinnedHosts.length > 0) return true;
-  return dragState.value?.kind === "host" && !!dragState.value.active;
+  if (dragState.value?.kind === "host" && !!dragState.value.active) return true;
+  if (app.pinnedHosts.length === 0) return false;
+  if (searchQuery.value.trim() && visiblePinnedHosts.value.length === 0) {
+    return false;
+  }
+  return true;
 });
 
 /** 按置顶顺序取主机配置；已删除的主机名跳过 */
@@ -219,8 +214,13 @@ const pinnedHostConfigs = computed(() => {
   return out;
 });
 
+const visiblePinnedHosts = computed(() =>
+  pinnedHostConfigs.value.filter((h) => hostMatchesQuery(h, searchQuery.value))
+);
+
 const pinnedSummaryText = computed(() => {
-  const names = app.pinnedHosts;
+  const names = visiblePinnedHosts.value.map((h) => h.name);
+  if (names.length === 0) return "";
   if (statusByHost.value.size === 0) return `共 ${names.length} 台`;
   const s = summarizeFleet(names, statusByHost.value);
   const parts = [`${s.online} 台在线`];
@@ -230,95 +230,58 @@ const pinnedSummaryText = computed(() => {
   return parts.join(" · ");
 });
 
-const selectedPinnedHost = ref<string | null>(null);
+const selectedHostName = ref<string | null>(null);
+const searchQuery = ref("");
+const searchInputRef = ref<{ focus: () => void; select: () => void; input?: HTMLInputElement } | null>(null);
 
-function onPinnedCardClick(name: string) {
+function onSelectHost(name: string) {
   if (suppressClick.value) return;
-  selectedPinnedHost.value = name;
+  selectedHostName.value = name;
 }
 
-type MenuCheckStatus = "" | "ok" | "bad";
-
-interface MenuCheckItem {
-  id: string;
-  label: string;
-  url: string;
-  checking: boolean;
-  status: MenuCheckStatus;
-  menuOk: boolean | null;
-  dataOk: boolean | null;
-  menuText: string;
-  dataText: string;
-  message: string;
+function onSearchEsc(e: Event) {
+  const ke = e as KeyboardEvent;
+  if (searchQuery.value) {
+    ke.stopPropagation();
+    searchQuery.value = "";
+    return;
+  }
+  (ke.target as HTMLElement | null)?.blur?.();
 }
 
-/** 由后端 ListMenuChecks 填充；占位避免首屏空白 */
-const menuChecks = reactive<MenuCheckItem[]>([
-  {
-    id: "data-report",
-    label: "数据上报",
-    url: "",
-    checking: false,
-    status: "",
-    menuOk: null,
-    dataOk: null,
-    menuText: "",
-    dataText: "",
-    message: "",
-  },
-]);
-
-const menuCheckTone = computed<"ok" | "bad" | "">(() => {
-  if (menuChecks.some((i) => i.status === "bad")) return "bad";
-  if (menuChecks.length > 0 && menuChecks.every((i) => i.status === "ok")) {
-    return "ok";
-  }
-  return "";
-});
-
-let offMenuCheck: (() => void) | null = null;
-let handlingCreateChild = false;
-
-function applyMenuResult(r: main.MenuCheckResult) {
-  if (!r?.id) return;
-  let item = menuChecks.find((x) => x.id === r.id);
-  if (!item) {
-    item = {
-      id: r.id,
-      label: r.label || r.id,
-      url: r.url || "",
-      checking: false,
-      status: "",
-      menuOk: null,
-      dataOk: null,
-      menuText: "",
-      dataText: "",
-      message: "",
-    };
-    menuChecks.push(item);
-  }
-  item.label = r.label || item.label;
-  item.url = r.url || item.url;
-  if (r.checkedAt <= 0 && !r.message && !r.menuText) return;
-  item.menuOk = !!r.ok;
-  item.dataOk = !!r.hasData;
-  item.menuText = r.menuText || (r.ok ? "菜单正常" : "菜单异常");
-  item.dataText = r.dataText || (r.hasData ? "数据正常" : "数据异常");
-  item.message = r.message || `${item.menuText}\n${item.dataText}`;
-  if (r.ok && r.hasData) {
-    item.status = "ok";
-  } else {
-    item.status = "bad";
-  }
+function hostMatchesQuery(h: sshconfig.HostConfig, raw: string): boolean {
+  const q = raw.trim().toLowerCase();
+  if (!q) return true;
+  if (h.name.toLowerCase().includes(q)) return true;
+  if ((h.hostName || "").toLowerCase().includes(q)) return true;
+  if ((h.user || "").toLowerCase().includes(q)) return true;
+  return false;
 }
 
-async function loadMenuChecks() {
-  try {
-    const list = await api.listMenuChecks();
-    for (const r of list) applyMenuResult(r);
-  } catch {
-    /* 启动瞬间后端未就绪时忽略 */
+function filterTreeNode(
+  node: HostGroupTreeNode,
+  raw: string
+): HostGroupTreeNode | null {
+  const q = raw.trim().toLowerCase();
+  if (!q) return node;
+  const hosts = node.hosts.filter((h) => hostMatchesQuery(h, q));
+  const children: HostGroupTreeNode[] = [];
+  for (const child of node.children) {
+    const next = filterTreeNode(child, q);
+    if (next) children.push(next);
   }
+  if (hosts.length === 0 && children.length === 0) return null;
+  const hostNames = [
+    ...hosts.map((h) => h.name),
+    ...children.flatMap((c) => c.hostNames),
+  ];
+  return {
+    ...node,
+    hosts,
+    children,
+    hostNames,
+    totalCount: hostNames.length,
+  };
 }
 
 /**
@@ -359,6 +322,35 @@ const groupTree = computed<HostGroupTreeNode[]>(() => {
   return roots;
 });
 
+const filteredGroupTree = computed(() => {
+  const q = searchQuery.value;
+  if (!q.trim()) return groupTree.value;
+  const out: HostGroupTreeNode[] = [];
+  for (const node of groupTree.value) {
+    const next = filterTreeNode(node, q);
+    if (next) out.push(next);
+  }
+  return out;
+});
+
+const filteredHostCount = computed(() => {
+  if (!searchQuery.value.trim()) return app.hosts.length;
+  let n = 0;
+  for (const node of filteredGroupTree.value) {
+    n += node.hostNames.length;
+  }
+  return n;
+});
+
+watch(
+  () => app.homeSearchFocusSeq,
+  async () => {
+    await nextTick();
+    searchInputRef.value?.focus();
+    searchInputRef.value?.select();
+  }
+);
+
 function openHost(name: string) {
   if (suppressClick.value) return;
   app.openHostTab(name);
@@ -384,6 +376,54 @@ function onHostContext(e: MouseEvent, name: string) {
 
 async function onCtxMove(host: string, groupId: string) {
   await moveHostToGroup(host, groupId || UNGROUPED_ID);
+}
+
+/* ---------- 内容区分组标题右键菜单 ---------- */
+
+function onGroupHeadContext(e: MouseEvent, id: string, title: string) {
+  cancelDrag();
+  groupCtxMenu.value = { id, name: title, x: e.clientX, y: e.clientY };
+}
+
+function onGroupMenuOpen(id: string, _title: string) {
+  app.openGroupTab(id, _title);
+}
+
+function onGroupMenuSettings(id: string, name: string) {
+  // 设置对话框在侧栏组件里，通过全局事件转给它打开
+  window.dispatchEvent(
+    new CustomEvent("allhosts:group-settings", { detail: { id, name } })
+  );
+}
+
+function onGroupMenuAddHost(groupId: string) {
+  window.dispatchEvent(
+    new CustomEvent("app-add-host", { detail: { groupId } })
+  );
+}
+
+async function onGroupMenuDelete(id: string, title: string) {
+  try {
+    const stats = await app.previewDeleteGroup(id);
+    await ElMessageBox.confirm(
+      `确定删除分组「${title}」？\n将删除 ${stats.groupCount} 个分组（含自身与子分组），${stats.hostCount} 台主机回到未分组。主机本身不会被删除。`,
+      "删除分组",
+      {
+        type: "warning",
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        confirmButtonClass: "el-button--danger",
+      }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await app.deleteGroup(id);
+    ElMessage.success(`已删除分组 ${title}`);
+  } catch (e) {
+    ElMessage.error(`删除失败: ${formatErr(e)}`);
+  }
 }
 
 function openGroup(id: string, title: string) {
@@ -416,181 +456,6 @@ async function promptCreateRootGroup() {
   }
 }
 
-/** 拖到「新建子分组」区后：命名 → 创建 → 可选 assign / moveGroup */
-watch(pendingCreateChild, async (pending) => {
-  if (!pending || handlingCreateChild) return;
-  handlingCreateChild = true;
-  const { parentId, hostName, groupId } = pending;
-  pendingCreateChild.value = null;
-  const parentName =
-    app.groupList.find((g) => g.id === parentId)?.name || "分组";
-  try {
-    const { value } = await ElMessageBox.prompt(
-      `在「${parentName}」下新建子分组`,
-      "新建子分组",
-      {
-        confirmButtonText: "创建",
-        cancelButtonText: "取消",
-        inputPattern: /\S+/,
-        inputErrorMessage: "名称不能为空",
-      }
-    );
-    const name = (value || "").trim();
-    if (!name) return;
-    const newId = await app.createGroup(name, parentId);
-    if (hostName) {
-      await app.assignHost(hostName, newId);
-      ElMessage.success(`已创建「${name}」并移入 ${hostName}`);
-    } else if (groupId && groupId !== parentId) {
-      // 拖的是分组：移入新建子分组（自身色块则只创建）
-      await app.moveGroup(groupId, newId);
-      ElMessage.success(`已创建「${name}」并移入该分组`);
-    } else {
-      ElMessage.success(`已创建「${name}」`);
-    }
-  } catch (e) {
-    if (e === "cancel" || e === "close") return;
-    ElMessage.error(`创建失败: ${formatErr(e)}`);
-  } finally {
-    handlingCreateChild = false;
-  }
-});
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function menuCheckResultHtml(
-  menuOk: boolean,
-  menuText: string,
-  dataOk: boolean,
-  dataText: string,
-  url: string
-): string {
-  const row = (ok: boolean, text: string) => {
-    const mark = ok ? "✓" : "❌";
-    const color = ok ? "#16a34a" : "#dc2626";
-    return (
-      `<div style="display:flex;align-items:flex-start;gap:10px;margin:12px 0;line-height:1.55;font-size:16px;color:${color}">` +
-      `<span style="flex-shrink:0;font-weight:700;font-size:18px;line-height:1.4">${mark}</span>` +
-      `<span style="min-width:0;word-break:break-word">${escapeHtml(text)}</span>` +
-      `</div>`
-    );
-  };
-  let html = row(menuOk, menuText) + row(dataOk, dataText);
-  if (url) {
-    html +=
-      `<div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(127,127,127,0.25)">` +
-      `<div style="font-size:13px;color:#64748b;margin-bottom:8px">检查地址</div>` +
-      `<div data-tip="${escapeHtml(url)}" style="font-size:14px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all;color:var(--el-text-color-regular,#303133)">${escapeHtml(url)}</div>` +
-      `</div>`;
-  }
-  return html;
-}
-
-async function onCopyMenuUrl(url: string) {
-  const u = url.trim();
-  if (!u) {
-    ElMessage.warning("暂无检查地址");
-    return;
-  }
-  try {
-    await copyText(u);
-    ElMessage.success("已复制完整地址");
-  } catch {
-    ElMessage.error("复制失败");
-  }
-}
-
-async function showMenuCheckResult(
-  label: string,
-  menuOk: boolean,
-  menuText: string,
-  dataOk: boolean,
-  dataText: string,
-  url: string
-) {
-  try {
-    await ElMessageBox.alert(
-      menuCheckResultHtml(menuOk, menuText, dataOk, dataText, url),
-      `菜单检查 · ${label}`,
-      {
-        customClass: "menu-check-msgbox",
-        confirmButtonText: "知道了",
-        cancelButtonText: "复制地址",
-        showCancelButton: !!url,
-        distinguishCancelAndClose: true,
-        dangerouslyUseHTMLString: true,
-        showClose: true,
-      }
-    );
-  } catch (action) {
-    if (action === "cancel" && url) {
-      await onCopyMenuUrl(url);
-    }
-  }
-}
-
-async function onMenuCheck(item: MenuCheckItem) {
-  if (item.checking) return;
-  item.checking = true;
-  item.menuText = "";
-  item.dataText = "";
-  item.message = "正在检查…";
-  try {
-    // 仅 Go HTTP 拉取；结果只展示在页面/弹窗，不发企微与桌面通知
-    const r = await api.checkMenuPage(item.id);
-    applyMenuResult(r);
-    const menuText = r.menuText || (r.ok ? "菜单正常" : "菜单异常");
-    const dataText = r.dataText || (r.hasData ? "数据正常" : "数据异常");
-    const url = r.url || item.url;
-    await showMenuCheckResult(
-      item.label,
-      !!r.ok,
-      menuText,
-      !!r.hasData,
-      dataText,
-      url
-    );
-  } catch (e) {
-    item.status = "bad";
-    item.menuOk = false;
-    item.dataOk = false;
-    item.menuText = "菜单异常：" + formatErr(e);
-    item.dataText = "数据异常：菜单不可用，无法判断";
-    item.message = `${item.menuText}\n${item.dataText}`;
-    await showMenuCheckResult(
-      item.label,
-      false,
-      item.menuText,
-      false,
-      item.dataText,
-      item.url
-    );
-  } finally {
-    item.checking = false;
-  }
-}
-
-onMounted(() => {
-  void loadMenuChecks();
-  offMenuCheck = Events.On(
-    "menu-check-updated",
-    (ev: { data?: main.MenuCheckResult }) => {
-      if (ev?.data) applyMenuResult(ev.data);
-    }
-  );
-});
-
-onBeforeUnmount(() => {
-  offMenuCheck?.();
-  offMenuCheck = null;
-});
-
 async function onRefreshOneIcon(name: string) {
   try {
     const os = await app.refreshHostIcon(name);
@@ -614,6 +479,72 @@ async function onRefreshIcons() {
     ElMessage.error(`检查图标失败: ${formatErr(e)}`);
   }
 }
+
+/* ---------- 侧栏分组点击定位 ---------- */
+
+/** 收集目标分组及其祖先 id（含自身），用于展开折叠链 */
+function collectGroupAncestorIds(groupId: string): string[] {
+  const ids: string[] = [groupId];
+  if (groupId === UNGROUPED_ID) return ids;
+  let current = app.groupList.find((g) => g.id === groupId);
+  const seen = new Set<string>([groupId]);
+  while (current) {
+    const parentId = (current.parentId || "").trim();
+    if (!parentId || seen.has(parentId)) break;
+    ids.push(parentId);
+    seen.add(parentId);
+    current = app.groupList.find((g) => g.id === parentId);
+  }
+  return ids;
+}
+
+/**
+ * 滚动到分组区块并高亮（供侧栏「点击分组」调用）。
+ * 高亮不自动消失：鼠标移入再移出该区块后才取消（配合侧栏选中态）。
+ */
+let locateEl: HTMLElement | null = null;
+
+function clearLocateHighlight() {
+  locateEl?.classList.remove("is-group-flash");
+  locateEl?.removeEventListener("mouseleave", onLocateMouseLeave);
+  locateEl = null;
+}
+
+function onLocateMouseLeave() {
+  clearLocateHighlight();
+  app.clearHomeSelectedGroup();
+}
+
+async function locateGroup(groupId: string) {
+  const ids = collectGroupAncestorIds(groupId);
+  window.dispatchEvent(
+    new CustomEvent("allhosts:expand-group", { detail: { ids } })
+  );
+  await nextTick();
+
+  const root = document.querySelector(".all-hosts");
+  if (!root) return;
+  const el = root.querySelector<HTMLElement>(
+    `[data-group-anchor="${CSS.escape(groupId)}"]`
+  );
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  clearLocateHighlight();
+  locateEl = el;
+  // 先移后加：若鼠标本就悬停在该区块内，不触发 mouseleave，保持常亮直到移出
+  el.addEventListener("mouseleave", onLocateMouseLeave);
+  el.classList.add("is-group-flash");
+}
+
+onMounted(() => {
+  app.registerHomeGroupLocator(locateGroup);
+});
+
+onBeforeUnmount(() => {
+  if (app) app.registerHomeGroupLocator(null);
+  clearLocateHighlight();
+});
 </script>
 
 <style scoped lang="scss">
@@ -621,98 +552,50 @@ async function onRefreshIcons() {
   min-height: 200px;
 }
 
-.page-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-}
+.host-filter__input {
+  width: min(360px, 42vw);
 
-.menu-check-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.menu-check-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--el-text-color-placeholder, #a8abb2);
-
-  &.is-ok {
-    background: #1e8e3e;
+  :deep(.el-input__wrapper) {
+    min-height: 32px;
+    border-radius: 10px;
+    background: var(--m3-surface-container-lowest, #fff);
+    box-shadow: none !important;
+    border: 1px solid var(--m3-outline-variant, #e4e7ed);
   }
 
-  &.is-bad {
-    background: #d93025;
+  :deep(.el-input__wrapper:hover) {
+    border-color: var(--m3-outline, #646a73);
+  }
+
+  :deep(.el-input__wrapper.is-focus) {
+    border-color: var(--m3-primary);
+  }
+
+  :deep(.el-input__inner) {
+    font: var(--m3-body-medium);
   }
 }
 
-.menu-check-pop {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.host-filter__icon {
+  font-size: 16px;
+  color: var(--m3-on-surface-variant);
 }
 
-.menu-check-pop__title {
-  font-size: 13px;
-  font-weight: 650;
-  margin-bottom: 6px;
-  color: var(--el-text-color-primary);
-}
-
-.menu-check-pop__item {
-  appearance: none;
-  border: none;
-  background: transparent;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 6px;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-
-  &:hover:not(:disabled) {
-    background: var(--el-fill-color-light, rgba(0, 0, 0, 0.04));
-  }
-
-  &:disabled,
-  &.is-checking {
-    cursor: wait;
-    opacity: 0.75;
-  }
-}
-
-.menu-check-pop__label {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.menu-check-pop__hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-/* ---------- 置顶主机 ---------- */
+/* ---------- 置顶主机：轻量分隔行，拖拽落点时再强调 ---------- */
 .pinned-section {
   position: relative;
   min-width: 0;
-  padding: 14px 16px 16px;
-  margin-bottom: 20px;
-  border-radius: 12px;
-  /* 与分组色块同结构，但用主色做中性强调，区别于任何分组配色 */
-  background: color-mix(in srgb, var(--m3-primary) 6%, transparent);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--m3-primary) 22%, transparent);
+  padding: 6px 0 10px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--m3-outline-variant, #e4e7ed);
+  border-radius: 0;
+  background: transparent;
   transition: box-shadow 0.2s ease, background-color 0.2s ease;
 
   &.is-drop-target {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border-bottom-color: transparent;
     background: color-mix(in srgb, var(--m3-primary) 14%, transparent);
     outline: 2px dashed var(--m3-primary);
     outline-offset: 2px;
@@ -723,20 +606,20 @@ async function onRefreshIcons() {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   min-height: 24px;
 }
 
 .pinned-section__dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--m3-primary);
 }
 
 .pinned-section__name {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 650;
   letter-spacing: 0.02em;
   line-height: 1.3;
@@ -766,7 +649,7 @@ async function onRefreshIcons() {
 
 .pinned-section__hint {
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px;
   border: 1.5px dashed color-mix(in srgb, var(--m3-primary) 55%, transparent);
   border-radius: 8px;
   font-size: 12px;
@@ -776,64 +659,16 @@ async function onRefreshIcons() {
   pointer-events: none;
 }
 
-/* 紧凑一排：卡片比分组内略窄 */
 .pinned-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 /* ---------- 分组树 ---------- */
 .group-sections {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-}
-</style>
-
-<style lang="scss">
-/* MessageBox 挂到 body，需非 scoped */
-.menu-check-msgbox {
-  width: 800px !important;
-  max-width: min(800px, 96vw) !important;
-  min-height: 360px;
-  padding-bottom: 8px;
-  /* 暗色底上弹窗边框必须可见，不能靠极弱阴影辨认边缘 */
-  border: 1px solid var(--m3-outline-variant, rgba(255, 255, 255, 0.16)) !important;
-  border-radius: var(--m3-shape-l, 16px) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 12px 40px rgba(0, 0, 0, 0.55) !important;
-  background: var(--m3-surface-container-high, #252d3d) !important;
-}
-html:not(.dark) .menu-check-msgbox {
-  border-color: var(--m3-outline, #c9cdd4) !important;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.04),
-    0 12px 32px rgba(0, 0, 0, 0.14) !important;
-  background: var(--m3-surface-container-lowest, #fff) !important;
-}
-.menu-check-msgbox .el-message-box__header {
-  padding: 24px 48px 10px 28px;
-}
-.menu-check-msgbox .el-message-box__title {
-  font-size: 19px;
-  line-height: 1.4;
-  font-weight: 600;
-}
-.menu-check-msgbox .el-message-box__content {
-  padding: 20px 28px 24px;
-  min-height: 200px;
-}
-.menu-check-msgbox .el-message-box__message {
-  max-width: 100%;
-  overflow: hidden;
-}
-.menu-check-msgbox .el-message-box__btns {
-  padding: 14px 28px 24px;
-}
-.menu-check-msgbox .el-message-box__btns .el-button {
-  min-width: 104px;
-  height: 38px;
+  gap: 16px;
 }
 </style>

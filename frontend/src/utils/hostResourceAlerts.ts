@@ -22,6 +22,7 @@ const GB = 1024 * 1024 * 1024;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let ticking = false;
+let lastTickAt = 0;
 
 function collectKinds(
   ov: monitor.Overview | null | undefined,
@@ -176,10 +177,20 @@ async function pollHost(host: string): Promise<void> {
 
 async function tick(): Promise<void> {
   if (ticking) return;
+  const now = Date.now();
+  // 可见时 setInterval 每 5 秒一拍，后端 alert-poll-tick 也是 5 秒。
+  // 只挡在途的话，请求很快返回后另一路会把同一批主机再打一遍。
+  if (now - lastTickAt < POLL_MS - 400) return;
+  lastTickAt = now;
   ticking = true;
   try {
     const settings = useSettingsStore();
+    // 只打已订阅主机；空名单绝不 listHosts / 扫全集
     const hosts = settings.hostsWithResourceNotifySubs();
+    if (hosts.length === 0) {
+      prevKinds.clear();
+      return;
+    }
     const active = new Set(hosts);
     for (const h of [...prevKinds.keys()]) {
       if (!active.has(h)) prevKinds.delete(h);

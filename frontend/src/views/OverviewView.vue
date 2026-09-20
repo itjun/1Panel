@@ -1150,7 +1150,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .monitor-entry-hint {
-  color: var(--m3-on-surface-variant, #49454f);
+  color: var(--m3-on-surface-variant, #646a73);
   font-size: 13px;
 }
 .agent-tag-btn {

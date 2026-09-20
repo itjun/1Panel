@@ -9,73 +9,51 @@
     @dragleave.prevent="onDragLeave"
     @drop.prevent="onDropFallback"
   >
-    <!-- 会话标签：序号 + 可拖排序；+ 钉右侧，栏满时点 + 提示 -->
-    <div class="term-bar">
-      <div
-        ref="tabsListRef"
-        class="term-tabs-scroll"
-        :class="{ 'is-reordering': !!tabDraggingId }"
-        role="tablist"
-        aria-label="终端会话"
-        @pointerdown="onTabPointerDown"
-        @click.capture="onTabClickCapture"
-      >
+    <div ref="stageRef" class="term-stage" :class="{ 'is-vtabs': vtabs }">
+      <aside v-if="vtabs" class="term-vlist">
+        <div class="term-vlist__title">终端 · {{ paneCount }}</div>
         <button
-          v-for="(t, idx) in sessions"
-          :key="t.id"
+          v-for="leaf in paneLeaves"
+          :key="leaf.id"
           type="button"
-          role="tab"
-          class="term-tab"
-          :class="{
-            'is-active': t.id === activeId,
-            closed: t.closed,
-            'is-dragging': tabDraggingId === t.id,
-          }"
-          :data-tab-id="t.id"
-          :aria-selected="t.id === activeId"
-          :title="sessionTitle(t, idx)"
-          @click="activate(t.id)"
-          @contextmenu.prevent.stop="onTabContextMenu($event, t.id)"
+          class="term-vitem"
+          :class="{ 'is-active': leaf.id === focusedPaneId }"
+          @click="focusPane(leaf.id)"
         >
-          <span class="term-tab__idx">{{ idx + 1 }}</span>
-          <span class="term-tab__label">{{ sessionName(t) }}</span>
-          <span v-if="t.reconnecting" class="term-tab__badge is-reconnecting">重连中</span>
-          <span v-else-if="t.closed" class="term-tab__badge is-closed">已断开</span>
+          <DistroLogo :os-release="osOf(leaf.host)" :size="16" />
+          <span class="term-vitem__text">
+            <span class="term-vitem__host">{{ leaf.host }}</span>
+            <span class="term-vitem__sub">{{ userOf(leaf.host) }} · {{ pathOf(leaf.id) }}</span>
+          </span>
           <span
-            class="term-tab__close"
-            v-tip="'关闭会话'"
-            @click.stop="closeSession(t.id)"
-          >×</span>
+            v-if="faces[leaf.id] === 'down' || faces[leaf.id] === 'blind' || faces[leaf.id] === 'missing'"
+            class="term-vitem__re is-down"
+            title="重试"
+            @click.stop="retryPane(leaf.id)"
+          >
+            ↻
+          </span>
         </button>
-      </div>
-      <button
-        type="button"
-        class="term-tab term-tab--add"
-        v-tip="'新开终端会话'"
-        @click="() => openNew()"
-      >
-        <el-icon :size="16"><Plus /></el-icon>
-      </button>
-    </div>
-
-    <div class="term-stage" :class="{ 'is-empty': sessions.length === 0 }">
-      <div
-        ref="containerRef"
-        class="term-body"
-        v-show="sessions.length > 0"
-        @contextmenu.prevent
+      </aside>
+      <TermPaneTree
+        :node="displayTree"
+        :focused-id="focusedPaneId"
+        :show-focus="paneCount > 1 && !zoomed && !vtabs"
+        :show-head="paneCount > 1 && !vtabs"
+        :cwd-by-id="cwdById"
+        :faces="faces"
+        @focus="focusPane"
+        @slot="onPaneSlot"
+        @ratio="onPaneRatio"
+        @drag-end="scheduleFitAll"
+        @close="closePane"
+        @retry="retryPane"
+        @reconnect="reconnectPane"
+        @move="onMovePane"
+        @adopt="onAdoptHost"
       />
-      <div v-if="sessions.length === 0" class="term-empty">
-        <button
-          type="button"
-          class="term-empty-add"
-          @click="() => openNew()"
-        >
-          <el-icon :size="32"><Plus /></el-icon>
-        </button>
-        <p class="term-empty-hint">点击打开终端会话</p>
-      </div>
     </div>
+    <div ref="parkRef" class="term-park" />
 
     <!-- 拖拽上传遮罩：仅 UI 反馈；路径来自 Wails file:drop（需 data-file-drop-target） -->
     <div class="term-drop-overlay">
@@ -99,7 +77,7 @@
       </span>
     </div>
 
-    <!-- 右键菜单：复制 / 粘贴 -->
+    <!-- 右键：复制粘贴，以及和快捷键一致的终端操作 -->
     <div
       v-if="ctxMenu"
       class="term-ctx"
@@ -107,12 +85,7 @@
       @click.stop
       @contextmenu.prevent
     >
-      <button
-        type="button"
-        class="ctx-item"
-        :disabled="!ctxMenu.hasSelection"
-        @click="copySelection"
-      >
+      <button type="button" class="ctx-item" :disabled="!ctxMenu.hasSelection" @click="copySelection">
         复制
         <span class="ctx-kbd">⌘C</span>
       </button>
@@ -120,33 +93,56 @@
         粘贴
         <span class="ctx-kbd">⌘V</span>
       </button>
-    </div>
-
-    <!-- 会话标签右键：改标题 / 复制会话 / 关闭 -->
-    <div
-      v-if="tabCtxMenu"
-      class="term-ctx"
-      :style="{ left: tabCtxMenu.x + 'px', top: tabCtxMenu.y + 'px' }"
-      @click.stop
-      @contextmenu.prevent
-    >
-      <button type="button" class="ctx-item" @click="renameSession(tabCtxMenu.id)">
-        修改标题
+      <div class="ctx-sep" />
+      <button type="button" class="ctx-item" @click="runCtx('sessions')">
+        显示会话
+        <span class="ctx-kbd">⌘⇧L</span>
       </button>
-      <button
-        type="button"
-        class="ctx-item"
-        @click="duplicateSession(tabCtxMenu.id)"
-      >
-        复制会话
+      <button type="button" class="ctx-item" @click="runCtx('new')">
+        新建终端
+        <span class="ctx-kbd">⌘T</span>
+      </button>
+      <button type="button" class="ctx-item" @click="runCtx('split-right')">
+        左右分屏
+        <span class="ctx-kbd">⌘D</span>
+      </button>
+      <button type="button" class="ctx-item" @click="runCtx('split-down')">
+        上下分屏
+        <span class="ctx-kbd">⌘⇧D</span>
       </button>
       <div class="ctx-sep" />
+      <button type="button" class="ctx-item" :disabled="!focusHostName" @click="runCtx('return-host')">
+        返回主机
+        <span class="ctx-kbd">⌘⇧H</span>
+      </button>
       <button
+        v-for="b in jumpTabs"
+        :key="b.value"
         type="button"
-        class="ctx-item ctx-item--danger"
-        @click="closeSession(tabCtxMenu.id)"
+        class="ctx-item ctx-item--sub"
+        :disabled="!focusHostName"
+        @click="returnTool(b.value)"
       >
+        {{ b.label }}
+      </button>
+      <div class="ctx-sep" />
+      <button type="button" class="ctx-item" :disabled="paneCount < 2" @click="runCtx('close-pane')">
+        关闭窗格
+        <span class="ctx-kbd">⌘W</span>
+      </button>
+      <button type="button" class="ctx-item" :disabled="paneCount < 2" @click="runCtx('detach')">
+        移出分屏
+        <span class="ctx-kbd">⌘⇧M</span>
+      </button>
+      <button type="button" class="ctx-item ctx-item--danger" @click="runCtx('close-session')">
         关闭会话
+        <span class="ctx-kbd">⌘⇧W</span>
+      </button>
+      <button type="button" class="ctx-item" @click="reconnectFromMenu">
+        重连
+      </button>
+      <button type="button" class="ctx-item ctx-item--danger" :disabled="!focusHostName" @click="runCtx('disconnect-host')">
+        断开这台主机
       </button>
     </div>
   </div>
@@ -170,27 +166,68 @@ import {
   shallowRef,
   watch,
 } from "vue";
-import { Plus, UploadFilled } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox, ElNotification } from "element-plus";
+import { UploadFilled } from "@element-plus/icons-vue";
+import { ElMessage, ElNotification } from "element-plus";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
-import { Events } from "@wailsio/runtime";
+import { Events, Window } from "@wailsio/runtime";
+import { noteListener, noteTerm, noteWebgl } from "@/utils/uxPerf";
 import { api } from "@/api";
-import { useAppStore } from "@/stores/app";
+import { HOST_SUB_TABS } from "@/constants/hostSubTabs";
+import { useAppStore, type SubTab } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
 import { formatErr } from "@/utils/format";
 import { registerFileDrop } from "@/utils/fileDrop";
+import { ctrlLetter, shouldCloseDeskOnLastPane } from "@/utils/termKeys";
+import DistroLogo from "@/components/DistroLogo.vue";
+import TermPaneTree from "@/views/TermPaneTree.vue";
 import {
-  TAB_BAR_FULL_MSG,
-  tabBarIsFull,
-  useTabReorder,
-} from "@/composables/useTabStrip";
+  equalizeRatios,
+  findLeaf,
+  hostOf,
+  moveLeaf,
+  neighborId,
+  orderedLeaves,
+  placeBeside,
+  removeLeaf,
+  resizeHit,
+  setRatio,
+  splitLeaf,
+  splitRatioOf,
+  type PaneLeaf,
+  type PaneNode,
+  type PaneSide,
+} from "@/views/termPanes";
+import {
+  claimTermPane,
+  forgetSession,
+  liveEpoch,
+  liveState,
+  parkTermEl,
+  parkTermPane,
+  patchLive,
+  rememberSession,
+  registerTermDesk,
+  sessionBody,
+  sidOf,
+  takeTermDesk,
+  type PaneHandoff,
+} from "@/views/termLive";
+import {
+  paneFace,
+  parentAfterSlotSwap,
+  probeUnchanged,
+  shouldSettleAttached,
+  terminalInputReady,
+  type PaneFace,
+  type PaneProbe,
+} from "@/views/termMount";
 
-const props = defineProps<{ host: string }>();
+const props = defineProps<{ host: string; workspaceSessionId: string }>();
 const app = useAppStore();
 const settings = useSettingsStore();
 const { pendingTerminalCmd } = storeToRefs(app);
@@ -206,21 +243,37 @@ function resolveTermFontFamily(): string {
 // GPU 渲染：优先 WebGL（性能最好），上下文丢失或不支持时回退
 // xterm 6 内置的 Canvas 默认渲染器（6.0 起 canvas 即默认，DOM 渲染器已移除）。
 // 必须在 term.open() 之后调用。
-function loadRenderer(term: XTerm) {
+function trackEvent<T>(name: string, cb: (ev: T) => void) {
+  noteListener(1);
+  const off = Events.On(name, cb as (ev: { name: string; data: unknown }) => void);
+  return () => {
+    noteListener(-1);
+    off();
+  };
+}
+
+function loadWebgl(term: XTerm, onLoss: () => void): { dispose: () => void } | null {
   try {
     const webgl = new WebglAddon();
     webgl.onContextLoss(() => {
-      webgl.dispose();
-      // 卸载 WebGL addon 后 xterm 自动回到内置 Canvas 渲染器
+      try {
+        webgl.dispose();
+      } catch {
+        /* ignore */
+      }
+      onLoss();
     });
     term.loadAddon(webgl);
+    return webgl;
   } catch {
-    // WebGL 不可用：保持内置 Canvas 渲染器
+    return null;
   }
 }
 
 interface Session {
   id: string;
+  host: string;
+  ownerDesk: string;
   sessionID: string;
   eventName: string;
   term: XTerm;
@@ -233,6 +286,8 @@ interface Session {
   /** v3 Events.On 返回的退订函数（销毁会话时调用） */
   offData?: () => void;
   offExit?: () => void;
+  webgl: boolean;
+  webglAddon: { dispose: () => void } | null;
 }
 
 interface ReconnectCtl {
@@ -243,6 +298,8 @@ interface ReconnectCtl {
   inFlight: boolean;
   /** 网络恢复时立刻踢一脚，不等退避 */
   kick: (() => void) | null;
+  /** 用户点了重连。只在已经断开时生效，返回是否真的发起了重连 */
+  manual: (() => boolean) | null;
 }
 
 /** 重连退避：每个 Tab 独立，最多尝试 RECONNECT_MAX_ATTEMPTS 次 */
@@ -253,28 +310,204 @@ const RECONNECT_MAX_ATTEMPTS = 3;
 interface CtxMenu {
   x: number;
   y: number;
+  paneId: string;
   sessionID: string;
   term: XTerm;
   hasSelection: boolean;
 }
 
-const containerRef = ref<HTMLDivElement | null>(null);
+const stageRef = ref<HTMLDivElement | null>(null);
+const parkRef = ref<HTMLDivElement | null>(null);
+const windowFullscreen = ref(false);
+const cwdById = ref<Record<string, string>>({});
 // shallowRef：避免 Vue 对 XTerm 实例做深度代理
 const sessions = shallowRef<Session[]>([]);
-const tabsListRef = ref<HTMLElement | null>(null);
-const {
-  draggingId: tabDraggingId,
-  onPointerDown: onTabPointerDown,
-  onClickCapture: onTabClickCapture,
-} = useTabReorder(sessions, {
-  listRef: tabsListRef,
-  itemSelector: ".term-tab:not(.term-tab--add)",
-});
-const activeId = ref<string | null>(null);
-const ctxMenu = ref<CtxMenu | null>(null);
-const tabCtxMenu = ref<{ x: number; y: number; id: string } | null>(null);
 let seq = 0;
-let opening = false;
+function newPaneId(): string {
+  seq += 1;
+  return `pane-${Date.now()}-${seq}`;
+}
+const savedLayout = app.consumeWorkspaceLayout(props.workspaceSessionId);
+const pendingTree = app.consumePendingTree(props.workspaceSessionId);
+function initialTree(): PaneNode {
+  if (pendingTree) return pendingTree;
+  if (savedLayout?.tree) return savedLayout.tree;
+  return { kind: "leaf", id: newPaneId(), host: props.host };
+}
+const paneTree = ref<PaneNode>(initialTree());
+function initialFocus(): string {
+  if (savedLayout && findLeaf(paneTree.value, savedLayout.focusedId)) {
+    return savedLayout.focusedId;
+  }
+  if (paneTree.value.kind === "leaf") return paneTree.value.id;
+  return orderedLeaves(paneTree.value)[0] || "";
+}
+const focusedPaneId = ref(initialFocus());
+const zoomed = ref(false);
+const paneCount = computed(() => orderedLeaves(paneTree.value).length);
+
+watch([paneTree, focusedPaneId], () => {
+  app.persistWorkspaceLayout(props.workspaceSessionId, paneTree.value, focusedPaneId.value);
+});
+
+function flushWorkspaceLayout() {
+  app.persistWorkspaceLayoutNow(props.workspaceSessionId, paneTree.value, focusedPaneId.value);
+}
+window.addEventListener("beforeunload", flushWorkspaceLayout);
+const vtabs = computed(() => windowFullscreen.value && paneCount.value > 1);
+const displayTree = computed<PaneNode>(() => {
+  if (zoomed.value || vtabs.value) {
+    return findLeaf(paneTree.value, focusedPaneId.value) || paneTree.value;
+  }
+  return paneTree.value;
+});
+
+function collectLeaves(node: PaneNode): PaneLeaf[] {
+  if (node.kind === "leaf") return [node];
+  return [...collectLeaves(node.a), ...collectLeaves(node.b)];
+}
+const paneLeaves = computed(() => collectLeaves(paneTree.value));
+function osOf(host: string): string {
+  return app.osReleaseMap.get(host) || "";
+}
+function userOf(host: string): string {
+  return app.hosts.find((h) => h.name === host)?.user || "";
+}
+function pathOf(id: string): string {
+  return cwdById.value[id] || "~";
+}
+
+function readCwd(raw: string): string {
+  const osc = raw.match(/\x1b\]7;file:\/\/[^/\x07\x1b]*(\/[^ \x07\x1b]*)/);
+  if (osc?.[1]) {
+    try {
+      return decodeURIComponent(osc[1]);
+    } catch {
+      return osc[1];
+    }
+  }
+  const iterm = raw.match(/\x1b\]1337;CurrentDir=([^\x07]+)/);
+  if (iterm?.[1]) return iterm[1];
+  const plain = raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
+  const prompt = plain.match(/ in (~|~\/\S+|\/\S+) /);
+  if (prompt?.[1]) return prompt[1];
+  return "";
+}
+
+function noteCwd(paneId: string, raw: string) {
+  const next = readCwd(raw);
+  if (!next || cwdById.value[paneId] === next) return;
+  cwdById.value = { ...cwdById.value, [paneId]: next };
+}
+const ctxMenu = ref<CtxMenu | null>(null);
+const openingIds = new Set<string>();
+const slots = new Map<string, HTMLElement>();
+const pendingSlot = new Map<string, HTMLElement | null>();
+const slotQueued = new Set<string>();
+const probes = ref<Record<string, PaneProbe>>({});
+
+function dropWebgl(s: Session) {
+  if (!s.webglAddon && !s.webgl) return;
+  const addon = s.webglAddon;
+  s.webglAddon = null;
+  if (s.webgl) {
+    s.webgl = false;
+    noteWebgl(-1);
+  }
+  if (!addon) return;
+  try {
+    addon.dispose();
+  } catch {
+    /* ignore */
+  }
+}
+
+function appleShell(): boolean {
+  const plat = navigator.platform || "";
+  const ua = navigator.userAgent || "";
+  if (/Mac|iPhone|iPad/.test(plat)) return true;
+  if (/Macintosh|Mac OS X/.test(ua)) return true;
+  const os = (window as unknown as { _wails?: { environment?: { OS?: string } } })._wails?.environment?.OS;
+  return os === "darwin" || os === "ios";
+}
+
+function ensureWebgl(s: Session) {
+  // macOS WKWebView 会把 WebGL canvas 合成到窗口最上层，盖住顶部导航，
+  // 点「主机 / 通知 / 设置」会点进画布。这台桌面壳用 xterm 自带的 Canvas。
+  if (appleShell()) return;
+  if (s.webglAddon) return;
+  const addon = loadWebgl(s.term, () => {
+    s.webglAddon = null;
+    if (s.webgl) {
+      s.webgl = false;
+      noteWebgl(-1);
+    }
+    try {
+      s.term.refresh(0, Math.max(0, s.term.rows - 1));
+    } catch {
+      /* ignore */
+    }
+  });
+  if (!addon) return;
+  s.webglAddon = addon;
+  s.webgl = true;
+  noteWebgl(1);
+}
+
+function measurePane(id: string): { inputMounted: boolean; slotSized: boolean } {
+  const slot = slots.get(id) || null;
+  const slotSized = !!slot && slot.isConnected && slot.clientWidth >= 2 && slot.clientHeight >= 2;
+  return {
+    inputMounted: terminalInputReady(slot),
+    slotSized,
+  };
+}
+
+function writeProbe(id: string, patch: Partial<PaneProbe>) {
+  const prev = probes.value[id];
+  const live = liveState(id);
+  const next: PaneProbe = {
+    hasLive: !!live,
+    closed: !!live?.closed,
+    sessionID: live?.sessionID || "",
+    inputMounted: prev?.inputMounted ?? false,
+    slotSized: prev?.slotSized ?? false,
+    probed: prev?.probed ?? false,
+    ...patch,
+  };
+  if (probeUnchanged(prev, next)) return;
+  probes.value = { ...probes.value, [id]: next };
+}
+
+const faces = computed(() => {
+  void liveEpoch.value;
+  void probes.value;
+  const out: Record<string, PaneFace> = {};
+  for (const leaf of paneLeaves.value) {
+    const live = liveState(leaf.id);
+    const probe = probes.value[leaf.id];
+    out[leaf.id] = paneFace(
+      probe
+        ? {
+            ...probe,
+            hasLive: !!live,
+            closed: !!live?.closed,
+            sessionID: live?.sessionID || "",
+          }
+        : live
+          ? {
+              hasLive: true,
+              closed: !!live.closed,
+              sessionID: live.sessionID || "",
+              inputMounted: false,
+              slotSized: false,
+              probed: false,
+            }
+          : null
+    );
+  }
+  return out;
+});
 /** 打开新会话前暂存的 pending（避免 open 过程中 store 被清空） */
 let pendingCmdLocal: string | null = null;
 
@@ -328,9 +561,9 @@ const pct = computed(() => {
   return Math.min(100, Math.round((uploadState.value.uploaded / t) * 100));
 });
 function patchSession(id: string, patch: Partial<Session>) {
-  sessions.value = sessions.value.map((s) =>
-    s.id === id ? { ...s, ...patch } : s
-  );
+  patchLive(id, patch);
+  if (!sessions.value.some((s) => s.id === id)) return;
+  sessions.value = sessions.value.slice();
 }
 
 // 重连控制：会话 id -> 状态（定时器 / 退避次数 / 是否已停止）
@@ -356,114 +589,12 @@ function notifyDisconnect() {
   }, 2000);
 }
 
-function sessionName(t: Session) {
-  return (t.title || "").trim() || "会话";
-}
+async function openNew(container: HTMLElement, paneId: string, takePending: boolean) {
+  if (openingIds.has(paneId)) return;
+  if (sessions.value.some((s) => s.id === paneId)) return;
+  openingIds.add(paneId);
 
-function sessionTitle(t: Session, idx: number) {
-  return `${idx + 1} ${sessionName(t)}`;
-}
-
-function shellQuote(path: string) {
-  if (path === "~") return "~";
-  return `'${path.replace(/'/g, `'\"'\"'`)}'`;
-}
-
-function dumpTermText(term: XTerm): string {
-  const buf = term.buffer.active;
-  const lines: string[] = [];
-  for (let i = 0; i < buf.length; i++) {
-    lines.push(buf.getLine(i)?.translateToString(true) ?? "");
-  }
-  return lines.join("\n");
-}
-
-/** 从提示符推断 cwd（`in ~` / `in /path`）；读不到再向 PTY 问一次 pwd */
-function inferCwdFromBuffer(term: XTerm): string | null {
-  const matches = [...dumpTermText(term).matchAll(/\bin (~|\/[^\s\[\]]+)/g)];
-  const last = matches[matches.length - 1];
-  return last?.[1] ?? null;
-}
-
-async function queryRemoteCwd(s: Session): Promise<string | null> {
-  const inferred = inferCwdFromBuffer(s.term);
-  if (inferred) return inferred;
-  if (!s.sessionID || s.closed) return null;
-  const marker = `__PANE_CWD_${Date.now()}__`;
-  try {
-    await api.writeTerminal(
-      s.sessionID,
-      `printf '%s%s\\n' '${marker}' "$PWD"\n`
-    );
-  } catch {
-    return null;
-  }
-  await new Promise((r) => setTimeout(r, 450));
-  const text = dumpTermText(s.term);
-  const hit = text.match(new RegExp(marker + "([^\\s]+)"));
-  return hit?.[1] ?? null;
-}
-
-function onTabContextMenu(ev: MouseEvent, id: string) {
-  ctxMenu.value = null;
-  const pad = 8;
-  const w = 200;
-  const h = 148;
-  let x = ev.clientX;
-  let y = ev.clientY;
-  if (x + w > window.innerWidth - pad) x = window.innerWidth - w - pad;
-  if (y + h > window.innerHeight - pad) y = window.innerHeight - h - pad;
-  tabCtxMenu.value = { x, y, id };
-}
-
-async function renameSession(id: string) {
-  tabCtxMenu.value = null;
-  const idx = sessions.value.findIndex((x) => x.id === id);
-  if (idx < 0) return;
-  const t = sessions.value[idx];
-  try {
-    const { value } = await ElMessageBox.prompt("会话标题", "修改标题", {
-      inputValue: sessionName(t),
-      confirmButtonText: "保存",
-      cancelButtonText: "取消",
-      inputValidator: (v: string) => {
-        if (!v || !v.trim()) return "标题不能为空";
-        if (v.trim().length > 32) return "最多 32 个字";
-        return true;
-      },
-    });
-    patchSession(id, { title: String(value).trim() });
-  } catch {
-    /* 取消 */
-  }
-}
-
-async function duplicateSession(id: string) {
-  tabCtxMenu.value = null;
-  const s = sessions.value.find((x) => x.id === id);
-  if (!s) return;
-  const cwd = await queryRemoteCwd(s);
-  const startCmd = cwd ? `cd ${shellQuote(cwd)}` : undefined;
-  if (!startCmd) {
-    ElMessage.info("未能读取当前目录，已打开新会话");
-  }
-  const srcTitle = (s.title || "").trim();
-  await openNew({
-    startCmd,
-    title: srcTitle ? `${srcTitle} 副本` : undefined,
-  });
-}
-
-async function openNew(opts?: { startCmd?: string; title?: string }) {
-  const container = containerRef.value;
-  if (!container || opening) return;
-  if (tabBarIsFull(tabsListRef.value, ".term-tab:not(.term-tab--add)")) {
-    ElMessage.warning(TAB_BAR_FULL_MSG);
-    return;
-  }
-  opening = true;
-
-  const id = `term-${Date.now()}-${seq++}`;
+  const id = paneId;
   const eventName = `term:${id}`;
 
   const term = new XTerm({
@@ -481,25 +612,20 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
   term.loadAddon(fit);
   term.loadAddon(new WebLinksAddon());
 
-  // 必须先挂到真实容器再 fit，否则行列错误 → 远程 PTY 开局乱码
+  // 先挂到当前槽位并立刻登记。await 之前不登记的话，分屏换槽会被 opening 标志吃掉，
+  // xterm 留在已经卸掉的节点上，窗格全黑且没有 Terminal input。
   const el = document.createElement("div");
   el.style.cssText = "width:100%;height:100%;position:absolute;inset:0;";
-  container.innerHTML = "";
+  slots.set(paneId, container);
   container.appendChild(el);
   term.open(el);
-  loadRenderer(term);
+  noteTerm(1);
 
-  await new Promise<void>((r) => requestAnimationFrame(() => r()));
-  try {
-    fit.fit();
-  } catch {
-    /* ignore */
-  }
-
-
-  // 先登记 tab，sessionID 待连接成功后填充（重连会更新它）
+  const host = hostOf(paneTree.value, paneId) || props.host;
   const tab: Session = {
     id,
+    host,
+    ownerDesk: props.workspaceSessionId,
     sessionID: "",
     eventName,
     term,
@@ -507,14 +633,26 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
     closed: false,
     reconnecting: false,
     el,
-    title: opts?.title,
+    title: undefined,
+    webgl: false,
+    webglAddon: null,
   };
+  rememberSession(id, tab, {
+    id,
+    host,
+    ownerDesk: props.workspaceSessionId,
+    sessionID: "",
+    closed: false,
+    reconnecting: false,
+  });
   sessions.value = [...sessions.value, tab];
-  activeId.value = id;
+  if (!focusedPaneId.value || focusedPaneId.value === id) {
+    focusedPaneId.value = id;
+  }
+  openingIds.delete(paneId);
 
   // 当前 sessionID（重连后变化，统一从 sessions 里取）
-  const currentSid = () =>
-    sessions.value.find((x) => x.id === id)?.sessionID || "";
+  const currentSid = () => sidOf(id);
 
   // 重连控制（每个 Tab 独立；关 Tab 才 stopped）
   const ctl: ReconnectCtl = {
@@ -523,6 +661,7 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
     stopped: false,
     inFlight: false,
     kick: null,
+    manual: null,
   };
   reconnectMap.set(id, ctl);
 
@@ -533,7 +672,7 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
     patchSession(id, { closed: true, reconnecting: false });
     ElNotification({
       title: "终端重连失败",
-      message: `已尝试 ${RECONNECT_MAX_ATTEMPTS} 次仍无法连接，请检查网络后手动重开终端`,
+      message: `已尝试 ${RECONNECT_MAX_ATTEMPTS} 次仍无法连接。可点窗格上的刷新，或在标签上右键「全部重连」`,
       type: "error",
       duration: 6000,
     });
@@ -572,7 +711,8 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
     const r = term.rows || 24;
     try {
       // 数据通道：独立 SSH 连接 + Wails 事件推送
-      const sid = await api.openTerminal(props.host, eventName, c, r);
+      const host = liveState(id)?.host || hostOf(paneTree.value, paneId) || props.host;
+      const sid = await api.openTerminal(host, eventName, c, r);
       if (ctl.stopped) {
         if (sid) api.closeTerminal(sid).catch(() => {});
         return;
@@ -590,7 +730,9 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
       }
       if (!first) term.write("\r\n\x1b[32m[已重新连接]\x1b[0m\r\n");
       // 若有待执行命令（如软件包「检查更新」），连接后稍等再写入
-      const pending = opts?.startCmd || pendingTerminalCmd.value || pendingCmdLocal;
+      const pending = takePending
+        ? pendingTerminalCmd.value || pendingCmdLocal
+        : null;
       if (pending) {
         pendingCmdLocal = null;
         app.clearTerminalCmd();
@@ -611,7 +753,7 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
   // 本机网络恢复时：若仍在重连中，立刻重试（不等退避定时器）
   ctl.kick = () => {
     if (ctl.stopped) return;
-    const s = sessions.value.find((x) => x.id === id);
+    const s = liveState(id);
     if (!s?.reconnecting) return;
     ctl.attempt = 0;
     if (ctl.timer) {
@@ -621,12 +763,42 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
     void connect(false);
   };
 
-  tab.offData = Events.On(eventName, (ev: { data?: { data?: string } }) => {
-    if (ev?.data?.data) term.write(ev.data.data);
+  // 只重连已经断开的窗格。还连着就直接返回，避免掐掉正在执行的命令。
+  let ignoreSid = "";
+  ctl.manual = () => {
+    if (ctl.stopped) return false;
+    const cur = liveState(id);
+    if (!cur || !cur.closed) return false;
+    if (ctl.timer) {
+      clearTimeout(ctl.timer);
+      ctl.timer = null;
+    }
+    ctl.attempt = 0;
+    const old = currentSid();
+    if (old) {
+      ignoreSid = old;
+      api.closeTerminal(old).catch(() => {});
+      patchSession(id, { sessionID: "" });
+    }
+    term.write("\r\n\x1b[33m[正在重新连接…]\x1b[0m\r\n");
+    patchSession(id, { closed: true, reconnecting: true });
+    if (!ctl.inFlight) void connect(false);
+    return true;
+  };
+
+  tab.offData = trackEvent(eventName, (ev: { data?: { data?: string } }) => {
+    const chunk = ev?.data?.data;
+    if (!chunk) return;
+    noteCwd(id, chunk);
+    term.write(chunk);
   });
-  tab.offExit = Events.On(`${eventName}:exit`, (ev: { data?: { reason?: string } }) => {
+  tab.offExit = trackEvent(`${eventName}:exit`, (ev: { data?: { reason?: string; sessionId?: string } }) => {
     const payload = ev?.data;
     if (ctl.stopped) return;
+    if (payload?.sessionId && payload.sessionId === ignoreSid) {
+      ignoreSid = "";
+      return;
+    }
     if (payload?.reason === "error") {
       // 异常断开：每个 Tab 各自立即自动重连，互不影响
       term.write("\r\n\x1b[33m[连接已断开，正在自动重连…]\x1b[0m\r\n");
@@ -638,10 +810,12 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
         ctl.timer = null;
       }
       void connect(false);
-    } else {
-      // 正常退出（exit / Ctrl+D）：关掉该标签，不重连、不留「已断开」尸页
+    } else if (shouldCloseDeskOnLastPane(orderedLeaves(paneTree.value).length)) {
       ctl.stopped = true;
-      void removeSession(id);
+      app.closeTerminalDesk(props.workspaceSessionId);
+    } else {
+      ctl.stopped = true;
+      void closePane(id);
     }
   });
 
@@ -664,20 +838,38 @@ async function openNew(opts?: { startCmd?: string; title?: string }) {
     ctxMenu.value = {
       x: e.clientX,
       y: e.clientY,
+      paneId: id,
       sessionID: currentSid(),
       term,
       hasSelection: !!sel && sel.length > 0,
     };
   });
 
-  term.focus();
-  opening = false;
+  if (focusedPaneId.value === id) term.focus();
 
-  // 首次连接
-  void connect(true);
+  void (async () => {
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    const liveId = slots.get(paneId) ? "live" : null;
+    const parent = parentAfterSlotSwap(true, "opened", liveId);
+    const live = parent === "live" ? slots.get(paneId) : container;
+    if (!isThisVisible()) {
+      parkTermEl(el);
+    } else if (live && el.parentElement !== live) {
+      live.appendChild(el);
+    }
+    try {
+      fit.fit();
+    } catch {
+      /* ignore */
+    }
+    await connect(true);
+    await settleRender(tab);
+    if (focusedPaneId.value === id) term.focus();
+  })();
 }
 
 async function destroySession(t: Session) {
+  dropWebgl(t);
   // 停止该会话的自动重连
   const ctl = reconnectMap.get(t.id);
   if (ctl) {
@@ -694,6 +886,9 @@ async function destroySession(t: Session) {
   }
   t.offData?.();
   t.offExit?.();
+  forgetSession(t.id);
+  noteTerm(-1);
+  if (t.webgl) noteWebgl(-1);
   try {
     t.term.dispose();
   } catch {
@@ -701,56 +896,559 @@ async function destroySession(t: Session) {
   }
 }
 
-async function removeSession(id: string) {
-  const idx = sessions.value.findIndex((x) => x.id === id);
-  if (idx < 0) return;
-  const t = sessions.value[idx];
-  await destroySession(t);
-  const next = sessions.value.filter((x) => x.id !== id);
-  sessions.value = next;
-  if (activeId.value === id) {
-    activeId.value = next.length ? next[next.length - 1].id : null;
+function retryPane(id: string) {
+  const face = faces.value[id] || "connecting";
+  if (face === "down") {
+    if (reconnectPane(id)) return;
   }
-}
-
-async function closeSession(id: string) {
-  tabCtxMenu.value = null;
-  const idx = sessions.value.findIndex((x) => x.id === id);
-  if (idx < 0) return;
-  const t = sessions.value[idx];
-  try {
-    await ElMessageBox.confirm(
-      `确定关闭「${sessionTitle(t, idx)}」吗？该终端的远程连接将断开。`,
-      "关闭会话",
-      { type: "warning", confirmButtonText: "关闭", cancelButtonText: "取消" }
-    );
-  } catch {
+  const existing = sessions.value.find((s) => s.id === id);
+  if (!existing) {
+    openingIds.delete(id);
+    const slot = slots.get(id);
+    if (slot) void openNew(slot, id, false);
     return;
   }
-  await removeSession(id);
-}
-
-function activate(id: string) {
-  activeId.value = id;
-}
-
-async function mountActive() {
-  const container = containerRef.value;
-  const id = activeId.value;
-  if (!container || !id) return;
-  const active = sessions.value.find((x) => x.id === id);
-  if (!active) return;
-
-  while (container.firstChild) {
-    container.removeChild(container.firstChild);
-  }
-  container.appendChild(active.el);
-
-  await nextTick();
-  requestAnimationFrame(() => {
-    fitActiveTerminal();
-    active.term.focus();
+  dropWebgl(existing);
+  const slot = slots.get(id);
+  if (slot && existing.el.parentElement !== slot) slot.appendChild(existing.el);
+  void settleRender(existing).then(() => {
+    if (focusedPaneId.value === id) existing.term.focus();
   });
+}
+
+async function settleRender(only?: Session) {
+  const list = only ? [only] : [...sessions.value];
+  for (const item of list) {
+    const slot = slots.get(item.id);
+    if (slot && item.el.parentElement !== slot) slot.appendChild(item.el);
+  }
+  await new Promise<void>((r) => requestAnimationFrame(() => r()));
+  if (!app.isTerminalDeskVisible(props.workspaceSessionId)) return;
+  for (const item of list) {
+    const box = item.el;
+    if (box.clientWidth >= 2 && box.clientHeight >= 2) {
+      try {
+        item.fit.fit();
+      } catch {
+        /* ignore */
+      }
+    }
+    let measured = measurePane(item.id);
+    if (measured.slotSized && !measured.inputMounted) {
+      dropWebgl(item);
+      try {
+        item.fit.fit();
+      } catch {
+        /* ignore */
+      }
+      item.term.refresh(0, Math.max(0, item.term.rows - 1));
+      measured = measurePane(item.id);
+    } else if (measured.inputMounted && !item.webglAddon) {
+      ensureWebgl(item);
+      try {
+        item.fit.fit();
+      } catch {
+        /* ignore */
+      }
+    } else if (measured.inputMounted) {
+      item.term.refresh(0, Math.max(0, item.term.rows - 1));
+    }
+    if (item.sessionID && measured.slotSized) {
+      api.resizeTerminal(item.sessionID, item.term.cols, item.term.rows).catch(() => {});
+    }
+    writeProbe(item.id, { ...measured, probed: true, hasLive: true });
+  }
+}
+
+function reconnectPane(paneId: string): boolean {
+  const ctl = reconnectMap.get(paneId);
+  if (!ctl?.manual) return false;
+  return ctl.manual();
+}
+
+function reconnectAllPanes() {
+  let n = 0;
+  for (const id of orderedLeaves(paneTree.value)) {
+    if (reconnectPane(id)) n += 1;
+  }
+  if (n === 0) {
+    ElMessage.info("这些终端都还连着，没有重连");
+  }
+}
+
+const jumpTabs = HOST_SUB_TABS;
+const focusHostName = computed(
+  () => hostOf(paneTree.value, focusedPaneId.value) || props.host
+);
+
+function runCtx(name: string) {
+  ctxMenu.value = null;
+  app.runTermAction(name);
+}
+
+function returnTool(sub: SubTab) {
+  const host = hostOf(paneTree.value, focusedPaneId.value) || props.host;
+  ctxMenu.value = null;
+  app.noteTerminalFocusHost(props.workspaceSessionId, host);
+  app.returnToHost(sub);
+}
+
+function reconnectFromMenu() {
+  const id = ctxMenu.value?.paneId;
+  ctxMenu.value = null;
+  if (!id) return;
+  reconnectPane(id);
+}
+
+function focusPane(id: string) {
+  if (focusedPaneId.value !== id) {
+    focusedPaneId.value = id;
+    const host = hostOf(paneTree.value, id) || props.host;
+    app.noteTerminalFocusHost(props.workspaceSessionId, host);
+  }
+  const s = sessions.value.find((x) => x.id === id);
+  s?.term.focus();
+}
+
+function onPaneSlot(id: string, el: HTMLElement | null) {
+  pendingSlot.set(id, el);
+  if (slotQueued.has(id)) return;
+  slotQueued.add(id);
+  queueMicrotask(() => {
+    slotQueued.delete(id);
+    const next = pendingSlot.has(id) ? (pendingSlot.get(id) ?? null) : null;
+    pendingSlot.delete(id);
+    applyPaneSlot(id, next);
+  });
+}
+
+function applyPaneSlot(id: string, el: HTMLElement | null) {
+  if (!el) {
+    slots.delete(id);
+    const existing = sessions.value.find((s) => s.id === id);
+    if (existing?.el) {
+      dropWebgl(existing);
+      parkTermEl(existing.el);
+    }
+    return;
+  }
+  const parked = claimTermPane(id);
+  if (parked) absorbHandoff([parked]);
+  slots.set(id, el);
+  const existing = sessions.value.find((s) => s.id === id);
+  if (existing) {
+    if (!isThisVisible()) {
+      parkTermEl(existing.el);
+      return;
+    }
+    const already = existing.el.parentElement === el;
+    if (!already) el.appendChild(existing.el);
+    if (shouldSettleAttached(already, true)) void settleRender(existing);
+    return;
+  }
+  const takePending = sessions.value.length === 0;
+  void openNew(el, id, takePending);
+}
+
+function absorbHandoff(items: PaneHandoff[]) {
+  for (const item of items) {
+    const s = item.session as Session;
+    s.ownerDesk = props.workspaceSessionId;
+    s.host = item.host || s.host;
+    patchLive(s.id, { ownerDesk: props.workspaceSessionId, host: s.host });
+    if (item.ctl) reconnectMap.set(s.id, item.ctl as ReconnectCtl);
+    if (!sessions.value.some((x) => x.id === s.id)) {
+      sessions.value = [...sessions.value, s];
+    }
+  }
+}
+
+function takeAllHandoff(): PaneHandoff[] {
+  const out: PaneHandoff[] = [];
+  for (const s of sessions.value) {
+    const ctl = reconnectMap.get(s.id) || null;
+    reconnectMap.delete(s.id);
+    if (s.el) parkTermEl(s.el);
+    out.push({ id: s.id, host: s.host || props.host, session: s, ctl });
+  }
+  sessions.value = [];
+  return out;
+}
+
+function onPaneRatio(splitId: string, ratio: number) {
+  paneTree.value = setRatio(paneTree.value, splitId, ratio);
+  scheduleFitAll();
+}
+
+function splitFocused(way: "right" | "down") {
+  const id = focusedPaneId.value;
+  if (!id) return;
+  zoomed.value = false;
+  const newId = newPaneId();
+  const host = hostOf(paneTree.value, id) || props.host;
+  paneTree.value = splitLeaf(paneTree.value, id, way, newId, host);
+  focusedPaneId.value = newId;
+  scheduleFitAll();
+}
+
+function hostsIn(node: PaneNode): string[] {
+  if (node.kind === "leaf") return [node.host];
+  return [...hostsIn(node.a), ...hostsIn(node.b)];
+}
+
+/** 多个主机并到这个会话里时，把它从主机工作区拆成独立工作台。 */
+function syncMergedTitle() {
+  const names = [...new Set(hostsIn(paneTree.value))];
+  app.noteDeskHosts(props.workspaceSessionId, names);
+  if (names.length > 1) {
+    app.promoteDeskToBench(props.workspaceSessionId);
+    return;
+  }
+  app.demoteDeskIfSingle(props.workspaceSessionId, names[0] || props.host);
+}
+
+function onMovePane(paneId: string, targetId: string, side: PaneSide) {
+  zoomed.value = false;
+  paneTree.value = moveLeaf(paneTree.value, paneId, targetId, side);
+  focusPane(paneId);
+  scheduleFitAll();
+}
+
+function onAdoptHost(sessionId: string, host: string, targetId: string, side: PaneSide): boolean {
+  const name = (host || "").trim();
+  if (!name || sessionId === props.workspaceSessionId) return false;
+  const taken = takeTermDesk(sessionId);
+  if (taken.length === 0) {
+    ElMessage.warning("没有拿到原来的会话，已取消，避免重开连接");
+    return false;
+  }
+  absorbHandoff(taken);
+  zoomed.value = false;
+  let tree = paneTree.value;
+  let anchor = targetId;
+  for (const item of taken) {
+    tree = placeBeside(tree, anchor, side, { kind: "leaf", id: item.id, host: item.host });
+    anchor = item.id;
+  }
+  paneTree.value = tree;
+  focusedPaneId.value = taken[taken.length - 1]?.id || focusedPaneId.value;
+  app.releaseAdoptedSource(sessionId);
+  syncMergedTitle();
+  scheduleFitAll();
+  ElMessage.success("已并入这个分屏，原来的 SSH 连接没有重开");
+  return true;
+}
+
+let adoptingDeskMerge = false;
+
+async function tryAdoptPending() {
+  if (adoptingDeskMerge) return;
+  const job = app.deskMerge;
+  if (!job || job.targetId !== props.workspaceSessionId) return;
+  if (!app.isTerminalDeskVisible(props.workspaceSessionId)) return;
+  await nextTick();
+  let leaf = focusedPaneId.value || orderedLeaves(paneTree.value)[0];
+  if (!leaf) {
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    leaf = focusedPaneId.value || orderedLeaves(paneTree.value)[0];
+  }
+  if (!leaf) return;
+  adoptingDeskMerge = true;
+  try {
+    if (onAdoptHost(job.sourceId, job.host, leaf, "right")) {
+      app.clearDeskMerge();
+    }
+  } finally {
+    adoptingDeskMerge = false;
+  }
+}
+
+function detachFocused() {
+  const id = focusedPaneId.value;
+  if (orderedLeaves(paneTree.value).length < 2) {
+    ElMessage.info("只有一个窗格，它已经是独立会话");
+    return;
+  }
+  const s = sessions.value.find((x) => x.id === id);
+  if (!s) return;
+  const ctl = reconnectMap.get(id) || null;
+  reconnectMap.delete(id);
+  if (s.el) parkTermEl(s.el);
+  sessions.value = sessions.value.filter((x) => x.id !== id);
+  const host = s.host || hostOf(paneTree.value, id) || props.host;
+  parkTermPane({ id, host, session: s, ctl });
+  const next = removeLeaf(paneTree.value, id);
+  if (!next) return;
+  paneTree.value = next;
+  focusedPaneId.value = orderedLeaves(next)[0] || "";
+  syncMergedTitle();
+  app.openDetachedDesk(host, id);
+  ElMessage.success("已把这个窗格移成独立会话，连接没有重开");
+}
+
+async function closePane(id: string) {
+  const owned = liveState(id);
+  if (owned && owned.ownerDesk !== props.workspaceSessionId) return;
+  const leaves = orderedLeaves(paneTree.value);
+  if (!leaves.includes(id)) return;
+  if (shouldCloseDeskOnLastPane(leaves.length)) {
+    app.closeTerminalDesk(props.workspaceSessionId);
+    return;
+  }
+  const victim = sessions.value.find((s) => s.id === id) || (sessionBody(id) as Session | undefined);
+  if (victim) await destroySession(victim);
+  sessions.value = sessions.value.filter((s) => s.id !== id);
+  openingIds.delete(id);
+  const nextTree = removeLeaf(paneTree.value, id);
+  if (!nextTree) {
+    app.closeTerminalDesk(props.workspaceSessionId);
+    return;
+  }
+  paneTree.value = nextTree;
+  syncMergedTitle();
+  const remain = orderedLeaves(nextTree);
+  const idx = leaves.indexOf(id);
+  const fallback = remain[Math.max(0, idx - 1)] || remain[0] || "";
+  zoomed.value = false;
+  if (fallback) focusPane(fallback);
+  scheduleFitAll();
+  ElMessage.success("已关闭这个窗格，其它窗格的连接还在");
+}
+
+function gotoPane(side: PaneSide) {
+  const next = neighborId(paneTree.value, focusedPaneId.value, side);
+  if (!next) return;
+  focusPane(next);
+}
+
+function cyclePane(dir: 1 | -1) {
+  const ids = orderedLeaves(paneTree.value);
+  if (ids.length < 2) return;
+  const i = ids.indexOf(focusedPaneId.value);
+  const next = ids[(i + dir + ids.length) % ids.length];
+  focusPane(next);
+}
+
+function resizeFocused(side: PaneSide) {
+  const hit = resizeHit(paneTree.value, focusedPaneId.value, side);
+  if (!hit) return;
+  const cur = splitRatioOf(paneTree.value, hit.splitId);
+  if (cur == null) return;
+  const el = stageRef.value?.querySelector(
+    `[data-split-id="${hit.splitId}"]`
+  ) as HTMLElement | null;
+  const split = paneTree.value;
+  let alongRow = true;
+  if (el) {
+    alongRow = el.classList.contains("is-row");
+  } else if (split.kind === "split") {
+    alongRow = split.dir === "row";
+  }
+  const size = el ? (alongRow ? el.clientWidth : el.clientHeight) : 400;
+  const delta = (10 / Math.max(size, 40)) * hit.sign;
+  paneTree.value = setRatio(paneTree.value, hit.splitId, cur + delta);
+  scheduleFitAll();
+}
+
+function equalizeFocused() {
+  paneTree.value = equalizeRatios(paneTree.value);
+  scheduleFitAll();
+}
+
+function toggleZoom() {
+  if (orderedLeaves(paneTree.value).length < 2) return;
+  zoomed.value = !zoomed.value;
+  scheduleFitAll();
+  focusPane(focusedPaneId.value);
+}
+
+function isThisVisible(): boolean {
+  return app.isTerminalDeskVisible(props.workspaceSessionId);
+}
+
+function focusInsideTerm(): boolean {
+  const el = document.activeElement;
+  if (!el || !(el instanceof Element)) return false;
+  return !!el.closest(".term-page");
+}
+
+function eatKey(e: KeyboardEvent) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function arrowSide(e: KeyboardEvent): PaneSide | null {
+  if (e.code === "ArrowLeft") return "left";
+  if (e.code === "ArrowRight") return "right";
+  if (e.code === "ArrowUp") return "up";
+  if (e.code === "ArrowDown") return "down";
+  return null;
+}
+
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+
+function isChromeTyping(e: KeyboardEvent): boolean {
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return false;
+  if (t.classList.contains("xterm-helper-textarea")) return false;
+  return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
+}
+
+function isTermTextareaFocused(): boolean {
+  const el = document.activeElement;
+  return !!(el instanceof HTMLElement && el.classList.contains("xterm-helper-textarea"));
+}
+
+function onTypeFallback(e: KeyboardEvent) {
+  if (!isThisVisible()) return;
+  if (e.isComposing || e.defaultPrevented) return;
+  if (isChromeTyping(e)) return;
+  if (isTermTextareaFocused()) return;
+  const s = sessions.value.find((x) => x.id === focusedPaneId.value);
+  if (!s) return;
+  s.term.focus();
+  const ctrl = ctrlLetter(e);
+  if (ctrl) {
+    e.preventDefault();
+    e.stopPropagation();
+    s.term.input(ctrl);
+    return;
+  }
+  if (e.metaKey || e.ctrlKey) return;
+  let data = "";
+  if (e.key === "Enter") data = "\r";
+  else if (e.key === "Backspace") data = "\x7f";
+  else if (e.key === "Tab") data = "\t";
+  else if (e.key === "Escape") data = "\x1b";
+  else if (e.key.length === 1) data = e.key;
+  else return;
+  e.preventDefault();
+  e.stopPropagation();
+  s.term.input(data);
+}
+
+function onPaneKey(e: KeyboardEvent) {
+  onTypeFallback(e);
+  if (!isThisVisible() || !focusInsideTerm()) return;
+  if (isMac) {
+    onMacPaneKey(e);
+    return;
+  }
+  onLinuxPaneKey(e);
+}
+
+function onMacPaneKey(e: KeyboardEvent) {
+  if (!e.metaKey) return;
+  const shift = e.shiftKey;
+  const alt = e.altKey;
+  const ctrl = e.ctrlKey;
+
+  if (!ctrl && !alt && !shift && e.code === "KeyD") {
+    eatKey(e);
+    app.runTermAction("split-right");
+    return;
+  }
+  if (!ctrl && !alt && shift && e.code === "KeyD") {
+    eatKey(e);
+    app.runTermAction("split-down");
+    return;
+  }
+  if (!ctrl && alt && !shift) {
+    const side = arrowSide(e);
+    if (!side) return;
+    eatKey(e);
+    gotoPane(side);
+    return;
+  }
+  if (!ctrl && !alt && !shift && e.code === "BracketLeft") {
+    eatKey(e);
+    cyclePane(-1);
+    return;
+  }
+  if (!ctrl && !alt && !shift && e.code === "BracketRight") {
+    eatKey(e);
+    cyclePane(1);
+    return;
+  }
+  if (ctrl && !alt && !shift) {
+    const side = arrowSide(e);
+    if (side) {
+      eatKey(e);
+      resizeFocused(side);
+      return;
+    }
+    if (e.code === "Equal") {
+      eatKey(e);
+      equalizeFocused();
+      return;
+    }
+  }
+  if (!ctrl && !alt && shift && e.code === "Enter") {
+    eatKey(e);
+    toggleZoom();
+    return;
+  }
+  if (!ctrl && !alt && !shift && e.code === "KeyW") {
+    eatKey(e);
+    app.runTermAction("close-pane");
+  }
+}
+
+function onLinuxPaneKey(e: KeyboardEvent) {
+  const ctrl = e.ctrlKey;
+  const shift = e.shiftKey;
+  const alt = e.altKey;
+  const meta = e.metaKey;
+
+  if (ctrl && shift && !meta && !alt && e.code === "KeyO") {
+    eatKey(e);
+    app.runTermAction("split-right");
+    return;
+  }
+  if (ctrl && shift && !meta && !alt && e.code === "KeyE") {
+    eatKey(e);
+    app.runTermAction("split-down");
+    return;
+  }
+  if (ctrl && alt && !meta && !shift) {
+    const side = arrowSide(e);
+    if (!side) return;
+    eatKey(e);
+    gotoPane(side);
+    return;
+  }
+  if (ctrl && meta && !alt && !shift && e.code === "BracketLeft") {
+    eatKey(e);
+    cyclePane(-1);
+    return;
+  }
+  if (ctrl && meta && !alt && !shift && e.code === "BracketRight") {
+    eatKey(e);
+    cyclePane(1);
+    return;
+  }
+  if (ctrl && meta && shift && !alt) {
+    const side = arrowSide(e);
+    if (side) {
+      eatKey(e);
+      resizeFocused(side);
+      return;
+    }
+    if (e.code === "Equal") {
+      eatKey(e);
+      equalizeFocused();
+    }
+    return;
+  }
+  if (ctrl && shift && !meta && !alt && e.code === "Enter") {
+    eatKey(e);
+    toggleZoom();
+    return;
+  }
+  if (ctrl && shift && !meta && !alt && e.code === "KeyW") {
+    eatKey(e);
+    app.runTermAction("close-pane");
+  }
 }
 
 async function copySelection() {
@@ -789,11 +1487,22 @@ async function pasteClipboard() {
 }
 
 // ---- 拖拽上传 ----
-function onDragEnter() {
+function isPaneDrag(e: DragEvent): boolean {
+  const types = e.dataTransfer?.types;
+  if (!types) return false;
+  for (const t of types) {
+    if (t === "application/x-pane-id" || t === "application/x-term-session") return true;
+  }
+  return false;
+}
+
+function onDragEnter(e: DragEvent) {
+  if (isPaneDrag(e)) return;
   dragCounter++;
   dragOver.value = true;
 }
-function onDragLeave() {
+function onDragLeave(e: DragEvent) {
+  if (isPaneDrag(e)) return;
   dragCounter--;
   if (dragCounter <= 0) {
     dragOver.value = false;
@@ -828,7 +1537,8 @@ async function handleFileDrop(paths: string[]) {
 
   try {
     // 原样上传到 /tmp（convertPaths 传空数组 = 不做编码转换）
-    await api.uploadPaths(props.host, paths, [], TERM_UPLOAD_DIR);
+    const host = hostOf(paneTree.value, focusedPaneId.value) || props.host;
+    await api.uploadPaths(host, paths, [], TERM_UPLOAD_DIR);
     uploadState.value.done = true;
     writeRemotePathsToTerm(paths);
   } catch (e) {
@@ -844,7 +1554,7 @@ async function handleFileDrop(paths: string[]) {
 // 把远程路径写到当前活动会话的光标处（不回车，便于接 vim/cat 等命令）
 // 路径 = /tmp/<basename>，单引号包裹防空格 / 特殊字符，多个用空格拼接
 function writeRemotePathsToTerm(localPaths: string[]) {
-  const active = sessions.value.find((s) => s.id === activeId.value);
+  const active = sessions.value.find((s) => s.id === focusedPaneId.value);
   if (!active?.sessionID) return;
   const remote = localPaths
     .map((p) => p.split(/[\\/]/).pop() || p)
@@ -866,27 +1576,16 @@ function onUploadProgress(ev: {
 async function teardownAll() {
   const list = [...sessions.value];
   sessions.value = [];
-  activeId.value = null;
   for (const t of list) {
     await destroySession(t);
   }
 }
 
-watch(
-  () => sessions.value.length,
-  (n) => app.setTerminalSessionCount(props.host, n),
-  { immediate: true }
-);
-
-// 切换会话：把对应 DOM 挂回容器并 fit
-watch(activeId, () => {
-  void mountActive();
-});
-
-// 已有会话时收到 pending 命令：写入当前 active
+// 已有会话时收到 pending 命令：只写到当前焦点窗格
 function flushPendingTerminalCmd(cmd: string | null | undefined) {
   if (!cmd) return;
-  const active = sessions.value.find((x) => x.id === activeId.value);
+  if (!app.isTerminalDeskVisible(props.workspaceSessionId)) return;
+  const active = sessions.value.find((x) => x.id === focusedPaneId.value);
   if (active?.sessionID) {
     const c = cmd;
     app.clearTerminalCmd();
@@ -897,21 +1596,56 @@ function flushPendingTerminalCmd(cmd: string | null | undefined) {
     return;
   }
   pendingCmdLocal = cmd;
-  if (sessions.value.length === 0) void openNew();
 }
 
 watch(pendingTerminalCmd, (cmd) => {
   flushPendingTerminalCmd(cmd);
 });
 
-// 换主机：关掉旧会话，重新开
 watch(
-  () => props.host,
-  async (next, prev) => {
-    if (prev) app.setTerminalSessionCount(prev, 0);
-    await teardownAll();
-    await nextTick();
-    app.setTerminalSessionCount(next, sessions.value.length);
+  () => !app.settingsOpen && app.isTerminalDeskVisible(props.workspaceSessionId),
+  (vis) => {
+    if (!vis) {
+      offDrop?.();
+      offDrop = null;
+      for (const s of sessions.value) {
+        dropWebgl(s);
+        parkTermEl(s.el);
+      }
+      return;
+    }
+    if (!offDrop) offDrop = registerFileDrop(handleFileDrop);
+    for (const s of sessions.value) {
+      const slot = slots.get(s.id);
+      if (slot && s.el.parentElement !== slot) slot.appendChild(s.el);
+    }
+    flushPendingTerminalCmd(pendingTerminalCmd.value || pendingCmdLocal);
+    void nextTick(() => {
+      requestAnimationFrame(() => {
+        void settleRender().then(() => focusPane(focusedPaneId.value));
+      });
+    });
+  },
+  { immediate: true }
+);
+
+watch(
+  () => app.termActionN,
+  () => {
+    if (!app.isTerminalDeskVisible(props.workspaceSessionId)) return;
+    const name = app.termActionName;
+    if (name === "split-right") splitFocused("right");
+    if (name === "split-down") splitFocused("down");
+    if (name === "close-pane") void closePane(focusedPaneId.value);
+    if (name === "detach") detachFocused();
+    if (name === "reconnect") reconnectAllPanes();
+  }
+);
+
+watch(
+  () => app.deskMergeN,
+  () => {
+    void tryAdoptPending();
   }
 );
 
@@ -933,28 +1667,34 @@ watch(
   }
 );
 
-function fitActiveTerminal() {
-  const active = sessions.value.find((x) => x.id === activeId.value);
-  if (!active) return;
-  try {
-    active.fit.fit();
-    if (active.sessionID) {
-      api
-        .resizeTerminal(active.sessionID, active.term.cols, active.term.rows)
-        .catch(() => {});
+function fitAll() {
+  for (const s of sessions.value) {
+    if (s.el.clientWidth < 2 || s.el.clientHeight < 2) continue;
+    try {
+      s.fit.fit();
+      if (s.sessionID) {
+        api
+          .resizeTerminal(s.sessionID, s.term.cols, s.term.rows)
+          .catch(() => {});
+      }
+    } catch {
+      /* ignore */
     }
-  } catch {
-    /* ignore */
+  }
+  if (!app.isTerminalDeskVisible(props.workspaceSessionId)) return;
+  for (const s of sessions.value) {
+    const measured = measurePane(s.id);
+    writeProbe(s.id, { ...measured, probed: true, hasLive: true });
   }
 }
 
 function onWinResize() {
-  fitActiveTerminal();
+  if (!app.isTerminalDeskVisible(props.workspaceSessionId)) return;
+  fitAll();
 }
 
 function onDocClick() {
   ctxMenu.value = null;
-  tabCtxMenu.value = null;
 }
 
 /** 浏览器 online：本机网络恢复后，立刻踢所有重连中的 Tab */
@@ -967,29 +1707,66 @@ function onNetworkOnline() {
 let resizeObs: ResizeObserver | null = null;
 let fitRaf = 0;
 
-function scheduleFitActive() {
+function scheduleFitAll() {
   // 合并同帧多次尺寸抖动，避免 fit → resize PTY → 回流 的连环卡顿
   if (fitRaf) cancelAnimationFrame(fitRaf);
   fitRaf = requestAnimationFrame(() => {
     fitRaf = 0;
-    fitActiveTerminal();
+    fitAll();
   });
 }
 
+const fullscreenOffs: Array<() => void> = [];
+
+let offDesk = () => {};
+
 onMounted(() => {
+  offDesk = registerTermDesk(props.workspaceSessionId, { takeAll: takeAllHandoff });
+  void tryAdoptPending();
+  app.registerTerminalReconnect(props.workspaceSessionId, reconnectAllPanes);
   window.addEventListener("resize", onWinResize);
   window.addEventListener("click", onDocClick);
   window.addEventListener("online", onNetworkOnline);
-  if (containerRef.value) {
-    resizeObs = new ResizeObserver(() => {
-      scheduleFitActive();
+  window.addEventListener("keydown", onPaneKey, true);
+  void Window.IsFullscreen().then((v) => {
+    windowFullscreen.value = !!v;
+  });
+  fullscreenOffs.push(
+    trackEvent(Events.Types.Common.WindowFullscreen, () => {
+      windowFullscreen.value = true;
+    })
+  );
+  fullscreenOffs.push(
+    trackEvent(Events.Types.Common.WindowUnFullscreen, () => {
+      windowFullscreen.value = false;
+    })
+  );
+  fullscreenOffs.push(
+    trackEvent(Events.Types.Mac.WindowDidEnterFullScreen, () => {
+      windowFullscreen.value = true;
+    })
+  );
+  fullscreenOffs.push(
+    trackEvent(Events.Types.Mac.WindowDidExitFullScreen, () => {
+      windowFullscreen.value = false;
+    })
+  );
+  if (stageRef.value) {
+    let lastW = 0;
+    let lastH = 0;
+    resizeObs = new ResizeObserver((entries) => {
+      const cr = entries[0]?.contentRect;
+      if (!cr) return;
+      const w = Math.round(cr.width);
+      const h = Math.round(cr.height);
+      if (w === lastW && h === lastH) return;
+      lastW = w;
+      lastH = h;
+      scheduleFitAll();
     });
-    resizeObs.observe(containerRef.value);
+    resizeObs.observe(stageRef.value);
   }
-  // 默认不自动开会话；概览「安装」等投递命令时由 flushPendingTerminalCmd 再开
-  // v3：拖放经 LIFO 分发器，仅在终端页激活时注册（KeepAlive 失活即出栈）；
-  // 上传进度各自订阅
-  offProgress = Events.On(
+  offProgress = trackEvent(
     "upload:progress",
     (ev: { data?: { uploaded?: number; total?: number; current?: string } }) => {
       if (ev?.data) onUploadProgress(ev.data);
@@ -1003,10 +1780,10 @@ onActivated(() => {
   if (!offDrop) offDrop = registerFileDrop(handleFileDrop);
   // 概览「安装」等：先切 tab 再投递命令时，此处补一次 flush
   flushPendingTerminalCmd(pendingTerminalCmd.value || pendingCmdLocal);
-  const active = sessions.value.find((x) => x.id === activeId.value);
-  if (!active) return;
   void nextTick(() => {
-    requestAnimationFrame(() => fitActiveTerminal());
+    requestAnimationFrame(() => {
+      void settleRender().then(() => focusPane(focusedPaneId.value));
+    });
   });
 });
 
@@ -1017,6 +1794,8 @@ onDeactivated(() => {
 });
 
 onBeforeUnmount(() => {
+  offDesk();
+  app.registerTerminalReconnect(props.workspaceSessionId, null);
   if (fitRaf) {
     cancelAnimationFrame(fitRaf);
     fitRaf = 0;
@@ -1026,10 +1805,13 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", onWinResize);
   window.removeEventListener("click", onDocClick);
   window.removeEventListener("online", onNetworkOnline);
+  window.removeEventListener("keydown", onPaneKey, true);
+  window.removeEventListener("beforeunload", flushWorkspaceLayout);
+  for (const off of fullscreenOffs) off();
+  fullscreenOffs.length = 0;
   offDrop?.();
   offDrop = null;
   offProgress?.();
-  app.setTerminalSessionCount(props.host, 0);
   if (uploadToastTimer) {
     clearTimeout(uploadToastTimer);
     uploadToastTimer = null;
@@ -1038,7 +1820,12 @@ onBeforeUnmount(() => {
     clearTimeout(disconnectNotifyTimer);
     disconnectNotifyTimer = null;
   }
-  void teardownAll();
+  const deskLives = app.terminalDesks.some((d) => d.id === props.workspaceSessionId);
+  if (deskLives) {
+    for (const item of takeAllHandoff()) parkTermPane(item);
+  } else {
+    void teardownAll();
+  }
 });
 </script>
 
@@ -1064,176 +1851,6 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* 会话栏：浅色 Primary Tabs，与 RouterButton 对齐 */
-.term-bar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: var(--m3-chrome-height);
-  min-height: var(--m3-chrome-height);
-  max-height: var(--m3-chrome-height);
-  padding: 0 20px 0 4px;
-  overflow: hidden;
-  border-bottom: 1px solid var(--m3-outline-variant);
-  background: var(--m3-surface-container-lowest);
-  box-sizing: border-box;
-  user-select: none;
-}
-
-.term-tabs-scroll {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-.term-tab {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0 14px;
-  min-width: 72px;
-  height: var(--m3-chrome-height, 40px);
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--m3-on-surface-variant);
-  cursor: grab;
-  position: relative;
-  white-space: nowrap;
-  -webkit-tap-highlight-color: transparent;
-
-  &::after {
-    content: "";
-    position: absolute;
-    left: 14px;
-    right: 14px;
-    bottom: 0;
-    height: 2px;
-    border-radius: 2px 2px 0 0;
-    background: transparent;
-    transition: background-color var(--m3-motion-state);
-  }
-
-  &:hover {
-    color: var(--m3-on-surface);
-    background: color-mix(in srgb, var(--m3-primary) 6%, transparent);
-  }
-
-  &.is-active {
-    color: var(--m3-primary);
-
-    &::after {
-      background: var(--m3-primary);
-    }
-
-    .term-tab__label {
-      font-weight: 600;
-    }
-  }
-
-  &.closed .term-tab__label {
-    opacity: 0.55;
-    text-decoration: line-through;
-  }
-
-  &.is-dragging {
-    opacity: 0.45;
-  }
-
-  &--add {
-    flex-shrink: 0;
-    min-width: 32px;
-    width: 32px;
-    padding: 0;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--m3-on-surface-variant);
-
-    &::after {
-      display: none;
-    }
-
-    &:hover {
-      color: var(--m3-primary);
-      background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
-    }
-  }
-}
-
-.term-tabs-scroll.is-reordering .term-tab:not(.term-tab--add) {
-  cursor: grabbing;
-}
-
-.term-tab__idx {
-  font: var(--m3-title-small);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 20px;
-}
-
-.term-tab.is-active .term-tab__idx {
-  color: var(--m3-primary);
-}
-
-.term-tab__label {
-  font: var(--m3-title-small);
-  font-weight: 500;
-  line-height: 20px;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.term-tab__badge {
-  font-size: 10px;
-  line-height: 1;
-  padding: 2px 6px;
-  border-radius: var(--m3-shape-full);
-  font-weight: 500;
-
-  &.is-closed {
-    color: var(--m3-tertiary);
-    background: var(--m3-tertiary-container);
-  }
-
-  &.is-reconnecting {
-    color: var(--m3-primary);
-    background: var(--m3-primary-container);
-  }
-}
-
-.term-tab__close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-left: 2px;
-  border-radius: var(--m3-shape-full);
-  font-size: 14px;
-  line-height: 1;
-  opacity: 0.45;
-  color: inherit;
-
-  &:hover {
-    opacity: 1;
-    background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
-  }
-}
-
 .term-stage {
   position: relative;
   flex: 1 1 auto;
@@ -1242,68 +1859,98 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
 
-  &.is-empty {
-    background: var(--m3-content);
+  > :deep(*) {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &.is-vtabs {
+    flex-direction: row;
+  }
+
+  &.is-vtabs > .term-vlist {
+    flex: 0 0 220px;
   }
 }
 
-.term-empty {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
+.term-park {
+  display: none;
+}
+
+.term-vlist {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  min-height: 0;
+  background: #111;
+  border-right: 1px solid #2a2a2a;
+  overflow: auto;
 }
 
-.term-empty-add {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--m3-outline-variant);
-  border-radius: 50%;
-  background: var(--m3-card);
-  color: var(--m3-on-surface-variant);
+.term-vlist__title {
+  flex-shrink: 0;
+  padding: 10px 12px 6px;
+  color: #9a9a9a;
+  font-size: 12px;
+}
+
+.term-vitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: #e8e8e8;
+  text-align: left;
   cursor: pointer;
-  box-shadow: var(--m3-elevation-1, none);
 
   &:hover {
-    color: var(--m3-primary);
-    border-color: var(--m3-primary);
-    background: var(--m3-primary-container);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  &.is-active {
+    background: rgba(255, 255, 255, 0.08);
   }
 }
 
-.term-empty-hint {
-  margin: 0;
-  font: var(--m3-body-medium);
-  color: var(--m3-on-surface-variant);
-}
-
-.term-body {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
+.term-vitem__text {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.term-vitem__host {
   overflow: hidden;
-  background: var(--panel-terminal-bg-color, #000000);
-  user-select: text;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
 
-  :deep(.xterm),
-  :deep(.xterm-viewport),
-  :deep(.xterm-screen) {
-    width: 100% !important;
-    height: 100% !important;
-  }
+.term-vitem__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9a9a9a;
+  font-size: 11px;
+}
 
-  :deep(.xterm) {
-    padding: 8px 12px;
-    box-sizing: border-box;
+.term-vitem__re {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 4px;
+  color: #9a9a9a;
+  font-size: 14px;
+
+  &:hover,
+  &.is-down {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
   }
 }
 
@@ -1338,7 +1985,7 @@ onBeforeUnmount(() => {
 /* ---- 上传进度浮层 ---- */
 .term-upload-toast {
   position: absolute;
-  top: 52px;
+  top: 12px;
   right: 12px;
   z-index: 60;
   min-width: 200px;
@@ -1396,8 +2043,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 40px;
-  padding: 8px 12px;
+  min-height: 28px;
+  padding: 4px 8px;
   border: 0;
   border-radius: var(--m3-shape-xs);
   background: transparent;
@@ -1426,6 +2073,11 @@ onBeforeUnmount(() => {
   height: 1px;
   margin: 4px 8px;
   background: var(--m3-outline-variant);
+}
+
+.ctx-item--sub {
+  padding-left: 28px;
+  color: var(--m3-on-surface-variant);
 }
 
 .ctx-item--danger {

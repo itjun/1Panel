@@ -2,226 +2,157 @@
   <div class="settings-page">
     <ChromeTeleport>
       <el-button
-        v-tip="'仅恢复外观、界面、终端与会话；通知配置保留'"
+        v-tip="'只恢复字体、字号和启动页；通知配置不动'"
         @click="settings.resetSettings()"
       >
         恢复默认
       </el-button>
     </ChromeTeleport>
 
-    <div class="settings-machine">
-      <span class="machine-label">本机</span>
-      <span
-        v-if="egressLoading && !egress"
-        class="machine-value is-muted"
-      >
-        检测中…
-      </span>
-      <span
-        v-else-if="egress?.ip"
-        class="machine-value"
-        v-tip="machineTitle"
-      >
-        <span class="machine-ip">{{ egress.ip }}</span>
-        <span v-if="egress.location" class="machine-loc">{{
-          egress.location
-        }}</span>
-      </span>
-      <span v-else class="machine-value is-muted">出口 IP 未知</span>
-      <el-button
-        link
-        type="primary"
-        :icon="Refresh"
-        :loading="egressLoading"
-        @click="loadEgress(true)"
-      >
-        刷新
-      </el-button>
-    </div>
+    <div class="settings-scroll">
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">本机出口</span>
+          <span class="row-hint">公网 IP，来自 myip.ipip.net</span>
+        </div>
+        <div class="row-control">
+          <span v-if="egressLoading && !egress" class="row-muted">检测中…</span>
+          <span v-else-if="egress?.ip" class="machine-value" v-tip="machineTitle">
+            <span class="machine-ip">{{ egress.ip }}</span>
+            <span v-if="egress.location" class="machine-loc">{{ egress.location }}</span>
+          </span>
+          <span v-else class="row-muted">未知</span>
+          <el-button
+            link
+            type="primary"
+            :icon="Refresh"
+            :loading="egressLoading"
+            @click="loadEgress(true)"
+          >
+            刷新
+          </el-button>
+        </div>
+      </div>
 
-    <div class="settings-body">
-      <div class="settings-pane">
-        <!-- 外观 -->
-        <template v-if="settings.lastNavGroup === 'appearance'">
-          <section class="settings-section">
-            <h3 class="sec-title">主题</h3>
-            <p class="sec-desc">选择整体配色。「跟随系统」会按系统外观自动切换。</p>
-            <div class="theme-grid">
-              <button
-                v-for="t in THEME_OPTIONS"
-                :key="t.key"
-                type="button"
-                class="theme-card"
-                :class="{ active: settings.theme === t.key }"
-                @click="settings.setTheme(t.key)"
-              >
-                <div class="theme-swatch" :style="{ background: t.swatch.bg }">
-                  <span
-                    class="theme-aa"
-                    :style="{
-                      background: t.swatch.accent,
-                      color: t.swatch.fg === '#888' ? '#fff' : t.swatch.fg,
-                    }"
-                  >
-                    Aa
-                  </span>
-                </div>
-                <div class="theme-meta">
-                  <div class="theme-name">{{ t.name }}</div>
-                  <div class="theme-desc">{{ t.description }}</div>
-                </div>
-                <el-icon v-if="settings.theme === t.key" class="theme-check">
-                  <Check />
-                </el-icon>
-              </button>
-            </div>
-          </section>
-        </template>
-
-        <!-- 界面 -->
-        <template v-else-if="settings.lastNavGroup === 'ui'">
-          <section class="settings-section">
-            <h3 class="sec-title">界面字体</h3>
-            <p class="sec-desc">字体立刻应用到全局 UI（菜单、表格、表单等）。</p>
-            <el-select
-              :model-value="settings.fontFamily"
-              style="width: 100%"
-              @change="(v: string) => settings.setFontFamily(v)"
-            >
-              <el-option
-                v-for="f in FONT_OPTIONS"
-                :key="f.label"
-                :label="f.label"
-                :value="f.value"
-              >
-                <span :style="{ fontFamily: f.value }">{{ f.label }}</span>
-              </el-option>
-            </el-select>
-          </section>
-          <section class="settings-section">
-            <div class="sec-row">
-              <h3 class="sec-title">界面字号</h3>
-              <span class="sec-value">{{ settings.fontSize }} px</span>
-            </div>
-            <p class="sec-desc">建议 12～14。范围 11～20。</p>
-            <el-slider
-              :model-value="settings.fontSize"
-              :min="11"
-              :max="20"
-              :step="1"
-              show-stops
-              @update:model-value="onFontSize"
-            />
-            <div class="preview-box" :style="uiPreviewStyle">
-              预览：主机列表 · 概览 · CPU 32.5% · root@server
-            </div>
-          </section>
-        </template>
-
-        <!-- 终端 -->
-        <template v-else-if="settings.lastNavGroup === 'terminal'">
-          <section class="settings-section">
-            <h3 class="sec-title">终端字体</h3>
-            <p class="sec-desc">仅影响「终端」标签页。macOS 默认 SF Mono，Windows 默认 Consolas。</p>
-            <el-select
-              :model-value="settings.terminalFontFamily"
-              style="width: 100%"
-              @change="(v: string) => settings.setTerminalFontFamily(v)"
-            >
-              <el-option
-                v-for="f in TERMINAL_FONT_OPTIONS"
-                :key="f.label"
-                :label="f.label"
-                :value="f.value"
-              />
-            </el-select>
-          </section>
-          <section class="settings-section">
-            <div class="sec-row">
-              <h3 class="sec-title">终端字号</h3>
-              <span class="sec-value">{{ settings.terminalFontSize }} px</span>
-            </div>
-            <p class="sec-desc">macOS 默认 14，Windows 默认 16。范围 10～22。</p>
-            <el-slider
-              :model-value="settings.terminalFontSize"
-              :min="10"
-              :max="22"
-              :step="1"
-              show-stops
-              @update:model-value="onTermFontSize"
-            />
-            <div class="preview-box preview-box--term" :style="termPreviewStyle">
-              root@host:~$ ls -la /var/log
-            </div>
-          </section>
-        </template>
-
-        <!-- 会话 -->
-        <section
-          v-else-if="settings.lastNavGroup === 'session'"
-          class="settings-section"
+      <h2 id="settings-look" class="group-title">外观</h2>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">界面字体</span>
+          <span class="row-hint" :style="uiPreviewStyle">主机列表 · 概览 · CPU 32.5%</span>
+        </div>
+        <el-select
+          class="row-select"
+          :model-value="settings.fontFamily"
+          @change="(v: string) => settings.setFontFamily(v)"
         >
-          <div class="sec-row">
-            <h3 class="sec-title">主机会话上限</h3>
-            <span class="sec-value">{{ settings.maxRunningHosts }} 台</span>
-          </div>
-          <p class="sec-desc">
-            同时在后台挂起的主机数。超限时自动关闭最早打开、且未开终端的非激活会话。范围
-            4～32。
-          </p>
+          <el-option
+            v-for="f in FONT_OPTIONS"
+            :key="f.label"
+            :label="f.label"
+            :value="f.value"
+          >
+            <span :style="{ fontFamily: f.value }">{{ f.label }}</span>
+          </el-option>
+        </el-select>
+      </div>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">界面字号</span>
+          <span class="row-hint">11～20，改完立刻生效</span>
+        </div>
+        <div class="row-control row-control--slider">
+          <span class="row-value">{{ settings.fontSize }} px</span>
           <el-slider
-            :model-value="settings.maxRunningHosts"
-            :min="4"
-            :max="32"
-            :step="2"
-            show-stops
-            @update:model-value="onMaxRunningHosts"
+            :model-value="settings.fontSize"
+            :min="11"
+            :max="20"
+            :step="1"
+            :show-tooltip="false"
+            @update:model-value="onFontSize"
           />
-        </section>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">终端字体</span>
+          <span class="term-sample" :style="termPreviewStyle">root@host:~$ ls</span>
+        </div>
+        <el-select
+          class="row-select"
+          :model-value="settings.terminalFontFamily"
+          @change="(v: string) => settings.setTerminalFontFamily(v)"
+        >
+          <el-option
+            v-for="f in TERMINAL_FONT_OPTIONS"
+            :key="f.label"
+            :label="f.label"
+            :value="f.value"
+          />
+        </el-select>
+      </div>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">终端字号</span>
+          <span class="row-hint">macOS 默认 14，Windows 默认 16</span>
+        </div>
+        <div class="row-control row-control--slider">
+          <span class="row-value">{{ settings.terminalFontSize }} px</span>
+          <el-slider
+            :model-value="settings.terminalFontSize"
+            :min="10"
+            :max="22"
+            :step="1"
+            :show-tooltip="false"
+            @update:model-value="onTermFontSize"
+          />
+        </div>
+      </div>
 
-        <!-- 应用 -->
-        <template v-else-if="settings.lastNavGroup === 'app'">
-          <section class="settings-section">
-            <h3 class="sec-title">主机配置</h3>
-            <p class="sec-desc">
-              导出或导入本机主机列表、分组与图标。备份含已保存的主机密码，不含 SSH 私钥；换机恢复需另行保管密钥。
-            </p>
-            <div class="notify-actions">
-              <el-button :loading="exporting" @click="onExportBackup">
-                导出主机配置…
-              </el-button>
-              <el-button @click="backupImportRef?.openFor()">
-                导入主机配置…
-              </el-button>
-            </div>
-          </section>
-          <section class="settings-section">
-            <h3 class="sec-title">重启应用</h3>
-            <p class="sec-desc">
-              将断开所有主机连接并重启 1Pannel。运行中的终端会话会中断。
-            </p>
-            <el-button @click="onRestart">重启应用</el-button>
-          </section>
-          <section class="settings-section">
-            <h3 class="sec-title">退出应用</h3>
-            <p class="sec-desc">
-              关闭窗口只会挂到后台。{{ quitKbd }} 可先确认：挂到后台还是彻底退出。真正退出后后台监听停止。
-            </p>
-            <div class="sec-row">
-              <div>
-                <h3 class="sec-title">{{ quitKbd }} 退出前询问</h3>
-                <p class="sec-desc sec-desc--inline">
-                  关闭后，{{ quitKbd }} 将直接挂到后台
-                </p>
-              </div>
-              <el-switch
-                :model-value="askBeforeQuit"
-                @change="(v: string | number | boolean) => onAskBeforeQuit(Boolean(v))"
-              />
-            </div>
-            <el-button @click="onQuitForReal">退出应用</el-button>
-          </section>
-        </template>
+      <h2 id="settings-session" class="group-title">会话</h2>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">启动时打开</span>
+          <span class="row-hint">已开的标签都会留着，这里只决定落在哪一页。下次启动生效</span>
+        </div>
+        <el-radio-group
+          :model-value="settings.startupPage"
+          @change="onStartupPage"
+        >
+          <el-radio value="home">主机首页</el-radio>
+          <el-radio value="resume">上次离开的画面</el-radio>
+        </el-radio-group>
+      </div>
+
+      <h2 id="settings-app" class="group-title">应用</h2>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">主机配置</span>
+          <span class="row-hint">含已保存的密码，不含 SSH 私钥</span>
+        </div>
+        <div class="row-control">
+          <el-button :loading="exporting" @click="onExportBackup">导出…</el-button>
+          <el-button @click="backupImportRef?.openFor()">导入…</el-button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-name">{{ quitKbd }} 退出前询问</span>
+          <span class="row-hint">关掉后，{{ quitKbd }} 直接挂到后台。关窗口本身不会退出</span>
+        </div>
+        <el-switch
+          :model-value="askBeforeQuit"
+          @change="(v: string | number | boolean) => onAskBeforeQuit(Boolean(v))"
+        />
+      </div>
+      <div class="row row--actions">
+        <div class="row-text">
+          <span class="row-name">重启或退出</span>
+          <span class="row-hint">重启会断开所有主机。退出后后台监听停止，通知不再送达</span>
+        </div>
+        <div class="row-control">
+          <el-button @click="onRestart">重启应用</el-button>
+          <el-button @click="onQuitForReal">退出应用</el-button>
+        </div>
       </div>
     </div>
     <BackupImportDialog ref="backupImportRef" />
@@ -230,7 +161,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { Check, Refresh } from "@element-plus/icons-vue";
+import { Refresh } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Dialogs, Events } from "@wailsio/runtime";
 import { api } from "@/api";
@@ -241,8 +172,8 @@ import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import {
   FONT_OPTIONS,
   TERMINAL_FONT_OPTIONS,
-  THEME_OPTIONS,
   useSettingsStore,
+  type StartupPage,
 } from "@/stores/settings";
 
 /** 进程内缓存：离开设置页卸载后仍保留，避免每次进出都打 myip */
@@ -285,8 +216,9 @@ function onTermFontSize(v: number | number[]) {
   settings.setTerminalFontSize(Array.isArray(v) ? v[0] : v);
 }
 
-function onMaxRunningHosts(v: number | number[]) {
-  settings.setMaxRunningHosts(Array.isArray(v) ? v[0] : v);
+function onStartupPage(v: string | number | boolean | undefined) {
+  const next: StartupPage = v === "resume" ? "resume" : "home";
+  settings.setStartupPage(next);
 }
 
 async function loadEgress(force: boolean) {
@@ -400,43 +332,102 @@ onUnmounted(() => {
   height: 100%;
   min-height: 0;
   min-width: 0;
-  padding: 20px 28px 28px;
-  box-sizing: border-box;
   background: var(--m3-content);
 }
 
-.settings-machine {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  min-width: 0;
-  padding: 12px 0 16px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--m3-outline-variant);
+.settings-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 16px 16px;
+  box-sizing: border-box;
+  max-width: 880px;
+  scrollbar-width: thin;
 }
 
-.machine-label {
-  flex-shrink: 0;
+.group-title {
+  margin: 22px 0 2px;
   font: var(--m3-label-large);
   font-weight: 600;
   color: var(--m3-on-surface-variant);
 }
 
-.machine-value {
-  flex: 0 1 auto;
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 28px;
+  min-height: 56px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--m3-outline-variant);
+  box-sizing: border-box;
+}
+
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.row-name {
+  font: var(--m3-body-medium);
+  font-weight: 600;
+  color: var(--m3-on-surface);
+}
+
+.row-hint,
+.row-muted {
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+  line-height: 1.4;
+}
+
+.row-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 1 360px;
+  min-width: 0;
+}
+
+.row-control--slider {
+  gap: 14px;
+
+  .el-slider {
+    flex: 1 1 180px;
+    min-width: 140px;
+    max-width: 240px;
+  }
+}
+
+.row-select {
+  width: 280px;
+  max-width: 46%;
+  flex-shrink: 0;
+}
+
+.row-value {
+  flex-shrink: 0;
+  min-width: 52px;
+  text-align: right;
+  font: var(--m3-label-large);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--m3-primary);
+}
+
+.machine-value {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
   font: var(--m3-body-medium);
   color: var(--m3-on-surface);
-
-  &.is-muted {
-    color: var(--m3-on-surface-variant);
-    font-style: italic;
-  }
 }
 
 .machine-ip {
@@ -452,186 +443,31 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.settings-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  gap: 0;
-}
-
-.settings-pane {
-  flex: 1;
-  min-width: 0;
-  max-width: 760px;
-  overflow-y: auto;
-  padding: 4px 0 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-.settings-section {
-  min-width: 0;
-  padding: 18px 20px;
-  background: var(--m3-card);
-  border: 1px solid var(--m3-outline-variant);
-  border-radius: var(--m3-shape-m);
-  box-sizing: border-box;
-}
-
-.sec-title {
-  margin: 0;
-  font: var(--m3-title-medium);
-  font-weight: 500;
-  color: var(--m3-on-surface);
-}
-
-.sec-desc {
-  margin: 6px 0 14px;
-  font: var(--m3-body-medium);
-  color: var(--m3-on-surface-variant);
-  line-height: 1.5;
-
-  &--inline {
-    margin-bottom: 0;
-    font: var(--m3-body-small);
-  }
-
-  code {
-    padding: 1px 6px;
-    border-radius: var(--m3-shape-xs);
-    background: color-mix(in srgb, var(--m3-on-surface) 6%, var(--m3-surface));
-    font-family: var(--m3-font-mono);
-    font-size: 12px;
-  }
-}
-
-.sec-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.sec-value {
-  font: var(--m3-label-large);
-  font-variant-numeric: tabular-nums;
-  color: var(--m3-primary);
-  font-weight: 600;
-}
-
-.notify-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-top: 10px;
-}
-
-.theme-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.theme-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--m3-outline-variant);
-  border-radius: var(--m3-shape-m);
-  background: var(--m3-card);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--m3-motion-select),
-    background-color var(--m3-motion-state);
-
-  &:hover {
-    border-color: color-mix(
-      in srgb,
-      var(--m3-primary) 28%,
-      var(--m3-outline-variant)
-    );
-  }
-  &.active {
-    border-color: var(--m3-primary);
-    background: color-mix(
-      in srgb,
-      var(--m3-primary) 4%,
-      var(--m3-surface-container-lowest)
-    );
-  }
-}
-
-.theme-swatch {
-  height: 56px;
-  border-radius: var(--m3-shape-s);
-  border: 1px solid var(--m3-outline-variant);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.theme-aa {
-  padding: 4px 12px;
-  border-radius: var(--m3-shape-full);
-  font: var(--m3-label-medium);
-  font-weight: 600;
-}
-
-.theme-name {
-  font: var(--m3-title-small);
-  font-weight: 600;
-  color: var(--m3-on-surface);
-}
-
-.theme-desc {
-  margin-top: 2px;
-  font: var(--m3-body-small);
-  color: var(--m3-on-surface-variant);
+.term-sample {
+  align-self: flex-start;
+  max-width: 100%;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  background: #000;
+  color: #f8f8f2;
   line-height: 1.4;
-}
-
-.theme-check {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--m3-shape-full);
-  background: var(--m3-primary);
-  color: var(--m3-on-primary) !important;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.preview-box {
-  margin-top: 12px;
-  padding: 14px 16px;
-  border-radius: var(--m3-shape-s);
-  border: 1px solid var(--m3-outline-variant);
-  background: var(--m3-surface);
-  color: var(--m3-on-surface);
-  font: var(--m3-body-medium);
-  line-height: 1.5;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
 
-  &--term {
-    background: #000000;
-    color: #f8f8f2;
-    border-color: #49483e;
-    font-family: var(--m3-font-mono);
-    font-variant-numeric: tabular-nums;
+@media (max-width: 760px) {
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .row-control,
+  .row-select {
+    width: 100%;
+    max-width: none;
+    flex-basis: 100%;
+    justify-content: flex-start;
   }
 }
 </style>

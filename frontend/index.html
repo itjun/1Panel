@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,22 +11,15 @@
       #app {
         margin: 0;
         height: 100%;
-        background: #f3edf7;
-      }
-      html.dark,
-      html.dark body,
-      html.dark #app {
-        background: #141218;
+        background: #e8f0fc;
+        color-scheme: light;
       }
       .boot-skel {
         display: grid;
         height: 100%;
         grid-template-rows: 40px 1fr;
         grid-template-columns: var(--boot-sidebar, 320px) 1fr;
-        background: #f7f2fa;
-      }
-      html.dark .boot-skel {
-        background: #1d1b20;
+        background: #e8f0fc;
       }
       html.boot-no-side .boot-skel {
         grid-template-columns: 1fr;
@@ -48,10 +41,7 @@
         width: 96px;
         height: 12px;
         border-radius: 4px;
-        background: rgba(29, 27, 32, 0.08);
-      }
-      html.dark .boot-title {
-        background: rgba(230, 224, 233, 0.1);
+        background: rgba(31, 35, 41, 0.08);
       }
       .boot-side {
         padding: 12px 10px;
@@ -60,29 +50,19 @@
         height: 28px;
         margin-bottom: 8px;
         border-radius: 28px;
-        background: rgba(29, 27, 32, 0.06);
-      }
-      html.dark .boot-line {
-        background: rgba(230, 224, 233, 0.06);
+        background: rgba(31, 35, 41, 0.06);
       }
       .boot-main {
-        background: #f3edf7;
+        background: #f4f4f4;
         padding: 16px 20px;
         overflow: hidden;
-      }
-      html.dark .boot-main {
-        background: #211f26;
       }
       .boot-card {
         height: 88px;
         margin-bottom: 8px;
         border-radius: 12px;
         background: #ffffff;
-        box-shadow: 0 0 0 1px #cac4d0;
-      }
-      html.dark .boot-card {
-        background: #2b2930;
-        box-shadow: none;
+        box-shadow: 0 0 0 1px #e4e7ed;
       }
       .boot-grid {
         display: grid;
@@ -93,11 +73,7 @@
         height: 72px;
         border-radius: 12px;
         background: #ffffff;
-        box-shadow: 0 0 0 1px #cac4d0;
-      }
-      html.dark .boot-tile {
-        background: #2b2930;
-        box-shadow: none;
+        box-shadow: 0 0 0 1px #e4e7ed;
       }
       .boot-pulse {
         animation: boot-pulse 1.1s ease-in-out infinite;
@@ -114,26 +90,8 @@
     </style>
     <script>
       (function () {
-        try {
-          var t = "auto";
-          var raw = localStorage.getItem("ipannel.settings.v1");
-          if (raw) {
-            var p = JSON.parse(raw);
-            if (p && p.theme) t = p.theme;
-          } else {
-            var old = localStorage.getItem("ipannel.theme");
-            if (old) t = old;
-          }
-          if (t === "auto") {
-            t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-          }
-          document.documentElement.className = t === "dark" ? "dark" : "light";
-          document.documentElement.style.colorScheme = t === "dark" ? "dark" : "light";
-        } catch (e) {
-          var darkBoot = matchMedia("(prefers-color-scheme: dark)").matches;
-          document.documentElement.className = darkBoot ? "dark" : "light";
-          document.documentElement.style.colorScheme = darkBoot ? "dark" : "light";
-        }
+        document.documentElement.className = "light";
+        document.documentElement.style.colorScheme = "light";
         try {
           var n = Number(localStorage.getItem("ipannel.sidebarWidth"));
           if (n >= 180 && n <= 320) {

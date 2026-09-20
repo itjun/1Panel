@@ -15,7 +15,6 @@
     --panel-border-color: var(--m3-outline-variant);
 
     --panel-terminal-bg-color: #000000;
-    --panel-logs-bg-color: #131316;
 
     --panel-node-card-bg-color: var(--m3-surface-container-high);
     --panel-pie-bg-color: var(--m3-surface-container-lowest);
@@ -29,14 +28,12 @@ html {
     --el-menu-bg-color: var(--m3-surface-container-low);
     --el-menu-text-color: var(--m3-on-surface-variant);
     --el-menu-hover-text-color: var(--m3-on-surface);
-    --el-menu-active-color: var(--m3-on-secondary-container);
+    --el-menu-active-color: var(--m3-nav-active-fg);
     --el-menu-item-height: 56px;
     --el-menu-sub-item-height: 48px;
     --el-menu-item-bg-color: transparent;
-    --el-menu-item-bg-color-active: var(--m3-secondary-container);
+    --el-menu-item-bg-color-active: var(--m3-nav-active-bg);
     --el-menu-hover-bg-color: color-mix(in srgb, var(--m3-primary) 8%, transparent);
-
-    --el-box-shadow-light: 0 0 4px rgba(0, 94, 235, 0.1) !important;
 }
 
 /* M3 Assist Chip：表格/列表内 el-tag 默认高对比蓝底 */

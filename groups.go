@@ -52,6 +52,14 @@ func (s *Groups) MoveGroup(id, parentID string) error {
 	return s.groups.MoveGroup(id, parentID)
 }
 
+// ReorderGroups 拖拽排序：按前端给定的同级顺序重排分组 order（依次 0,1,2…）
+func (s *Groups) ReorderGroups(parentID string, orderedIDs []string) error {
+	if s.groups == nil {
+		return fmt.Errorf("分组存储未初始化")
+	}
+	return s.groups.ReorderGroups(parentID, orderedIDs)
+}
+
 // PreviewDeleteGroup 预览级联删除影响（确认对话框用）
 func (s *Groups) PreviewDeleteGroup(id string) (groups.DeleteStats, error) {
 	if s.groups == nil {
@@ -66,6 +74,18 @@ func (s *Groups) DeleteGroup(id string) error {
 		return fmt.Errorf("分组存储未初始化")
 	}
 	return s.groups.Delete(id)
+}
+
+// ReorderHosts 拖拽排序：按前端给定顺序重排分组内主机
+func (s *Groups) ReorderHosts(groupID string, orderedNames []string) error {
+	if s.groups == nil {
+		return fmt.Errorf("分组存储未初始化")
+	}
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		return fmt.Errorf("分组 ID 不能为空")
+	}
+	return s.groups.ReorderHosts(groupID, orderedNames)
 }
 
 // AssignHost 把主机分配到分组；groupID 为空表示移出所有分组（未分组）

@@ -40,7 +40,7 @@ const requiredSrc = [
   "src/layout/MainArea.vue",
   "src/views/OverviewView.vue",
   "src/styles/element.scss",
-  "src/styles/element-dark.scss",
+  "src/styles/m3/tokens.scss",
 ];
 for (const rel of requiredSrc) {
   const p = path.join(root, rel);

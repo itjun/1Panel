@@ -18,7 +18,7 @@ import { useChartVisibility } from "@/composables/useChartVisibility";
 const props = defineProps<{
   id?: string;
   height?: string;
-  option: { title: string; data: number };
+  option: { title: string; data: number; center?: string };
   /** 告警态：圆环与中心百分比改用危险色 */
   danger?: boolean;
 }>();
@@ -38,28 +38,24 @@ const { renderWhenVisible } = useChartVisibility(
   }
 );
 
-function isDark() {
-  return document.documentElement.classList.contains("dark");
-}
-
 function getThemeColors() {
   const root = getComputedStyle(document.documentElement);
   const get = (name: string, fallback: string) =>
     root.getPropertyValue(name).trim() || fallback;
   return {
-    primaryLight2: get("--m3-primary", "#6750a4"),
-    primaryLight1: get("--m3-primary", "#6750a4"),
+    primaryLight2: get("--m3-primary", "#005eeb"),
+    primaryLight1: get("--m3-primary", "#005eeb"),
     pieBgColor: get("--m3-surface-container-lowest", "#ffffff"),
     textColor: get("--m3-on-surface", "#1d1b20"),
-    subtextColor: get("--m3-on-surface-variant", "#49454f"),
+    subtextColor: get("--m3-on-surface-variant", "#646a73"),
     // 环形图轨迹槽：中性灰（surface-container-highest），非紫色
-    trackColor: get("--m3-surface-container-highest", "#e6e5ea"),
-    shadowColor: isDark() ? "#131316" : "rgba(0, 0, 0, 0.08)",
-    backgroundStyleColor: get("--m3-surface-container-highest", "#e6e5ea"),
+    trackColor: get("--m3-surface-container-highest", "#e4e7ed"),
+    shadowColor: "rgba(0, 0, 0, 0.08)",
+    backgroundStyleColor: get("--m3-surface-container-highest", "#e4e7ed"),
     danger: get("--m3-error", "#b3261e"),
     dangerLight: get("--m3-error", "#b3261e"),
     dangerShadow: "rgba(179, 38, 30, 0.15)",
-    dangerBg: get("--m3-surface-container-highest", "#e6e5ea"),
+    dangerBg: get("--m3-surface-container-highest", "#e4e7ed"),
   };
 }
 
@@ -70,12 +66,16 @@ function initChart() {
   // 中心文案可 >100%（负载过载）；圆环仍按满圈封顶，避免极坐标溢出
   const arc = Math.min(100, raw);
   const percentText = raw.toFixed(2).split(".");
+  const center = (props.option.center || "").trim();
+  const text = center
+    ? `{a|${center}}`
+    : `{a|${percentText[0]}.}{b|${percentText[1] || 0} %}`;
   const c = getThemeColors();
   chart.setOption(
     {
       title: [
         {
-          text: `{a|${percentText[0]}.}{b|${percentText[1] || 0} %}`,
+          text,
           textStyle: {
             rich: {
               a: { fontSize: "22" },

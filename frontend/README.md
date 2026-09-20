@@ -17,7 +17,7 @@
 | 本项目 | 1Panel 源路径 |
 |---|---|
 | `src/styles/element.scss` | `frontend/src/styles/element.scss` |
-| `src/styles/element-dark.scss` | `frontend/src/styles/element-dark.scss` |
+| `src/styles/m3/tokens.scss` | 本项目亮色令牌（已不维护暗色） |
 | `src/components/VChartPie.vue` | `frontend/src/components/v-charts/components/Pie.vue` |
 | `src/components/VChartLine.vue` | `frontend/src/components/v-charts/components/Line.vue` |
 | `src/assets/1panel-logo.svg` | `frontend/src/assets/images/1panel-logo.svg` |

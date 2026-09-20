@@ -1,8 +1,5 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
-// 暗色模式 CSS 变量（按需组件不带 dark css-vars）
-import "element-plus/theme-chalk/dark/css-vars.css";
-// 命令式 API 不会被 unplugin-vue-components 扫到，样式必须手动引入
 import "element-plus/es/components/message/style/css";
 import "element-plus/es/components/message-box/style/css";
 import "element-plus/es/components/notification/style/css";

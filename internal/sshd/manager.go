@@ -189,6 +189,47 @@ func (m *Manager) Dial(host string, opt ConnectOption, addr string) (net.Conn, e
 	return client2.Dial("tcp", addr)
 }
 
+// DropClient 把这一只已经失效的 client 移出连接池并关掉。
+// 只匹配指针，避免并发建连时误删刚拨好的新连接。下次 Get 会重新拨号。
+func (m *Manager) DropClient(host string, client *ssh.Client) {
+	if client == nil {
+		return
+	}
+	m.mu.Lock()
+	entry, ok := m.conns[host]
+	if !ok || entry.client != client {
+		m.mu.Unlock()
+		return
+	}
+	cancel := entry.cancel
+	delete(m.conns, host)
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	_ = client.Close()
+}
+
+// Drop 丢掉该主机当前缓存的连接。列目录等操作发现连接已死时用，让下一次重新拨号。
+func (m *Manager) Drop(host string) {
+	m.mu.Lock()
+	entry, ok := m.conns[host]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	client := entry.client
+	cancel := entry.cancel
+	delete(m.conns, host)
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if client != nil {
+		_ = client.Close()
+	}
+}
+
 // Close 释放指定 host 的连接
 func (m *Manager) Close(host string) {
 	m.mu.Lock()
@@ -302,7 +343,7 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 	config := &ssh.ClientConfig{
 		User:            opt.User,
 		Auth:            auths,
-		Timeout:         tcpConnectTimeout,          // 仅 TCP；完整握手见下方 SetDeadline
+		Timeout:         tcpConnectTimeout,           // 仅 TCP；完整握手见下方 SetDeadline
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // 内部工具，不做 host key 校验
 	}
 	addr := net.JoinHostPort(opt.HostName, port)

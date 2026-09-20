@@ -4,7 +4,7 @@
     <el-alert v-if="error" type="error" :title="error" show-icon :closable="false" class="page-alert" />
 
     <div class="page-toolbar">
-      <span class="page-toolbar__hint">实例表点行看曲线；订阅列只读，订阅请到「通知 → 主机订阅」。下架前请到「Nginx」标签核对切流。</span>
+      <span class="page-toolbar__hint">实例表点行看曲线；订阅列只读，订阅请到「通知 → 设置」。下架前请到「Nginx」标签核对切流。</span>
       <div class="page-toolbar__actions">
         <el-button @click="loadAll">刷新</el-button>
         <el-button @click="openCfg">监视配置</el-button>
@@ -168,7 +168,7 @@
 
     <el-dialog v-model="cfgOpen" title="下发 watch.yml" width="720px" append-to-body>
       <p class="sec-desc">
-        服务清单与探活路径在此编辑。企微总开关 / 地址在「通知 → 频道设置」；应用探活默认不通知，请到「通知 → 主机订阅」按服务订阅。
+        服务清单与探活路径在此编辑。企微地址和应用订阅都在「通知 → 设置」，探活默认不通知。
       </p>
       <el-input v-model="yamlText" type="textarea" :rows="18" class="yaml-box" />
       <template #footer>
@@ -183,6 +183,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "@/api";
+import { formatErr } from "@/utils/format";
 import type { agentcli, agentapi } from "@/api";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import { useAppStore } from "@/stores/app";
@@ -483,14 +484,18 @@ async function loadDetail() {
   if (!selected.value) return;
   const to = Math.floor(Date.now() / 1000);
   const from = to - 3600;
-  const [jr, hr, ev] = await Promise.all([
-    api.agentWatchRange(props.host, selected.value, from, to),
-    api.agentRange(props.host, from, to, "raw"),
-    api.agentWatchEvents(props.host, selected.value, from, to),
-  ]);
-  jarPts.value = jr.points || [];
-  hostPts.value = hr.points || [];
-  events.value = ev || [];
+  try {
+    const [jr, hr, ev] = await Promise.all([
+      api.agentWatchRange(props.host, selected.value, from, to),
+      api.agentRange(props.host, from, to, "raw"),
+      api.agentWatchEvents(props.host, selected.value, from, to),
+    ]);
+    jarPts.value = jr.points || [];
+    hostPts.value = hr.points || [];
+    events.value = ev || [];
+  } catch (e) {
+    ElMessage.error(formatErr(e));
+  }
 }
 
 const marks = computed(() => {

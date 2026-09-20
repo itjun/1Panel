@@ -23,6 +23,7 @@ export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
 export * as aptsource from "../../bindings/diteng-pannel/internal/aptsource/models";
 export * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
 export * as agentapi from "../../bindings/diteng-pannel/internal/agentapi/models";
+export * as agentinstall from "../../bindings/diteng-pannel/internal/agentinstall/models";
 export * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
@@ -44,6 +45,7 @@ import type * as localsys from "../../bindings/diteng-pannel/internal/localsys/m
 import type * as main from "../../bindings/diteng-pannel/models";
 import type * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
 import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
+import { noteBackendCall } from "@/utils/uxPerf";
 
 // 保留原有类型导出名，视图层零改动
 export type HostIcon = main.HostIcon;
@@ -66,7 +68,7 @@ async function must<T>(p: CancellablePromise<T | null>): Promise<T> {
   return r;
 }
 
-export const api = {
+const apiImpl = {
   listHosts: () => arr(Hosts.ListHosts()),
   listHostsAll: () => arr(Hosts.ListHostsAll()),
   addHost: async (input: main.AddHostInput): Promise<void> => {
@@ -100,6 +102,12 @@ export const api = {
   },
   moveGroup: async (id: string, parentID: string): Promise<void> => {
     await Groups.MoveGroup(id, parentID);
+  },
+  reorderGroups: async (parentID: string, orderedIDs: string[]): Promise<void> => {
+    await Groups.ReorderGroups(parentID, orderedIDs);
+  },
+  reorderGroupHosts: async (groupID: string, orderedNames: string[]): Promise<void> => {
+    await Groups.ReorderHosts(groupID, orderedNames);
   },
   previewDeleteGroup: (id: string) =>
     must(Groups.PreviewDeleteGroup(id)),
@@ -262,8 +270,51 @@ export const api = {
   ): Promise<void> => {
     await Files.UploadPaths(host, localPaths, convertPaths, remoteDir);
   },
+  /** 上传，并按 overwrite / rename 处理同名文件 */
+  uploadPathsAs: async (
+    host: string,
+    localPaths: string[],
+    remoteDir: string,
+    mode: "overwrite" | "rename"
+  ): Promise<void> => {
+    await Files.UploadPathsAs(host, localPaths, remoteDir, mode);
+  },
   /** 上传前检测本地路径（文件/文件夹），返回所有「非标准文本」文件清单 */
   checkLocalPaths: (localPaths: string[]) => arr(Files.CheckLocalPaths(localPaths)),
+  listSftp: (host: string, dir: string) => arr(Files.ListSftp(host, dir)),
+  sftpExistingNames: (host: string, dir: string, names: string[]) =>
+    arr(Files.SftpExistingNames(host, dir, names)),
+  localExistingNames: (dir: string, names: string[]) => arr(Files.LocalExistingNames(dir, names)),
+  sftpHomeDir: (host: string): Promise<string> => str(Files.SftpHomeDir(host)),
+  listLocalDir: (dir: string) => arr(Files.ListLocalDir(dir)),
+  localHomeDir: (): Promise<string> => str(Files.LocalHomeDir()),
+  downloadSftp: (host: string, remotePath: string, localDir: string): Promise<string> =>
+    str(Files.DownloadSftp(host, remotePath, localDir)),
+  /** 一次连接下载多个远程文件/目录到同一本机目录 */
+  downloadSftpPaths: async (
+    host: string,
+    remotePaths: string[],
+    localDir: string
+  ): Promise<void> => {
+    await Files.DownloadSftpPaths(host, remotePaths, localDir);
+  },
+  /** 下载，并按 overwrite / rename 处理同名文件 */
+  downloadSftpPathsAs: async (
+    host: string,
+    remotePaths: string[],
+    localDir: string,
+    mode: "overwrite" | "rename"
+  ): Promise<void> => {
+    await Files.DownloadSftpPathsAs(host, remotePaths, localDir, mode);
+  },
+  /** 删除本机文件/目录（递归） */
+  deleteLocalPaths: async (paths: string[]): Promise<void> => {
+    await Files.DeleteLocalPaths(paths);
+  },
+  /** 用 SFTP 删除远程文件/目录（递归，不走 agent） */
+  deleteSftpPaths: async (host: string, paths: string[]): Promise<void> => {
+    await Files.DeleteSftpPaths(host, paths);
+  },
   /** 删除远程文件/目录（递归，不可恢复） */
   deletePaths: (host: string, paths: string[]): Promise<string> =>
     str(Monitor.DeletePaths(host, paths)),
@@ -342,6 +393,10 @@ export const api = {
   },
   closeTerminal: async (sessionID: string): Promise<void> => {
     await TerminalSvc.CloseTerminal(sessionID);
+  },
+  /** 断开主机全部连接：关闭所有终端会话与连接池连接 */
+  disconnectHost: async (host: string): Promise<void> => {
+    await TerminalSvc.DisconnectHost(host);
   },
 
   /** 初始化远程 zsh 环境 */
@@ -447,3 +502,15 @@ export const api = {
   importBackup: (path: string, overwrite: boolean): Promise<main.ImportResult> =>
     must(Backup.ImportBackup(path, overwrite)),
 };
+
+/** 包一层，只为数后台调用次数，不改变各方法的参数和返回值 */
+export const api: typeof apiImpl = new Proxy(apiImpl, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver);
+    if (typeof prop !== "string" || typeof value !== "function") return value;
+    return (...args: unknown[]) => {
+      noteBackendCall(prop);
+      return (value as (...a: unknown[]) => unknown).apply(target, args);
+    };
+  },
+});

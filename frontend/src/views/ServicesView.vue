@@ -235,7 +235,8 @@ const svcColumns: Column<Service>[] = [
     key: "name",
     dataKey: "name",
     title: "服务名",
-    width: 220,
+    width: 180,
+    minWidth: 140,
     flexGrow: 1,
     flexShrink: 1,
     cellRenderer: ({ cellData }) => ellipsisCell(cellText(cellData)),
@@ -245,7 +246,8 @@ const svcColumns: Column<Service>[] = [
     dataKey: "description",
     title: "描述",
     width: 280,
-    flexGrow: 2,
+    minWidth: 180,
+    flexGrow: 3,
     flexShrink: 1,
     cellRenderer: ({ cellData }) =>
       ellipsisCell(cellText(cellData) || "—", cellText(cellData)),
@@ -253,12 +255,19 @@ const svcColumns: Column<Service>[] = [
   {
     key: "state",
     title: "状态",
-    width: 120,
+    width: 112,
+    flexGrow: 0,
+    flexShrink: 0,
     align: "right",
     cellRenderer: ({ rowData }) =>
       h(
         ElTag,
-        { size: "small", effect: "plain", type: stateTagType(rowData) },
+        {
+          class: ["svc-state", stateTagType(rowData) === "success" ? "is-run" : ""],
+          size: "small",
+          effect: "plain",
+          type: stateTagType(rowData),
+        },
         () => rowData.sub || rowData.active || "—"
       ),
   },
@@ -336,13 +345,18 @@ function formatCpu(v?: string): string {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--el-color-success);
+  background: var(--m3-status-online);
 }
 .svc-dot.is-failed {
-  background: var(--el-color-danger);
+  background: var(--m3-error);
 }
 .svc-dot.is-inactive {
-  background: var(--el-color-info);
+  background: var(--m3-status-offline);
+}
+.svc-state.is-run {
+  --el-tag-text-color: var(--m3-status-running);
+  --el-tag-border-color: color-mix(in srgb, var(--m3-status-running) 45%, white);
+  --el-tag-bg-color: color-mix(in srgb, var(--m3-status-running) 10%, white);
 }
 .cell-ellipsis {
   display: block;
@@ -361,25 +375,25 @@ function formatCpu(v?: string): string {
   width: 380px;
   max-height: 70vh;
   overflow-y: auto;
-  padding: 12px 14px;
+  padding: 8px 16px;
   border-radius: var(--m3-shape-s, 8px);
-  background: var(--m3-surface-container-lowest, #ecebf0);
+  background: var(--m3-surface-container-lowest, #eef2f6);
   border: none;
   box-shadow: var(--m3-elevation-2);
-  font-size: 12px;
+  font: var(--m3-body-small);
   color: var(--m3-on-surface, #1a1a1d);
   pointer-events: none;
 }
 .svc-hover-card .detail-title {
-  font-size: 13px;
+  font: var(--m3-title-small);
   font-weight: 600;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .svc-hover-card .d-row {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   padding: 3px 0;
   line-height: 1.5;
 }

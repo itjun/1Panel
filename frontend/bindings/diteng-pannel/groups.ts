@@ -57,6 +57,20 @@ export function RenameGroup(id: string, newName: string): $CancellablePromise<vo
 }
 
 /**
+ * ReorderGroups 拖拽排序：按前端给定的同级顺序重排分组 order（依次 0,1,2…）
+ */
+export function ReorderGroups(parentID: string, orderedIDs: string[] | null): $CancellablePromise<void> {
+    return $Call.ByID(2321433911, parentID, orderedIDs);
+}
+
+/**
+ * ReorderHosts 拖拽排序：按前端给定顺序重排分组内主机
+ */
+export function ReorderHosts(groupID: string, orderedNames: string[] | null): $CancellablePromise<void> {
+    return $Call.ByID(3791835446, groupID, orderedNames);
+}
+
+/**
  * SetBoardTitle 设置分组看板中间标题；title 为空表示清空
  */
 export function SetBoardTitle(id: string, title: string): $CancellablePromise<void> {

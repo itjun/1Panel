@@ -158,7 +158,7 @@
 
             <el-button-group class="file-utility-group">
               <el-button disabled>回收站</el-button>
-              <el-button @click="toTerminal">终端</el-button>
+              <el-button @click="toTerminal">连接终端</el-button>
               <el-button disabled>收藏夹</el-button>
               <el-button disabled>文件工具</el-button>
               <el-button disabled>计算</el-button>
@@ -185,6 +185,15 @@
           </div>
         </div>
       </div>
+
+      <el-alert
+        v-if="navError"
+        type="error"
+        :title="navError"
+        show-icon
+        :closable="false"
+        class="file-nav-error"
+      />
 
       <FileTable
         class="data-table-unified"
@@ -298,6 +307,7 @@ const previewRef = ref<InstanceType<typeof FilePreviewDrawer> | null>(null);
 
 const {
   loading,
+  error: navError,
   entries,
   cwd,
   pathTabs,
@@ -362,7 +372,7 @@ function hasVisibleOverlay(): boolean {
 
 function isThisFilesPageActive(): boolean {
   const v = app.activeTab;
-  return v?.kind === "host" && v.id === props.host && v.subTab === "files";
+  return v?.kind === "host" && v.id === props.host && v.subTab === "file-manager";
 }
 
 async function requestCloseTab(name: string | number) {
@@ -544,6 +554,11 @@ function toTerminal() {
   position: relative;
 }
 
+.file-nav-error {
+  margin: 8px 12px 0;
+  flex-shrink: 0;
+}
+
 .drop-overlay {
   position: absolute;
   inset: 0;
@@ -585,7 +600,7 @@ function toTerminal() {
   height: var(--m3-chrome-height);
   min-height: var(--m3-chrome-height);
   max-height: var(--m3-chrome-height);
-  padding: 0 20px 0 16px;
+  padding: 0 16px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--m3-outline-variant);
   user-select: none;
@@ -683,12 +698,12 @@ function toTerminal() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
+  gap: 8px;
+  padding: 8px 16px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--m3-outline-variant);
   background: var(--m3-surface-container-lowest);
-  --file-nav-control-h: 36px;
+  --file-nav-control-h: var(--m3-button-height);
 }
 .file-nav__actions {
   display: flex;

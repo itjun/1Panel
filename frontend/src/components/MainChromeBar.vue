@@ -4,48 +4,69 @@
     @dblclick="chrome.toggleMaximise()"
     @contextmenu.prevent="chrome.openMenu($event)"
   >
-    <span v-if="title" class="chrome-title">{{ title }}</span>
-    <div
-      v-if="$slots.default"
-      class="chrome-nav no-drag"
-      @dblclick.stop
-      @contextmenu.stop
-    >
-      <slot />
+    <div class="chrome-left">
+      <div v-if="title || subtitle" class="chrome-titles">
+        <span v-if="title" class="chrome-title">{{ title }}</span>
+        <span v-if="subtitle" class="chrome-subtitle">{{ subtitle }}</span>
+      </div>
+      <div
+        v-if="$slots.default"
+        class="chrome-nav no-drag"
+        @dblclick.stop
+        @contextmenu.stop
+      >
+        <slot />
+      </div>
     </div>
-    <div class="chrome-spacer" />
     <div
-      ref="actionsRef"
-      class="chrome-actions no-drag"
+      ref="centerRef"
+      class="chrome-center no-drag"
       @dblclick.stop
       @contextmenu.stop
     />
-    <WinWindowControls v-if="!chrome.isMac" />
+    <div class="chrome-right">
+      <div
+        ref="actionsRef"
+        class="chrome-actions no-drag"
+        @dblclick.stop
+        @contextmenu.stop
+      />
+      <WinWindowControls v-if="!chrome.isMac" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { inject, ref } from "vue";
 import WinWindowControls from "@/components/WinWindowControls.vue";
-import { chromeActionsKey } from "@/composables/useChromeActions";
+import {
+  chromeActionsKey,
+  chromeCenterKey,
+} from "@/composables/useChromeActions";
 import { useChromeDrag } from "@/composables/useChromeDrag";
 
 defineProps<{
   title?: string;
+  subtitle?: string;
 }>();
 
 const chrome = useChromeDrag();
-const injected = inject(chromeActionsKey, null);
-const localRef = ref<HTMLElement | null>(null);
-const actionsRef = injected ?? localRef;
+const injectedActions = inject(chromeActionsKey, null);
+const injectedCenter = inject(chromeCenterKey, null);
+const localActions = ref<HTMLElement | null>(null);
+const localCenter = ref<HTMLElement | null>(null);
+const actionsRef = injectedActions ?? localActions;
+const centerRef = injectedCenter ?? localCenter;
 </script>
 
 <style scoped>
 .main-chrome-bar {
+  position: relative;
   flex-shrink: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  column-gap: 12px;
   height: var(--m3-chrome-height);
   min-height: var(--m3-chrome-height);
   max-height: var(--m3-chrome-height);
@@ -55,10 +76,27 @@ const actionsRef = injected ?? localRef;
   background: var(--m3-content);
   border-bottom: 1px solid var(--m3-outline-variant);
 }
+
+.chrome-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  justify-self: start;
+}
+
+.chrome-titles {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .chrome-title {
-  flex-shrink: 0;
-  align-self: center;
-  max-width: 40%;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
   font: var(--m3-title-medium);
   font-weight: 600;
   color: var(--m3-on-surface);
@@ -68,6 +106,19 @@ const actionsRef = injected ?? localRef;
   line-height: 24px;
   user-select: none;
 }
+
+.chrome-subtitle {
+  min-width: 0;
+  max-width: 100%;
+  font: var(--m3-label-small);
+  color: var(--m3-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 16px;
+  user-select: none;
+}
+
 .chrome-nav {
   flex: 1;
   min-width: 0;
@@ -75,20 +126,35 @@ const actionsRef = injected ?? localRef;
   align-items: center;
   overflow: hidden;
 }
-.chrome-spacer {
-  flex: 1;
+
+.chrome-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
+  max-width: min(420px, 46vw);
 }
-.chrome-nav + .chrome-spacer {
+
+.chrome-center:empty {
   display: none;
 }
+
+.chrome-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  justify-self: end;
+}
+
 .chrome-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  flex-shrink: 0;
+  flex-shrink: 1;
   min-width: 0;
-  max-width: 58%;
+  max-width: none;
 }
 </style>

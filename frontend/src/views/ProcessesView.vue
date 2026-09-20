@@ -839,7 +839,7 @@ async function copyArgs() {
   overflow-y: auto;
   padding: 16px;
   border-radius: var(--m3-shape-m, 12px);
-  background: var(--m3-surface-container-lowest, #ecebf0);
+  background: var(--m3-surface-container-lowest, #eef2f6);
   border: 1px solid var(--m3-primary, #3f6ad8);
   box-shadow: var(--m3-elevation-3);
   font: var(--m3-body-small);

@@ -139,12 +139,12 @@ export function useFileUpload(
     }
   }
 
-  // 仅当前主机「文件」子页可见时入栈，避免多主机常驻 FilesView 抢拖放
+  // 仅当前主机旧版「文件」子页可见时入栈，避免多主机常驻 FilesView 抢拖放
   let offDrop: (() => void) | null = null;
   let offProgress: (() => void) | null = null;
 
   watch(
-    () => app.isHostSubActive(host(), "files"),
+    () => app.isHostSubActive(host(), "file-manager"),
     (active) => {
       if (active) {
         if (!offDrop) offDrop = registerFileDrop(handleFileDrop);

@@ -31,6 +31,12 @@
         </el-select>
         <span v-if="grainHint" class="grain-hint">{{ grainHint }}</span>
         <el-button
+          :disabled="!monitorBoard?.isDirty"
+          @click="monitorBoard?.reset()"
+        >
+          恢复默认
+        </el-button>
+        <el-button
           class="monitor-refresh"
           :icon="Refresh"
           v-tip="'刷新'"
@@ -57,14 +63,21 @@
 
     <!-- 两列网格：宽屏 2×2 + 底行通栏；窄屏自动单列；每卡可单独最大化 -->
     <PageSkeleton v-if="!overview && !error" variant="monitor" />
-    <div v-else-if="overview" class="monitor-grid">
+    <CardBoard
+      v-else-if="overview"
+      ref="monitorBoard"
+      class="monitor-board"
+      board-id="host-monitor-4"
+      fill
+      :columns="4"
+      :defaults="monitorBoardDefaults"
+    >
+      <template v-for="card in monitorCards" :key="card.title" #[card.title]>
       <EnlargableCard
-        v-for="card in monitorCards"
-        :key="card.title"
         bare
         enlargeable
         :title="card.title"
-        :class="['monitor-cell', card.wide ? 'monitor-cell--wide' : '']"
+        class="monitor-cell"
       >
         <el-card shadow="never" class="home-card panel-hover-card monitor-card">
           <div class="card-header enl-head-zone">
@@ -94,7 +107,8 @@
           </div>
         </el-card>
       </EnlargableCard>
-    </div>
+      </template>
+    </CardBoard>
   </div>
 </template>
 
@@ -110,13 +124,22 @@ import { useAppStore } from "@/stores/app";
 import VChartLine, { type LineOption } from "@/components/VChartLine.vue";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
+import type { BoardSlot } from "@/utils/cardBoard";
+
+const monitorBoardDefaults: BoardSlot[] = [
+  { id: "CPU", span: 2, label: "CPU" },
+  { id: "负载", span: 2, label: "负载" },
+  { id: "内存", span: 2, label: "内存" },
+  { id: "流量", span: 2, label: "流量" },
+  { id: "磁盘 IO", span: 4, label: "磁盘 IO" },
+];
+
+const monitorBoard = ref<{ reset: () => void; isDirty: boolean } | null>(null);
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
 
 /** 空闲降频：页面不可见（切走/设置页）时拉长到 30s 一拍 */
-const IDLE_MIN_INTERVAL_MS = 30_000;
-let lastPollAt = 0;
 const pageVisible = computed(() => app.isHostSubActive(props.host, "monitor"));
 
 /** 五卡 connect 联动分组：按 host 隔离，多主机会话同屏也不互相干扰 */
@@ -788,22 +811,20 @@ onMounted(() => {
   void loadOverview();
   void seedLiveCurves();
   timer = window.setInterval(() => {
-    if (agentMissing.value) return;
-    // 空闲降频：页面不可见时跳过太近的拉取
-    if (!pageVisible.value && Date.now() - lastPollAt < IDLE_MIN_INTERVAL_MS) return;
-    lastPollAt = Date.now();
+    if (!pageVisible.value || agentMissing.value) return;
     void loadOverview();
   }, 2000);
   historyTimer = window.setInterval(() => {
-    if (rangeMode.value !== "live") void loadHistory();
+    if (!pageVisible.value || rangeMode.value === "live") return;
+    void loadHistory();
   }, 30000);
 });
 
-// 切回本页立即补刷：实时数据立刻续上
+// 切回本页再拉：隐藏时不打后台，区间状态留在组件里
 watch(pageVisible, (now, prev) => {
-  if (now && !prev && !agentMissing.value) {
-    void loadOverview();
-  }
+  if (!now || prev || agentMissing.value) return;
+  void loadOverview();
+  if (rangeMode.value !== "live") void loadHistory();
 });
 
 onBeforeUnmount(() => {
@@ -822,19 +843,20 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 0;
   overflow: hidden;
 }
 
 .monitor-toolbar {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .card-title-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   height: 100%;
   min-width: 0;
   flex: 1;
@@ -848,7 +870,7 @@ onBeforeUnmount(() => {
 
 .grain-label {
   flex-shrink: 0;
-  color: var(--m3-on-surface-variant, #49454f);
+  color: var(--m3-on-surface-variant, #646a73);
   font: var(--m3-label-large);
   line-height: 1;
 }
@@ -866,7 +888,7 @@ onBeforeUnmount(() => {
 
 .grain-hint {
   flex-shrink: 0;
-  color: var(--m3-on-surface-variant, #49454f);
+  color: var(--m3-on-surface-variant, #646a73);
   font: var(--m3-body-small);
   line-height: 1;
 }
@@ -882,7 +904,7 @@ onBeforeUnmount(() => {
 .custom-range-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   padding: 6px 0 0;
 
@@ -893,18 +915,14 @@ onBeforeUnmount(() => {
   }
 }
 .custom-range-hint {
-  color: var(--m3-on-surface-variant, #49454f);
+  color: var(--m3-on-surface-variant, #646a73);
   font-size: 12px;
 }
 
-.monitor-grid {
+.monitor-board {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  /* 三行均分：上两行各两卡，底行磁盘 IO 通栏 */
-  grid-template-rows: 1fr 1fr 1fr;
-  gap: 10px;
+  overflow: auto;
 }
 
 .monitor-cell {
@@ -928,13 +946,9 @@ onBeforeUnmount(() => {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 10px 12px 8px;
+    padding: 8px 8px 8px;
     box-sizing: border-box;
   }
-}
-
-.monitor-cell--wide {
-  grid-column: 1 / -1;
 }
 
 /* 最大化后整卡吃满视口，图表槽跟着拉高 */
@@ -986,7 +1000,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--m3-on-surface-variant, #49454f);
+  color: var(--m3-on-surface-variant, #646a73);
   font-size: 13px;
   padding: 0;
 }
@@ -998,13 +1012,8 @@ onBeforeUnmount(() => {
     min-height: 100%;
     overflow: auto;
   }
-  .monitor-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
+  .monitor-board {
     flex: none;
-  }
-  .monitor-cell--wide {
-    grid-column: auto;
   }
   .chart-slot {
     position: relative;

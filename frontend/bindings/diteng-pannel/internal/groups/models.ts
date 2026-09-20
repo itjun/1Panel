@@ -17,7 +17,7 @@ export interface DeleteStats {
 }
 
 /**
- * Group 表示一个服务器分组（可嵌套，ParentID 空为顶层）
+ * Group 表示一个服务器分组（ParentID 空为顶层；MaxDepth=1 时不允许嵌套）
  */
 export interface Group {
     /**

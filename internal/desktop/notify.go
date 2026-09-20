@@ -1,6 +1,8 @@
 package desktop
 
 import (
+	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -52,6 +54,9 @@ func Notify(p Payload) error {
 	svc := notifySvc
 	ok := authorized
 	notifyMu.RUnlock()
+
+	playAlertSound()
+
 	if !ok || svc == nil {
 		return nil
 	}
@@ -77,4 +82,13 @@ func Notify(p Payload) error {
 		Body:  p.Body,
 		Data:  data,
 	})
+}
+
+func playAlertSound() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	go func() {
+		_ = exec.Command("afplay", "/System/Library/Sounds/Purr.aiff").Run()
+	}()
 }

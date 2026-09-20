@@ -312,9 +312,9 @@ function logWidth(r: number): string {
 .sk-bone {
   background: linear-gradient(
     90deg,
-    var(--m3-surface-container-high, #e6e1e5) 0%,
-    var(--m3-surface-container-highest, #e6e5ea) 40%,
-    var(--m3-surface-container-high, #e6e1e5) 80%
+    var(--m3-surface-container-high, #eef2f6) 0%,
+    var(--m3-surface-container-highest, #e4e7ed) 40%,
+    var(--m3-surface-container-high, #eef2f6) 80%
   );
   background-size: 200% 100%;
   animation: sk-shimmer 1.35s ease-in-out infinite;
@@ -333,14 +333,14 @@ function logWidth(r: number): string {
 @media (prefers-reduced-motion: reduce) {
   .sk-bone {
     animation: none;
-    background: var(--m3-surface-container-high, #e6e1e5);
+    background: var(--m3-surface-container-high, #eef2f6);
   }
 }
 
 .sk-card {
   background: var(--m3-card, var(--m3-surface-container-lowest, #fff));
   border-radius: var(--m3-shape-m, 12px);
-  box-shadow: inset 0 0 0 1px var(--m3-outline-variant, #cac4d0);
+  box-shadow: inset 0 0 0 1px var(--m3-outline-variant, #e4e7ed);
   padding: 14px 16px;
   box-sizing: border-box;
 }
@@ -505,7 +505,7 @@ function logWidth(r: number): string {
   flex: 1;
   min-height: 280px;
   width: 100%;
-  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border: 1px solid var(--m3-outline-variant, #e4e7ed);
   border-radius: var(--m3-shape-m, 12px);
   overflow: hidden;
   background: var(--m3-card, var(--m3-surface-container-lowest, #fff));
@@ -530,7 +530,7 @@ function logWidth(r: number): string {
   height: var(--m3-table-header-height, 48px);
   padding: 0 var(--m3-table-cell-padding-x, 12px);
   background: var(--m3-table-header, var(--m3-card, #fff));
-  border-bottom: 1px solid var(--m3-outline-variant, #cac4d0);
+  border-bottom: 1px solid var(--m3-outline-variant, #e4e7ed);
   text-align: left;
   vertical-align: middle;
   box-sizing: border-box;
@@ -541,7 +541,7 @@ function logWidth(r: number): string {
   padding: 0 var(--m3-table-cell-padding-x, 12px);
   background: var(--m3-table-row, var(--m3-card, #fff));
   border-bottom: 1px solid
-    color-mix(in srgb, var(--m3-outline-variant, #cac4d0) 45%, transparent);
+    color-mix(in srgb, var(--m3-outline-variant, #e4e7ed) 45%, transparent);
   text-align: left;
   vertical-align: middle;
   box-sizing: border-box;

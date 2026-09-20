@@ -657,7 +657,7 @@ async function copyJson(name: string) {
   overflow-y: auto;
   padding: 12px 14px;
   border-radius: var(--m3-shape-s, 8px);
-  background: var(--m3-surface-container-lowest, #ecebf0);
+  background: var(--m3-surface-container-lowest, #eef2f6);
   border: none;
   box-shadow: var(--m3-elevation-2);
   font-size: 12px;

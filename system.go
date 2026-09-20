@@ -81,19 +81,10 @@ func (s *System) SetAskBeforeQuit(ask bool) {
 	}
 }
 
-// SetThemeAppearance 同步窗口原生外观（亮/暗/跟随系统）。
-// mode: "light" | "dark" | "auto"（其它值按 auto）。
-func (s *System) SetThemeAppearance(mode string) {
-	m := macui.AppearanceAuto
-	switch mode {
-	case "light":
-		m = macui.AppearanceLight
-	case "dark":
-		m = macui.AppearanceDark
-	case "auto":
-		m = macui.AppearanceAuto
-	}
-	s.themeAppearance = m
+// SetThemeAppearance 同步窗口原生外观。应用已固定亮色主题：
+// 无论传入什么值（历史前端仍可能传 dark/auto），一律按 light 处理。
+func (s *System) SetThemeAppearance(_mode string) {
+	s.themeAppearance = macui.AppearanceLight
 
 	s.applyAppearanceOnWindow(s.mainWindow)
 
@@ -114,7 +105,7 @@ func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
 	}
 	mode := s.themeAppearance
 	if mode == "" {
-		mode = macui.AppearanceAuto
+		mode = macui.AppearanceLight
 	}
 	macui.SetWindowAppearance(win, mode)
 }

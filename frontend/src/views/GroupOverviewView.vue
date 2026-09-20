@@ -51,24 +51,6 @@
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
         >
           <el-table-column
-            width="36"
-            fixed
-            align="center"
-            class-name="group-drag-col"
-          >
-            <template #default="{ row }">
-              <span
-                class="host-drag-handle"
-                title="拖动以移至其他分组"
-                @pointerdown.stop="onHostPointerDown($event, row.name)"
-                @click.stop
-                @dblclick.stop
-              >
-                ⠿
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column
             type="index"
             label="序"
             width="64"
@@ -436,7 +418,6 @@ const props = defineProps<{
 const app = useAppStore();
 const agentInstall = useAgentInstallStore();
 const {
-  onHostPointerDown,
   dropTargetId,
 } = useInjectedHostDrag();
 
@@ -1299,32 +1280,6 @@ startPoll();
   line-height: 1.5;
 }
 
-.host-drag-handle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 24px;
-  font-size: 14px;
-  line-height: 1;
-  letter-spacing: -1px;
-  color: var(--m3-on-surface-variant);
-  opacity: 0.4;
-  cursor: grab;
-  user-select: none;
-  border-radius: 4px;
-  touch-action: none;
-
-  &:hover {
-    opacity: 0.85;
-    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
-  }
-
-  &:active {
-    cursor: grabbing;
-  }
-}
-
 .group-stats {
   display: flex;
   align-items: center;
@@ -1400,12 +1355,6 @@ startPoll();
 .host-list-table {
   width: 100%;
   cursor: pointer;
-
-  :deep(.group-drag-col .cell) {
-    overflow: visible;
-    padding-left: 4px;
-    padding-right: 4px;
-  }
 
   :deep(.group-index-col .cell) {
     overflow: visible;

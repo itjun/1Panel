@@ -194,8 +194,9 @@ function ensureVisibilityListener() {
 }
 
 /**
- * 首页「全部主机」舰队状态：任一消费者 enabled 时每 15s 拉一次 ListGroupOverview。
- * 多次调用共享同一份 statusByHost，避免侧栏与看板双轮询。
+ * 舰队状态轮询：任一消费者 enabled 时每 15s 拉一次全量 ListGroupOverview。
+ * 该接口会扫全部主机，首页/侧栏默认不要 enabled。
+ * 多次调用共享同一份 statusByHost。
  */
 export function useFleetStatus(opts: {
   enabled: Ref<boolean> | ComputedRef<boolean>;

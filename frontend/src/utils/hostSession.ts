@@ -1,27 +1,22 @@
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import type { useAppStore } from "@/stores/app";
 
 type AppStore = ReturnType<typeof useAppStore>;
 
-/** 停止主机后台会话（与侧栏右键「停止会话」同一确认流） */
+/**
+ * 关闭主机管理页。还有终端时不断开 SSH。
+ */
 export async function confirmStopHostSession(
   app: AppStore,
   host: string
 ): Promise<void> {
-  if (!host || !app.isRunning(host)) return;
-  try {
-    await ElMessageBox.confirm(
-      `停止「${host}」的后台会话？重新打开将重新加载。`,
-      "停止会话",
-      {
-        type: "warning",
-        confirmButtonText: "停止",
-        cancelButtonText: "取消",
-      }
-    );
-    app.stopHost(host);
-    ElMessage.success("已停止");
-  } catch {
-    /* 用户取消 */
+  if (!host) return;
+  const keepTerm = app.hostHasTerminal(host);
+  const closed = await app.closeHostTab(host);
+  if (!closed) return;
+  if (keepTerm) {
+    ElMessage.success("已关闭主机页，终端会话仍保留");
+    return;
   }
+  ElMessage.success("已断开");
 }

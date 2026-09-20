@@ -6,8 +6,8 @@ import { h } from "vue";
  * - el-table-v2：靠本常量的 `:row-height` / `:header-height`
  * 分组主机表与各主机页签表格共用，禁止页签内再写一套行高。
  */
-export const M3_TABLE_ROW_HEIGHT = 52;
-export const M3_TABLE_HEADER_HEIGHT = 48;
+export const M3_TABLE_ROW_HEIGHT = 44;
+export const M3_TABLE_HEADER_HEIGHT = 40;
 /** 「序」列宽：保底可舒适显示三位数（含单元格左右 padding） */
 export const M3_TABLE_INDEX_WIDTH = 64;
 

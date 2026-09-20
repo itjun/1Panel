@@ -1,5 +1,10 @@
 package main
 
+import (
+	"fmt"
+	"strings"
+)
+
 // TerminalSvc 终端服务（PTY 会话）
 type TerminalSvc App
 
@@ -29,4 +34,18 @@ func (s *TerminalSvc) ResizeTerminal(sessionID string, cols int, rows int) error
 
 func (s *TerminalSvc) CloseTerminal(sessionID string) error {
 	return s.termMgr.Close(sessionID)
+}
+
+// DisconnectHost 断开主机的全部连接：关闭该主机所有终端会话（独立连接一并释放），
+// 再关闭连接池中该主机的连接。前端关闭主机标签时调用。
+func (s *TerminalSvc) DisconnectHost(host string) error {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return fmt.Errorf("主机名不能为空")
+	}
+	s.termMgr.CloseByHost(host)
+	if a := (*App)(s); a != nil && a.sshMgr != nil {
+		a.sshMgr.Close(host)
+	}
+	return nil
 }

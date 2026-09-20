@@ -13,27 +13,12 @@
       :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
       @mousedown.stop
     >
-      <button type="button" class="ctx-item" @click="onOpen">打开</button>
+      <button type="button" class="ctx-item" @click="onOpen">打开列表页</button>
+      <button type="button" class="ctx-item" @click="onOpenBoard">打开看板</button>
       <template v-if="!isUngrouped">
         <div class="ctx-divider" />
         <button type="button" class="ctx-item" @click="onSettings">
           分组设置…
-        </button>
-        <button
-          v-if="canCreateChild"
-          type="button"
-          class="ctx-item"
-          @click="onCreateChild"
-        >
-          新建子分组…
-        </button>
-        <button
-          v-if="canMoveToRoot"
-          type="button"
-          class="ctx-item"
-          @click="onMoveToRoot"
-        >
-          移到顶层
         </button>
       </template>
       <div class="ctx-divider" />
@@ -52,11 +37,11 @@
 
 <script setup lang="ts">
 /**
- * 分组标题右键：打开 / 设置 / 新建子分组 / 移到顶层 / 添加主机 / 删除。
- * 「未分组」仅打开与添加主机。depth>=3 时隐藏新建子分组。
+ * 分组标题右键：打开 / 打开看板 / 设置 / 添加主机 / 删除。
+ * 「未分组」仅打开与添加主机。不支持嵌套子分组。
  */
 import { computed, nextTick, reactive, ref, watch } from "vue";
-import { MAX_GROUP_DEPTH, UNGROUPED_ID, useAppStore } from "@/stores/app";
+import { UNGROUPED_ID } from "@/stores/app";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 
 export interface GroupCtxMenuState {
@@ -71,31 +56,18 @@ const props = defineProps<{ menu: GroupCtxMenuState | null }>();
 const emit = defineEmits<{
   (e: "close"): void;
   (e: "open", id: string, name: string): void;
+  (e: "open-board", id: string): void;
   (e: "settings", id: string, name: string): void;
-  (e: "create-child", id: string, name: string): void;
-  (e: "move-to-root", id: string): void;
   (e: "add-host", groupId: string): void;
   (e: "delete", id: string, name: string): void;
 }>();
 
-const app = useAppStore();
 const menuEl = ref<HTMLElement | null>(null);
 const pos = reactive({ x: 0, y: 0 });
 
 const isUngrouped = computed(
   () => !props.menu || props.menu.id === UNGROUPED_ID
 );
-
-const canCreateChild = computed(() => {
-  if (!props.menu || isUngrouped.value) return false;
-  return app.groupDepthOf(props.menu.id) < MAX_GROUP_DEPTH;
-});
-
-const canMoveToRoot = computed(() => {
-  if (!props.menu || isUngrouped.value) return false;
-  const g = app.groupList.find((x) => x.id === props.menu!.id);
-  return !!(g?.parentId || "").trim();
-});
 
 watch(
   () => props.menu,
@@ -119,22 +91,16 @@ function onOpen() {
   if (m) emit("open", m.id, m.name);
 }
 
+function onOpenBoard() {
+  const m = props.menu;
+  emit("close");
+  if (m && m.id !== UNGROUPED_ID) emit("open-board", m.id);
+}
+
 function onSettings() {
   const m = props.menu;
   emit("close");
   if (m && m.id !== UNGROUPED_ID) emit("settings", m.id, m.name);
-}
-
-function onCreateChild() {
-  const m = props.menu;
-  emit("close");
-  if (m && m.id !== UNGROUPED_ID) emit("create-child", m.id, m.name);
-}
-
-function onMoveToRoot() {
-  const m = props.menu;
-  emit("close");
-  if (m && m.id !== UNGROUPED_ID) emit("move-to-root", m.id);
 }
 
 function onAddHost() {

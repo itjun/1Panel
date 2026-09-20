@@ -110,11 +110,11 @@ export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
 }
 
 /**
- * SetThemeAppearance 同步窗口原生外观（亮/暗/跟随系统）。
- * mode: "light" | "dark" | "auto"（其它值按 auto）。
+ * SetThemeAppearance 同步窗口原生外观。应用已固定亮色主题：
+ * 无论传入什么值（历史前端仍可能传 dark/auto），一律按 light 处理。
  */
-export function SetThemeAppearance(mode: string): $CancellablePromise<void> {
-    return $Call.ByID(474639928, mode);
+export function SetThemeAppearance(_mode: string): $CancellablePromise<void> {
+    return $Call.ByID(474639928, _mode);
 }
 
 /**

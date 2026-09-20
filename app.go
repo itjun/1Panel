@@ -35,8 +35,9 @@ import (
 // macTrafficLightBand 红绿灯垂直居中带高度，对齐前端 WorkspaceRail .rail-traffic。
 const macTrafficLightBand = 40
 
-// macInvisibleTitleBarHeight 原生窄拖拽兜底带；与通栏无关，避免吞主区顶部点击。
-const macInvisibleTitleBarHeight = 12
+// macInvisibleTitleBarHeight 置 0：原生顶栏拖拽带会吞导航按钮的首次点击
+//（焦点离开 Terminal input，但 Vue click 不到）。窗口拖动改由前端 gap/no-drag 控制。
+const macInvisibleTitleBarHeight = 0
 
 // App 是应用核心对象：持有全部共享依赖。
 // 对外暴露的前端方法不再直接挂在 App 上，而是按域拆分为多个 v3 Service
@@ -62,7 +63,7 @@ type App struct {
 	boardMu      sync.Mutex
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
 
-	themeAppearance macui.AppearanceMode // light / dark / auto；零值按 auto
+	themeAppearance macui.AppearanceMode // 固定 light；零值也按 light 处理
 
 	showMu     sync.Mutex
 	sized      bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
@@ -171,9 +172,8 @@ func NewApp() *application.App {
 	core.interceptMainWindowClose(win)
 	core.installBackgroundTray(app)
 
-	if core.themeAppearance == "" {
-		core.themeAppearance = macui.AppearanceAuto
-	}
+	// 主题固定亮色：窗口外观强制 light
+	core.themeAppearance = macui.AppearanceLight
 	macui.SetWindowAppearance(win, core.themeAppearance)
 
 	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
@@ -183,9 +183,6 @@ func NewApp() *application.App {
 		core.markReady()
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
-		macui.StartSystemAppearanceObserver(func(dark bool) {
-			app.Event.Emit("system-appearance-changed", map[string]any{"dark": dark})
-		})
 		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
 		go func() {
 			ok, err := ns.RequestNotificationAuthorization()
@@ -288,10 +285,9 @@ func NewApp() *application.App {
 		}
 	})
 
-	// 启动即预热全部主机 SSH / agent，不避让首屏
+	// 只触发本机网络隐私提示（macOS）；启动不再对全部主机 SSH/agent 探活。
 	go func() {
 		sshd.TriggerLocalNetworkPrivacy()
-		core.prewarmHosts()
 	}()
 
 	return app
@@ -434,6 +430,39 @@ func (a *App) installMinimalMenu(app *application.App) {
 	if goruntime.GOOS == "darwin" {
 		m.AddRole(application.AppMenu)
 	}
+	term := m.AddSubmenu("终端")
+	addTerm := func(label, accel, action string) {
+		item := term.Add(label)
+		if accel != "" {
+			item.SetAccelerator(accel)
+		}
+		item.OnClick(func(*application.Context) {
+			app.Event.Emit("term:action", action)
+		})
+	}
+	addTerm("显示会话", "CmdOrCtrl+Shift+L", "sessions")
+	addTerm("新建终端", "CmdOrCtrl+T", "new")
+	addTerm("左右分屏", "CmdOrCtrl+D", "split-right")
+	addTerm("上下分屏", "CmdOrCtrl+Shift+D", "split-down")
+	addTerm("切换终端专注模式", "CmdOrCtrl+Shift+F", "focus-toggle")
+	addTerm("返回主机", "", "return-host")
+	term.AddSeparator()
+	back := term.AddSubmenu("返回主机工具")
+	addBack := func(label, action string) {
+		back.Add(label).OnClick(func(*application.Context) {
+			app.Event.Emit("term:action", action)
+		})
+	}
+	addBack("概览", "return-overview")
+	addBack("文件", "return-files")
+	addBack("监控", "return-monitor")
+	addBack("服务", "return-services")
+	term.AddSeparator()
+	addTerm("关闭窗格", "", "close-pane")
+	addTerm("移出分屏", "CmdOrCtrl+Shift+M", "detach")
+	addTerm("关闭会话", "CmdOrCtrl+Shift+W", "close-session")
+	addTerm("重连", "", "reconnect")
+	addTerm("断开当前主机", "", "disconnect-host")
 	m.AddRole(application.EditMenu)
 	app.Menu.SetApplicationMenu(m)
 }

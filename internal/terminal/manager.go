@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -268,6 +269,25 @@ func (m *Manager) Close(sessionID string) error {
 	}
 	s.release()
 	return nil
+}
+
+// CloseByHost 关闭指定主机的全部终端会话（每会话独占连接，一并释放）
+func (m *Manager) CloseByHost(host string) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return
+	}
+	m.mu.Lock()
+	ids := make([]string, 0, 2)
+	for id, s := range m.sessions {
+		if s != nil && s.Host == host {
+			ids = append(ids, id)
+		}
+	}
+	m.mu.Unlock()
+	for _, id := range ids {
+		_ = m.Close(id)
+	}
 }
 
 // CloseAll 应用退出时调用

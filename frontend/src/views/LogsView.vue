@@ -154,7 +154,7 @@ watch(
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border: 1px solid var(--m3-outline-variant, #e4e7ed);
   border-radius: var(--m3-shape-m, 12px);
   background: var(--m3-card, #fff);
   display: flex;

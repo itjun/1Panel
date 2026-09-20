@@ -7,27 +7,13 @@
         'sidebar-collapsed': !app.sidebarOpen,
         'is-mac': isMac,
         'is-fullscreen': fullscreen,
+        'is-term': app.workspace === 'terminal' && !app.settingsOpen,
       }"
     >
       <WorkspaceRail />
-      <SidebarSettings
-        v-if="app.sidebarOpen && app.settingsOpen"
-      />
-      <SidebarHost
-        v-else-if="app.sidebarOpen && app.workspace === 'remote'"
-        ref="sidebarHostRef"
-        @add-host="onAddHostRequest"
-      />
-      <SidebarLocal
-        v-else-if="app.sidebarOpen && app.workspace === 'local'"
-      />
-      <SidebarNotify
-        v-else-if="app.sidebarOpen && app.workspace === 'notify'"
-      />
       <div class="main-column">
-        <MainTabsBar v-if="app.workspace === 'remote'" />
         <div class="main-column-body">
-          <MainArea />
+          <MainArea ref="mainAreaRef" @add-host="onAddHostRequest" />
         </div>
       </div>
     </div>
@@ -42,8 +28,8 @@
       :close-on-click-modal="!saving"
     >
       <p class="m3-form-dialog__hint">
-        验证连通后会推送本机公钥并写入
-        <code>~/.ssh/config</code>；密码会保存在本机，并随备份导出。
+        密码只用于首次连通并推送本机公钥，不作为日常登录。之后以
+        <code>~/.ssh/config</code> 为准。
       </p>
       <el-form label-position="top" require-asterisk-position="right" @submit.prevent="onAddHost">
         <el-form-item label="别名" required>
@@ -78,7 +64,7 @@
             v-model="form.password"
             type="password"
             show-password
-            placeholder="用于验证、推送公钥，并保存在本机"
+            placeholder="仅首次推公钥，不作为日常登录"
             @keyup.enter="onAddHost"
           />
         </el-form-item>
@@ -103,6 +89,7 @@
 
     <AgentInstallDialog />
     <AgentCheckDialog />
+    <HostQuickSwitcher ref="hostSwitcherRef" />
 
     <!-- 主机/分组拖拽幽灵：侧栏与看板共用 -->
     <Teleport to="body">
@@ -147,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
@@ -156,15 +143,11 @@ import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAlertHistoryStore } from "@/stores/alertHistory";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
-import SidebarHost from "@/layout/SidebarHost.vue";
-import SidebarLocal from "@/layout/SidebarLocal.vue";
-import SidebarNotify from "@/layout/SidebarNotify.vue";
-import SidebarSettings from "@/layout/SidebarSettings.vue";
 import WorkspaceRail from "@/layout/WorkspaceRail.vue";
 import MainArea from "@/layout/MainArea.vue";
-import MainTabsBar from "@/layout/MainTabsBar.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
+import HostQuickSwitcher from "@/components/HostQuickSwitcher.vue";
 import { chromeDragKey, type ChromeDragApi } from "@/composables/useChromeDrag";
 import { hostDragKey, useHostDrag } from "@/composables/useHostDrag";
 import {
@@ -179,9 +162,11 @@ import {
 } from "@/utils/hostResourceAlerts";
 import { useLocalMetricsStore } from "@/stores/localMetrics";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
+import { isTermAppShortcut } from "@/utils/termKeys";
 import { Folder, Monitor } from "@element-plus/icons-vue";
 
 const app = useAppStore();
+const mainAreaRef = ref<{ openCreateGroup?: () => void } | null>(null);
 const hostDrag = useHostDrag();
 const { dragState } = hostDrag;
 provide(hostDragKey, hostDrag);
@@ -193,7 +178,7 @@ void app.refresh();
 const addHostOpen = ref(false);
 const saving = ref(false);
 const preferredAddGroupId = ref<string | null>(null);
-const sidebarHostRef = ref<{ openCreateGroup?: () => void } | null>(null);
+const hostSwitcherRef = ref<{ show: () => void } | null>(null);
 const form = reactive({
   name: "",
   hostName: "",
@@ -214,9 +199,9 @@ watch(addHostOpen, (open) => {
     form.groupId = preferred;
     return;
   }
-  const tab = app.activeTab;
-  if (tab?.kind === "group" && tab.id && tab.id !== UNGROUPED_ID) {
-    form.groupId = tab.id;
+  const gid = (app.homeSelectedGroupId || "").trim();
+  if (gid && gid !== UNGROUPED_ID) {
+    form.groupId = gid;
   } else {
     form.groupId = "";
   }
@@ -287,7 +272,6 @@ function hasVisibleOverlay(): boolean {
 /** Esc：关闭设置整页 */
 function onSettingsEsc(e: KeyboardEvent) {
   if (e.key !== "Escape") return;
-  if (app.sidebarSearchOpen) return;
   if (hasVisibleOverlay()) return;
   if (app.settingsOpen) {
     e.preventDefault();
@@ -304,63 +288,86 @@ function isTerminalFocused(): boolean {
   return false;
 }
 
-type FlatTab =
-  | { kind: "home" }
-  | { kind: "group"; id: string; name: string }
-  | { kind: "host"; name: string };
-
-/** 标签栏扁平顺序：全部主机 → 分组 → 主机 */
-function flatMainTabs(): FlatTab[] {
-  const items: FlatTab[] = [{ kind: "home" }];
-  for (const id of app.visitedGroupIds) {
-    items.push({ kind: "group", id, name: app.groupNameOf(id) });
-  }
-  for (const name of app.runningHosts) {
-    items.push({ kind: "host", name });
-  }
-  return items;
+function isTypingAside(e: KeyboardEvent): boolean {
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return false;
+  if (t.closest(".xterm, .term-page")) return false;
+  return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
 }
 
-/** 在「全部主机 + 分组 + 主机」标签间循环切换 */
+/** 主机是固定第一项；正向从主机进第一个会话，反向从第一个会话回主机 */
 function cycleMainTab(dir: 1 | -1) {
-  const list = flatMainTabs();
-  if (list.length === 0) return;
-  const tab = app.activeTab;
-  let idx = 0;
-  if (!tab) {
-    idx = 0;
-  } else if (tab.kind === "group") {
-    const i = list.findIndex((x) => x.kind === "group" && x.id === tab.id);
-    idx = i >= 0 ? i : 0;
-  } else if (tab.kind === "host") {
-    const i = list.findIndex((x) => x.kind === "host" && x.name === tab.id);
-    idx = i >= 0 ? i : 0;
+  const list = app.workspaceSessions;
+  const cur = app.activeSessionId;
+  const idx = list.findIndex((s) => s.id === cur);
+  if (idx < 0) {
+    if (list.length === 0) return;
+    const next = dir === 1 ? list[0] : list[list.length - 1];
+    if (next) app.activateWorkspaceSession(next.id);
+    return;
   }
-  const next = list[(idx + dir + list.length) % list.length];
-  if (!next) return;
-  if (next.kind === "home") {
+  const nextIdx = idx + dir;
+  if (nextIdx < 0 || nextIdx >= list.length) {
     app.goHome();
-  } else if (next.kind === "group") {
-    app.openGroupTab(next.id, next.name);
-  } else {
-    app.openHostTab(next.name);
+    return;
   }
+  app.activateWorkspaceSession(list[nextIdx].id);
 }
 
-/** 关闭当前主区标签（全部主机时 noop） */
+/** 关闭当前工作区会话；在分组列表时 noop */
 function closeActiveMainTab() {
-  const tab = app.activeTab;
-  if (!tab) return;
-  if (tab.kind === "host") {
-    app.stopHost(tab.id);
-  } else if (tab.kind === "group") {
-    app.closeGroupTab(tab.id);
-  }
+  const id = app.activeSessionId;
+  if (!id) return;
+  app.closeWorkspaceSession(id);
 }
 
 /** 设置 / 侧栏 / 添加主机 / 新建分组 / 搜索 / 刷新 / 退出 / 回首页 / 切标签 / 关标签 */
 function onGlobalKeydown(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+  if (e.key === "Escape") return;
+
+  if (
+    app.workspace === "terminal" &&
+    !app.settingsOpen &&
+    !isTypingAside(e) &&
+    isTermAppShortcut(e, isMac)
+  ) {
+    if (e.shiftKey && e.code === "KeyL") {
+      e.preventDefault();
+      app.runTermAction("sessions");
+      return;
+    }
+    if (e.shiftKey && e.code === "KeyM") {
+      e.preventDefault();
+      app.runTermAction("detach");
+      return;
+    }
+    if (e.shiftKey && e.code === "KeyW") {
+      e.preventDefault();
+      app.runTermAction("close-session");
+      return;
+    }
+    if (e.shiftKey && e.code === "KeyD") {
+      e.preventDefault();
+      app.runTermAction("split-down");
+      return;
+    }
+    if (!e.shiftKey && e.code === "KeyD") {
+      e.preventDefault();
+      app.runTermAction("split-right");
+      return;
+    }
+    if (!e.shiftKey && e.code === "KeyT") {
+      e.preventDefault();
+      app.runTermAction("new");
+      return;
+    }
+    if (!e.shiftKey && e.code === "KeyW") {
+      e.preventDefault();
+      app.runTermAction("close-pane");
+      return;
+    }
+  }
 
   // ⌘⇧N / Ctrl+Shift+N：新建分组（须在无 Shift 的 ⌘N 之前处理）
   if (e.shiftKey && e.code === "KeyN") {
@@ -369,22 +376,30 @@ function onGlobalKeydown(e: KeyboardEvent) {
     if (!app.sidebarOpen) app.setSidebarOpen(true);
     // 侧栏可能刚挂载，多等一帧再调 expose
     void nextTick(() => {
-      void nextTick(() => sidebarHostRef.value?.openCreateGroup?.());
+      void nextTick(() => mainAreaRef.value?.openCreateGroup?.());
     });
     return;
   }
 
-  // ⌘⇧H：回全部主机；⌘⇧[ / ⌘⇧]：在标签栏扁平列表间切换（终端聚焦时不拦截）
-  if (e.shiftKey && (e.code === "KeyH" || e.code === "BracketLeft" || e.code === "BracketRight")) {
-    if (isTerminalFocused()) return;
+  // ⌘⇧[ / ⌘⇧]：工作区标签。窗格切换是不带 Shift 的 ⌘[ / ⌘]
+  if (e.shiftKey && (e.code === "BracketLeft" || e.code === "BracketRight")) {
     if (app.workspace !== "remote") return;
-    if (e.code === "KeyH") {
-      e.preventDefault();
-      app.goHome();
-      return;
-    }
     e.preventDefault();
     cycleMainTab(e.code === "BracketRight" ? 1 : -1);
+    return;
+  }
+
+  // ⌘⇧H：回当前分组主机列表（终端聚焦时不拦截）
+  if (e.shiftKey && e.code === "KeyH") {
+    if (app.workspace === "terminal") {
+      e.preventDefault();
+      app.runTermAction("return-host");
+      return;
+    }
+    if (isTerminalFocused()) return;
+    if (app.workspace !== "remote") return;
+    e.preventDefault();
+    app.goHome();
     return;
   }
 
@@ -420,7 +435,13 @@ function onGlobalKeydown(e: KeyboardEvent) {
   if (e.code === "KeyF") {
     if (app.workspace !== "remote") return;
     e.preventDefault();
-    app.setSidebarSearchOpen(true);
+    app.openHomeHostSearch();
+    return;
+  }
+  if (e.code === "KeyK") {
+    if (isTerminalFocused()) return;
+    e.preventDefault();
+    hostSwitcherRef.value?.show();
     return;
   }
   if (e.code === "KeyR") {
@@ -585,6 +606,7 @@ onMounted(() => {
       void alertHistory.refresh();
     })
   );
+  // 等订阅hydrate后再开轮询；tick 只打已订阅名单，空订阅不扫全集
   void settings.hydrateNotifySubs().then(() => {
     startAppWatchAlertPoll();
     startHostResourceAlertPoll();
@@ -663,10 +685,5 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-html.dark .host-drag-ghost,
-html.dark .group-drag-ghost {
-  background: var(--m3-surface-container-high);
-  color: var(--m3-on-surface);
 }
 </style>

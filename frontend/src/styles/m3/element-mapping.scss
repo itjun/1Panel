@@ -13,13 +13,13 @@
   --el-color-primary-dark-2: color-mix(in srgb, var(--m3-primary) 80%, var(--m3-on-primary));
 
   // ---------- 语义色（M3 角色映射）----------
-  // success：M3 无此角色，用 tertiary-container 色对（低强调的成功态）
-  --el-color-success: #4a6e5a;
-  --el-color-success-light-3: color-mix(in srgb, #4a6e5a 70%, var(--m3-surface));
-  --el-color-success-light-5: color-mix(in srgb, #4a6e5a 50%, var(--m3-surface));
-  --el-color-success-light-7: color-mix(in srgb, #4a6e5a 30%, var(--m3-surface));
-  --el-color-success-light-8: color-mix(in srgb, #4a6e5a 20%, var(--m3-surface));
-  --el-color-success-light-9: color-mix(in srgb, #4a6e5a 12%, var(--m3-surface));
+  // success：M3 无此角色，用 --m3-success
+  --el-color-success: var(--m3-success);
+  --el-color-success-light-3: color-mix(in srgb, var(--m3-success) 70%, var(--m3-surface));
+  --el-color-success-light-5: color-mix(in srgb, var(--m3-success) 50%, var(--m3-surface));
+  --el-color-success-light-7: color-mix(in srgb, var(--m3-success) 30%, var(--m3-surface));
+  --el-color-success-light-8: color-mix(in srgb, var(--m3-success) 20%, var(--m3-surface));
+  --el-color-success-light-9: color-mix(in srgb, var(--m3-success) 12%, var(--m3-surface));
 
   // warning：M3 无此角色，用 tertiary 色对
   --el-color-warning: var(--m3-tertiary);
@@ -54,7 +54,7 @@
 
   // ---------- 背景与填充（M3 表面梯度）----------
   --el-bg-color: var(--m3-card);
-  --el-bg-color-page: var(--m3-canvas);
+  --el-bg-color-page: var(--m3-content);
   --el-bg-color-overlay: var(--m3-card);
 
   --el-fill-color: color-mix(in srgb, var(--m3-on-surface) 5%, var(--m3-surface));

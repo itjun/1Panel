@@ -111,7 +111,7 @@ function coreTitle(c: localsys.CPUCoreStat): string {
 .cpu-cores-card {
   margin-bottom: 0;
   background: var(--m3-card, var(--m3-surface-container-lowest, #fff));
-  border: 1px solid var(--m3-outline-variant, #cac4d0);
+  border: 1px solid var(--m3-outline-variant, #e4e7ed);
   border-radius: 12px;
   padding: 12px 14px;
 }
@@ -119,7 +119,7 @@ function coreTitle(c: localsys.CPUCoreStat): string {
 .cpu-cores-embed {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--m3-outline-variant, #cac4d0);
+  border-top: 1px solid var(--m3-outline-variant, #e4e7ed);
 }
 
 .card-header,
@@ -133,7 +133,7 @@ function coreTitle(c: localsys.CPUCoreStat): string {
 
 .embed-title {
   font-size: 12px;
-  color: var(--m3-on-surface-variant, #49454f);
+  color: var(--m3-on-surface-variant, #646a73);
 }
 
 .cores-grid {
@@ -159,7 +159,7 @@ function coreTitle(c: localsys.CPUCoreStat): string {
 
 .core-ring__track {
   fill: none;
-  stroke: var(--m3-surface-container-highest, #e6e5ea);
+  stroke: var(--m3-surface-container-highest, #e4e7ed);
   stroke-width: 3.5;
 }
 
@@ -178,7 +178,7 @@ function coreTitle(c: localsys.CPUCoreStat): string {
   }
 
   &.is-neutral {
-    stroke: var(--m3-primary, #6750a4);
+    stroke: var(--m3-primary, #005eeb);
   }
 }
 
@@ -205,7 +205,7 @@ function coreTitle(c: localsys.CPUCoreStat): string {
   gap: 10px 16px;
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--m3-outline-variant, #cac4d0);
+  border-top: 1px solid var(--m3-outline-variant, #e4e7ed);
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }

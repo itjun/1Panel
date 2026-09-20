@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, watch } from "vue";
-import { Events } from "@wailsio/runtime";
+import { ref } from "vue";
 import { api } from "@/api";
 import {
   ALL_ALERT_KINDS,
@@ -12,7 +11,8 @@ import {
   type WatchServiceName,
 } from "@/utils/watchServices";
 
-export type ThemeKey = "light" | "dark" | "auto";
+/** 主题仅剩亮色；保留类型兼容旧持久化数据 */
+export type ThemeKey = "light";
 
 /** 平台探测：终端默认字号等 */
 const isMacPlatform = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -25,22 +25,8 @@ function defaultTerminalFontSize(): number {
   return 15;
 }
 
-/** 设置页左侧分组；仅进程内记忆，不写入 localStorage */
-export type SettingsNavGroup =
-  | "appearance"
-  | "ui"
-  | "terminal"
-  | "session"
-  | "app";
-
-/** 设置二级栏 / 设置页共用的分组列表 */
-export const SETTINGS_NAV_GROUPS: { id: SettingsNavGroup; label: string }[] = [
-  { id: "appearance", label: "外观" },
-  { id: "ui", label: "界面" },
-  { id: "terminal", label: "终端" },
-  { id: "session", label: "会话" },
-  { id: "app", label: "应用" },
-];
+/** 冷启动落点：主机首页，或上次离开的画面 */
+export type StartupPage = "home" | "resume";
 
 /** 主机资源告警中可单独开关的类型（单一来源见 utils/alerts.ts）；兼容旧名 */
 export type WecomAlertKind = ResourceAlertKind;
@@ -77,8 +63,8 @@ export interface AppSettings {
   fontSize: number; // UI 字号 px 12~18
   terminalFontSize: number; // 终端字号 px 11~20
   terminalFontFamily: string;
-  /** 同时后台挂起的主机会话数上限（4~24） */
-  maxRunningHosts: number;
+  /** 关闭后再打开：home 主机首页，resume 上次离开的画面 */
+  startupPage: StartupPage;
   /** 企微通知总开关（关则不推企业微信；系统/应用内通知仍受各主机订阅控制） */
   notifyEnabled: boolean;
   /** 企微机器人 Webhook 完整 URL 或 key */
@@ -185,36 +171,6 @@ function defaultTerminalFontFamily(): string {
   return isWinPlatform ? TERM_FONT_CONSOLAS : TERM_FONT_SF_MONO;
 }
 
-export const THEME_OPTIONS: {
-  key: ThemeKey;
-  name: string;
-  description: string;
-  swatch: { bg: string; fg: string; accent: string };
-}[] = [
-  {
-    key: "light",
-    name: "明亮",
-    description: "M3 亮色方案",
-    swatch: { bg: "#f4f4f4", fg: "#1f2329", accent: "#005eeb" },
-  },
-  {
-    key: "dark",
-    name: "暗黑",
-    description: "M3 深色方案，护眼",
-    swatch: { bg: "#141820", fg: "#e4e7ed", accent: "#669ef3" },
-  },
-  {
-    key: "auto",
-    name: "跟随系统",
-    description: "按系统亮/暗自动切换",
-    swatch: {
-      bg: "linear-gradient(135deg, #f4f4f4 50%, #141820 50%)",
-      fg: "#888",
-      accent: "#005eeb",
-    },
-  },
-];
-
 export const WECOM_WEBHOOK_PREFIX =
   "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=";
 
@@ -234,16 +190,14 @@ const TERM_FONT_MIGRATION_KEY = "ipannel.terminalFontSize.byPlatform.migrated";
 /** Windows 终端默认字体改为 Consolas */
 const TERM_FAMILY_WIN_MIGRATION_KEY =
   "ipannel.terminalFontFamily.winConsolas.migrated";
-const MAX_RUNNING_HOSTS_V16_KEY = "ipannel.maxRunningHosts.v16.migrated";
 
 const DEFAULTS: AppSettings = {
-  theme: "auto",
+  theme: "light",
   fontFamily: FONT_OPTIONS[0].value,
   fontSize: 14,
   terminalFontSize: defaultTerminalFontSize(),
   terminalFontFamily: defaultTerminalFontFamily(),
-  // 同时后台会话数：默认 16，设置里可调到 32。
-  maxRunningHosts: 16,
+  startupPage: "home",
   notifyEnabled: false,
   wecomWebhook: "",
   systemNotifyEnabled: true,
@@ -336,6 +290,10 @@ function loadNotifyContentFields(v: unknown): NotifyContentField[] {
   return [...new Set(v.filter(isNotifyContentField))];
 }
 
+function loadStartupPage(v: unknown): StartupPage {
+  return v === "resume" ? "resume" : "home";
+}
+
 function loadBoolDefaultTrue(v: unknown): boolean {
   if (typeof v === "boolean") return v;
   return true;
@@ -345,11 +303,6 @@ function load(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      // 兼容旧版仅 theme 键
-      const oldTheme = localStorage.getItem("ipannel.theme") as ThemeKey | null;
-      if (oldTheme && ["light", "dark", "auto"].includes(oldTheme)) {
-        return { ...DEFAULTS, theme: oldTheme };
-      }
       return { ...DEFAULTS };
     }
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
@@ -368,16 +321,8 @@ function load(): AppSettings {
         parsed.terminalFontFamily = TERM_FONT_CONSOLAS;
       }
     }
-    if (!localStorage.getItem(MAX_RUNNING_HOSTS_V16_KEY)) {
-      localStorage.setItem(MAX_RUNNING_HOSTS_V16_KEY, "1");
-      const n = Number(parsed.maxRunningHosts);
-      // 仅抬升旧默认 8 / 12；用户显式改过的其它值保留
-      if (n === 8 || n === 12) {
-        parsed.maxRunningHosts = DEFAULTS.maxRunningHosts;
-      }
-    }
     return {
-      theme: (parsed.theme as ThemeKey) || DEFAULTS.theme,
+      theme: "light",
       fontFamily: parsed.fontFamily || DEFAULTS.fontFamily,
       fontSize: clamp(Number(parsed.fontSize) || DEFAULTS.fontSize, 11, 20),
       terminalFontSize: clamp(
@@ -387,10 +332,8 @@ function load(): AppSettings {
       ),
       terminalFontFamily:
         parsed.terminalFontFamily || DEFAULTS.terminalFontFamily,
-      maxRunningHosts: clamp(
-        Number(parsed.maxRunningHosts) || DEFAULTS.maxRunningHosts,
-        4,
-        32
+      startupPage: loadStartupPage(
+        (parsed as { startupPage?: unknown }).startupPage
       ),
       notifyEnabled:
         typeof parsed.notifyEnabled === "boolean"
@@ -440,7 +383,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const fontSize = ref(initial.fontSize);
   const terminalFontSize = ref(initial.terminalFontSize);
   const terminalFontFamily = ref(initial.terminalFontFamily);
-  const maxRunningHosts = ref(initial.maxRunningHosts);
+  const startupPage = ref<StartupPage>(initial.startupPage);
   const notifyEnabled = ref(initial.notifyEnabled);
   const wecomWebhook = ref(initial.wecomWebhook);
   const systemNotifyEnabled = ref(initial.systemNotifyEnabled);
@@ -461,10 +404,6 @@ export const useSettingsStore = defineStore("settings", () => {
   /** 设置页草稿：离开页面不丢，未点保存不写入 localStorage */
   const webhookDraft = ref(expandWecomWebhook(initial.wecomWebhook));
   const webhookTested = ref("");
-  const lastNavGroup = ref<SettingsNavGroup>("appearance");
-  function setLastNavGroup(g: SettingsNavGroup) {
-    lastNavGroup.value = g;
-  }
 
   function persist() {
     const data: AppSettings = {
@@ -473,7 +412,7 @@ export const useSettingsStore = defineStore("settings", () => {
       fontSize: fontSize.value,
       terminalFontSize: terminalFontSize.value,
       terminalFontFamily: terminalFontFamily.value,
-      maxRunningHosts: maxRunningHosts.value,
+      startupPage: startupPage.value,
       notifyEnabled: notifyEnabled.value,
       wecomWebhook: wecomWebhook.value,
       systemNotifyEnabled: systemNotifyEnabled.value,
@@ -485,7 +424,6 @@ export const useSettingsStore = defineStore("settings", () => {
       hostAppNotifySubs: { ...hostAppNotifySubs.value },
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    localStorage.setItem("ipannel.theme", theme.value);
   }
 
   function notifyDiskPayload() {
@@ -548,21 +486,13 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
-  function applyTheme(t: ThemeKey) {
-    let actual: "light" | "dark" = "light";
-    if (t === "auto") {
-      actual = window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-    } else {
-      actual = t;
-    }
+  /** 主题固定亮色：只负责清掉历史暗色类并同步原生窗口外观 */
+  function applyTheme(_t: ThemeKey = "light") {
     const root = document.documentElement;
-    root.className = actual;
-    root.setAttribute("data-theme", actual);
-    root.style.colorScheme = actual;
-    // 同步原生窗口 Aqua/DarkAqua
-    void api.setThemeAppearance(t).catch((err) => {
+    root.className = "light";
+    root.setAttribute("data-theme", "light");
+    root.style.colorScheme = "light";
+    void api.setThemeAppearance("light").catch((err) => {
       console.warn("setThemeAppearance failed", err);
     });
   }
@@ -586,20 +516,8 @@ export const useSettingsStore = defineStore("settings", () => {
   }
 
   function applyAll() {
-    applyTheme(theme.value);
+    applyTheme("light");
     applyTypography();
-  }
-
-  function setTheme(t: ThemeKey) {
-    theme.value = t;
-    applyTheme(t);
-    persist();
-  }
-
-  function cycleTheme() {
-    const order: ThemeKey[] = ["light", "dark", "auto"];
-    const i = order.indexOf(theme.value);
-    setTheme(order[(i + 1) % order.length]);
   }
 
   function setFontFamily(v: string) {
@@ -626,8 +544,8 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
-  function setMaxRunningHosts(v: number) {
-    maxRunningHosts.value = clamp(v, 4, 32);
+  function setStartupPage(v: StartupPage) {
+    startupPage.value = v === "resume" ? "resume" : "home";
     persist();
   }
 
@@ -919,7 +837,7 @@ export const useSettingsStore = defineStore("settings", () => {
     fontSize.value = DEFAULTS.fontSize;
     terminalFontSize.value = DEFAULTS.terminalFontSize;
     terminalFontFamily.value = DEFAULTS.terminalFontFamily;
-    maxRunningHosts.value = DEFAULTS.maxRunningHosts;
+    startupPage.value = DEFAULTS.startupPage;
     applyAll();
     persist();
   }
@@ -927,36 +845,13 @@ export const useSettingsStore = defineStore("settings", () => {
   // 启动时应用
   applyAll();
 
-  if (typeof window !== "undefined") {
-    window
-      .matchMedia("(prefers-color-scheme: dark)")
-      .addEventListener("change", () => {
-        if (theme.value === "auto") applyTheme("auto");
-      });
-
-    // 原生系统外观变化（WKWebView 上 matchMedia 有时不触发）
-    Events.On(
-      "system-appearance-changed",
-      (ev: { data?: { dark?: boolean } }) => {
-        if (theme.value !== "auto") return;
-        const dark = Boolean(ev?.data?.dark);
-        const root = document.documentElement;
-        root.className = dark ? "dark" : "light";
-        root.setAttribute("data-theme", dark ? "dark" : "light");
-        root.style.colorScheme = dark ? "dark" : "light";
-      }
-    );
-  }
-
-  watch(theme, (t) => applyTheme(t));
-
   return {
     theme,
     fontFamily,
     fontSize,
     terminalFontSize,
     terminalFontFamily,
-    maxRunningHosts,
+    startupPage,
     notifyEnabled,
     wecomWebhook,
     systemNotifyEnabled,
@@ -968,15 +863,11 @@ export const useSettingsStore = defineStore("settings", () => {
     hostAppNotifySubs,
     webhookDraft,
     webhookTested,
-    lastNavGroup,
-    setLastNavGroup,
-    setTheme,
-    cycleTheme,
     setFontFamily,
     setFontSize,
     setTerminalFontSize,
     setTerminalFontFamily,
-    setMaxRunningHosts,
+    setStartupPage,
     setNotifyEnabled,
     setSystemNotifyEnabled,
     setInAppNotifyEnabled,

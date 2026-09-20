@@ -14,9 +14,20 @@
       :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
       @mousedown.stop
     >
-      <button type="button" class="ctx-item" @click="onOpen">
-        打开
+      <div v-if="batchCount > 1" class="ctx-batch-hint">已选 {{ batchCount }} 台</div>
+      <button type="button" class="ctx-item" @click="onOpenTerminal">
+        连接终端
       </button>
+      <button type="button" class="ctx-item" @click="onOpenInfo">
+        开概览
+      </button>
+      <button type="button" class="ctx-item" @click="onOpenSftp">
+        开文件
+      </button>
+      <button type="button" class="ctx-item" @click="onOpenMonitor">
+        开监控
+      </button>
+      <template v-if="batchCount <= 1">
       <div class="ctx-divider" />
       <button type="button" class="ctx-item" @click="onRename">
         重命名
@@ -87,22 +98,24 @@
         class="ctx-item is-danger"
         @click="onStop"
       >
-        停止会话
+        关闭主机页
       </button>
       <button type="button" class="ctx-item is-danger" @click="onDelete">
         删除…
       </button>
+      </template>
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
 /**
- * 主机右键菜单分组：打开 → 编辑整理 → 环境安装 → 危险操作。
+ * 主机右键菜单：连接终端/概览/文件/监控 → 编辑整理 → 环境安装 → 危险操作。
+ * 多选时只保留前四项，并对已选主机逐台打开。
  * 「编辑…」与「迁移分组」通过事件回抛父组件（编辑弹窗与拖拽迁移逻辑在父级）。
  */
 import { computed, nextTick, reactive, ref, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElLoading, ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
@@ -113,6 +126,8 @@ import { confirmStopHostSession } from "@/utils/hostSession";
 
 export interface CtxMenuState {
   host: string;
+  /** 多选时的全部主机；缺省或只有一台时菜单按单台处理 */
+  hosts?: string[];
   x: number;
   y: number;
 }
@@ -132,6 +147,28 @@ const menuEl = ref<HTMLElement | null>(null);
 const pos = reactive({ x: 0, y: 0 });
 
 const migrateNodes = computed(() => app.flattenGroupNodes());
+
+const batchCount = computed(() => {
+  const list = props.menu?.hosts;
+  if (!list || list.length < 2) return 0;
+  return list.length;
+});
+
+function menuHosts(): string[] {
+  const m = props.menu;
+  if (!m) return [];
+  if (m.hosts && m.hosts.length > 0) return m.hosts.slice();
+  if (m.host) return [m.host];
+  return [];
+}
+
+function openEach(subTab: "terminal" | "overview" | "files" | "monitor") {
+  const hosts = menuHosts();
+  emit("close");
+  for (const host of hosts) {
+    app.openHostTab(host, subTab);
+  }
+}
 
 watch(
   () => props.menu,
@@ -156,10 +193,20 @@ function currentGroupIdOf(host: string): string {
   return g?.id || "";
 }
 
-function onOpen() {
-  const host = props.menu?.host;
-  emit("close");
-  if (host) app.openHostTab(host);
+function onOpenTerminal() {
+  openEach("terminal");
+}
+
+function onOpenInfo() {
+  openEach("overview");
+}
+
+function onOpenSftp() {
+  openEach("files");
+}
+
+function onOpenMonitor() {
+  openEach("monitor");
 }
 
 async function onRename() {
@@ -254,36 +301,64 @@ function onCheckAgent() {
   if (host) agentInstall.openCheck(host);
 }
 
+/** 删除主机：单弹窗确认；确认后直接卸载远端 spanel-agent（含数据）再删本地记录。
+ * 卸载与探测在弹窗确认后串行执行，失败则中止删除。 */
 async function onDelete() {
   const host = props.menu?.host;
   emit("close");
   if (!host) return;
+
   try {
-    // 第一次确认
     await ElMessageBox.confirm(
-      `确定删除主机「${host}」？此操作不可撤销。`,
-      "删除主机",
+      `将从本机 ~/.ssh/config 中永久移除「${host}」条目，并清理分组引用。\n` +
+        `若该主机上装有 spanel-agent，将一并卸载并清理其监控数据。\n` +
+        `此操作不可撤销。`,
+      `删除主机「${host}」`,
       {
         type: "warning",
-        confirmButtonText: "继续",
-        cancelButtonText: "取消",
-      }
-    );
-    // 第二次确认：明确写出将改写 ~/.ssh/config
-    await ElMessageBox.confirm(
-      `将从本机 ~/.ssh/config 中永久移除「${host}」条目，并清理分组引用。请再次确认。`,
-      "二次确认",
-      {
-        type: "error",
-        confirmButtonText: "确认删除",
+        confirmButtonText: "删除",
         cancelButtonText: "取消",
         confirmButtonClass: "el-button--danger",
       }
     );
+  } catch {
+    return; // 用户取消
+  }
+
+  // 探测是否装有 agent：未装/连不上都直接走删除，不再打扰用户
+  let installed = false;
+  const probeLoading = ElLoading.service({
+    text: `正在检查「${host}」上的 spanel-agent…`,
+    background: "rgba(0, 0, 0, 0.4)",
+  });
+  try {
+    const p = await api.agentProbeInfo(host);
+    installed = p.HasBinary;
+  } catch {
+    installed = false; // 连不上就跳过卸载（本机记录删除不受影响）
+  } finally {
+    probeLoading.close();
+  }
+
+  if (installed) {
+    const loading = ElLoading.service({
+      text: `正在卸载「${host}」上的 spanel-agent 并清理数据…`,
+      background: "rgba(0, 0, 0, 0.4)",
+    });
+    try {
+      await api.uninstallAgent(host, false); // keepData=false：连同 /var/lib/spanel-agent 数据目录一起删
+    } catch (e) {
+      ElMessage.error(`卸载 Agent 失败，已中止删除主机: ${formatErr(e)}`);
+      return; // 卸载失败不删本地记录，避免留下失管主机
+    } finally {
+      loading.close();
+    }
+  }
+
+  try {
     await app.deleteHost(host);
     ElMessage.success(`已删除 ${host}`);
   } catch (err) {
-    if (err === "cancel" || err === "close") return;
     ElMessage.error(`删除失败: ${formatErr(err)}`);
   }
 }
@@ -312,8 +387,7 @@ async function onInitZsh() {
   }
   try {
     const remotePath = await api.bootstrapZsh(host);
-    app.openHostTab(host); // 从任意视图触发都先切到该主机
-    await app.runInTerminal(`bash ${remotePath}; rm -f ${remotePath}`);
+    await app.runInTerminal(`bash ${remotePath}; rm -f ${remotePath}`, host);
     ElMessage.success("脚本已上传,正在终端执行…");
   } catch (e) {
     ElMessage.error(`上传脚本失败: ${formatErr(e)}`);
@@ -344,6 +418,12 @@ async function onInitZsh() {
   font: var(--m3-label-large);
   color: var(--m3-on-surface);
   user-select: none;
+}
+
+.host-ctx-menu .ctx-batch-hint {
+  padding: 4px 12px 6px;
+  color: var(--m3-on-surface-variant);
+  font: var(--m3-label-medium);
 }
 
 .host-ctx-menu .ctx-kbd {
@@ -425,16 +505,5 @@ async function onInitZsh() {
   padding: 10px 12px;
   font: var(--m3-label-medium);
   color: var(--m3-on-surface-variant);
-}
-
-html.dark .host-ctx-menu,
-html.dark .host-ctx-menu .ctx-sub {
-  background: var(--m3-surface-container-lowest);
-  color: var(--m3-on-surface);
-}
-
-html.dark .host-ctx-menu .ctx-item:hover,
-html.dark .host-ctx-menu .ctx-item.is-current {
-  background: color-mix(in srgb, var(--m3-primary) 12%, transparent);
 }
 </style>

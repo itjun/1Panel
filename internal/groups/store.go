@@ -10,10 +10,10 @@ import (
 	"sync"
 )
 
-// MaxDepth 分组树最大深度（根为 1）
-const MaxDepth = 3
+// MaxDepth 分组树最大深度（根为 1；即只允许一层分组，不支持嵌套）
+const MaxDepth = 1
 
-// Group 表示一个服务器分组（可嵌套，ParentID 空为顶层）
+// Group 表示一个服务器分组（ParentID 空为顶层；MaxDepth=1 时不允许嵌套）
 type Group struct {
 	ID         string   `json:"id"`                   // 分组唯一 ID
 	Name       string   `json:"name"`                 // 分组显示名
@@ -164,6 +164,66 @@ func (s *Store) MoveGroup(id, newParentID string) error {
 	return s.saveLocked()
 }
 
+// ReorderGroups 按传入顺序重排同级排序权重（order 依次为 0,1,2…）。
+// 列表须覆盖同一父级下的全部分组；未出现在列表中的兄弟分组会被追加到末尾，
+// 保证一次拖拽后整个同级序列仍是确定的，不会出现权重并列。
+func (s *Store) ReorderGroups(parentID string, orderedIDs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	parentID = strings.TrimSpace(parentID)
+	if parentID != "" {
+		if _, ok := s.data[parentID]; !ok {
+			return fmt.Errorf("父分组 %s 不存在", parentID)
+		}
+	}
+	// 收集该父级下的现有分组
+	siblings := make([]string, 0, len(orderedIDs))
+	inList := make(map[string]struct{}, len(orderedIDs))
+	for _, id := range orderedIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		g, ok := s.data[id]
+		if !ok {
+			return fmt.Errorf("分组 %s 不存在", id)
+		}
+		if strings.TrimSpace(g.ParentID) != parentID {
+			return fmt.Errorf("分组 %s 不在目标层级下", id)
+		}
+		if _, dup := inList[id]; dup {
+			continue
+		}
+		inList[id] = struct{}{}
+		siblings = append(siblings, id)
+	}
+	// 未显式给出的兄弟分组按现有 order 稳定排序追加到末尾（保持原相对顺序）
+	missing := make([]*Group, 0)
+	for _, other := range s.data {
+		if other == nil {
+			continue
+		}
+		if strings.TrimSpace(other.ParentID) != parentID {
+			continue
+		}
+		if _, ok := inList[other.ID]; ok {
+			continue
+		}
+		missing = append(missing, other)
+	}
+	sort.SliceStable(missing, func(i, j int) bool {
+		return missing[i].Order < missing[j].Order
+	})
+	for _, g := range missing {
+		siblings = append(siblings, g.ID)
+	}
+	// 同级间顺序必须确定：order 递增且无并列
+	for i, id := range siblings {
+		s.data[id].Order = i
+	}
+	return s.saveLocked()
+}
+
 // SetBoardTitle 设置看板中间标题；title 为空表示清空
 func (s *Store) SetBoardTitle(id, title string) error {
 	s.mu.Lock()
@@ -245,6 +305,52 @@ func (s *Store) Delete(id string) error {
 	for _, gid := range s.descendantIDsLocked(id) {
 		delete(s.data, gid)
 	}
+	return s.saveLocked()
+}
+
+// ReorderHosts 按给定顺序重排分组内主机。
+// orderedNames 里不在该分组的名字会被忽略；分组里有、但列表没写到的主机，按原相对顺序补到末尾。
+func (s *Store) ReorderHosts(groupID string, orderedNames []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	groupID = strings.TrimSpace(groupID)
+	g, ok := s.data[groupID]
+	if !ok {
+		return fmt.Errorf("分组 %s 不存在", groupID)
+	}
+	existing := make(map[string]struct{}, len(g.Hosts))
+	for _, h := range g.Hosts {
+		if h == "" {
+			continue
+		}
+		existing[h] = struct{}{}
+	}
+	next := make([]string, 0, len(g.Hosts))
+	seen := make(map[string]struct{}, len(orderedNames))
+	for _, name := range orderedNames {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := existing[name]; !ok {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		seen[name] = struct{}{}
+		next = append(next, name)
+	}
+	for _, h := range g.Hosts {
+		if h == "" {
+			continue
+		}
+		if _, ok := seen[h]; ok {
+			continue
+		}
+		next = append(next, h)
+	}
+	g.Hosts = next
 	return s.saveLocked()
 }
 
@@ -490,7 +596,24 @@ func (s *Store) load() error {
 	for i := range list {
 		s.data[list[i].ID] = &list[i]
 	}
+	// 历史嵌套数据：升为顶层，与 MaxDepth=1 对齐
+	if s.flattenNestedLocked() {
+		return s.saveLocked()
+	}
 	return nil
+}
+
+// flattenNestedLocked 清空所有 parentId，使分组均为顶层。有改动返回 true。
+func (s *Store) flattenNestedLocked() bool {
+	changed := false
+	for _, g := range s.data {
+		if strings.TrimSpace(g.ParentID) == "" {
+			continue
+		}
+		g.ParentID = ""
+		changed = true
+	}
+	return changed
 }
 
 func (s *Store) saveLocked() error {

@@ -23,6 +23,7 @@ const POLL_MS = 5000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let ticking = false;
+let lastTickAt = 0;
 
 function serviceOk(st: agentcli.WatchStatus): boolean {
   if (!st.processUp || !st.healthUp) return false;
@@ -166,10 +167,19 @@ async function pollHost(host: string): Promise<void> {
 
 async function tick(): Promise<void> {
   if (ticking) return;
+  const now = Date.now();
+  // 与资源告警同一原因：setInterval 和 alert-poll-tick 不要各打一整轮。
+  if (now - lastTickAt < POLL_MS - 400) return;
+  lastTickAt = now;
   ticking = true;
   try {
     const settings = useSettingsStore();
+    // 只打已订阅主机；空名单绝不 listHosts / 扫全集
     const hosts = settings.hostsWithAppNotifySubs();
+    if (hosts.length === 0) {
+      prevOk.clear();
+      return;
+    }
     const active = new Set(hosts);
     for (const h of [...prevOk.keys()]) {
       if (!active.has(h)) prevOk.delete(h);
