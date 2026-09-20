@@ -51,7 +51,7 @@ ok(`required sources present (${requiredSrc.length})`);
 
 // App.vue must mount shell pieces
 const appVue = fs.readFileSync(path.join(root, "src/App.vue"), "utf8");
-for (const needle of ["SidebarHost", "MainArea", "添加主机", "主题"]) {
+for (const needle of ["WorkspaceRail", "MainArea", "添加主机", "主题"]) {
   if (!appVue.includes(needle)) fail(`App.vue missing ${needle}`);
 }
 if (appVue.includes("TabColumn")) fail("App.vue still references TabColumn");
