@@ -1120,8 +1120,26 @@ function onAdoptHost(sessionId: string, host: string, targetId: string, side: Pa
   if (!name || sessionId === props.workspaceSessionId) return false;
   const taken = takeTermDesk(sessionId);
   if (taken.length === 0) {
-    ElMessage.warning("没有拿到原来的会话，已取消，避免重开连接");
-    return false;
+    // 拖进来的不是终端会话（比如主机页标签）：保持原样取消
+    if (!app.terminalDesks.some((d) => d.id === sessionId)) {
+      ElMessage.warning("没有拿到原来的会话，已取消，避免重开连接");
+      return false;
+    }
+    // 是终端会话但一个存活窗格都没有（从未打开或已全部断开）：
+    // 并成一个新窗格，否则这个合并任务会永远卡在队列里
+    zoomed.value = false;
+    const freshId = newPaneId();
+    paneTree.value = placeBeside(paneTree.value, targetId, side, {
+      kind: "leaf",
+      id: freshId,
+      host: name,
+    });
+    focusedPaneId.value = freshId;
+    app.releaseAdoptedSource(sessionId);
+    syncMergedTitle();
+    scheduleFitAll();
+    ElMessage.success(`已把 ${name} 并进这个分屏（新开了一条连接）`);
+    return true;
   }
   absorbHandoff(taken);
   zoomed.value = false;
@@ -1833,6 +1851,9 @@ onBeforeUnmount(() => {
   }
   const deskLives = app.terminalDesks.some((d) => d.id === props.workspaceSessionId);
   if (deskLives) {
+    // 切 desk/进设置都会卸载这个组件；先把分屏树落盘并暂存，
+    // 重挂载时才能按原来的 paneId 接回 parked 里的会话
+    flushWorkspaceLayout();
     for (const item of takeAllHandoff()) parkTermPane(item);
   } else {
     void teardownAll();

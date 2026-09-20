@@ -1263,6 +1263,7 @@ export const useAppStore = defineStore("app", () => {
     const prev = layoutSaveTimers.get(id);
     if (prev) window.clearTimeout(prev);
     layoutSaveTimers.delete(id);
+    restoredLayouts.delete(id);
     removeSavedWorkspace(id);
   }
 
@@ -1291,6 +1292,9 @@ export const useAppStore = defineStore("app", () => {
       tree: snap,
       focusedId: focus,
     });
+    // 会话还在时同步暂存一份：切走 desk 会卸载 TerminalView，
+    // 重挂载靠 consumeWorkspaceLayout 接回原树，否则分屏会退回单窗格。
+    restoredLayouts.set(id, { tree: snap, focusedId: focus });
   }
 
   function persistWorkspaceLayout(id: string, tree: PaneNode, focusedId: string) {
