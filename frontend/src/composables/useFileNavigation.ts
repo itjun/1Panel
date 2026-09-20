@@ -1,7 +1,7 @@
 /**
  * 文件管理页的目录导航逻辑：
- * 当前目录 + 目录列表加载、前进/后退历史、路径 Tab、地址栏编辑、家目录解析。
- * 从 FilesView.vue 抽出，行为保持不变。
+ * 当前目录 + 目录列表加载、前进/后退历史、地址栏编辑、家目录解析。
+ * 一次只打开一个路径，从 FilesView.vue 抽出，行为保持不变。
  */
 import { computed, onMounted, ref, nextTick, watch } from "vue";
 import { ElMessage } from "element-plus";
@@ -18,12 +18,6 @@ export interface FileEntry {
   modTime: string;
   owner: string;
   group: string;
-}
-
-export interface PathTab {
-  id: string;
-  label: string;
-  path: string;
 }
 
 export interface PathSeg {
@@ -44,12 +38,6 @@ export function useFileNavigation(
 
   /** 当前主机用户家目录（默认入口）；解析失败前先占位 /root */
   const homeDir = ref("/root");
-
-  const pathTabs = ref<PathTab[]>([
-    { id: "tab-home", label: "home", path: "/root" },
-  ]);
-  const activeTabId = ref("tab-home");
-  let tabSeq = 1;
 
   const backStack = ref<string[]>([]);
   const forwardStack = ref<string[]>([]);
@@ -72,24 +60,6 @@ export function useFileNavigation(
     return segs;
   });
 
-  function tabLabelFromPath(p: string): string {
-    if (!p || p === "/") return "根目录";
-    if (p === homeDir.value) {
-      // 家目录：显示末级目录名（如 root / debian）
-      const parts = p.split("/").filter(Boolean);
-      return parts[parts.length - 1] || "home";
-    }
-    const parts = p.split("/").filter(Boolean);
-    return parts[parts.length - 1] || p;
-  }
-
-  function syncTabLabel() {
-    const t = pathTabs.value.find((x) => x.id === activeTabId.value);
-    if (!t) return;
-    t.path = cwd.value;
-    t.label = tabLabelFromPath(cwd.value);
-  }
-
   async function load(dir: string, o?: { pushHistory?: boolean }) {
     const pushHistory = o?.pushHistory !== false;
     if (pushHistory && dir !== cwd.value) {
@@ -103,7 +73,6 @@ export function useFileNavigation(
       entries.value = list || [];
       cwd.value = dir;
       opts?.onLoaded?.();
-      syncTabLabel();
     } catch (e) {
       error.value = formatErr(e);
       entries.value = [];
@@ -149,43 +118,6 @@ export function useFileNavigation(
     if (p !== cwd.value) jump(p.startsWith("/") ? p : "/" + p);
   }
 
-  function addTab() {
-    const id = `tab-${++tabSeq}`;
-    const start = homeDir.value || "/";
-    pathTabs.value.push({ id, label: tabLabelFromPath(start), path: start });
-    activeTabId.value = id;
-    backStack.value = [];
-    forwardStack.value = [];
-    void load(start, { pushHistory: false });
-  }
-
-  function removeTab(name: string | number) {
-    const id = String(name);
-    if (id === "__add__") return;
-    if (pathTabs.value.length <= 1) return;
-    const idx = pathTabs.value.findIndex((t) => t.id === id);
-    if (idx < 0) return;
-    pathTabs.value.splice(idx, 1);
-    if (activeTabId.value === id) {
-      const next = pathTabs.value[Math.max(0, idx - 1)];
-      activeTabId.value = next.id;
-      void load(next.path, { pushHistory: false });
-    }
-  }
-
-  function onTabChange(name: string | number) {
-    const id = String(name);
-    if (id === "__add__") {
-      activeTabId.value = pathTabs.value[0]?.id || "tab-home";
-      return;
-    }
-    const t = pathTabs.value.find((x) => x.id === id);
-    if (!t) return;
-    backStack.value = [];
-    forwardStack.value = [];
-    void load(t.path, { pushHistory: false });
-  }
-
   async function resolveHomeDir(): Promise<string> {
     try {
       const h = await api.getHomeDir(host());
@@ -200,16 +132,11 @@ export function useFileNavigation(
   }
 
   async function resetHost() {
-    tabSeq = 1;
     backStack.value = [];
     forwardStack.value = [];
 
     const home = await resolveHomeDir();
     homeDir.value = home;
-    pathTabs.value = [
-      { id: "tab-home", label: tabLabelFromPath(home), path: home },
-    ];
-    activeTabId.value = "tab-home";
     await load(home, { pushHistory: false });
   }
 
@@ -226,8 +153,6 @@ export function useFileNavigation(
     entries,
     cwd,
     homeDir,
-    pathTabs,
-    activeTabId,
     canBack,
     canForward,
     addressEditing,
@@ -241,8 +166,5 @@ export function useFileNavigation(
     goForward,
     startAddressEdit,
     commitAddress,
-    addTab,
-    removeTab,
-    onTabChange,
   };
 }

@@ -9,46 +9,6 @@
     @dragleave.prevent="onDragLeave"
     @drop.prevent="onDropFallback"
   >
-    <!-- 路径 Tab：序号 + 可拖排序；+ 钉右侧，栏满时点 + 提示 -->
-    <div ref="fileTabsBarRef" class="file-path-tabs-bar">
-      <el-tabs
-        v-model="activeTabId"
-        class="file-path-tabs"
-        :class="{ 'is-reordering': !!tabDraggingId }"
-        @tab-change="onTabChange"
-        @tab-remove="requestCloseTab"
-        @pointerdown="onTabPointerDown"
-        @click.capture="onTabClickCapture"
-      >
-        <el-tab-pane
-          v-for="(t, idx) in pathTabs"
-          :key="t.id"
-          :name="t.id"
-          :closable="pathTabs.length > 1"
-        >
-          <template #label>
-            <span
-              class="file-tab-label"
-              :class="{ 'is-dragging': tabDraggingId === t.id }"
-              :data-tab-id="t.id"
-              :title="t.path"
-            >
-              <span class="file-tab-idx">{{ idx + 1 }}</span>
-              {{ t.label }}
-            </span>
-          </template>
-        </el-tab-pane>
-      </el-tabs>
-      <button
-        type="button"
-        class="tab-add-btn"
-        v-tip="'新开路径标签'"
-        @click="requestAddTab"
-      >
-        <el-icon :size="16"><Plus /></el-icon>
-      </button>
-    </div>
-
     <!-- 导航 + 地址栏 + 搜索 -->
     <div class="file-nav">
       <div class="file-nav__actions">
@@ -254,14 +214,14 @@
 /**
  * 文件管理页：组合导航（useFileNavigation）与上传（useFileUpload）逻辑，
  * 自身只保留过滤/排序/分页/选择/删除等表格层交互。
+ * 一次只打开一个路径，没有多标签。
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   ArrowDown,
   Back,
   Download,
   HomeFilled,
-  Plus,
   Refresh,
   Right,
   Search,
@@ -281,11 +241,6 @@ import {
   useFileNavigation,
   type FileEntry,
 } from "@/composables/useFileNavigation";
-import {
-  TAB_BAR_FULL_MSG,
-  tabBarIsFull,
-  useTabReorder,
-} from "@/composables/useTabStrip";
 import { useFileUpload } from "@/composables/useFileUpload";
 import { useAppStore } from "@/stores/app";
 import { parentDir } from "@/utils/format";
@@ -310,8 +265,6 @@ const {
   error: navError,
   entries,
   cwd,
-  pathTabs,
-  activeTabId,
   canBack,
   canForward,
   addressEditing,
@@ -324,93 +277,10 @@ const {
   goForward,
   startAddressEdit,
   commitAddress,
-  addTab,
-  removeTab,
-  onTabChange,
 } = useFileNavigation(() => props.host, {
   onLoaded: () => {
     page.value = 1;
   },
-});
-
-const fileTabsBarRef = ref<HTMLElement | null>(null);
-const {
-  draggingId: tabDraggingId,
-  onPointerDown: onTabPointerDown,
-  onClickCapture: onTabClickCapture,
-} = useTabReorder(pathTabs, {
-  listRef: fileTabsBarRef,
-  itemSelector: ".el-tabs__item",
-});
-
-function requestAddTab() {
-  const clip = fileTabsBarRef.value?.querySelector(
-    ".el-tabs__nav-scroll"
-  ) as HTMLElement | null;
-  if (tabBarIsFull(clip, ".el-tabs__item", { firstGainsClose: true })) {
-    ElMessage.warning(TAB_BAR_FULL_MSG);
-    return;
-  }
-  addTab();
-}
-
-function fileTabTitle(id: string): string {
-  const idx = pathTabs.value.findIndex((x) => x.id === id);
-  const t = idx >= 0 ? pathTabs.value[idx] : null;
-  if (!t) return id;
-  return `${idx + 1} ${t.label}`;
-}
-
-function hasVisibleOverlay(): boolean {
-  for (const el of document.querySelectorAll(".el-overlay")) {
-    const s = getComputedStyle(el);
-    if (s.display === "none" || s.visibility === "hidden") continue;
-    return true;
-  }
-  return false;
-}
-
-function isThisFilesPageActive(): boolean {
-  const v = app.activeTab;
-  return v?.kind === "host" && v.id === props.host && v.subTab === "file-manager";
-}
-
-async function requestCloseTab(name: string | number) {
-  const id = String(name);
-  if (id === "__add__") return;
-  if (pathTabs.value.length <= 1) {
-    ElMessage.info("至少保留一个标签");
-    return;
-  }
-  const t = pathTabs.value.find((x) => x.id === id);
-  if (!t) return;
-  try {
-    await ElMessageBox.confirm(
-      `确定关闭「${fileTabTitle(id)}」吗？`,
-      "关闭标签",
-      { type: "warning", confirmButtonText: "关闭", cancelButtonText: "取消" }
-    );
-  } catch {
-    return;
-  }
-  removeTab(id);
-}
-
-function onFilesKeydown(e: KeyboardEvent) {
-  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-  if (e.code !== "KeyW") return;
-  if (!isThisFilesPageActive()) return;
-  e.preventDefault();
-  e.stopPropagation();
-  if (hasVisibleOverlay()) return;
-  void requestCloseTab(activeTabId.value);
-}
-
-onMounted(() => {
-  window.addEventListener("keydown", onFilesKeydown, true);
-});
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", onFilesKeydown, true);
 });
 
 const {
@@ -590,108 +460,6 @@ function toTerminal() {
   font-size: 12px;
   color: var(--m3-on-surface-variant);
   font-family: var(--m3-font-mono);
-}
-
-/* 路径 Tab：通栏内垂直居中，从左依次排列；+ 钉右侧不随标签挤出 */
-.file-path-tabs-bar {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  height: var(--m3-chrome-height);
-  min-height: var(--m3-chrome-height);
-  max-height: var(--m3-chrome-height);
-  padding: 0 16px;
-  box-sizing: border-box;
-  border-bottom: 1px solid var(--m3-outline-variant);
-  user-select: none;
-}
-.file-path-tabs {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  overflow: hidden;
-
-  :deep(.el-tabs__header) {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-  }
-  :deep(.el-tabs__nav-wrap),
-  :deep(.el-tabs__nav-scroll) {
-    height: 100%;
-  }
-  :deep(.el-tabs__nav) {
-    height: 100%;
-    float: none;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-  }
-  :deep(.el-tabs__nav-wrap::after) {
-    display: none;
-  }
-  :deep(.el-tabs__active-bar) {
-    height: 2px;
-    background-color: var(--m3-primary);
-  }
-  :deep(.el-tabs__item) {
-    height: 100%;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    padding: 0 12px !important;
-    border: none !important;
-    background: transparent !important;
-    color: var(--m3-on-surface-variant);
-    font: var(--m3-title-small);
-    font-weight: 500;
-    cursor: grab;
-  }
-  &.is-reordering :deep(.el-tabs__item) {
-    cursor: grabbing;
-  }
-  :deep(.el-tabs__item.is-active) {
-    color: var(--m3-primary);
-    font-weight: 600;
-  }
-  :deep(.el-tabs__content) {
-    display: none;
-  }
-}
-.file-tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  &.is-dragging {
-    opacity: 0.45;
-  }
-}
-.file-tab-idx {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--m3-on-surface-variant);
-}
-:deep(.el-tabs__item.is-active) .file-tab-idx {
-  color: var(--m3-primary);
-}
-.tab-add-btn {
-  appearance: none;
-  position: relative;
-  z-index: 2;
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 8px;
-  border: none;
-  background: transparent;
-  color: var(--m3-on-surface-variant);
-  cursor: pointer;
-  &:hover {
-    color: var(--m3-primary);
-  }
 }
 
 .file-nav {
