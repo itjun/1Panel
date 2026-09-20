@@ -798,21 +798,12 @@ watch(
     background: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
   }
 
-  &.active {
+  /* 多选项与单击选中的高亮保持一致：只用底色高亮，不加竖条 */
+  &.active,
+  &.is-selected {
     color: var(--m3-nav-active-fg);
     background: var(--m3-nav-active-bg);
     font-weight: 600;
-  }
-
-  &.is-selected:not(.active) {
-    color: var(--m3-primary);
-    background: color-mix(in srgb, var(--m3-primary) 16%, transparent);
-    box-shadow: inset 3px 0 0 var(--m3-primary);
-  }
-
-  /* 当前激活页也在选中集时保留激活底色，但叠加选中竖条，保证 4 台都看得出被选中 */
-  &.active.is-selected {
-    box-shadow: inset 3px 0 0 var(--m3-primary);
   }
 
   &.is-dragging {
