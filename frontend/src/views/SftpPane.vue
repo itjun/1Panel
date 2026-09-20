@@ -27,6 +27,9 @@
         </button>
         <div v-if="menuOpen" class="menu-back" @mousedown="menuOpen = false" />
         <div v-if="menuOpen" class="menu" @mousedown.stop>
+          <button v-if="canCreate" type="button" @click="runMenu('mkdir')">创建目录</button>
+          <button v-if="canCreate" type="button" @click="runMenu('mkfile')">创建文件</button>
+          <div v-if="canCreate" class="menu-div" />
           <button type="button" :disabled="!canOpen" @click="runMenu('open')">打开</button>
           <button type="button" :disabled="!selected.length" @click="runMenu('send')">传到对面</button>
           <button v-if="canRemove" type="button" class="danger" :disabled="!selected.length" @click="runMenu('remove')">删除</button>
@@ -185,6 +188,9 @@
     <Teleport to="body">
       <div v-if="ctx" class="ctx-back" @mousedown="ctx = null" @contextmenu.prevent="ctx = null" />
       <div v-if="ctx" ref="ctxEl" class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }" @mousedown.stop>
+        <button v-if="canCreate" type="button" @click="runMenu('mkdir')">创建目录</button>
+        <button v-if="canCreate" type="button" @click="runMenu('mkfile')">创建文件</button>
+        <div v-if="canCreate" class="menu-div" />
         <button type="button" :disabled="!canOpen" @click="runMenu('open')">打开</button>
         <button type="button" :disabled="!selected.length" @click="runMenu('send')">传到对面</button>
         <button v-if="canRemove" type="button" class="danger" :disabled="!selected.length" @click="runMenu('remove')">删除</button>
@@ -227,6 +233,8 @@ const props = defineProps<{
   locked?: boolean;
   /** 是否允许删除；本机面板传 false，本地文件只用于传输 */
   canRemove?: boolean;
+  /** 是否允许创建目录/文件；本机面板不传，本地文件交给 Finder */
+  canCreate?: boolean;
   /** 用户根目录；地址栏的小房子点击后跳转到这里 */
   homePath?: string;
 }>();
@@ -242,6 +250,8 @@ const emit = defineEmits<{
   dragEnd: [];
   remove: [items: SftpDeleteItem[]];
   hoverTarget: [dir: string];
+  /** 在当前目录创建；name 由父组件弹框输入 */
+  create: [kind: "dir" | "file"];
 }>();
 
 const OURS = "application/x-1pannel-sftp";
@@ -410,9 +420,11 @@ function emitSend() {
   emit("send", selected.value.slice());
 }
 
-function runMenu(action: "open" | "send" | "remove" | "refresh" | "hidden" | "all") {
+function runMenu(action: "open" | "send" | "remove" | "refresh" | "hidden" | "all" | "mkdir" | "mkfile") {
   menuOpen.value = false;
   ctx.value = null;
+  if (action === "mkdir") emit("create", "dir");
+  if (action === "mkfile") emit("create", "file");
   if (action === "open") {
     const one = props.entries.find((e) => e.path === selected.value[0]);
     if (one?.isDir) emit("navigate", one.path);

@@ -246,6 +246,41 @@ func (s *Files) DeleteLocalPaths(paths []string) error {
 	return nil
 }
 
+// SftpMkdir 用 SFTP 在远程创建目录（不走 agent）。
+func (s *Files) SftpMkdir(host, dir string) error {
+	dir = path.Clean(strings.TrimSpace(dir))
+	if dir == "" || dir == "/" || dir == "." {
+		return fmt.Errorf("目录名不能为空")
+	}
+	return s.withSFTP(host, func(sc *sftp.Client) error {
+		if _, err := sc.Stat(dir); err == nil {
+			return fmt.Errorf("「%s」已存在", path.Base(dir))
+		}
+		if err := sc.Mkdir(dir); err != nil {
+			return fmt.Errorf("创建目录失败: %w", err)
+		}
+		return nil
+	})
+}
+
+// SftpCreateFile 用 SFTP 在远程创建空文件；名字已被占用时报错，不覆盖已有内容。
+func (s *Files) SftpCreateFile(host, file string) error {
+	file = path.Clean(strings.TrimSpace(file))
+	if file == "" || file == "/" || file == "." {
+		return fmt.Errorf("文件名不能为空")
+	}
+	return s.withSFTP(host, func(sc *sftp.Client) error {
+		f, err := sc.OpenFile(file, os.O_CREATE|os.O_EXCL|os.O_WRONLY)
+		if err != nil {
+			if _, statErr := sc.Stat(file); statErr == nil {
+				return fmt.Errorf("「%s」已存在", path.Base(file))
+			}
+			return fmt.Errorf("创建文件失败: %w", err)
+		}
+		return f.Close()
+	})
+}
+
 // DeleteSftpPaths 用 SFTP 删除远程文件或目录（递归，不走 agent）。
 func (s *Files) DeleteSftpPaths(host string, paths []string) error {
 	if len(paths) == 0 {

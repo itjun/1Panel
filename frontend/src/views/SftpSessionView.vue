@@ -37,6 +37,7 @@
       :accept-drop="dragFrom === 'local'"
       :locked="!!pending || asking || busy"
       :can-remove="true"
+      :can-create="true"
       :home-path="remoteHome"
       drop-hint="松手即可上传"
       @navigate="onRemoteNavigate"
@@ -48,6 +49,7 @@
       @drag-begin="onDragBegin('remote', $event)"
       @drag-end="onDragEnd"
       @remove="askDelete"
+      @create="onRemoteCreate"
       @hover-target="remoteHover = $event"
     />
 
@@ -101,7 +103,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Events } from "@wailsio/runtime";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import type { monitor } from "@/api";
 import { useAppStore } from "@/stores/app";
@@ -451,6 +453,39 @@ function askDelete(items: SftpDeleteItem[]) {
   if (!items.length || deleting.value) return;
   confirmArmed.value = false;
   pending.value = { items };
+}
+
+// 远程面板「创建目录 / 创建文件」：弹框输入名字，在当前目录创建
+async function onRemoteCreate(kind: "dir" | "file") {
+  if (blocked()) return;
+  const isDir = kind === "dir";
+  try {
+    const { value } = await ElMessageBox.prompt(
+      isDir ? "目录名称" : "文件名称（创建为空文件）",
+      isDir ? "创建目录" : "创建文件",
+      {
+        inputValue: isDir ? "新建文件夹" : "新建文件.txt",
+        confirmButtonText: "创建",
+        cancelButtonText: "取消",
+        inputValidator: (v) => {
+          const name = (v || "").trim();
+          if (!name) return "名称不能为空";
+          if (name.includes("/")) return "名称里不能包含 /";
+          return true;
+        },
+      }
+    );
+    const name = (value || "").trim();
+    if (!name) return;
+    const target = normalizeRemote(remoteCwd.value + "/" + name);
+    if (isDir) await api.sftpMkdir(props.host, target);
+    else await api.sftpCreateFile(props.host, target);
+    ElMessage.success("已创建");
+    await loadRemoteAt(remoteCwd.value, false);
+  } catch (e) {
+    if (e === "cancel" || e === "close") return;
+    ElMessage.error(formatErr(e));
+  }
 }
 
 function closeDelete() {

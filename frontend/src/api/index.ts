@@ -312,6 +312,14 @@ const apiImpl = {
   deleteSftpPaths: async (host: string, paths: string[]): Promise<void> => {
     await Files.DeleteSftpPaths(host, paths);
   },
+  /** 用 SFTP 在远程创建目录；名字已占用时报错 */
+  sftpMkdir: async (host: string, dir: string): Promise<void> => {
+    await Files.SftpMkdir(host, dir);
+  },
+  /** 用 SFTP 在远程创建空文件；名字已占用时不覆盖、报错 */
+  sftpCreateFile: async (host: string, file: string): Promise<void> => {
+    await Files.SftpCreateFile(host, file);
+  },
   /** 删除远程文件/目录（递归，不可恢复） */
   deletePaths: (host: string, paths: string[]): Promise<string> =>
     str(Monitor.DeletePaths(host, paths)),

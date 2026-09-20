@@ -111,6 +111,13 @@ export function ReadFilePreview(host: string, file: string): $CancellablePromise
 }
 
 /**
+ * SftpCreateFile 用 SFTP 在远程创建空文件；名字已被占用时报错，不覆盖已有内容。
+ */
+export function SftpCreateFile(host: string, file: string): $CancellablePromise<void> {
+    return $Call.ByID(2742458886, host, file);
+}
+
+/**
  * SftpExistingNames 返回远程目录里已经存在的名字。给拖拽冲突弹窗用。
  */
 export function SftpExistingNames(host: string, dir: string, names: string[] | null): $CancellablePromise<string[] | null> {
@@ -122,6 +129,13 @@ export function SftpExistingNames(host: string, dir: string, names: string[] | n
  */
 export function SftpHomeDir(host: string): $CancellablePromise<string> {
     return $Call.ByID(1536006882, host);
+}
+
+/**
+ * SftpMkdir 用 SFTP 在远程创建目录（不走 agent）。
+ */
+export function SftpMkdir(host: string, dir: string): $CancellablePromise<void> {
+    return $Call.ByID(3125359735, host, dir);
 }
 
 /**
