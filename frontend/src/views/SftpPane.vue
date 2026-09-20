@@ -33,8 +33,7 @@
           <div class="menu-div" />
           <button type="button" @click="runMenu('refresh')">刷新</button>
           <button type="button" @click="runMenu('hidden')">
-            <span class="tick">{{ showHidden ? "✓" : "" }}</span>
-            显示隐藏文件
+            {{ showHidden ? "不显示隐藏文件" : "显示隐藏文件" }}
           </button>
           <button type="button" :disabled="!shown.length" @click="runMenu('all')">全选</button>
         </div>
@@ -47,6 +46,18 @@
       </button>
       <button type="button" class="icon-btn" :disabled="!canForward" title="前进" @click="emit('forward')">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <button
+        type="button"
+        class="icon-btn"
+        :disabled="!homePath"
+        title="用户根目录"
+        @click="go(homePath || '')"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 11.2 12 4.5l8 6.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M6 10.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-8.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
       </button>
       <div v-if="editing" class="crumbs is-editing">
         <input
@@ -111,7 +122,7 @@
         </button>
         <span class="col fill" aria-hidden="true" />
       </div>
-      <div ref="rowsEl" class="rows">
+      <div ref="rowsEl" class="rows" @contextmenu.prevent="openCtx" @click="clearSel">
         <div v-if="!loading && shown.length === 0" class="empty">
           {{ emptyText }}
         </div>
@@ -127,9 +138,9 @@
             'is-dot': e.name.startsWith('.'),
           }"
           draggable="true"
-          @click="onRowClick(e, index, $event)"
+          @click.stop="onRowClick(e, index, $event)"
           @dblclick="onOpen(e)"
-          @contextmenu.prevent="onContext($event, e, index)"
+          @contextmenu.prevent.stop="onContext($event, e, index)"
           @dragstart="onDragStart($event, e)"
           @dragend="onDragFinish"
           @dragover="onRowDragOver($event, e)"
@@ -173,15 +184,14 @@
 
     <Teleport to="body">
       <div v-if="ctx" class="ctx-back" @mousedown="ctx = null" @contextmenu.prevent="ctx = null" />
-      <div v-if="ctx" class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }" @mousedown.stop>
+      <div v-if="ctx" ref="ctxEl" class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }" @mousedown.stop>
         <button type="button" :disabled="!canOpen" @click="runMenu('open')">打开</button>
         <button type="button" :disabled="!selected.length" @click="runMenu('send')">传到对面</button>
         <button v-if="canRemove" type="button" class="danger" :disabled="!selected.length" @click="runMenu('remove')">删除</button>
         <div class="menu-div" />
         <button type="button" @click="runMenu('refresh')">刷新</button>
         <button type="button" @click="runMenu('hidden')">
-          <span class="tick">{{ showHidden ? "✓" : "" }}</span>
-          显示隐藏文件
+          {{ showHidden ? "不显示隐藏文件" : "显示隐藏文件" }}
         </button>
         <button type="button" :disabled="!shown.length" @click="runMenu('all')">全选</button>
       </div>
@@ -217,6 +227,8 @@ const props = defineProps<{
   locked?: boolean;
   /** 是否允许删除；本机面板传 false，本地文件只用于传输 */
   canRemove?: boolean;
+  /** 用户根目录；地址栏的小房子点击后跳转到这里 */
+  homePath?: string;
 }>();
 
 const emit = defineEmits<{
@@ -249,7 +261,8 @@ const hot = ref(false);
 const hoverDir = ref("");
 const dragging = ref<string[]>([]);
 
-const ctx = ref<{ x: number; y: number; entry: monitor.FileEntry } | null>(null);
+const ctx = ref<{ x: number; y: number } | null>(null);
+const ctxEl = ref<HTMLElement | null>(null);
 
 const segments = computed(() => {
   const raw = props.cwd || props.rootPath || "/";
@@ -490,12 +503,35 @@ function moveSel(delta: number) {
   el?.scrollIntoView({ block: "nearest" });
 }
 
+function openCtx(ev: MouseEvent) {
+  ctx.value = { x: ev.clientX, y: ev.clientY };
+  void nextTick(() => {
+    const el = ctxEl.value;
+    if (!el || !ctx.value) return;
+    const rect = el.getBoundingClientRect();
+    const margin = 4;
+    // 快到视口底部时翻转到点击点上方，避免菜单下半截被裁掉
+    if (ctx.value.y + rect.height > window.innerHeight - margin) {
+      ctx.value.y = Math.max(margin, ev.clientY - rect.height);
+    }
+    if (ctx.value.x + rect.width > window.innerWidth - margin) {
+      ctx.value.x = Math.max(margin, window.innerWidth - rect.width - margin);
+    }
+  });
+}
+
+// 点击列表空白处：清除选中
+function clearSel() {
+  selected.value = [];
+  anchor.value = -1;
+}
+
 function onContext(ev: MouseEvent, entry: monitor.FileEntry, index: number) {
   if (!selected.value.includes(entry.path)) {
     selected.value = [entry.path];
     anchor.value = index;
   }
-  ctx.value = { x: ev.clientX, y: ev.clientY, entry };
+  openCtx(ev);
 }
 
 function isOurs(ev: DragEvent): boolean {
@@ -745,13 +781,6 @@ function setHover(dir: string) {
     &.danger {
       color: var(--m3-error);
     }
-  }
-
-  .tick {
-    width: 14px;
-    flex-shrink: 0;
-    color: var(--m3-primary);
-    font-weight: 700;
   }
 
   .menu-div {

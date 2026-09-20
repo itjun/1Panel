@@ -13,6 +13,7 @@
       :accept-drop="dragFrom === 'remote'"
       :locked="!!pending || asking || busy"
       :can-remove="false"
+      :home-path="localHome"
       drop-hint="松手即可下载"
       @navigate="onLocalNavigate"
       @back="localGoBack"
@@ -35,6 +36,8 @@
       :can-forward="remoteFwd.length > 0"
       :accept-drop="dragFrom === 'local'"
       :locked="!!pending || asking || busy"
+      :can-remove="true"
+      :home-path="remoteHome"
       drop-hint="松手即可上传"
       @navigate="onRemoteNavigate"
       @back="remoteGoBack"
@@ -50,20 +53,23 @@
 
     <div v-if="xfer" class="xfer">{{ xfer }}</div>
 
-    <div v-if="pending" class="confirm-mask" @mousedown.self="pending = null">
+    <div v-if="pending" class="confirm-mask" @mousedown.self="closeDelete">
       <div class="confirm" role="dialog" aria-modal="true">
         <header>
           <span>{{ confirmTitle }}</span>
-          <button type="button" class="x" @click="pending = null">×</button>
+          <button type="button" class="x" @click="closeDelete">×</button>
         </header>
         <div class="body">
           <p v-for="item in pendingPreview" :key="item.path">{{ item.name }}</p>
           <p v-if="pendingMore" class="more">还有 {{ pendingMore }} 项</p>
           <p class="note">{{ confirmNote }}</p>
         </div>
-        <footer>
+        <footer class="choices">
+          <button v-if="confirmArmed" type="button" class="text" :disabled="deleting" @click="confirmArmed = false">
+            取消
+          </button>
           <button type="button" class="danger" :disabled="deleting" @click="confirmDelete">
-            {{ deleting ? "正在删除…" : "删除" }}
+            {{ deleting ? "正在删除…" : confirmArmed ? "确认删除" : "删除" }}
           </button>
         </footer>
       </div>
@@ -107,6 +113,7 @@ const props = defineProps<{ host: string }>();
 const app = useAppStore();
 
 const localHome = ref("");
+const remoteHome = ref("");
 const localCwd = ref("");
 const remoteCwd = ref("");
 const localEntries = ref<monitor.FileEntry[]>([]);
@@ -129,6 +136,8 @@ const xfer = ref("");
 
 // 仅远程面板可删除；本机文件不允许删除
 const pending = ref<{ items: SftpDeleteItem[] } | null>(null);
+// 删除的二次确认：第一次点「删除」只进入确认态，再点「确认删除」才真正执行
+const confirmArmed = ref(false);
 const deleting = ref(false);
 const asking = ref(false);
 
@@ -144,13 +153,15 @@ const localRoot = computed(() => (localHome.value.startsWith("/") ? "/" : localH
 
 const confirmTitle = computed(() => {
   const items = pending.value?.items ?? [];
-  if (items.length > 1) return `确定删除这 ${items.length} 项？`;
-  if (items[0]?.isDir) return "确定删除这个文件夹？";
-  return "确定删除这个文件？";
+  const lead = confirmArmed.value ? "再次确认：删除" : "确定删除";
+  if (items.length > 1) return `${lead}这 ${items.length} 项？`;
+  if (items[0]?.isDir) return `${lead}这个文件夹？`;
+  return `${lead}这个文件？`;
 });
 
 const confirmNote = computed(() => {
   const items = pending.value?.items ?? [];
+  if (confirmArmed.value) return "请再次确认：删除后无法恢复。";
   if (items.some((item) => item.isDir)) return "文件夹里的内容会一起删除，且无法恢复。";
   return "删除后无法恢复。";
 });
@@ -208,7 +219,10 @@ async function loadLocalAt(path: string, record: boolean) {
 
 async function loadRemoteOnce(path: string, record: boolean, from: string, seq: number) {
   let target = path ? normalizeRemote(path) : "";
-  if (!target) target = normalizeRemote(await api.sftpHomeDir(props.host));
+  if (!target) {
+    target = normalizeRemote(await api.sftpHomeDir(props.host));
+    remoteHome.value = target;
+  }
   if (seq !== remoteSeq) return;
   const list = (await api.listSftp(props.host, target)) || [];
   if (seq !== remoteSeq) return;
@@ -435,16 +449,28 @@ async function downloadTo(paths: string[], localDir: string) {
 
 function askDelete(items: SftpDeleteItem[]) {
   if (!items.length || deleting.value) return;
+  confirmArmed.value = false;
   pending.value = { items };
+}
+
+function closeDelete() {
+  if (deleting.value) return;
+  pending.value = null;
+  confirmArmed.value = false;
 }
 
 async function confirmDelete() {
   const job = pending.value;
   if (!job || deleting.value) return;
+  if (!confirmArmed.value) {
+    confirmArmed.value = true;
+    return;
+  }
   deleting.value = true;
   try {
     await api.deleteSftpPaths(props.host, job.items.map((item) => item.path));
     pending.value = null;
+    confirmArmed.value = false;
     ElMessage.success("已删除");
     await loadRemoteAt(remoteCwd.value, false);
   } catch (e) {
@@ -471,7 +497,7 @@ function onWinKey(ev: KeyboardEvent) {
   }
   if (!pending.value || deleting.value) return;
   if (ev.key === "Escape") {
-    pending.value = null;
+    closeDelete();
     return;
   }
   if (ev.key !== "Enter") return;
@@ -499,6 +525,7 @@ watch(
       remoteFwd.value = [];
       localCwd.value = "";
       remoteCwd.value = "";
+      remoteHome.value = "";
       localEntries.value = [];
       remoteEntries.value = [];
       void loadLocalAt("", false);
