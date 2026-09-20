@@ -224,3 +224,48 @@ export function equalizeRatios(node: PaneNode): PaneNode {
     b: equalizeRatios(node.b),
   };
 }
+
+function leafCount(node: PaneNode): number {
+  if (node.kind === "leaf") return 1;
+  return leafCount(node.a) + leafCount(node.b);
+}
+
+let gridSeq = 0;
+
+/** 同方向把若干子树串起来，ratio 按各侧叶子数分，保证每个叶子最终等大。 */
+function stackDir(items: PaneNode[], dir: PaneDir): PaneNode {
+  let node = items[0];
+  let left = leafCount(node);
+  for (let i = 1; i < items.length; i++) {
+    const count = leafCount(items[i]);
+    left += count;
+    node = {
+      kind: "split",
+      id: `split-grid-${(gridSeq += 1)}`,
+      dir,
+      ratio: clampRatio((left - count) / left),
+      a: node,
+      b: items[i],
+    };
+  }
+  return node;
+}
+
+/** 把叶子重排成近似正方形的网格：cols 列，列内上下均分，列间左右均分。 */
+export function gridTree(leaves: PaneLeaf[], cols: number): PaneNode {
+  const n = leaves.length;
+  if (n === 0) throw new Error("gridTree: no leaves");
+  let width = Math.min(Math.max(cols, 1), n);
+  const base = Math.floor(n / width);
+  const rem = n % width;
+  const columns: PaneNode[] = [];
+  let idx = 0;
+  for (let c = 0; c < width && idx < n; c++) {
+    const count = c < rem ? base + 1 : base;
+    if (count <= 0) continue;
+    columns.push(stackDir(leaves.slice(idx, idx + count), "col"));
+    idx += count;
+  }
+  if (columns.length === 1) return columns[0];
+  return stackDir(columns, "row");
+}

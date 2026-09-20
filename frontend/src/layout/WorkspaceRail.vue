@@ -41,6 +41,7 @@
       class="app-nav__sessions no-drag"
       :class="{ 'is-host-drop-target': hostCardDropTarget }"
       :data-host-session-drop="listKind === 'hosts' ? 'true' : undefined"
+      @contextmenu.prevent="onSessionsContextMenu"
     >
       <template v-if="listKind === 'terminal'">
         <button
@@ -114,16 +115,7 @@
 
       <template v-else>
         <button
-          type="button"
-          class="app-nav__sess"
-          :class="{ active: !app.activeSessionId && !app.activeView }"
-          @pointerdown="(e) => pointerAction(e, pickHostHome)"
-          @click="clickAction(pickHostHome)"
-        >
-          主机首页
-        </button>
-          <button
-            v-for="s in app.workspaceSessions"
+          v-for="s in app.workspaceSessions"
           :key="s.id"
           type="button"
           class="app-nav__sess"
@@ -136,7 +128,7 @@
           :title="s.title || s.host"
           @pointerdown="(e) => onHostSessionPointerDown(e, s)"
           @click="clickAction(() => pickHostSession(s.id))"
-          @contextmenu.prevent="openHostSessionMenu($event, s)"
+          @contextmenu.prevent.stop="openHostSessionMenu($event, s)"
           draggable="true"
           @dragstart="onHostSessionDragStart($event, s)"
           @dragover.prevent="onHostSessionDragOver($event, s)"
@@ -341,23 +333,46 @@ function onHostSessionDragEnd() {
   }, 0);
 }
 
+/** 范围选择锚点：普通 / Cmd 点击时更新，Shift 点击沿用 */
+let hostSessionAnchorId = "";
+
 function onHostSessionPointerDown(e: PointerEvent, session: WorkspaceSession) {
   if (e.button !== 0 || suppressHostSessionClick.value) return;
   if (e.metaKey || e.ctrlKey) {
-    const next = new Set(selectedHostSessionIds.value);
-    if (next.has(session.id)) next.delete(session.id);
-    else next.add(session.id);
-    selectedHostSessionIds.value = [...next];
-    suppressHostSessionClick.value = true;
-    window.setTimeout(() => {
-      suppressHostSessionClick.value = false;
-    }, 0);
+    // 修饰键选择也走 pointerAction，让随后的鼠标 click 由全局 mouseHandled 跳过
+    pointerAction(e, () => {
+      const next = new Set(selectedHostSessionIds.value);
+      if (next.has(session.id)) next.delete(session.id);
+      else next.add(session.id);
+      selectedHostSessionIds.value = [...next];
+      hostSessionAnchorId = session.id;
+    });
+    return;
+  }
+  if (e.shiftKey && hostSessionAnchorId) {
+    pointerAction(e, () => {
+      const ids = app.workspaceSessions.map((s) => s.id);
+      const from = ids.indexOf(hostSessionAnchorId);
+      const to = ids.indexOf(session.id);
+      if (from < 0 || to < 0) return;
+      const lo = Math.min(from, to);
+      const hi = Math.max(from, to);
+      selectedHostSessionIds.value = ids.slice(lo, hi + 1);
+    });
     return;
   }
   pointerAction(e, () => {
     selectedHostSessionIds.value = [session.id];
+    hostSessionAnchorId = session.id;
     app.activateWorkspaceSession(session.id);
   });
+}
+
+/** 列表空白处右键：清空主机多选（其他分支的空白右键不做处理） */
+function onSessionsContextMenu() {
+  if (listKind.value !== "hosts") return;
+  selectedHostSessionIds.value = [];
+  hostSessionAnchorId = "";
 }
 
 function openHostSessionMenu(e: MouseEvent, session: WorkspaceSession) {
@@ -400,7 +415,8 @@ async function openSelectedTerminals() {
   const hosts = selectedHostNames();
   hostSessionMenu.value = null;
   for (const host of hosts) {
-    app.connectTerminal(host);
+    // 批量打开明确新开标签，不复用已有终端会话
+    app.openAnotherTerminal(host);
     await waitForTerminalDeskRender();
   }
 }
@@ -418,7 +434,7 @@ async function mergeSelectedTerminals() {
   if (hosts.length < 2) return;
   const deskIds: string[] = [];
   for (const host of hosts) {
-    app.connectTerminal(host);
+    app.openAnotherTerminal(host);
     await waitForTerminalDeskRender();
     const id = app.activeTerminalId;
     if (id && !deskIds.includes(id)) deskIds.push(id);
@@ -583,10 +599,6 @@ function onDeskDrop(e: DragEvent, desk: TerminalDesk) {
 function onDeskDragEnd() {
   dragDeskId.value = "";
   dropDeskId.value = "";
-}
-
-function pickHostHome() {
-  app.goHome();
 }
 
 function pickHostSession(id: string) {
@@ -793,8 +805,14 @@ watch(
   }
 
   &.is-selected:not(.active) {
-    color: var(--m3-on-surface);
-    background: color-mix(in srgb, var(--m3-primary) 10%, transparent);
+    color: var(--m3-primary);
+    background: color-mix(in srgb, var(--m3-primary) 16%, transparent);
+    box-shadow: inset 3px 0 0 var(--m3-primary);
+  }
+
+  /* 当前激活页也在选中集时保留激活底色，但叠加选中竖条，保证 4 台都看得出被选中 */
+  &.active.is-selected {
+    box-shadow: inset 3px 0 0 var(--m3-primary);
   }
 
   &.is-dragging {

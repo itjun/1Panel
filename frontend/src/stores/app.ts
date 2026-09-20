@@ -1551,7 +1551,12 @@ export const useAppStore = defineStore("app", () => {
   function promoteDeskToBench(deskId: string) {
     const desk = deskOf(deskId);
     if (!desk || desk.crossHost) return;
-    const title = desk.titleCustom ? desk.title : SPLIT_TITLE;
+    // 默认标题按现有分屏数编号成「合并 N」；用户改过名则保留
+    let title = desk.title;
+    if (!desk.titleCustom) {
+      const n = terminalDesks.value.filter((d) => d.crossHost && d.id !== deskId).length;
+      title = `合并 ${n + 1}`;
+    }
     patchDesk(deskId, { crossHost: true, title });
   }
 
@@ -1568,6 +1573,8 @@ export const useAppStore = defineStore("app", () => {
   }
 
   const deskMergeN = ref(0);
+  /** 本批合并来自多选「合并打开终端」：TerminalView 并完每台后按网格重排窗格 */
+  const deskMergeAutoLayout = ref(false);
   type DeskMergeJob = { sourceId: string; host: string; targetId: string };
   const deskMerge = ref<DeskMergeJob | null>(null);
   const deskMergeQueue = ref<DeskMergeJob[]>([]);
@@ -1596,6 +1603,8 @@ export const useAppStore = defineStore("app", () => {
     });
     if (next.length === 0) return;
 
+    // 一次排进多个合并任务（多选「合并打开终端」）时，收尾把窗格重排成网格
+    if (next.length > 1) deskMergeAutoLayout.value = true;
     settingsOpen.value = false;
     workspace.value = "terminal";
     rememberDesk(target);
@@ -1625,6 +1634,7 @@ export const useAppStore = defineStore("app", () => {
     deskMergeQueue.value = rest;
     deskMerge.value = next || null;
     if (next) deskMergeN.value += 1;
+    else deskMergeAutoLayout.value = false;
   }
 
   function isTerminalDeskVisible(deskId: string): boolean {
@@ -2245,6 +2255,7 @@ export const useAppStore = defineStore("app", () => {
     queueTerminalDeskMerges,
     deskMerge,
     deskMergeN,
+    deskMergeAutoLayout,
     clearDeskMerge,
     isTerminalDeskVisible,
     noteDeskHosts,

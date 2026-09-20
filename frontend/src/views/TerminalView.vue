@@ -198,6 +198,7 @@ import {
   setRatio,
   splitLeaf,
   splitRatioOf,
+  gridTree,
   type PaneLeaf,
   type PaneNode,
   type PaneSide,
@@ -1139,6 +1140,15 @@ function onAdoptHost(sessionId: string, host: string, targetId: string, side: Pa
   return true;
 }
 
+/** 批量合并时把窗格重排成近正方形网格，避免一股脑排成一行/一列。 */
+function relayoutMergeGrid() {
+  const leaves = collectLeaves(paneTree.value);
+  if (leaves.length < 3) return;
+  paneTree.value = gridTree(leaves, Math.ceil(Math.sqrt(leaves.length)));
+  focusedPaneId.value = focusedPaneId.value || leaves[0].id;
+  scheduleFitAll();
+}
+
 let adoptingDeskMerge = false;
 
 async function tryAdoptPending() {
@@ -1156,6 +1166,7 @@ async function tryAdoptPending() {
   adoptingDeskMerge = true;
   try {
     if (onAdoptHost(job.sourceId, job.host, leaf, "right")) {
+      if (app.deskMergeAutoLayout) relayoutMergeGrid();
       app.clearDeskMerge();
     }
   } finally {
