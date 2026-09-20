@@ -105,7 +105,7 @@
           :key="sec.id"
           type="button"
           class="app-nav__sess"
-          :class="{ active: settingsJump === sec.id }"
+          :class="{ active: app.settingsSection === sec.id }"
           @pointerdown="(e) => pointerAction(e, () => jumpSettings(sec.id))"
           @click="clickAction(() => jumpSettings(sec.id))"
         >
@@ -251,6 +251,7 @@ import {
   type WorkspaceSession,
 } from "@/stores/app";
 import { useAlertHistoryStore } from "@/stores/alertHistory";
+import type { SettingsSection } from "@/stores/settings";
 import { useChromeDrag } from "@/composables/useChromeDrag";
 import { useInjectedHostDrag } from "@/composables/useHostDrag";
 import { clickAction, pointerAction } from "@/utils/pointerAction";
@@ -269,12 +270,11 @@ const listKind = computed(() => {
   if (app.workspace === "terminal") return "terminal";
   return "hosts";
 });
-const settingSections = [
-  { id: "settings-look", label: "外观" },
-  { id: "settings-session", label: "会话" },
-  { id: "settings-app", label: "应用" },
+const settingSections: { id: SettingsSection; label: string }[] = [
+  { id: "look", label: "外观" },
+  { id: "session", label: "会话" },
+  { id: "app", label: "应用" },
 ];
-const settingsJump = ref("settings-look");
 function deskLabel(d: TerminalDesk): string {
   if (d.titleCustom && d.title) return d.title;
   if (!d.host) return d.title || "新建终端";
@@ -606,12 +606,9 @@ function pickHostSession(id: string) {
   app.activateWorkspaceSession(id);
 }
 
-function jumpSettings(id: string) {
-  settingsJump.value = id;
+function jumpSettings(id: SettingsSection) {
+  app.setSettingsSection(id);
   app.openSettings();
-  requestAnimationFrame(() => {
-    document.getElementById(id)?.scrollIntoView({ block: "start" });
-  });
 }
 
 function onNewTerminal() {

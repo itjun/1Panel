@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, nextTick, ref, watch } from "vue";
 import { api } from "@/api";
 import type { groups, sshconfig } from "@/api";
-import { useSettingsStore } from "@/stores/settings";
+import { useSettingsStore, type SettingsSection } from "@/stores/settings";
 import { ElMessage } from "element-plus";
 import { formatErr } from "@/utils/format";
 import {
@@ -370,6 +370,8 @@ export const useAppStore = defineStore("app", () => {
   const settingsOpen = ref(
     startupResumesLastScreen() && readLastScreen()?.settingsOpen === true
   );
+  /** 设置页停在哪个分页：外观 / 会话 / 应用 */
+  const settingsSection = ref<SettingsSection>("look");
   function openSettings() {
     settingsOpen.value = true;
   }
@@ -378,6 +380,9 @@ export const useAppStore = defineStore("app", () => {
   }
   function toggleSettings() {
     settingsOpen.value = !settingsOpen.value;
+  }
+  function setSettingsSection(s: SettingsSection) {
+    settingsSection.value = s;
   }
 
   /** 工作区：远程为主路径；通知仍可进。选「应用首页」时启动落在远程主机页，标签仍会恢复。 */
@@ -2210,6 +2215,8 @@ export const useAppStore = defineStore("app", () => {
     togglePinHost,
     reorderPinnedHost,
     settingsOpen,
+    settingsSection,
+    setSettingsSection,
     openSettings,
     closeSettings,
     toggleSettings,

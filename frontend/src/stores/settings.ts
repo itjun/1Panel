@@ -28,6 +28,9 @@ function defaultTerminalFontSize(): number {
 /** 冷启动落点：主机首页，或上次离开的画面 */
 export type StartupPage = "home" | "resume";
 
+/** 设置页分页：外观 / 会话 / 应用 */
+export type SettingsSection = "look" | "session" | "app";
+
 /** 主机资源告警中可单独开关的类型（单一来源见 utils/alerts.ts）；兼容旧名 */
 export type WecomAlertKind = ResourceAlertKind;
 
@@ -208,6 +211,9 @@ const DEFAULTS: AppSettings = {
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
 };
+
+/** 设置页用来比较「当前值 ≠ 默认值」的默认值表（只读，勿改） */
+export const SETTINGS_DEFAULTS: Readonly<AppSettings> = DEFAULTS;
 
 /** 主机 → 合法服务名列表；非法项丢弃。空数组主机键保留（曾配置、当前 0）。 */
 function loadHostAppNotifySubs(v: unknown): Record<string, string[]> {
@@ -842,6 +848,20 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  /** 只恢复一个分区的默认值（设置页「恢复本页默认值」用）；通知配置保留 */
+  function resetSettingsSection(section: Exclude<SettingsSection, "app">) {
+    if (section === "look") {
+      fontFamily.value = DEFAULTS.fontFamily;
+      fontSize.value = DEFAULTS.fontSize;
+      terminalFontSize.value = DEFAULTS.terminalFontSize;
+      terminalFontFamily.value = DEFAULTS.terminalFontFamily;
+      applyTypography();
+    } else {
+      startupPage.value = DEFAULTS.startupPage;
+    }
+    persist();
+  }
+
   // 启动时应用
   applyAll();
 
@@ -894,6 +914,7 @@ export const useSettingsStore = defineStore("settings", () => {
     isWecomKindEnabled,
     setWecomKindEnabled,
     resetSettings,
+    resetSettingsSection,
     applyAll,
   };
 });
