@@ -58,6 +58,36 @@
       </div>
     </section>
 
+    <section class="agent-card panel-hover-card">
+      <div class="agent-card__head">
+        <span class="agent-card__versions">
+          主机 Agent {{ hostAgentVersion }} · 面板内置 {{ latestAgentVersion || "—" }}
+          <template v-if="agentInfo?.ok">
+            {{ agentUpdatable ? "（落后，可更新）" : "（一致）" }}
+          </template>
+        </span>
+        <div class="agent-card__actions">
+          <el-button
+            size="small"
+            :loading="agentInstall.checking"
+            @click="agentInstall.runCheck(host)"
+          >
+            一键检查
+          </el-button>
+          <el-button
+            v-if="agentUpdatable || agentMissing"
+            size="small"
+            type="primary"
+            :loading="agentBusy"
+            @click="onAgentDeploy"
+          >
+            {{ agentMissing ? "安装 Agent" : `更新到 ${latestAgentVersion}` }}
+          </el-button>
+        </div>
+      </div>
+      <AgentCheckList :report="agentReport" :checking="agentInstall.checking" />
+    </section>
+
     <CardBoard
       ref="infoBoard"
       board-id="host-info"
@@ -372,6 +402,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { ElMessageBox } from "element-plus";
+import AgentCheckList from "@/components/AgentCheckList.vue";
 import { api } from "@/api";
 import type { agentcli, monitor } from "@/api";
 import { useAppStore } from "@/stores/app";
@@ -438,6 +470,58 @@ const agentSummary = computed(() => {
   if (agentInfo.value.notInstalled) return "未安装";
   return "不可用";
 });
+
+/** 面板内置 agent 版本（与主机版本比对显示「可更新」） */
+const latestAgentVersion = ref("");
+const agentBusy = ref(false);
+
+/** 主机侧 agent 版本文本 */
+const hostAgentVersion = computed(() => {
+  if (!agentInfo.value) return "检测中";
+  if (agentInfo.value.ok) return agentInfo.value.version || "未知";
+  if (agentInfo.value.notInstalled) return "未安装";
+  return "不可达";
+});
+
+/** 主机在线且版本与面板内置不同 → 可更新 */
+const agentUpdatable = computed(
+  () =>
+    !!agentInfo.value?.ok &&
+    !!latestAgentVersion.value &&
+    agentInfo.value.version !== latestAgentVersion.value
+);
+
+/** SSH 探测确认未安装 → 给安装入口 */
+const agentMissing = computed(
+  () => !!agentInfo.value && !agentInfo.value.ok && !!agentInfo.value.notInstalled
+);
+
+/** 检查报告是全局单份；只显示当前主机的，避免切主机串台 */
+const agentReport = computed(() =>
+  agentInstall.checkHost === props.host ? agentInstall.checkReport : null
+);
+
+/** 安装 / 更新 Agent（幂等：已装即更新到面板内置版本，历史数据保留） */
+async function onAgentDeploy() {
+  if (agentBusy.value) return;
+  const isInstall = agentMissing.value;
+  const action = isInstall ? "安装" : "更新";
+  try {
+    await ElMessageBox.confirm(
+      `将向 ${props.host} ${isInstall ? "部署" : "更新"} spanel-agent（systemd 服务，约 10MB）。已落库的监控历史保留。`,
+      `${action} Agent`,
+      { confirmButtonText: action, cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  agentBusy.value = true;
+  try {
+    if (await agentInstall.start(props.host)) await reload();
+  } finally {
+    agentBusy.value = false;
+  }
+}
 
 const diskSummary = computed(() => summarizeDisks(disks.value));
 const diskLow = computed(() => isDiskLow(disks.value));
@@ -576,6 +660,11 @@ async function loadAgentStatus() {
     agentInfo.value = await api.agentStatus(props.host);
   } catch {
     agentInfo.value = null;
+  }
+  try {
+    latestAgentVersion.value = await api.agentLatestVersion();
+  } catch {
+    latestAgentVersion.value = "";
   }
 }
 
@@ -722,6 +811,40 @@ onBeforeUnmount(stopPoll);
     font: var(--m3-body-medium);
     font-weight: 600;
   }
+}
+
+.agent-card {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  box-sizing: border-box;
+
+  :deep(.agent-check) {
+    margin-top: 10px;
+  }
+}
+
+.agent-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.agent-card__versions {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--m3-body-small);
+  color: var(--m3-on-surface-variant);
+}
+
+.agent-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .ssh-channel-status {
