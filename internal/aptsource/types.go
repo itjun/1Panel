@@ -46,4 +46,8 @@ type ApplyResult struct {
 	Name      string `json:"name"`
 	Changed   int    `json:"changed"`
 	UpdateOut string `json:"updateOut"`
+	// 换源本身成功，但 apt-get update 未通过（多为第三方源签名/失效）。
+	// 源文件已按预期改写，不该当成换源失败处理。
+	UpdateFailed bool   `json:"updateFailed,omitempty"`
+	UpdateErr    string `json:"updateErr,omitempty"`
 }

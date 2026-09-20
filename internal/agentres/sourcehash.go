@@ -57,8 +57,12 @@ func HashAgentSources(root string) (string, error) {
 		filepath.Join(root, "cmd", "spanel-agent"),
 		filepath.Join(root, "internal", "agent"),
 		filepath.Join(root, "internal", "agentapi"), // HTTP JSON 契约；改 tag 必须重编 agent
-		// agent 链入的采集实现；改这里也必须升 agent 版本并重编
+		// agent 链入的采集/通知实现（go list -deps 核对过闭包）；
+		// 改这里也必须升 agent 版本并重编
 		filepath.Join(root, "internal", "monitor"),
+		filepath.Join(root, "internal", "aptsource"),
+		filepath.Join(root, "internal", "sshd"),
+		filepath.Join(root, "internal", "wecom"),
 	}
 	for _, dir := range roots {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
