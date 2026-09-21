@@ -27,12 +27,16 @@ const (
 	keepaliveMaxMissed = 3                // 连续无响应次数，超过判死关闭连接
 )
 
-// 终端独立连接的激进心跳：尽快发现网络断开，促使前端自动重连
-// 体验优先：约 2 次失败 ≈ 6s 内判死，不与连接池共用较松的参数
+// 终端独立连接的心跳：判死必须保守。
+// 心跳目的有二：空闲保活（防防火墙掐空闲连接）+ 检测半开连接。
+// 「尽快发现断开」是错误目标：真断开时用户输入写失败自己会暴露，
+// 而判死会 Close 连接、连带杀掉远端 PTY 里正在跑的进程（git 等），代价远大于晚发现。
+// 参数对齐 OpenSSH ServerAliveInterval 的量级：单次超时容忍 RTT 尖峰（8s），
+// 连续 3 次无响应（约 38s）才判死——Wi-Fi/VPN 抖动几秒不再误杀终端会话。
 const (
-	termKeepaliveInterval  = 3 * time.Second
-	termKeepaliveTimeout   = 2 * time.Second
-	termKeepaliveMaxMissed = 2
+	termKeepaliveInterval  = 10 * time.Second
+	termKeepaliveTimeout   = 8 * time.Second
+	termKeepaliveMaxMissed = 3
 )
 
 // errKeepaliveTimeout 标识单次心跳超时
