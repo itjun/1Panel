@@ -39,9 +39,10 @@
         :node="displayTree"
         :focused-id="focusedPaneId"
         :show-focus="paneCount > 1 && !zoomed && !vtabs"
-        :show-head="paneCount > 1 && !vtabs"
+        :show-head="!vtabs && !zoomed"
         :cwd-by-id="cwdById"
         :faces="faces"
+        :echo-by-id="echoP95"
         @focus="focusPane"
         @slot="onPaneSlot"
         @ratio="onPaneRatio"
@@ -183,6 +184,7 @@ import { storeToRefs } from "pinia";
 import { formatErr } from "@/utils/format";
 import { registerFileDrop } from "@/utils/fileDrop";
 import { ctrlLetter, shouldCloseDeskOnLastPane } from "@/utils/termKeys";
+import { ensureTermStream, registerPane, termWriteQueued, unregisterPane } from "@/utils/termStream";
 import DistroLogo from "@/components/DistroLogo.vue";
 import TermPaneTree from "@/views/TermPaneTree.vue";
 import {
@@ -379,6 +381,11 @@ function pathOf(id: string): string {
 }
 
 function readCwd(raw: string): string {
+  // 快速预检：三个来源各需特征子串，全无则跳过正则
+  // （htop/top 刷屏时每个输出 chunk 都会走到这里，不能每次都跑三段正则）
+  if (!raw.includes("]7;") && !raw.includes("]1337") && !raw.includes(" in ")) {
+    return "";
+  }
   const osc = raw.match(/\x1b\]7;file:\/\/[^/\x07\x1b]*(\/[^ \x07\x1b]*)/);
   if (osc?.[1]) {
     try {
@@ -478,6 +485,40 @@ function writeProbe(id: string, patch: Partial<PaneProbe>) {
   };
   if (probeUnchanged(prev, next)) return;
   probes.value = { ...probes.value, [id]: next };
+}
+
+// ---- 输入回显延迟采样（诊断用） ----
+// 测「按键发出（onData）→ 收到该会话回显事件」这一段：
+// 覆盖 wails IPC 往返 + SSH 网络往返 + 事件回程，不含 xterm 解析渲染。
+// 打字卡顿时窗格右上角显示毫秒数，用来切分责任层：
+// 数字小但视觉卡 → 渲染/主线程问题；数字大 → IPC 或链路问题。
+const echoPendingAt = new Map<string, number>();
+const echoSamples = new Map<string, number[]>();
+const echoP95 = ref<Record<string, number>>({});
+
+// 终端输出优先走本地 SSE 流（termStream.ts，模块级注册，跨视图卸载存活），
+// 绕开 wails 主线程逐条 evaluateJS 的事件派发；无订阅者时 Go 侧自动回退 Events
+void ensureTermStream();
+
+function noteEcho(paneId: string, ms: number) {
+  const arr = echoSamples.get(paneId) ?? [];
+  arr.push(ms);
+  if (arr.length > 32) arr.shift();
+  echoSamples.set(paneId, arr);
+  const sorted = [...arr].sort((a, b) => a - b);
+  const p95 = sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)];
+  if (echoP95.value[paneId] === p95) return;
+  echoP95.value = { ...echoP95.value, [paneId]: p95 };
+}
+
+function clearEchoStats(paneId: string) {
+  echoPendingAt.delete(paneId);
+  echoSamples.delete(paneId);
+  if (echoP95.value[paneId] !== undefined) {
+    const next = { ...echoP95.value };
+    delete next[paneId];
+    echoP95.value = next;
+  }
 }
 
 const faces = computed(() => {
@@ -719,6 +760,9 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
         return;
       }
       patchSession(id, { sessionID: sid, closed: false, reconnecting: false });
+      // 重连成功后补一次探测标记：挂载时的 settle 只跑一次，
+      // 不补的话窗格状态徽标会一直停在「连接中」误导使用者
+      writeProbe(id, { probed: true });
       ctl.attempt = 0;
       // 连接后 fit + resize 一次，确保 PTY 尺寸正确
       try {
@@ -787,22 +831,26 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     return true;
   };
 
-  tab.offData = trackEvent(eventName, (ev: { data?: { data?: string } }) => {
-    const chunk = ev?.data?.data;
-    if (!chunk) return;
+  // 输出/退出处理抽成局部函数：wails 事件与本地 SSE 流两条通道共用同一份逻辑
+  const onDataChunk = (chunk: string) => {
+    const sentAt = echoPendingAt.get(id);
+    if (sentAt !== undefined) {
+      echoPendingAt.delete(id);
+      noteEcho(id, performance.now() - sentAt);
+    }
     noteCwd(id, chunk);
     term.write(chunk);
-  });
-  tab.offExit = trackEvent(`${eventName}:exit`, (ev: { data?: { reason?: string; sessionId?: string } }) => {
-    const payload = ev?.data;
+  };
+  const onTermExit = (sid: string, reason: string) => {
     if (ctl.stopped) return;
-    if (payload?.sessionId && payload.sessionId === ignoreSid) {
+    if (sid && sid === ignoreSid) {
       ignoreSid = "";
       return;
     }
-    if (payload?.reason === "error") {
+    if (reason === "error") {
       // 异常断开：每个 Tab 各自立即自动重连，互不影响
       term.write("\r\n\x1b[33m[连接已断开，正在自动重连…]\x1b[0m\r\n");
+      echoPendingAt.delete(id);
       patchSession(id, { closed: true, reconnecting: true, sessionID: "" });
       notifyDisconnect();
       ctl.attempt = 0;
@@ -818,12 +866,25 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
       ctl.stopped = true;
       void closePane(id);
     }
+  };
+  registerPane(id, { data: onDataChunk, exit: onTermExit });
+  tab.offData = trackEvent(eventName, (ev: { data?: { data?: string } }) => {
+    const chunk = ev?.data?.data;
+    if (chunk) onDataChunk(chunk);
+  });
+  tab.offExit = trackEvent(`${eventName}:exit`, (ev: { data?: { reason?: string; sessionId?: string } }) => {
+    onTermExit(ev?.data?.sessionId || "", ev?.data?.reason || "");
   });
 
-  // 输入：每个字符直接发送（对齐 uniterm，无合并、无 setTimeout，保证输入连贯）
+  // 输入：每个字符直接发送（对齐 uniterm，无合并、无 setTimeout，保证输入连贯）。
+  // 优先本地流通道（串行链保序，绕开 wails 主线程调度），失败回退 binding
   term.onData((d) => {
     const sid = currentSid();
-    if (sid) api.writeTerminal(sid, d).catch(() => {});
+    if (!sid) return;
+    echoPendingAt.set(id, performance.now());
+    void termWriteQueued(sid, d).then((ok) => {
+      if (!ok) api.writeTerminal(sid, d).catch(() => {});
+    });
   });
 
   // 窗口尺寸变化：用当前 sessionID 同步 PTY（重连后仍是此回调）
@@ -871,6 +932,8 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
 
 async function destroySession(t: Session) {
   dropWebgl(t);
+  clearEchoStats(t.id);
+  unregisterPane(t.id);
   // 停止该会话的自动重连
   const ctl = reconnectMap.get(t.id);
   if (ctl) {

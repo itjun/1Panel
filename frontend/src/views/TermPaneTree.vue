@@ -18,6 +18,7 @@
       @pointerdown.stop="emit('focus', node.id)"
     >
       <span class="pane-head__host">{{ node.host }}</span>
+      <span v-if="cwdById?.[node.id]" class="pane-head__cwd">{{ cwdById[node.id] }}</span>
       <span class="pane-head__status" :class="'is-' + faceOf(node.id)">
         {{ paneFaceLabel(faceOf(node.id)) }}
       </span>
@@ -46,6 +47,14 @@
       :ref="slotRef(node.id)"
       @contextmenu.prevent
     >
+      <span
+        v-if="echoBadge(node.id) !== null"
+        class="pane-echo-badge"
+        :class="echoBadge(node.id)! >= 150 ? 'is-bad' : 'is-warn'"
+        :title="'按键到回显的延迟（近 32 次采样的 p95），包含 IPC 与 SSH 往返，不含界面绘制'"
+      >
+        回显 {{ echoBadge(node.id) }}ms
+      </span>
       <div v-if="needsRetry(node.id)" class="pane-fail">
         <p>{{ paneFailText(faceOf(node.id)) }}</p>
         <button type="button" @click.stop="emit('retry', node.id)">重试</button>
@@ -119,8 +128,10 @@ const props = withDefaults(
     showHead?: boolean;
     cwdById?: Record<string, string>;
     faces?: Record<string, PaneFace>;
+    /** 各窗格输入回显延迟 p95（毫秒），≥40 才显示徽标；诊断终端卡顿用 */
+    echoById?: Record<string, number>;
   }>(),
-  { cwdById: () => ({}), showHead: false, faces: () => ({}) }
+  { cwdById: () => ({}), showHead: false, faces: () => ({}), echoById: () => ({}) }
 );
 
 const emit = defineEmits<{
@@ -145,6 +156,12 @@ function faceOf(id: string): PaneFace {
 function needsRetry(id: string): boolean {
   const face = faceOf(id);
   return face === "down" || face === "blind" || face === "missing";
+}
+
+function echoBadge(id: string): number | null {
+  const ms = props.echoById[id];
+  if (ms === undefined || ms < 40) return null;
+  return Math.round(ms);
 }
 
 function onPointerMove() {
@@ -276,8 +293,8 @@ function onDrop(e: DragEvent) {
 }
 
 .pane-grip {
-  flex: 0 0 5px;
-  background: #2a2a2a;
+  flex: 0 0 4px;
+  background: #1c1c1c;
   z-index: 2;
 
   &:hover {
@@ -300,15 +317,15 @@ function onDrop(e: DragEvent) {
 }
 
 .pane-head {
-  flex: 0 0 28px;
-  height: 28px;
+  flex: 0 0 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 10px;
-  background: #141414;
+  background: #111111;
   color: #e8e8e8;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid #222222;
   cursor: grab;
   user-select: none;
   z-index: 3;
@@ -323,7 +340,7 @@ function onDrop(e: DragEvent) {
 }
 
 .pane-head__host {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -442,6 +459,29 @@ function onDrop(e: DragEvent) {
   :deep(.xterm) {
     padding: 8px 12px;
     box-sizing: border-box;
+  }
+}
+
+.pane-echo-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 4;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  pointer-events: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  &.is-warn {
+    background: rgba(253, 151, 31, 0.18);
+    color: #fd971f;
+  }
+
+  &.is-bad {
+    background: rgba(249, 38, 114, 0.22);
+    color: #f92672;
   }
 }
 
