@@ -184,7 +184,14 @@ import { storeToRefs } from "pinia";
 import { formatErr } from "@/utils/format";
 import { registerFileDrop } from "@/utils/fileDrop";
 import { ctrlLetter, shouldCloseDeskOnLastPane } from "@/utils/termKeys";
-import { ensureTermStream, registerPane, termWriteQueued, unregisterPane } from "@/utils/termStream";
+import {
+  closeTermStream,
+  connectTermStream,
+  ensureTermStream,
+  registerPane,
+  termWriteFast,
+  unregisterPane,
+} from "@/utils/termStream";
 import DistroLogo from "@/components/DistroLogo.vue";
 import TermPaneTree from "@/views/TermPaneTree.vue";
 import {
@@ -496,8 +503,8 @@ const echoPendingAt = new Map<string, number>();
 const echoSamples = new Map<string, number[]>();
 const echoP95 = ref<Record<string, number>>({});
 
-// 终端输出优先走本地 SSE 流（termStream.ts，模块级注册，跨视图卸载存活），
-// 绕开 wails 主线程逐条 evaluateJS 的事件派发；无订阅者时 Go 侧自动回退 Events
+// 终端输入/输出优先走每个 sid 独立的本地 WebSocket 流（termStream.ts），
+// 绕开 Wails 主线程逐条 evaluateJS 的事件派发；某条连接异常时仅该 sid 回退 Events
 void ensureTermStream();
 
 function noteEcho(paneId: string, ms: number) {
@@ -752,7 +759,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     const c = term.cols || 80;
     const r = term.rows || 24;
     try {
-      // 数据通道：独立 SSH 连接 + Wails 事件推送
+      // 数据通道：独立 SSH 连接；本地专属 WebSocket 建立后优先走流通道
       const host = liveState(id)?.host || hostOf(paneTree.value, paneId) || props.host;
       const sid = await api.openTerminal(host, eventName, c, r);
       if (ctl.stopped) {
@@ -760,6 +767,8 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
         return;
       }
       patchSession(id, { sessionID: sid, closed: false, reconnecting: false });
+      // 一个 PTY 对应一个本地 WebSocket；连接建立与 SSH 会话并行，不阻塞首屏连接。
+      void connectTermStream(sid, id);
       // 重连成功后补一次探测标记：挂载时的 settle 只跑一次，
       // 不补的话窗格状态徽标会一直停在「连接中」误导使用者
       writeProbe(id, { probed: true });
@@ -783,7 +792,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
         app.clearTerminalCmd();
         const cmd = pending;
         setTimeout(() => {
-          api.writeTerminal(sid, cmd + "\n").catch(() => {});
+          void termWriteFast(sid, cmd + "\n").catch(() => {});
         }, 1200);
       }
     } catch (e) {
@@ -822,6 +831,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     const old = currentSid();
     if (old) {
       ignoreSid = old;
+      closeTermStream(old);
       api.closeTerminal(old).catch(() => {});
       patchSession(id, { sessionID: "" });
     }
@@ -831,7 +841,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     return true;
   };
 
-  // 输出/退出处理抽成局部函数：wails 事件与本地 SSE 流两条通道共用同一份逻辑
+  // 输出/退出处理抽成局部函数：Wails 事件与本地 WebSocket 流两条通道共用同一份逻辑
   const onDataChunk = (chunk: string) => {
     const sentAt = echoPendingAt.get(id);
     if (sentAt !== undefined) {
@@ -843,6 +853,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
   };
   const onTermExit = (sid: string, reason: string) => {
     if (ctl.stopped) return;
+    if (sid) closeTermStream(sid);
     if (sid && sid === ignoreSid) {
       ignoreSid = "";
       return;
@@ -876,15 +887,13 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     onTermExit(ev?.data?.sessionId || "", ev?.data?.reason || "");
   });
 
-  // 输入：每个字符直接发送（对齐 uniterm，无合并、无 setTimeout，保证输入连贯）。
-  // 优先本地流通道（串行链保序，绕开 wails 主线程调度），失败回退 binding
+  // 输入：每个字符直接写入当前 sid 的专属 WebSocket，不等待 HTTP/WS 响应；
+  // 连接未就绪时只让当前 sid 回退 binding。
   term.onData((d) => {
     const sid = currentSid();
     if (!sid) return;
     echoPendingAt.set(id, performance.now());
-    void termWriteQueued(sid, d).then((ok) => {
-      if (!ok) api.writeTerminal(sid, d).catch(() => {});
-    });
+    void termWriteFast(sid, d).catch(() => {});
   });
 
   // 窗口尺寸变化：用当前 sessionID 同步 PTY（重连后仍是此回调）
@@ -942,6 +951,7 @@ async function destroySession(t: Session) {
     reconnectMap.delete(t.id);
   }
   if (t.sessionID) {
+    closeTermStream(t.sessionID);
     try {
       await api.closeTerminal(t.sessionID);
     } catch {
@@ -1568,7 +1578,7 @@ async function pasteClipboard() {
     const text = await navigator.clipboard.readText();
     if (!text) return;
     if (sessionID) {
-      await api.writeTerminal(sessionID, text);
+      await termWriteFast(sessionID, text);
     } else {
       term.paste(text);
     }
@@ -1652,7 +1662,7 @@ function writeRemotePathsToTerm(localPaths: string[]) {
     .map((p) => p.split(/[\\/]/).pop() || p)
     .map((name) => `'${TERM_UPLOAD_DIR}/${name}'`)
     .join(" ");
-  api.writeTerminal(active.sessionID, remote).catch(() => {});
+  void termWriteFast(active.sessionID, remote).catch(() => {});
 }
 
 function onUploadProgress(ev: {
@@ -1683,7 +1693,7 @@ function flushPendingTerminalCmd(cmd: string | null | undefined) {
     app.clearTerminalCmd();
     pendingCmdLocal = null;
     setTimeout(() => {
-      api.writeTerminal(active.sessionID, c + "\n").catch(() => {});
+      void termWriteFast(active.sessionID, c + "\n").catch(() => {});
     }, 300);
     return;
   }

@@ -1,29 +1,47 @@
 /**
- * 终端本地流通道：输出走 SSE（EventSource）、输入走 fetch POST。
- * 绕开 wails v3 在 macOS 上的两条主线程通道（Events.Emit 逐条 evaluateJS、
- * binding 的 script-message 回调），降低打字回显延迟。
+ * 终端本地流通道：一个终端会话一条独立 WebSocket。
  *
- * 失败兜底：拿不到端点或连接断开时，输入立即回退 wails binding；
- * 输出由 Go 侧检测「无订阅者」自动回退 Events 通道，前端两个监听并存、数据不丢。
+ * 每条连接的 sid 写在 URL 上，因此输入帧不再携带 session 路由字段，输出也不再
+ * 经过应用层多路复用。输入/输出使用二进制帧：首字节是类型，后面直接是 UTF-8
+ * 内容，避免每个按键都 JSON.stringify / JSON.parse。
+ *
+ * 失败兜底：拿不到端点或某条连接断开时，该 sid 单独回退 Wails binding；其它终端
+ * 的 WebSocket、队列和重连计时器不受影响。输出由 Go 侧按 sid 选择 WS，否则回退
+ * Wails Events，连接恢复后自动切回。
  */
 import { api } from "@/api";
 
-/** 各窗格的数据/退出处理（模块级：终端实例跨视图卸载存活，注册不能随组件丢） */
-const paneHandlers = new Map<
-  string,
-  { data: (d: string) => void; exit: (sid: string, reason: string) => void }
->();
+type PaneHandler = {
+  data: (d: string) => void;
+  exit: (sid: string, reason: string) => void;
+};
+
+type TermStreamState = {
+  sid: string;
+  pane: string;
+  socket: WebSocket | null;
+  opening: Promise<void> | null;
+  reconnectTimer: number;
+  heartbeatTimer: number;
+  stopped: boolean;
+  isDown: boolean;
+  decoder: TextDecoder;
+};
+
+const paneHandlers = new Map<string, PaneHandler>();
+const streams = new Map<string, TermStreamState>();
+const fallbackChains = new Map<string, Promise<void>>();
+const encoder = new TextEncoder();
+
 let base = "";
 let token = "";
-let es: EventSource | null = null;
-/** 连接未建立/已断开：输入走 wails binding。EventSource 重连成功后自动恢复 */
-let isDown = true;
-let inputFail = 0;
+let endpointPromise: Promise<void> | null = null;
 
-export function registerPane(
-  pane: string,
-  h: { data: (d: string) => void; exit: (sid: string, reason: string) => void },
-): void {
+const FRAME_DATA = 1;
+const FRAME_EXIT = 2;
+const FRAME_INPUT = 1;
+
+export function registerPane(pane: string, h: PaneHandler): void {
   paneHandlers.set(pane, h);
 }
 
@@ -31,78 +49,233 @@ export function unregisterPane(pane: string): void {
   paneHandlers.delete(pane);
 }
 
-export async function ensureTermStream(): Promise<void> {
-  if (es) return;
-  let info: { base: string; token: string };
-  try {
-    info = JSON.parse(await api.termStreamEndpoint()) as { base: string; token: string };
-    if (!info.base || !info.token) return;
-  } catch {
-    return; // 拿不到端点：全程走 wails 通道
+/** 只加载公共端点；真正的 WebSocket 在每个 sid 建立后单独创建。 */
+export function ensureTermStream(): Promise<void> {
+  if (base && token) return Promise.resolve();
+  if (endpointPromise) return endpointPromise;
+  endpointPromise = (async () => {
+    try {
+      const info = JSON.parse(await api.termStreamEndpoint()) as { base: string; token: string };
+      if (info.base && info.token) {
+        base = info.base;
+        token = info.token;
+      }
+    } catch {
+      // 拿不到端点：所有 sid 使用原有 Wails 通道。
+    }
+  })().finally(() => {
+    endpointPromise = null;
+  });
+  return endpointPromise;
+}
+
+function isCurrent(state: TermStreamState, socket: WebSocket): boolean {
+  return streams.get(state.sid) === state && state.socket === socket && !state.stopped;
+}
+
+function clearHeartbeat(state: TermStreamState): void {
+  if (state.heartbeatTimer) {
+    window.clearInterval(state.heartbeatTimer);
+    state.heartbeatTimer = 0;
   }
-  base = info.base;
-  token = info.token;
-  connect();
 }
 
-function connect() {
-  const source = new EventSource(`${base}/stream?t=${encodeURIComponent(token)}`);
-  es = source;
-  source.addEventListener("data", (ev) => {
-    try {
-      const p = JSON.parse((ev as MessageEvent).data) as { pane?: string; d?: string };
-      if (p?.pane) paneHandlers.get(p.pane)?.data(p.d || "");
-    } catch {
-      /* 忽略坏帧 */
-    }
-  });
-  source.addEventListener("exit", (ev) => {
-    try {
-      const p = JSON.parse((ev as MessageEvent).data) as { pane?: string; sid?: string; reason?: string };
-      if (p?.pane) paneHandlers.get(p.pane)?.exit(p.sid || "", p.reason || "");
-    } catch {
-      /* 忽略坏帧 */
-    }
-  });
-  source.onopen = () => {
-    isDown = false;
-    inputFail = 0;
-  };
-  source.onerror = () => {
-    isDown = true; // EventSource 按 retry 指示自动重连
-    // 断连瞬间旧订阅可能仍被 Go 视为活跃（半开 TCP 检测慢），主动通知清掉，
-    // 让数据先走 wails Events 通道；重连成功后自动回到 SSE。幂等，失败忽略
-    void fetch(`${base}/drop?t=${encodeURIComponent(token)}`, { method: "POST" }).catch(() => {});
-  };
+function scheduleReconnect(state: TermStreamState): void {
+  if (state.stopped || state.reconnectTimer || !base || !token) return;
+  state.reconnectTimer = window.setTimeout(() => {
+    state.reconnectTimer = 0;
+    void connectTermStream(state.sid, state.pane);
+  }, 1500);
 }
 
-/** 终端输入：优先流通道；未就绪/失败返回 false，调用方回退 wails binding */
-async function termWrite(sid: string, d: string): Promise<boolean> {
-  if (!es || isDown) return false;
+function dispatchLegacyJSON(state: TermStreamState, raw: string): void {
+  if (raw === "p") return;
   try {
-    const res = await fetch(`${base}/input?t=${encodeURIComponent(token)}`, {
-      method: "POST",
-      // 默认 Content-Type: text/plain → simple request，无 CORS 预检
-      body: JSON.stringify({ sid, d }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    inputFail = 0;
+    const f = JSON.parse(raw) as {
+      k?: string;
+      p?: { pane?: string; sid?: string; d?: string; reason?: string };
+    };
+    const pane = f.p?.pane || state.pane;
+    const handler = paneHandlers.get(pane);
+    if (f.k === "data") handler?.data(f.p?.d || "");
+    else if (f.k === "exit") handler?.exit(f.p?.sid || state.sid, f.p?.reason || "");
+  } catch {
+    // 忽略坏帧。
+  }
+}
+
+function dispatchBinary(state: TermStreamState, data: ArrayBuffer): void {
+  const bytes = new Uint8Array(data);
+  if (bytes.length === 0) return;
+  const handler = paneHandlers.get(state.pane);
+  if (bytes[0] === FRAME_DATA) {
+    const text = state.decoder.decode(bytes.subarray(1), { stream: true });
+    if (text) handler?.data(text);
+  } else if (bytes[0] === FRAME_EXIT) {
+    const reason = new TextDecoder().decode(bytes.subarray(1));
+    handler?.exit(state.sid, reason);
+  }
+}
+
+function openSocket(state: TermStreamState): Promise<void> {
+  if (state.stopped || !base || !token) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    const url = base.replace(/^http/, "ws") +
+      `/ws?t=${encodeURIComponent(token)}&sid=${encodeURIComponent(state.sid)}`;
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(url);
+    } catch {
+      state.isDown = true;
+      resolve();
+      scheduleReconnect(state);
+      return;
+    }
+    socket.binaryType = "arraybuffer";
+    state.socket = socket;
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    socket.onopen = () => {
+      if (!isCurrent(state, socket)) {
+        socket.close();
+        settle();
+        return;
+      }
+      state.isDown = false;
+      if (state.reconnectTimer) {
+        window.clearTimeout(state.reconnectTimer);
+        state.reconnectTimer = 0;
+      }
+      clearHeartbeat(state);
+      state.heartbeatTimer = window.setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) socket.send("p");
+      }, 3000);
+      settle();
+    };
+
+    socket.onmessage = (event: MessageEvent<ArrayBuffer | Blob | string>) => {
+      if (!isCurrent(state, socket)) return;
+      if (typeof event.data === "string") {
+        dispatchLegacyJSON(state, event.data);
+      } else if (event.data instanceof ArrayBuffer) {
+        dispatchBinary(state, event.data);
+      } else {
+        void event.data.arrayBuffer().then((data) => {
+          if (isCurrent(state, socket)) dispatchBinary(state, data);
+        });
+      }
+    };
+
+    socket.onclose = () => {
+      if (!isCurrent(state, socket)) {
+        settle();
+        return;
+      }
+      state.isDown = true;
+      clearHeartbeat(state);
+      state.socket = null;
+      settle();
+      scheduleReconnect(state);
+    };
+    socket.onerror = () => {
+      if (isCurrent(state, socket)) state.isDown = true;
+      // 浏览器随后会触发 onclose；只在 onclose 中安排重连，避免双计时器。
+    };
+  });
+}
+
+/** 为一个 PTY sid 建立独立的 WebSocket；重复调用只复用该 sid 自己的连接。 */
+export function connectTermStream(sid: string, pane: string): Promise<void> {
+  if (!sid) return Promise.resolve();
+  let state = streams.get(sid);
+  if (!state) {
+    state = {
+      sid,
+      pane,
+      socket: null,
+      opening: null,
+      reconnectTimer: 0,
+      heartbeatTimer: 0,
+      stopped: false,
+      isDown: true,
+      decoder: new TextDecoder(),
+    };
+    streams.set(sid, state);
+  } else {
+    state.pane = pane;
+    state.stopped = false;
+  }
+  if (state.socket?.readyState === WebSocket.OPEN) return Promise.resolve();
+  if (state.opening) return state.opening;
+
+  const opening = (async () => {
+    await ensureTermStream();
+    if (!state || state.stopped || !base || !token) return;
+    await openSocket(state);
+  })().catch(() => {
+    // 失败时保持 Wails 回退；onclose 会负责重连。
+  });
+  state.opening = opening;
+  void opening.finally(() => {
+    if (state && state.opening === opening) state.opening = null;
+  }).catch(() => {});
+  return opening;
+}
+
+/** 关闭指定终端的本地流，不会影响任何其它 sid。 */
+export function closeTermStream(sid: string): void {
+  const state = streams.get(sid);
+  if (!state) return;
+  state.stopped = true;
+  if (state.reconnectTimer) window.clearTimeout(state.reconnectTimer);
+  clearHeartbeat(state);
+  streams.delete(sid);
+  const socket = state.socket;
+  state.socket = null;
+  try {
+    socket?.close();
+  } catch {
+    // ignore
+  }
+}
+
+/** 终端输入：连接可用时同步 send，单字节/多字节都不等待服务端响应。 */
+function termWrite(sid: string, d: string): boolean {
+  const state = streams.get(sid);
+  const socket = state?.socket;
+  if (!state || state.isDown || !socket || socket.readyState !== WebSocket.OPEN) return false;
+  try {
+    const data = encoder.encode(d);
+    const frame = new Uint8Array(data.length + 1);
+    frame[0] = FRAME_INPUT;
+    frame.set(data, 1);
+    socket.send(frame);
     return true;
   } catch {
-    // 连续失败视作通道不可用（EventSource 重连成功后自动恢复）
-    if (++inputFail >= 2) isDown = true;
+    state.isDown = true;
     return false;
   }
 }
 
-// 输入必须严格保序：每个按键一个独立 POST，并发到达 Go 端会交错写入 stdin，
-// "git pull" 会变 "gt piull"。串行链让上一个请求完成后再发下一个；
-// 本地回环单次 ~1-2ms，链式排队对打字无感。
-let inputChain: Promise<boolean> = Promise.resolve(true);
-
+// 保留旧调用名，避免组件侧把输入误认为异步网络事务；现在只做一次同步 send。
 export function termWriteQueued(sid: string, d: string): Promise<boolean> {
-  const run = (): Promise<boolean> => termWrite(sid, d);
-  const p = inputChain.then(run, run);
-  inputChain = p.catch(() => false);
-  return p;
+  return Promise.resolve(termWrite(sid, d));
+}
+
+/** 终端输入统一入口：流通道失败时仅按当前 sid 串行回退 binding。 */
+export function termWriteFast(sid: string, d: string): Promise<void> {
+  if (termWrite(sid, d)) return Promise.resolve();
+  const previous = fallbackChains.get(sid) || Promise.resolve();
+  const current = previous.catch(() => {}).then(() => api.writeTerminal(sid, d));
+  fallbackChains.set(sid, current);
+  void current.finally(() => {
+    if (fallbackChains.get(sid) === current) fallbackChains.delete(sid);
+  }).catch(() => {});
+  return current;
 }
