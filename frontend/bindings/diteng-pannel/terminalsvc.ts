@@ -39,6 +39,15 @@ export function ResizeTerminal(sessionID: string, cols: number, rows: number): $
     return $Call.ByID(851559362, sessionID, cols, rows);
 }
 
+/**
+ * TermStreamEndpoint 返回本地终端流服务地址（JSON：base + token）。
+ * 前端优先用它做终端输入输出（SSE + fetch，绕开 wails 主线程通道），
+ * 拿不到或连接失败时自动回退 wails 事件/binding 通道。
+ */
+export function TermStreamEndpoint(): $CancellablePromise<string> {
+    return $Call.ByID(3165377181);
+}
+
 export function WriteTerminal(sessionID: string, data: string): $CancellablePromise<void> {
     return $Call.ByID(94455525, sessionID, data);
 }

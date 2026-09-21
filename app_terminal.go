@@ -36,6 +36,16 @@ func (s *TerminalSvc) CloseTerminal(sessionID string) error {
 	return s.termMgr.Close(sessionID)
 }
 
+// TermStreamEndpoint 返回本地终端流服务地址（JSON：base + token）。
+// 前端优先用它做终端输入输出（SSE + fetch，绕开 wails 主线程通道），
+// 拿不到或连接失败时自动回退 wails 事件/binding 通道。
+func (s *TerminalSvc) TermStreamEndpoint() (string, error) {
+	if a := (*App)(s); a != nil && a.termStream != nil {
+		return a.termStream.endpoint(), nil
+	}
+	return "", fmt.Errorf("终端流服务未启动")
+}
+
 // DisconnectHost 断开主机的全部连接：关闭该主机所有终端会话（独立连接一并释放），
 // 再关闭连接池中该主机的连接。前端关闭主机标签时调用。
 func (s *TerminalSvc) DisconnectHost(host string) error {

@@ -390,6 +390,8 @@ const apiImpl = {
     cols: number,
     rows: number
   ): Promise<string> => str(TerminalSvc.OpenTerminal(host, eventName, cols, rows)),
+  /** 本地终端流服务地址（JSON：base+token），失败回退 wails 事件通道 */
+  termStreamEndpoint: (): Promise<string> => str(TerminalSvc.TermStreamEndpoint()),
   writeTerminal: async (sessionID: string, data: string): Promise<void> => {
     await TerminalSvc.WriteTerminal(sessionID, data);
   },

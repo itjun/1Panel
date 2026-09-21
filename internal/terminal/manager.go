@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -18,12 +19,18 @@ import (
 // 返回是否被取消（语义与 wails v3 application.Event.Emit 对齐）
 type EmitFunc func(eventName string, data ...any) bool
 
+// StreamPush 终端数据的流式出口（本地 SSE）：kind 为 "data" 或 "exit"，
+// payload 是带 pane 标识的 JSON。返回 false 表示当前无订阅者，
+// 调用方应回退 EmitFunc 通道。两条通道同一时刻只有一条在用。
+type StreamPush func(kind string, payload string) bool
+
 // Manager 管理终端会话
 // 设计：
 //   - 每个 Tab 创建一个 Session，每个 Session 用独立 SSH 连接（不复用连接池），
 //     与面板采集的 agent 隧道隔离，避免共享连接互相反压导致输入卡顿
 //   - 用 SSH 协议的 RequestPty 申请真正的伪终端，远程 shell 会正常回显输入
-//   - 数据通道走 Wails 事件推送（异步非阻塞，见 pumpToEvent）
+//   - 数据通道：优先本地 SSE 流（绕开 wails 主线程事件派发），无订阅者时
+//     回退 Wails 事件推送（异步非阻塞，见 pumpToEvent）
 //   - 关闭 Tab → 关 session + 关独立连接 → 远程 shell 收到 EOF 退出
 type Manager struct {
 	ctx      context.Context
@@ -32,6 +39,9 @@ type Manager struct {
 	sessions map[string]*Session
 
 	emit EmitFunc // 事件推送（注入，可空则跳过）
+
+	streamMu   sync.RWMutex
+	streamPush StreamPush // SSE 出口（注入，可空）
 }
 
 // Session 一个终端会话，对应一条独立 SSH 连接上的 channel + PTY
@@ -65,6 +75,57 @@ func (m *Manager) Init(ctx context.Context, emit EmitFunc) {
 	}
 	m.ctx = ctx
 	m.emit = emit
+}
+
+// SetStreamPush 注入 SSE 流出口。两条数据通道同一时刻只有一条在用：
+// push 返回 false（无订阅者）时回退 emit。
+func (m *Manager) SetStreamPush(push StreamPush) {
+	m.streamMu.Lock()
+	m.streamPush = push
+	m.streamMu.Unlock()
+}
+
+// sendData 输出数据双出口：SSE 优先，无订阅者回退 wails 事件
+func (m *Manager) sendData(eventName, sid, data string) {
+	m.streamMu.RLock()
+	push := m.streamPush
+	m.streamMu.RUnlock()
+	if push != nil {
+		payload, _ := json.Marshal(map[string]string{
+			"pane": strings.TrimPrefix(eventName, "term:"),
+			"sid":  sid,
+			"d":    data,
+		})
+		if push("data", string(payload)) {
+			return
+		}
+	}
+	if m.emit != nil {
+		m.emit(eventName, map[string]any{"data": data})
+	}
+}
+
+// sendExit 会话结束双出口：SSE 优先，无订阅者回退 wails 事件
+func (m *Manager) sendExit(eventName, sid, reason string) {
+	m.streamMu.RLock()
+	push := m.streamPush
+	m.streamMu.RUnlock()
+	if push != nil {
+		payload, _ := json.Marshal(map[string]string{
+			"pane":   strings.TrimPrefix(eventName, "term:"),
+			"sid":    sid,
+			"reason": reason,
+		})
+		if push("exit", string(payload)) {
+			return
+		}
+	}
+	if m.emit != nil {
+		m.emit(eventName+":exit", map[string]any{
+			"sessionId": sid,
+			"reason":    reason,
+		})
+	}
 }
 
 // openShell 建立独立 SSH 连接、申请 PTY 并启动远程登录 shell。
@@ -162,8 +223,8 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 		keepaliveCancel: keepaliveCancel,
 	}
 
-	// 把远程 shell 的输出流推送给前端
-	go pumpToEvent(ctx, stdout, eventName, id, m.emit)
+	// 把远程 shell 的输出流推送给前端（SSE 优先，回退 wails 事件）
+	go pumpToEvent(ctx, stdout, func(data string) { m.sendData(eventName, id, data) })
 
 	// 进程结束时通知前端 + 清理。
 	// 区分断开原因：正常退出（exit 命令）reason=exit，异常断开（网络等）reason=error，
@@ -178,12 +239,7 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 		}
 		// Wait 返回后必须释放独立连接与心跳，避免泄漏；与手动 Close 共用 release
 		s.release()
-		if m.emit != nil {
-			m.emit(eventName+":exit", map[string]any{
-				"sessionId": id,
-				"reason":    reason,
-			})
-		}
+		m.sendExit(eventName, id, reason)
 		m.mu.Lock()
 		delete(m.sessions, id)
 		m.mu.Unlock()
@@ -303,7 +359,7 @@ func (m *Manager) CloseAll() {
 	}
 }
 
-// pumpToEvent 把远程 shell 的 stdout 读取并推送到 Wails 事件
+// pumpToEvent 把远程 shell 的 stdout 读取并推送给前端（send 为当前生效的数据出口）
 //
 // 延迟与吞吐的平衡（leading-edge 合并）：
 //   - 交互打字：回显是「空闲后到来的一小段数据」，必须立即发，任何合并窗口都是纯延迟；
@@ -311,7 +367,7 @@ func (m *Manager) CloseAll() {
 //
 // 判断标准：batch 为空 且 距上次 flush 超过 idleThreshold → 视为交互回显，立即发；
 // 否则进入 coalesceWindow 合并，攒满 maxBatch 也立即发。
-func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string, emit EmitFunc) {
+func pumpToEvent(ctx context.Context, r io.Reader, send func(data string)) {
 	const (
 		idleThreshold  = 8 * time.Millisecond
 		coalesceWindow = 5 * time.Millisecond
@@ -350,16 +406,9 @@ func pumpToEvent(ctx context.Context, r io.Reader, eventName, sessionID string, 
 		if len(batch) == 0 {
 			return
 		}
-		if emit == nil {
-			batch = batch[:0]
-			lastFlush = time.Now()
-			return
-		}
 		data := make([]byte, len(batch))
 		copy(data, batch)
-		emit(eventName, map[string]any{
-			"data": string(data),
-		})
+		send(string(data))
 		batch = batch[:0]
 		lastFlush = time.Now()
 	}

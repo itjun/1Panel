@@ -55,6 +55,7 @@ type App struct {
 	notifySubs   *notifysubs.Store
 	menuCheck    *menucheck.Watcher
 	termMgr      *terminal.Manager
+	termStream   *termStreamServer
 
 	app        *application.App
 	mainWindow *application.WebviewWindow
@@ -237,6 +238,18 @@ func NewApp() *application.App {
 	core.collector = monitor.NewCollector(sshMgr)
 	core.termMgr.Init(context.Background(), app.Event.Emit)
 
+	// 终端数据通道升级：本地 SSE 流优先（绕开 wails 主线程事件派发），
+	// 无订阅者自动回退 Events；启动失败不影响原通道
+	if ts := newTermStreamServer(); ts.start() == nil {
+		ts.writeInput = func(sid string, data string) error {
+			return core.termMgr.WriteInput(sid, []byte(data))
+		}
+		core.termStream = ts
+		core.termMgr.SetStreamPush(ts.pushTerminalEvent)
+	} else {
+		app.Logger.Warn("终端流服务启动失败，终端数据走 wails 事件通道")
+	}
+
 	// 系统通知点击 → 聚焦主窗 + 通知前端打开对应主机告警历史
 	ns.OnNotificationResponse(func(result notifications.NotificationResult) {
 		if result.Error != nil {
@@ -297,6 +310,9 @@ func (a *App) shutdown() {
 	if a.mainWindow != nil {
 		w, h := a.mainWindow.Size()
 		saveWindowGeom(w, h)
+	}
+	if a.termStream != nil {
+		a.termStream.shutdown()
 	}
 	a.sshMgr.CloseAll()
 	a.termMgr.CloseAll()
