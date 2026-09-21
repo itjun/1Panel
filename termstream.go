@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -226,9 +225,9 @@ func (t *termStreamServer) handleWS(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer close(readDone)
 		for {
-			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-			typ, data, err := c.Read(ctx)
-			cancel()
+			// WebSocket 自己会在连接关闭时结束 Read；不要为每个按键创建
+			// 一个 10 秒 timer/context，这条循环就是输入热路径。
+			typ, data, err := c.Read(r.Context())
 			if err != nil {
 				return
 			}
