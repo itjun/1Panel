@@ -97,7 +97,13 @@
       >
         关闭主机页
       </button>
-      <button type="button" class="ctx-item is-danger" @click="onDelete">
+      <!-- 已打开的主机先「关闭主机页」再删，避免误删运行中的会话 -->
+      <button
+        v-if="!app.isRunning(menu.host)"
+        type="button"
+        class="ctx-item is-danger"
+        @click="onDelete"
+      >
         删除…
       </button>
       </template>
