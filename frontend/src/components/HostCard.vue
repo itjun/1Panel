@@ -116,6 +116,7 @@ function showPort(): boolean {
       <DistroLogo
         :os-release="osRelease"
         :size="strip ? 20 : dense ? 16 : 18"
+        :badge="strip"
         class="host-ico"
       />
     </span>
@@ -296,18 +297,7 @@ function showPort(): boolean {
     }
 
     .host-ico-wrap {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      align-items: center;
-      justify-content: center;
-      background: #f4511e;
-      box-shadow: none;
       opacity: 1;
-    }
-
-    .host-ico {
-      fill: #fff;
     }
   }
 }

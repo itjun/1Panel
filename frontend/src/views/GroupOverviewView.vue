@@ -84,7 +84,8 @@
                   <DistroLogo
                     v-else
                     :os-release="hostState(row.name).overview?.osRelease || ''"
-                    :size="20"
+                    :size="16"
+                    badge
                   />
                 </span>
                 <span class="list-host-label">{{ row.name }}</span>
@@ -1544,8 +1545,6 @@ startPoll();
 }
 .list-os-ico {
   display: inline-flex;
-  width: 22px;
-  height: 22px;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;

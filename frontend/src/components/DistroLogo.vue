@@ -1,5 +1,25 @@
 <template>
+  <span
+    v-if="badge"
+    class="distro-badge"
+    :style="badgeStyle"
+    role="img"
+    :aria-label="meta.name"
+    v-tip="title || meta.name"
+  >
+    <svg
+      :width="size"
+      :height="size"
+      viewBox="0 0 24 24"
+      :class="className"
+      :fill="meta.color"
+      aria-hidden="true"
+    >
+      <path :d="meta.path" />
+    </svg>
+  </span>
   <svg
+    v-else
     :width="size"
     :height="size"
     viewBox="0 0 24 24"
@@ -149,12 +169,15 @@ const props = withDefaults(
     size?: number;
     className?: string;
     title?: string;
+    /** 列表徽标样式：橙底圆角方块 + 白色图标，尺寸为 size + 18 */
+    badge?: boolean;
   }>(),
   {
     osRelease: "",
     size: 24,
     className: "",
     title: "",
+    badge: false,
   }
 );
 
@@ -171,4 +194,27 @@ function matchDistro(osRelease?: string): DistroMeta {
 }
 
 const meta = computed(() => matchDistro(props.osRelease));
+
+const badgeStyle = computed(() => {
+  const side = props.size + 18;
+  return {
+    width: `${side}px`,
+    height: `${side}px`,
+    borderRadius: `${Math.round(side * 0.26)}px`,
+  };
+});
 </script>
+
+<style scoped>
+.distro-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #f4511e;
+}
+
+.distro-badge svg {
+  fill: #fff;
+}
+</style>
