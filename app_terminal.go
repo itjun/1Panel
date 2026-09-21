@@ -10,7 +10,7 @@ type TerminalSvc App
 
 // ============ 终端（PTY 会话） ============
 
-// OpenTerminal 打开一个终端会话（独立 SSH 连接 + Wails 事件推送）
+// OpenTerminal 打开一个终端会话（独立 SSH 连接 + 本地流优先、Wails 事件兜底）
 // eventName 是前端订阅输出的 Wails 事件名
 // cols/rows 为 xterm fit 后的真实行列，开 PTY 时就用正确尺寸，避免开局乱码
 func (s *TerminalSvc) OpenTerminal(host string, eventName string, cols int, rows int) (string, error) {
@@ -36,8 +36,8 @@ func (s *TerminalSvc) CloseTerminal(sessionID string) error {
 	return s.termMgr.Close(sessionID)
 }
 
-// TermStreamEndpoint 返回本地终端流服务地址（JSON：base + token）。
-// 前端优先用它做终端输入输出（SSE + fetch，绕开 wails 主线程通道），
+// TermStreamEndpoint 返回本地终端流服务公共地址（JSON：base + token）。
+// 前端在每个 PTY sid 建立独立双向 WebSocket，绕开 Wails 主线程通道；
 // 拿不到或连接失败时自动回退 wails 事件/binding 通道。
 func (s *TerminalSvc) TermStreamEndpoint() (string, error) {
 	if a := (*App)(s); a != nil && a.termStream != nil {

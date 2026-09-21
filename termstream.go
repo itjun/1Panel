@@ -1,37 +1,157 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+
+	"crypto/rand"
+	"encoding/hex"
+
+	"github.com/coder/websocket"
 )
 
-// termStreamServer 本地回环终端流服务：终端输出走 SSE、输入走 fetch，
-// 绕开 wails v3 在 darwin 上的两条主线程通道（Events.Emit 逐条 evaluateJS、
-// binding 的 WKScriptMessage 回调）。机器渲染繁忙时这两条通道会把按键回显
-// 排在长队列后面——实测网络 RTT 0.66ms、SSH 层回显 1.8ms，延迟主要产生于此。
+// termStreamServer 本地回环终端流服务。
+//
+// 一个终端会话对应一条独立的双向 WebSocket：连接 URL 中的 sid 决定它只收发
+// 哪个 PTY 的数据。这样多个终端之间没有应用层复用队列、轮询器或共享写入锁。
+// 每条连接拥有独立的输出队列；输入在该连接的读循环中直接顺序写入 PTY，
+// 慢终端只会反压自己。
 //
 // 安全：只听 127.0.0.1 随机端口 + 随机 token（query 校验），本机其它进程拿不到
-// token 无法连接。无 SSE 订阅者时 manager 自动回退 wails 事件通道，行为不变。
+// token 无法连接。WebSocket 不可用时 manager 自动回退 Wails 事件，行为不变。
 type termStreamServer struct {
 	mu     sync.Mutex
 	token  string
-	subs   map[chan string]struct{}
+	subs   map[string]*termStreamSubscriber
 	server *http.Server
 	addr   string
 
 	writeInput func(sid string, data string) error // 由 termMgr 注入
 }
 
+const (
+	termStreamMaxOutputBytes = 2 * 1024 * 1024
+	termStreamMaxOutputFrame = 256
+
+	// 二进制帧首字节。输入/输出都不再为每个按键创建 JSON 对象。
+	termStreamFrameInput byte = 1
+	termStreamFrameData  byte = 1
+	termStreamFrameExit  byte = 2
+)
+
+type termStreamSubscriber struct {
+	sid string
+	mu  sync.Mutex
+
+	outputFrames [][]byte
+	outputBytes  int
+	outputWake   chan struct{}
+
+	done   chan struct{}
+	closed bool
+}
+
+func newTermStreamSubscriber(sid string) *termStreamSubscriber {
+	return &termStreamSubscriber{
+		sid:        sid,
+		outputWake: make(chan struct{}, 1),
+		done:       make(chan struct{}),
+	}
+}
+
+func signalTermStream(ch chan struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
+func (s *termStreamSubscriber) close() {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.closed = true
+	close(s.done)
+	s.mu.Unlock()
+}
+
+func (s *termStreamSubscriber) enqueueOutput(frame []byte) bool {
+	if len(frame) == 0 {
+		return false
+	}
+	if len(frame) > termStreamMaxOutputBytes {
+		return false
+	}
+	for {
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			return false
+		}
+		if len(s.outputFrames) < termStreamMaxOutputFrame &&
+			s.outputBytes+len(frame) <= termStreamMaxOutputBytes {
+			copyFrame := make([]byte, len(frame))
+			copy(copyFrame, frame)
+			s.outputFrames = append(s.outputFrames, copyFrame)
+			s.outputBytes += len(copyFrame)
+			signalTermStream(s.outputWake)
+			s.mu.Unlock()
+			return true
+		}
+		wake := s.outputWake
+		done := s.done
+		s.mu.Unlock()
+
+		// 只阻塞产生这个 sid 输出的 SSH 会话；其它终端拥有自己的队列。
+		select {
+		case <-wake:
+		case <-done:
+			return false
+		}
+	}
+}
+
+func (s *termStreamSubscriber) nextOutput() ([]byte, bool) {
+	for {
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			return nil, false
+		}
+		if len(s.outputFrames) > 0 {
+			frame := s.outputFrames[0]
+			s.outputFrames = s.outputFrames[1:]
+			s.outputBytes -= len(frame)
+			signalTermStream(s.outputWake)
+			s.mu.Unlock()
+			return frame, true
+		}
+		wake := s.outputWake
+		done := s.done
+		s.mu.Unlock()
+		select {
+		case <-wake:
+		case <-done:
+			return nil, false
+		}
+	}
+}
+
 func newTermStreamServer() *termStreamServer {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
-	return &termStreamServer{token: hex.EncodeToString(b), subs: map[chan string]struct{}{}}
+	return &termStreamServer{
+		token: hex.EncodeToString(b),
+		subs:  make(map[string]*termStreamSubscriber),
+	}
 }
 
 func (t *termStreamServer) start() error {
@@ -41,20 +161,29 @@ func (t *termStreamServer) start() error {
 	}
 	t.addr = ln.Addr().String()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/stream", t.handleStream)
-	mux.HandleFunc("/input", t.handleInput)
-	mux.HandleFunc("/drop", t.handleDrop)
+	mux.HandleFunc("/ws", t.handleWS)
 	t.server = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = t.server.Serve(ln) }()
 	return nil
 }
 
-// endpoint 返回给前端的连接信息（JSON 字符串：base 不带路径、token 走 query）
+// endpoint 返回给前端的连接信息（JSON 字符串：base 不带路径、token 走 query）。
+// sid 不放进 endpoint，因为每个终端在打开自己的 PTY 后独立拼接连接地址。
 func (t *termStreamServer) endpoint() string {
 	return fmt.Sprintf(`{"base":"http://%s","token":"%s"}`, t.addr, t.token)
 }
 
 func (t *termStreamServer) shutdown() {
+	t.mu.Lock()
+	subs := make([]*termStreamSubscriber, 0, len(t.subs))
+	for sid, sub := range t.subs {
+		subs = append(subs, sub)
+		delete(t.subs, sid)
+	}
+	t.mu.Unlock()
+	for _, sub := range subs {
+		sub.close()
+	}
 	if t.server != nil {
 		_ = t.server.Close()
 	}
@@ -68,137 +197,143 @@ func (t *termStreamServer) checkToken(w http.ResponseWriter, r *http.Request) bo
 	return false
 }
 
-// handleStream SSE 长连接：一条连接复用所有终端会话（事件 payload 带 pane 标识），
-// 避免 WKWebView 对同源 6 连接的限制。
-func (t *termStreamServer) handleStream(w http.ResponseWriter, r *http.Request) {
+// handleWS 建立一个终端会话专属的 WebSocket。sid 是连接级身份，帧内不再重复携带。
+// 输入二进制帧：0x01 + UTF-8；文本 "p" 只用于心跳；JSON 输入仍兼容旧客户端。
+func (t *termStreamServer) handleWS(w http.ResponseWriter, r *http.Request) {
 	if !t.checkToken(w, r) {
 		return
 	}
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+	sid := strings.TrimSpace(r.URL.Query().Get("sid"))
+	if sid == "" {
+		http.Error(w, "missing sid", http.StatusBadRequest)
 		return
 	}
-	h := w.Header()
-	h.Set("Content-Type", "text/event-stream; charset=utf-8")
-	h.Set("Cache-Control", "no-cache")
-	h.Set("Access-Control-Allow-Origin", "*")
-	h.Set("X-Accel-Buffering", "no")
-	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprint(w, "retry: 1000\n\n") // 断开后前端 1s 自动重连
-	flusher.Flush()
-
-	ch := make(chan string, 64)
-	t.mu.Lock()
-	// 单订阅者：终端前端全局只有一条 EventSource，新连接进来说明旧连接已断
-	// （半开 TCP 检测很慢，旧 handler 可能还挂着）。立刻踢掉旧订阅，
-	// 否则数据被推进无人消费的旧 channel——Go 以为推送成功不再走 Events，
-	// 前端两条通道都收不到，表现为回显整段丢失。
-	for old := range t.subs {
-		close(old)
-		delete(t.subs, old)
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	if err != nil {
+		return
 	}
-	t.subs[ch] = struct{}{}
+	c.SetReadLimit(4 << 20)
+	sub := newTermStreamSubscriber(sid)
+	t.mu.Lock()
+	old := t.subs[sid]
+	t.subs[sid] = sub
 	t.mu.Unlock()
-	defer func() {
-		t.mu.Lock()
-		delete(t.subs, ch)
-		t.mu.Unlock()
+	if old != nil {
+		old.close()
+	}
+
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		for {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			typ, data, err := c.Read(ctx)
+			cancel()
+			if err != nil {
+				return
+			}
+			input, ok := decodeTermStreamInput(typ, data)
+			if !ok {
+				continue
+			}
+			if t.writeInput == nil || input == "" {
+				return
+			}
+			// 一条连接只服务一个 sid，直接在该连接的读循环中顺序写入 PTY。
+			// 不再经过共享/二次输入队列；其它终端由其它连接并行处理。
+			if err := t.writeInput(sid, input); err != nil {
+				return
+			}
+		}
 	}()
 
-	ping := time.NewTicker(15 * time.Second)
-	defer ping.Stop()
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case <-ping.C:
-			if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+		for {
+			frame, ok := sub.nextOutput()
+			if !ok {
 				return
 			}
-			flusher.Flush()
-		case msg := <-ch:
-			if msg == "" { // 被推送方关闭（消费太慢）
+			if err := c.Write(r.Context(), websocket.MessageBinary, frame); err != nil {
 				return
 			}
-			if _, err := fmt.Fprint(w, msg); err != nil {
-				return
-			}
-			flusher.Flush()
 		}
-	}
-}
+	}()
 
-// handleInput 终端输入：前端 fetch POST JSON 字符串（默认 text/plain，无预检）。
-func (t *termStreamServer) handleInput(w http.ResponseWriter, r *http.Request) {
-	if !t.checkToken(w, r) {
-		return
+	select {
+	case <-readDone:
+	case <-writeDone:
 	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	if r.Method == http.MethodOptions {
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var body struct {
-		Sid string `json:"sid"`
-		D   string `json:"d"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&body); err != nil ||
-		body.Sid == "" || t.writeInput == nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	if err := t.writeInput(body.Sid, body.D); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// handleDrop 前端 EventSource 断连时主动调用：立刻清空全部订阅，
-// 让数据马上回退 wails Events 通道。半开 TCP 上 handler 的写会"成功"进内核
-// 缓冲，不主动清的话断连到重连之间的回显会被推进死连接——表现为丢字。
-func (t *termStreamServer) handleDrop(w http.ResponseWriter, r *http.Request) {
-	if !t.checkToken(w, r) {
-		return
-	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.WriteHeader(http.StatusNoContent)
+	sub.close()
+	_ = c.Close(websocket.StatusNormalClosure, "stream closed")
+	<-readDone
+	<-writeDone
 	t.mu.Lock()
-	for ch := range t.subs {
-		close(ch)
-		delete(t.subs, ch)
+	if t.subs[sid] == sub {
+		delete(t.subs, sid)
 	}
 	t.mu.Unlock()
 }
 
-// pushTerminalEvent 实现 terminal.StreamPush：把一条终端事件写给当前订阅者。
-// 返回 false（无订阅者 / 消费者卡死被踢）时调用方走 wails 事件通道补发，
-// 保证任何情况下数据都有出口、不丢帧。
-func (t *termStreamServer) pushTerminalEvent(kind string, payload string) bool {
-	frame := "event: " + kind + "\ndata: " + payload + "\n\n"
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if len(t.subs) == 0 {
+func decodeTermStreamInput(typ websocket.MessageType, data []byte) (string, bool) {
+	if typ == websocket.MessageBinary {
+		if len(data) < 2 || data[0] != termStreamFrameInput {
+			return "", false
+		}
+		return string(data[1:]), true
+	}
+	if typ != websocket.MessageText || string(data) == "p" {
+		return "", false
+	}
+	var input struct {
+		K string `json:"k"`
+		D string `json:"d"`
+	}
+	if json.Unmarshal(data, &input) != nil || input.K != "input" || input.D == "" {
+		return "", false
+	}
+	return input.D, true
+}
+
+// pushTerminalEvent 实现 terminal.StreamPush：把一条终端事件写给它自己的连接。
+// 没有该 sid 的订阅者时返回 false，manager 走 Wails 事件补发。
+func (t *termStreamServer) pushTerminalEvent(kind, sid, _ string, data string) bool {
+	if sid == "" {
 		return false
 	}
-	sent := true
-	for ch := range t.subs {
-		select {
-		case ch <- frame:
-		default:
-			// 消费方卡死（webview 不再读）：关闭该订阅并降级，
-			// 本帧改走 Events 通道补发，前端 EventSource 会自动重连
-			close(ch)
-			delete(t.subs, ch)
-			sent = false
-		}
+	var frame []byte
+	switch kind {
+	case "data":
+		frame = make([]byte, 1+len(data))
+		frame[0] = termStreamFrameData
+		copy(frame[1:], data)
+	case "exit":
+		frame = make([]byte, 1+len(data))
+		frame[0] = termStreamFrameExit
+		copy(frame[1:], data)
+	default:
+		return false
 	}
-	return sent
+
+	t.mu.Lock()
+	sub := t.subs[sid]
+	t.mu.Unlock()
+	if sub == nil || sub.enqueueOutput(frame) {
+		return sub != nil
+	}
+	t.detach(sub)
+	return false
+}
+
+func (t *termStreamServer) detach(sub *termStreamSubscriber) {
+	if sub == nil {
+		return
+	}
+	t.mu.Lock()
+	if t.subs[sub.sid] == sub {
+		delete(t.subs, sub.sid)
+	}
+	t.mu.Unlock()
+	sub.close()
 }

@@ -2,7 +2,6 @@ package terminal
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -19,17 +18,17 @@ import (
 // 返回是否被取消（语义与 wails v3 application.Event.Emit 对齐）
 type EmitFunc func(eventName string, data ...any) bool
 
-// StreamPush 终端数据的流式出口（本地 SSE）：kind 为 "data" 或 "exit"，
-// payload 是带 pane 标识的 JSON。返回 false 表示当前无订阅者，
+// StreamPush 终端数据的流式出口（本地 WebSocket）：kind 为 "data" 或 "exit"，
+// 其余参数为 sid、pane 和原始数据。返回 false 表示当前无订阅者，
 // 调用方应回退 EmitFunc 通道。两条通道同一时刻只有一条在用。
-type StreamPush func(kind string, payload string) bool
+type StreamPush func(kind, sid, pane, data string) bool
 
 // Manager 管理终端会话
 // 设计：
 //   - 每个 Tab 创建一个 Session，每个 Session 用独立 SSH 连接（不复用连接池），
 //     与面板采集的 agent 隧道隔离，避免共享连接互相反压导致输入卡顿
 //   - 用 SSH 协议的 RequestPty 申请真正的伪终端，远程 shell 会正常回显输入
-//   - 数据通道：优先本地 SSE 流（绕开 wails 主线程事件派发），无订阅者时
+//   - 数据通道：优先本地 WebSocket 流（绕开 wails 主线程事件派发），无订阅者时
 //     回退 Wails 事件推送（异步非阻塞，见 pumpToEvent）
 //   - 关闭 Tab → 关 session + 关独立连接 → 远程 shell 收到 EOF 退出
 type Manager struct {
@@ -41,7 +40,7 @@ type Manager struct {
 	emit EmitFunc // 事件推送（注入，可空则跳过）
 
 	streamMu   sync.RWMutex
-	streamPush StreamPush // SSE 出口（注入，可空）
+	streamPush StreamPush // WebSocket 出口（注入，可空）
 }
 
 // Session 一个终端会话，对应一条独立 SSH 连接上的 channel + PTY
@@ -56,7 +55,6 @@ type Session struct {
 	mu              sync.Mutex
 	closed          bool
 }
-
 
 // NewManager 创建终端管理器
 // sshMgr 由 App 注入，用于复用 SSH 连接池
@@ -77,7 +75,7 @@ func (m *Manager) Init(ctx context.Context, emit EmitFunc) {
 	m.emit = emit
 }
 
-// SetStreamPush 注入 SSE 流出口。两条数据通道同一时刻只有一条在用：
+// SetStreamPush 注入 WebSocket 流出口。两条数据通道同一时刻只有一条在用：
 // push 返回 false（无订阅者）时回退 emit。
 func (m *Manager) SetStreamPush(push StreamPush) {
 	m.streamMu.Lock()
@@ -85,18 +83,13 @@ func (m *Manager) SetStreamPush(push StreamPush) {
 	m.streamMu.Unlock()
 }
 
-// sendData 输出数据双出口：SSE 优先，无订阅者回退 wails 事件
+// sendData 输出数据双出口：WebSocket 优先，无订阅者回退 Wails 事件
 func (m *Manager) sendData(eventName, sid, data string) {
 	m.streamMu.RLock()
 	push := m.streamPush
 	m.streamMu.RUnlock()
 	if push != nil {
-		payload, _ := json.Marshal(map[string]string{
-			"pane": strings.TrimPrefix(eventName, "term:"),
-			"sid":  sid,
-			"d":    data,
-		})
-		if push("data", string(payload)) {
+		if push("data", sid, strings.TrimPrefix(eventName, "term:"), data) {
 			return
 		}
 	}
@@ -105,18 +98,13 @@ func (m *Manager) sendData(eventName, sid, data string) {
 	}
 }
 
-// sendExit 会话结束双出口：SSE 优先，无订阅者回退 wails 事件
+// sendExit 会话结束双出口：WebSocket 优先，无订阅者回退 Wails 事件
 func (m *Manager) sendExit(eventName, sid, reason string) {
 	m.streamMu.RLock()
 	push := m.streamPush
 	m.streamMu.RUnlock()
 	if push != nil {
-		payload, _ := json.Marshal(map[string]string{
-			"pane":   strings.TrimPrefix(eventName, "term:"),
-			"sid":    sid,
-			"reason": reason,
-		})
-		if push("exit", string(payload)) {
+		if push("exit", sid, strings.TrimPrefix(eventName, "term:"), reason) {
 			return
 		}
 	}
@@ -223,7 +211,7 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 		keepaliveCancel: keepaliveCancel,
 	}
 
-	// 把远程 shell 的输出流推送给前端（SSE 优先，回退 wails 事件）
+	// 把远程 shell 的输出流推送给前端（WebSocket 优先，回退 Wails 事件）
 	go pumpToEvent(ctx, stdout, func(data string) { m.sendData(eventName, id, data) })
 
 	// 进程结束时通知前端 + 清理。

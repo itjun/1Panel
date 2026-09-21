@@ -238,8 +238,8 @@ func NewApp() *application.App {
 	core.collector = monitor.NewCollector(sshMgr)
 	core.termMgr.Init(context.Background(), app.Event.Emit)
 
-	// 终端数据通道升级：本地 SSE 流优先（绕开 wails 主线程事件派发），
-	// 无订阅者自动回退 Events；启动失败不影响原通道
+	// 终端数据通道升级：每个终端 sid 使用独立的本地 WebSocket（绕开 Wails 主线程
+	// 事件派发）；某个 sid 无订阅者时自动回退 Events，启动失败不影响原通道。
 	if ts := newTermStreamServer(); ts.start() == nil {
 		ts.writeInput = func(sid string, data string) error {
 			return core.termMgr.WriteInput(sid, []byte(data))
