@@ -507,25 +507,52 @@ function writeProbe(id: string, patch: Partial<PaneProbe>) {
 const echoPendingAt = new Map<string, number>();
 const echoSamples = new Map<string, number[]>();
 const echoP95 = ref<Record<string, number>>({});
+const echoDirty = new Set<string>();
+let echoUiTimer: ReturnType<typeof setTimeout> | null = null;
+const ECHO_UI_REFRESH_MS = 250;
 
 // 终端输入/输出优先走每个 sid 独立的本地 WebSocket 流（termStream.ts），
 // 绕开 Wails 主线程逐条 evaluateJS 的事件派发；某条连接异常时仅该 sid 回退 Events
 void ensureTermStream();
+
+function flushEchoUi() {
+  echoUiTimer = null;
+  if (echoDirty.size === 0) return;
+  const next = { ...echoP95.value };
+  let changed = false;
+  for (const paneId of echoDirty) {
+    const arr = echoSamples.get(paneId);
+    if (!arr || arr.length === 0) continue;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const p95 = sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)];
+    if (next[paneId] !== p95) {
+      next[paneId] = p95;
+      changed = true;
+    }
+  }
+  echoDirty.clear();
+  if (changed) echoP95.value = next;
+}
+
+function scheduleEchoUiFlush() {
+  if (echoUiTimer) return;
+  echoUiTimer = setTimeout(flushEchoUi, ECHO_UI_REFRESH_MS);
+}
 
 function noteEcho(paneId: string, ms: number) {
   const arr = echoSamples.get(paneId) ?? [];
   arr.push(ms);
   if (arr.length > 32) arr.shift();
   echoSamples.set(paneId, arr);
-  const sorted = [...arr].sort((a, b) => a - b);
-  const p95 = sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)];
-  if (echoP95.value[paneId] === p95) return;
-  echoP95.value = { ...echoP95.value, [paneId]: p95 };
+  // 诊断指标不应和每个回显包共用 Vue 热路径；采样保留，UI 每 250ms 刷一次。
+  echoDirty.add(paneId);
+  scheduleEchoUiFlush();
 }
 
 function clearEchoStats(paneId: string) {
   echoPendingAt.delete(paneId);
   echoSamples.delete(paneId);
+  echoDirty.delete(paneId);
   if (echoP95.value[paneId] !== undefined) {
     const next = { ...echoP95.value };
     delete next[paneId];
@@ -1926,6 +1953,10 @@ onBeforeUnmount(() => {
   if (disconnectNotifyTimer) {
     clearTimeout(disconnectNotifyTimer);
     disconnectNotifyTimer = null;
+  }
+  if (echoUiTimer) {
+    clearTimeout(echoUiTimer);
+    echoUiTimer = null;
   }
   const deskLives = app.terminalDesks.some((d) => d.id === props.workspaceSessionId);
   if (deskLives) {
