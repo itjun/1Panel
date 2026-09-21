@@ -357,8 +357,10 @@ func (m *Manager) CloseAll() {
 // 否则进入 coalesceWindow 合并，攒满 maxBatch 也立即发。
 func pumpToEvent(ctx context.Context, r io.Reader, send func(data string)) {
 	const (
-		idleThreshold  = 8 * time.Millisecond
-		coalesceWindow = 5 * time.Millisecond
+		// 交互回显优先：连续快速输入时也不要把第二个字符额外压满 5ms。
+		// 1ms 仍能合并高吞吐输出，但不会形成可感知的按键尾延迟。
+		idleThreshold  = 4 * time.Millisecond
+		coalesceWindow = 1 * time.Millisecond
 		maxBatch       = 16 * 1024
 	)
 
