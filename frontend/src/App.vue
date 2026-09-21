@@ -451,6 +451,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
     return;
   }
   if (e.code === "KeyQ") {
+    // 只认平台原生组合：mac ⌘Q、Win/Linux Ctrl+Q。mac 上 Ctrl+Q 不触发退出（终端里是 XON，留给 PTY）
+    const isQuitKey = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey;
+    if (!isQuitKey) return;
     e.preventDefault();
     void Events.Emit("app-request-quit");
   }
