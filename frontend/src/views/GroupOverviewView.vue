@@ -49,24 +49,23 @@
           :data="hosts"
           size="default"
           border
-          allow-drag-last-column
           class="host-list-table data-table-unified"
           :row-class-name="tableRowClass"
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
-          @header-dragend="onHeaderDragEnd"
+          @mousedown.capture="onHeaderResizeDown"
           @dblclick="onHeaderDblClick"
         >
           <el-table-column
             type="index"
             label="序"
-            :width="colWidths?.index ?? 64"
+            :width="colWidth('index') ?? DEFAULT_W.index"
             fixed
             align="center"
             class-name="group-index-col"
           />
           <el-table-column
             label="主机"
-            :width="colWidths?.host ?? 140"
+            :width="colWidth('host') ?? DEFAULT_W.host"
             fixed
             show-overflow-tooltip
           >
@@ -94,8 +93,7 @@
           </el-table-column>
           <el-table-column
             label="地址"
-            :width="colWidths?.addr"
-            :min-width="colWidths ? undefined : 150"
+            :width="colWidth('addr') ?? DEFAULT_W.addr"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -104,7 +102,7 @@
           </el-table-column>
           <el-table-column
             label="Agent"
-            :width="colWidths?.agent ?? 100"
+            :width="colWidth('agent') ?? DEFAULT_W.agent"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -139,7 +137,7 @@
           </el-table-column>
           <el-table-column
             label="用户"
-            :width="colWidths?.user ?? 64"
+            :width="colWidth('user') ?? DEFAULT_W.user"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -148,7 +146,7 @@
           </el-table-column>
           <el-table-column
             label="版本"
-            :width="colWidths?.version ?? 108"
+            :width="colWidth('version') ?? DEFAULT_W.version"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -160,7 +158,7 @@
           </el-table-column>
           <el-table-column
             label="规格"
-            :width="colWidths?.spec ?? 80"
+            :width="colWidth('spec') ?? DEFAULT_W.spec"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -180,7 +178,7 @@
               <span v-else class="mono">{{ hostSpec(hostState(row.name).overview!) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="CPU" :width="colWidths?.cpu ?? 68">
+          <el-table-column label="CPU" :width="colWidth('cpu') ?? DEFAULT_W.cpu">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -191,7 +189,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="内存" :width="colWidths?.mem ?? 68">
+          <el-table-column label="内存" :width="colWidth('mem') ?? DEFAULT_W.mem">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -203,7 +201,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="磁盘" :width="colWidths?.disk ?? 92">
+          <el-table-column label="磁盘" :width="colWidth('disk') ?? DEFAULT_W.disk">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -216,7 +214,7 @@
           </el-table-column>
           <el-table-column
             label="负载"
-            :width="colWidths?.load ?? 72"
+            :width="colWidth('load') ?? DEFAULT_W.load"
             align="right"
           >
             <template #default="{ row }">
@@ -374,6 +372,7 @@ import {
   computed,
   defineComponent,
   h,
+  nextTick,
   onBeforeUnmount,
   ref,
   watch,
@@ -466,17 +465,20 @@ watch(viewMode, (m) => {
   } catch {
     /* 忽略 */
   }
+  if (m === "table") nextTick(scheduleAutoWidths);
 });
 
 // ---------- 列宽：可拖拽 / 双击分界线自适应 / 持久化 ----------
 
-const COL_WIDTHS_KEY = "1pannel-group-col-widths";
+// v3：只存用户拖过/双击过的列；v2 存过被 realWidth 污染的全量快照，作废
+// v4：v3 期间 WebKit 把进度条量出虚大宽度被双击固化过，作废旧值
+const COL_WIDTHS_KEY = "1pannel-group-col-widths-v4";
 
 /** 列 key 列表：与模板中 el-table-column 顺序一一对应（快照列宽用） */
 const COL_KEYS = [
   "index", // 序
   "host", // 主机
-  "addr", // 地址（默认弹性列）
+  "addr", // 地址
   "agent", // Agent
   "user", // 用户
   "version", // 版本
@@ -493,19 +495,19 @@ function readColWidths(): Record<string, number> | null {
     if (!raw) return null;
     const obj = JSON.parse(raw);
     if (!obj || typeof obj !== "object") return null;
+    // 部分固化：只收用户明确改过的列，其余列继续走动态自适应
     const out: Record<string, number> = {};
     for (const key of COL_KEYS) {
       const v = Number((obj as Record<string, unknown>)[key]);
-      if (!Number.isFinite(v) || v < 32) return null; // 布局不完整则整体回退默认
-      out[key] = Math.round(v);
+      if (Number.isFinite(v) && v >= 32) out[key] = Math.round(v);
     }
-    return out;
+    return Object.keys(out).length > 0 ? out : null;
   } catch {
     return null;
   }
 }
 
-/** 用户自定义列宽（null = 默认布局，地址列为弹性列） */
+/** 用户自定义列宽（null = 默认布局：全部列按内容自适应，剩余宽度留白在表格右缘） */
 const colWidths = ref<Record<string, number> | null>(readColWidths());
 
 function persistColWidths() {
@@ -523,34 +525,160 @@ function persistColWidths() {
 function resetColWidths() {
   colWidths.value = null;
   persistColWidths();
+  scheduleAutoWidths();
 }
 
-const hostTableRef = ref<
-  | {
-      $el?: HTMLElement;
-      columns?: { label?: string; width?: number; realWidth?: number }[];
-    }
-  | null
->(null);
+// ---------- 默认布局：列宽按实际内容动态自适应 ----------
 
-/** 读 ElTable 实例暴露的列信息，固化全部列的生效宽度（拖拽/自适应后调用） */
-function snapshotColWidths() {
-  const cols = hostTableRef.value?.columns;
-  if (!cols || cols.length !== COL_KEYS.length) return false;
+/**
+ * 参与内容自适应的列及其设计下限。
+ * CPU/内存/磁盘/负载四列是轮询刷新的动态数字，位数随采样变化（0.00↔10.35），
+ * 若参与测量列宽会跟着数字宽度来回摆动，故不在此列、恒用模板默认宽。
+ */
+const COL_MIN: Record<string, number> = {
+  index: 64,
+  host: 140,
+  addr: 150,
+  agent: 100,
+  user: 64,
+  version: 108,
+  spec: 80,
+};
+
+/** 文本测量之外的图形元素宽度修正：主机列徽标 34 + 间距 8；Agent 列标签底座留白 */
+const COL_EXTRA: Record<string, number> = {
+  host: 42,
+  agent: 24,
+};
+
+/** 全列默认宽（模板兜底 & 剩余宽度分配时的非测量列占用） */
+const DEFAULT_W: Record<string, number> = {
+  index: 64,
+  host: 160,
+  addr: 170,
+  agent: 100,
+  user: 64,
+  version: 108,
+  spec: 80,
+  cpu: 68,
+  mem: 68,
+  disk: 92,
+  load: 72,
+};
+
+/** 默认布局下各列的内容自适应宽度；用户拖过列宽后由 colWidths 固定，不再动态 */
+const autoWidths = ref<Record<string, number>>({});
+
+/** 模板列宽取值：自定义列宽 > 内容自适应宽 */
+function colWidth(key: string): number | undefined {
+  return colWidths.value?.[key] ?? autoWidths.value[key];
+}
+
+let autoWidthTimer = 0;
+
+/** 内容变化后防抖重测：骨架换成数据、Agent 标签、版本规格异步到位都会触发 */
+function scheduleAutoWidths() {
+  window.clearTimeout(autoWidthTimer);
+  autoWidthTimer = window.setTimeout(() => {
+    autoWidthTimer = 0;
+    measureAutoWidths();
+  }, 150);
+}
+
+/** 弹性列：吸收表格剩余宽度，短内容列（规格等）保持贴合内容、不被拉长 */
+const FLEX_KEYS = ["host", "addr"];
+
+/** 测未固化列（含表头）的文本内容宽度，取「内容宽 / 设计下限」较大者 */
+function measureAutoWidths() {
+  if (viewMode.value !== "table") return;
+  const root = hostTableRef.value?.$el as HTMLElement | undefined;
+  if (!root) return;
+  const ths = Array.from(
+    root.querySelectorAll<HTMLElement>(".el-table__header thead th")
+  ).filter((el) => !el.classList.contains("gutter"));
+  const rows = root.querySelectorAll<HTMLElement>(".el-table__body tbody tr");
+  if (ths.length < COL_KEYS.length || rows.length === 0) return;
   const out: Record<string, number> = {};
-  for (let i = 0; i < COL_KEYS.length; i++) {
-    const w = Math.round(Number(cols[i]?.realWidth ?? cols[i]?.width ?? 0));
-    if (!Number.isFinite(w) || w <= 0) return false;
-    out[COL_KEYS[i]] = w;
+  for (const key of Object.keys(COL_MIN)) {
+    if (colWidths.value?.[key]) continue; // 用户固化过的列不再动态
+    const idx = COL_KEYS.indexOf(key);
+    const maxW = columnTextWidth(root, idx);
+    // 图形元素常量修正 + .cell 24px 内边距 + td 12px×2 再留 2px 余量；
+    // 上限防超长主机名/版本号把列撑爆，超长交给省略号 + 悬浮提示
+    out[key] = Math.min(
+      320,
+      Math.max(COL_MIN[key], maxW + (COL_EXTRA[key] || 0) + 24 + 2)
+    );
   }
-  colWidths.value = out;
-  persistColWidths();
-  return true;
+
+  // 表格总宽锁死容器宽：全部列按「固化值 > 内容测量值 > 默认值」先就位，
+  // 剩余宽度只平分给弹性列（主机/地址），其余列严格贴合内容
+  const containerW = Math.round(root.getBoundingClientRect().width);
+  let used = 0;
+  const flexPending: string[] = [];
+  for (const key of COL_KEYS) {
+    const fixedW = colWidths.value?.[key];
+    if (fixedW) {
+      used += fixedW;
+      continue;
+    }
+    const baseW = out[key] ?? DEFAULT_W[key];
+    used += baseW;
+    if (FLEX_KEYS.includes(key)) flexPending.push(key);
+  }
+  const remaining = containerW - used - 2;
+  if (remaining > 0 && flexPending.length > 0) {
+    const share = Math.floor(remaining / flexPending.length);
+    flexPending.forEach((key) => {
+      out[key] = (out[key] ?? DEFAULT_W[key]) + share;
+    });
+  }
+  autoWidths.value = out;
 }
 
-/** 拖拽结束时 EP 已把新宽度写入列上下文，直接全量固化 */
-function onHeaderDragEnd() {
-  snapshotColWidths();
+const hostTableRef = ref<{ $el?: HTMLElement } | null>(null);
+
+const HEADER_RESIZE_ZONE = 8; // 与热区伪元素同宽
+
+/** 表头 mousedown：命中分界线热区则拦截 EP 原生拖拽，自接管改列宽。
+ *  EP 的拖拽在 WKWebView 上状态可能卡死（mouseup 丢失后列宽持续跟随鼠标），
+ *  且双击会误触发 header-dragend，全部绕开。 */
+function onHeaderResizeDown(e: MouseEvent) {
+  const th = (e.target as HTMLElement | null)?.closest("th");
+  if (!th || th.classList.contains("gutter")) return;
+  const headerThs = Array.from(
+    th.parentElement?.children ?? []
+  ).filter((el) => el.tagName === "TH" && !(el as HTMLElement).classList.contains("gutter"));
+  const idx = headerThs.indexOf(th);
+  if (idx < 0) return;
+  const rect = th.getBoundingClientRect();
+  let colIdx = idx;
+  if (rect.right - e.clientX > HEADER_RESIZE_ZONE) {
+    // 不在右缘热区：看是否命中左缘（调整左邻列）
+    if (idx > 0 && e.clientX - rect.left <= HEADER_RESIZE_ZONE) {
+      colIdx = idx - 1;
+    } else {
+      return;
+    }
+  }
+  if (colIdx >= COL_KEYS.length) return;
+  e.stopPropagation(); // 阻断 EP 的 th mousedown（拖拽启动）
+  e.preventDefault(); // 阻止表头文本选择
+  const key = COL_KEYS[colIdx];
+  const startW = Math.round(th.getBoundingClientRect().width);
+  const startX = e.clientX;
+  const onMove = (ev: MouseEvent) => {
+    const next = Math.min(800, Math.max(32, startW + ev.clientX - startX));
+    colWidths.value = { ...(colWidths.value || {}), [key]: next };
+  };
+  const onUp = () => {
+    document.removeEventListener("mousemove", onMove, true);
+    document.removeEventListener("mouseup", onUp, true);
+    persistColWidths();
+    scheduleAutoWidths(); // 动态列重新分摊剩余宽度，保持表格满宽
+  };
+  document.addEventListener("mousemove", onMove, true);
+  document.addEventListener("mouseup", onUp, true);
 }
 
 /** 双击表头列分界线：自动适配左侧一列的内容宽度 */
@@ -563,55 +691,79 @@ function onHeaderDblClick(e: MouseEvent) {
   const idx = ths.indexOf(th);
   if (idx < 0) return;
   const rect = th.getBoundingClientRect();
-  const RESIZE_ZONE = 8; // 与 EP col-resize 拖拽判定同宽
-  if (rect.right - e.clientX <= RESIZE_ZONE) {
+  if (rect.right - e.clientX <= HEADER_RESIZE_ZONE) {
     autoFitColumn(idx);
-  } else if (idx > 0 && e.clientX - rect.left <= RESIZE_ZONE) {
+  } else if (idx > 0 && e.clientX - rect.left <= HEADER_RESIZE_ZONE) {
     autoFitColumn(idx - 1);
   }
+}
+
+// ---------- 内容宽度测量：Canvas 文本量宽 ----------
+// 不用「克隆 .cell + max-content」：WebKit（WKWebView）对克隆里百分比宽图形元素、
+// flex 子项的 max-content 解析与 Chromium 不一致，会量出虚大宽度（列被双击撑爆）。
+// Canvas 按元素自身字体直接量文本排版宽，不受当前布局/列宽/图形元素影响，两引擎一致。
+
+const measureCanvas = document.createElement("canvas").getContext("2d")!;
+
+/** 用元素自身的 computed 字体在 Canvas 里量其文本的排版宽 */
+function textWidth(el: HTMLElement): number {
+  const cs = window.getComputedStyle(el);
+  measureCanvas.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return Math.ceil(measureCanvas.measureText((el.textContent || "").trim()).width);
+}
+
+/**
+ * 量 cell 的内容宽：对 cell 及每个后代元素，用其自身字体量「全文拼接宽」取最大。
+ * 同行并排的多个文本块（如磁盘列的 百分比+容量）由父容器全文覆盖；
+ * 混合字号的拼接按容器字体量，稍偏保守（宁宽勿截断）。
+ * 图形元素（进度条/骨架/徽标）无文本不参与，按列走 COL_EXTRA 常量修正。
+ */
+function measureCellWidth(cellDiv: HTMLElement | null): number {
+  if (!cellDiv) return 0;
+  let max = 0;
+  const walk = (el: HTMLElement) => {
+    const text = (el.textContent || "").trim();
+    if (text) max = Math.max(max, textWidth(el));
+    Array.from(el.children).forEach((child) => walk(child as HTMLElement));
+  };
+  walk(cellDiv);
+  return max;
+}
+
+/** 表头 + 全部数据行该列的文本内容宽最大值 */
+function columnTextWidth(root: HTMLElement, idx: number): number {
+  const ths = Array.from(
+    root.querySelectorAll<HTMLElement>(".el-table__header thead th")
+  ).filter((el) => !el.classList.contains("gutter"));
+  let maxW = measureCellWidth(ths[idx]?.querySelector<HTMLElement>("div.cell") ?? null);
+  root
+    .querySelectorAll<HTMLElement>(".el-table__body tbody tr")
+    .forEach((tr) => {
+      const td = tr.children[idx] as HTMLElement | undefined;
+      maxW = Math.max(
+        maxW,
+        measureCellWidth(td?.querySelector<HTMLElement>("div.cell") ?? null)
+      );
+    });
+  return maxW;
 }
 
 /** 测量该列所有单元格（含表头）的自然宽度，取最大值定为列宽 */
 function autoFitColumn(idx: number) {
   const root = hostTableRef.value?.$el as HTMLElement | undefined;
   if (!root || idx < 0 || idx >= COL_KEYS.length) return;
-  // 测量容器挂在表格根内：继承同一套 scoped / 全局样式与字体
-  const measurer = document.createElement("div");
-  measurer.style.cssText =
-    "position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none;";
-  root.appendChild(measurer);
-  try {
-    let maxW = 0;
-    const measureCell = (cellDiv: HTMLElement | null, isHeader: boolean) => {
-      if (!cellDiv) return;
-      const clone = cellDiv.cloneNode(true) as HTMLElement;
-      clone.style.width = "max-content";
-      clone.style.maxWidth = "none";
-      clone.style.overflow = "visible";
-      clone.style.whiteSpace = "nowrap";
-      if (isHeader) clone.style.fontWeight = "600";
-      measurer.appendChild(clone);
-      maxW = Math.max(maxW, Math.ceil(clone.getBoundingClientRect().width));
-    };
-    const ths = Array.from(
-      root.querySelectorAll<HTMLElement>(".el-table__header thead th")
-    ).filter((el) => !el.classList.contains("gutter"));
-    measureCell(ths[idx]?.querySelector<HTMLElement>("div.cell") ?? null, true);
-    const rows = root.querySelectorAll<HTMLElement>(".el-table__body tbody tr");
-    rows.forEach((tr) => {
-      const td = tr.children[idx] as HTMLElement | undefined;
-      measureCell(td?.querySelector<HTMLElement>("div.cell") ?? null, false);
-    });
-    if (maxW <= 0) return;
-    // 克隆的 .cell 已含自身 24px 横向内边距，此处补 td 的 12px×2 再留 2px 余量
-    const fitted = Math.min(480, Math.max(48, maxW + 24 + 2));
-    if (!colWidths.value) snapshotColWidths(); // 先固化当前布局，避免其余列跳回默认宽
-    if (!colWidths.value) return;
-    colWidths.value = { ...colWidths.value, [COL_KEYS[idx]]: fitted };
-    persistColWidths();
-  } finally {
-    measurer.remove();
-  }
+  const key = COL_KEYS[idx];
+  const maxW = columnTextWidth(root, idx);
+  if (maxW <= 0) return;
+  // 图形元素常量修正 + .cell 24px 内边距 + td 12px×2 再留 2px 余量
+  const fitted = Math.min(
+    320,
+    Math.max(48, maxW + (COL_EXTRA[key] || 0) + 24 + 2)
+  );
+  // 只固化这一列，其余列保持原有状态（动态或已固化）
+  colWidths.value = { ...(colWidths.value || {}), [key]: fitted };
+  persistColWidths();
+  scheduleAutoWidths(); // 动态列重新分摊剩余宽度，保持表格满宽
 }
 
 const canEditGroup = computed(() => props.groupId !== UNGROUPED_ID);
@@ -1253,9 +1405,13 @@ watch(
       void loadOne(host.name, !fresh[host.name].overview);
     }
     void loadAgentStatuses();
+    scheduleAutoWidths();
   },
   { immediate: true }
 );
+
+// 数据到位（骨架 → 版本/规格/Agent 标签）后重测默认列宽；用户拖过列宽则自动跳过
+watch(hostStates, scheduleAutoWidths, { deep: true });
 
 watch(
   () => props.groupId,
@@ -1293,6 +1449,7 @@ watch(
 onBeforeUnmount(() => {
   stopPoll();
   unbindBatchProgress();
+  window.clearTimeout(autoWidthTimer);
   activeGroupId = ""; // 取消所有 in-flight
 });
 
@@ -1490,6 +1647,37 @@ startPoll();
     overflow: visible;
     text-overflow: clip;
     font-variant-numeric: tabular-nums;
+  }
+
+  // 表头右缘 8px 是列宽拖拽热区：悬停亮出分割线，提示可拖拽 / 双击自适应
+  :deep(th.el-table__cell) {
+    // 固定列本身是 sticky 定位可直接挂热区；普通列补 relative 作锚点
+    &:not(.el-table-fixed-column--left):not(.el-table-fixed-column--right) {
+      position: relative;
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      top: 25%;
+      bottom: 25%;
+      right: -4px;
+      width: 8px;
+      cursor: col-resize;
+    }
+
+    &:hover::before {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      top: 25%;
+      bottom: 25%;
+      right: 0;
+      width: 0;
+      border-right: 2px solid var(--m3-primary);
+      border-radius: 2px;
+    }
   }
 
   :deep(.host-list-row) {
