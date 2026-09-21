@@ -95,6 +95,11 @@ export interface WorkspaceSession {
   titleCustom?: boolean;
 }
 
+/** 侧栏窄轨条目：主机会话或分组页，二者统一排序混排展示 */
+export type RailEntry =
+  | { kind: "host"; key: string; session: WorkspaceSession }
+  | { kind: "group"; key: string };
+
 export function subTabToKind(sub?: SubTab | null): SessionKind {
   if (sub === "terminal") return "terminal";
   if (sub === "file-manager") return "file-manager";
@@ -554,8 +559,87 @@ export const useAppStore = defineStore("app", () => {
   });
   /** 每个终端会话当前树里的主机，用来判断关主机时会不会拆掉工作台 */
   const deskHosts = new Map<string, string[]>();
-  /** 访问过的分组页（常驻保活，按打开顺序） */
-  const visitedGroupIds = ref<string[]>([]);
+  /** 访问过的分组页（常驻保活，按打开顺序；持久化，重启后仍挂在侧栏） */
+  const VISITED_GROUPS_KEY = "1pannel-visited-groups";
+  function loadVisitedGroups(): string[] {
+    try {
+      const raw = JSON.parse(localStorage.getItem(VISITED_GROUPS_KEY) || "[]");
+      if (!Array.isArray(raw)) return [];
+      return raw.filter((x): x is string => typeof x === "string" && !!x);
+    } catch {
+      return [];
+    }
+  }
+  const visitedGroupIds = ref<string[]>(loadVisitedGroups());
+  watch(visitedGroupIds, (list) => {
+    try {
+      localStorage.setItem(VISITED_GROUPS_KEY, JSON.stringify(list));
+    } catch {
+      /* ignore */
+    }
+  });
+
+  /** 侧栏条目统一顺序：键=主机名或分组 id；未记录的条目追加在尾部。持久化。 */
+  const RAIL_ORDER_KEY = "1pannel-rail-order";
+  function loadRailOrder(): string[] {
+    try {
+      const raw = JSON.parse(localStorage.getItem(RAIL_ORDER_KEY) || "[]");
+      if (!Array.isArray(raw)) return [];
+      return raw.filter((x): x is string => typeof x === "string" && !!x);
+    } catch {
+      return [];
+    }
+  }
+  const railOrder = ref<string[]>(loadRailOrder());
+  watch(railOrder, (list) => {
+    try {
+      localStorage.setItem(RAIL_ORDER_KEY, JSON.stringify(list));
+    } catch {
+      /* ignore */
+    }
+  });
+
+  /** 侧栏条目：主机与分组按 railOrder 混排；未记录的先补主机再补分组 */
+  const railEntries = computed<RailEntry[]>(() => {
+    const out: RailEntry[] = [];
+    const sessionsByHost = new Map(
+      workspaceSessions.value.map((s) => [s.host, s])
+    );
+    const groupIds = new Set(visitedGroupIds.value);
+    const seen = new Set<string>();
+    for (const key of railOrder.value) {
+      const sess = sessionsByHost.get(key);
+      if (sess) {
+        out.push({ kind: "host", key, session: sess });
+        seen.add(key);
+        continue;
+      }
+      if (groupIds.has(key)) {
+        out.push({ kind: "group", key });
+        seen.add(key);
+      }
+    }
+    for (const s of workspaceSessions.value) {
+      if (!seen.has(s.host)) out.push({ kind: "host", key: s.host, session: s });
+    }
+    for (const gid of visitedGroupIds.value) {
+      if (!seen.has(gid)) out.push({ kind: "group", key: gid });
+    }
+    return out;
+  });
+
+  /** 侧栏条目拖拽换位：把 source 插到 target 的前面或后面 */
+  function moveRailEntry(sourceKey: string, targetKey: string, dropBefore: boolean) {
+    if (!sourceKey || sourceKey === targetKey) return;
+    const keys = railEntries.value.map((e) => e.key);
+    const from = keys.indexOf(sourceKey);
+    if (from < 0) return;
+    keys.splice(from, 1);
+    const insertAt = keys.indexOf(targetKey);
+    if (insertAt < 0) return;
+    keys.splice(dropBefore ? insertAt : insertAt + 1, 0, sourceKey);
+    railOrder.value = keys;
+  }
 
   /** 兼容旧命名：主区/侧栏仍可能读 activeTab */
   const activeTab = computed(() => activeView.value);
@@ -719,6 +803,27 @@ export const useAppStore = defineStore("app", () => {
         if (!names.has(n)) stopHost(n);
       }
       prunePinnedHosts(names);
+      // 分组页常驻列表：分组已不存在（应用关闭期间被删等）时移除
+      const gids = new Set((g || []).map((x) => x.id));
+      const keptGroupTabs = visitedGroupIds.value.filter(
+        (x) => x === UNGROUPED_ID || gids.has(x)
+      );
+      if (keptGroupTabs.length !== visitedGroupIds.value.length) {
+        visitedGroupIds.value = keptGroupTabs;
+        if (
+          activeView.value?.kind === "group" &&
+          !keptGroupTabs.includes(activeView.value.id)
+        ) {
+          goHome();
+        }
+      }
+      // 侧栏排序键只保留仍配置的主机/仍存在的分组；未打开的主机保留键，重开回原位
+      const keptRailOrder = railOrder.value.filter(
+        (k) => names.has(k) || gids.has(k)
+      );
+      if (keptRailOrder.length !== railOrder.value.length) {
+        railOrder.value = keptRailOrder;
+      }
       const keptSessions: WorkspaceSession[] = [];
       let droppedSession = false;
       for (const s of workspaceSessions.value) {
@@ -1815,23 +1920,6 @@ export const useAppStore = defineStore("app", () => {
     runningOrder.value = list;
   }
 
-  /** 调整已访问分组标签顺序 */
-  function reorderVisitedGroup(fromIndex: number, toIndex: number) {
-    const list = [...visitedGroupIds.value];
-    if (
-      fromIndex < 0 ||
-      toIndex < 0 ||
-      fromIndex >= list.length ||
-      toIndex >= list.length ||
-      fromIndex === toIndex
-    ) {
-      return;
-    }
-    const [item] = list.splice(fromIndex, 1);
-    list.splice(toIndex, 0, item);
-    visitedGroupIds.value = list;
-  }
-
   /** 分组显示名（常驻分组页的 group-name 派生源，改名后自动更新） */
   function groupNameOf(id: string): string {
     if (id === UNGROUPED_ID) return "未分组";
@@ -2287,7 +2375,8 @@ export const useAppStore = defineStore("app", () => {
     locateGroupOnHome,
     closeGroupTab,
     reorderRunningHost,
-    reorderVisitedGroup,
+    railEntries,
+    moveRailEntry,
     groupNameOf,
     groupNameOfHost,
     goHome,

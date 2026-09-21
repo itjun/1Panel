@@ -4,21 +4,13 @@
     :class="{ 'is-drop-target': dropTargetId === groupId }"
     :data-drop-group="groupId"
   >
+    <ChromeTeleport :when="app.isGroupVisible(groupId)" to="center">
+      <el-segmented v-model="viewMode" :options="viewModeOptions" />
+    </ChromeTeleport>
     <ChromeTeleport :when="app.isGroupVisible(groupId)">
-      <el-segmented
-        v-model="viewMode"
-        :options="viewModeOptions"
-        size="small"
-        class="group-view-segmented"
-      />
-      <span class="chrome-meta">
-        正常 {{ okCount }}
-        <template v-if="alertCount > 0"> · 告警 {{ alertCount }}</template>
-        <template v-if="errCount > 0"> · 失败 {{ errCount }}</template>
-      </span>
       <el-button
-        v-tip="'独立窗口全屏看板：可拖到外屏投屏'"
         :loading="boardOpening"
+        v-tip="'独立窗口全屏看板：可拖到外屏投屏'"
         @click="openBoardWindow"
       >
         弹出看板
@@ -31,9 +23,18 @@
       >
         安装 Agent
       </el-button>
-      <el-button :icon="Refresh" :loading="refreshing" @click="refreshAll">
-        刷新
-      </el-button>
+      <el-button
+        :icon="Refresh"
+        :loading="refreshing"
+        v-tip="'刷新'"
+        @click="refreshAll"
+      />
+      <el-button
+        v-if="viewMode === 'table' && colWidths"
+        :icon="ScaleToOriginal"
+        v-tip="'恢复默认列宽'"
+        @click="resetColWidths"
+      />
       <el-button
         v-if="canEditGroup"
         :icon="Setting"
@@ -44,23 +45,28 @@
     <template v-if="hosts.length">
       <div v-if="viewMode === 'table'" class="host-list-wrap">
         <el-table
+          ref="hostTableRef"
           :data="hosts"
           size="default"
+          border
+          allow-drag-last-column
           class="host-list-table data-table-unified"
           :row-class-name="tableRowClass"
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
+          @header-dragend="onHeaderDragEnd"
+          @dblclick="onHeaderDblClick"
         >
           <el-table-column
             type="index"
             label="序"
-            width="64"
+            :width="colWidths?.index ?? 64"
             fixed
             align="center"
             class-name="group-index-col"
           />
           <el-table-column
             label="主机"
-            width="140"
+            :width="colWidths?.host ?? 140"
             fixed
             show-overflow-tooltip
           >
@@ -85,12 +91,21 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="地址" width="118" show-overflow-tooltip>
+          <el-table-column
+            label="地址"
+            :width="colWidths?.addr"
+            :min-width="colWidths ? undefined : 150"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span class="mono">{{ row.hostName || "—" }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="Agent" width="100" show-overflow-tooltip>
+          <el-table-column
+            label="Agent"
+            :width="colWidths?.agent ?? 100"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <div v-if="batchProgressOf(row.name)" class="agent-progress-cell">
                 <span
@@ -121,12 +136,20 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="64" show-overflow-tooltip>
+          <el-table-column
+            label="用户"
+            :width="colWidths?.user ?? 64"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               {{ row.user || "—" }}
             </template>
           </el-table-column>
-          <el-table-column label="版本" width="108" show-overflow-tooltip>
+          <el-table-column
+            label="版本"
+            :width="colWidths?.version ?? 108"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <template v-if="hostState(row.name).error">—</template>
               <span v-else class="mono">{{
@@ -134,7 +157,11 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="规格" width="80" show-overflow-tooltip>
+          <el-table-column
+            label="规格"
+            :width="colWidths?.spec ?? 80"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <el-skeleton
                 v-if="hostState(row.name).loading && !hostState(row.name).overview"
@@ -152,7 +179,7 @@
               <span v-else class="mono">{{ hostSpec(hostState(row.name).overview!) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="CPU" width="68">
+          <el-table-column label="CPU" :width="colWidths?.cpu ?? 68">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -163,7 +190,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="内存" width="68">
+          <el-table-column label="内存" :width="colWidths?.mem ?? 68">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -175,7 +202,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="磁盘" width="92">
+          <el-table-column label="磁盘" :width="colWidths?.disk ?? 92">
             <template #default="{ row }">
               <MetricCell
                 :snap="hostState(row.name)"
@@ -186,7 +213,11 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="负载" width="72" align="right">
+          <el-table-column
+            label="负载"
+            :width="colWidths?.load ?? 72"
+            align="right"
+          >
             <template #default="{ row }">
               <el-skeleton
                 v-if="hostState(row.name).loading && !hostState(row.name).overview"
@@ -352,6 +383,7 @@ import {
   Clock,
   Loading,
   Refresh,
+  ScaleToOriginal,
   Setting,
   WarningFilled,
 } from "@element-plus/icons-vue";
@@ -434,6 +466,152 @@ watch(viewMode, (m) => {
     /* 忽略 */
   }
 });
+
+// ---------- 列宽：可拖拽 / 双击分界线自适应 / 持久化 ----------
+
+const COL_WIDTHS_KEY = "1pannel-group-col-widths";
+
+/** 列 key 列表：与模板中 el-table-column 顺序一一对应（快照列宽用） */
+const COL_KEYS = [
+  "index", // 序
+  "host", // 主机
+  "addr", // 地址（默认弹性列）
+  "agent", // Agent
+  "user", // 用户
+  "version", // 版本
+  "spec", // 规格
+  "cpu", // CPU
+  "mem", // 内存
+  "disk", // 磁盘
+  "load", // 负载
+];
+
+function readColWidths(): Record<string, number> | null {
+  try {
+    const raw = localStorage.getItem(COL_WIDTHS_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return null;
+    const out: Record<string, number> = {};
+    for (const key of COL_KEYS) {
+      const v = Number((obj as Record<string, unknown>)[key]);
+      if (!Number.isFinite(v) || v < 32) return null; // 布局不完整则整体回退默认
+      out[key] = Math.round(v);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/** 用户自定义列宽（null = 默认布局，地址列为弹性列） */
+const colWidths = ref<Record<string, number> | null>(readColWidths());
+
+function persistColWidths() {
+  try {
+    if (colWidths.value) {
+      localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(colWidths.value));
+    } else {
+      localStorage.removeItem(COL_WIDTHS_KEY);
+    }
+  } catch {
+    /* 忽略 */
+  }
+}
+
+function resetColWidths() {
+  colWidths.value = null;
+  persistColWidths();
+}
+
+const hostTableRef = ref<
+  | {
+      $el?: HTMLElement;
+      columns?: { label?: string; width?: number; realWidth?: number }[];
+    }
+  | null
+>(null);
+
+/** 读 ElTable 实例暴露的列信息，固化全部列的生效宽度（拖拽/自适应后调用） */
+function snapshotColWidths() {
+  const cols = hostTableRef.value?.columns;
+  if (!cols || cols.length !== COL_KEYS.length) return false;
+  const out: Record<string, number> = {};
+  for (let i = 0; i < COL_KEYS.length; i++) {
+    const w = Math.round(Number(cols[i]?.realWidth ?? cols[i]?.width ?? 0));
+    if (!Number.isFinite(w) || w <= 0) return false;
+    out[COL_KEYS[i]] = w;
+  }
+  colWidths.value = out;
+  persistColWidths();
+  return true;
+}
+
+/** 拖拽结束时 EP 已把新宽度写入列上下文，直接全量固化 */
+function onHeaderDragEnd() {
+  snapshotColWidths();
+}
+
+/** 双击表头列分界线：自动适配左侧一列的内容宽度 */
+function onHeaderDblClick(e: MouseEvent) {
+  const th = (e.target as HTMLElement | null)?.closest("th");
+  if (!th || th.classList.contains("gutter") || !th.parentElement) return;
+  const ths = Array.from(th.parentElement.children).filter(
+    (el) => el.tagName === "TH" && !el.classList.contains("gutter")
+  );
+  const idx = ths.indexOf(th);
+  if (idx < 0) return;
+  const rect = th.getBoundingClientRect();
+  const RESIZE_ZONE = 8; // 与 EP col-resize 拖拽判定同宽
+  if (rect.right - e.clientX <= RESIZE_ZONE) {
+    autoFitColumn(idx);
+  } else if (idx > 0 && e.clientX - rect.left <= RESIZE_ZONE) {
+    autoFitColumn(idx - 1);
+  }
+}
+
+/** 测量该列所有单元格（含表头）的自然宽度，取最大值定为列宽 */
+function autoFitColumn(idx: number) {
+  const root = hostTableRef.value?.$el as HTMLElement | undefined;
+  if (!root || idx < 0 || idx >= COL_KEYS.length) return;
+  // 测量容器挂在表格根内：继承同一套 scoped / 全局样式与字体
+  const measurer = document.createElement("div");
+  measurer.style.cssText =
+    "position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none;";
+  root.appendChild(measurer);
+  try {
+    let maxW = 0;
+    const measureCell = (cellDiv: HTMLElement | null, isHeader: boolean) => {
+      if (!cellDiv) return;
+      const clone = cellDiv.cloneNode(true) as HTMLElement;
+      clone.style.width = "max-content";
+      clone.style.maxWidth = "none";
+      clone.style.overflow = "visible";
+      clone.style.whiteSpace = "nowrap";
+      if (isHeader) clone.style.fontWeight = "600";
+      measurer.appendChild(clone);
+      maxW = Math.max(maxW, Math.ceil(clone.getBoundingClientRect().width));
+    };
+    const ths = Array.from(
+      root.querySelectorAll<HTMLElement>(".el-table__header thead th")
+    ).filter((el) => !el.classList.contains("gutter"));
+    measureCell(ths[idx]?.querySelector<HTMLElement>("div.cell") ?? null, true);
+    const rows = root.querySelectorAll<HTMLElement>(".el-table__body tbody tr");
+    rows.forEach((tr) => {
+      const td = tr.children[idx] as HTMLElement | undefined;
+      measureCell(td?.querySelector<HTMLElement>("div.cell") ?? null, false);
+    });
+    if (maxW <= 0) return;
+    // 克隆的 .cell 已含自身 24px 横向内边距，此处补 td 的 12px×2 再留 2px 余量
+    const fitted = Math.min(480, Math.max(48, maxW + 24 + 2));
+    if (!colWidths.value) snapshotColWidths(); // 先固化当前布局，避免其余列跳回默认宽
+    if (!colWidths.value) return;
+    colWidths.value = { ...colWidths.value, [COL_KEYS[idx]]: fitted };
+    persistColWidths();
+  } finally {
+    measurer.remove();
+  }
+}
 
 const canEditGroup = computed(() => props.groupId !== UNGROUPED_ID);
 
@@ -600,26 +778,6 @@ function isHostAlert(s: HostSnap): boolean {
   if (isDiskLow(s.disks)) return true;
   return false;
 }
-
-const okCount = computed(
-  () => hosts.value.filter((h) => {
-    const s = hostState(h.name);
-    return !!s.overview && !s.error && !isHostAlert(s);
-  }).length
-);
-const alertCount = computed(
-  () => hosts.value.filter((h) => {
-    const s = hostState(h.name);
-    return !s.error && isHostAlert(s);
-  }).length
-);
-const errCount = computed(
-  () =>
-    hosts.value.filter((h) => {
-      const e = hostState(h.name).error;
-      return !!e && !isAgentMissing(e);
-    }).length
-);
 
 // ---------- 单主机加载（独立，互不阻塞）----------
 
@@ -1280,58 +1438,6 @@ startPoll();
   line-height: 1.5;
 }
 
-.group-stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.page-toolbar__actions {
-  margin-left: auto;
-}
-
-/* 工具栏操作：统一 32px 满圆角 outlined，避免图标按钮与文字按钮高低不一 */
-.group-toolbar-btn {
-  height: 32px !important;
-  min-height: 32px !important;
-  padding: 0 16px !important;
-  border-radius: var(--m3-shape-full) !important;
-  font: var(--m3-label-large) !important;
-  font-weight: 500 !important;
-  background: var(--m3-surface-container-lowest);
-  border-color: var(--m3-outline-variant);
-  color: var(--m3-primary);
-
-  &--icon {
-    padding: 0 !important;
-    width: 32px !important;
-    min-width: 32px !important;
-  }
-
-  &:hover,
-  &:focus {
-    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
-    border-color: var(--m3-outline);
-    color: var(--m3-primary);
-  }
-
-  :deep(.el-icon) {
-    font-size: 16px;
-  }
-}
-
-.group-stat-chip {
-  height: 32px !important;
-  min-height: 32px !important;
-  padding: 0 16px !important;
-  border-radius: var(--m3-shape-full) !important;
-  font: var(--m3-label-large) !important;
-  font-weight: 500 !important;
-  line-height: 30px !important;
-  box-sizing: border-box;
-}
-
 .group-status-chip {
   height: 24px;
   max-width: 100%;
@@ -1355,6 +1461,29 @@ startPoll();
 .host-list-table {
   width: 100%;
   cursor: pointer;
+
+  // border 仅为启用 EP 列宽拖拽，视觉保持无竖线的清爽样式
+  &.el-table--border {
+    &::before,
+    &::after {
+      content: none;
+    }
+    :deep(.el-table__cell) {
+      border-right: none !important;
+    }
+    :deep(th.el-table__cell) {
+      border-bottom: none !important;
+    }
+  }
+
+  // 列宽可拖后允许横向滚动（.data-table-unified 全局禁了横滚）
+  :deep(.el-table__header-wrapper .el-scrollbar__wrap),
+  :deep(.el-table__body-wrapper .el-scrollbar__wrap) {
+    overflow-x: auto !important;
+  }
+  :deep(.el-scrollbar__bar.is-horizontal) {
+    display: block !important;
+  }
 
   :deep(.group-index-col .cell) {
     overflow: visible;

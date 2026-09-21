@@ -142,30 +142,56 @@
       </template>
 
       <template v-else>
-        <button
-          v-for="s in app.workspaceSessions"
-          :key="s.id"
-          type="button"
-          class="app-nav__sess"
-          :class="{
-            active: s.id === app.activeSessionId,
-            'is-selected': selectedHostSessionIds.includes(s.id),
-            'is-dragging': hostSessionDragId === s.id,
-            'is-drop': hostSessionDropId === s.id,
-          }"
-          :title="s.title || s.host"
-          @pointerdown="(e) => onHostSessionPointerDown(e, s)"
-          @click="clickAction(() => pickHostSession(s.id))"
-          @contextmenu.prevent.stop="openHostSessionMenu($event, s)"
-          draggable="true"
-          @dragstart="onHostSessionDragStart($event, s)"
-          @dragover.prevent="onHostSessionDragOver($event, s)"
-          @dragleave="onHostSessionDragLeave(s)"
-          @drop.prevent="onHostSessionDrop($event, s)"
-          @dragend="onHostSessionDragEnd"
-        >
-          <span class="app-nav__sess-label">{{ s.title || s.host }}</span>
-        </button>
+        <template v-for="entry in app.railEntries" :key="entry.key">
+          <button
+            v-if="entry.kind === 'host'"
+            type="button"
+            class="app-nav__sess"
+            :class="{
+              active: entry.session.id === app.activeSessionId,
+              'is-selected': selectedHostSessionIds.includes(entry.session.id),
+              'is-dragging': railDragKey === entry.key,
+              'is-drop-before': railDropKey === entry.key && railDropPos === 'before',
+              'is-drop-after': railDropKey === entry.key && railDropPos === 'after',
+            }"
+            :title="entry.session.title || entry.session.host"
+            @pointerdown="(e) => onHostSessionPointerDown(e, entry.session)"
+            @click="clickAction(() => pickHostSession(entry.session.id))"
+            @contextmenu.prevent.stop="openHostSessionMenu($event, entry.session)"
+            draggable="true"
+            @dragstart="onRailDragStart($event, entry.key)"
+            @dragover.prevent="onRailDragOver($event, entry.key)"
+            @dragleave="onRailDragLeave(entry.key)"
+            @drop.prevent="onRailDrop($event, entry.key)"
+            @dragend="onRailDragEnd"
+          >
+            <span class="app-nav__sess-label">{{ entry.session.title || entry.session.host }}</span>
+          </button>
+          <button
+            v-else
+            type="button"
+            class="app-nav__sess app-nav__sess--group"
+            :class="{
+              active: app.isGroupVisible(entry.key),
+              'is-dragging': railDragKey === entry.key,
+              'is-drop-before': railDropKey === entry.key && railDropPos === 'before',
+              'is-drop-after': railDropKey === entry.key && railDropPos === 'after',
+            }"
+            :title="app.groupNameOf(entry.key)"
+            @pointerdown="(e) => pointerAction(e, () => app.openGroupTab(entry.key))"
+            @click="clickAction(() => app.openGroupTab(entry.key))"
+            @contextmenu.prevent="openGroupEntryMenu($event, entry.key)"
+            draggable="true"
+            @dragstart="onRailDragStart($event, entry.key)"
+            @dragover.prevent="onRailDragOver($event, entry.key)"
+            @dragleave="onRailDragLeave(entry.key)"
+            @drop.prevent="onRailDrop($event, entry.key)"
+            @dragend="onRailDragEnd"
+          >
+            <el-icon class="app-nav__sess-icon"><Folder /></el-icon>
+            <span class="app-nav__sess-label">{{ app.groupNameOf(entry.key) }}</span>
+          </button>
+        </template>
       </template>
     </div>
 
@@ -277,6 +303,26 @@
     </div>
   </Teleport>
 
+  <!-- 分组条目右键：当前只提供关闭 -->
+  <Teleport to="body">
+    <div
+      v-if="groupEntryMenu"
+      class="host-ctx-backdrop"
+      @mousedown="groupEntryMenu = null"
+      @contextmenu.prevent="groupEntryMenu = null"
+    />
+    <div
+      v-if="groupEntryMenu"
+      class="host-ctx-menu"
+      :style="{ left: groupEntryMenu.x + 'px', top: groupEntryMenu.y + 'px' }"
+      @mousedown.stop
+    >
+      <button type="button" class="ctx-item" @click="closeGroupEntryFromMenu">
+        关闭分组页
+      </button>
+    </div>
+  </Teleport>
+
   <!-- 单台右键：与主机列表页共用同一份 HostContextMenu -->
   <HostContextMenu
     :menu="hostMenu"
@@ -292,7 +338,7 @@
 </template>
 
 <script setup lang="ts">
-import { Bell, Connection, Monitor, Setting } from "@element-plus/icons-vue";
+import { Bell, Connection, Folder, Monitor, Setting } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, nextTick, ref, watch } from "vue";
 import { HOST_SUB_TABS } from "@/constants/hostSubTabs";
@@ -361,6 +407,19 @@ const DESK_MENU_TABS = HOST_SUB_TABS.filter((t) =>
 const deskMenu = ref<DeskMenu | null>(null);
 type HostSessionMenu = { ids: string[]; x: number; y: number };
 const hostSessionMenu = ref<HostSessionMenu | null>(null);
+type GroupEntryMenu = { id: string; x: number; y: number };
+const groupEntryMenu = ref<GroupEntryMenu | null>(null);
+
+function openGroupEntryMenu(e: MouseEvent, id: string) {
+  const pos = clampContextMenuPos(e.clientX, e.clientY, 180, 96);
+  groupEntryMenu.value = { id, x: pos.x, y: pos.y };
+}
+
+function closeGroupEntryFromMenu() {
+  const id = groupEntryMenu.value?.id;
+  groupEntryMenu.value = null;
+  if (id) app.closeGroupTab(id);
+}
 const hostMenu = ref<CtxMenuState | null>(null);
 const editHostName = ref<string | null>(null);
 const editHost = computed(
@@ -378,47 +437,49 @@ watch(
   }
 );
 const selectedHostSessionIds = ref<string[]>([]);
-const hostSessionDragId = ref("");
-const hostSessionDropId = ref("");
 const suppressHostSessionClick = ref(false);
+/** 侧栏条目统一拖拽排序：主机与分组条目可互拖换位 */
+const RAIL_ENTRY_MIME = "application/x-rail-entry";
+const railDragKey = ref("");
+const railDropKey = ref("");
+/** 落点在目标条目前还是后：按悬停上下半区判定，插入线跟着画 */
+const railDropPos = ref<"before" | "after">("before");
 
-function onHostSessionDragStart(e: DragEvent, session: WorkspaceSession) {
+function onRailDragStart(e: DragEvent, key: string) {
   if (!e.dataTransfer) return;
-  hostSessionDragId.value = session.id;
   suppressHostSessionClick.value = true;
+  railDragKey.value = key;
   e.dataTransfer.effectAllowed = "move";
-  e.dataTransfer.setData("application/x-host-workspace-session", session.id);
-  e.dataTransfer.setData("text/plain", session.id);
+  e.dataTransfer.setData(RAIL_ENTRY_MIME, key);
+  e.dataTransfer.setData("text/plain", key);
 }
 
-function isHostSessionDrag(e: DragEvent): boolean {
-  return Array.from(e.dataTransfer?.types || []).includes(
-    "application/x-host-workspace-session"
-  );
+function isRailEntryDrag(e: DragEvent): boolean {
+  return Array.from(e.dataTransfer?.types || []).includes(RAIL_ENTRY_MIME);
 }
 
-function onHostSessionDragOver(e: DragEvent, session: WorkspaceSession) {
-  if (!isHostSessionDrag(e) || session.id === hostSessionDragId.value) return;
+function onRailDragOver(e: DragEvent, key: string) {
+  if (!isRailEntryDrag(e) || key === railDragKey.value) return;
   if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-  hostSessionDropId.value = session.id;
+  const rect = (e.currentTarget as HTMLElement | null)?.getBoundingClientRect();
+  railDropPos.value =
+    rect && e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+  railDropKey.value = key;
 }
 
-function onHostSessionDragLeave(session: WorkspaceSession) {
-  if (hostSessionDropId.value === session.id) hostSessionDropId.value = "";
+function onRailDragLeave(key: string) {
+  if (railDropKey.value === key) railDropKey.value = "";
 }
 
-function onHostSessionDrop(e: DragEvent, target: WorkspaceSession) {
-  const sourceId = e.dataTransfer?.getData("application/x-host-workspace-session") || "";
-  hostSessionDropId.value = "";
-  if (!sourceId || sourceId === target.id) return;
-  const from = app.workspaceSessions.findIndex((s) => s.id === sourceId);
-  const to = app.workspaceSessions.findIndex((s) => s.id === target.id);
-  if (from >= 0 && to >= 0) app.reorderWorkspaceSession(from, to);
+function onRailDrop(e: DragEvent, key: string) {
+  railDropKey.value = "";
+  const sourceKey = e.dataTransfer?.getData(RAIL_ENTRY_MIME) || "";
+  if (sourceKey) app.moveRailEntry(sourceKey, key, railDropPos.value === "before");
 }
 
-function onHostSessionDragEnd() {
-  hostSessionDragId.value = "";
-  hostSessionDropId.value = "";
+function onRailDragEnd() {
+  railDragKey.value = "";
+  railDropKey.value = "";
   window.setTimeout(() => {
     suppressHostSessionClick.value = false;
   }, 0);
@@ -897,6 +958,7 @@ watch(
 
 .app-nav__sess {
   appearance: none;
+  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
@@ -912,6 +974,27 @@ watch(
   overflow: hidden;
   white-space: nowrap;
   cursor: pointer;
+
+  /* 拖拽换位用插入线标记落点，不用整框高亮 */
+  &.is-drop-before::before,
+  &.is-drop-after::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--m3-primary);
+    pointer-events: none;
+  }
+
+  &.is-drop-before::before {
+    top: 0;
+  }
+
+  &.is-drop-after::after {
+    bottom: 0;
+  }
 
   &:hover {
     color: var(--m3-on-surface);
@@ -942,6 +1025,12 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.app-nav__sess--group .app-nav__sess-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
+  font-size: 14px;
 }
 
 .app-nav__sess-count {

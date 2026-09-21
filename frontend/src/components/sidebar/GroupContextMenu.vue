@@ -13,7 +13,7 @@
       :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
       @mousedown.stop
     >
-      <button type="button" class="ctx-item" @click="onOpen">打开列表页</button>
+      <button type="button" class="ctx-item" @click="onOpen">打开列表</button>
       <button type="button" class="ctx-item" @click="onOpenBoard">打开看板</button>
       <template v-if="!isUngrouped">
         <div class="ctx-divider" />
