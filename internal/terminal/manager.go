@@ -19,9 +19,10 @@ import (
 type EmitFunc func(eventName string, data ...any) bool
 
 // StreamPush 终端数据的流式出口（本地 WebSocket）：kind 为 "data" 或 "exit"，
-// 其余参数为 sid、pane 和原始数据。返回 false 表示当前无订阅者，
-// 调用方应回退 EmitFunc 通道。两条通道同一时刻只有一条在用。
-type StreamPush func(kind, sid, pane, data string) bool
+// 其余参数为 sid、pane 和原始字节。返回 false 表示当前无订阅者，调用方应回退
+// EmitFunc 通道。data 只在调用期间有效，出口不得持有该切片；两条通道同一时刻
+// 只有一条在用。
+type StreamPush func(kind, sid, pane string, data []byte) bool
 
 // Manager 管理终端会话
 // 设计：
@@ -34,7 +35,7 @@ type StreamPush func(kind, sid, pane, data string) bool
 type Manager struct {
 	ctx      context.Context
 	sshMgr   *sshd.Manager
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	sessions map[string]*Session
 
 	emit EmitFunc // 事件推送（注入，可空则跳过）
@@ -84,7 +85,7 @@ func (m *Manager) SetStreamPush(push StreamPush) {
 }
 
 // sendData 输出数据双出口：WebSocket 优先，无订阅者回退 Wails 事件
-func (m *Manager) sendData(eventName, sid, data string) {
+func (m *Manager) sendData(eventName, sid string, data []byte) {
 	m.streamMu.RLock()
 	push := m.streamPush
 	m.streamMu.RUnlock()
@@ -94,7 +95,7 @@ func (m *Manager) sendData(eventName, sid, data string) {
 		}
 	}
 	if m.emit != nil {
-		m.emit(eventName, map[string]any{"data": data})
+		m.emit(eventName, map[string]any{"data": string(data)})
 	}
 }
 
@@ -104,7 +105,7 @@ func (m *Manager) sendExit(eventName, sid, reason string) {
 	push := m.streamPush
 	m.streamMu.RUnlock()
 	if push != nil {
-		if push("exit", sid, strings.TrimPrefix(eventName, "term:"), reason) {
+		if push("exit", sid, strings.TrimPrefix(eventName, "term:"), []byte(reason)) {
 			return
 		}
 	}
@@ -212,7 +213,7 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	}
 
 	// 把远程 shell 的输出流推送给前端（WebSocket 优先，回退 Wails 事件）
-	go pumpToEvent(ctx, stdout, func(data string) { m.sendData(eventName, id, data) })
+	go pumpToEvent(ctx, stdout, func(data []byte) { m.sendData(eventName, id, data) })
 
 	// 进程结束时通知前端 + 清理。
 	// 区分断开原因：正常退出（exit 命令）reason=exit，异常断开（网络等）reason=error，
@@ -241,9 +242,9 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 
 // WriteInput 把用户在 xterm 输入的内容发给远程 shell 的 stdin
 func (m *Manager) WriteInput(sessionID string, data []byte) error {
-	m.mu.Lock()
+	m.mu.RLock()
 	s, ok := m.sessions[sessionID]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	if !ok {
 		return fmt.Errorf("会话 %s 不存在", sessionID)
 	}
@@ -259,9 +260,9 @@ func (m *Manager) WriteInput(sessionID string, data []byte) error {
 // Resize 通知远程 PTY 窗口大小变化（xterm 的 cols/rows）
 // 通过 SSH 协议的 window-change 请求，远程 shell 会收到 SIGWINCH
 func (m *Manager) Resize(sessionID string, cols, rows int) error {
-	m.mu.Lock()
+	m.mu.RLock()
 	s, ok := m.sessions[sessionID]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	if !ok {
 		return nil
 	}
@@ -305,9 +306,9 @@ func (s *Session) release() {
 
 // Close 关闭一个终端会话（关 stdin + 关 session + 关独立连接，远程 shell 收到 EOF 退出）
 func (m *Manager) Close(sessionID string) error {
-	m.mu.Lock()
+	m.mu.RLock()
 	s, ok := m.sessions[sessionID]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	if !ok {
 		return nil
 	}
@@ -321,14 +322,14 @@ func (m *Manager) CloseByHost(host string) {
 	if host == "" {
 		return
 	}
-	m.mu.Lock()
+	m.mu.RLock()
 	ids := make([]string, 0, 2)
 	for id, s := range m.sessions {
 		if s != nil && s.Host == host {
 			ids = append(ids, id)
 		}
 	}
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	for _, id := range ids {
 		_ = m.Close(id)
 	}
@@ -336,12 +337,12 @@ func (m *Manager) CloseByHost(host string) {
 
 // CloseAll 应用退出时调用
 func (m *Manager) CloseAll() {
-	m.mu.Lock()
+	m.mu.RLock()
 	ids := make([]string, 0, len(m.sessions))
 	for id := range m.sessions {
 		ids = append(ids, id)
 	}
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	for _, id := range ids {
 		_ = m.Close(id)
 	}
@@ -355,7 +356,7 @@ func (m *Manager) CloseAll() {
 //
 // 判断标准：batch 为空 且 距上次 flush 超过 idleThreshold → 视为交互回显，立即发；
 // 否则进入 coalesceWindow 合并，攒满 maxBatch 也立即发。
-func pumpToEvent(ctx context.Context, r io.Reader, send func(data string)) {
+func pumpToEvent(ctx context.Context, r io.Reader, send func(data []byte)) {
 	const (
 		// 交互回显优先：连续快速输入时也不要把第二个字符额外压满 5ms。
 		// 1ms 仍能合并高吞吐输出，但不会形成可感知的按键尾延迟。
@@ -364,7 +365,7 @@ func pumpToEvent(ctx context.Context, r io.Reader, send func(data string)) {
 		maxBatch       = 16 * 1024
 	)
 
-	readCh := make(chan readResult, 1)
+	readCh := make(chan readResult, 4)
 	// reader goroutine：阻塞读 stdout，把结果送入 channel
 	go func() {
 		buf := make([]byte, 4096)
@@ -396,10 +397,12 @@ func pumpToEvent(ctx context.Context, r io.Reader, send func(data string)) {
 		if len(batch) == 0 {
 			return
 		}
-		data := make([]byte, len(batch))
-		copy(data, batch)
-		send(string(data))
-		batch = batch[:0]
+		// send 在当前 goroutine 中同步完成：WebSocket 出口会复制到带类型字节帧，
+		// Wails 兜底会同步转换成 string。因此这里可以直接转移 batch 的读取期，
+		// 避免连续输出再做一次 copy + []byte→string。
+		data := batch
+		batch = nil
+		send(data)
 		lastFlush = time.Now()
 	}
 
@@ -426,13 +429,22 @@ func pumpToEvent(ctx context.Context, r io.Reader, send func(data string)) {
 			return
 		case res := <-readCh:
 			if len(res.data) > 0 {
-				// 空闲后的首包（典型：按键回显）→ 不等窗口，立即发
+				// 空闲后的首包（典型：按键回显）→ 直接发送。
+				// 以前会先 append、再复制 batch、再转 string；交互输入每个
+				// 字符都走这里，直接路径少两次内存操作。
 				firstAfterIdle := len(batch) == 0 && time.Since(lastFlush) >= idleThreshold
-				batch = append(batch, res.data...)
-				if firstAfterIdle || len(batch) >= maxBatch {
+				if firstAfterIdle {
+					// 首包直接转移 reader 为本次结果分配的切片，避免交互回显
+					// 经过 batch append、复制和 string 转换。
+					send(res.data)
+					lastFlush = time.Now()
+				} else {
+					batch = append(batch, res.data...)
+				}
+				if !firstAfterIdle && len(batch) >= maxBatch {
 					stopTimer()
 					flush()
-				} else {
+				} else if !firstAfterIdle {
 					// 连续流：进入短合并窗口
 					stopTimer()
 					flushTimer.Reset(coalesceWindow)

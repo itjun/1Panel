@@ -32,9 +32,9 @@ func TestTermStreamWebSocketIsolatedPerSession(t *testing.T) {
 	var mu sync.Mutex
 	calls := make([]termStreamInputCall, 0, 2)
 	gotCall := make(chan struct{}, 2)
-	server.writeInput = func(sid string, data string) error {
+	server.writeInput = func(sid string, data []byte) error {
 		mu.Lock()
-		calls = append(calls, termStreamInputCall{sid: sid, data: data})
+		calls = append(calls, termStreamInputCall{sid: sid, data: string(data)})
 		mu.Unlock()
 		gotCall <- struct{}{}
 		return nil
@@ -83,10 +83,10 @@ func TestTermStreamWebSocketIsolatedPerSession(t *testing.T) {
 		t.Fatalf("input was routed to the wrong session: %#v", got)
 	}
 
-	if !server.pushTerminalEvent("data", "session-a", "pane-a", "a-out") {
+	if !server.pushTerminalEvent("data", "session-a", "pane-a", []byte("a-out")) {
 		t.Fatal("session-a output was not accepted")
 	}
-	if !server.pushTerminalEvent("data", "session-b", "pane-b", "b-out") {
+	if !server.pushTerminalEvent("data", "session-b", "pane-b", []byte("b-out")) {
 		t.Fatal("session-b output was not accepted")
 	}
 
@@ -112,12 +112,12 @@ func TestTermStreamInputDoesNotBlockAnotherSession(t *testing.T) {
 	releaseA := make(chan struct{})
 	bDelivered := make(chan struct{})
 	var onceA sync.Once
-	server.writeInput = func(sid string, data string) error {
-		if sid == "session-a" && data == "a1" {
+	server.writeInput = func(sid string, data []byte) error {
+		if sid == "session-a" && string(data) == "a1" {
 			onceA.Do(func() { close(aStarted) })
 			<-releaseA
 		}
-		if sid == "session-b" && data == "b1" {
+		if sid == "session-b" && string(data) == "b1" {
 			close(bDelivered)
 		}
 		return nil
@@ -162,12 +162,12 @@ func TestTermStreamSameSessionInputOrder(t *testing.T) {
 	var mu sync.Mutex
 	var got []string
 	delivered := make(chan struct{}, 3)
-	server.writeInput = func(sid string, data string) error {
+	server.writeInput = func(sid string, data []byte) error {
 		if sid != "session-a" {
 			t.Fatalf("input was routed to %q", sid)
 		}
 		mu.Lock()
-		got = append(got, data)
+		got = append(got, string(data))
 		mu.Unlock()
 		delivered <- struct{}{}
 		return nil

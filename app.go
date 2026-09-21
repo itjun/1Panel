@@ -241,8 +241,8 @@ func NewApp() *application.App {
 	// 终端数据通道升级：每个终端 sid 使用独立的本地 WebSocket（绕开 Wails 主线程
 	// 事件派发）；某个 sid 无订阅者时自动回退 Events，启动失败不影响原通道。
 	if ts := newTermStreamServer(); ts.start() == nil {
-		ts.writeInput = func(sid string, data string) error {
-			return core.termMgr.WriteInput(sid, []byte(data))
+		ts.writeInput = func(sid string, data []byte) error {
+			return core.termMgr.WriteInput(sid, data)
 		}
 		core.termStream = ts
 		core.termMgr.SetStreamPush(ts.pushTerminalEvent)

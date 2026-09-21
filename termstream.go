@@ -31,7 +31,7 @@ type termStreamServer struct {
 	server *http.Server
 	addr   string
 
-	writeInput func(sid string, data string) error // 由 termMgr 注入
+	writeInput func(sid string, data []byte) error // 由 termMgr 注入；调用方拥有 data 的读取期
 }
 
 const (
@@ -97,10 +97,10 @@ func (s *termStreamSubscriber) enqueueOutput(frame []byte) bool {
 		}
 		if len(s.outputFrames) < termStreamMaxOutputFrame &&
 			s.outputBytes+len(frame) <= termStreamMaxOutputBytes {
-			copyFrame := make([]byte, len(frame))
-			copy(copyFrame, frame)
-			s.outputFrames = append(s.outputFrames, copyFrame)
-			s.outputBytes += len(copyFrame)
+			// frame 由 pushTerminalEvent 为本次事件新建，入队后不再复用；
+			// 直接转移所有权，避免每个输出包再复制一次。
+			s.outputFrames = append(s.outputFrames, frame)
+			s.outputBytes += len(frame)
 			signalTermStream(s.outputWake)
 			s.mu.Unlock()
 			return true
@@ -235,7 +235,7 @@ func (t *termStreamServer) handleWS(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				continue
 			}
-			if t.writeInput == nil || input == "" {
+			if t.writeInput == nil || len(input) == 0 {
 				return
 			}
 			// 一条连接只服务一个 sid，直接在该连接的读循环中顺序写入 PTY。
@@ -275,30 +275,39 @@ func (t *termStreamServer) handleWS(w http.ResponseWriter, r *http.Request) {
 	t.mu.Unlock()
 }
 
-func decodeTermStreamInput(typ websocket.MessageType, data []byte) (string, bool) {
+func decodeTermStreamInput(typ websocket.MessageType, data []byte) ([]byte, bool) {
 	if typ == websocket.MessageBinary {
 		if len(data) < 2 || data[0] != termStreamFrameInput {
-			return "", false
+			return nil, false
 		}
-		return string(data[1:]), true
+		// WebSocket Read 返回的 data 只在本次处理期间使用；保留二进制切片，
+		// 避免每个按键先转成 string 再转回 []byte。
+		return data[1:], true
 	}
 	if typ != websocket.MessageText || string(data) == "p" {
-		return "", false
+		return nil, false
 	}
 	var input struct {
 		K string `json:"k"`
 		D string `json:"d"`
 	}
 	if json.Unmarshal(data, &input) != nil || input.K != "input" || input.D == "" {
-		return "", false
+		return nil, false
 	}
-	return input.D, true
+	return []byte(input.D), true
 }
 
 // pushTerminalEvent 实现 terminal.StreamPush：把一条终端事件写给它自己的连接。
 // 没有该 sid 的订阅者时返回 false，manager 走 Wails 事件补发。
-func (t *termStreamServer) pushTerminalEvent(kind, sid, _ string, data string) bool {
+func (t *termStreamServer) pushTerminalEvent(kind, sid, _ string, data []byte) bool {
 	if sid == "" {
+		return false
+	}
+	t.mu.Lock()
+	sub := t.subs[sid]
+	t.mu.Unlock()
+	if sub == nil {
+		// 没有订阅者时直接走 Wails 兜底，不要先分配一个永远丢弃的 frame。
 		return false
 	}
 	var frame []byte
@@ -315,11 +324,8 @@ func (t *termStreamServer) pushTerminalEvent(kind, sid, _ string, data string) b
 		return false
 	}
 
-	t.mu.Lock()
-	sub := t.subs[sid]
-	t.mu.Unlock()
-	if sub == nil || sub.enqueueOutput(frame) {
-		return sub != nil
+	if sub.enqueueOutput(frame) {
+		return true
 	}
 	t.detach(sub)
 	return false
