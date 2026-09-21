@@ -2,8 +2,8 @@
  * 终端本地流通道：一个终端会话一条独立 WebSocket。
  *
  * 每条连接的 sid 写在 URL 上，因此输入帧不再携带 session 路由字段，输出也不再
- * 经过应用层多路复用。输入/输出使用二进制帧：首字节是类型，后面直接是 UTF-8
- * 内容，避免每个按键都 JSON.stringify / JSON.parse。
+ * 经过应用层多路复用。每个 sid 的 WebSocket、二进制解码和输入/输出队列都放进
+ * 一个 DedicatedWorker，UI 主线程只负责 xterm 的最终绘制。
  *
  * 失败兜底：拿不到端点或某条连接断开时，该 sid 单独回退 Wails binding；其它终端
  * 的 WebSocket、队列和重连计时器不受影响。输出由 Go 侧按 sid 选择 WS，否则回退
@@ -19,27 +19,20 @@ type PaneHandler = {
 type TermStreamState = {
   sid: string;
   pane: string;
-  socket: WebSocket | null;
+  worker: Worker | null;
   opening: Promise<void> | null;
-  reconnectTimer: number;
-  heartbeatTimer: number;
+  workerRetryTimer: number;
   stopped: boolean;
-  isDown: boolean;
-  decoder: TextDecoder;
+  mode: "connecting" | "ready" | "down";
 };
 
 const paneHandlers = new Map<string, PaneHandler>();
 const streams = new Map<string, TermStreamState>();
 const fallbackChains = new Map<string, Promise<void>>();
-const encoder = new TextEncoder();
 
 let base = "";
 let token = "";
 let endpointPromise: Promise<void> | null = null;
-
-const FRAME_DATA = 1;
-const FRAME_EXIT = 2;
-const FRAME_INPUT = 1;
 
 export function registerPane(pane: string, h: PaneHandler): void {
   paneHandlers.set(pane, h);
@@ -49,7 +42,7 @@ export function unregisterPane(pane: string): void {
   paneHandlers.delete(pane);
 }
 
-/** 只加载公共端点；真正的 WebSocket 在每个 sid 建立后单独创建。 */
+/** 只加载公共端点；真正的 WebSocket 在每个 sid 的 Worker 中建立。 */
 export function ensureTermStream(): Promise<void> {
   if (base && token) return Promise.resolve();
   if (endpointPromise) return endpointPromise;
@@ -69,124 +62,118 @@ export function ensureTermStream(): Promise<void> {
   return endpointPromise;
 }
 
-function isCurrent(state: TermStreamState, socket: WebSocket): boolean {
-  return streams.get(state.sid) === state && state.socket === socket && !state.stopped;
+type WorkerEvent =
+  | { type: "ready" }
+  | { type: "down" }
+  | { type: "data"; data: string }
+  | { type: "fallback"; data: string }
+  | { type: "exit"; reason: string };
+
+function queueFallback(sid: string, data: string): Promise<void> {
+  const previous = fallbackChains.get(sid) || Promise.resolve();
+  const current = previous.catch(() => {}).then(() => api.writeTerminal(sid, data));
+  fallbackChains.set(sid, current);
+  void current.finally(() => {
+    if (fallbackChains.get(sid) === current) fallbackChains.delete(sid);
+  }).catch(() => {});
+  return current;
 }
 
-function clearHeartbeat(state: TermStreamState): void {
-  if (state.heartbeatTimer) {
-    window.clearInterval(state.heartbeatTimer);
-    state.heartbeatTimer = 0;
-  }
-}
-
-function scheduleReconnect(state: TermStreamState): void {
-  if (state.stopped || state.reconnectTimer || !base || !token) return;
-  state.reconnectTimer = window.setTimeout(() => {
-    state.reconnectTimer = 0;
-    void connectTermStream(state.sid, state.pane);
+function scheduleWorkerRetry(state: TermStreamState): void {
+  if (state.stopped || state.workerRetryTimer || !base || !token) return;
+  state.workerRetryTimer = window.setTimeout(() => {
+    state.workerRetryTimer = 0;
+    if (streams.get(state.sid) === state && !state.stopped && !state.worker) {
+      void connectTermStream(state.sid, state.pane);
+    }
   }, 1500);
 }
 
-function dispatchLegacyJSON(state: TermStreamState, raw: string): void {
-  if (raw === "p") return;
+function postWorkerInput(state: TermStreamState, data: string): boolean {
+  const worker = state.worker;
+  if (!worker || state.stopped) return false;
   try {
-    const f = JSON.parse(raw) as {
-      k?: string;
-      p?: { pane?: string; sid?: string; d?: string; reason?: string };
-    };
-    const pane = f.p?.pane || state.pane;
-    const handler = paneHandlers.get(pane);
-    if (f.k === "data") handler?.data(f.p?.d || "");
-    else if (f.k === "exit") handler?.exit(f.p?.sid || state.sid, f.p?.reason || "");
+    worker.postMessage({ type: "input", data });
+    return true;
   } catch {
-    // 忽略坏帧。
+    state.worker = null;
+    state.mode = "down";
+    worker.terminate();
+    scheduleWorkerRetry(state);
+    return false;
   }
 }
 
-function dispatchBinary(state: TermStreamState, data: ArrayBuffer): void {
-  const bytes = new Uint8Array(data);
-  if (bytes.length === 0) return;
+function handleWorkerEvent(
+  state: TermStreamState,
+  event: WorkerEvent,
+  settle: () => void
+): void {
+  if (streams.get(state.sid) !== state || state.stopped) return;
+  if (event.type === "ready") {
+    state.mode = "ready";
+    if (state.workerRetryTimer) {
+      window.clearTimeout(state.workerRetryTimer);
+      state.workerRetryTimer = 0;
+    }
+    settle();
+    return;
+  }
+  if (event.type === "down") {
+    state.mode = "down";
+    settle();
+    return;
+  }
+  if (event.type === "fallback") {
+    void queueFallback(state.sid, event.data).catch(() => {});
+    return;
+  }
   const handler = paneHandlers.get(state.pane);
-  if (bytes[0] === FRAME_DATA) {
-    const text = state.decoder.decode(bytes.subarray(1), { stream: true });
-    if (text) handler?.data(text);
-  } else if (bytes[0] === FRAME_EXIT) {
-    const reason = new TextDecoder().decode(bytes.subarray(1));
-    handler?.exit(state.sid, reason);
-  }
+  if (event.type === "data") handler?.data(event.data);
+  else if (event.type === "exit") handler?.exit(state.sid, event.reason);
 }
 
-function openSocket(state: TermStreamState): Promise<void> {
-  if (state.stopped || !base || !token) return Promise.resolve();
-
+function startWorker(state: TermStreamState): Promise<void> {
   return new Promise<void>((resolve) => {
-    const url = base.replace(/^http/, "ws") +
-      `/ws?t=${encodeURIComponent(token)}&sid=${encodeURIComponent(state.sid)}`;
-    let socket: WebSocket;
+    let worker: Worker;
     try {
-      socket = new WebSocket(url);
+      worker = new Worker(new URL("../workers/termStreamWorker.ts", import.meta.url), {
+        type: "module",
+      });
     } catch {
-      state.isDown = true;
+      state.mode = "down";
       resolve();
-      scheduleReconnect(state);
       return;
     }
-    socket.binaryType = "arraybuffer";
-    state.socket = socket;
+    state.worker = worker;
     let settled = false;
     const settle = () => {
       if (settled) return;
       settled = true;
       resolve();
     };
-
-    socket.onopen = () => {
-      if (!isCurrent(state, socket)) {
-        socket.close();
-        settle();
-        return;
-      }
-      state.isDown = false;
-      if (state.reconnectTimer) {
-        window.clearTimeout(state.reconnectTimer);
-        state.reconnectTimer = 0;
-      }
-      clearHeartbeat(state);
-      state.heartbeatTimer = window.setInterval(() => {
-        if (socket.readyState === WebSocket.OPEN) socket.send("p");
-      }, 3000);
+    const failWorker = () => {
+      if (streams.get(state.sid) !== state || state.stopped) return;
+      if (state.worker === worker) state.worker = null;
+      state.mode = "down";
+      worker.terminate();
       settle();
+      scheduleWorkerRetry(state);
     };
-
-    socket.onmessage = (event: MessageEvent<ArrayBuffer | Blob | string>) => {
-      if (!isCurrent(state, socket)) return;
-      if (typeof event.data === "string") {
-        dispatchLegacyJSON(state, event.data);
-      } else if (event.data instanceof ArrayBuffer) {
-        dispatchBinary(state, event.data);
-      } else {
-        void event.data.arrayBuffer().then((data) => {
-          if (isCurrent(state, socket)) dispatchBinary(state, data);
-        });
-      }
+    worker.onmessage = (event: MessageEvent<WorkerEvent>) => {
+      handleWorkerEvent(state, event.data, settle);
     };
-
-    socket.onclose = () => {
-      if (!isCurrent(state, socket)) {
-        settle();
-        return;
-      }
-      state.isDown = true;
-      clearHeartbeat(state);
-      state.socket = null;
-      settle();
-      scheduleReconnect(state);
+    worker.onerror = () => {
+      failWorker();
     };
-    socket.onerror = () => {
-      if (isCurrent(state, socket)) state.isDown = true;
-      // 浏览器随后会触发 onclose；只在 onclose 中安排重连，避免双计时器。
+    worker.onmessageerror = () => {
+      failWorker();
     };
+    try {
+      worker.postMessage({ type: "connect", base, token, sid: state.sid });
+    } catch {
+      failWorker();
+    }
   });
 }
 
@@ -198,28 +185,27 @@ export function connectTermStream(sid: string, pane: string): Promise<void> {
     state = {
       sid,
       pane,
-      socket: null,
+      worker: null,
       opening: null,
-      reconnectTimer: 0,
-      heartbeatTimer: 0,
+      workerRetryTimer: 0,
       stopped: false,
-      isDown: true,
-      decoder: new TextDecoder(),
+      mode: "connecting",
     };
     streams.set(sid, state);
   } else {
     state.pane = pane;
     state.stopped = false;
   }
-  if (state.socket?.readyState === WebSocket.OPEN) return Promise.resolve();
+  if (state.worker) return state.opening || Promise.resolve();
   if (state.opening) return state.opening;
 
   const opening = (async () => {
     await ensureTermStream();
     if (!state || state.stopped || !base || !token) return;
-    await openSocket(state);
+    state.mode = "connecting";
+    await startWorker(state);
   })().catch(() => {
-    // 失败时保持 Wails 回退；onclose 会负责重连。
+    // 失败时保持 Wails 回退；输入入口会按 sid 串行发送。
   });
   state.opening = opening;
   void opening.finally(() => {
@@ -233,49 +219,47 @@ export function closeTermStream(sid: string): void {
   const state = streams.get(sid);
   if (!state) return;
   state.stopped = true;
-  if (state.reconnectTimer) window.clearTimeout(state.reconnectTimer);
-  clearHeartbeat(state);
   streams.delete(sid);
-  const socket = state.socket;
-  state.socket = null;
+  if (state.workerRetryTimer) window.clearTimeout(state.workerRetryTimer);
+  state.workerRetryTimer = 0;
   try {
-    socket?.close();
+    state.worker?.postMessage({ type: "stop" });
   } catch {
-    // ignore
+    // Worker 已经失效时直接终止即可。
   }
+  state.worker?.terminate();
+  state.worker = null;
 }
 
-/** 终端输入：连接可用时同步 send，单字节/多字节都不等待服务端响应。 */
+/** 终端输入：Worker 可用时只 postMessage，不在 UI 线程触碰 WebSocket。 */
 function termWrite(sid: string, d: string): boolean {
   const state = streams.get(sid);
-  const socket = state?.socket;
-  if (!state || state.isDown || !socket || socket.readyState !== WebSocket.OPEN) return false;
-  try {
-    const data = encoder.encode(d);
-    const frame = new Uint8Array(data.length + 1);
-    frame[0] = FRAME_INPUT;
-    frame.set(data, 1);
-    socket.send(frame);
-    return true;
-  } catch {
-    state.isDown = true;
-    return false;
-  }
+  if (!state || state.stopped || !state.worker) return false;
+  return postWorkerInput(state, d);
 }
 
-// 保留旧调用名，避免组件侧把输入误认为异步网络事务；现在只做一次同步 send。
+// 保留旧调用名，避免组件侧把输入误认为异步网络事务。
 export function termWriteQueued(sid: string, d: string): Promise<boolean> {
   return Promise.resolve(termWrite(sid, d));
 }
 
 /** 终端输入统一入口：流通道失败时仅按当前 sid 串行回退 binding。 */
-export function termWriteFast(sid: string, d: string): Promise<void> {
-  if (termWrite(sid, d)) return Promise.resolve();
-  const previous = fallbackChains.get(sid) || Promise.resolve();
-  const current = previous.catch(() => {}).then(() => api.writeTerminal(sid, d));
-  fallbackChains.set(sid, current);
-  void current.finally(() => {
-    if (fallbackChains.get(sid) === current) fallbackChains.delete(sid);
-  }).catch(() => {});
-  return current;
+export function termWriteFast(sid: string, d: string): Promise<void> | undefined {
+  const state = streams.get(sid);
+  if (state?.mode === "ready") {
+    const previous = fallbackChains.get(sid);
+    if (previous) {
+      return previous.catch(() => {}).then(() => {
+        const current = streams.get(sid);
+        if (current?.mode === "ready" && current.worker && !current.stopped) {
+          if (postWorkerInput(current, d)) return;
+        }
+        return queueFallback(sid, d);
+      });
+    }
+    if (postWorkerInput(state, d)) return undefined;
+    return queueFallback(sid, d);
+  }
+  if (state?.mode === "connecting" && termWrite(sid, d)) return undefined;
+  return queueFallback(sid, d);
 }

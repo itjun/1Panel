@@ -237,6 +237,11 @@ import {
   type PaneProbe,
 } from "@/views/termMount";
 
+function writeTerminalFastNoWait(sid: string, data: string): void {
+  const pending = termWriteFast(sid, data);
+  if (pending) void pending.catch(() => {});
+}
+
 const props = defineProps<{ host: string; workspaceSessionId: string }>();
 const app = useAppStore();
 const settings = useSettingsStore();
@@ -792,7 +797,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
         app.clearTerminalCmd();
         const cmd = pending;
         setTimeout(() => {
-          void termWriteFast(sid, cmd + "\n").catch(() => {});
+          writeTerminalFastNoWait(sid, cmd + "\n");
         }, 1200);
       }
     } catch (e) {
@@ -893,7 +898,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     const sid = currentSid();
     if (!sid) return;
     echoPendingAt.set(id, performance.now());
-    void termWriteFast(sid, d).catch(() => {});
+    writeTerminalFastNoWait(sid, d);
   });
 
   // 窗口尺寸变化：用当前 sessionID 同步 PTY（重连后仍是此回调）
@@ -1662,7 +1667,7 @@ function writeRemotePathsToTerm(localPaths: string[]) {
     .map((p) => p.split(/[\\/]/).pop() || p)
     .map((name) => `'${TERM_UPLOAD_DIR}/${name}'`)
     .join(" ");
-  void termWriteFast(active.sessionID, remote).catch(() => {});
+  writeTerminalFastNoWait(active.sessionID, remote);
 }
 
 function onUploadProgress(ev: {
@@ -1693,7 +1698,7 @@ function flushPendingTerminalCmd(cmd: string | null | undefined) {
     app.clearTerminalCmd();
     pendingCmdLocal = null;
     setTimeout(() => {
-      void termWriteFast(active.sessionID, c + "\n").catch(() => {});
+      writeTerminalFastNoWait(active.sessionID, c + "\n");
     }, 300);
     return;
   }

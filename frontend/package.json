@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "verify:shell": "bun scripts/verify-shell.mjs",
     "test:helpers": "bun scripts/test-helpers.mjs",
+    "test:term-stream-worker": "bun scripts/test-term-stream-worker.mjs",
     "build:dev": "vite build --minify false --mode development"
   },
   "dependencies": {
