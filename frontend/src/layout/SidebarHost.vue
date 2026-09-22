@@ -971,6 +971,11 @@ onBeforeUnmount(() => {
   background: var(--m3-surface-container);
 }
 
+/* Windows/Linux 右上角常驻窗口按钮让位：抽屉窄，让顶部而非右侧 */
+.app-chrome:not(.is-mac) .host-detail.is-editing {
+  padding-top: calc(var(--m3-chrome-height) + 8px);
+}
+
 @container (max-width: 860px) {
   .host-home__split {
     flex-direction: column;

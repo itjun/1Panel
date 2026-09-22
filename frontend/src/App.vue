@@ -16,6 +16,12 @@
           <MainArea ref="mainAreaRef" @add-host="onAddHostRequest" />
         </div>
       </div>
+      <!-- Windows/Linux 无边框窗口的全局窗口按钮：多数工作区顶栏已不固定
+           MainChromeBar，右上角常驻一份（全屏隐藏）。挂在 app-chrome 内以
+           继承 is-term 暗色令牌；贴顶条栏用 .win-ctl-pad 让位。 -->
+      <div v-if="!isMac && !fullscreen" class="global-win-controls">
+        <WinWindowControls />
+      </div>
     </div>
 
     <el-dialog
@@ -144,6 +150,7 @@ import { useAlertHistoryStore } from "@/stores/alertHistory";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
 import WorkspaceRail from "@/layout/WorkspaceRail.vue";
+import WinWindowControls from "@/components/WinWindowControls.vue";
 import MainArea from "@/layout/MainArea.vue";
 import AgentInstallDialog from "@/components/AgentInstallDialog.vue";
 import AgentCheckDialog from "@/components/AgentCheckDialog.vue";
@@ -641,6 +648,23 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss">
+/* 右上角常驻窗口按钮：层级压过工作区与侧栏（z 80）、低于 Element 弹层（2000+）。
+   高度对齐通栏 chrome 高度，hover 底色与各顶栏严丝合缝。 */
+.global-win-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 90;
+  display: flex;
+}
+.global-win-controls .win-controls {
+  height: var(--m3-chrome-height);
+  margin-right: 0;
+}
+.app-chrome .global-win-controls .win-btn {
+  height: 100%;
+}
+
 .chrome-ctx-backdrop {
   position: fixed;
   inset: 0;

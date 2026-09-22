@@ -1,7 +1,16 @@
 <template>
-  <header class="ws-bar">
+  <header
+    class="ws-bar drag-region win-ctl-pad"
+    @dblclick="chrome.toggleMaximise()"
+    @contextmenu.prevent="chrome.openMenu($event)"
+  >
     <div class="ws-bar__title">{{ session.title || session.host }}</div>
-    <nav class="ws-bar__tabs" aria-label="主机功能">
+    <nav
+      class="ws-bar__tabs no-drag"
+      aria-label="主机功能"
+      @dblclick.stop
+      @contextmenu.stop
+    >
       <button
         v-for="t in HOST_SUB_TABS"
         :key="t.value"
@@ -14,7 +23,7 @@
         {{ t.label }}
       </button>
     </nav>
-    <div class="ws-bar__side">
+    <div class="ws-bar__side no-drag" @dblclick.stop @contextmenu.stop>
       <button type="button" class="ws-bar__connect" @click="app.connectTerminal(session.host)">
         连接终端
       </button>
@@ -25,6 +34,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { HOST_SUB_TABS } from "@/constants/hostSubTabs";
+import { useChromeDrag } from "@/composables/useChromeDrag";
 import { kindToSubTab, useAppStore, type SubTab, type WorkspaceSession } from "@/stores/app";
 import { clickAction, pointerAction } from "@/utils/pointerAction";
 
@@ -33,6 +43,7 @@ const props = defineProps<{
 }>();
 
 const app = useAppStore();
+const chrome = useChromeDrag();
 const currentSub = computed(() => kindToSubTab(props.session.tool));
 
 function pickTool(sub: SubTab) {

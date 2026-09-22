@@ -207,7 +207,14 @@ func NewApp() *application.App {
 	go func() {
 		time.Sleep(800 * time.Millisecond)
 		core.fitWindowToPrimaryScreen()
-		core.forceShowMainWindow()
+		// 验证式兜底：ApplicationStarted 的 Show 可能因启动竞态落空
+		//（详见 forceShowMainWindow 注释），500ms 一拍重试直至窗口可见。
+		for i := 0; i < 10; i++ {
+			if core.forceShowMainWindow() {
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
 	}()
 	// 初始化本地存储与采集器
 	if store, err := groups.NewStore("ServerPanel"); err != nil {
@@ -350,24 +357,34 @@ func (a *App) maybeShowMainWindow() {
 	// WM_GETMINMAXINFO 生效，无需重复设置。
 	win.Center()
 	win.Show()
+	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
 	a.syncTrafficLights()
 }
 
-func (a *App) forceShowMainWindow() {
+func (a *App) forceShowMainWindow() bool {
 	a.showMu.Lock()
 	// Wails 未进入运行态（Run 尚未初始化 impl）时调用窗口 API 会空指针崩溃，
-	// 此处直接放弃兜底——ApplicationStarted 路径或下次触发会正常显示窗口。
-	if a.shown || a.mainWindow == nil || !a.ready {
+	// 此处直接放弃本轮——稍后的重试或 ApplicationStarted 路径会正常显示窗口。
+	if a.mainWindow == nil || !a.ready {
 		a.showMu.Unlock()
-		return
+		return false
 	}
 	win := a.mainWindow
+	already := a.shown
 	a.shown = true
 	a.showMu.Unlock()
+	// 兜底改「验证式」：ApplicationStarted 的 Show 可能落在 w.impl 尚未创建的
+	// 时间窗内而落空（Wails 的 Show 在 impl==nil 时只补跑 Run() 建出隐藏窗口
+	// 就返回，不执行 show）。此处不可见就再 Show，直到窗口真的可见。
+	if already && win.IsVisible() {
+		return true
+	}
 	// 同 maybeShowMainWindow：启动期不 SetMinSize，避免 Size()=0x0 时
 	// 把恢复的窗口尺寸砸成最小尺寸。
 	win.Show()
+	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
 	a.syncTrafficLights()
+	return win.IsVisible()
 }
 
 // syncTrafficLights 将 macOS 红绿灯垂直居中到 WorkspaceRail 顶留白带。

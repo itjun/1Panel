@@ -1,6 +1,6 @@
 <template>
   <div class="notify-setup">
-    <div class="setup-form">
+    <div class="setup-form win-ctl-pad">
       <div class="row">
         <span class="row-name">送到哪里</span>
         <div class="toggles">

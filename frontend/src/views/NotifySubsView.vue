@@ -1,6 +1,6 @@
 <template>
   <div class="notify-subs">
-    <div class="subs-bar">
+    <div class="subs-bar win-ctl-pad">
       <RouterButton v-model="groupFilter" compact :buttons="groupButtons" />
       <span class="subs-hint">设置里关掉的类型或通道，这里订了也不会发</span>
     </div>

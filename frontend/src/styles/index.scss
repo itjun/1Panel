@@ -275,6 +275,12 @@ body,
   overflow: hidden;
 }
 
+/* Windows/Linux 右上角常驻窗口按钮（.global-win-controls）：贴顶的条栏加
+   .win-ctl-pad 让出右侧按钮宽度，内容不钻到按钮底下。 */
+.app-chrome:not(.is-mac) .win-ctl-pad {
+  padding-right: 142px;
+}
+
 .app-chrome.is-term {
   --m3-shell: #171717;
   --m3-content: #0e0e0e;

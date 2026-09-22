@@ -1,6 +1,6 @@
 <template>
   <div
-    class="main-chrome-bar drag-region"
+    class="main-chrome-bar drag-region win-ctl-pad"
     @dblclick="chrome.toggleMaximise()"
     @contextmenu.prevent="chrome.openMenu($event)"
   >
@@ -31,14 +31,12 @@
         @dblclick.stop
         @contextmenu.stop
       />
-      <WinWindowControls v-if="!chrome.isMac" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { inject, ref } from "vue";
-import WinWindowControls from "@/components/WinWindowControls.vue";
 import {
   chromeActionsKey,
   chromeCenterKey,

@@ -1,6 +1,6 @@
 <template>
   <div class="notify-messages">
-    <div class="page-toolbar notify-messages__bar">
+    <div class="page-toolbar notify-messages__bar win-ctl-pad">
       <RouterButton
         v-if="kind === 'metric'"
         v-model="kindFilter"
