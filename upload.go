@@ -60,7 +60,7 @@ func (s *Files) UploadFile(host, localPath, remoteDir string, normalize bool) (s
 	if err != nil {
 		return "", fmt.Errorf("本地文件不存在: %w", err)
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return "", err
 	}
@@ -91,7 +91,7 @@ func (s *Files) UploadDir(host, localDir, remoteDir string, normalize bool) (str
 		}
 		return nil
 	})
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return "", err
 	}
@@ -139,7 +139,7 @@ func (s *Files) UploadPaths(host string, localPaths []string, convertPaths []str
 			return nil
 		})
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func (s *Files) UploadPathsAs(host string, localPaths []string, remoteDir, mode 
 			return nil
 		})
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}
@@ -277,8 +277,8 @@ func uploadDirAs(sc *sftp.Client, localDir, remoteDir, destName string, prog *pr
 
 // openSFTP 建立一次 SFTP 会话（复用 sshd.Manager 的 SSH 长连接）。
 // 连接池里的 client 可能已经断了：创建失败时丢掉这只，再拨一次。
-func openSFTP(mgr *sshd.Manager, host string) (*sftp.Client, error) {
-	opt, err := connectOptionFor(host)
+func openSFTP(mgr *sshd.Manager, host string, resolve func(string) (sshd.ConnectOption, error)) (*sftp.Client, error) {
+	opt, err := resolve(host)
 	if err != nil {
 		return nil, err
 	}

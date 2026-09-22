@@ -51,7 +51,7 @@ func (s *Files) SftpHomeDir(host string) (string, error) {
 
 // withSFTP 打开一次 SFTP。读的过程中发现连接已死，就丢掉缓存再连一次。
 func (s *Files) withSFTP(host string, fn func(*sftp.Client) error) error {
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (s *Files) withSFTP(host string, fn func(*sftp.Client) error) error {
 		return err
 	}
 	s.sshMgr.Drop(host)
-	sc, err = openSFTP(s.sshMgr, host)
+	sc, err = openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (s *Files) SftpExistingNames(host, dir string, names []string) ([]string, e
 	if dir == "" || dir == "." {
 		dir = "/"
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (s *Files) DownloadSftp(host, remotePath, localDir string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return "", err
 	}
@@ -171,7 +171,7 @@ func (s *Files) DownloadSftpPaths(host string, remotePaths []string, localDir st
 	if err != nil {
 		return err
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func (s *Files) DownloadSftpPathsAs(host string, remotePaths []string, localDir,
 	if err != nil {
 		return err
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func (s *Files) DeleteSftpPaths(host string, paths []string) error {
 	if len(paths) == 0 {
 		return fmt.Errorf("没有要删除的路径")
 	}
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}

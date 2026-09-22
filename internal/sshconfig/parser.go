@@ -10,13 +10,16 @@ import (
 
 // HostConfig 表示一个 SSH 主机配置条目
 type HostConfig struct {
-	Name         string `json:"name"`         // Host 名称（别名）
-	HostName     string `json:"hostName"`     // 实际主机/IP
-	User         string `json:"user"`         // 登录用户
-	Port         string `json:"port"`         // 端口（默认 22）
-	IdentityFile string `json:"identityFile"` // 密钥路径
-	ProxyJump    string `json:"proxyJump"`    // 跳板机
-	HostKeyAlgos string `json:"hostKeyAlgos"` // 原文保留（部分场景需要）
+	Name          string `json:"name"`          // Host 名称（别名）
+	HostName      string `json:"hostName"`      // 实际主机/IP
+	User          string `json:"user"`          // 登录用户
+	Port          string `json:"port"`          // 端口（默认 22）
+	IdentityFile  string `json:"identityFile"`  // 密钥路径
+	ProxyJump     string `json:"proxyJump"`     // 跳板机
+	ProxyCommand  string `json:"proxyCommand"`  // 自定义代理命令（仅原文展示）
+	IdentityAgent string `json:"identityAgent"` // SSH agent socket
+	ForwardAgent  bool   `json:"forwardAgent"`  // agent 转发
+	HostKeyAlgos  string `json:"hostKeyAlgos"`  // 原文保留（部分场景需要）
 	// Note 本机备注：存 Application Support 的 host_meta.json，不写入 ~/.ssh/config；
 	// 列表/导出时由 Hosts 服务合并进来。
 	Note string `json:"note,omitempty"`
@@ -104,6 +107,18 @@ func ParseFile(path string) ([]HostConfig, error) {
 		case "proxyjump":
 			if current != nil {
 				current.ProxyJump = value
+			}
+		case "proxycommand":
+			if current != nil {
+				current.ProxyCommand = value
+			}
+		case "identityagent":
+			if current != nil {
+				current.IdentityAgent = value
+			}
+		case "forwardagent":
+			if current != nil {
+				current.ForwardAgent = strings.EqualFold(value, "yes") || strings.EqualFold(value, "true")
 			}
 		case "hostkeyalgorithms":
 			if current != nil {

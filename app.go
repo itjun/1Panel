@@ -24,7 +24,7 @@ import (
 	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/notifysubs"
-	"diteng-pannel/internal/sshconfig"
+	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/terminal"
 
@@ -50,6 +50,7 @@ type App struct {
 	agentPool    *agentcli.Pool
 	installer    *agentinstall.Installer
 	groups       *groups.Store
+	panelStore   *panelstore.Store
 	hostIcons    *hosticon.Store
 	hostMeta     *hostmeta.Store
 	alertHistory *alerthistory.Store
@@ -58,6 +59,10 @@ type App struct {
 	menuCheck    *menucheck.Watcher
 	termMgr      *terminal.Manager
 	termStream   *termStreamServer
+
+	panelConfigMu   sync.Mutex
+	panelConfigStop chan struct{}
+	panelPreviews   map[string]panelConfigPreviewRecord
 
 	app        *application.App
 	mainWindow *application.WebviewWindow
@@ -101,7 +106,6 @@ func NewApp() *application.App {
 	core := &App{
 		sshMgr:                sshMgr,
 		termMgr:               terminal.NewManager(sshMgr),
-		agentPool:             agentcli.NewPool(sshMgr, connectOptionFor),
 		installer:             agentinstall.New(sshMgr),
 		boardWindows:          make(map[string]*application.WebviewWindow),
 		terminalWindows:       make(map[string]*application.WebviewWindow),
@@ -109,8 +113,12 @@ func NewApp() *application.App {
 		terminalWindowVisible: make(map[string]bool),
 		pendingTerminalEvents: make(map[string][]TerminalWindowCommand),
 		terminalTransfers:     make(map[string]*terminalTransferState),
+		panelPreviews:         make(map[string]panelConfigPreviewRecord),
 		notifier:              ns,
 	}
+	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
+		return core.connectOptionFor(host)
+	})
 	desktop.SetService(ns)
 	initAskBeforeQuit()
 
@@ -119,6 +127,7 @@ func NewApp() *application.App {
 		Description: "运维管理",
 		Services: []application.Service{
 			application.NewService((*Hosts)(core)),
+			application.NewService((*PanelConfig)(core)),
 			application.NewService((*Groups)(core)),
 			application.NewService((*Overview)(core)),
 			application.NewService((*Monitor)(core)),
@@ -258,6 +267,15 @@ func NewApp() *application.App {
 	} else {
 		core.hostMeta = hm
 	}
+	if store, err := panelstore.NewStore("ServerPanel"); err != nil {
+		app.Logger.Error("初始化 Panel 主机存储失败", "error", err)
+	} else {
+		core.panelStore = store
+		if err := core.bootstrapPanelState(); err != nil {
+			app.Logger.Error("初始化 Panel 主机模型失败", "error", err)
+		}
+		core.startPanelConfigWatcher()
+	}
 	if ah, err := alerthistory.NewStore("ServerPanel"); err != nil {
 		app.Logger.Error("初始化告警历史存储失败", "error", err)
 	} else {
@@ -345,6 +363,10 @@ func NewApp() *application.App {
 }
 
 func (a *App) shutdown() {
+	if a.panelConfigStop != nil {
+		close(a.panelConfigStop)
+		a.panelConfigStop = nil
+	}
 	if a.mainWindow != nil {
 		a.saveMainWindowGeom()
 	}
@@ -659,26 +681,6 @@ func stringFromUserInfo(m map[string]interface{}, key string) string {
 	default:
 		return strings.TrimSpace(fmt.Sprint(t))
 	}
-}
-
-// connectOptionFor 根据 host 名称从 ssh config 里查找对应连接参数
-func connectOptionFor(host string) (sshd.ConnectOption, error) {
-	hosts, err := sshconfig.Parse()
-	if err != nil {
-		return sshd.ConnectOption{}, err
-	}
-	for _, h := range hosts {
-		if h.Name == host {
-			return sshd.ConnectOption{
-				Host:         h.Name,
-				HostName:     h.HostName,
-				User:         h.User,
-				Port:         h.Port,
-				IdentityFile: h.IdentityFile,
-			}, nil
-		}
-	}
-	return sshd.ConnectOption{}, fmt.Errorf("在 ~/.ssh/config 中未找到 Host: %s", host)
 }
 
 // rememberOS 把发行版写入本地记录，并通知前端即时换图标

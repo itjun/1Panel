@@ -14,13 +14,15 @@ type TerminalSvc App
 // eventName 是前端订阅输出的 Wails 事件名
 // cols/rows 为 xterm fit 后的真实行列，开 PTY 时就用正确尺寸，避免开局乱码
 func (s *TerminalSvc) OpenTerminal(host string, eventName string, cols int, rows int) (string, error) {
-	opt, err := connectOptionFor(host)
+	if err := (*App)(s).ensureTerminalConfigReady(); err != nil {
+		return "", err
+	}
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return "", err
 	}
 	return s.termMgr.Open(host, opt, eventName, cols, rows)
 }
-
 
 func (s *TerminalSvc) WriteTerminal(sessionID string, data string) error {
 	return s.termMgr.WriteInput(sessionID, []byte(data))

@@ -22,7 +22,7 @@ const maxTextPreviewBytes = 512 * 1024
 // ReadFilePreview（Files 服务）读取远程文本文件：返回编码/换行检测 + UTF-8 内容
 // 比 ReadFileText 更完整，供预览抽屉状态栏与「转 Linux 标准」使用
 func (s *Files) ReadFilePreview(host, file string) (filetext.Preview, error) {
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return filetext.Preview{}, err
 	}
@@ -37,7 +37,7 @@ func (s *Files) ReadFilePreview(host, file string) (filetext.Preview, error) {
 // 写前自动备份为 <file>.bak.YYYYMMDD-HHMMSS
 // 成功后返回新的预览结果（needsNormalize=false）
 func (s *Files) NormalizeFileToLinux(host, file string) (filetext.Preview, error) {
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return filetext.Preview{}, err
 	}
@@ -160,7 +160,7 @@ const localPreviewRunes = 400              // 预览片段字符数（弹窗展�
 // LocalTextCheck 单个本地文件的编码检测结果（上传前编码检查弹窗用）
 type LocalTextCheck struct {
 	Path           string `json:"path"`
-	RelPath        string `json:"relPath"`        // 相对路径（文件夹上传时展示层级）
+	RelPath        string `json:"relPath"` // 相对路径（文件夹上传时展示层级）
 	Name           string `json:"name"`
 	Encoding       string `json:"encoding"`       // UTF-8 / GBK / GB18030 / UTF-16LE …
 	LineEnding     string `json:"lineEnding"`     // LF / CRLF / CR / Mixed

@@ -53,7 +53,13 @@ func (s *Icons) RefreshAllHostIcons() []HostIcon {
 }
 
 func (s *Icons) refreshHostIcons(onlyMissing bool) []HostIcon {
-	hosts, err := listNonGitHosts()
+	var hosts []sshconfig.HostConfig
+	var err error
+	if a := (*App)(s); a.panelStore != nil {
+		hosts, err = a.panelHostConfigs(false)
+	} else {
+		hosts, err = listNonGitHosts()
+	}
 	if err != nil {
 		return []HostIcon{{Error: err.Error()}}
 	}
@@ -93,7 +99,7 @@ func (s *Icons) refreshHostIcons(onlyMissing bool) []HostIcon {
 }
 
 // detectOSRelease 探测主机发行版（用于图标）。已装 agent 的主机走 agent 隧道
-//（零 SSH 命令）；agent 不可达（未安装/未运行）时回退原有 SSH 探测。
+// （零 SSH 命令）；agent 不可达（未安装/未运行）时回退原有 SSH 探测。
 func (s *Icons) detectOSRelease(host string) (string, error) {
 	if cli, err := s.agentPool.Get(host); err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
@@ -103,7 +109,7 @@ func (s *Icons) detectOSRelease(host string) (string, error) {
 			return cur.Info.OSRelease, nil
 		}
 	}
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return "", err
 	}
@@ -140,4 +146,3 @@ func detectOSReleaseParallel(s *Icons, hosts []sshconfig.HostConfig, limit int) 
 	wg.Wait()
 	return results
 }
-

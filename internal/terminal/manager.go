@@ -2,14 +2,17 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/creack/pty/v2"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/ssh"
 
 	"diteng-pannel/internal/sshd"
 )
@@ -26,9 +29,8 @@ type StreamPush func(kind, sid, pane string, data []byte) bool
 
 // Manager 管理终端会话
 // 设计：
-//   - 每个 Tab 创建一个 Session，每个 Session 用独立 SSH 连接（不复用连接池），
-//     与面板采集的 agent 隧道隔离，避免共享连接互相反压导致输入卡顿
-//   - 用 SSH 协议的 RequestPty 申请真正的伪终端，远程 shell 会正常回显输入
+//   - 每个 Tab 创建一个独立的系统 ssh 进程，完全读取 Panel 生成的 OpenSSH config
+//   - 用本地 PTY 连接进程，保留 OpenSSH 的 ProxyJump、Agent、HostKey 等行为
 //   - 数据通道：优先本地 WebSocket 流（绕开 wails 主线程事件派发），无订阅者时
 //     回退 Wails 事件推送（异步非阻塞，见 pumpToEvent）
 //   - 关闭 Tab → 关 session + 关独立连接 → 远程 shell 收到 EOF 退出
@@ -46,15 +48,15 @@ type Manager struct {
 
 // Session 一个终端会话，对应一条独立 SSH 连接上的 channel + PTY
 type Session struct {
-	ID              string
-	Host            string
-	client          *ssh.Client // 会话独占的 SSH 连接，Close 时释放
-	session         *ssh.Session
-	stdin           io.WriteCloser
-	cancel          context.CancelFunc // 用于停止输出 goroutine
-	keepaliveCancel context.CancelFunc // 停止独立连接上的激进心跳
-	mu              sync.Mutex
-	closed          bool
+	ID          string
+	Host        string
+	cmd         *exec.Cmd
+	terminal    *os.File
+	stdin       io.WriteCloser
+	cancel      context.CancelFunc // 用于停止输出 goroutine
+	outputClose io.Closer
+	mu          sync.Mutex
+	closed      bool
 }
 
 // NewManager 创建终端管理器
@@ -117,16 +119,20 @@ func (m *Manager) sendExit(eventName, sid, reason string) {
 	}
 }
 
-// openShell 建立独立 SSH 连接、申请 PTY 并启动远程登录 shell。
-// 每个终端会话独占一条连接，与面板采集隔离，避免共享连接互相反压导致输入卡顿。
-// cols/rows 必须是前端 fit 后的真实尺寸；错误尺寸会导致远程 shell 开局乱码（如一串 ]）
-// 返回的 keepaliveCancel 用于会话结束时停止心跳。
-func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int) (*ssh.Client, *ssh.Session, io.WriteCloser, io.Reader, context.CancelFunc, error) {
+type nativeShell struct {
+	cmd         *exec.Cmd
+	terminal    *os.File
+	stdin       io.WriteCloser
+	output      io.Reader
+	outputClose io.Closer
+}
+
+// openShell starts the system OpenSSH client. The Go ConnectOption is not
+// consulted here by design: the terminal must exercise exactly the same
+// ~/.ssh/config that an external terminal would use.
+func (m *Manager) openShell(host string, cols, rows int) (*nativeShell, context.CancelFunc, error) {
 	if m.ctx == nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("终端管理器未初始化")
-	}
-	if m.sshMgr == nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("SSH 管理器未注入")
+		return nil, nil, fmt.Errorf("终端管理器未初始化")
 	}
 	if cols < 20 {
 		cols = 80
@@ -135,63 +141,93 @@ func (m *Manager) openShell(host string, opt sshd.ConnectOption, cols, rows int)
 		rows = 24
 	}
 
-	// 独立连接 + 激进心跳：尽快发现网络断开，推动前端自动重连
-	client, keepaliveCancel, err := m.sshMgr.DialNewKeepalive(opt)
+	parentCtx := m.ctx
+	ctx, cancel := context.WithCancel(parentCtx)
+	cmd := exec.CommandContext(ctx, "ssh", "-tt", "--", host)
+	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("连接 %s 失败: %w", host, err)
+		if !errors.Is(err, pty.ErrUnsupported) {
+			cancel()
+			return nil, nil, fmt.Errorf("启动系统 ssh 失败: %w", err)
+		}
+		// pty 在 Windows 等平台不可用时仍然保留系统 ssh 接入能力。
+		// 这些平台没有可调整的本地 PTY，因此用 stdin/stdout/stderr 管道
+		// 作为明确的降级路径；Unix/macOS 仍优先走上面的真实 PTY。
+		shell, pipeErr := startPipeShell(cmd)
+		if pipeErr != nil {
+			cancel()
+			return nil, nil, fmt.Errorf("启动系统 ssh 失败: %w", pipeErr)
+		}
+		return shell, cancel, nil
 	}
-	// 后续任一失败都关掉独立连接，避免泄漏
-	closeOnErr := func() {
-		keepaliveCancel()
-		_ = client.Close()
+	return &nativeShell{cmd: cmd, terminal: terminal, stdin: terminal, output: terminal}, cancel, nil
+}
+
+// startPipeShell starts an already-created command without a local PTY. It is
+// intentionally small and only used when the current platform reports that
+// PTY allocation is unsupported. stdout and stderr are merged in arrival
+// order into one reader so the rest of the terminal pipeline remains the same.
+func startPipeShell(cmd *exec.Cmd) (*nativeShell, error) {
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return nil, err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		_ = stderr.Close()
+		return nil, err
 	}
 
-	session, err := client.NewSession()
-	if err != nil {
-		closeOnErr()
-		return nil, nil, nil, nil, nil, fmt.Errorf("创建 SSH 会话失败: %w", err)
+	output, outputWriter := io.Pipe()
+	var wg sync.WaitGroup
+	var writeMu sync.Mutex
+	copyOutput := func(reader io.ReadCloser) {
+		defer wg.Done()
+		defer reader.Close()
+		buf := make([]byte, 4096)
+		for {
+			n, readErr := reader.Read(buf)
+			if n > 0 {
+				writeMu.Lock()
+				_, writeErr := outputWriter.Write(buf[:n])
+				writeMu.Unlock()
+				if writeErr != nil {
+					return
+				}
+			}
+			if readErr != nil {
+				return
+			}
+		}
 	}
+	wg.Add(2)
+	go copyOutput(stdout)
+	go copyOutput(stderr)
+	go func() {
+		wg.Wait()
+		_ = outputWriter.Close()
+	}()
 
-	// 申请 PTY：这是终端能正常回显/补全/支持全屏程序的关键
-	// ECHO=1 确保远程线路规程回显用户输入（大多数 shell 默认就开，这里显式设置避免被关掉）
-	// RequestPty(term, h, w) = rows, cols
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 115200,
-		ssh.TTY_OP_OSPEED: 115200,
-	}
-	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
-		_ = session.Close()
-		closeOnErr()
-		return nil, nil, nil, nil, nil, fmt.Errorf("请求 PTY 失败: %w", err)
-	}
-
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		_ = session.Close()
-		closeOnErr()
-		return nil, nil, nil, nil, nil, fmt.Errorf("获取 stdin 失败: %w", err)
-	}
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		_ = session.Close()
-		closeOnErr()
-		return nil, nil, nil, nil, nil, fmt.Errorf("获取 stdout 失败: %w", err)
-	}
-
-	// 启动远程登录 shell
-	if err := session.Shell(); err != nil {
-		_ = session.Close()
-		closeOnErr()
-		return nil, nil, nil, nil, nil, fmt.Errorf("启动 shell 失败: %w", err)
-	}
-	return client, session, stdin, stdout, keepaliveCancel, nil
+	return &nativeShell{cmd: cmd, stdin: stdin, output: output, outputClose: output}, nil
 }
 
 // Open 启动一个终端会话（独立 SSH 连接 + Wails 事件推送）
 // host 是目标主机别名，eventName 是前端用来接收输出的 Wails 事件名
 func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, cols, rows int) (string, error) {
-	client, session, stdin, stdout, keepaliveCancel, err := m.openShell(host, opt, cols, rows)
+	_ = opt
+	shell, shellCancel, err := m.openShell(host, cols, rows)
 	if err != nil {
 		return "", err
 	}
@@ -201,30 +237,32 @@ func (m *Manager) Open(host string, opt sshd.ConnectOption, eventName string, co
 	if parentCtx == nil {
 		parentCtx = context.Background()
 	}
-	ctx, cancel := context.WithCancel(parentCtx)
+	ctx, pumpCancel := context.WithCancel(parentCtx)
+	cancel := func() {
+		pumpCancel()
+		shellCancel()
+	}
 	s := &Session{
-		ID:              id,
-		Host:            host,
-		client:          client,
-		session:         session,
-		stdin:           stdin,
-		cancel:          cancel,
-		keepaliveCancel: keepaliveCancel,
+		ID:          id,
+		Host:        host,
+		cmd:         shell.cmd,
+		terminal:    shell.terminal,
+		stdin:       shell.stdin,
+		cancel:      cancel,
+		outputClose: shell.outputClose,
 	}
 
 	// 把远程 shell 的输出流推送给前端（WebSocket 优先，回退 Wails 事件）
-	go pumpToEvent(ctx, stdout, func(data []byte) { m.sendData(eventName, id, data) })
+	go pumpToEvent(ctx, shell.output, func(data []byte) { m.sendData(eventName, id, data) })
 
 	// 进程结束时通知前端 + 清理。
 	// 区分断开原因：正常退出（exit 命令）reason=exit，异常断开（网络等）reason=error，
 	// 前端据此决定是否自动重连。
 	go func() {
-		err := session.Wait()
+		err := shell.cmd.Wait()
 		reason := "exit"
 		if err != nil {
-			if _, ok := err.(*ssh.ExitError); !ok {
-				reason = "error"
-			}
+			reason = "error"
 		}
 		// Wait 返回后必须释放独立连接与心跳，避免泄漏；与手动 Close 共用 release
 		s.release()
@@ -274,10 +312,13 @@ func (m *Manager) Resize(sessionID string, cols, rows int) error {
 	if s.closed {
 		return nil
 	}
-	return s.session.WindowChange(rows, cols)
+	if s.terminal == nil {
+		return nil
+	}
+	return pty.Setsize(s.terminal, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 }
 
-// release 幂等释放：停心跳、停输出泵、关 stdin/session/独立连接。
+// release 幂等释放：停止输出泵、关闭本地 PTY 并终止对应的系统 ssh 进程。
 func (s *Session) release() {
 	s.mu.Lock()
 	if s.closed {
@@ -287,20 +328,20 @@ func (s *Session) release() {
 	s.closed = true
 	s.mu.Unlock()
 
-	if s.keepaliveCancel != nil {
-		s.keepaliveCancel()
-	}
 	if s.cancel != nil {
 		s.cancel()
 	}
 	if s.stdin != nil {
 		_ = s.stdin.Close()
 	}
-	if s.session != nil {
-		_ = s.session.Close()
+	if s.outputClose != nil {
+		_ = s.outputClose.Close()
 	}
-	if s.client != nil {
-		_ = s.client.Close()
+	if s.terminal != nil {
+		_ = s.terminal.Close()
+	}
+	if s.cmd != nil && s.cmd.Process != nil {
+		_ = s.cmd.Process.Kill()
 	}
 }
 

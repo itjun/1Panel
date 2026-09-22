@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 
 	"diteng-pannel/internal/agentcli"
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/monitor"
+	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 )
@@ -29,8 +31,8 @@ type HostOverviewSnapshot struct {
 
 // GroupOverview 一个分组的概览数据
 type GroupOverview struct {
-	GroupID   string                  `json:"groupId"`   // 分组 ID（"__ungrouped__" 表示未分组）
-	GroupName string                  `json:"groupName"` // 分组显示名
+	GroupID   string                 `json:"groupId"`   // 分组 ID（"__ungrouped__" 表示未分组）
+	GroupName string                 `json:"groupName"` // 分组显示名
 	Hosts     []HostOverviewSnapshot `json:"hosts"`
 }
 
@@ -55,6 +57,9 @@ func (s *Overview) ListGroupOverview() ([]GroupOverview, error) {
 
 // ListOneGroupOverview 只采集指定分组子树内全部主机
 func (s *Overview) ListOneGroupOverview(groupID string) (GroupOverview, error) {
+	if a := (*App)(s); a.panelStore != nil {
+		return s.listOnePanelGroupOverview(groupID)
+	}
 	hosts, err := sshconfig.Parse()
 	if err != nil {
 		return GroupOverview{}, err
@@ -118,6 +123,77 @@ func (s *Overview) ListOneGroupOverview(groupID string) (GroupOverview, error) {
 	}, nil
 }
 
+func (s *Overview) listOnePanelGroupOverview(groupID string) (GroupOverview, error) {
+	a := (*App)(s)
+	hosts, err := a.panelHostConfigs(false)
+	if err != nil {
+		return GroupOverview{}, err
+	}
+	byAlias := make(map[string]sshconfig.HostConfig, len(hosts))
+	for _, host := range hosts {
+		byAlias[host.Name] = host
+	}
+	state := a.panelStore.Snapshot()
+	result := GroupOverview{GroupID: groupID}
+	if groupID == "__ungrouped__" {
+		result.GroupName = "未分组"
+		for _, host := range state.Hosts {
+			if host.GroupID == "" {
+				if cfg, ok := byAlias[host.Alias]; ok {
+					result.Hosts = append(result.Hosts, HostOverviewSnapshot{
+						Name: cfg.Name, HostName: cfg.HostName, User: cfg.User,
+					})
+				}
+			}
+		}
+	} else {
+		result.GroupName = groupID
+		groupIDs := panelGroupSubtree(state, groupID)
+		for _, group := range state.Groups {
+			if group.ID == groupID {
+				result.GroupName = group.Name
+				break
+			}
+		}
+		for _, host := range state.Hosts {
+			if !groupIDs[host.GroupID] {
+				continue
+			}
+			if cfg, ok := byAlias[host.Alias]; ok {
+				result.Hosts = append(result.Hosts, HostOverviewSnapshot{
+					Name: cfg.Name, HostName: cfg.HostName, User: cfg.User,
+				})
+			}
+		}
+	}
+	return s.collectPanelSnapshots(result), nil
+}
+
+func (s *Overview) collectPanelSnapshots(result GroupOverview) GroupOverview {
+	configs := make([]sshconfig.HostConfig, 0, len(result.Hosts))
+	for _, host := range result.Hosts {
+		configs = append(configs, sshconfig.HostConfig{Name: host.Name, HostName: host.HostName, User: host.User})
+	}
+	snapshots := s.collectHostSnapshots(configs, 5, func(host, osRelease string) { rememberOS(s.hostIcons, host, osRelease) })
+	result.Hosts = snapshots
+	return result
+}
+
+func panelGroupSubtree(state panelstore.State, root string) map[string]bool {
+	ids := map[string]bool{root: true}
+	changed := true
+	for changed {
+		changed = false
+		for _, group := range state.Groups {
+			if group.ParentID != "" && ids[group.ParentID] && !ids[group.ID] {
+				ids[group.ID] = true
+				changed = true
+			}
+		}
+	}
+	return ids
+}
+
 type groupBucket struct {
 	id    string
 	name  string
@@ -125,6 +201,9 @@ type groupBucket struct {
 }
 
 func (s *Overview) buildGroupBuckets() ([]groupBucket, error) {
+	if a := (*App)(s); a.panelStore != nil {
+		return s.buildPanelGroupBuckets()
+	}
 	hosts, err := sshconfig.Parse()
 	if err != nil {
 		return nil, err
@@ -169,6 +248,63 @@ func (s *Overview) buildGroupBuckets() ([]groupBucket, error) {
 	return buckets, nil
 }
 
+func (s *Overview) buildPanelGroupBuckets() ([]groupBucket, error) {
+	a := (*App)(s)
+	hosts, err := a.panelHostConfigs(false)
+	if err != nil {
+		return nil, err
+	}
+	byAlias := make(map[string]sshconfig.HostConfig, len(hosts))
+	for _, host := range hosts {
+		byAlias[host.Name] = host
+	}
+	state := a.panelStore.Snapshot()
+	buckets := make([]groupBucket, 0, len(state.Groups)+1)
+	assigned := make(map[string]bool, len(state.Hosts))
+	groupsCopy := append([]panelstore.PanelGroup(nil), state.Groups...)
+	sort.SliceStable(groupsCopy, func(i, j int) bool {
+		if groupsCopy[i].Order != groupsCopy[j].Order {
+			return groupsCopy[i].Order < groupsCopy[j].Order
+		}
+		return groupsCopy[i].ID < groupsCopy[j].ID
+	})
+	for _, group := range groupsCopy {
+		var panelHosts []panelstore.PanelHost
+		for _, host := range state.Hosts {
+			if host.GroupID == group.ID {
+				panelHosts = append(panelHosts, host)
+				assigned[host.Alias] = true
+			}
+		}
+		sort.SliceStable(panelHosts, func(i, j int) bool {
+			if panelHosts[i].Order != panelHosts[j].Order {
+				return panelHosts[i].Order < panelHosts[j].Order
+			}
+			return panelHosts[i].Alias < panelHosts[j].Alias
+		})
+		bucket := groupBucket{id: group.ID, name: group.Name}
+		for _, host := range panelHosts {
+			if cfg, ok := byAlias[host.Alias]; ok {
+				bucket.hosts = append(bucket.hosts, cfg)
+			}
+		}
+		buckets = append(buckets, bucket)
+	}
+	var ungrouped []sshconfig.HostConfig
+	for _, host := range state.Hosts {
+		if !assigned[host.Alias] {
+			if cfg, ok := byAlias[host.Alias]; ok {
+				ungrouped = append(ungrouped, cfg)
+			}
+		}
+	}
+	sort.SliceStable(ungrouped, func(i, j int) bool { return ungrouped[i].Name < ungrouped[j].Name })
+	if len(ungrouped) > 0 {
+		buckets = append(buckets, groupBucket{id: "__ungrouped__", name: "未分组", hosts: ungrouped})
+	}
+	return buckets, nil
+}
+
 // collectHostSnapshots 并发采集多台主机（经各自 agent 读库），sem 限制并发数
 func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int, remember func(host, osRelease string)) []HostOverviewSnapshot {
 	if len(hosts) == 0 {
@@ -194,7 +330,13 @@ func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int,
 				HostName: host.HostName,
 				User:     host.User,
 			}
-			cli, err := s.agentPool.GetWithOpt(host.Name, connectOptionFromHostConfig(host))
+			opt, optErr := (*App)(s).connectOptionFor(host.Name)
+			if optErr != nil {
+				snap.Error = optErr.Error()
+				results[idx] = snap
+				return
+			}
+			cli, err := s.agentPool.GetWithOpt(host.Name, opt)
 			if err != nil {
 				// 配置/拿客户端失败：按 SSH/配置侧问题，不标未装 Agent
 				snap.Error = err.Error()
@@ -231,10 +373,16 @@ func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int,
 // connectOptionFromHostConfig 把 HostConfig 转成 sshd.ConnectOption
 func connectOptionFromHostConfig(h sshconfig.HostConfig) sshd.ConnectOption {
 	return sshd.ConnectOption{
-		Host:         h.Name,
-		HostName:     h.HostName,
-		User:         h.User,
-		Port:         h.Port,
-		IdentityFile: h.IdentityFile,
+		Host:          h.Name,
+		HostName:      h.HostName,
+		User:          h.User,
+		Port:          h.Port,
+		IdentityFile:  h.IdentityFile,
+		HostKeyAlgos:  h.HostKeyAlgos,
+		ProxyJump:     h.ProxyJump,
+		ProxyCommand:  h.ProxyCommand,
+		IdentityAgent: h.IdentityAgent,
+		ForwardAgent:  h.ForwardAgent,
+		Password:      h.Password,
 	}
 }

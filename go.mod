@@ -3,7 +3,9 @@ module diteng-pannel
 go 1.27.0
 
 require (
+	filippo.io/age v1.2.1
 	github.com/coder/websocket v1.8.14
+	github.com/creack/pty/v2 v2.0.1
 	github.com/google/uuid v1.6.0
 	github.com/pkg/sftp v1.13.11
 	github.com/wailsapp/wails/v3 v3.0.0-beta.14

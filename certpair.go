@@ -113,7 +113,7 @@ func (s *Certs) UploadCertPair(host, certPath, keyPath string) error {
 		total += info.Size()
 	}
 
-	sc, err := openSFTP(s.sshMgr, host)
+	sc, err := openSFTP(s.sshMgr, host, (*App)(s).connectOptionFor)
 	if err != nil {
 		return err
 	}

@@ -84,6 +84,8 @@ func (s *Store) List() []Group {
 func (s *Store) Upsert(g Group) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	g.ID = strings.TrimSpace(g.ID)
+	g.Name = strings.TrimSpace(g.Name)
 	if g.ID == "" {
 		return fmt.Errorf("分组 ID 不能为空")
 	}
@@ -244,6 +246,7 @@ func (s *Store) SetBoardTitle(id, title string) error {
 func (s *Store) Rename(id, newName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	id = strings.TrimSpace(id)
 	newName = strings.TrimSpace(newName)
 	if id == "" {
 		return fmt.Errorf("分组 ID 不能为空")
@@ -256,11 +259,23 @@ func (s *Store) Rename(id, newName string) error {
 		return fmt.Errorf("分组 %s 不存在", id)
 	}
 	for _, other := range s.data {
-		if other.ID != id && other.Name == newName {
+		if other.ID != id && (other.ID == newName || other.Name == newName) {
 			return fmt.Errorf("分组名 %s 已存在", newName)
 		}
 	}
+	if id == newName {
+		g.Name = newName
+		return s.saveLocked()
+	}
+	delete(s.data, id)
+	g.ID = newName
 	g.Name = newName
+	s.data[newName] = g
+	for _, other := range s.data {
+		if other != nil && other.ParentID == id {
+			other.ParentID = newName
+		}
+	}
 	return s.saveLocked()
 }
 

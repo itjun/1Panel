@@ -180,7 +180,7 @@ func (s *Agent) AgentPutWatch(host, yamlText string) error {
 
 // AgentProbeInfo 探测目标主机（架构/systemd/安装状态）
 func (s *Agent) AgentProbeInfo(host string) (agentinstall.ProbeInfo, error) {
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return agentinstall.ProbeInfo{}, err
 	}
@@ -201,7 +201,7 @@ func (s *Agent) CheckAgent(host string) (agentcli.CheckReport, error) {
 	}
 	in := agentcli.CheckInput{PanelVersion: agentres.AgentVersion}
 
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		in.ProbeErr = err
 		return agentcli.BuildCheckReport(in), nil
@@ -265,13 +265,23 @@ type AgentBatchResult struct {
 // hosts 为空时自动覆盖 ssh config 里的全部主机。
 func (s *Agent) AgentBatchInstall(hosts []string) ([]AgentBatchResult, error) {
 	if len(hosts) == 0 {
-		parsed, err := sshconfig.Parse()
-		if err != nil {
-			return nil, err
-		}
-		for _, h := range parsed {
-			if !sshconfig.IsGitHost(h) {
+		if a := (*App)(s); a.panelStore != nil {
+			parsed, err := a.panelHostConfigs(false)
+			if err != nil {
+				return nil, err
+			}
+			for _, h := range parsed {
 				hosts = append(hosts, h.Name)
+			}
+		} else {
+			parsed, err := sshconfig.Parse()
+			if err != nil {
+				return nil, err
+			}
+			for _, h := range parsed {
+				if !sshconfig.IsGitHost(h) {
+					hosts = append(hosts, h.Name)
+				}
 			}
 		}
 	}
@@ -318,7 +328,7 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 	}
 
 	emit("probe", "探测主机状态", -1)
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return fail(err)
 	}
@@ -404,7 +414,7 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 
 // UninstallAgent 卸载 agent；keepData=true 保留数据目录（重装可续看历史）
 func (s *Agent) UninstallAgent(host string, keepData bool) error {
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return err
 	}

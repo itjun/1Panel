@@ -11,6 +11,8 @@ import (
 
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/hosticon"
+	"diteng-pannel/internal/panelstore"
+	"diteng-pannel/internal/panelsync"
 	"diteng-pannel/internal/sshconfig"
 )
 
@@ -20,14 +22,17 @@ type Backup App
 // backupVersion 当前备份文件格式版本
 const backupVersion = 1
 
-// BackupData 备份文件内容：主机列表 + 分组 + 主机图标记录
-// 注意：可含已保存的主机密码；SSH 私钥不在备份内，换机恢复需另行保管 ~/.ssh/id_ed25519
+// BackupData 备份文件内容：Panel JSON、原始 SSH 配置树、分组与主机图标。
+// 对外导出默认脱敏密码；应用内部自动快照由 panelsync 单独保存完整 JSON。
 type BackupData struct {
-	Version    int                    `json:"version"`
-	ExportedAt int64                  `json:"exportedAt"`
-	Hosts      []sshconfig.HostConfig `json:"hosts"`
-	Groups     []groups.Group         `json:"groups"`
-	Icons      []hosticon.Record      `json:"icons"`
+	Version           int                    `json:"version"`
+	ExportedAt        int64                  `json:"exportedAt"`
+	Hosts             []sshconfig.HostConfig `json:"hosts"`
+	Groups            []groups.Group         `json:"groups"`
+	Icons             []hosticon.Record      `json:"icons"`
+	PanelState        *panelstore.State      `json:"panelState,omitempty"`
+	ConfigFiles       []panelsync.ConfigFile `json:"configFiles,omitempty"`
+	IncludesPasswords bool                   `json:"includesPasswords,omitempty"`
 }
 
 // ImportResult 导入结果统计
@@ -46,6 +51,9 @@ func (s *Backup) ExportBackup(dir string) (string, error) {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
 		return "", fmt.Errorf("导出目录不能为空")
+	}
+	if (*App)(s).panelStore != nil {
+		return (*App)(s).exportPanelBackup(dir)
 	}
 
 	hosts, err := listNonGitHosts()
@@ -140,6 +148,17 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 	if err != nil {
 		return nil, err
 	}
+	if (*App)(s).panelStore != nil {
+		if data.PanelState == nil {
+			// Backups created before Panel JSON existed are promoted into the
+			// same JSON-first restore path instead of writing ssh-config directly.
+			data.PanelState, err = legacyBackupPanelState((*App)(s).panelStore.Snapshot(), data)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return (*App)(s).importPanelBackup(data, overwrite)
+	}
 
 	// 存量别名 -> 本地条目，导入过程中同步更新
 	hosts, err := sshconfig.Parse()
@@ -160,7 +179,7 @@ func (s *Backup) ImportBackup(path string, overwrite bool) (*ImportResult, error
 		}
 		// 与 AddHost 的入口校验对齐：renderHostBlock 是无转义拼接，
 		// 空格/通配符会写出多别名或通配符块，换行可注入额外指令
-		if strings.ContainsAny(h.Name, " \t*") {
+		if strings.ContainsAny(h.Name, " \t\r\n*") {
 			return nil, fmt.Errorf("备份中主机别名 %q 含空格或通配符 *，无法导入", h.Name)
 		}
 		for _, v := range []string{h.Name, h.HostName, h.User, h.Port, h.IdentityFile, h.ProxyJump, h.HostKeyAlgos, h.Note, h.Password} {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/sshconfig"
 	"diteng-pannel/internal/sshd"
 
@@ -34,13 +35,15 @@ func listNonGitHosts() ([]sshconfig.HostConfig, error) {
 
 // attachHostNotes 把本机备注合并进 HostConfig.Note（不改 ssh config；不下发密码）
 func (s *Hosts) attachHostNotes(hosts []sshconfig.HostConfig) []sshconfig.HostConfig {
-	if s.hostMeta == nil || len(hosts) == 0 {
+	if len(hosts) == 0 {
 		return hosts
 	}
 	out := make([]sshconfig.HostConfig, len(hosts))
 	copy(out, hosts)
 	for i := range out {
-		out[i].Note = s.hostMeta.GetNote(out[i].Name)
+		if (*App)(s).panelStore == nil && s.hostMeta != nil {
+			out[i].Note = s.hostMeta.GetNote(out[i].Name)
+		}
 		out[i].Password = "" // 列表不下发密码
 	}
 	return out
@@ -50,6 +53,13 @@ func (s *Hosts) attachHostNotes(hosts []sshconfig.HostConfig) []sshconfig.HostCo
 // 默认过滤掉 Git 托管服务（github.com / gitee.com 等）
 // 这些通常不是用户想要管理的"服务器"
 func (s *Hosts) ListHosts() ([]sshconfig.HostConfig, error) {
+	if (*App)(s).panelStore != nil {
+		hosts, err := (*App)(s).panelHostConfigs(false)
+		if err != nil {
+			return nil, err
+		}
+		return s.attachHostNotes(hosts), nil
+	}
 	hosts, err := listNonGitHosts()
 	if err != nil {
 		return nil, err
@@ -60,6 +70,13 @@ func (s *Hosts) ListHosts() ([]sshconfig.HostConfig, error) {
 // ListHostsAll 返回所有 Host 条目（包括 Git 服务）
 // 供前端「显示 Git 服务」开关使用
 func (s *Hosts) ListHostsAll() ([]sshconfig.HostConfig, error) {
+	if (*App)(s).panelStore != nil {
+		hosts, err := (*App)(s).panelHostConfigs(true)
+		if err != nil {
+			return nil, err
+		}
+		return s.attachHostNotes(hosts), nil
+	}
 	hosts, err := sshconfig.Parse()
 	if err != nil {
 		return nil, err
@@ -79,11 +96,11 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
 		return fmt.Errorf("别名、IP、用户、密码均不能为空")
 	}
-	if strings.ContainsAny(input.Name, " \t*") {
+	if strings.ContainsAny(input.Name, " \t\r\n*") {
 		return fmt.Errorf("别名不能包含空格或通配符 *")
 	}
 	// 校验别名是否已存在
-	hosts, err := sshconfig.Parse()
+	hosts, err := s.ListHostsAll()
 	if err != nil {
 		return fmt.Errorf("读取 ssh config 失败: %w", err)
 	}
@@ -92,9 +109,8 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 			return fmt.Errorf("别名 %s 已存在，请换一个", input.Name)
 		}
 	}
-	// 复用 CopySSHID：密码连接 → 推送公钥 → 回写 config（含 IdentityFile）
-	// 密码连接本身就是一次验证；失败则不会写 config
-	_, err = s.CopySSHID(CopyIDInput{
+	// 密码连接本身就是一次验证；失败则不会修改 Panel JSON。
+	copyInput := CopyIDInput{
 		Name:          input.Name,
 		HostName:      input.HostName,
 		User:          input.User,
@@ -102,11 +118,23 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 		Password:      input.Password,
 		PublicKeyFile: "~/.ssh/id_ed25519.pub",
 		IdentityFile:  "~/.ssh/id_ed25519",
-	})
-	if err != nil {
+	}
+	if err := s.installSSHID(copyInput); err != nil {
 		return err
 	}
-	if s.hostMeta != nil {
+	if a := (*App)(s); a.panelStore != nil {
+		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
+			state.Hosts = append(state.Hosts, panelstore.PanelHost{
+				Alias: input.Name, HostName: input.HostName, User: input.User,
+				Port: "22", Password: input.Password, Note: input.Note,
+				IdentityFiles: []string{"~/.ssh/id_ed25519"},
+			})
+			return nil
+		}); err != nil {
+			return fmt.Errorf("保存 Panel 主机失败: %w", err)
+		}
+	}
+	if (*App)(s).panelStore == nil && s.hostMeta != nil {
 		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
 			application.Get().Logger.Warn("保存主机备注失败", "error", err)
 		}
@@ -152,8 +180,19 @@ func (s *Hosts) TestConnection(input AddHostInput) (string, error) {
 // RenameHost 修改 ~/.ssh/config 里 Host 的别名
 // 同时同步 groups.json 里的引用，并关闭旧名的 SSH 连接（避免连接池残留）
 func (s *Hosts) RenameHost(oldName, newName string) error {
+	oldName = strings.TrimSpace(oldName)
+	newName = strings.TrimSpace(newName)
+	if oldName == "" || newName == "" {
+		return fmt.Errorf("主机别名不能为空")
+	}
+	if strings.ContainsAny(newName, " \t\r\n*?#") {
+		return fmt.Errorf("新别名不能包含空格、通配符或注释字符")
+	}
+	if oldName == newName {
+		return nil
+	}
 	// 先校验 newName 不与已有别名重复
-	hosts, err := sshconfig.Parse()
+	hosts, err := s.ListHostsAll()
 	if err != nil {
 		return err
 	}
@@ -162,8 +201,19 @@ func (s *Hosts) RenameHost(oldName, newName string) error {
 			return fmt.Errorf("别名 %s 已存在", newName)
 		}
 	}
-	// 改 ssh config
-	if err := sshconfig.RenameHost(oldName, newName); err != nil {
+	if a := (*App)(s); a.panelStore != nil {
+		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
+			for i := range state.Hosts {
+				if state.Hosts[i].Alias == oldName {
+					state.Hosts[i].Alias = newName
+					return nil
+				}
+			}
+			return fmt.Errorf("未找到主机别名: %s", oldName)
+		}); err != nil {
+			return err
+		}
+	} else if err := sshconfig.RenameHost(oldName, newName); err != nil {
 		return err
 	}
 	// 同步分组引用
@@ -177,7 +227,7 @@ func (s *Hosts) RenameHost(oldName, newName string) error {
 			application.Get().Logger.Warn("同步主机图标失败", "error", err)
 		}
 	}
-	if s.hostMeta != nil {
+	if (*App)(s).panelStore == nil && s.hostMeta != nil {
 		if err := s.hostMeta.Rename(oldName, newName); err != nil {
 			application.Get().Logger.Warn("同步主机备注失败", "error", err)
 		}
@@ -197,9 +247,9 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 		return fmt.Errorf("别名、IP、用户、密码均不能为空")
 	}
 
-	hosts, err := sshconfig.Parse()
+	hosts, err := s.ListHostsAll()
 	if err != nil {
-		return fmt.Errorf("读取 ssh config 失败: %w", err)
+		return fmt.Errorf("读取 Panel 主机失败: %w", err)
 	}
 	found := false
 	for _, h := range hosts {
@@ -243,14 +293,30 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 		return fmt.Errorf("安装公钥失败: %w", err)
 	}
 
-	// 3) 原地更新 config 字段（IdentityFile 等其它行保持不动）
-	if err := sshconfig.UpdateHostFields(input.Name, input.HostName, input.User); err != nil {
+	// 3) 先更新 JSON，再由 JSON 生成 config；IdentityFile、分组和高级选项
+	// 都从原 PanelHost 保留，不再对 config 做局部原地改写。
+	if a := (*App)(s); a.panelStore != nil {
+		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
+			for i := range state.Hosts {
+				if state.Hosts[i].Alias == input.Name {
+					state.Hosts[i].HostName = input.HostName
+					state.Hosts[i].User = input.User
+					state.Hosts[i].Password = input.Password
+					state.Hosts[i].Note = input.Note
+					return nil
+				}
+			}
+			return fmt.Errorf("未找到 Panel 主机: %s", input.Name)
+		}); err != nil {
+			return err
+		}
+	} else if err := sshconfig.UpdateHostFields(input.Name, input.HostName, input.User); err != nil {
 		return err
 	}
 
 	// 关闭旧连接，下次用新参数重连
 	s.sshMgr.Close(input.Name)
-	if s.hostMeta != nil {
+	if (*App)(s).panelStore == nil && s.hostMeta != nil {
 		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
 			application.Get().Logger.Warn("保存主机备注失败", "error", err)
 		}
@@ -267,6 +333,17 @@ func (s *Hosts) SetHostNote(name, note string) error {
 	if name == "" {
 		return fmt.Errorf("主机别名不能为空")
 	}
+	if a := (*App)(s); a.panelStore != nil {
+		return a.updatePanelState(func(state *panelstore.State) error {
+			for i := range state.Hosts {
+				if state.Hosts[i].Alias == name {
+					state.Hosts[i].Note = note
+					return nil
+				}
+			}
+			return fmt.Errorf("未找到主机: %s", name)
+		})
+	}
 	if s.hostMeta == nil {
 		return fmt.Errorf("主机备注存储未初始化")
 	}
@@ -278,6 +355,12 @@ func (s *Hosts) GetHostPassword(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", fmt.Errorf("主机别名不能为空")
+	}
+	if (*App)(s).panelStore != nil {
+		if h, ok := (*App)(s).panelStore.GetHost(name); ok {
+			return h.Password, nil
+		}
+		return "", nil
 	}
 	if s.hostMeta == nil {
 		return "", nil
@@ -291,7 +374,7 @@ func (s *Hosts) FormatHostInfo(name string) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("主机别名不能为空")
 	}
-	hosts, err := sshconfig.Parse()
+	hosts, err := s.ListHostsAll()
 	if err != nil {
 		return "", fmt.Errorf("读取 ssh config 失败: %w", err)
 	}
@@ -307,7 +390,12 @@ func (s *Hosts) FormatHostInfo(name string) (string, error) {
 	}
 	password := ""
 	note := ""
-	if s.hostMeta != nil {
+	if (*App)(s).panelStore != nil {
+		if h, ok := (*App)(s).panelStore.GetHost(name); ok {
+			password = h.Password
+			note = h.Note
+		}
+	} else if s.hostMeta != nil {
 		password = s.hostMeta.GetPassword(name)
 		note = s.hostMeta.GetNote(name)
 	}
@@ -317,13 +405,32 @@ func (s *Hosts) FormatHostInfo(name string) (string, error) {
 	), nil
 }
 
-// DeleteHost 从 ~/.ssh/config 删除主机别名，并清理分组引用与连接池
+// DeleteHost 从 Panel JSON 删除主机别名，再生成 OpenSSH 配置，并清理分组引用与连接池
 func (s *Hosts) DeleteHost(name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return fmt.Errorf("主机别名不能为空")
 	}
-	if err := sshconfig.DeleteHost(name); err != nil {
+	if a := (*App)(s); a.panelStore != nil {
+		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
+			found := false
+			out := state.Hosts[:0]
+			for _, h := range state.Hosts {
+				if h.Alias == name {
+					found = true
+					continue
+				}
+				out = append(out, h)
+			}
+			if !found {
+				return fmt.Errorf("未找到主机: %s", name)
+			}
+			state.Hosts = out
+			return nil
+		}); err != nil {
+			return err
+		}
+	} else if err := sshconfig.DeleteHost(name); err != nil {
 		return err
 	}
 	// 从所有分组中移除
@@ -346,7 +453,8 @@ func (s *Hosts) DeleteHost(name string) error {
 	return nil
 }
 
-// CopySSHID 把本机公钥安装到远程主机的 authorized_keys
+// CopySSHID 把本机公钥安装到远程主机的 authorized_keys，并把结果写入
+// Panel JSON；OpenSSH 配置仍由 JSON 统一生成。
 // 步骤：
 //  1. 读 ~/.ssh/id_ed25519.pub（不存在则提示用户先生成）
 //  2. 用密码连一次目标主机
@@ -354,38 +462,67 @@ func (s *Hosts) DeleteHost(name string) error {
 //  4. 关闭连接
 //  5. 回写 ~/.ssh/config（追加 Host 块）
 func (s *Hosts) CopySSHID(input CopyIDInput) (string, error) {
+	if err := s.installSSHID(input); err != nil {
+		return "", err
+	}
+
+	if a := (*App)(s); a.panelStore != nil {
+		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
+			for i := range state.Hosts {
+				if state.Hosts[i].Alias == input.Name {
+					state.Hosts[i].HostName = input.HostName
+					state.Hosts[i].User = input.User
+					state.Hosts[i].Port = input.Port
+					state.Hosts[i].Password = input.Password
+					state.Hosts[i].IdentityFiles = []string{input.IdentityFile}
+					return nil
+				}
+			}
+			state.Hosts = append(state.Hosts, panelstore.PanelHost{
+				Alias: input.Name, HostName: input.HostName, User: input.User,
+				Port: input.Port, Password: input.Password,
+				IdentityFiles: []string{input.IdentityFile},
+			})
+			return nil
+		}); err != nil {
+			return "", fmt.Errorf("保存 Panel 主机失败: %w", err)
+		}
+	} else {
+		cfg := sshconfig.HostConfig{
+			Name: input.Name, HostName: input.HostName, User: input.User,
+			Port: input.Port, IdentityFile: input.IdentityFile,
+		}
+		if err := sshconfig.AppendHost(cfg); err != nil {
+			return "", fmt.Errorf("公钥已安装但回写 ssh config 失败: %w", err)
+		}
+	}
+	return "ok", nil
+}
+
+// installSSHID only performs the remote credential operation. Keeping it
+// separate prevents AddHost from accidentally generating config twice.
+func (s *Hosts) installSSHID(input CopyIDInput) error {
+	if strings.TrimSpace(input.Name) == "" || strings.ContainsAny(input.Name, " \t\r\n*?#") {
+		return fmt.Errorf("主机别名无效")
+	}
 	if input.PublicKeyFile == "" {
-		return "", fmt.Errorf("公钥路径不能为空")
+		return fmt.Errorf("公钥路径不能为空")
 	}
 	pub, err := readPublicKey(input.PublicKeyFile)
 	if err != nil {
-		return "", err
+		return err
+	}
+	if input.Port == "" {
+		input.Port = "22"
 	}
 	opt := sshd.ConnectOption{
-		Host:     input.Name,
-		HostName: input.HostName,
-		User:     input.User,
-		Port:     input.Port,
-		Password: input.Password,
+		Host: input.Name, HostName: input.HostName, User: input.User,
+		Port: input.Port, Password: input.Password,
 	}
-	// 安装公钥
 	script := fmt.Sprintf(`mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys`, pub)
 	if _, err := s.sshMgr.Run(input.Name, opt, script); err != nil {
-		return "", fmt.Errorf("安装公钥失败: %w", err)
+		return fmt.Errorf("安装公钥失败: %w", err)
 	}
-	// 关闭密码连接，避免后续用密钥时复用错误的连接
 	s.sshMgr.Close(input.Name)
-
-	// 回写 ~/.ssh/config
-	cfg := sshconfig.HostConfig{
-		Name:         input.Name,
-		HostName:     input.HostName,
-		User:         input.User,
-		Port:         input.Port,
-		IdentityFile: input.IdentityFile,
-	}
-	if err := sshconfig.AppendHost(cfg); err != nil {
-		return "", fmt.Errorf("公钥已安装但回写 ssh config 失败: %w", err)
-	}
-	return "ok", nil
+	return nil
 }

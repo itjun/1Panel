@@ -20,7 +20,7 @@ var bootstrapZshScript []byte
 // BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
 // 实际执行交给前端终端(实时显示输出),执行完由终端命令清理临时脚本。
 func (s *System) BootstrapZsh(host string) (string, error) {
-	opt, err := connectOptionFor(host)
+	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return "", err
 	}

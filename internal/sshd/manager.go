@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // 连接超时：覆盖 TCP 建连 + SSH 握手/认证全过程
@@ -65,12 +68,18 @@ func NewManager() *Manager {
 
 // ConnectOption 建立连接的可选项
 type ConnectOption struct {
-	Host         string // ssh config 里的 Host 别名（或直接 IP）
-	HostName     string // 实际 IP/域名
-	User         string
-	Port         string // 留空则 22
-	IdentityFile string
-	Password     string // 与 IdentityFile 二选一；也可同时给（密钥优先）
+	Host          string // ssh config 里的 Host 别名（或直接 IP）
+	HostName      string // 实际 IP/域名
+	User          string
+	Port          string // 留空则 22
+	IdentityFile  string
+	IdentityFiles []string // 多个 IdentityFile；IdentityFile 保留兼容旧调用方
+	HostKeyAlgos  string   // 逗号分隔的 SSH host-key 算法；空值使用 Go SSH 默认值
+	ProxyJump     string   // 可选跳板机；当前 Go 直连器保留该信息供上层适配
+	ProxyCommand  string   // Go 连接器不执行任意 shell 命令；非空时显式报错
+	IdentityAgent string   // Unix SSH agent socket；为空时尝试 SSH_AUTH_SOCK
+	ForwardAgent  bool
+	Password      string // 与 IdentityFile 二选一；也可同时给（密钥优先）
 }
 
 // Get 返回一个 host 对应的 ssh.Client；若不存在则建立
@@ -316,10 +325,28 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 		return nil, fmt.Errorf("User 不能为空")
 	}
 
+	if opt.ProxyCommand != "" {
+		return nil, fmt.Errorf("主机 %s 使用了 ProxyCommand，Go 连接器不执行任意命令；请改用系统 SSH 终端或配置可用的 ProxyJump", opt.Host)
+	}
+	if opt.ForwardAgent {
+		return nil, fmt.Errorf("主机 %s 启用了 ForwardAgent；Go 连接器暂不提供 agent 转发，请使用原生 SSH 终端", opt.Host)
+	}
+
 	var auths []ssh.AuthMethod
-	// 1. 密钥优先
+	// 1. 密钥优先。OpenSSH 允许多个 IdentityFile；旧调用方仍可使用
+	// IdentityFile 单值字段，Panel JSON 则通过 IdentityFiles 传完整列表。
+	identityPaths := append([]string{}, opt.IdentityFiles...)
 	if opt.IdentityFile != "" {
-		if signer := loadSigner(opt.IdentityFile); signer != nil {
+		identityPaths = append([]string{opt.IdentityFile}, identityPaths...)
+	}
+	seenIdentity := map[string]bool{}
+	for _, path := range identityPaths {
+		path = strings.TrimSpace(path)
+		if path == "" || seenIdentity[path] {
+			continue
+		}
+		seenIdentity[path] = true
+		if signer := loadSigner(path); signer != nil {
 			auths = append(auths, ssh.PublicKeys(signer))
 		}
 	}
@@ -340,8 +367,29 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 			},
 		))
 	}
+	var agentConn net.Conn
+	agentPath := strings.TrimSpace(opt.IdentityAgent)
+	if agentPath == "$SSH_AUTH_SOCK" || agentPath == "${SSH_AUTH_SOCK}" {
+		agentPath = os.Getenv("SSH_AUTH_SOCK")
+	}
+	if agentPath == "" && opt.Password == "" && len(identityPaths) == 0 {
+		agentPath = os.Getenv("SSH_AUTH_SOCK")
+	}
+	if agentPath != "" && !strings.EqualFold(agentPath, "none") {
+		var err error
+		agentConn, err = net.DialTimeout("unix", agentPath, 2*time.Second)
+		if err == nil {
+			auths = append(auths, ssh.PublicKeysCallback(agent.NewClient(agentConn).Signers))
+		}
+	}
 	if len(auths) == 0 {
+		if agentConn != nil {
+			_ = agentConn.Close()
+		}
 		return nil, fmt.Errorf("没有可用的认证方式（密钥或密码）")
+	}
+	if agentConn != nil {
+		defer agentConn.Close()
 	}
 
 	config := &ssh.ClientConfig{
@@ -350,10 +398,23 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 		Timeout:         tcpConnectTimeout,           // 仅 TCP；完整握手见下方 SetDeadline
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // 内部工具，不做 host key 校验
 	}
+	if strings.TrimSpace(opt.HostKeyAlgos) != "" {
+		algorithms, err := parseHostKeyAlgorithms(opt.HostKeyAlgos)
+		if err != nil {
+			return nil, err
+		}
+		config.HostKeyAlgorithms = algorithms
+	}
 	addr := net.JoinHostPort(opt.HostName, port)
 
-	raw, err := dialTCPOnce(addr)
-	if err != nil && shouldRetryLAN(addr, err) {
+	var raw net.Conn
+	var err error
+	if opt.ProxyJump != "" {
+		raw, err = dialProxyJump(addr, opt.ProxyJump)
+	} else {
+		raw, err = dialTCPOnce(addr)
+	}
+	if err != nil && opt.ProxyJump == "" && shouldRetryLAN(addr, err) {
 		TriggerLocalNetworkPrivacy()
 		raw, err = retryDialTCP(addr)
 	}
@@ -373,6 +434,24 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 	return ssh.NewClient(cc, chans, reqs), nil
 }
 
+func parseHostKeyAlgorithms(value string) ([]string, error) {
+	var algorithms []string
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if strings.HasPrefix(item, "+") || strings.HasPrefix(item, "-") || strings.HasPrefix(item, "^") {
+			return nil, fmt.Errorf("Go SSH 暂不支持 HostKeyAlgorithms 修饰符: %s", item)
+		}
+		algorithms = append(algorithms, item)
+	}
+	if len(algorithms) == 0 {
+		return nil, fmt.Errorf("HostKeyAlgorithms 为空")
+	}
+	return algorithms, nil
+}
+
 func loadSigner(path string) ssh.Signer {
 	if strings.HasPrefix(path, "~/") {
 		home, _ := os.UserHomeDir()
@@ -388,3 +467,69 @@ func loadSigner(path string) ssh.Signer {
 	}
 	return signer
 }
+
+// dialProxyJump uses the system ssh only as a byte transport. It keeps all
+// arbitrary OpenSSH command semantics out of the Go connector while still
+// making a simple ProxyJump usable by Monitor/SFTP/Agent.
+func dialProxyJump(addr, jump string) (net.Conn, error) {
+	jump = strings.TrimSpace(jump)
+	if jump == "" {
+		return nil, fmt.Errorf("ProxyJump 不能为空")
+	}
+	if strings.Contains(jump, ",") {
+		return nil, fmt.Errorf("暂不支持多级 ProxyJump: %s", jump)
+	}
+	cmd := exec.Command("ssh", "-T", "-o", "ConnectTimeout=15", "-W", addr, "--", jump)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("创建 ProxyJump stdin 失败: %w", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return nil, fmt.Errorf("创建 ProxyJump stdout 失败: %w", err)
+	}
+	cmd.Stderr = io.Discard
+	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		return nil, fmt.Errorf("启动 ProxyJump 失败: %w", err)
+	}
+	return &proxyJumpConn{cmd: cmd, reader: stdout, writer: stdin}, nil
+}
+
+type proxyJumpConn struct {
+	cmd    *exec.Cmd
+	reader io.ReadCloser
+	writer io.WriteCloser
+	once   sync.Once
+}
+
+func (c *proxyJumpConn) Read(p []byte) (int, error)  { return c.reader.Read(p) }
+func (c *proxyJumpConn) Write(p []byte) (int, error) { return c.writer.Write(p) }
+func (c *proxyJumpConn) LocalAddr() net.Addr         { return proxyJumpAddr("local") }
+func (c *proxyJumpConn) RemoteAddr() net.Addr        { return proxyJumpAddr("proxy") }
+func (c *proxyJumpConn) SetDeadline(time.Time) error { return nil }
+func (c *proxyJumpConn) SetReadDeadline(time.Time) error {
+	return nil
+}
+func (c *proxyJumpConn) SetWriteDeadline(time.Time) error {
+	return nil
+}
+func (c *proxyJumpConn) Close() error {
+	var result error
+	c.once.Do(func() {
+		_ = c.writer.Close()
+		_ = c.reader.Close()
+		if c.cmd.Process != nil {
+			_ = c.cmd.Process.Kill()
+		}
+		result = c.cmd.Wait()
+	})
+	return result
+}
+
+type proxyJumpAddr string
+
+func (a proxyJumpAddr) Network() string { return "ssh-proxy" }
+func (a proxyJumpAddr) String() string  { return string(a) }

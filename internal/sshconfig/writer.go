@@ -79,6 +79,19 @@ func renderHostBlock(cfg HostConfig) string {
 		b.WriteString(cfg.ProxyJump)
 		b.WriteString("\n")
 	}
+	if cfg.ProxyCommand != "" {
+		b.WriteString("    ProxyCommand ")
+		b.WriteString(cfg.ProxyCommand)
+		b.WriteString("\n")
+	}
+	if cfg.IdentityAgent != "" {
+		b.WriteString("    IdentityAgent ")
+		b.WriteString(cfg.IdentityAgent)
+		b.WriteString("\n")
+	}
+	if cfg.ForwardAgent {
+		b.WriteString("    ForwardAgent yes\n")
+	}
 	if cfg.HostKeyAlgos != "" {
 		b.WriteString("    HostKeyAlgorithms ")
 		b.WriteString(cfg.HostKeyAlgos)
@@ -117,13 +130,14 @@ func backup(path string) error {
 // 行为：
 //   - 只改 Host 行（其它字段不动）；Host 行可能有多个别名，只替换匹配的那一个 token
 //   - 写入前自动备份
+//
 // 校验：
 //   - newName 不能为空、不能含空格/制表符、不能含通配符 *
 func RenameHost(oldName, newName string) error {
 	if oldName == "" || newName == "" {
 		return fmt.Errorf("名称不能为空")
 	}
-	if strings.ContainsAny(newName, " \t*") {
+	if strings.ContainsAny(newName, " \t\r\n*") {
 		return fmt.Errorf("新别名不能包含空格或通配符 *")
 	}
 	if oldName == newName {
