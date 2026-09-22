@@ -21,7 +21,13 @@ buildSync({
 });
 
 const require = createRequire(import.meta.url);
-const { isTermAppShortcut, ctrlLetter, shouldCloseDeskOnLastPane, TERM_EOF } = require(outfile);
+const {
+  isTermAppShortcut,
+  isTermNewShortcut,
+  ctrlLetter,
+  shouldCloseDeskOnLastPane,
+  TERM_EOF,
+} = require(outfile);
 
 assert.strictEqual(isTermAppShortcut({ metaKey: true, ctrlKey: false }, true), true);
 assert.strictEqual(isTermAppShortcut({ metaKey: false, ctrlKey: true }, true), false);
@@ -29,6 +35,11 @@ assert.strictEqual(isTermAppShortcut({ metaKey: true, ctrlKey: true }, true), fa
 assert.strictEqual(isTermAppShortcut({ metaKey: false, ctrlKey: true, shiftKey: false }, false), false);
 assert.strictEqual(isTermAppShortcut({ metaKey: false, ctrlKey: true, shiftKey: true }, false), true);
 assert.strictEqual(isTermAppShortcut({ metaKey: true, ctrlKey: false }, false), false);
+assert.strictEqual(isTermNewShortcut({ metaKey: true, ctrlKey: false, shiftKey: false, code: "KeyT" }, true), true);
+assert.strictEqual(isTermNewShortcut({ metaKey: false, ctrlKey: true, shiftKey: false, code: "KeyT" }, true), false);
+assert.strictEqual(isTermNewShortcut({ metaKey: false, ctrlKey: true, shiftKey: false, code: "KeyT" }, false), true);
+assert.strictEqual(isTermNewShortcut({ metaKey: true, ctrlKey: false, shiftKey: false, code: "KeyT" }, false), false);
+assert.strictEqual(isTermNewShortcut({ metaKey: false, ctrlKey: true, shiftKey: true, code: "KeyT" }, false), false);
 
 assert.strictEqual(ctrlLetter({ ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, key: "d" }), "\x04");
 assert.strictEqual(ctrlLetter({ ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, key: "c" }), "\x03");

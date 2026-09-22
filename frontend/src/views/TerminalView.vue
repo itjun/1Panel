@@ -173,6 +173,7 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import "@xterm/xterm/css/xterm.css";
 import { Events, Window } from "@wailsio/runtime";
 import { noteListener, noteTerm, noteWebgl } from "@/utils/uxPerf";
@@ -293,6 +294,7 @@ interface Session {
   eventName: string;
   term: XTerm;
   fit: FitAddon;
+  serialize: SerializeAddon;
   closed: boolean;
   reconnecting: boolean;
   el: HTMLDivElement;
@@ -340,10 +342,11 @@ const sessions = shallowRef<Session[]>([]);
 let seq = 0;
 function newPaneId(): string {
   seq += 1;
-  return `pane-${Date.now()}-${seq}`;
+  return `pane-${app.windowId}-${Date.now()}-${seq}`;
 }
 const savedLayout = app.consumeWorkspaceLayout(props.workspaceSessionId);
 const pendingTree = app.consumePendingTree(props.workspaceSessionId);
+const pendingTransfer = app.consumePendingTransfer(props.workspaceSessionId);
 function initialTree(): PaneNode {
   if (pendingTree) return pendingTree;
   if (savedLayout?.tree) return savedLayout.tree;
@@ -677,6 +680,8 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
 
   const id = paneId;
   const eventName = `term:${id}`;
+  const transfer = pendingTransfer?.paneId === id ? pendingTransfer : null;
+  let transferRestored = false;
 
   const term = new XTerm({
     cursorBlink: true,
@@ -690,7 +695,9 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     allowProposedApi: true,
   });
   const fit = new FitAddon();
+  const serialize = new SerializeAddon();
   term.loadAddon(fit);
+  term.loadAddon(serialize);
   term.loadAddon(new WebLinksAddon());
 
   // 先挂到当前槽位并立刻登记。await 之前不登记的话，分屏换槽会被 opening 标志吃掉，
@@ -711,6 +718,7 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     eventName,
     term,
     fit,
+    serialize,
     closed: false,
     reconnecting: false,
     el,
@@ -793,14 +801,31 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
     try {
       // 数据通道：独立 SSH 连接；本地专属 WebSocket 建立后优先走流通道
       const host = liveState(id)?.host || hostOf(paneTree.value, paneId) || props.host;
-      const sid = await api.openTerminal(host, eventName, c, r);
+      const sid =
+        transfer && !transferRestored
+          ? transfer.sessionId
+          : await api.openTerminal(host, eventName, c, r);
       if (ctl.stopped) {
         if (sid) api.closeTerminal(sid).catch(() => {});
         return;
       }
       patchSession(id, { sessionID: sid, closed: false, reconnecting: false });
-      // 一个 PTY 对应一个本地 WebSocket；连接建立与 SSH 会话并行，不阻塞首屏连接。
-      void connectTermStream(sid, id);
+      // 一个 PTY 对应一个本地 WebSocket；移动会话时先建立目标订阅，
+      // 再恢复 xterm 画面并释放后端交接缓存，保证输出不会落到旧窗或目标之前。
+      if (transfer && !transferRestored) {
+        await connectTermStream(sid, id);
+        transferRestored = true;
+        const transferId = transfer.transferId || "";
+        const complete = () => {
+          void api.completeTerminalTransfer(transferId).catch(() => {
+            void api.cancelTerminalTransfer(transferId).catch(() => {});
+          });
+        };
+        if (transfer.snapshot) term.write(transfer.snapshot, complete);
+        else complete();
+      } else {
+        void connectTermStream(sid, id);
+      }
       // 重连成功后补一次探测标记：挂载时的 settle 只跑一次，
       // 不补的话窗格状态徽标会一直停在「连接中」误导使用者
       writeProbe(id, { probed: true });
@@ -828,6 +853,9 @@ async function openNew(container: HTMLElement, paneId: string, takePending: bool
         }, 1200);
       }
     } catch (e) {
+      if (transfer && !transferRestored) {
+        void api.cancelTerminalTransfer(transfer.transferId || "").catch(() => {});
+      }
       if (ctl.stopped) return;
       if (first) term.write(`\x1b[31m连接失败: ${e}\x1b[0m\r\n`);
       scheduleReconnect();
@@ -997,6 +1025,11 @@ async function destroySession(t: Session) {
   if (t.webgl) noteWebgl(-1);
   try {
     t.term.dispose();
+  } catch {
+    /* ignore */
+  }
+  try {
+    t.serialize.dispose();
   } catch {
     /* ignore */
   }
@@ -1318,6 +1351,90 @@ function detachFocused() {
   syncMergedTitle();
   app.openDetachedDesk(host, id);
   ElMessage.success("已把这个窗格移成独立会话，连接没有重开");
+}
+
+async function moveFocusedToWindow(
+  targetWindowId = "",
+  targetDeskId = "",
+  insertBefore = false,
+) {
+  const id = focusedPaneId.value;
+  const s = sessions.value.find((item) => item.id === id);
+  const sid = s?.sessionID || sidOf(id);
+  if (!s || !sid) {
+    ElMessage.warning("当前窗格还没有可移动的 SSH 会话");
+    return;
+  }
+  const host = s.host || hostOf(paneTree.value, id) || props.host;
+  let snapshot = "";
+  try {
+    snapshot = s.serialize.serialize();
+  } catch {
+    /* 序列化失败时仍保留 SSH 会话，目标窗口会从实时输出继续接管。 */
+  }
+  const desk = app.terminalDesks.find((item) => item.id === props.workspaceSessionId);
+  let transferId = "";
+  try {
+    transferId = await api.beginTerminalTransfer({
+      sessionId: sid,
+      host,
+      paneId: id,
+      title: desk?.title || "",
+      titleCustom: desk?.titleCustom === true,
+      snapshot,
+      cols: s.term.cols,
+      rows: s.term.rows,
+    });
+    if (!transferId) throw new Error("后端没有返回交接 ID");
+    await api.openTerminalWindow({
+      action: "move-transfer",
+      windowId: targetWindowId.trim(),
+      transferId,
+      targetDeskId: targetDeskId.trim(),
+      insertBefore,
+    });
+  } catch (err) {
+    if (transferId) void api.cancelTerminalTransfer(transferId).catch(() => {});
+    ElMessage.error(`移动终端失败：${formatErr(err)}`);
+    return;
+  }
+
+  const ctl = reconnectMap.get(id);
+  if (ctl) {
+    ctl.stopped = true;
+    if (ctl.timer) clearTimeout(ctl.timer);
+    reconnectMap.delete(id);
+  }
+  dropWebgl(s);
+  clearEchoStats(id);
+  unregisterPane(id);
+  s.offData?.();
+  s.offExit?.();
+  closeTermStream(sid);
+  parkTermEl(s.el);
+  forgetSession(id);
+  openingIds.delete(id);
+  sessions.value = sessions.value.filter((item) => item.id !== id);
+  try {
+    s.term.dispose();
+    s.serialize.dispose();
+  } catch {
+    /* ignore */
+  }
+  noteTerm(-1);
+
+  const nextTree = removeLeaf(paneTree.value, id);
+  if (nextTree) {
+    paneTree.value = nextTree;
+    const remain = orderedLeaves(nextTree);
+    focusedPaneId.value = remain[0] || "";
+    syncMergedTitle();
+    scheduleFitAll();
+  } else {
+    app.removeTerminalDeskAfterMove(props.workspaceSessionId, host);
+    if (app.isTerminalWindow) void api.hideTerminalWindow(app.windowId);
+  }
+  ElMessage.success("已移动到目标终端窗口，SSH 会话保持连接");
 }
 
 async function closePane(id: string) {
@@ -1773,6 +1890,22 @@ watch(
     if (name === "close-pane") void closePane(focusedPaneId.value);
     if (name === "detach") detachFocused();
     if (name === "reconnect") reconnectAllPanes();
+    if (name === "duplicate-current") {
+      const host = hostOf(paneTree.value, focusedPaneId.value) || props.host;
+      app.openAnotherTerminal(host);
+    }
+    if (name === "duplicate-new-window") {
+      const host = hostOf(paneTree.value, focusedPaneId.value) || props.host;
+      void api.openTerminalWindow({ action: "duplicate", host });
+    }
+    if (name === "move-new-window") void moveFocusedToWindow();
+    if (name === "move-to-window") {
+      void moveFocusedToWindow(
+        app.termActionPayload.targetWindowId || "",
+        app.termActionPayload.targetDeskId || "",
+        app.termActionPayload.insertBefore === "1",
+      );
+    }
   }
 );
 

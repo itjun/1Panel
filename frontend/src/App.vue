@@ -1,6 +1,6 @@
 <template>
   <el-config-provider :locale="zhCn" size="default">
-    <div class="app-shell">
+    <div class="app-shell" @dragover="onTerminalWindowDragOver" @drop="onTerminalWindowDrop">
     <div
       class="app-chrome"
       :class="{
@@ -144,8 +144,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref,
 import { ElMessage } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { api } from "@/api";
+import type { main } from "@/api";
 import { Events, Window } from "@wailsio/runtime";
-import { useAppStore, UNGROUPED_ID } from "@/stores/app";
+import { useAppStore, UNGROUPED_ID, type SubTab } from "@/stores/app";
 import { useAlertHistoryStore } from "@/stores/alertHistory";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr } from "@/utils/format";
@@ -174,7 +175,7 @@ import {
 } from "@/utils/certAlerts";
 import { useLocalMetricsStore } from "@/stores/localMetrics";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
-import { isTermAppShortcut } from "@/utils/termKeys";
+import { isTermAppShortcut, isTermNewShortcut } from "@/utils/termKeys";
 import { parseAppAlertKind } from "@/utils/watchServices";
 import { Folder, Monitor } from "@element-plus/icons-vue";
 
@@ -200,6 +201,36 @@ const form = reactive({
   password: "",
   note: "",
 });
+
+type TerminalDeskDrag = { sourceWindowId?: string; sourceDeskId?: string };
+
+function readTerminalDeskDrag(e: DragEvent): TerminalDeskDrag | null {
+  const raw = e.dataTransfer?.getData("application/x-terminal-desk") || "";
+  if (!raw) return null;
+  try {
+    const payload = JSON.parse(raw) as TerminalDeskDrag;
+    return payload.sourceDeskId ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+function onTerminalWindowDragOver(e: DragEvent) {
+  if (!Array.from(e.dataTransfer?.types || []).includes("application/x-terminal-desk")) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+}
+
+function onTerminalWindowDrop(e: DragEvent) {
+  const payload = readTerminalDeskDrag(e);
+  if (!payload || payload.sourceWindowId === app.windowId) return;
+  e.preventDefault();
+  void Events.Emit("terminal-window-drop", {
+    sourceWindowId: payload.sourceWindowId || "",
+    sourceDeskId: payload.sourceDeskId || "",
+    targetWindowId: app.windowId,
+  });
+}
 
 /** 打开添加弹窗：优先用右键传入的分组，否则按当前分组 tab 预选 */
 watch(addHostOpen, (open) => {
@@ -343,6 +374,17 @@ function onGlobalKeydown(e: KeyboardEvent) {
     app.workspace === "terminal" &&
     !app.settingsOpen &&
     !isTypingAside(e) &&
+    isTermNewShortcut(e, isMac)
+  ) {
+    e.preventDefault();
+    app.runTermAction("new");
+    return;
+  }
+
+  if (
+    app.workspace === "terminal" &&
+    !app.settingsOpen &&
+    !isTypingAside(e) &&
     isTermAppShortcut(e, isMac)
   ) {
     if (e.shiftKey && e.code === "KeyL") {
@@ -368,11 +410,6 @@ function onGlobalKeydown(e: KeyboardEvent) {
     if (!e.shiftKey && e.code === "KeyD") {
       e.preventDefault();
       app.runTermAction("split-right");
-      return;
-    }
-    if (!e.shiftKey && e.code === "KeyT") {
-      e.preventDefault();
-      app.runTermAction("new");
       return;
     }
     if (!e.shiftKey && e.code === "KeyW") {
@@ -570,6 +607,82 @@ onMounted(() => {
       app.openHostTab(name, "monitor");
       void api.focusMainWindow();
     })
+  );
+  // 原生菜单快捷键只操作主窗口内嵌终端，不自动创建独立终端窗。
+  eventOffs.push(
+    Events.On("main-terminal-action", (ev: { data?: unknown }) => {
+      const action = typeof ev?.data === "string" ? ev.data.trim() : "";
+      if (!action) return;
+      app.setWorkspace("terminal");
+      app.runTermAction(action);
+    }) as unknown as () => void
+  );
+  eventOffs.push(
+    Events.On("terminal-window-command", async (ev: { data?: main.TerminalWindowCommand }) => {
+      const command = ev?.data;
+      if (!command || command.windowId !== app.windowId) return;
+      if (command.action !== "move-transfer" || !command.transferId) return;
+      try {
+        const transfer = await api.takeTerminalTransfer(command.transferId);
+        app.setWorkspace("terminal");
+        const deskId = app.openTransferredTerminal(transfer);
+        if (deskId && command.targetDeskId) {
+          app.reorderTerminalDesk(deskId, command.targetDeskId, command.insertBefore === true);
+        }
+      } catch (err) {
+        console.error("主窗口领取终端会话失败", err);
+      }
+    }) as unknown as () => void
+  );
+  // 终端独立窗返回主机工具：由主窗承接主机页面，再把主窗聚焦到前台。
+  eventOffs.push(
+    Events.On("terminal-return-host", (ev: { data?: { host?: string; sub?: string } }) => {
+      const name = (ev?.data?.host || "").trim();
+      const sub = (ev?.data?.sub || "").trim() as SubTab;
+      const allowed: SubTab[] = [
+        "overview",
+        "file-manager",
+        "monitor",
+        "files",
+        "apps",
+        "nginx",
+        "processes",
+        "network",
+        "hosts",
+        "apt",
+        "services",
+        "certs",
+        "cron",
+        "packages",
+        "logs",
+      ];
+      if (!name || !allowed.includes(sub)) return;
+      app.openHostTab(name, sub);
+      void api.focusMainWindow();
+    })
+  );
+  eventOffs.push(
+    Events.On(
+      "terminal-window-drop",
+      (ev: {
+        data?: {
+          sourceWindowId?: string;
+          sourceDeskId?: string;
+          targetWindowId?: string;
+          targetDeskId?: string;
+          insertBefore?: boolean;
+        };
+      }) => {
+        const data = ev?.data;
+        if (!data || data.sourceWindowId !== app.windowId || !data.sourceDeskId) return;
+        app.activateTerminalDesk(data.sourceDeskId);
+        app.runTermAction("move-to-window", {
+          targetWindowId: data.targetWindowId || "",
+          targetDeskId: data.targetDeskId || "",
+          insertBefore: data.insertBefore ? "1" : "0",
+        });
+      }
+    ) as unknown as () => void
   );
   // 分组页空状态「添加主机」：打开添加弹窗并预选当前分组
   eventOffs.push(

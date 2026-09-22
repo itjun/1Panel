@@ -9,7 +9,7 @@
       @dblclick="chrome.toggleMaximise()"
       @contextmenu.prevent="chrome.openMenu($event)"
     />
-    <nav class="app-nav__main no-drag">
+    <nav v-if="!terminalOnly" class="app-nav__main no-drag">
       <button
         type="button"
         class="app-nav__btn"
@@ -28,6 +28,9 @@
         :class="{ active: !app.settingsOpen && app.workspace === 'terminal' }"
         @pointerdown="(e) => pointerAction(e, onTerminalClick)"
         @click="clickAction(onTerminalClick)"
+        @contextmenu.prevent.stop="openTerminalNavMenu($event)"
+        draggable="true"
+        @dragstart="onTerminalNavDragStart"
       >
         <span class="app-nav__icon">
           <el-icon><Connection /></el-icon>
@@ -52,9 +55,10 @@
           :class="{
             active: desk.id === app.activeTerminalId,
             'is-dragging': dragDeskId === desk.id,
-            'is-drop': dropDeskId === desk.id,
+            'is-drop-before': dropDeskId === desk.id && dropDeskPosition === 'before',
+            'is-drop-after': dropDeskId === desk.id && dropDeskPosition === 'after',
           }"
-          :title="desk.host ? deskLabel(desk) + '（拖到另一个会话可合并分屏）' : deskLabel(desk)"
+          :title="desk.host ? deskLabel(desk) + '（同窗口可拖动排序；拖到其他窗口移动会话；拖出窗口移动到新窗口）' : deskLabel(desk)"
           :draggable="!!desk.host"
           @pointerdown="(e) => onDeskDown(e, desk)"
           @click="clickAction(() => pickDesk(desk.id))"
@@ -62,7 +66,7 @@
           @dragstart="onDeskDragStart($event, desk)"
           @dragover.prevent="onDeskDragOver($event, desk)"
           @dragleave="onDeskDragLeave(desk)"
-          @drop.prevent="onDeskDrop($event, desk)"
+          @drop.stop.prevent="onDeskDrop($event, desk)"
           @dragend="onDeskDragEnd"
         >
           {{ deskLabel(desk) }}
@@ -196,11 +200,12 @@
     </div>
 
     <div
+      v-if="!terminalOnly"
       class="app-nav__gap drag-region"
       @dblclick="chrome.toggleMaximise()"
       @contextmenu.prevent="chrome.openMenu($event)"
     />
-    <nav class="app-nav__side no-drag">
+    <nav v-if="!terminalOnly" class="app-nav__side no-drag">
       <button
         type="button"
         class="app-nav__btn"
@@ -245,6 +250,16 @@
       @mousedown.stop
     >
       <template v-if="deskMenu.host">
+        <button type="button" class="ctx-item" @click="duplicateDeskInCurrentWindow">
+          复制到新标签
+        </button>
+        <button type="button" class="ctx-item" @click="duplicateDeskInNewWindow">
+          复制到新窗口
+        </button>
+        <button type="button" class="ctx-item" @click="moveDeskToNewWindow">
+          移动到新窗口
+        </button>
+        <div class="ctx-divider" />
         <button
           v-for="tab in DESK_MENU_TABS"
           :key="tab.value"
@@ -258,6 +273,31 @@
       </template>
       <button type="button" class="ctx-item" @click="renameDesk">重命名</button>
       <button type="button" class="ctx-item is-danger" @click="closeMenuDesk">关闭</button>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="terminalNavMenu"
+      class="host-ctx-backdrop"
+      @mousedown="terminalNavMenu = null"
+      @contextmenu.prevent="terminalNavMenu = null"
+    />
+    <div
+      v-if="terminalNavMenu"
+      class="host-ctx-menu"
+      :style="{ left: terminalNavMenu.x + 'px', top: terminalNavMenu.y + 'px' }"
+      @mousedown.stop
+    >
+      <button type="button" class="ctx-item" @click="openTerminalNavInNewWindow">
+        在新窗口打开终端
+      </button>
+      <template v-for="item in hiddenTerminalWindows" :key="item.windowId">
+        <div class="ctx-divider" />
+        <button type="button" class="ctx-item" @click="focusHiddenTerminalWindow(item.windowId)">
+          恢复终端窗口 {{ item.windowId.replace('terminal-', '#') }}
+        </button>
+      </template>
     </div>
   </Teleport>
 
@@ -295,6 +335,18 @@
         @click="mergeSelectedTerminals"
       >
         合并打开终端
+      </button>
+      <div class="ctx-divider" />
+      <button type="button" class="ctx-item" @click="openSelectedTerminalsInNewWindow">
+        在新窗口打开终端
+      </button>
+      <button
+        type="button"
+        class="ctx-item"
+        :disabled="hostSessionMenu.ids.length < 2"
+        @click="mergeSelectedTerminalsInNewWindow"
+      >
+        合并到新窗口终端
       </button>
       <div class="ctx-divider" />
       <button type="button" class="ctx-item is-danger" @click="closeHostSessionsFromMenu">
@@ -340,7 +392,10 @@
 <script setup lang="ts">
 import { Bell, Connection, Folder, Monitor, Setting } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Events } from "@wailsio/runtime";
+import { api } from "@/api";
+import type { main } from "@/api";
 import { HOST_SUB_TABS } from "@/constants/hostSubTabs";
 import {
   UNGROUPED_ID,
@@ -362,6 +417,8 @@ import { clickAction, pointerAction } from "@/utils/pointerAction";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { SPLIT_TITLE } from "@/utils/workspaceMigrate";
 
+const props = defineProps<{ terminalOnly?: boolean }>();
+const terminalOnly = computed(() => props.terminalOnly === true);
 const app = useAppStore();
 const alertHistory = useAlertHistoryStore();
 const chrome = useChromeDrag();
@@ -382,6 +439,7 @@ const appUnread = computed(
   () => alertHistory.events.filter((e) => !e.read && isAppAlertEvent(e.kind)).length
 );
 const listKind = computed(() => {
+  if (terminalOnly.value) return "terminal";
   if (app.settingsOpen) return "settings";
   if (app.workspace === "notify") return "notify";
   if (app.workspace === "terminal") return "terminal";
@@ -405,6 +463,9 @@ const DESK_MENU_TABS = HOST_SUB_TABS.filter((t) =>
   ["overview", "files", "monitor"].includes(t.value)
 );
 const deskMenu = ref<DeskMenu | null>(null);
+type TerminalNavMenu = { x: number; y: number };
+const terminalNavMenu = ref<TerminalNavMenu | null>(null);
+const hiddenTerminalWindows = ref<main.TerminalWindowInfo[]>([]);
 type HostSessionMenu = { ids: string[]; x: number; y: number };
 const hostSessionMenu = ref<HostSessionMenu | null>(null);
 type GroupEntryMenu = { id: string; x: number; y: number };
@@ -593,7 +654,7 @@ async function openSelectedTerminals() {
   const hosts = selectedHostNames();
   hostSessionMenu.value = null;
   for (const host of hosts) {
-    // 批量打开明确新开标签，不复用已有终端会话
+    // 普通批量打开仍留在主窗口；只有下方明确选择新窗口时才脱离。
     app.openAnotherTerminal(host);
     await waitForTerminalDeskRender();
   }
@@ -634,6 +695,24 @@ async function mergeSelectedTerminals() {
   hostSessionAnchorId = "";
 }
 
+async function openSelectedTerminalsInNewWindow() {
+  const hosts = selectedHostNames();
+  hostSessionMenu.value = null;
+  if (hosts.length === 0) return;
+  await api.openTerminalWindow({ action: "open-many", hosts });
+  selectedHostSessionIds.value = [];
+  hostSessionAnchorId = "";
+}
+
+async function mergeSelectedTerminalsInNewWindow() {
+  const hosts = selectedHostNames();
+  hostSessionMenu.value = null;
+  if (hosts.length < 2) return;
+  await api.openTerminalWindow({ action: "merge", hosts });
+  selectedHostSessionIds.value = [];
+  hostSessionAnchorId = "";
+}
+
 watch(
   () => app.workspaceSessions.map((session) => session.id),
   (ids) => {
@@ -644,7 +723,7 @@ watch(
 
 function openDeskMenu(e: MouseEvent, desk: TerminalDesk) {
   app.activateTerminalDesk(desk.id);
-  const approxH = desk.host ? 220 : 96;
+  const approxH = desk.host ? 380 : 96;
   const pos = clampContextMenuPos(e.clientX, e.clientY, 180, approxH);
   deskMenu.value = {
     id: desk.id,
@@ -659,7 +738,35 @@ function openDeskTool(sub: SubTab) {
   const host = deskMenu.value?.host;
   deskMenu.value = null;
   if (!host) return;
+  if (terminalOnly.value) {
+    void Events.Emit("terminal-return-host", { host, sub });
+    return;
+  }
   app.openHostTool(host, sub);
+}
+
+async function openDeskInNewWindow() {
+  const host = (deskMenu.value?.host || "").trim();
+  deskMenu.value = null;
+  if (terminalOnly.value) return;
+  if (host) await api.openTerminalWindow({ action: "connect", host });
+  else await api.openTerminalWindow({ action: "new" });
+}
+
+function duplicateDeskInCurrentWindow() {
+  const host = (deskMenu.value?.host || "").trim();
+  deskMenu.value = null;
+  if (host) app.runTermAction("duplicate-current");
+}
+
+function duplicateDeskInNewWindow() {
+  deskMenu.value = null;
+  app.runTermAction("duplicate-new-window");
+}
+
+function moveDeskToNewWindow() {
+  deskMenu.value = null;
+  app.runTermAction("move-new-window");
 }
 
 async function renameDesk() {
@@ -694,11 +801,53 @@ function onHostsClick() {
 }
 
 function onTerminalClick() {
+  if (terminalOnly.value) return;
   app.setWorkspace("terminal");
   if (!app.activeTerminalId && app.terminalDesks.length > 0) {
     const last = app.terminalDesks[app.terminalDesks.length - 1];
     if (last) app.activateTerminalDesk(last.id);
   }
+}
+
+function activeTerminalHost(): string {
+  const active = app.terminalDesks.find((d) => d.id === app.activeTerminalId);
+  return (active?.host || "").trim();
+}
+
+async function openTerminalNavMenu(e: MouseEvent) {
+  if (terminalOnly.value) return;
+  const pos = clampContextMenuPos(e.clientX, e.clientY, 220, 120);
+  terminalNavMenu.value = { x: pos.x, y: pos.y };
+  try {
+    hiddenTerminalWindows.value = (await api.listTerminalWindows()).filter((item) => !item.visible);
+  } catch {
+    hiddenTerminalWindows.value = [];
+  }
+}
+
+async function openTerminalNavInNewWindow() {
+  terminalNavMenu.value = null;
+  const host = activeTerminalHost();
+  if (host) await api.openTerminalWindow({ action: "connect", host });
+  else await api.openTerminalWindow({ action: "new" });
+}
+
+async function focusHiddenTerminalWindow(windowId: string) {
+  terminalNavMenu.value = null;
+  hiddenTerminalWindows.value = [];
+  await api.focusTerminalWindow(windowId);
+}
+
+function onTerminalNavDragStart(e: DragEvent) {
+  if (terminalOnly.value) {
+    e.preventDefault();
+    return;
+  }
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("application/x-terminal-window", "terminal");
+  }
+  void openTerminalNavInNewWindow();
 }
 
 function onNotifyClick() {
@@ -715,7 +864,34 @@ function pickDesk(id: string) {
 
 const dragDeskId = ref("");
 const dropDeskId = ref("");
+const dropDeskPosition = ref<"before" | "after">("after");
+let deskDropHandled = false;
+let draggedDeskHost = "";
 let deskPress: { id: string; x: number; y: number; dragged: boolean } | null = null;
+let offTerminalWindowDrop: (() => void) | null = null;
+
+onMounted(() => {
+  offTerminalWindowDrop = Events.On(
+    "terminal-window-drop",
+    (ev: {
+      data?: { sourceWindowId?: string; sourceDeskId?: string; targetWindowId?: string };
+    }) => {
+      const data = ev?.data;
+      if (
+        data?.sourceWindowId === app.windowId &&
+        data.sourceDeskId &&
+        data.sourceDeskId === dragDeskId.value
+      ) {
+        deskDropHandled = true;
+      }
+    }
+  ) as unknown as () => void;
+});
+
+onBeforeUnmount(() => {
+  offTerminalWindowDrop?.();
+  offTerminalWindowDrop = null;
+});
 
 function onDeskDown(e: PointerEvent, desk: TerminalDesk) {
   if (e.button !== 0) return;
@@ -748,8 +924,15 @@ function onDeskDragStart(e: DragEvent, desk: TerminalDesk) {
     return;
   }
   if (deskPress) deskPress.dragged = true;
+  app.activateTerminalDesk(desk.id);
   dragDeskId.value = desk.id;
+  draggedDeskHost = desk.host;
+  deskDropHandled = false;
   e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData(
+    "application/x-terminal-desk",
+    JSON.stringify({ sourceWindowId: app.windowId, sourceDeskId: desk.id })
+  );
   e.dataTransfer.setData("application/x-term-session", desk.id);
   e.dataTransfer.setData("application/x-term-host", desk.host);
   e.dataTransfer.setData("text/plain", desk.id);
@@ -758,31 +941,61 @@ function onDeskDragStart(e: DragEvent, desk: TerminalDesk) {
 function isDeskDrag(e: DragEvent): boolean {
   const types = e.dataTransfer?.types;
   if (!types) return false;
-  return Array.from(types).includes("application/x-term-session");
+  return Array.from(types).includes("application/x-terminal-desk");
 }
 
 function onDeskDragOver(e: DragEvent, desk: TerminalDesk) {
   if (!desk.host || !isDeskDrag(e) || desk.id === dragDeskId.value) return;
   if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
   dropDeskId.value = desk.id;
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  dropDeskPosition.value = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
 }
 
 function onDeskDragLeave(desk: TerminalDesk) {
-  if (dropDeskId.value === desk.id) dropDeskId.value = "";
+  if (dropDeskId.value === desk.id) {
+    dropDeskId.value = "";
+    dropDeskPosition.value = "after";
+  }
 }
 
 function onDeskDrop(e: DragEvent, desk: TerminalDesk) {
   dropDeskId.value = "";
   if (!desk.host || !e.dataTransfer) return;
-  const sourceId = e.dataTransfer.getData("application/x-term-session");
-  const host = e.dataTransfer.getData("application/x-term-host");
+  const raw = e.dataTransfer.getData("application/x-terminal-desk");
+  if (!raw) return;
+  let payload: { sourceWindowId?: string; sourceDeskId?: string };
+  try {
+    payload = JSON.parse(raw) as typeof payload;
+  } catch {
+    return;
+  }
+  const sourceId = (payload.sourceDeskId || "").trim();
   if (!sourceId || sourceId === desk.id) return;
-  app.mergeTerminalDesk(sourceId, desk.id, host);
+  deskDropHandled = true;
+  if (payload.sourceWindowId === app.windowId) {
+    app.reorderTerminalDesk(sourceId, desk.id, dropDeskPosition.value === "before");
+  } else {
+    void Events.Emit("terminal-window-drop", {
+      sourceWindowId: payload.sourceWindowId || "",
+      sourceDeskId: sourceId,
+      targetWindowId: app.windowId,
+      targetDeskId: desk.id,
+      insertBefore: dropDeskPosition.value === "before",
+    });
+  }
 }
 
-function onDeskDragEnd() {
+function onDeskDragEnd(e: DragEvent) {
+  const droppedInsideApp = deskDropHandled || e.dataTransfer?.dropEffect === "move";
+  if (draggedDeskHost && !droppedInsideApp) {
+    app.runTermAction("move-new-window");
+  }
   dragDeskId.value = "";
   dropDeskId.value = "";
+  dropDeskPosition.value = "after";
+  deskDropHandled = false;
+  draggedDeskHost = "";
 }
 
 function pickHostSession(id: string) {

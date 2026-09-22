@@ -18,6 +18,9 @@
       <button type="button" class="ctx-item" @click="onOpenTerminal">
         打开终端
       </button>
+      <button type="button" class="ctx-item" @click="onOpenTerminalInNewWindow">
+        在新窗口打开终端
+      </button>
       <button type="button" class="ctx-item" @click="onOpenInfo">
         打开概览
       </button>
@@ -198,6 +201,17 @@ function currentGroupIdOf(host: string): string {
 
 function onOpenTerminal() {
   openEach("terminal");
+}
+
+async function onOpenTerminalInNewWindow() {
+  const hosts = menuHosts();
+  emit("close");
+  if (hosts.length === 0) return;
+  await api.openTerminalWindow(
+    hosts.length === 1
+      ? { action: "connect", host: hosts[0] }
+      : { action: "open-many", hosts }
+  );
 }
 
 function onOpenInfo() {
