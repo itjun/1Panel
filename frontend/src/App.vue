@@ -34,8 +34,8 @@
       :close-on-click-modal="!saving"
     >
       <p class="m3-form-dialog__hint">
-        密码只用于首次连通并推送本机公钥，不作为日常登录。之后以
-        <code>~/.ssh/config</code> 为准。
+        密码会安全保存在 Panel JSON，用于 Panel 内部连接；SSH 配置只由
+        Panel JSON 生成，系统终端仍通过生成后的 Host 使用。
       </p>
       <el-form label-position="top" require-asterisk-position="right" @submit.prevent="onAddHost">
         <el-form-item label="别名" required>

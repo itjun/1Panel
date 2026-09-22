@@ -190,9 +190,10 @@
           <el-input
             ref="createGroupInputRef"
             v-model="newGroupName"
-            placeholder="如 prod"
+            placeholder="如 04-new-group"
             @keyup.enter="submitCreateGroup"
           />
+          <div class="m3-form-dialog__hint">只允许英文字母、数字和短横线，例如 01-cdcp-main</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -215,9 +216,10 @@
           <el-input
             ref="groupSettingsNameRef"
             v-model="settingsName"
-            placeholder="侧栏与概览显示名"
+            placeholder="如 04-new-group"
             @keyup.enter="saveGroupSettings"
           />
+          <div class="m3-form-dialog__hint">只允许英文字母、数字和短横线，例如 01-cdcp-main</div>
         </el-form-item>
         <el-form-item label="看板标题">
           <el-input
@@ -766,16 +768,21 @@ async function saveGroupSettings() {
     ElMessage.warning("分组名称不能为空");
     return;
   }
+  if (!/^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(nextName)) {
+    ElMessage.warning("只允许英文字母、数字和短横线，例如 01-cdcp-main");
+    return;
+  }
   groupSettingsSaving.value = true;
   try {
     const g = app.groupList.find((x) => x.id === id);
+    let effectiveID = id;
     if (!g || g.name !== nextName) {
-      await app.renameGroup(id, nextName);
+      effectiveID = await app.renameGroup(id, nextName);
     }
     const nextBoard = settingsBoardTitle.value.trim();
     const curBoard = (g?.boardTitle || "").trim();
     if (nextBoard !== curBoard) {
-      await app.setBoardTitle(id, nextBoard);
+      await app.setBoardTitle(effectiveID, nextBoard);
     }
     ElMessage.success("已保存");
     groupSettingsOpen.value = false;

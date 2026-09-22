@@ -138,11 +138,26 @@
         <div class="row">
           <div class="row-text">
             <span class="row-name">主机配置</span>
-            <span class="row-hint">含已保存的密码，不含 SSH 私钥</span>
+            <span class="row-hint">Panel JSON 是主源；外部导出默认脱敏，不含 SSH 私钥</span>
           </div>
           <div class="row-control">
             <el-button :loading="exporting" @click="onExportBackup">导出…</el-button>
             <el-button @click="backupImportRef?.openFor()">导入…</el-button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="row-name">SSH 配置同步</span>
+            <span class="row-hint">Panel JSON → ~/.ssh/config + config.d；外部修改会先导入差异</span>
+          </div>
+          <div class="row-control">
+            <el-tag :type="panelConfigTagType" effect="plain">{{ panelConfigLabel }}</el-tag>
+            <el-button link type="primary" :loading="panelConfigLoading" @click="refreshPanelConfigStatus">
+              刷新
+            </el-button>
+            <el-button type="primary" :loading="panelConfigLoading" @click="openConfigCenter">
+              打开配置中心
+            </el-button>
           </div>
         </div>
         <div class="row" :class="{ 'is-modified': isAskQuitModified }">
@@ -168,6 +183,7 @@
       </template>
     </div>
     <BackupImportDialog ref="backupImportRef" />
+
   </div>
 </template>
 
@@ -177,7 +193,7 @@ import { Refresh } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Dialogs, Events } from "@wailsio/runtime";
 import { api } from "@/api";
-import type { monitor } from "@/api";
+import type { main, monitor } from "@/api";
 import { formatErr } from "@/utils/format";
 import BackupImportDialog from "@/components/BackupImportDialog.vue";
 import ChromeTeleport from "@/components/ChromeTeleport.vue";
@@ -204,6 +220,8 @@ const backupImportRef = ref<InstanceType<typeof BackupImportDialog> | null>(
 );
 const egress = ref<monitor.EgressInfo | null>(egressCache);
 const egressLoading = ref(false);
+const panelConfigStatus = ref<main.PanelConfigStatus | null>(null);
+const panelConfigLoading = ref(false);
 const uiPreviewStyle = computed(() => ({
   fontFamily: settings.fontFamily,
   fontSize: `${settings.fontSize}px`,
@@ -221,6 +239,23 @@ const machineTitle = computed(() => {
   if (!egress.value?.ip) return "本机出口公网 IP";
   const loc = egress.value.location ? ` · ${egress.value.location}` : "";
   return `${egress.value.ip}${loc}\n来源：myip.ipip.net`;
+});
+
+const panelConfigLabel = computed(() => {
+  const status = panelConfigStatus.value;
+  if (!status) return "检测中";
+  if (status.needsReview) return "需导入确认";
+  if (status.configStale) return "配置过期";
+  if (status.drift) return "检测到外部修改";
+  return "已同步";
+});
+
+const panelConfigTagType = computed(() => {
+  const status = panelConfigStatus.value;
+  if (!status) return "info";
+  if (status.needsReview || status.configStale) return "danger";
+  if (status.drift) return "warning";
+  return "success";
 });
 
 /** 值 ≠ 默认值的行高亮；本页有改过项时「恢复本页默认值」才可用 */
@@ -351,6 +386,22 @@ async function onExportBackup() {
   }
 }
 
+async function refreshPanelConfigStatus() {
+  panelConfigLoading.value = true;
+  try {
+    panelConfigStatus.value = await api.getPanelConfigStatus();
+  } catch (e) {
+    ElMessage.error(formatErr(e));
+  } finally {
+    panelConfigLoading.value = false;
+  }
+}
+
+function openConfigCenter() {
+	app.setConfigSection("overview");
+	app.setWorkspace("config");
+}
+
 async function onRestart() {
   try {
     await ElMessageBox.confirm(
@@ -378,6 +429,7 @@ async function onQuitForReal() {
 }
 
 let offAskBeforeQuit: (() => void) | null = null;
+let offPanelConfigChange: (() => void) | null = null;
 
 /** 本机出口只在应用页加载；组件常驻时切分页不会重新挂载，用 watch 跟随 */
 watch(
@@ -403,12 +455,20 @@ onMounted(() => {
       }
     }
   );
+  offPanelConfigChange = Events.On("panel-config-imported", () => {
+    void refreshPanelConfigStatus();
+  });
+  void refreshPanelConfigStatus();
 });
 
 onUnmounted(() => {
   if (offAskBeforeQuit) {
     offAskBeforeQuit();
     offAskBeforeQuit = null;
+  }
+  if (offPanelConfigChange) {
+    offPanelConfigChange();
+    offPanelConfigChange = null;
   }
 });
 </script>
@@ -512,6 +572,30 @@ onUnmounted(() => {
     min-width: 140px;
     max-width: 240px;
   }
+}
+
+.panel-config-dialog :deep(.el-dialog__body) {
+  padding-top: 8px;
+}
+
+.panel-config-alert {
+  margin-bottom: 10px;
+}
+
+.panel-config-editor :deep(textarea) {
+  min-height: 480px;
+  padding: 12px;
+  font-family: var(--m3-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  line-height: 1.55;
+  tab-size: 4;
+}
+
+.panel-config-hint {
+  margin: 8px 0 0;
+  color: var(--m3-on-surface-variant);
+  font: var(--m3-body-small);
+  line-height: 1.5;
 }
 
 .row-select {

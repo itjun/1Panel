@@ -10,6 +10,18 @@
     </div>
 
     <div
+      v-if="!app.settingsOpen && app.workspace === 'config'"
+      class="workspace-shell"
+    >
+      <ChromeScope>
+        <MainChromeBar title="配置中心" subtitle="Panel JSON · OpenSSH 配置 · 备份" />
+        <div class="content-pad content-pad--fill">
+          <ConfigCenterView />
+        </div>
+      </ChromeScope>
+    </div>
+
+    <div
       v-if="!app.settingsOpen && app.workspace === 'notify'"
       class="workspace-shell"
     >
@@ -128,6 +140,7 @@ import NotifyMessagesView from "@/views/NotifyMessagesView.vue";
 import NotifySubsView from "@/views/NotifySubsView.vue";
 import NotifySetupView from "@/views/NotifySetupView.vue";
 import GroupOverviewView from "@/views/GroupOverviewView.vue";
+import ConfigCenterView from "@/views/ConfigCenterView.vue";
 
 const app = useAppStore();
 

@@ -305,7 +305,7 @@ async function onDelete() {
 
   try {
     await ElMessageBox.confirm(
-      `将从本机 ~/.ssh/config 中永久移除「${host}」条目，并清理分组引用。\n` +
+      `将从 Panel JSON 中移除「${host}」，并重新生成本机 ~/.ssh/config、清理分组引用。\n` +
         `若该主机上装有 spanel-agent，将一并卸载并清理其监控数据。\n` +
         `此操作不可撤销。`,
       `删除主机「${host}」`,

@@ -145,6 +145,20 @@
         </button>
       </template>
 
+      <template v-else-if="listKind === 'config'">
+        <button
+          v-for="section in configSections"
+          :key="section.id"
+          type="button"
+          class="app-nav__sess"
+          :class="{ active: app.configSection === section.id }"
+          @pointerdown="(e) => pointerAction(e, () => jumpConfig(section.id))"
+          @click="clickAction(() => jumpConfig(section.id))"
+        >
+          {{ section.label }}
+        </button>
+      </template>
+
       <template v-else>
         <template v-for="entry in app.railEntries" :key="entry.key">
           <button
@@ -220,6 +234,19 @@
           </span>
         </span>
         <span class="app-nav__label">通知</span>
+      </button>
+      <button
+        type="button"
+        class="app-nav__btn"
+        :class="{ active: !app.settingsOpen && app.workspace === 'config' }"
+        @pointerdown="(e) => pointerAction(e, onConfigClick)"
+        @click="clickAction(onConfigClick)"
+      >
+        <span class="app-nav__icon">
+          <el-icon><Files /></el-icon>
+          <span v-if="configNeedsAttention" class="app-nav__status-dot" />
+        </span>
+        <span class="app-nav__label">配置</span>
       </button>
       <button
         type="button"
@@ -390,7 +417,7 @@
 </template>
 
 <script setup lang="ts">
-import { Bell, Connection, Folder, Monitor, Setting } from "@element-plus/icons-vue";
+import { Bell, Connection, Files, Folder, Monitor, Setting } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Events } from "@wailsio/runtime";
@@ -441,6 +468,7 @@ const appUnread = computed(
 const listKind = computed(() => {
   if (terminalOnly.value) return "terminal";
   if (app.settingsOpen) return "settings";
+  if (app.workspace === "config") return "config";
   if (app.workspace === "notify") return "notify";
   if (app.workspace === "terminal") return "terminal";
   return "hosts";
@@ -450,6 +478,26 @@ const settingSections: { id: SettingsSection; label: string }[] = [
   { id: "session", label: "会话" },
   { id: "app", label: "应用" },
 ];
+const configSections = [
+  { id: "overview" as const, label: "概览" },
+  { id: "json" as const, label: "Panel JSON" },
+  { id: "files" as const, label: "SSH 文件" },
+  { id: "diff" as const, label: "差异与冲突" },
+  { id: "backups" as const, label: "备份" },
+];
+const configNeedsAttention = ref(false);
+let offConfigAttention: (() => void) | null = null;
+
+async function refreshConfigBadge() {
+  if (terminalOnly.value) return;
+  try {
+    const overview = await api.getPanelConfigOverview();
+    configNeedsAttention.value =
+      overview.configStale || overview.drift || overview.needsReview;
+  } catch {
+    /* The overview reports the actionable error when the workspace opens. */
+  }
+}
 function deskLabel(d: TerminalDesk): string {
   if (d.titleCustom && d.title) return d.title;
   if (!d.host) return d.title || "新建终端";
@@ -854,8 +902,17 @@ function onNotifyClick() {
   app.setWorkspace("notify");
 }
 
+function onConfigClick() {
+  app.setWorkspace("config");
+}
+
 function onSettingsClick() {
   app.toggleSettings();
+}
+
+function jumpConfig(id: (typeof configSections)[number]["id"]) {
+  app.setConfigSection(id);
+  app.setWorkspace("config");
 }
 
 function pickDesk(id: string) {
@@ -886,6 +943,25 @@ onMounted(() => {
       }
     }
   ) as unknown as () => void;
+});
+
+onMounted(() => {
+  void refreshConfigBadge();
+  const offImported = Events.On(
+    "panel-config-imported",
+    () => void refreshConfigBadge(),
+  );
+  const offReview = Events.On("panel-config-needs-review", () => {
+    configNeedsAttention.value = true;
+  });
+  const offError = Events.On("panel-config-import-error", () => {
+    configNeedsAttention.value = true;
+  });
+  offConfigAttention = () => {
+    offImported();
+    offReview();
+    offError();
+  };
 });
 
 onBeforeUnmount(() => {
@@ -1167,6 +1243,17 @@ watch(
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+}
+
+.app-nav__status-dot {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--m3-shell);
+  border-radius: 50%;
+  background: var(--m3-error);
 }
 
 .app-nav__sess {

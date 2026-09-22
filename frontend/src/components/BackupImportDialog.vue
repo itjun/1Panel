@@ -35,7 +35,7 @@
       </div>
 
       <p class="hint">
-        备份含已保存的主机密码，不含 SSH 私钥：换机恢复需另行保管密钥
+        导出备份默认不含主机密码，也不含 SSH 私钥；换机恢复后请重新测试并保存凭据。
         <code>~/.ssh/id_ed25519</code>，否则恢复后无法连接主机。
       </p>
     </template>
@@ -171,8 +171,8 @@ async function onImport() {
     await app.refresh();
   } catch (e) {
     ElMessage.error(formatErr(e));
-    // 后端逐台写入、无回滚：失败时磁盘可能已被部分修改，
-    // 刷新并关闭弹窗，避免界面与实际配置脱节
+    // 失败时后端会保留 Panel JSON 的 config-stale 状态；刷新界面让用户
+    // 看到需要补凭据或重试生成的真实状态。
     await app.refresh();
     open.value = false;
   } finally {

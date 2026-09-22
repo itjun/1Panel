@@ -196,7 +196,7 @@ function noteTerminalSeq(id: string) {
 }
 
 /** 工作区：主机 / 终端 / 本机应用 / 巡检 / 通知。主机仍用 remote，避免把通知流程一起改名。 */
-export type Workspace = "remote" | "terminal" | "local" | "inspect" | "notify";
+export type Workspace = "remote" | "terminal" | "local" | "inspect" | "notify" | "config";
 
 /** 本机二级栏：页面导航 */
 export type LocalSection =
@@ -216,6 +216,9 @@ export type NotifySection =
   | "metricSubs"
   | "appSubs"
   | "setup";
+
+/** 配置中心页签与最近打开的文件（只保存导航位置，不保存草稿或密码）。 */
+export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";
 
 /** 巡检二级栏：页面导航 */
 export type InspectSection = "menuCheck";
@@ -515,6 +518,41 @@ export const useAppStore = defineStore("app", () => {
     } catch {
       /* ignore */
     }
+  }
+
+  function loadConfigSection(): ConfigSection {
+    try {
+      const value = localStorage.getItem("1pannel-config-section");
+      if (value === "overview" || value === "json" || value === "files" || value === "diff" || value === "backups") {
+        return value;
+      }
+    } catch {
+      /* ignore */
+    }
+    return "overview";
+  }
+  const configSection = ref<ConfigSection>(loadConfigSection());
+  const configFilePath = ref("config");
+  function setConfigSection(value: ConfigSection) {
+    configSection.value = value;
+    try {
+      localStorage.setItem("1pannel-config-section", value);
+    } catch {
+      /* ignore */
+    }
+  }
+  function setConfigFilePath(value: string) {
+    configFilePath.value = value;
+    try {
+      localStorage.setItem("1pannel-config-file", value);
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    configFilePath.value = localStorage.getItem("1pannel-config-file") || "config";
+  } catch {
+    /* ignore */
   }
 
   /** 巡检二级栏：页面导航（持久化） */
@@ -2234,7 +2272,10 @@ export const useAppStore = defineStore("app", () => {
   }
 
   async function createGroup(name: string, parentId?: string) {
-    const id = `g_${Date.now().toString(36)}`;
+    const id = name.trim();
+    if (!/^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(id)) {
+      throw new Error("分组名称只能使用两位数字前缀、英文字母、数字和短横线，例如 01-cdcp-main");
+    }
     const pid = (parentId || "").trim();
     if (pid) {
       const d = groupDepthOf(pid);
@@ -2263,11 +2304,16 @@ export const useAppStore = defineStore("app", () => {
   }
 
   async function renameGroup(id: string, newName: string) {
-    await api.renameGroup(id, newName);
-    await refresh();
-    if (activeView.value?.id === id) {
-      activeView.value = { ...activeView.value, title: newName };
+    const nextID = await api.renameGroup(id, newName.trim());
+    const replaceID = (value: string) => (value === id ? nextID : value);
+    visitedGroupIds.value = visitedGroupIds.value.map(replaceID);
+    railOrder.value = railOrder.value.map(replaceID);
+    if (homeSelectedGroupId.value === id) selectGroup(nextID);
+    if (activeView.value?.kind === "group" && activeView.value.id === id) {
+      activeView.value = { ...activeView.value, id: nextID, title: nextID };
     }
+    await refresh();
+    return nextID;
   }
 
   async function setBoardTitle(id: string, title: string) {
@@ -2493,6 +2539,10 @@ export const useAppStore = defineStore("app", () => {
     notifySection,
     setNotifySection,
     visitedNotifySections,
+    configSection,
+    configFilePath,
+    setConfigSection,
+    setConfigFilePath,
     inspectSection,
     setInspectSection,
     visitedInspectSections,

@@ -17,8 +17,8 @@
     </header>
 
     <p class="host-edit-panel__hint">
-      保存前会用密码测试 SSH 连通性，通过后更新
-      <code>~/.ssh/config</code> 并推送本机公钥。
+      保存前会用密码测试 SSH 连通性，通过后更新 Panel JSON、推送本机公钥，
+      再生成 <code>~/.ssh/config</code>。
     </p>
 
     <el-form

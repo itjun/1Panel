@@ -36,6 +36,21 @@ export interface HostConfig {
     "proxyJump": string;
 
     /**
+     * 自定义代理命令（仅原文展示）
+     */
+    "proxyCommand": string;
+
+    /**
+     * SSH agent socket
+     */
+    "identityAgent": string;
+
+    /**
+     * agent 转发
+     */
+    "forwardAgent": boolean;
+
+    /**
      * 原文保留（部分场景需要）
      */
     "hostKeyAlgos": string;

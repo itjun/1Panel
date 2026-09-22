@@ -29,7 +29,8 @@ export function AddHost(input: $models.AddHostInput): $CancellablePromise<void> 
 }
 
 /**
- * CopySSHID 把本机公钥安装到远程主机的 authorized_keys
+ * CopySSHID 把本机公钥安装到远程主机的 authorized_keys，并把结果写入
+ * Panel JSON；OpenSSH 配置仍由 JSON 统一生成。
  * 步骤：
  *  1. 读 ~/.ssh/id_ed25519.pub（不存在则提示用户先生成）
  *  2. 用密码连一次目标主机
@@ -42,7 +43,7 @@ export function CopySSHID(input: $models.CopyIDInput): $CancellablePromise<strin
 }
 
 /**
- * DeleteHost 从 ~/.ssh/config 删除主机别名，并清理分组引用与连接池
+ * DeleteHost 从 Panel JSON 删除主机别名，再生成 OpenSSH 配置，并清理分组引用与连接池
  */
 export function DeleteHost(name: string): $CancellablePromise<void> {
     return $Call.ByID(83424728, name);

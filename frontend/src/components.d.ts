@@ -22,6 +22,7 @@ declare module 'vue' {
     CardBoard: typeof import('./components/CardBoard.vue')['default']
     ChromeScope: typeof import('./components/ChromeScope.vue')['default']
     ChromeTeleport: typeof import('./components/ChromeTeleport.vue')['default']
+    CodeEditor: typeof import('./components/CodeEditor.vue')['default']
     CodePane: typeof import('./components/CodePane.vue')['default']
     DistroLogo: typeof import('./components/DistroLogo.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']

@@ -12,6 +12,12 @@ import * as hosticon$0 from "./internal/hosticon/models.js";
 import * as monitor$0 from "./internal/monitor/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as panelstore$0 from "./internal/panelstore/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as panelsync$0 from "./internal/panelsync/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as sshconfig$0 from "./internal/sshconfig/models.js";
 
 /**
@@ -56,8 +62,8 @@ export interface AgentBatchResult {
 }
 
 /**
- * BackupData 备份文件内容：主机列表 + 分组 + 主机图标记录
- * 注意：可含已保存的主机密码；SSH 私钥不在备份内，换机恢复需另行保管 ~/.ssh/id_ed25519
+ * BackupData 备份文件内容：Panel JSON、原始 SSH 配置树、分组与主机图标。
+ * 对外导出默认脱敏密码；应用内部自动快照由 panelsync 单独保存完整 JSON。
  */
 export interface BackupData {
     "version": number;
@@ -65,6 +71,9 @@ export interface BackupData {
     "hosts": sshconfig$0.HostConfig[] | null;
     "groups": groups$0.Group[] | null;
     "icons": hosticon$0.Record[] | null;
+    "panelState"?: panelstore$0.State | null;
+    "configFiles"?: panelsync$0.ConfigFile[] | null;
+    "includesPasswords"?: boolean;
 }
 
 /**
@@ -97,6 +106,24 @@ export interface CertPairCheck {
      */
     "daysLeft": number;
     "selfSigned": boolean;
+}
+
+/**
+ * ConfigDraft is used by the existing text editor. The editor submits the
+ * complete config tree, which is parsed into Panel JSON and then regenerated;
+ * it never becomes a second runtime source of truth.
+ */
+export interface ConfigDraft {
+    "files": panelsync$0.ConfigFile[] | null;
+}
+
+export interface ConnectionTestResult {
+    "alias": string;
+    "success": boolean;
+    "tested": boolean;
+    "message"?: string;
+    "error"?: string;
+    "durationMs": number;
 }
 
 /**
@@ -346,6 +373,183 @@ export interface MenuCheckResult {
     "message": string;
     "checkedAt": number;
     "scheduled": boolean;
+}
+
+export interface PanelBackup {
+    "summary": PanelBackupSummary;
+    "state": PanelStateDraft;
+    "files": PanelConfigFile[] | null;
+}
+
+export interface PanelBackupSummary {
+    "id": string;
+    "path": string;
+    "createdAt": number;
+    "revision": number;
+    "hostCount": number;
+    "groupCount": number;
+    "fileCount": number;
+    "size": number;
+    "operation": string;
+}
+
+export interface PanelConfigConflict {
+    "id": string;
+    "kind": string;
+    "file"?: string;
+    "alias"?: string;
+    "summary": string;
+    "panel"?: string;
+    "external"?: string;
+    "resolved": boolean;
+}
+
+export interface PanelConfigDiff {
+    "changedFiles"?: PanelConfigFileDiff[] | null;
+    "addedHosts"?: string[] | null;
+    "removedHosts"?: string[] | null;
+    "changedHosts"?: string[] | null;
+    "hostDiff"?: PanelHostDiff[] | null;
+    "conflicts"?: PanelConfigConflict[] | null;
+    "hasChanges": boolean;
+}
+
+/**
+ * PanelConfigFile is a safe, UI-oriented file descriptor. Content is
+ * returned only for files the Config Center can edit; panel.json content is
+ * always redacted by the backend before it reaches the renderer.
+ */
+export interface PanelConfigFile {
+    "path": string;
+    "displayPath": string;
+    "absolutePath": string;
+    "mode": number;
+    "size": number;
+    "sha256": string;
+    "updatedAt": number;
+    "content": string;
+    "source": string;
+    "generated": boolean;
+    "externalChanged": boolean;
+    "panelJson": boolean;
+}
+
+export interface PanelConfigFileDiff {
+    "path": string;
+    "kind": string;
+    "panelSha256"?: string;
+    "externalSha256"?: string;
+    "generatedSha256"?: string;
+    "panelContent"?: string;
+    "externalContent"?: string;
+    "generatedContent"?: string;
+}
+
+/**
+ * PanelConfigOverview is the compact state object used by the Config Center
+ * landing page. The existing PanelConfigStatus remains as a compatibility
+ * DTO for the settings page and older clients.
+ */
+export interface PanelConfigOverview {
+    "panelPath": string;
+    "sshConfigPath": string;
+    "revision": number;
+    "hostCount": number;
+    "groupCount": number;
+    "configFileCount": number;
+    "includeCount": number;
+    "configStale": boolean;
+    "drift": boolean;
+    "needsReview": boolean;
+    "lastGenerated": number;
+    "lastBackup"?: PanelBackupSummary | null;
+    "diff": PanelConfigDiff;
+}
+
+export interface PanelConfigPreview {
+    "previewId": string;
+    "baseRevision": number;
+    "baseConfigHash": string;
+    "affectedHosts"?: string[] | null;
+    "connectionTests"?: ConnectionTestResult[] | null;
+    "fileDiff"?: PanelConfigFileDiff[] | null;
+    "hostDiff"?: PanelHostDiff[] | null;
+    "conflicts"?: PanelConfigConflict[] | null;
+    "valid": boolean;
+    "source": string;
+    "error"?: string;
+    "expiresAt": number;
+}
+
+export interface PanelConfigResolution {
+    "id": string;
+
+    /**
+     * panel, external, manual
+     */
+    "choice": string;
+    "manual"?: string;
+}
+
+export interface PanelConfigStatus {
+    "panelPath": string;
+    "sshConfigPath": string;
+    "revision": number;
+    "configStale": boolean;
+    "drift": boolean;
+    "needsReview": boolean;
+    "diff": panelsync$0.ConfigDiff;
+}
+
+export interface PanelHostDiff {
+    "alias": string;
+    "kind": string;
+    "fields"?: string[] | null;
+    "panel"?: string;
+    "candidate"?: string;
+}
+
+/**
+ * PanelHostDraft intentionally does not expose the system-owned fields in
+ * panelstore.PanelHost. A masked password is merged with the current secret
+ * server-side; the mask is never written to panel.json.
+ */
+export interface PanelHostDraft {
+    "alias": string;
+    "hostName": string;
+    "user": string;
+    "port"?: string;
+    "password"?: string;
+    "identityFiles"?: string[] | null;
+    "proxyJump"?: string;
+    "proxyCommand"?: string;
+    "identityAgent"?: string;
+    "forwardAgent"?: boolean;
+    "hostKeyAlgos"?: string;
+    "portForwards"?: panelstore$0.PortForward[] | null;
+    "note"?: string;
+    "groupId"?: string;
+    "order"?: number;
+    "extraOptions"?: panelstore$0.SSHOption[] | null;
+}
+
+export interface PanelStateDraft {
+    "hosts": PanelHostDraft[] | null;
+    "groups": panelstore$0.PanelGroup[] | null;
+    "extraOptions"?: panelstore$0.SSHOption[] | null;
+}
+
+/**
+ * PanelSystemEditor is a safe, user-facing description of an installed
+ * editor. The frontend sends only ID back to the backend; it never supplies a
+ * process path or shell command.
+ */
+export interface PanelSystemEditor {
+    "id": string;
+    "name": string;
+    "path": string;
+    "installed": boolean;
+    "systemDefault": boolean;
 }
 
 /**

@@ -50,9 +50,9 @@ export function PreviewDeleteGroup(id: string): $CancellablePromise<groups$0.Del
 }
 
 /**
- * RenameGroup 重命名分组（只改显示名，保留 hosts）
+ * RenameGroup 重命名分组。Group ID 与名称绑定，因此重命名会同步迁移 ID、主机引用和生成配置文件。
  */
-export function RenameGroup(id: string, newName: string): $CancellablePromise<void> {
+export function RenameGroup(id: string, newName: string): $CancellablePromise<string> {
     return $Call.ByID(1936130009, id, newName);
 }
 

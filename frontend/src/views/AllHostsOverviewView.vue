@@ -460,8 +460,8 @@ async function promptCreateRootGroup() {
     const { value } = await ElMessageBox.prompt("请输入分组名称", "新建分组", {
       confirmButtonText: "创建",
       cancelButtonText: "取消",
-      inputPattern: /\S+/,
-      inputErrorMessage: "名称不能为空",
+      inputPattern: /^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/,
+      inputErrorMessage: "只允许英文字母、数字和短横线，例如 01-cdcp-main",
     });
     const name = (value || "").trim();
     if (!name) return;

@@ -15,6 +15,7 @@ import * as LocalSys from "./localsys.js";
 import * as Monitor from "./monitor.js";
 import * as NotifySubs from "./notifysubs.js";
 import * as Overview from "./overview.js";
+import * as PanelConfig from "./panelconfig.js";
 import * as System from "./system.js";
 import * as TerminalSvc from "./terminalsvc.js";
 export {
@@ -32,6 +33,7 @@ export {
     Monitor,
     NotifySubs,
     Overview,
+    PanelConfig,
     System,
     TerminalSvc
 };
@@ -41,6 +43,8 @@ export type {
     AgentBatchResult,
     BackupData,
     CertPairCheck,
+    ConfigDraft,
+    ConnectionTestResult,
     CopyIDInput,
     DesktopNotify,
     GroupOverview,
@@ -51,6 +55,20 @@ export type {
     ImportResult,
     LocalTextCheck,
     MenuCheckResult,
+    PanelBackup,
+    PanelBackupSummary,
+    PanelConfigConflict,
+    PanelConfigDiff,
+    PanelConfigFile,
+    PanelConfigFileDiff,
+    PanelConfigOverview,
+    PanelConfigPreview,
+    PanelConfigResolution,
+    PanelConfigStatus,
+    PanelHostDiff,
+    PanelHostDraft,
+    PanelStateDraft,
+    PanelSystemEditor,
     TerminalTransfer,
     TerminalWindowCommand,
     TerminalWindowInfo,

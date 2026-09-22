@@ -18,6 +18,7 @@ import * as NotifySubs from "../../bindings/diteng-pannel/notifysubs";
 import * as CertNotify from "../../bindings/diteng-pannel/certnotify";
 import * as LocalApps from "../../bindings/diteng-pannel/localapps";
 import * as LocalSys from "../../bindings/diteng-pannel/localsys";
+import * as PanelConfig from "../../bindings/diteng-pannel/panelconfig";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -33,6 +34,8 @@ export * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/mo
 export * as certnotify from "../../bindings/diteng-pannel/internal/certnotify/models";
 export * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
 export * as localsys from "../../bindings/diteng-pannel/internal/localsys/models";
+export * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
+export * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 export * as main from "../../bindings/diteng-pannel/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
@@ -48,6 +51,8 @@ import type * as localsys from "../../bindings/diteng-pannel/internal/localsys/m
 import type * as main from "../../bindings/diteng-pannel/models";
 import type * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
 import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
+import type * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
+import type * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 import { noteBackendCall } from "@/utils/uxPerf";
 
 // 保留原有类型导出名，视图层零改动
@@ -93,13 +98,68 @@ const apiImpl = {
   formatHostInfo: (name: string): Promise<string> =>
     str(Hosts.FormatHostInfo(name)),
 
+  // ============ Panel JSON / OpenSSH 单向同步 ============
+  getPanelState: (): Promise<panelstore.State> =>
+    must(PanelConfig.GetPanelState()),
+  getPanelConfigOverview: (): Promise<main.PanelConfigOverview> =>
+    must(PanelConfig.GetOverview()),
+  getPanelConfigTree: (): Promise<main.PanelConfigFile[]> =>
+    arr(PanelConfig.GetConfigTree()),
+  getEditablePanelState: (): Promise<main.PanelStateDraft> =>
+    must(PanelConfig.GetEditablePanelState()),
+  getEditablePanelStateSensitive: (): Promise<main.PanelStateDraft> =>
+    must(PanelConfig.GetEditablePanelStateSensitive()),
+  previewPanelState: (draft: main.PanelStateDraft): Promise<main.PanelConfigPreview> =>
+    must(PanelConfig.PreviewPanelState(draft)),
+  previewConfigDraft: (draft: main.ConfigDraft): Promise<main.PanelConfigPreview> =>
+    must(PanelConfig.PreviewConfigDraft(draft)),
+  commitPanelPreview: (previewID: string): Promise<panelsync.WriteResult> =>
+    must(PanelConfig.CommitPanelPreview(previewID)),
+  resolveConfigConflicts: (
+    previewID: string,
+    resolutions: main.PanelConfigResolution[],
+  ): Promise<main.PanelConfigPreview> =>
+    must(PanelConfig.ResolveConfigConflicts(previewID, resolutions)),
+  listPanelBackups: (): Promise<main.PanelBackupSummary[]> =>
+    arr(PanelConfig.ListPanelBackups()),
+  getPanelBackup: (id: string): Promise<main.PanelBackup> =>
+    must(PanelConfig.GetPanelBackup(id)),
+  restorePanelBackup: (id: string): Promise<panelsync.WriteResult> =>
+    must(PanelConfig.RestorePanelBackup(id)),
+  openPanelPath: async (path: string): Promise<void> => {
+    await PanelConfig.OpenPanelPath(path);
+  },
+  listSystemEditors: (): Promise<main.PanelSystemEditor[]> =>
+    arr(PanelConfig.ListSystemEditors()),
+  openPanelPathWithEditor: async (path: string, editorID: string): Promise<void> => {
+    await PanelConfig.OpenPanelPathWithEditor(path, editorID);
+  },
+  revealPanelPath: async (path: string): Promise<void> => {
+    await PanelConfig.RevealPanelPath(path);
+  },
+  exportEncryptedPanelBackup: (path: string, passphrase: string): Promise<string> =>
+    str(PanelConfig.ExportEncryptedPanelBackup(path, passphrase)),
+  getConfigFiles: () => arr(PanelConfig.GetConfigFiles()),
+  getConfigText: (): Promise<string> => str(PanelConfig.GetConfigText()),
+  compareConfig: () => must(PanelConfig.CompareConfig()),
+  getPanelConfigStatus: () => must(PanelConfig.GetStatus()),
+  importPanelConfig: () => must(PanelConfig.ImportConfig()),
+  confirmPanelConfigImport: () => must(PanelConfig.ConfirmConfigImport()),
+  generatePanelConfig: () => must(PanelConfig.GenerateConfig()),
+  savePanelState: async (state: panelstore.State): Promise<void> => {
+    await PanelConfig.SaveState(state);
+  },
+  saveConfigDraft: (draft: main.ConfigDraft) =>
+    must(PanelConfig.SaveConfigDraft(draft)),
+  testPanelHost: (host: panelstore.PanelHost): Promise<string> =>
+    str(PanelConfig.TestHost(host)),
+
   listGroups: () => arr(Groups.ListGroups()),
   upsertGroup: async (g: groups.Group): Promise<void> => {
     await Groups.UpsertGroup(g);
   },
-  renameGroup: async (id: string, newName: string): Promise<void> => {
-    await Groups.RenameGroup(id, newName);
-  },
+  renameGroup: (id: string, newName: string): Promise<string> =>
+    str(Groups.RenameGroup(id, newName)),
   setBoardTitle: async (id: string, title: string): Promise<void> => {
     await Groups.SetBoardTitle(id, title);
   },
@@ -186,7 +246,7 @@ const apiImpl = {
   },
   batchInstallAgent: async (
     hosts: string[] | null
-  ): Promise<main.AgentBatchResult[]> => arr(Agent.AgentBatchInstall(hosts)),
+  ): Promise<main.AgentBatchResult[]> => arr(Agent.AgentBatchInstall(hosts ?? [])),
   uninstallAgent: async (host: string, keepData: boolean): Promise<void> => {
     await Agent.UninstallAgent(host, keepData);
   },
