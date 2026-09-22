@@ -92,12 +92,17 @@ export function alertKindLabel(kind: string): string {
       return "负载";
     case "conn":
       return "连接";
+    case "cert":
+      return "证书";
     default:
       return kind || "告警";
   }
 }
 
-export function alertStateLabel(state: string): string {
+export function alertStateLabel(state: string, kind = ""): string {
+  if (kind === "cert") {
+    return state === "up" ? "已续期" : "到期";
+  }
   if (state === "up") return "已回落";
   return "超阈值";
 }

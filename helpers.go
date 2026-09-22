@@ -46,14 +46,16 @@ type HostConnNotify struct {
 	Detail  string `json:"detail"`  // 错误原文或恢复说明
 }
 
-// HostAlertNotify 面板侧资源超阈值 / 回落，或应用探活异常 / 恢复入参。
-// Kind：mem | cpu | disk | load | app:<service>
+// HostAlertNotify 面板侧资源超阈值 / 回落，或应用探活异常 / 恢复，或证书到期 / 续期入参。
+// Kind：mem | cpu | disk | load | app:<service> | cert
 type HostAlertNotify struct {
-	Webhook string `json:"webhook"`
-	Host    string `json:"host"`
-	Kind    string `json:"kind"`  // mem | cpu | disk | load | app:<service>
-	State   string `json:"state"` // down = 超阈值/异常, up = 已回落/恢复
-	Detail  string `json:"detail"`
+	Webhook     string `json:"webhook"`
+	Host        string `json:"host"`
+	Kind        string `json:"kind"`  // mem | cpu | disk | load | app:<service> | cert
+	State       string `json:"state"` // down = 超阈值/异常/到期, up = 已回落/恢复/续期
+	Detail      string `json:"detail"`
+	TitleSuffix string `json:"titleSuffix"` // 证书告警的企微标题后缀；空则走原有类型文案
+	Expired     bool   `json:"expired"`     // 证书已过期时企微用严重，未过期用警告
 }
 
 // DesktopNotify 本机系统通知入参；Host/EventID/Kind 写入通知 Data，点击后可跳转。

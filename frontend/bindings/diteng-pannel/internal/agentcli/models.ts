@@ -11,6 +11,8 @@ export type AppShutdownReq = agentapi$0.AppShutdownReq;
 
 export type AppShutdownResult = agentapi$0.AppShutdownResult;
 
+export type CertCheckSnapshot = agentapi$0.CertCheckSnapshot;
+
 /**
  * CheckItem 一项检查结果
  */

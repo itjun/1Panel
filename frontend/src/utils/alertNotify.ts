@@ -108,14 +108,17 @@ export async function appendAndNotifyDesktop(opts: {
   state: "down" | "up";
   title: string;
   body: string;
+  /** 系统通知点击要定位到历史行时，应用内关闭也写入历史 */
+  historyForClick?: boolean;
 }): Promise<void> {
   const settings = useSettingsStore();
   const wantInApp = settings.inAppNotifyEnabled;
   const wantSystem = settings.systemNotifyEnabled;
+  const wantHistory = wantInApp || (!!opts.historyForClick && wantSystem);
   if (!wantInApp && !wantSystem) return;
 
   let eventId = "";
-  if (wantInApp) {
+  if (wantHistory) {
     try {
       const saved = await api.appendAlertHistory({
         id: "",
@@ -143,7 +146,7 @@ export async function appendAndNotifyDesktop(opts: {
       .catch(() => {});
   }
 
-  if (wantInApp) {
+  if (wantHistory) {
     void useAlertHistoryStore().refresh();
   }
 }
@@ -166,6 +169,8 @@ export async function sendWecomAlertOnce(
       kind: opts.kind,
       state: "down",
       detail: opts.detail,
+      titleSuffix: "",
+      expired: false,
     });
   } catch {
     fired.delete(key);
@@ -191,6 +196,8 @@ export async function sendWecomRecover(opts: {
       kind: opts.kind,
       state: "up",
       detail: "",
+      titleSuffix: "",
+      expired: false,
     });
   } catch {
     /* 恢复通知失败不回填 */

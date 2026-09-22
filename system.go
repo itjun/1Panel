@@ -277,7 +277,7 @@ func (s *System) NotifyHostConn(in HostConnNotify) error {
 	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
 }
 
-// NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落、以及应用探活异常/恢复时发企微。
+// NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落、应用探活异常/恢复、证书到期/续期时发企微。
 func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 	webhook := strings.TrimSpace(in.Webhook)
 	if webhook == "" {
@@ -295,6 +295,21 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 		Detail:   strings.TrimSpace(in.Detail),
 		NotifyAt: time.Now(),
 		Source:   wecom.LocalSource(),
+	}
+	if kind == "cert" {
+		// 与系统通知、应用内同一套标题和正文，不另加严重级别和来源行。
+		text := strings.TrimSpace(in.TitleSuffix)
+		detail := strings.TrimSpace(in.Detail)
+		switch {
+		case text == "":
+			text = detail
+		case detail != "":
+			text = text + "\n" + detail
+		}
+		if text == "" {
+			text = "证书到期"
+		}
+		return wecom.NotifyWecom(webhook, text)
 	}
 	if strings.HasPrefix(kind, "app:") {
 		svc := strings.TrimPrefix(kind, "app:")

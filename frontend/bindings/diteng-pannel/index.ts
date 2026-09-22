@@ -4,6 +4,7 @@
 import * as Agent from "./agent.js";
 import * as AlertHistory from "./alerthistory.js";
 import * as Backup from "./backup.js";
+import * as CertNotify from "./certnotify.js";
 import * as Certs from "./certs.js";
 import * as Files from "./files.js";
 import * as Groups from "./groups.js";
@@ -20,6 +21,7 @@ export {
     Agent,
     AlertHistory,
     Backup,
+    CertNotify,
     Certs,
     Files,
     Groups,

@@ -15,6 +15,7 @@ import * as System from "../../bindings/diteng-pannel/system";
 import * as Backup from "../../bindings/diteng-pannel/backup";
 import * as AlertHistory from "../../bindings/diteng-pannel/alerthistory";
 import * as NotifySubs from "../../bindings/diteng-pannel/notifysubs";
+import * as CertNotify from "../../bindings/diteng-pannel/certnotify";
 import * as LocalApps from "../../bindings/diteng-pannel/localapps";
 import * as LocalSys from "../../bindings/diteng-pannel/localsys";
 
@@ -29,6 +30,7 @@ export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 export * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
 export * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
+export * as certnotify from "../../bindings/diteng-pannel/internal/certnotify/models";
 export * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
 export * as localsys from "../../bindings/diteng-pannel/internal/localsys/models";
 export * as main from "../../bindings/diteng-pannel/models";
@@ -38,6 +40,7 @@ import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/m
 import type * as agentinstall from "../../bindings/diteng-pannel/internal/agentinstall/models";
 import type * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
 import type * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
+import type * as certnotify from "../../bindings/diteng-pannel/internal/certnotify/models";
 import type * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 import type * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 import type * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
@@ -219,6 +222,9 @@ const apiImpl = {
   /** 识别 /etc/nginx/cert 下的证书 */
   collectCerts: (host: string): Promise<monitor.CertListResult> =>
     must(Monitor.CollectCerts(host)),
+  /** spanel-agent 每天留下的证书日检快照。旧 agent 没有该端点时抛错。 */
+  collectCertCheck: (host: string): Promise<agentcli.CertCheckSnapshot> =>
+    must(Monitor.CollectCertCheck(host)),
   /** 本地校验证书+私钥配对（不上传） */
   checkCertPair: (localPaths: string[]): Promise<main.CertPairCheck> =>
     must(Certs.CheckCertPair(localPaths)),
@@ -465,6 +471,22 @@ const apiImpl = {
   unreadAlertCount: (): Promise<number> => AlertHistory.UnreadCount(),
 
   getNotifySubs: (): Promise<notifysubs.Data> => must(NotifySubs.Get()),
+  planCertNotify: (
+    host: string,
+    snap: agentcli.CertCheckSnapshot,
+    nagging: string[]
+  ): Promise<certnotify.Result> => must(CertNotify.Plan(host, snap, nagging)),
+  getCertNotifyCursor: (host: string): Promise<certnotify.Cursor> =>
+    must(CertNotify.GetCursor(host)),
+  commitCertNotifyCursor: async (
+    host: string,
+    cursor: certnotify.Cursor
+  ): Promise<void> => {
+    await CertNotify.CommitCursor(host, cursor);
+  },
+  renameCertNotifyCursor: async (from: string, to: string): Promise<void> => {
+    await CertNotify.RenameCursor(from, to);
+  },
   setNotifySubs: async (d: notifysubs.Data): Promise<void> => {
     await NotifySubs.Set(d);
   },

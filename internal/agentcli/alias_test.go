@@ -60,4 +60,8 @@ func TestSharedDTOAliases(t *testing.T) {
 	var _ AppShutdownReq = agentapi.AppShutdownReq{}
 	var _ agentapi.AppShutdownResult = AppShutdownResult{}
 	var _ AppShutdownResult = agentapi.AppShutdownResult{}
+	var _ agentapi.CertBrief = CertBrief{}
+	var _ CertBrief = agentapi.CertBrief{}
+	var _ agentapi.CertCheckSnapshot = CertCheckSnapshot{}
+	var _ CertCheckSnapshot = agentapi.CertCheckSnapshot{}
 }

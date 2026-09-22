@@ -167,6 +167,11 @@ import {
   stopHostResourceAlertPoll,
   tickHostResourceAlertPoll,
 } from "@/utils/hostResourceAlerts";
+import {
+  startCertAlertPoll,
+  stopCertAlertPoll,
+  tickCertAlertPoll,
+} from "@/utils/certAlerts";
 import { useLocalMetricsStore } from "@/stores/localMetrics";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import { isTermAppShortcut } from "@/utils/termKeys";
@@ -621,6 +626,7 @@ onMounted(() => {
     Events.On("alert-poll-tick", () => {
       tickAppWatchAlertPoll();
       tickHostResourceAlertPoll();
+      tickCertAlertPoll();
     })
   );
   eventOffs.push(
@@ -632,6 +638,7 @@ onMounted(() => {
   void settings.hydrateNotifySubs().then(() => {
     startAppWatchAlertPoll();
     startHostResourceAlertPoll();
+    startCertAlertPoll();
   });
   // 本机指标：客户端运行即静默采集（与当前页无关）
   localMetrics.start();
@@ -640,6 +647,7 @@ onBeforeUnmount(() => {
   localMetrics.stop();
   stopAppWatchAlertPoll();
   stopHostResourceAlertPoll();
+  stopCertAlertPoll();
   window.removeEventListener("keydown", onGlobalKeydown, true);
   window.removeEventListener("keydown", onSettingsEsc);
   eventOffs.forEach((off) => off());

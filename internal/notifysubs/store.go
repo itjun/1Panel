@@ -9,8 +9,8 @@ import (
 	"sync"
 )
 
-// 全局内容类型总闸：资源四类 + 应用探活总类。
-var knownAlertContentKinds = []string{"cpu", "mem", "disk", "load", "app"}
+// 全局内容类型总闸：资源四类 + 应用探活 + 证书到期。
+var knownAlertContentKinds = []string{"cpu", "mem", "disk", "load", "app", "cert"}
 
 // 通知正文可选字段。
 var knownNotifyContentFields = []string{"hostName", "metric", "threshold", "value", "service"}
@@ -29,6 +29,10 @@ type Data struct {
 	NotifyContentFields    []string            `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
+	// HostCertNotifySubs 按主机订阅证书到期。true 才发；缺省或 false 不发。
+	HostCertNotifySubs map[string]bool `json:"hostCertNotifySubs"`
+	// CertKindMigrated 旧配置已补过「证书」总闸。缺省时加载一次并打开，之后尊重用户关掉。
+	CertKindMigrated bool `json:"certKindMigrated"`
 }
 
 // fileData 仅用于读盘：区分缺省与 false/空数组；并兼容旧字段 wecomAlertKinds。
@@ -43,6 +47,8 @@ type fileData struct {
 	NotifyContentFields    *[]string           `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
+	HostCertNotifySubs     map[string]bool     `json:"hostCertNotifySubs"`
+	CertKindMigrated       *bool               `json:"certKindMigrated"`
 }
 
 // Store 通知订阅持久化（线程安全）。
@@ -107,6 +113,8 @@ func emptyData() Data {
 		NotifyContentFields:    append([]string{}, knownNotifyContentFields...),
 		HostResourceNotifySubs: map[string][]string{},
 		HostAppNotifySubs:      map[string][]string{},
+		HostCertNotifySubs:     map[string]bool{},
+		CertKindMigrated:       true,
 	}
 }
 
@@ -122,9 +130,29 @@ func (s *Store) load() error {
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return fmt.Errorf("解析 notify_subs.json 失败: %w", err)
 	}
-	s.data = normalize(dataFromFile(raw))
+	d := dataFromFile(raw)
+	needCert := raw.CertKindMigrated == nil || !*raw.CertKindMigrated
+	if needCert && !containsKind(d.AlertContentKinds, "cert") {
+		d.AlertContentKinds = append(d.AlertContentKinds, "cert")
+	}
+	s.data = normalize(d)
+	s.data.CertKindMigrated = true
 	s.loaded = true
+	if needCert {
+		if err := s.saveLocked(); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func containsKind(list []string, kind string) bool {
+	for _, v := range list {
+		if v == kind {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) saveLocked() error {
@@ -143,6 +171,7 @@ func dataFromFile(raw fileData) Data {
 		WecomWebhook:           raw.WecomWebhook,
 		HostResourceNotifySubs: raw.HostResourceNotifySubs,
 		HostAppNotifySubs:      raw.HostAppNotifySubs,
+		HostCertNotifySubs:     raw.HostCertNotifySubs,
 	}
 	if raw.SystemNotifyEnabled != nil {
 		d.SystemNotifyEnabled = *raw.SystemNotifyEnabled
@@ -212,6 +241,20 @@ func normalize(d Data) Data {
 		NotifyContentFields:    filterKnown(compactList(d.NotifyContentFields), knownNotifyContentFields),
 		HostResourceNotifySubs: compactHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      compactAppHostMap(d.HostAppNotifySubs),
+		HostCertNotifySubs:     compactCertHosts(d.HostCertNotifySubs),
+		CertKindMigrated:       true,
+	}
+	return out
+}
+
+func compactCertHosts(in map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	for host, on := range in {
+		host = strings.TrimSpace(host)
+		if host == "" || !on {
+			continue
+		}
+		out[host] = true
 	}
 	return out
 }
@@ -280,7 +323,19 @@ func cloneData(d Data) Data {
 		NotifyContentFields:    append([]string{}, d.NotifyContentFields...),
 		HostResourceNotifySubs: cloneHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      cloneHostMap(d.HostAppNotifySubs),
+		HostCertNotifySubs:     cloneCertHosts(d.HostCertNotifySubs),
+		CertKindMigrated:       d.CertKindMigrated,
 	}
+}
+
+func cloneCertHosts(in map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	for k, v := range in {
+		if v {
+			out[k] = true
+		}
+	}
+	return out
 }
 
 func cloneHostMap(in map[string][]string) map[string][]string {

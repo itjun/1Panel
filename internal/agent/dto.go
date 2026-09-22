@@ -21,4 +21,6 @@ type (
 	JavaAppInstance    = agentapi.JavaAppInstance
 	AppShutdownReq     = agentapi.AppShutdownReq
 	AppShutdownResult  = agentapi.AppShutdownResult
+	CertBrief          = agentapi.CertBrief
+	CertCheckSnapshot  = agentapi.CertCheckSnapshot
 )

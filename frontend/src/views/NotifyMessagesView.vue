@@ -81,7 +81,7 @@
               class="col-nowrap col-state"
               :class="row.state === 'up' ? 'is-up' : 'is-down'"
             >
-              {{ alertStateLabel(row.state) }}
+              {{ alertStateLabel(row.state, row.kind) }}
             </span>
           </template>
         </el-table-column>
@@ -133,6 +133,7 @@ const kindButtons = [
   { value: "mem", label: "内存" },
   { value: "disk", label: "磁盘" },
   { value: "load", label: "负载" },
+  { value: "cert", label: "证书" },
 ];
 
 const stateButtons = [
@@ -213,6 +214,13 @@ async function onRowClick(row: AlertEvent) {
 
 async function scrollToFocus(id: string) {
   if (!id) return;
+  const ev = alertHistory.events.find((e) => e.id === id);
+  if (ev && props.kind !== "app" && !isAppEvent(ev)) {
+    if (!matchKind(ev, kindFilter.value)) kindFilter.value = "all";
+    if (stateFilter.value !== "all" && ev.state !== stateFilter.value) {
+      stateFilter.value = "all";
+    }
+  }
   focusId.value = id;
   await nextTick();
   const row = filteredEvents.value.find((e) => e.id === id);

@@ -116,6 +116,7 @@ type Server struct {
 	info      HostInfo
 	collector *monitor.Collector
 	watcher   *Watcher
+	certs     *CertChecker
 }
 
 // NewServer token 为空串表示关闭 Bearer 鉴权
@@ -134,6 +135,10 @@ func NewServer(store *Store, mc *MetricCollector, retention Retention, version, 
 
 func (s *Server) SetWatcher(w *Watcher) {
 	s.watcher = w
+}
+
+func (s *Server) SetCertChecker(c *CertChecker) {
+	s.certs = c
 }
 
 // collectFunc 按需采集处理函数：拿到共享的 Collector 和本次请求的 query
@@ -226,6 +231,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /collect/certs", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
 		return c.CollectCerts("local", local)
 	}))
+	mux.HandleFunc("GET /collect/cert-check", s.handleCertCheck)
 	mux.HandleFunc("GET /collect/hosts", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
 		return c.CollectHosts("local", local)
 	}))
@@ -278,6 +284,14 @@ func (s *Server) auth(next http.Handler) http.Handler {
 }
 
 // ============ 读库端点 ============
+
+func (s *Server) handleCertCheck(w http.ResponseWriter, _ *http.Request) {
+	if s.certs == nil {
+		writeJSON(w, http.StatusOK, CertCheckSnapshot{Certs: []CertBrief{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.certs.Snapshot())
+}
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	h := Health{

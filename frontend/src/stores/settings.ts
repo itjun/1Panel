@@ -36,12 +36,13 @@ export type WecomAlertKind = ResourceAlertKind;
 
 export const ALL_WECOM_ALERT_KINDS: WecomAlertKind[] = [...ALL_ALERT_KINDS];
 
-/** 全局内容类型总闸：资源四类 + 应用探活总类 */
-export type AlertContentKind = ResourceAlertKind | "app";
+/** 全局内容类型总闸：资源四类 + 应用探活 + 证书到期 */
+export type AlertContentKind = ResourceAlertKind | "app" | "cert";
 
 export const ALL_ALERT_CONTENT_KINDS: AlertContentKind[] = [
   ...ALL_ALERT_KINDS,
   "app",
+  "cert",
 ];
 
 /** 通知正文可选字段 */
@@ -77,8 +78,9 @@ export interface AppSettings {
   /** 应用内通知总开关；缺省 true */
   inAppNotifyEnabled: boolean;
   /**
-   * 全局内容类型总闸（cpu/mem/disk/load/app）。
+   * 全局内容类型总闸（cpu/mem/disk/load/app/cert）。
    * 缺字段时用旧 wecomAlertKinds 迁资源类型并补 app；再缺则全开。
+   * 旧配置第一次读到时补上 cert 并打开，之后可以单独关掉。
    */
   alertContentKinds: AlertContentKind[];
   /** 是否发送恢复/up；缺省 true */
@@ -95,6 +97,8 @@ export interface AppSettings {
    * 未订该服务则企微 / 系统通知 / 应用内历史都不发。
    */
   hostAppNotifySubs: Record<string, string[]>;
+  /** 按主机订阅证书到期。缺省不订。 */
+  hostCertNotifySubs: Record<string, boolean>;
 }
 
 export const FONT_OPTIONS: { label: string; value: string }[] = [
@@ -194,6 +198,9 @@ const TERM_FONT_MIGRATION_KEY = "ipannel.terminalFontSize.byPlatform.migrated";
 const TERM_FAMILY_WIN_MIGRATION_KEY =
   "ipannel.terminalFontFamily.winConsolas.migrated";
 
+/** 旧配置补一次「证书」内容总闸。磁盘上的 notify_subs 由后端再补一次。 */
+const CERT_KIND_MIGRATION_KEY = "ipannel.certContentKind.migrated";
+
 const DEFAULTS: AppSettings = {
   theme: "light",
   fontFamily: FONT_OPTIONS[0].value,
@@ -210,6 +217,7 @@ const DEFAULTS: AppSettings = {
   notifyContentFields: [...ALL_NOTIFY_CONTENT_FIELDS],
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
+  hostCertNotifySubs: {},
 };
 
 /** 设置页用来比较「当前值 ≠ 默认值」的默认值表（只读，勿改） */
@@ -272,6 +280,24 @@ function isNotifyContentField(k: unknown): k is NotifyContentField {
  * alertContentKinds 缺省：用旧 wecomAlertKinds 迁资源类型并补 app；再缺则全开。
  * 显式空数组表示用户关光，不回退。
  */
+function migrateCertContentKind(kinds: AlertContentKind[]): AlertContentKind[] {
+  if (localStorage.getItem(CERT_KIND_MIGRATION_KEY) === "1") return kinds;
+  localStorage.setItem(CERT_KIND_MIGRATION_KEY, "1");
+  if (kinds.includes("cert")) return kinds;
+  return [...kinds, "cert"];
+}
+
+function loadHostCertNotifySubs(v: unknown): Record<string, boolean> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, boolean> = {};
+  for (const [host, on] of Object.entries(v as Record<string, unknown>)) {
+    const name = host.trim();
+    if (!name || on !== true) continue;
+    out[name] = true;
+  }
+  return out;
+}
+
 function loadAlertContentKinds(
   v: unknown,
   legacyWecomKinds?: unknown
@@ -355,9 +381,11 @@ function load(): AppSettings {
       inAppNotifyEnabled: loadBoolDefaultTrue(
         (parsed as { inAppNotifyEnabled?: unknown }).inAppNotifyEnabled
       ),
-      alertContentKinds: loadAlertContentKinds(
-        (parsed as { alertContentKinds?: unknown }).alertContentKinds,
-        (parsed as { wecomAlertKinds?: unknown }).wecomAlertKinds
+      alertContentKinds: migrateCertContentKind(
+        loadAlertContentKinds(
+          (parsed as { alertContentKinds?: unknown }).alertContentKinds,
+          (parsed as { wecomAlertKinds?: unknown }).wecomAlertKinds
+        )
       ),
       notifyRecoverEnabled: loadBoolDefaultTrue(
         (parsed as { notifyRecoverEnabled?: unknown }).notifyRecoverEnabled
@@ -371,6 +399,9 @@ function load(): AppSettings {
       ),
       hostAppNotifySubs: loadHostAppNotifySubs(
         (parsed as { hostAppNotifySubs?: unknown }).hostAppNotifySubs
+      ),
+      hostCertNotifySubs: loadHostCertNotifySubs(
+        (parsed as { hostCertNotifySubs?: unknown }).hostCertNotifySubs
       ),
     };
   } catch {
@@ -407,6 +438,9 @@ export const useSettingsStore = defineStore("settings", () => {
   const hostAppNotifySubs = ref<Record<string, string[]>>({
     ...initial.hostAppNotifySubs,
   });
+  const hostCertNotifySubs = ref<Record<string, boolean>>({
+    ...initial.hostCertNotifySubs,
+  });
   /** 设置页草稿：离开页面不丢，未点保存不写入 localStorage */
   const webhookDraft = ref(expandWecomWebhook(initial.wecomWebhook));
   const webhookTested = ref("");
@@ -428,6 +462,7 @@ export const useSettingsStore = defineStore("settings", () => {
       notifyContentFields: [...notifyContentFields.value],
       hostResourceNotifySubs: { ...hostResourceNotifySubs.value },
       hostAppNotifySubs: { ...hostAppNotifySubs.value },
+      hostCertNotifySubs: { ...hostCertNotifySubs.value },
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }
@@ -444,6 +479,8 @@ export const useSettingsStore = defineStore("settings", () => {
       notifyContentFields: [...notifyContentFields.value],
       hostResourceNotifySubs: { ...hostResourceNotifySubs.value },
       hostAppNotifySubs: { ...hostAppNotifySubs.value },
+      hostCertNotifySubs: { ...hostCertNotifySubs.value },
+      certKindMigrated: true,
     };
   }
 
@@ -481,6 +518,10 @@ export const useSettingsStore = defineStore("settings", () => {
           d.hostResourceNotifySubs
         );
         hostAppNotifySubs.value = loadHostAppNotifySubs(d.hostAppNotifySubs);
+        hostCertNotifySubs.value = loadHostCertNotifySubs(
+          (d as { hostCertNotifySubs?: unknown }).hostCertNotifySubs
+        );
+        localStorage.setItem(CERT_KIND_MIGRATION_KEY, "1");
         persist();
         // 磁盘仍可能带旧 wecomAlertKinds；写回一次去掉并补齐新字段
         persistNotifyDisk();
@@ -742,6 +783,30 @@ export const useSettingsStore = defineStore("settings", () => {
     );
   }
 
+  function isCertNotifySubscribed(host: string): boolean {
+    const name = (host || "").trim();
+    if (!name) return false;
+    return hostCertNotifySubs.value[name] === true;
+  }
+
+  function setCertNotifySubscribed(host: string, on: boolean) {
+    const name = (host || "").trim();
+    if (!name) return;
+    const has = hostCertNotifySubs.value[name] === true;
+    if (on === has) return;
+    const map = { ...hostCertNotifySubs.value };
+    if (on) map[name] = true;
+    else delete map[name];
+    hostCertNotifySubs.value = map;
+    persistNotify();
+  }
+
+  function hostsWithCertNotifySubs(): string[] {
+    return Object.keys(hostCertNotifySubs.value).filter(
+      (h) => hostCertNotifySubs.value[h] === true
+    );
+  }
+
   /** 有资源告警订阅的主机名（全局资源轮询用） */
   function hostsWithResourceNotifySubs(): string[] {
     return Object.keys(hostResourceNotifySubs.value).filter(
@@ -766,6 +831,15 @@ export const useSettingsStore = defineStore("settings", () => {
       delete map[from];
       hostAppNotifySubs.value = map;
       changed = true;
+    }
+
+    if (hostCertNotifySubs.value[from] === true) {
+      const map = { ...hostCertNotifySubs.value };
+      delete map[from];
+      if (map[to] !== true) map[to] = true;
+      hostCertNotifySubs.value = map;
+      changed = true;
+      void api.renameCertNotifyCursor(from, to).catch(() => {});
     }
 
     const resFrom = hostResourceNotifySubs.value[from];
@@ -881,6 +955,7 @@ export const useSettingsStore = defineStore("settings", () => {
     notifyContentFields,
     hostResourceNotifySubs,
     hostAppNotifySubs,
+    hostCertNotifySubs,
     webhookDraft,
     webhookTested,
     setFontFamily,
@@ -905,6 +980,9 @@ export const useSettingsStore = defineStore("settings", () => {
     applyNotifySubsToHosts,
     hostsWithAppNotifySubs,
     hostsWithResourceNotifySubs,
+    hostsWithCertNotifySubs,
+    isCertNotifySubscribed,
+    setCertNotifySubscribed,
     hydrateNotifySubs,
     renameNotifyHost,
     isContentKindEnabled,

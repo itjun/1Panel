@@ -163,23 +163,33 @@ export interface GroupOverview {
 }
 
 /**
- * HostAlertNotify 面板侧资源超阈值 / 回落，或应用探活异常 / 恢复入参。
- * Kind：mem | cpu | disk | load | app:<service>
+ * HostAlertNotify 面板侧资源超阈值 / 回落，或应用探活异常 / 恢复，或证书到期 / 续期入参。
+ * Kind：mem | cpu | disk | load | app:<service> | cert
  */
 export interface HostAlertNotify {
     "webhook": string;
     "host": string;
 
     /**
-     * mem | cpu | disk | load | app:<service>
+     * mem | cpu | disk | load | app:<service> | cert
      */
     "kind": string;
 
     /**
-     * down = 超阈值/异常, up = 已回落/恢复
+     * down = 超阈值/异常/到期, up = 已回落/恢复/续期
      */
     "state": string;
     "detail": string;
+
+    /**
+     * 证书告警的企微标题后缀；空则走原有类型文案
+     */
+    "titleSuffix": string;
+
+    /**
+     * 证书已过期时企微用严重，未过期用警告
+     */
+    "expired": boolean;
 }
 
 /**

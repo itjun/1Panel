@@ -14,6 +14,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as agentcli$0 from "./internal/agentcli/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as aptsource$0 from "./internal/aptsource/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -24,6 +27,14 @@ import * as monitor$0 from "./internal/monitor/models.js";
  */
 export function CollectAptSources(host: string): $CancellablePromise<aptsource$0.Snapshot> {
     return $Call.ByID(986192323, host);
+}
+
+/**
+ * CollectCertCheck 读取 spanel-agent 留下的证书日检快照（不在面板侧临时扫 openssl）。
+ * 旧版 agent 没有该端点时返回错误，调用方应跳过，不要当成「没有证书」。
+ */
+export function CollectCertCheck(host: string): $CancellablePromise<agentcli$0.CertCheckSnapshot> {
+    return $Call.ByID(499353682, host);
 }
 
 /**

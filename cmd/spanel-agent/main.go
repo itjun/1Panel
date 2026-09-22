@@ -78,6 +78,8 @@ func main() {
 	srv := agent.NewServer(store, mc, retention, version, token)
 	watcher := agent.NewWatcher(store, *dataDir)
 	srv.SetWatcher(watcher)
+	certs := agent.NewCertChecker(*dataDir)
+	srv.SetCertChecker(certs)
 
 	// 采集循环：tick → 采样 → 非阻塞投递，永不等待网络/磁盘
 	go func() {
@@ -108,6 +110,7 @@ func main() {
 	go agent.NewAggregator(store).Run(ctx)
 	go agent.NewCleanup(store, retention).Run(ctx)
 	go watcher.Run(ctx)
+	go certs.Run(ctx)
 
 	// HTTP 服务
 	httpSrv := &http.Server{

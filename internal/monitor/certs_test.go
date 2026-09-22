@@ -100,6 +100,14 @@ func TestParseCertsOutputNoDir(t *testing.T) {
 	}
 }
 
+func TestParseCertsUnparsedNonKey(t *testing.T) {
+	out := "=FILE=\nname=bad.crt\nsize=1\nmtime=1\ncert=0\n=FILE=\nname=a.key\nsize=1\nmtime=1\ncert=0\n"
+	result, _ := parseCertsOutput(out, time.Now())
+	if result.UnparsedCerts != 1 || len(result.Certs) != 0 {
+		t.Fatalf("unparsed=%d certs=%d", result.UnparsedCerts, len(result.Certs))
+	}
+}
+
 func TestParseCertsOutputNoOpenssl(t *testing.T) {
 	result, _ := parseCertsOutput("=NOSSL=\n", time.Now())
 	if !result.Installed || !result.NoOpenssl {

@@ -15,6 +15,7 @@ import (
 	"diteng-pannel/internal/agentcli"
 	"diteng-pannel/internal/agentinstall"
 	"diteng-pannel/internal/alerthistory"
+	"diteng-pannel/internal/certnotify"
 	"diteng-pannel/internal/desktop"
 	"diteng-pannel/internal/groups"
 	"diteng-pannel/internal/hosticon"
@@ -36,7 +37,7 @@ import (
 const macTrafficLightBand = 40
 
 // macInvisibleTitleBarHeight 置 0：原生顶栏拖拽带会吞导航按钮的首次点击
-//（焦点离开 Terminal input，但 Vue click 不到）。窗口拖动改由前端 gap/no-drag 控制。
+// （焦点离开 Terminal input，但 Vue click 不到）。窗口拖动改由前端 gap/no-drag 控制。
 const macInvisibleTitleBarHeight = 0
 
 // App 是应用核心对象：持有全部共享依赖。
@@ -53,6 +54,7 @@ type App struct {
 	hostMeta     *hostmeta.Store
 	alertHistory *alerthistory.Store
 	notifySubs   *notifysubs.Store
+	certNotify   *certnotify.Store
 	menuCheck    *menucheck.Watcher
 	termMgr      *terminal.Manager
 	termStream   *termStreamServer
@@ -114,6 +116,7 @@ func NewApp() *application.App {
 			application.NewService((*Backup)(core)),
 			application.NewService((*AlertHistory)(core)),
 			application.NewService((*NotifySubs)(core)),
+			application.NewService((*CertNotify)(core)),
 			application.NewService(ns),
 		},
 		Assets: application.AssetOptions{
@@ -241,6 +244,11 @@ func NewApp() *application.App {
 		app.Logger.Error("初始化通知订阅存储失败", "error", err)
 	} else {
 		core.notifySubs = nsStore
+	}
+	if cnStore, err := certnotify.NewStore("ServerPanel"); err != nil {
+		app.Logger.Error("初始化证书通知状态失败", "error", err)
+	} else {
+		core.certNotify = cnStore
 	}
 	core.collector = monitor.NewCollector(sshMgr)
 	core.termMgr.Init(context.Background(), app.Event.Emit)

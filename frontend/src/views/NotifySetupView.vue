@@ -154,6 +154,11 @@ const CONTENT_KINDS: {
     name: "应用",
     desc: "进程、健康检查或入口探活失败",
   },
+  {
+    kind: "cert",
+    name: "证书",
+    desc: "/etc/nginx/cert 里有证书且剩余少于 30 天",
+  },
 ];
 
 const CONTENT_FIELDS: { field: NotifyContentField; name: string }[] = [

@@ -15,8 +15,8 @@ const CertDir = "/etc/nginx/cert"
 
 // CertInfo 单张证书的识别结果（参考 1Panel 证书列表字段）
 type CertInfo struct {
-	subjectCN string // 使用者 CN，仅解析过程内部使用，不序列化
-	issuerCN  string // 颁发者 CN，仅解析过程内部使用，不序列化
+	subjectCN  string   // 使用者 CN，仅解析过程内部使用，不序列化
+	issuerCN   string   // 颁发者 CN，仅解析过程内部使用，不序列化
 	Name       string   `json:"name"`       // 证书文件名
 	Domains    []string `json:"domains"`    // CN + SAN 域名（去重）
 	Issuer     string   `json:"issuer"`     // 颁发者（CN 优先，回退 O）
@@ -34,6 +34,8 @@ type CertListResult struct {
 	Installed bool       `json:"installed"` // 目录是否存在
 	NoOpenssl bool       `json:"noOpenssl"` // 远程缺少 openssl，无法解析证书内容
 	Certs     []CertInfo `json:"certs"`
+	// UnparsedCerts 不是私钥、但 openssl 没解析出证书的文件数。不进证书页 JSON。
+	UnparsedCerts int `json:"-"`
 }
 
 // CollectCerts 识别远程主机 /etc/nginx/cert 下的全部证书
@@ -155,7 +157,23 @@ func parseCertsOutput(s string, now time.Time) (CertListResult, map[string]bool)
 			}
 		}
 	}
+	parsed := map[string]bool{}
+	for _, c := range result.Certs {
+		parsed[c.Name] = true
+	}
+	for name := range allFiles {
+		if parsed[name] || certFileIsKey(name) {
+			continue
+		}
+		result.UnparsedCerts++
+	}
 	return result, allFiles
+}
+
+// certFileIsKey 私钥文件。解析失败的证书不能算成私钥，否则会把「解析不出」当成证书已删除。
+func certFileIsKey(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	return strings.HasSuffix(n, ".key") || n == "privkey.pem"
 }
 
 // parseTextLine 从 openssl x509 -text 的输出行中提取证书字段

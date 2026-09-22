@@ -34,6 +34,59 @@ export interface AppShutdownResult {
 }
 
 /**
+ * CertBrief 证书检查快照里的一张证书（与 /collect/certs 的字段对齐，只留告警要用的）。
+ */
+export interface CertBrief {
+    "name": string;
+    "domains": string[] | null;
+    "issuer": string;
+
+    /**
+     * 到期时间（Unix 秒）
+     */
+    "notAfter": number;
+
+    /**
+     * 扫描当时的剩余天数（负数 = 已过期）
+     */
+    "daysLeft": number;
+}
+
+/**
+ * CertCheckSnapshot spanel-agent 每天一次的 /etc/nginx/cert 扫描结果。
+ * Scanned=false 表示今天还没扫过（例如进程在凌晨 6 点前启动，正在等到点）。
+ */
+export interface CertCheckSnapshot {
+    "scanned": boolean;
+
+    /**
+     * 主机本地日期 YYYY-MM-DD
+     */
+    "localDate": string;
+
+    /**
+     * Unix 秒
+     */
+    "scannedAt": number;
+
+    /**
+     * 目录是否存在
+     */
+    "installed": boolean;
+
+    /**
+     * 远程缺少 openssl，无法解析
+     */
+    "noOpenssl": boolean;
+
+    /**
+     * ParseFailed 目录里有非私钥文件没解析成证书。不当成证书已删除。
+     */
+    "parseFailed": boolean;
+    "certs": CertBrief[] | null;
+}
+
+/**
  * CurrentPoint 最新一条采样（/metrics/current 的动态部分）
  */
 export interface CurrentPoint {

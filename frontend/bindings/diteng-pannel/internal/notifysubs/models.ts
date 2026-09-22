@@ -19,4 +19,14 @@ export interface Data {
     "notifyContentFields": string[] | null;
     "hostResourceNotifySubs": { [_ in string]?: string[] | null } | null;
     "hostAppNotifySubs": { [_ in string]?: string[] | null } | null;
+
+    /**
+     * HostCertNotifySubs 按主机订阅证书到期。true 才发；缺省或 false 不发。
+     */
+    "hostCertNotifySubs": { [_ in string]?: boolean } | null;
+
+    /**
+     * CertKindMigrated 旧配置已补过「证书」总闸。缺省时加载一次并打开，之后尊重用户关掉。
+     */
+    "certKindMigrated": boolean;
 }

@@ -181,6 +181,7 @@ import { useAppStore } from "@/stores/app";
 import EnlargableCard from "@/components/EnlargableCard.vue";
 import PageSkeleton from "@/components/PageSkeleton.vue";
 import ViewToolbar from "@/components/ViewToolbar.vue";
+import { certGroupKey } from "@/utils/certGroup";
 
 const props = defineProps<{ host: string }>();
 
@@ -208,7 +209,7 @@ interface CertGroup {
 const groups = computed<CertGroup[]>(() => {
   const map = new Map<string, CertGroup>();
   for (const c of list.value) {
-    const key = `${(c.domains ?? []).join(",")}|${c.issuer}|${c.notAfter}`;
+    const key = certGroupKey(c.domains, c.issuer, c.notAfter);
     const g = map.get(key);
     if (g) {
       g.names.push(c.name);

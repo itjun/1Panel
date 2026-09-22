@@ -118,8 +118,11 @@ func TestMissingFileNotFromDisk(t *testing.T) {
 	if !got.SystemNotifyEnabled || !got.InAppNotifyEnabled || !got.NotifyRecoverEnabled {
 		t.Fatalf("empty defaults should keep channels/recover on: %#v", got)
 	}
-	if len(got.AlertContentKinds) != 5 || len(got.NotifyContentFields) != 5 {
+	if len(got.AlertContentKinds) != 6 || len(got.NotifyContentFields) != 5 {
 		t.Fatalf("empty defaults kinds=%v fields=%v", got.AlertContentKinds, got.NotifyContentFields)
+	}
+	if !got.CertKindMigrated || !containsKind(got.AlertContentKinds, "cert") {
+		t.Fatalf("empty defaults should include cert: %#v", got.AlertContentKinds)
 	}
 }
 
@@ -151,7 +154,7 @@ func TestMigrateWecomAlertKinds(t *testing.T) {
 	if !got.SystemNotifyEnabled || !got.InAppNotifyEnabled || !got.NotifyRecoverEnabled {
 		t.Fatalf("legacy missing bools default true: %#v", got)
 	}
-	wantKinds := []string{"cpu", "disk", "app"}
+	wantKinds := []string{"cpu", "disk", "app", "cert"}
 	if len(got.AlertContentKinds) != len(wantKinds) {
 		t.Fatalf("migrated kinds=%v want %v", got.AlertContentKinds, wantKinds)
 	}
@@ -195,13 +198,26 @@ func TestExplicitEmptyAlertContentKinds(t *testing.T) {
 	if got.SystemNotifyEnabled {
 		t.Fatal("explicit false must stick")
 	}
-	if len(got.AlertContentKinds) != 0 {
-		t.Fatalf("explicit empty kinds must stick: %v", got.AlertContentKinds)
+	if len(got.AlertContentKinds) != 1 || got.AlertContentKinds[0] != "cert" || !got.CertKindMigrated {
+		t.Fatalf("first load of an old file should turn cert on once: %#v migrated=%v", got.AlertContentKinds, got.CertKindMigrated)
 	}
 	if len(got.NotifyContentFields) != 0 {
 		t.Fatalf("explicit empty fields must stick: %v", got.NotifyContentFields)
 	}
 	if !got.InAppNotifyEnabled || !got.NotifyRecoverEnabled {
 		t.Fatalf("missing bools still default true: %#v", got)
+	}
+
+	// 用户之后关掉证书：迁移标记已写下，再加载不能把证书加回来。
+	got.AlertContentKinds = []string{}
+	if err := s.Set(got); err != nil {
+		t.Fatal(err)
+	}
+	s2 := &Store{path: path, data: emptyData()}
+	if err := s2.load(); err != nil {
+		t.Fatal(err)
+	}
+	if len(s2.Get().AlertContentKinds) != 0 {
+		t.Fatalf("cert off must stick after migration: %v", s2.Get().AlertContentKinds)
 	}
 }

@@ -53,6 +53,8 @@ type WatchYAML = agentapi.WatchYAML
 type JavaAppInstance = agentapi.JavaAppInstance
 type AppShutdownReq = agentapi.AppShutdownReq
 type AppShutdownResult = agentapi.AppShutdownResult
+type CertBrief = agentapi.CertBrief
+type CertCheckSnapshot = agentapi.CertCheckSnapshot
 
 // Status 缓存的 agent 状态（主机列表徽章用）
 type Status struct {

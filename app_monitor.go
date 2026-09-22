@@ -57,24 +57,24 @@ func (s *Monitor) CollectOverview(host string) (monitor.Overview, error) {
 func overviewFromAgent(c agentcli.CurrentResponse) monitor.Overview {
 	m, i := c.Metrics, c.Info
 	ov := monitor.Overview{
-		CPUPercent: m.CPUPercent,
-		MemTotal:   m.MemTotal,
-		MemUsed:    m.MemUsed,
-		SwapTotal:  m.SwapTotal,
-		SwapUsed:   m.SwapUsed,
-		Load1:      m.Load1,
-		Load5:      m.Load5,
-		Load15:     m.Load15,
-		Uptime:     i.Uptime,
-		Kernel:     i.Kernel,
-		OSRelease:  i.OSRelease,
-		CPUCount:   i.CPUCount,
-		CPUModel:   i.CPUModel,
-		Hostname:   i.Hostname,
-		Arch:       i.Arch,
-		IPAddress:  i.IPAddress,
-		NetRxBytes: m.NetRxBytes,
-		NetTxBytes: m.NetTxBytes,
+		CPUPercent:     m.CPUPercent,
+		MemTotal:       m.MemTotal,
+		MemUsed:        m.MemUsed,
+		SwapTotal:      m.SwapTotal,
+		SwapUsed:       m.SwapUsed,
+		Load1:          m.Load1,
+		Load5:          m.Load5,
+		Load15:         m.Load15,
+		Uptime:         i.Uptime,
+		Kernel:         i.Kernel,
+		OSRelease:      i.OSRelease,
+		CPUCount:       i.CPUCount,
+		CPUModel:       i.CPUModel,
+		Hostname:       i.Hostname,
+		Arch:           i.Arch,
+		IPAddress:      i.IPAddress,
+		NetRxBytes:     m.NetRxBytes,
+		NetTxBytes:     m.NetTxBytes,
 		DiskReadBytes:  m.DiskReadBytes,
 		DiskWriteBytes: m.DiskWriteBytes,
 		DiskIOCount:    m.DiskIOCount,
@@ -314,6 +314,18 @@ func (s *Monitor) CollectLog(host, logType string, lines int) (monitor.LogResult
 	var v monitor.LogResult
 	err = cli.GetJSON(context.Background(),
 		"/collect/logs?type="+logType+"&lines="+fmt.Sprint(lines), &v, true)
+	return v, err
+}
+
+// CollectCertCheck 读取 spanel-agent 留下的证书日检快照（不在面板侧临时扫 openssl）。
+// 旧版 agent 没有该端点时返回错误，调用方应跳过，不要当成「没有证书」。
+func (s *Monitor) CollectCertCheck(host string) (agentcli.CertCheckSnapshot, error) {
+	cli, err := s.agentClient(host)
+	if err != nil {
+		return agentcli.CertCheckSnapshot{}, err
+	}
+	var v agentcli.CertCheckSnapshot
+	err = cli.GetJSON(context.Background(), "/collect/cert-check", &v, false)
 	return v, err
 }
 

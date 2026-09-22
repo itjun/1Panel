@@ -80,7 +80,7 @@ export function NotifyDesktop($in: $models.DesktopNotify): $CancellablePromise<v
 }
 
 /**
- * NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落、以及应用探活异常/恢复时发企微。
+ * NotifyHostAlert 面板检测到 CPU/内存/磁盘/负载超阈值或回落、应用探活异常/恢复、证书到期/续期时发企微。
  */
 export function NotifyHostAlert($in: $models.HostAlertNotify): $CancellablePromise<void> {
     return $Call.ByID(3629648658, $in);

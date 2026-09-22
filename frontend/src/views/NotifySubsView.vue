@@ -50,6 +50,17 @@
             />
           </template>
         </el-table-column>
+        <el-table-column label="证书" min-width="88" align="center">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="settings.isCertNotifySubscribed(row.name)"
+              @change="
+                (v: string | number | boolean) =>
+                  settings.setCertNotifySubscribed(row.name, Boolean(v))
+              "
+            />
+          </template>
+        </el-table-column>
       </el-table>
 
       <el-table
