@@ -71,6 +71,30 @@ func TestMoveGroupRejectSelfParent(t *testing.T) {
 	}
 }
 
+func TestRenamePreservesHostsAndMigratesReferences(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), "g.json"), data: map[string]*Group{}}
+	if err := s.Upsert(Group{ID: "03-zhetai", Name: "03-zhetai", Order: 4, Hosts: []string{"zhetai-postgres", "sshm-website"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Upsert(Group{ID: "02-private", Name: "02-private", Order: 5, Hosts: []string{}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Rename("03-zhetai", "03-zhetai-main"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.data["03-zhetai"]; ok {
+		t.Fatal("old group ID was retained after rename")
+	}
+	got, ok := s.data["03-zhetai-main"]
+	if !ok {
+		t.Fatal("renamed group is missing")
+	}
+	if got.Name != "03-zhetai-main" || len(got.Hosts) != 2 || got.Hosts[0] != "zhetai-postgres" || got.Hosts[1] != "sshm-website" {
+		t.Fatalf("rename lost group metadata: %#v", got)
+	}
+}
+
 func TestReorderGroups(t *testing.T) {
 	s := &Store{path: filepath.Join(t.TempDir(), "g.json"), data: map[string]*Group{}}
 	// 故意用乱序 order 创建，模拟历史数据
