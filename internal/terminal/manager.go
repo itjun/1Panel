@@ -266,12 +266,12 @@ func (m *Manager) Resize(sessionID string, cols, rows int) error {
 	if !ok {
 		return nil
 	}
+	if cols <= 0 || rows <= 0 {
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return nil
-	}
-	if cols <= 0 || rows <= 0 {
 		return nil
 	}
 	return s.session.WindowChange(rows, cols)
