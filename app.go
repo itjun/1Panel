@@ -66,13 +66,25 @@ type App struct {
 	boardMu      sync.Mutex
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
 
+	terminalWindowMu      sync.Mutex
+	terminalWindows       map[string]*application.WebviewWindow // key=terminal-<n>
+	terminalWindowReady   map[string]bool
+	terminalWindowVisible map[string]bool
+	pendingTerminalEvents map[string][]TerminalWindowCommand
+	terminalWindowSeq     uint64
+
+	terminalTransferMu sync.Mutex
+	terminalTransfers  map[string]*terminalTransferState
+
 	themeAppearance macui.AppearanceMode // 固定 light；零值也按 light 处理
 
-	showMu     sync.Mutex
-	sized      bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
-	shown      bool
-	ready      bool // Wails 已进入运行态（impl 就绪，窗口 API 可安全调用）
-	resizeSave *time.Timer
+	showMu       sync.Mutex
+	sized        bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
+	shown        bool
+	ready        bool // Wails 已进入运行态（impl 就绪，窗口 API 可安全调用）
+	resizeSave   *time.Timer
+	mainBounds   windowBounds
+	mainBoundsOK bool
 
 	allowQuit atomic.Bool // 托盘/设置「退出应用」为 true；⌘Q 与关窗默认 false
 }
@@ -87,12 +99,17 @@ func NewApp() *application.App {
 	sshMgr := sshd.NewManager()
 	ns := notifications.New()
 	core := &App{
-		sshMgr:       sshMgr,
-		termMgr:      terminal.NewManager(sshMgr),
-		agentPool:    agentcli.NewPool(sshMgr, connectOptionFor),
-		installer:    agentinstall.New(sshMgr),
-		boardWindows: make(map[string]*application.WebviewWindow),
-		notifier:     ns,
+		sshMgr:                sshMgr,
+		termMgr:               terminal.NewManager(sshMgr),
+		agentPool:             agentcli.NewPool(sshMgr, connectOptionFor),
+		installer:             agentinstall.New(sshMgr),
+		boardWindows:          make(map[string]*application.WebviewWindow),
+		terminalWindows:       make(map[string]*application.WebviewWindow),
+		terminalWindowReady:   make(map[string]bool),
+		terminalWindowVisible: make(map[string]bool),
+		pendingTerminalEvents: make(map[string][]TerminalWindowCommand),
+		terminalTransfers:     make(map[string]*terminalTransferState),
+		notifier:              ns,
 	}
 	desktop.SetService(ns)
 	initAskBeforeQuit()
@@ -140,8 +157,10 @@ func NewApp() *application.App {
 	// 主窗口：隐藏标题栏。Hidden 只等到「尺寸已确定」，立刻 Show 出 HTML 骨架，
 	// 不再等 Vue 跑完（那会让 Dock 图标亮了窗口却迟迟不出来）。
 	winW, winH := 1280, 800
-	if sw, sh, ok := loadWindowGeom(); ok {
-		winW, winH = sw, sh
+	if bounds, ok := loadMainWindowBounds(); ok {
+		winW, winH = bounds.Width, bounds.Height
+		core.mainBounds = bounds
+		core.mainBoundsOK = bounds.PositionSet
 		core.sized = true
 	}
 	winOpts := application.WebviewWindowOptions{
@@ -185,6 +204,7 @@ func NewApp() *application.App {
 	core.fitWindowToPrimaryScreen()
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		core.markReady()
+		core.restoreMainWindowPosition()
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
 		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
@@ -206,6 +226,9 @@ func NewApp() *application.App {
 		core.enforceMinSize()
 		core.scheduleSaveGeom()
 		macui.ApplyCenteredTrafficLights(win)
+	})
+	win.OnWindowEvent(events.Common.WindowDidMove, func(*application.WindowEvent) {
+		core.scheduleSaveGeom()
 	})
 	go func() {
 		time.Sleep(800 * time.Millisecond)
@@ -323,9 +346,10 @@ func NewApp() *application.App {
 
 func (a *App) shutdown() {
 	if a.mainWindow != nil {
-		w, h := a.mainWindow.Size()
-		saveWindowGeom(w, h)
+		a.saveMainWindowGeom()
 	}
+	a.saveAllTerminalWindowGeom()
+	a.cancelAllTerminalTransfers()
 	if a.termStream != nil {
 		a.termStream.shutdown()
 	}
@@ -344,9 +368,82 @@ func (a *App) scheduleSaveGeom() {
 			return
 		}
 		w, h := win.Size()
-		saveWindowGeom(w, h)
+		x, y := win.Position()
+		saveMainWindowBounds(windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
 	})
 	a.showMu.Unlock()
+}
+
+func (a *App) saveMainWindowGeom() {
+	if a.mainWindow == nil {
+		return
+	}
+	w, h := a.mainWindow.Size()
+	x, y := a.mainWindow.Position()
+	saveMainWindowBounds(windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
+}
+
+func (a *App) scheduleSaveTerminalGeom() {
+	a.scheduleSaveTerminalGeomFor("")
+}
+
+func (a *App) scheduleSaveTerminalGeomFor(windowID string) {
+	a.terminalWindowMu.Lock()
+	wins := make(map[string]*application.WebviewWindow)
+	if windowID != "" {
+		if win := a.terminalWindows[windowID]; win != nil {
+			wins[windowID] = win
+		}
+	} else {
+		for id, win := range a.terminalWindows {
+			if win != nil {
+				wins[id] = win
+			}
+		}
+	}
+	a.terminalWindowMu.Unlock()
+	for id, win := range wins {
+		windowID, window := id, win
+		time.AfterFunc(200*time.Millisecond, func() {
+			if window == nil {
+				return
+			}
+			w, h := window.Size()
+			x, y := window.Position()
+			saveTerminalWindowBounds(windowID, windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
+		})
+	}
+}
+
+func (a *App) saveTerminalWindowGeom(windowID string) {
+	a.terminalWindowMu.Lock()
+	win := a.terminalWindows[windowID]
+	a.terminalWindowMu.Unlock()
+	if win == nil {
+		return
+	}
+	w, h := win.Size()
+	x, y := win.Position()
+	saveTerminalWindowBounds(windowID, windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
+}
+
+func (a *App) saveAllTerminalWindowGeom() {
+	a.terminalWindowMu.Lock()
+	ids := make([]string, 0, len(a.terminalWindows))
+	for id := range a.terminalWindows {
+		ids = append(ids, id)
+	}
+	a.terminalWindowMu.Unlock()
+	for _, id := range ids {
+		a.saveTerminalWindowGeom(id)
+	}
+}
+
+func (a *App) restoreMainWindowPosition() {
+	if !a.mainBoundsOK || a.mainWindow == nil {
+		return
+	}
+	a.mainWindow.SetPosition(a.mainBounds.X, a.mainBounds.Y)
 }
 
 // maybeShowMainWindow 尺寸已确定就立刻 Show（HTML 骨架先上屏，不等 Vue）。
@@ -460,7 +557,7 @@ func (a *App) fitWindowToPrimaryScreen() {
 	a.showMu.Unlock()
 	win.SetSize(w, h)
 	win.Center()
-	saveWindowGeom(w, h)
+	saveMainWindowBounds(windowBounds{Width: w, Height: h})
 	a.app.Logger.Info("窗口按主屏自适应", "width", w, "height", h)
 }
 
@@ -478,7 +575,9 @@ func (a *App) installMinimalMenu(app *application.App) {
 			item.SetAccelerator(accel)
 		}
 		item.OnClick(func(*application.Context) {
-			app.Event.Emit("term:action", action)
+			// 终端默认嵌在主窗口；只有前端右键菜单或拖拽动作才会调用
+			// OpenTerminalWindow。原生菜单快捷键只把动作交给主窗口终端模块。
+			a.app.Event.Emit("main-terminal-action", action)
 		})
 	}
 	addTerm("显示会话", "CmdOrCtrl+Shift+L", "sessions")
@@ -491,7 +590,7 @@ func (a *App) installMinimalMenu(app *application.App) {
 	back := term.AddSubmenu("返回主机工具")
 	addBack := func(label, action string) {
 		back.Add(label).OnClick(func(*application.Context) {
-			app.Event.Emit("term:action", action)
+			a.app.Event.Emit("main-terminal-action", action)
 		})
 	}
 	addBack("概览", "return-overview")

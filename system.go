@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"diteng-pannel/internal/wecom"
 	"diteng-pannel/internal/winui"
 
+	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -25,6 +27,8 @@ const (
 	boardWindowH    = 900
 	boardWindowMinW = 1100
 	boardWindowMinH = 720
+	terminalWindowW = 1280
+	terminalWindowH = 800
 )
 
 // 实色窗底：看板深色
@@ -46,6 +50,46 @@ func boardWindowTitle(groupID, groupName string) string {
 		}
 	}
 	return "看板 · " + name
+}
+
+// TerminalWindowCommand 是窗口间的终端动作。WindowID 为空时创建新的终端原生窗口，
+// 非空时把动作投递给已有目标窗口。
+type TerminalWindowCommand struct {
+	Action       string   `json:"action,omitempty"`
+	WindowID     string   `json:"windowId,omitempty"`
+	Created      bool     `json:"created,omitempty"`
+	Host         string   `json:"host,omitempty"`
+	Hosts        []string `json:"hosts,omitempty"`
+	TransferID   string   `json:"transferId,omitempty"`
+	TargetDeskID string   `json:"targetDeskId,omitempty"`
+	InsertBefore bool     `json:"insertBefore,omitempty"`
+}
+
+type TerminalWindowInfo struct {
+	WindowID string `json:"windowId"`
+	Visible  bool   `json:"visible"`
+}
+
+const terminalWindowNamePrefix = "terminal-"
+
+// TerminalTransfer 是跨 WebView 移动终端时的短暂交接数据。
+// SessionID 保留后端的原 SSH/PTY；Snapshot 只用于恢复 xterm 的画面和滚动历史。
+type TerminalTransfer struct {
+	TransferID  string `json:"transferId,omitempty"`
+	SessionID   string `json:"sessionId"`
+	Host        string `json:"host"`
+	PaneID      string `json:"paneId"`
+	Title       string `json:"title,omitempty"`
+	TitleCustom bool   `json:"titleCustom,omitempty"`
+	Snapshot    string `json:"snapshot"`
+	Cols        int    `json:"cols"`
+	Rows        int    `json:"rows"`
+}
+
+type terminalTransferState struct {
+	payload TerminalTransfer
+	claimed bool
+	timer   *time.Timer
 }
 
 // SetTrafficLightsHidden 隐藏/恢复 macOS 窗口红绿灯按钮
@@ -97,6 +141,18 @@ func (s *System) SetThemeAppearance(_mode string) {
 	for _, w := range boards {
 		s.applyAppearanceOnWindow(w)
 	}
+
+	s.terminalWindowMu.Lock()
+	terminals := make([]*application.WebviewWindow, 0, len(s.terminalWindows))
+	for _, terminal := range s.terminalWindows {
+		if terminal != nil {
+			terminals = append(terminals, terminal)
+		}
+	}
+	s.terminalWindowMu.Unlock()
+	for _, terminal := range terminals {
+		s.applyAppearanceOnWindow(terminal)
+	}
 }
 
 func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
@@ -108,6 +164,336 @@ func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
 		mode = macui.AppearanceLight
 	}
 	macui.SetWindowAppearance(win, mode)
+}
+
+// OpenTerminalWindow 仅由用户明确选择新窗口或拖拽终端时调用。
+// WindowID 为空时创建新的终端窗；指定 WindowID 时复用已有窗口，把动作投递过去。
+func (s *System) OpenTerminalWindow(command TerminalWindowCommand) error {
+	command = normalizeTerminalWindowCommand(command)
+	if s.app == nil {
+		return fmt.Errorf("应用未就绪")
+	}
+	if command.WindowID == "main" {
+		// 主窗口不是 terminalWindows 的成员，但它也可以作为跨窗口拖拽的目标。
+		// 直接把交接动作广播给主 WebView，由主窗口领取 transfer。
+		s.app.Event.Emit("terminal-window-command", command)
+		return nil
+	}
+
+	s.terminalWindowMu.Lock()
+	windowID := command.WindowID
+	win := s.terminalWindows[windowID]
+	created := false
+	restorePosition := false
+	restoreX, restoreY := 0, 0
+	if win == nil {
+		if windowID == "" {
+			for {
+				s.terminalWindowSeq++
+				windowID = fmt.Sprintf("%s%d", terminalWindowNamePrefix, s.terminalWindowSeq)
+				if s.terminalWindows[windowID] == nil {
+					if _, exists := s.app.Window.GetByName(windowID); !exists {
+						break
+					}
+				}
+			}
+		} else if existing, ok := s.app.Window.GetByName(windowID); ok {
+			if tw, ok := existing.(*application.WebviewWindow); ok {
+				win = tw
+				s.terminalWindows[windowID] = win
+				if _, known := s.terminalWindowReady[windowID]; !known {
+					s.terminalWindowReady[windowID] = true
+				}
+			}
+		}
+	}
+	if win == nil {
+		width, height := terminalWindowW, terminalWindowH
+		bounds, hasBounds := loadTerminalWindowBounds(windowID)
+		if hasBounds {
+			width, height = bounds.Width, bounds.Height
+		}
+		opts := application.WebviewWindowOptions{
+			Name:                       windowID,
+			Title:                      "1Pannel · " + windowID,
+			URL:                        "/?mode=terminal&windowId=" + url.QueryEscape(windowID),
+			Width:                      width,
+			Height:                     height,
+			MinWidth:                   windowMinW,
+			MinHeight:                  windowMinH,
+			InitialPosition:            application.WindowCentered,
+			BackgroundColour:           application.NewRGB(14, 14, 14),
+			Hidden:                     true,
+			DefaultContextMenuDisabled: true,
+			Mac: application.MacWindow{
+				TitleBar:                application.MacTitleBarHidden,
+				InvisibleTitleBarHeight: macInvisibleTitleBarHeight,
+				Backdrop:                application.MacBackdropNormal,
+			},
+		}
+		if runtime.GOOS != "darwin" {
+			opts.Frameless = true
+			opts.Windows.DisableMenu = true
+			opts.Windows.NonClientRegionSupport = true
+		}
+		win = s.app.Window.NewWithOptions(opts)
+		s.terminalWindows[windowID] = win
+		s.terminalWindowReady[windowID] = false
+		s.terminalWindowVisible[windowID] = true
+		created = true
+
+		terminalBoundsOK := hasBounds && bounds.PositionSet
+		if terminalBoundsOK {
+			restorePosition = true
+			restoreX, restoreY = bounds.X, bounds.Y
+		}
+		win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+			s.terminalWindowMu.Lock()
+			s.terminalWindowVisible[windowID] = false
+			s.terminalWindowMu.Unlock()
+			(*App)(s).saveTerminalWindowGeom(windowID)
+			win.Hide()
+			e.Cancel()
+		})
+		win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
+			(*App)(s).scheduleSaveTerminalGeomFor(windowID)
+		})
+		win.OnWindowEvent(events.Common.WindowDidMove, func(*application.WindowEvent) {
+			(*App)(s).scheduleSaveTerminalGeomFor(windowID)
+		})
+		win.SetBackgroundColour(application.NewRGB(14, 14, 14))
+		s.applyAppearanceOnWindow(win)
+	}
+	command.WindowID = windowID
+	command.Created = created
+	s.terminalWindowVisible[windowID] = true
+	if command.Action != "" && !s.terminalWindowReady[windowID] {
+		s.pendingTerminalEvents[windowID] = append(s.pendingTerminalEvents[windowID], command)
+	}
+	ready := s.terminalWindowReady[windowID]
+	s.terminalWindowMu.Unlock()
+
+	if restorePosition {
+		win.SetPosition(restoreX, restoreY)
+	}
+	if created {
+		win.Show()
+		win.Focus()
+	} else if win != nil {
+		win.Show()
+		win.Focus()
+	}
+	if command.Action != "" && ready {
+		s.app.Event.Emit("terminal-window-command", command)
+	}
+	return nil
+}
+
+// ListTerminalWindows 返回当前进程内创建过的终端原生窗口。
+// 窗口关闭时只是隐藏，因此前端可以用它提供「恢复窗口」入口。
+func (s *System) ListTerminalWindows() []TerminalWindowInfo {
+	s.terminalWindowMu.Lock()
+	defer s.terminalWindowMu.Unlock()
+	items := make([]TerminalWindowInfo, 0, len(s.terminalWindows))
+	for id := range s.terminalWindows {
+		items = append(items, TerminalWindowInfo{
+			WindowID: id,
+			Visible:  s.terminalWindowVisible[id],
+		})
+	}
+	slices.SortFunc(items, func(a, b TerminalWindowInfo) int {
+		return strings.Compare(a.WindowID, b.WindowID)
+	})
+	return items
+}
+
+// FocusTerminalWindow 恢复一个被隐藏的终端窗口，不创建新会话或新窗口。
+func (s *System) FocusTerminalWindow(windowID string) error {
+	windowID = strings.TrimSpace(windowID)
+	if windowID == "" {
+		return fmt.Errorf("windowID 不能为空")
+	}
+	s.terminalWindowMu.Lock()
+	win := s.terminalWindows[windowID]
+	if win != nil {
+		s.terminalWindowVisible[windowID] = true
+	}
+	s.terminalWindowMu.Unlock()
+	if win == nil {
+		return fmt.Errorf("终端窗口不存在: %s", windowID)
+	}
+	win.Show()
+	win.Focus()
+	return nil
+}
+
+// HideTerminalWindow 隐藏指定终端窗，但不销毁 WebView 或终端会话。
+func (s *System) HideTerminalWindow(windowID string) error {
+	windowID = strings.TrimSpace(windowID)
+	if windowID == "" {
+		return fmt.Errorf("windowID 不能为空")
+	}
+	s.terminalWindowMu.Lock()
+	win := s.terminalWindows[windowID]
+	if win != nil {
+		s.terminalWindowVisible[windowID] = false
+	}
+	s.terminalWindowMu.Unlock()
+	if win == nil {
+		return fmt.Errorf("终端窗口不存在: %s", windowID)
+	}
+	(*App)(s).saveTerminalWindowGeom(windowID)
+	win.Hide()
+	return nil
+}
+
+// TerminalWindowReady 标记某个终端 WebView 已挂载，并领取创建期间暂存的动作。
+func (s *System) TerminalWindowReady(windowID string) []TerminalWindowCommand {
+	windowID = strings.TrimSpace(windowID)
+	if windowID == "" {
+		return nil
+	}
+	s.terminalWindowMu.Lock()
+	s.terminalWindowReady[windowID] = true
+	commands := append([]TerminalWindowCommand(nil), s.pendingTerminalEvents[windowID]...)
+	delete(s.pendingTerminalEvents, windowID)
+	s.terminalWindowMu.Unlock()
+	return commands
+}
+
+// BeginTerminalTransfer 暂停指定 PTY 的流输出并保存短暂的跨 WebView 交接数据。
+// 在目标 WebView 完成接管前，输出只进入该 sid 的隔离缓冲，不会落到旧窗或丢弃。
+func (s *System) BeginTerminalTransfer(payload TerminalTransfer) (string, error) {
+	payload.SessionID = strings.TrimSpace(payload.SessionID)
+	payload.Host = strings.TrimSpace(payload.Host)
+	payload.PaneID = strings.TrimSpace(payload.PaneID)
+	if payload.SessionID == "" || payload.Host == "" || payload.PaneID == "" {
+		return "", fmt.Errorf("终端交接数据不完整")
+	}
+	if s.termStream == nil {
+		return "", fmt.Errorf("终端流服务未就绪，暂不能移动会话")
+	}
+	if err := s.termStream.hold(payload.SessionID); err != nil {
+		return "", err
+	}
+	id := uuid.NewString()
+	payload.TransferID = id
+	entry := &terminalTransferState{payload: payload}
+	entry.timer = time.AfterFunc(30*time.Second, func() {
+		_ = (*System)(s).CancelTerminalTransfer(id)
+	})
+	s.terminalTransferMu.Lock()
+	s.terminalTransfers[id] = entry
+	s.terminalTransferMu.Unlock()
+	return id, nil
+}
+
+// TakeTerminalTransfer 由目标 WebView领取交接数据；领取本身不会释放输出缓冲。
+func (s *System) TakeTerminalTransfer(id string) (TerminalTransfer, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return TerminalTransfer{}, fmt.Errorf("交接 ID 不能为空")
+	}
+	s.terminalTransferMu.Lock()
+	entry := s.terminalTransfers[id]
+	if entry == nil {
+		s.terminalTransferMu.Unlock()
+		return TerminalTransfer{}, fmt.Errorf("终端交接已过期")
+	}
+	if entry.claimed {
+		s.terminalTransferMu.Unlock()
+		return TerminalTransfer{}, fmt.Errorf("终端交接已被领取")
+	}
+	entry.claimed = true
+	payload := entry.payload
+	s.terminalTransferMu.Unlock()
+	return payload, nil
+}
+
+// CompleteTerminalTransfer 目标 WebView 已挂载 xterm 和流通道后提交交接。
+func (s *System) CompleteTerminalTransfer(id string) error {
+	id = strings.TrimSpace(id)
+	s.terminalTransferMu.Lock()
+	entry := s.terminalTransfers[id]
+	if entry == nil {
+		s.terminalTransferMu.Unlock()
+		return fmt.Errorf("终端交接已过期")
+	}
+	delete(s.terminalTransfers, id)
+	if entry.timer != nil {
+		entry.timer.Stop()
+	}
+	s.terminalTransferMu.Unlock()
+	if s.termStream == nil {
+		return nil
+	}
+	return s.termStream.release(entry.payload.SessionID)
+}
+
+// CancelTerminalTransfer 交接失败或超时，恢复原 sid 的输出流。
+func (s *System) CancelTerminalTransfer(id string) error {
+	id = strings.TrimSpace(id)
+	s.terminalTransferMu.Lock()
+	entry := s.terminalTransfers[id]
+	if entry == nil {
+		s.terminalTransferMu.Unlock()
+		return nil
+	}
+	delete(s.terminalTransfers, id)
+	if entry.timer != nil {
+		entry.timer.Stop()
+	}
+	s.terminalTransferMu.Unlock()
+	if s.termStream == nil {
+		return nil
+	}
+	return s.termStream.release(entry.payload.SessionID)
+}
+
+func (a *App) cancelAllTerminalTransfers() {
+	a.terminalTransferMu.Lock()
+	entries := make([]*terminalTransferState, 0, len(a.terminalTransfers))
+	for id, entry := range a.terminalTransfers {
+		delete(a.terminalTransfers, id)
+		if entry.timer != nil {
+			entry.timer.Stop()
+		}
+		entries = append(entries, entry)
+	}
+	a.terminalTransferMu.Unlock()
+	if a.termStream == nil {
+		return
+	}
+	for _, entry := range entries {
+		_ = a.termStream.release(entry.payload.SessionID)
+	}
+}
+
+func normalizeTerminalWindowCommand(command TerminalWindowCommand) TerminalWindowCommand {
+	command.Action = strings.TrimSpace(command.Action)
+	command.WindowID = strings.TrimSpace(command.WindowID)
+	command.Host = strings.TrimSpace(command.Host)
+	command.TransferID = strings.TrimSpace(command.TransferID)
+	command.TargetDeskID = strings.TrimSpace(command.TargetDeskID)
+	if len(command.Hosts) == 0 {
+		command.Hosts = nil
+		return command
+	}
+	seen := make(map[string]struct{}, len(command.Hosts))
+	hosts := make([]string, 0, len(command.Hosts))
+	for _, host := range command.Hosts {
+		name := strings.TrimSpace(host)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		hosts = append(hosts, name)
+	}
+	command.Hosts = hosts
+	return command
 }
 
 // OpenBoardWindow 打开或聚焦该分组的看板窗（普通尺寸，不立刻全屏、不调进程级 kiosk）。
