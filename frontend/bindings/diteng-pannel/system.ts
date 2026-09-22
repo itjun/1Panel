@@ -20,11 +20,26 @@ import * as monitor$0 from "./internal/monitor/models.js";
 import * as $models from "./models.js";
 
 /**
+ * BeginTerminalTransfer 暂停指定 PTY 的流输出并保存短暂的跨 WebView 交接数据。
+ * 在目标 WebView 完成接管前，输出只进入该 sid 的隔离缓冲，不会落到旧窗或丢弃。
+ */
+export function BeginTerminalTransfer(payload: $models.TerminalTransfer): $CancellablePromise<string> {
+    return $Call.ByID(3822273739, payload);
+}
+
+/**
  * BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
  * 实际执行交给前端终端(实时显示输出),执行完由终端命令清理临时脚本。
  */
 export function BootstrapZsh(host: string): $CancellablePromise<string> {
     return $Call.ByID(3099666800, host);
+}
+
+/**
+ * CancelTerminalTransfer 交接失败或超时，恢复原 sid 的输出流。
+ */
+export function CancelTerminalTransfer(id: string): $CancellablePromise<void> {
+    return $Call.ByID(2553071470, id);
 }
 
 /**
@@ -42,11 +57,25 @@ export function CloseBoardWindow(groupID: string): $CancellablePromise<void> {
 }
 
 /**
+ * CompleteTerminalTransfer 目标 WebView 已挂载 xterm 和流通道后提交交接。
+ */
+export function CompleteTerminalTransfer(id: string): $CancellablePromise<void> {
+    return $Call.ByID(3182140959, id);
+}
+
+/**
  * FocusMainWindow 显示并聚焦主窗口（看板双击主机后切回主窗操作）。
  * 从后台挂起恢复时先把 Dock 图标加回来（Regular），再出示窗口。
  */
 export function FocusMainWindow(): $CancellablePromise<void> {
     return $Call.ByID(2479596072);
+}
+
+/**
+ * FocusTerminalWindow 恢复一个被隐藏的终端窗口，不创建新会话或新窗口。
+ */
+export function FocusTerminalWindow(windowID: string): $CancellablePromise<void> {
+    return $Call.ByID(1822908189, windowID);
 }
 
 /**
@@ -65,10 +94,25 @@ export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
 }
 
 /**
+ * HideTerminalWindow 隐藏指定终端窗，但不销毁 WebView 或终端会话。
+ */
+export function HideTerminalWindow(windowID: string): $CancellablePromise<void> {
+    return $Call.ByID(3259950667, windowID);
+}
+
+/**
  * ListMenuChecks 返回内置菜单检查项及最近一次结果。
  */
 export function ListMenuChecks(): $CancellablePromise<$models.MenuCheckResult[] | null> {
     return $Call.ByID(1424624473);
+}
+
+/**
+ * ListTerminalWindows 返回当前进程内创建过的终端原生窗口。
+ * 窗口关闭时只是隐藏，因此前端可以用它提供「恢复窗口」入口。
+ */
+export function ListTerminalWindows(): $CancellablePromise<$models.TerminalWindowInfo[] | null> {
+    return $Call.ByID(3811268512);
 }
 
 /**
@@ -103,6 +147,14 @@ export function OpenBoardWindow(groupID: string): $CancellablePromise<void> {
 }
 
 /**
+ * OpenTerminalWindow 仅由用户明确选择新窗口或拖拽终端时调用。
+ * WindowID 为空时创建新的终端窗；指定 WindowID 时复用已有窗口，把动作投递过去。
+ */
+export function OpenTerminalWindow(command: $models.TerminalWindowCommand): $CancellablePromise<void> {
+    return $Call.ByID(2063293391, command);
+}
+
+/**
  * SetAskBeforeQuit 设置「退出前询问」；与确认框内勾选写入同一份配置。
  */
 export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
@@ -124,6 +176,20 @@ export function SetThemeAppearance(_mode: string): $CancellablePromise<void> {
  */
 export function SetTrafficLightsHidden(hidden: boolean): $CancellablePromise<void> {
     return $Call.ByID(2375721563, hidden);
+}
+
+/**
+ * TakeTerminalTransfer 由目标 WebView领取交接数据；领取本身不会释放输出缓冲。
+ */
+export function TakeTerminalTransfer(id: string): $CancellablePromise<$models.TerminalTransfer> {
+    return $Call.ByID(2802882943, id);
+}
+
+/**
+ * TerminalWindowReady 标记某个终端 WebView 已挂载，并领取创建期间暂存的动作。
+ */
+export function TerminalWindowReady(windowID: string): $CancellablePromise<$models.TerminalWindowCommand[] | null> {
+    return $Call.ByID(4272466850, windowID);
 }
 
 /**

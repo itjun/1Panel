@@ -424,12 +424,14 @@ onUnmounted(() => {
 }
 
 .settings-scroll {
-  flex: 1;
+  flex: 1 1 auto;
+  align-self: center;
+  width: 100%;
+  max-width: 880px;
   min-height: 0;
   overflow-y: auto;
   padding: 8px 16px 16px;
   box-sizing: border-box;
-  max-width: 880px;
   scrollbar-width: thin;
 }
 

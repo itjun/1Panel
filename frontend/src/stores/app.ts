@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, nextTick, ref, watch } from "vue";
+import { Events } from "@wailsio/runtime";
 import { api } from "@/api";
+import type { main } from "@/api";
 import type { groups, sshconfig } from "@/api";
 import { useSettingsStore, type SettingsSection } from "@/stores/settings";
 import { ElMessage } from "element-plus";
@@ -14,7 +16,13 @@ import {
   upsertSavedWorkspace,
 } from "@/utils/workspaceLayout";
 import { findLeaf, orderedLeaves, type PaneNode } from "@/views/termPanes";
-import { readLastScreen, writeLastScreen, type NormalizedScreen } from "@/utils/lastScreen";
+import {
+  readMainScreen,
+  readTerminalScreen,
+  writeMainScreen,
+  writeTerminalScreen,
+  type NormalizedScreen,
+} from "@/utils/lastScreen";
 import { noteSwitch } from "@/utils/uxPerf";
 import {
   liftTerminalDesks,
@@ -31,6 +39,14 @@ export const PINNED_DROP_ID = "__pinned__";
 export const MAX_GROUP_DEPTH = 1;
 
 const PINNED_HOSTS_KEY = "1pannel-pinned-hosts";
+const isTerminalWindow =
+  typeof location !== "undefined" &&
+  new URLSearchParams(location.search).get("mode") === "terminal";
+const windowId =
+  typeof location !== "undefined"
+    ? new URLSearchParams(location.search).get("windowId") ||
+      (isTerminalWindow ? "terminal-1" : "main")
+    : "main";
 
 export type SubTab =
   | "overview"
@@ -165,13 +181,16 @@ function hostWorkspaceId(host: string): string {
 let terminalSeq = 0;
 function newTermDeskId(host: string): string {
   terminalSeq += 1;
-  return `term:${host}:${terminalSeq}`;
+  // 主窗口和用户明确打开的终端窗口各自维护 Pinia，但共享本地布局存储；
+  // 在 id 尾部标记作用域，避免两个窗口的同名终端覆盖彼此的分屏布局。
+  const scope = windowId;
+  return `term:${host}:${terminalSeq}-${scope}`;
 }
 
 function noteTerminalSeq(id: string) {
   const i = id.lastIndexOf(":");
   if (i < 0) return;
-  const n = Number(id.slice(i + 1));
+  const n = Number(id.slice(i + 1).split("-", 1)[0]);
   if (!Number.isFinite(n)) return;
   if (n > terminalSeq) terminalSeq = n;
 }
@@ -371,6 +390,10 @@ export const useAppStore = defineStore("app", () => {
     return useSettingsStore().startupPage === "resume";
   }
 
+  function readWindowScreen(): NormalizedScreen | null {
+    return isTerminalWindow ? readTerminalScreen() : readMainScreen();
+  }
+
   /**
    * 设置整页覆盖主区，但不改 activeView。
    * 再点设置 / Esc 即回到底下那一页；点主机/分组/全部主机会关掉设置并切过去。
@@ -378,7 +401,7 @@ export const useAppStore = defineStore("app", () => {
    * 选「应用首页」时标签照常恢复，但启动落在主机页，不盖设置。
    */
   const settingsOpen = ref(
-    startupResumesLastScreen() && readLastScreen()?.settingsOpen === true
+    false
   );
   /** 设置页停在哪个分页：外观 / 会话 / 应用 */
   const settingsSection = ref<SettingsSection>("look");
@@ -397,15 +420,7 @@ export const useAppStore = defineStore("app", () => {
 
   /** 工作区：远程为主路径；通知仍可进。选「应用首页」时启动落在远程主机页，标签仍会恢复。 */
   function loadWorkspace(): Workspace {
-    if (!startupResumesLastScreen()) return "remote";
-    const screen = readLastScreen();
-    if (screen) return screen.workspace;
-    try {
-      const v = localStorage.getItem("1pannel-workspace");
-      if (v === "notify") return "notify";
-    } catch {
-      /* ignore */
-    }
+    if (isTerminalWindow) return "terminal";
     return "remote";
   }
   const workspace = ref<Workspace>(loadWorkspace());
@@ -414,12 +429,17 @@ export const useAppStore = defineStore("app", () => {
   let termActionAt = 0;
   let termActionLast = "";
   const pendingTrees = new Map<string, PaneNode>();
+  const pendingTransfers = new Map<string, main.TerminalTransfer>();
 
   function setWorkspace(w: Workspace) {
     workspace.value = w;
     // 设置整页盖在主区上；切工作区时先关掉，否则仍停在设置页
     settingsOpen.value = false;
-    if (w === "terminal") ensureDefaultTerminalPicker();
+    if (w === "terminal") {
+      removeDefaultTerminalPicker();
+      terminalPickerOpen.value = terminalDesks.value.length === 0;
+      if (!terminalPickerOpen.value) terminalPickerReturnId.value = "";
+    }
     try {
       localStorage.setItem("1pannel-workspace", w);
     } catch {
@@ -542,6 +562,9 @@ export const useAppStore = defineStore("app", () => {
   /** 全部 SSH 会话。与主机管理标签分开，关主机页不会拆掉这里。 */
   const terminalDesks = ref<TerminalDesk[]>([]);
   const activeTerminalId = ref("");
+  /** 临时主机选择器，不再用空的「新建终端」标签占位。 */
+  const terminalPickerOpen = ref(false);
+  const terminalPickerReturnId = ref("");
   const lastDeskByHost = new Map<string, string>();
   const terminalFocusHost = ref("");
   const terminalSplitSeq = ref(0);
@@ -1175,13 +1198,25 @@ export const useAppStore = defineStore("app", () => {
     terminalFocusHost.value = (focused && focused[0]) || desk.host;
   }
 
-  function makeTermDesk(host: string): TerminalDesk {
+  function nextTerminalTitle(host: string): string {
+    const name = (host || "").trim();
+    const desks = terminalDesks.value.filter(
+      (desk) => !desk.crossHost && deskIncludesHost(desk, name)
+    );
+    if (desks.length === 0) return "终端";
+    const used = new Set(desks.map((desk) => desk.title));
+    let n = 2;
+    while (used.has(`终端 ${n}`)) n += 1;
+    return `终端 ${n}`;
+  }
+
+  function makeTermDesk(host: string, title = "终端"): TerminalDesk {
     if (!host) {
       return { id: newTermDeskId("new"), host: "", title: "新建终端", crossHost: false };
     }
     const id = newTermDeskId(host);
     noteDeskHosts(id, [host]);
-    return { id, host, title: "终端", crossHost: false };
+    return { id, host, title, crossHost: false };
   }
 
   function noteDeskHosts(id: string, hosts: string[]) {
@@ -1229,6 +1264,8 @@ export const useAppStore = defineStore("app", () => {
     if (!hosts.value.some((h) => h.name === name)) return;
     settingsOpen.value = false;
     workspace.value = "terminal";
+    terminalPickerOpen.value = false;
+    terminalPickerReturnId.value = "";
     const singles = terminalDesks.value.filter((d) => !d.crossHost && deskIncludesHost(d, name));
     if (singles.length > 0) {
       const remembered = lastDeskByHost.get(name) || "";
@@ -1244,43 +1281,95 @@ export const useAppStore = defineStore("app", () => {
     openAnotherTerminal(name);
   }
 
-  /** 终端模块里一个会话都没有时，自动放一个「新建终端」标签。 */
+  /** 兼容旧状态：空标签只会被清理，不再重新创建占位标签。 */
   function ensureDefaultTerminalPicker() {
-    if (terminalDesks.value.length > 0) return;
-    const desk = makeTermDesk("");
-    terminalDesks.value = [desk];
-    rememberDesk(desk);
+    if (terminalDesks.value.length === 0) {
+      terminalPickerOpen.value = true;
+      activeTerminalId.value = "";
+      terminalFocusHost.value = "";
+    }
   }
 
-  /** 每次点「新建终端」都开一个空标签，不复用已有未选主机的页。 */
+  function removeDefaultTerminalPicker() {
+    const placeholders = terminalDesks.value.filter(
+      (desk) => !desk.host && desk.title === "新建终端"
+    );
+    if (placeholders.length === 0) return;
+    for (const desk of placeholders) {
+      forgetWorkspaceLayout(desk.id);
+      deskHosts.delete(desk.id);
+      pendingTrees.delete(desk.id);
+      pendingTransfers.delete(desk.id);
+    }
+    terminalDesks.value = terminalDesks.value.filter(
+      (desk) => !placeholders.some((item) => item.id === desk.id)
+    );
+    if (!terminalDesks.value.some((desk) => desk.id === activeTerminalId.value)) {
+      const next = terminalDesks.value[terminalDesks.value.length - 1];
+      if (next) rememberDesk(next);
+      else {
+        activeTerminalId.value = "";
+        terminalFocusHost.value = "";
+        terminalPickerOpen.value = true;
+      }
+    }
+  }
+
+  /** 每次点「新建终端」都打开临时选择器，不创建空标签。 */
   function openNewTerminalPicker() {
-    const desk = makeTermDesk("");
-    terminalDesks.value = [...terminalDesks.value, desk];
+    terminalPickerReturnId.value = activeTerminalId.value;
+    terminalPickerOpen.value = true;
     settingsOpen.value = false;
     workspace.value = "terminal";
-    rememberDesk(desk);
+  }
+
+  /** 取消临时主机选择器；空的原生终端窗由窗口壳负责隐藏。 */
+  function cancelTerminalPicker() {
+    const hadDesks = terminalDesks.value.length > 0;
+    const returnId = terminalPickerReturnId.value;
+    terminalPickerReturnId.value = "";
+    terminalPickerOpen.value = false;
+    if (hadDesks) {
+      const desk = deskOf(returnId) || deskOf(activeTerminalId.value);
+      if (desk) rememberDesk(desk);
+      return;
+    }
+    if (isTerminalWindow) {
+      void Events.Emit("terminal-empty-cancel", { windowId });
+      return;
+    }
+    landOnHostHome();
   }
 
   function bindTerminalHost(deskId: string, host: string) {
     const name = (host || "").trim();
-    const desk = deskOf(deskId);
-    if (!desk || !name) return;
+    if (!name) return;
     if (!hosts.value.some((h) => h.name === name)) return;
+    const desk = deskOf(deskId);
+    if (!desk) {
+      openAnotherTerminal(name);
+      return;
+    }
     noteDeskHosts(deskId, [name]);
     patchDesk(deskId, { host: name, title: "终端", titleCustom: false });
     rememberDesk({ ...desk, host: name, title: "终端", titleCustom: false });
+    terminalPickerOpen.value = false;
+    terminalPickerReturnId.value = "";
   }
 
   /** 明确再开一个会话。 */
-  function openAnotherTerminal(host: string) {
+  function openAnotherTerminal(host: string): string {
     const name = (host || "").trim();
-    if (!name) return;
-    if (!hosts.value.some((h) => h.name === name)) return;
-    const desk = makeTermDesk(name);
+    if (!name) return "";
+    if (!hosts.value.some((h) => h.name === name)) return "";
+    const desk = makeTermDesk(name, nextTerminalTitle(name));
     terminalDesks.value = [...terminalDesks.value, desk];
     settingsOpen.value = false;
     workspace.value = "terminal";
+    terminalPickerOpen.value = false;
+    terminalPickerReturnId.value = "";
     rememberDesk(desk);
+    return desk.id;
   }
 
   function activateTerminalDesk(deskId: string) {
@@ -1288,6 +1377,8 @@ export const useAppStore = defineStore("app", () => {
     if (!desk) return;
     settingsOpen.value = false;
     workspace.value = "terminal";
+    terminalPickerOpen.value = false;
+    terminalPickerReturnId.value = "";
     rememberDesk(desk);
   }
 
@@ -1295,13 +1386,21 @@ export const useAppStore = defineStore("app", () => {
     connectTerminal(name);
   }
 
-  function runTermAction(name: string) {
+  const termActionPayload = ref<Record<string, string>>({});
+
+  function runTermAction(name: string, payload: Record<string, string> = {}) {
     const action = (name || "").trim();
     if (!action) return;
     const now = Date.now();
-    if (action === termActionLast && now - termActionAt < 280) return;
+    if (
+      action === termActionLast &&
+      now - termActionAt < 280 &&
+      JSON.stringify(payload) === JSON.stringify(termActionPayload.value)
+    )
+      return;
     termActionLast = action;
     termActionAt = now;
+    termActionPayload.value = { ...payload };
     termActionName.value = action;
     termActionN.value += 1;
   }
@@ -1317,6 +1416,10 @@ export const useAppStore = defineStore("app", () => {
       ElMessage.info("当前没有焦点窗格，无法返回主机");
       return;
     }
+    if (isTerminalWindow) {
+      void Events.Emit("terminal-return-host", { host, sub });
+      return;
+    }
     openHostTool(host, sub);
   }
 
@@ -1324,6 +1427,42 @@ export const useAppStore = defineStore("app", () => {
     const tree = pendingTrees.get(deskId) || null;
     if (tree) pendingTrees.delete(deskId);
     return tree;
+  }
+
+  function openTransferredTerminal(payload: main.TerminalTransfer): string {
+    const name = (payload.host || "").trim();
+    if (!name || !hosts.value.some((h) => h.name === name)) return "";
+    const desk = makeTermDesk(name, payload.title?.trim() || nextTerminalTitle(name));
+    desk.titleCustom = payload.titleCustom === true;
+    pendingTrees.set(desk.id, { kind: "leaf", id: payload.paneId, host: name });
+    pendingTransfers.set(desk.id, payload);
+    terminalDesks.value = [...terminalDesks.value, desk];
+    settingsOpen.value = false;
+    workspace.value = "terminal";
+    terminalPickerOpen.value = false;
+    terminalPickerReturnId.value = "";
+    rememberDesk(desk);
+    return desk.id;
+  }
+
+  function consumePendingTransfer(deskId: string): main.TerminalTransfer | null {
+    const transfer = pendingTransfers.get(deskId) || null;
+    if (transfer) pendingTransfers.delete(deskId);
+    return transfer;
+  }
+
+  function reorderTerminalDesk(sourceId: string, targetId: string, before: boolean) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const sourceIndex = terminalDesks.value.findIndex((desk) => desk.id === sourceId);
+    const targetIndex = terminalDesks.value.findIndex((desk) => desk.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const next = [...terminalDesks.value];
+    const [item] = next.splice(sourceIndex, 1);
+    let insertAt = next.findIndex((desk) => desk.id === targetId);
+    if (insertAt < 0) return;
+    if (!before) insertAt += 1;
+    next.splice(insertAt, 0, item);
+    terminalDesks.value = next;
   }
 
   /** 把已有窗格收成新的独立会话。paneId 必须已经停在 termLive 的 park 里。 */
@@ -1337,6 +1476,8 @@ export const useAppStore = defineStore("app", () => {
     terminalDesks.value = [...terminalDesks.value, desk];
     settingsOpen.value = false;
     workspace.value = "terminal";
+    terminalPickerOpen.value = false;
+    terminalPickerReturnId.value = "";
     rememberDesk(desk);
   }
 
@@ -1352,6 +1493,10 @@ export const useAppStore = defineStore("app", () => {
     if (!name) return;
     if (sub === "terminal") {
       connectTerminal(name);
+      return;
+    }
+    if (isTerminalWindow) {
+      void Events.Emit("terminal-return-host", { host: name, sub });
       return;
     }
     openHostWorkspace(name, subTabToKind(sub));
@@ -1529,45 +1674,17 @@ export const useAppStore = defineStore("app", () => {
   function restoreStartupScreen(names: Set<string>) {
     if (layoutsRestored) return;
     layoutsRestored = true;
-    const resume = startupResumesLastScreen();
-    let screen = readLastScreen();
-    if (!screen) {
-      const saved = loadSavedWorkspaces();
-      const migrated = migrateWorkspaces([], saved.items, saved.activeId);
-      const lifted = liftTerminalDesks(migrated.sessions, migrated.activeSessionId);
-      screen = {
-        workspace: lifted.openedOnTerminal ? "terminal" : "remote",
-        settingsOpen: false,
-        activeHostSessionId: lifted.activeHostSessionId,
-        activeTerminalId: lifted.activeDeskId,
-        hostSessions: lifted.hostSessions,
-        desks: lifted.desks,
-      };
-    }
-    applyNormalized(screen, names);
-    if (!resume) {
-      landOnHostHome();
+    if (isTerminalWindow) {
+      workspace.value = "terminal";
+      settingsOpen.value = false;
+      removeDefaultTerminalPicker();
+      terminalPickerOpen.value = terminalDesks.value.length === 0;
+      terminalPickerReturnId.value = "";
       return;
     }
-    if (screen.workspace === "notify" || screen.workspace === "terminal") {
-      workspace.value = screen.workspace;
-    } else {
-      workspace.value = "remote";
-    }
-    settingsOpen.value = screen.settingsOpen;
-    if (screen.workspace !== "terminal" && screen.activeHostSessionId) {
-      const sess = workspaceSessions.value.find((s) => s.id === screen.activeHostSessionId);
-      if (sess) {
-        activeSessionId.value = sess.id;
-        syncActiveViewFromSession(sess);
-        markVisited(sess.host, kindToSubTab(sess.tool));
-      }
-    }
-    if (screen.workspace === "terminal") {
-      ensureDefaultTerminalPicker();
-      const desk = deskOf(activeTerminalId.value);
-      if (desk) rememberDesk(desk);
-    }
+    // 应用重启只恢复原生窗口几何；SSH/PTY、标签、分屏树和主机页会话均不恢复。
+    // 这些状态只在当前进程内存中保留，关闭/隐藏窗口不会触发这里。
+    landOnHostHome();
   }
 
   function landOnHostHome() {
@@ -1581,11 +1698,32 @@ export const useAppStore = defineStore("app", () => {
     [workspaceSessions, terminalDesks, activeSessionId, activeTerminalId, workspace, settingsOpen],
     () => {
       if (!screenReady) return;
-      let w: "remote" | "notify" | "terminal" = "remote";
-      if (workspace.value === "notify") w = "notify";
-      else if (workspace.value === "terminal") w = "terminal";
-      writeLastScreen({
-        workspace: w,
+      if (isTerminalWindow) {
+        writeTerminalScreen({
+          workspace: "terminal",
+          settingsOpen: false,
+          activeHostSessionId: "",
+          activeTerminalId: activeTerminalId.value,
+          hostSessions: [],
+          desks: terminalDesks.value
+            .filter((d) => !!d.host)
+            .map((d) => ({
+              id: d.id,
+              host: d.host,
+              title: d.title,
+              titleCustom: !!d.titleCustom,
+              crossHost: d.crossHost,
+            })),
+        });
+        return;
+      }
+      writeMainScreen({
+        workspace:
+          workspace.value === "notify"
+            ? "notify"
+            : workspace.value === "terminal"
+              ? "terminal"
+              : "remote",
         settingsOpen: settingsOpen.value,
         activeHostSessionId: activeSessionId.value || "",
         activeTerminalId: activeTerminalId.value,
@@ -1602,12 +1740,12 @@ export const useAppStore = defineStore("app", () => {
         desks: terminalDesks.value
           .filter((d) => !!d.host)
           .map((d) => ({
-          id: d.id,
-          host: d.host,
-          title: d.title,
-          titleCustom: !!d.titleCustom,
-          crossHost: d.crossHost,
-        })),
+            id: d.id,
+            host: d.host,
+            title: d.title,
+            titleCustom: !!d.titleCustom,
+            crossHost: d.crossHost,
+          })),
       });
     }
   );
@@ -1655,8 +1793,41 @@ export const useAppStore = defineStore("app", () => {
     }
     if (!quiet) ElMessage.success("已关闭这个终端会话，没有断开主机");
     if (workspace.value === "terminal" && !settingsOpen.value) {
-      ensureDefaultTerminalPicker();
+      terminalPickerOpen.value = terminalDesks.value.length === 0;
+      terminalPickerReturnId.value = "";
     }
+  }
+
+  /** 移出最后一个窗格时移除标签；空状态由主机选择器呈现。 */
+  function removeTerminalDeskAfterMove(deskId: string, host = "") {
+    const desk = deskOf(deskId);
+    if (!desk) return;
+    forgetWorkspaceLayout(deskId);
+    deskHosts.delete(deskId);
+    pendingTrees.delete(deskId);
+    pendingTransfers.delete(deskId);
+    terminalDesks.value = terminalDesks.value.filter((item) => item.id !== deskId);
+    if (lastDeskByHost.get(desk.host) === deskId) lastDeskByHost.delete(desk.host);
+    if (activeTerminalId.value === deskId) {
+      const next = terminalDesks.value[terminalDesks.value.length - 1];
+      if (next) rememberDesk(next);
+      else {
+        activeTerminalId.value = "";
+        terminalFocusHost.value = "";
+      }
+    }
+    if (terminalDesks.value.length > 0) {
+      terminalPickerOpen.value = false;
+      return;
+    }
+    if (isTerminalWindow) {
+      workspace.value = "terminal";
+      terminalPickerOpen.value = true;
+      return;
+    }
+    const name = (host || desk.host || "").trim();
+    if (name) openHostWorkspace(name, "info");
+    else workspace.value = "remote";
   }
 
   function closeDesksOfHost(name: string) {
@@ -2283,9 +2454,13 @@ export const useAppStore = defineStore("app", () => {
     terminalSessionCount,
     terminalDesks,
     activeTerminalId,
+    terminalPickerOpen,
     terminalFocusHost,
+    windowId,
+    isTerminalWindow,
     termActionName,
     termActionN,
+    termActionPayload,
     terminalSplitSeq,
     workspaceSessions,
     activeSessionId,
@@ -2335,6 +2510,8 @@ export const useAppStore = defineStore("app", () => {
     openGroupTab,
     openAnotherTerminal,
     openNewTerminalPicker,
+    cancelTerminalPicker,
+    removeDefaultTerminalPicker,
     bindTerminalHost,
     connectTerminal,
     disconnectHostLink,
@@ -2342,12 +2519,16 @@ export const useAppStore = defineStore("app", () => {
     runTermAction,
     returnToHost,
     consumePendingTree,
+    consumePendingTransfer,
+    openTransferredTerminal,
+    reorderTerminalDesk,
     openDetachedDesk,
     noteTerminalFocusHost,
     openHostTool,
     hostHasTerminal,
     hostWorkspaceOf,
     closeTerminalDesk,
+    removeTerminalDeskAfterMove,
     activateTerminalDesk,
     promoteDeskToBench,
     demoteDeskIfSingle,

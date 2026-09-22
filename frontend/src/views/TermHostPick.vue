@@ -1,6 +1,10 @@
 <template>
-  <div class="term-pick">
-    <div class="term-pick__card">
+  <div
+    class="term-pick"
+    :class="{ 'is-overlay': props.overlay }"
+    @mousedown.self="cancel"
+  >
+    <div class="term-pick__card" @mousedown.stop>
       <div class="term-pick__search">
         <el-icon class="term-pick__ico"><Search /></el-icon>
         <input
@@ -14,7 +18,7 @@
           @keydown.down.prevent="move(1)"
           @keydown.up.prevent="move(-1)"
           @keydown.enter.prevent="confirm"
-          @keydown.esc.prevent="app.closeTerminalDesk(deskId)"
+          @keydown.esc.prevent="cancel"
         />
         <span class="term-pick__hint">{{ isMac ? "⌘T" : "Ctrl+T" }} 新建</span>
       </div>
@@ -44,8 +48,9 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { Search } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 
-const props = defineProps<{ deskId: string }>();
+const props = withDefaults(defineProps<{ overlay?: boolean }>(), { overlay: false });
 const app = useAppStore();
+const emit = defineEmits<{ cancel: [] }>();
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const query = ref("");
 const active = ref(0);
@@ -89,12 +94,16 @@ function move(dir: 1 | -1) {
 }
 
 function pick(name: string) {
-  app.bindTerminalHost(props.deskId, name);
+  app.openAnotherTerminal(name);
 }
 
 function confirm() {
   const row = rows.value[active.value];
   if (row) pick(row.name);
+}
+
+function cancel() {
+  emit("cancel");
 }
 
 onMounted(() => {
@@ -104,6 +113,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .term-pick {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -112,6 +122,14 @@ onMounted(() => {
   align-items: flex-start;
   padding: 12vh 24px 24px;
   background: #0e0e0e;
+}
+
+.term-pick.is-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(14, 14, 14, 0.88);
+  backdrop-filter: blur(3px);
 }
 
 .term-pick__card {

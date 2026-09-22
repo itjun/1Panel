@@ -31,6 +31,11 @@ if (params.get("mode") === "board") {
   void import("./components/board/BoardWindowApp.vue").then((m) => {
     mountRoot(m.default);
   });
+} else if (params.get("mode") === "terminal") {
+  // 用户明确右键或拖拽后才进入的终端独立窗
+  void import("./TerminalWindowApp.vue").then((m) => {
+    mountRoot(m.default);
+  });
 } else {
   void import("./App.vue").then((m) => {
     mountRoot(m.default);

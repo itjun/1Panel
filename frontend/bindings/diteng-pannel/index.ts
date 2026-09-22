@@ -51,5 +51,8 @@ export type {
     ImportResult,
     LocalTextCheck,
     MenuCheckResult,
+    TerminalTransfer,
+    TerminalWindowCommand,
+    TerminalWindowInfo,
     UpdateHostInput
 } from "./models.js";

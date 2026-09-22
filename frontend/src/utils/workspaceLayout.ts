@@ -1,6 +1,12 @@
 import type { PaneNode } from "@/views/termPanes";
 
-const KEY = "1pannel-workspace-layouts";
+const KEY_BASE = "1pannel-workspace-layouts";
+const KEY = (() => {
+  if (typeof location === "undefined") return KEY_BASE;
+  const params = new URLSearchParams(location.search);
+  const scope = params.get("windowId") || (params.get("mode") === "terminal" ? "terminal-1" : "main");
+  return `${KEY_BASE}:${scope}`;
+})();
 
 export interface SavedWorkspace {
   id: string;

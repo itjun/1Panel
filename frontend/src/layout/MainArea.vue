@@ -110,6 +110,7 @@
     </div>
 
     <TerminalModule v-show="!app.settingsOpen && app.workspace === 'terminal'" />
+
   </div>
 </template>
 

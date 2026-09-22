@@ -6,10 +6,14 @@
           v-if="app.isTerminalDeskVisible(desk.id)"
           class="term-stage__desk"
         >
-          <TermHostPick v-if="!desk.host" :desk-id="desk.id" />
-          <TerminalView v-else :host="desk.host" :workspace-session-id="desk.id" />
+          <TerminalView :host="desk.host" :workspace-session-id="desk.id" />
         </div>
       </template>
+      <TermHostPick
+        v-if="app.terminalPickerOpen || app.terminalDesks.length === 0"
+        :overlay="app.terminalDesks.length > 0"
+        @cancel="app.cancelTerminalPicker"
+      />
     </div>
   </div>
 </template>

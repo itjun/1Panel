@@ -11,6 +11,14 @@ import {
 } from "@/utils/workspaceMigrate";
 
 const KEY = "1pannel-last-screen";
+const MAIN_KEY = "1pannel-main-screen";
+const TERMINAL_KEY = "1pannel-terminal-screen";
+
+function terminalScreenKey(): string {
+  if (typeof location === "undefined") return TERMINAL_KEY;
+  const windowId = new URLSearchParams(location.search).get("windowId");
+  return windowId ? `${TERMINAL_KEY}:${windowId}` : TERMINAL_KEY;
+}
 
 export type LastScreenKind = "terminal" | "info" | "sftp" | "monitor";
 
@@ -142,9 +150,9 @@ function fromLifted(
   };
 }
 
-export function readLastScreen(): NormalizedScreen | null {
+function readScreen(key: string): NormalizedScreen | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as {
       version?: unknown;
@@ -227,10 +235,39 @@ export function readLastScreen(): NormalizedScreen | null {
   }
 }
 
-export function writeLastScreen(screen: NormalizedScreen) {
+export function readLastScreen(): NormalizedScreen | null {
+  return readScreen(KEY);
+}
+
+/** 主窗口恢复主机与内嵌终端工作区；旧版本单屏记录作为兼容回退。 */
+export function readMainScreen(): NormalizedScreen | null {
+  const screen = readScreen(MAIN_KEY) || readScreen(KEY);
+  if (!screen) return null;
+  return screen;
+}
+
+/** 终端窗口只恢复终端状态；旧版本单屏记录作为一次性兼容回退。 */
+export function readTerminalScreen(): NormalizedScreen | null {
+  const scopedKey = terminalScreenKey();
+  const screen = readScreen(scopedKey) ||
+    (scopedKey === TERMINAL_KEY ? readScreen(KEY) : null) ||
+    (new URLSearchParams(location.search).get("windowId") === "terminal-1"
+      ? readScreen(TERMINAL_KEY)
+      : null);
+  if (!screen) return null;
+  return {
+    ...screen,
+    workspace: "terminal",
+    settingsOpen: false,
+    activeHostSessionId: "",
+    hostSessions: [],
+  };
+}
+
+function writeScreen(key: string, screen: NormalizedScreen) {
   try {
     localStorage.setItem(
-      KEY,
+      key,
       JSON.stringify({
         version: 3,
         workspace: screen.workspace,
@@ -244,4 +281,22 @@ export function writeLastScreen(screen: NormalizedScreen) {
   } catch {
     /* ignore */
   }
+}
+
+export function writeLastScreen(screen: NormalizedScreen) {
+  writeScreen(KEY, screen);
+}
+
+export function writeMainScreen(screen: NormalizedScreen) {
+  writeScreen(MAIN_KEY, screen);
+}
+
+export function writeTerminalScreen(screen: NormalizedScreen) {
+  writeScreen(terminalScreenKey(), {
+    ...screen,
+    workspace: "terminal",
+    settingsOpen: false,
+    activeHostSessionId: "",
+    hostSessions: [],
+  });
 }

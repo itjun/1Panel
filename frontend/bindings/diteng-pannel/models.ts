@@ -349,6 +349,42 @@ export interface MenuCheckResult {
 }
 
 /**
+ * TerminalTransfer 是跨 WebView 移动终端时的短暂交接数据。
+ * SessionID 保留后端的原 SSH/PTY；Snapshot 只用于恢复 xterm 的画面和滚动历史。
+ */
+export interface TerminalTransfer {
+    "transferId"?: string;
+    "sessionId": string;
+    "host": string;
+    "paneId": string;
+    "title"?: string;
+    "titleCustom"?: boolean;
+    "snapshot": string;
+    "cols": number;
+    "rows": number;
+}
+
+/**
+ * TerminalWindowCommand 是窗口间的终端动作。WindowID 为空时创建新的终端原生窗口，
+ * 非空时把动作投递给已有目标窗口。
+ */
+export interface TerminalWindowCommand {
+    "action"?: string;
+    "windowId"?: string;
+    "created"?: boolean;
+    "host"?: string;
+    "hosts"?: string[] | null;
+    "transferId"?: string;
+    "targetDeskId"?: string;
+    "insertBefore"?: boolean;
+}
+
+export interface TerminalWindowInfo {
+    "windowId": string;
+    "visible": boolean;
+}
+
+/**
  * UpdateHostInput 是「编辑主机」对话框的入参
  * 别名不可在此接口修改（请用 RenameHost）；须带密码做连通性验证，通过后才写 config
  */

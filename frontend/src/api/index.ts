@@ -487,6 +487,33 @@ const apiImpl = {
   renameCertNotifyCursor: async (from: string, to: string): Promise<void> => {
     await CertNotify.RenameCursor(from, to);
   },
+  listTerminalWindows: (): Promise<main.TerminalWindowInfo[]> =>
+    arr(System.ListTerminalWindows()),
+  focusTerminalWindow: async (windowId: string): Promise<void> => {
+    await System.FocusTerminalWindow(windowId);
+  },
+  hideTerminalWindow: async (windowId: string): Promise<void> => {
+    await System.HideTerminalWindow(windowId);
+  },
+  /** 用户明确选择后打开或聚焦固定复用的终端独立窗 */
+  openTerminalWindow: async (
+    command: main.TerminalWindowCommand = {}
+  ): Promise<void> => {
+    await System.OpenTerminalWindow(command);
+  },
+  /** 终端独立窗加载完成后领取后端暂存的动作 */
+  terminalWindowReady: (windowId: string): Promise<main.TerminalWindowCommand[]> =>
+    arr(System.TerminalWindowReady(windowId)),
+  beginTerminalTransfer: (payload: main.TerminalTransfer): Promise<string> =>
+    str(System.BeginTerminalTransfer(payload)),
+  takeTerminalTransfer: (id: string): Promise<main.TerminalTransfer> =>
+    must(System.TakeTerminalTransfer(id)),
+  completeTerminalTransfer: async (id: string): Promise<void> => {
+    await System.CompleteTerminalTransfer(id);
+  },
+  cancelTerminalTransfer: async (id: string): Promise<void> => {
+    await System.CancelTerminalTransfer(id);
+  },
   setNotifySubs: async (d: notifysubs.Data): Promise<void> => {
     await NotifySubs.Set(d);
   },
