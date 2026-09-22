@@ -28,10 +28,89 @@ type termStreamServer struct {
 	mu     sync.Mutex
 	token  string
 	subs   map[string]*termStreamSubscriber
+	holds  map[string]*termStreamHandoff
 	server *http.Server
 	addr   string
 
 	writeInput func(sid string, data []byte) error // 由 termMgr 注入；调用方拥有 data 的读取期
+}
+
+// termStreamHandoff 暂存一个正在跨 WebView 移动的 sid 的输出。
+// hold 期间旧 WebView 不再收到输出，目标 WebView 建立订阅后 release 才按原顺序放行。
+type termStreamHandoff struct {
+	mu         sync.Mutex
+	frames     [][]byte
+	bytes      int
+	outputWake chan struct{}
+	released   bool
+	closed     bool
+}
+
+func newTermStreamHandoff() *termStreamHandoff {
+	return &termStreamHandoff{outputWake: make(chan struct{}, 1)}
+}
+
+func (h *termStreamHandoff) enqueue(frame []byte) bool {
+	if len(frame) == 0 || len(frame) > termStreamMaxOutputBytes {
+		return false
+	}
+	for {
+		h.mu.Lock()
+		if h.closed {
+			h.mu.Unlock()
+			return false
+		}
+		if len(h.frames) < termStreamMaxOutputFrame && h.bytes+len(frame) <= termStreamMaxOutputBytes {
+			h.frames = append(h.frames, frame)
+			h.bytes += len(frame)
+			signalTermStream(h.outputWake)
+			h.mu.Unlock()
+			return true
+		}
+		wake := h.outputWake
+		h.mu.Unlock()
+		<-wake
+	}
+}
+
+func (h *termStreamHandoff) drain() [][]byte {
+	h.mu.Lock()
+	frames := h.frames
+	h.frames = nil
+	h.bytes = 0
+	signalTermStream(h.outputWake)
+	h.mu.Unlock()
+	return frames
+}
+
+// closeIfEmptyReleased 在同一把锁内完成最后一次空检查和关闭，
+// 避免 flush 与 PTY 输出并发时，最后一个缓存帧落到关闭之后。
+func (h *termStreamHandoff) closeIfEmptyReleased() (closed bool, released bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !h.released {
+		return false, false
+	}
+	if len(h.frames) != 0 {
+		return false, true
+	}
+	h.closed = true
+	signalTermStream(h.outputWake)
+	return true, true
+}
+
+func (h *termStreamHandoff) markReleased() {
+	h.mu.Lock()
+	h.released = true
+	signalTermStream(h.outputWake)
+	h.mu.Unlock()
+}
+
+func (h *termStreamHandoff) close() {
+	h.mu.Lock()
+	h.closed = true
+	signalTermStream(h.outputWake)
+	h.mu.Unlock()
 }
 
 const (
@@ -150,6 +229,7 @@ func newTermStreamServer() *termStreamServer {
 	return &termStreamServer{
 		token: hex.EncodeToString(b),
 		subs:  make(map[string]*termStreamSubscriber),
+		holds: make(map[string]*termStreamHandoff),
 	}
 }
 
@@ -179,9 +259,17 @@ func (t *termStreamServer) shutdown() {
 		subs = append(subs, sub)
 		delete(t.subs, sid)
 	}
+	holds := make([]*termStreamHandoff, 0, len(t.holds))
+	for sid, hold := range t.holds {
+		holds = append(holds, hold)
+		delete(t.holds, sid)
+	}
 	t.mu.Unlock()
 	for _, sub := range subs {
 		sub.close()
+	}
+	for _, hold := range holds {
+		hold.close()
 	}
 	if t.server != nil {
 		_ = t.server.Close()
@@ -220,6 +308,8 @@ func (t *termStreamServer) handleWS(w http.ResponseWriter, r *http.Request) {
 	if old != nil {
 		old.close()
 	}
+	// release 可能先于 WebSocket 建立完成；建立订阅后再尝试冲刷交接缓冲。
+	t.flushHandoff(sid)
 
 	readDone := make(chan struct{})
 	go func() {
@@ -304,12 +394,9 @@ func (t *termStreamServer) pushTerminalEvent(kind, sid, _ string, data []byte) b
 		return false
 	}
 	t.mu.Lock()
+	hold := t.holds[sid]
 	sub := t.subs[sid]
 	t.mu.Unlock()
-	if sub == nil {
-		// 没有订阅者时直接走 Wails 兜底，不要先分配一个永远丢弃的 frame。
-		return false
-	}
 	var frame []byte
 	switch kind {
 	case "data":
@@ -321,6 +408,15 @@ func (t *termStreamServer) pushTerminalEvent(kind, sid, _ string, data []byte) b
 		frame[0] = termStreamFrameExit
 		copy(frame[1:], data)
 	default:
+		return false
+	}
+	if hold != nil {
+		if hold.enqueue(frame) {
+			return true
+		}
+	}
+	if sub == nil {
+		// 没有订阅者时直接走 Wails 兜底，不要先分配一个永远丢弃的 frame。
 		return false
 	}
 
@@ -341,4 +437,96 @@ func (t *termStreamServer) detach(sub *termStreamSubscriber) {
 	}
 	t.mu.Unlock()
 	sub.close()
+}
+
+// hold 暂停一个 sid 的实时输出，供跨 WebView 移动时使用。
+func (t *termStreamServer) hold(sid string) error {
+	sid = strings.TrimSpace(sid)
+	if sid == "" {
+		return fmt.Errorf("终端会话 ID 不能为空")
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if _, ok := t.holds[sid]; ok {
+		return fmt.Errorf("终端会话正在移动")
+	}
+	t.holds[sid] = newTermStreamHandoff()
+	return nil
+}
+
+// release 让目标订阅者接收交接期间缓存的输出；没有订阅者时等待其稍后建立。
+func (t *termStreamServer) release(sid string) error {
+	sid = strings.TrimSpace(sid)
+	if sid == "" {
+		return nil
+	}
+	t.mu.Lock()
+	hold := t.holds[sid]
+	t.mu.Unlock()
+	if hold == nil {
+		return nil
+	}
+	hold.markReleased()
+	t.mu.Lock()
+	sub := t.subs[sid]
+	if sub == nil && t.holds[sid] == hold {
+		delete(t.holds, sid)
+	}
+	t.mu.Unlock()
+	if sub == nil {
+		// 目标浏览器没有建立专属 WS 时，放弃交接缓存并恢复 Wails 兜底；
+		// 否则 hold 会永远占住该 sid 的输出。
+		hold.close()
+		return nil
+	}
+	t.flushHandoff(sid)
+	return nil
+}
+
+func (t *termStreamServer) flushHandoff(sid string) {
+	for {
+		t.mu.Lock()
+		hold := t.holds[sid]
+		sub := t.subs[sid]
+		t.mu.Unlock()
+		if hold == nil || sub == nil {
+			return
+		}
+		closed, released := hold.closeIfEmptyReleased()
+		if !released {
+			// 目标 WebSocket 可以先于 CompleteTerminalTransfer 建立，
+			// 但在交接完成前不能把缓存输出放到快照之前。
+			return
+		}
+		if closed {
+			t.mu.Lock()
+			if t.holds[sid] == hold {
+				delete(t.holds, sid)
+			}
+			t.mu.Unlock()
+			return
+		}
+		frames := hold.drain()
+		for _, frame := range frames {
+			if !sub.enqueueOutput(frame) {
+				return
+			}
+		}
+		closed, released = hold.closeIfEmptyReleased()
+		if !released {
+			return
+		}
+		if !closed {
+			// PTY 输出可能正好在 drain 与最后一次空检查之间到达。
+			// 继续下一轮，把这批并发到达的帧也交给目标订阅者，直到
+			// 在同一把锁下确认 released 且缓冲为空。
+			continue
+		}
+		t.mu.Lock()
+		if t.holds[sid] == hold {
+			delete(t.holds, sid)
+		}
+		t.mu.Unlock()
+		return
+	}
 }

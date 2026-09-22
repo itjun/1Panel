@@ -213,3 +213,42 @@ func TestTermStreamRejectsMissingSessionID(t *testing.T) {
 		t.Fatal("websocket without sid unexpectedly connected")
 	}
 }
+
+func TestTermStreamHandoffPreservesOutputUntilTargetRelease(t *testing.T) {
+	server := newTermStreamServer()
+	if err := server.hold("session-a"); err != nil {
+		t.Fatalf("hold session-a: %v", err)
+	}
+	if !server.pushTerminalEvent("data", "session-a", "pane-a", []byte("first")) {
+		t.Fatal("handoff did not accept first output")
+	}
+	if !server.pushTerminalEvent("data", "session-a", "pane-a", []byte("second")) {
+		t.Fatal("handoff did not accept second output")
+	}
+
+	server.mu.Lock()
+	sub := newTermStreamSubscriber("session-a")
+	server.subs["session-a"] = sub
+	server.mu.Unlock()
+	server.flushHandoff("session-a")
+	sub.mu.Lock()
+	bufferedBeforeRelease := len(sub.outputFrames)
+	sub.mu.Unlock()
+	if bufferedBeforeRelease != 0 {
+		t.Fatalf("handoff output flushed before release: %d frames", bufferedBeforeRelease)
+	}
+	if err := server.release("session-a"); err != nil {
+		t.Fatalf("release session-a: %v", err)
+	}
+
+	for _, want := range []string{"first", "second"} {
+		frame, ok := sub.nextOutput()
+		if !ok {
+			t.Fatalf("target subscriber closed before receiving %q", want)
+		}
+		if len(frame) < 2 || frame[0] != termStreamFrameData || string(frame[1:]) != want {
+			t.Fatalf("target received wrong handoff frame: %q", frame)
+		}
+	}
+	server.detach(sub)
+}
