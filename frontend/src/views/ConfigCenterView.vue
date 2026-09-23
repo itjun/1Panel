@@ -1,22 +1,6 @@
 <template>
   <div class="config-center" v-loading="loading">
     <div class="config-center__toolbar">
-      <div class="config-center__tabs" role="tablist" aria-label="配置中心导航">
-        <button
-          v-for="item in sections"
-          :key="item.id"
-          type="button"
-          class="config-center__tab"
-          :class="{ 'is-active': section === item.id }"
-          @click="openSection(item.id)"
-        >
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.label }}</span>
-          <span v-if="item.id === 'diff' && conflictCount" class="config-center__tab-count">
-            {{ conflictCount }}
-          </span>
-        </button>
-      </div>
       <div class="config-center__actions">
         <el-tag :type="statusType" effect="plain" round>{{ statusLabel }}</el-tag>
         <el-button text :icon="Refresh" :loading="loading" @click="refreshAll">刷新</el-button>
@@ -437,7 +421,6 @@ import {
   Clock,
   Document,
   EditPen,
-  Files,
   FolderOpened,
   Hide,
   Location,
@@ -456,13 +439,6 @@ import { formatErr } from "@/utils/format";
 
 const app = useAppStore();
 const section = computed(() => app.configSection);
-const sections: { id: ConfigSection; label: string; icon: typeof Files }[] = [
-  { id: "overview", label: "概览", icon: Files },
-  { id: "json", label: "Panel JSON", icon: Document },
-  { id: "files", label: "SSH 文件", icon: Setting },
-  { id: "diff", label: "差异与冲突", icon: Upload },
-  { id: "backups", label: "备份", icon: Clock },
-];
 
 const loading = ref(false);
 const busy = ref(false);
@@ -511,7 +487,6 @@ const statusType = computed(() => {
   if (overview.value.drift) return "warning";
   return "success";
 });
-const conflictCount = computed(() => overview.value?.diff.conflicts?.length || 0);
 const lastGeneratedLabel = computed(() => overview.value?.lastGenerated ? formatTime(overview.value.lastGenerated) : "尚未生成");
 const impactItems = computed(() => {
   const diff = overview.value?.diff;
@@ -927,31 +902,8 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.config-center__tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
+.config-center__toolbar { justify-content: flex-end; }
 
-.config-center__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 9px;
-  color: #617084;
-  background: transparent;
-  font: var(--m3-label-large);
-  cursor: pointer;
-  transition: 140ms ease;
-
-  &:hover { color: #244b80; background: #e6edf6; }
-  &.is-active { color: #1758b5; background: #dceaff; font-weight: 700; }
-}
-
-.config-center__tab-count,
 .file-tree__dirty {
   color: #a33c1d;
   font-size: 10px;
