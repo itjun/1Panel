@@ -109,25 +109,29 @@ import type { monitor } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { formatErr } from "@/utils/format";
 import { registerFileDrop } from "@/utils/fileDrop";
+import { getSftpLocation, saveSftpLocation } from "@/utils/sftpLocationState";
 import SftpPane, { type SftpDeleteItem } from "@/views/SftpPane.vue";
 
 const props = defineProps<{ host: string }>();
 const app = useAppStore();
 
-const localHome = ref("");
-const remoteHome = ref("");
-const localCwd = ref("");
-const remoteCwd = ref("");
+const initialLocation = getSftpLocation(props.host);
+const localHome = ref(initialLocation.localHome);
+const remoteHome = ref(initialLocation.remoteHome);
+const localCwd = ref(initialLocation.localCwd);
+const remoteCwd = ref(initialLocation.remoteCwd);
 const localEntries = ref<monitor.FileEntry[]>([]);
 const remoteEntries = ref<monitor.FileEntry[]>([]);
 const localErr = ref("");
 const remoteErr = ref("");
 const loadingLocal = ref(false);
 const loadingRemote = ref(false);
-const localBack = ref<string[]>([]);
-const localFwd = ref<string[]>([]);
-const remoteBack = ref<string[]>([]);
-const remoteFwd = ref<string[]>([]);
+const localBack = ref<string[]>(initialLocation.localBack);
+const localFwd = ref<string[]>(initialLocation.localFwd);
+const remoteBack = ref<string[]>(initialLocation.remoteBack);
+const remoteFwd = ref<string[]>(initialLocation.remoteFwd);
+const localLoaded = ref(false);
+const remoteLoaded = ref(false);
 
 const dragFrom = ref<"local" | "remote" | null>(null);
 const dragPaths = ref<string[]>([]);
@@ -197,40 +201,80 @@ function pushHistory(back: typeof localBack, fwd: typeof localFwd, from: string,
   fwd.value = [];
 }
 
+function restoreLocation(host: string) {
+  const saved = getSftpLocation(host);
+  localHome.value = saved.localHome;
+  remoteHome.value = saved.remoteHome;
+  localCwd.value = saved.localCwd;
+  remoteCwd.value = saved.remoteCwd;
+  localBack.value = saved.localBack;
+  localFwd.value = saved.localFwd;
+  remoteBack.value = saved.remoteBack;
+  remoteFwd.value = saved.remoteFwd;
+  localLoaded.value = false;
+  remoteLoaded.value = false;
+}
+
 async function loadLocalAt(path: string, record: boolean) {
+  const host = props.host;
   const seq = ++localSeq;
   loadingLocal.value = true;
   localErr.value = "";
   const from = localCwd.value;
+  const requested = path ? normalizeLocal(path) : "";
+  if (requested && requested !== from) {
+    localCwd.value = requested;
+    localLoaded.value = false;
+    saveSftpLocation(host, {
+      localCwd: requested,
+      localHome: localHome.value,
+      localBack: localBack.value,
+      localFwd: localFwd.value,
+    });
+  }
   try {
     if (!localHome.value) localHome.value = await api.localHomeDir();
-    if (seq !== localSeq) return;
+    if (seq !== localSeq || host !== props.host) return;
     const target = path ? normalizeLocal(path) : localHome.value;
     const list = (await api.listLocalDir(target)) || [];
-    if (seq !== localSeq) return;
+    if (seq !== localSeq || host !== props.host) return;
     localEntries.value = list;
     localCwd.value = target;
+    localLoaded.value = true;
     pushHistory(localBack, localFwd, from, target, record);
+    saveSftpLocation(host, {
+      localHome: localHome.value,
+      localCwd: target,
+      localBack: localBack.value,
+      localFwd: localFwd.value,
+    });
   } catch (e) {
-    if (seq !== localSeq) return;
+    if (seq !== localSeq || host !== props.host) return;
     localErr.value = formatErr(e);
   } finally {
     if (seq === localSeq) loadingLocal.value = false;
   }
 }
 
-async function loadRemoteOnce(path: string, record: boolean, from: string, seq: number) {
+async function loadRemoteOnce(host: string, path: string, record: boolean, from: string, seq: number) {
   let target = path ? normalizeRemote(path) : "";
   if (!target) {
-    target = normalizeRemote(await api.sftpHomeDir(props.host));
+    target = normalizeRemote(await api.sftpHomeDir(host));
     remoteHome.value = target;
   }
-  if (seq !== remoteSeq) return;
-  const list = (await api.listSftp(props.host, target)) || [];
-  if (seq !== remoteSeq) return;
+  if (seq !== remoteSeq || host !== props.host) return;
+  const list = (await api.listSftp(host, target)) || [];
+  if (seq !== remoteSeq || host !== props.host) return;
   remoteEntries.value = list;
   remoteCwd.value = target;
+  remoteLoaded.value = true;
   pushHistory(remoteBack, remoteFwd, from, target, record);
+  saveSftpLocation(host, {
+    remoteHome: remoteHome.value,
+    remoteCwd: target,
+    remoteBack: remoteBack.value,
+    remoteFwd: remoteFwd.value,
+  });
 }
 
 function remoteConnDead(err: unknown): boolean {
@@ -246,26 +290,38 @@ function remoteConnDead(err: unknown): boolean {
 }
 
 async function loadRemoteAt(path: string, record: boolean) {
-  if (!app.isHostSubActive(props.host, "files")) return;
+  const host = props.host;
+  if (!app.isHostSubActive(host, "files")) return;
   const seq = ++remoteSeq;
   loadingRemote.value = true;
   remoteErr.value = "";
   const from = remoteCwd.value;
+  const requested = path ? normalizeRemote(path) : "";
+  if (requested && requested !== from) {
+    remoteCwd.value = requested;
+    remoteLoaded.value = false;
+    saveSftpLocation(host, {
+      remoteCwd: requested,
+      remoteHome: remoteHome.value,
+      remoteBack: remoteBack.value,
+      remoteFwd: remoteFwd.value,
+    });
+  }
   try {
-    await loadRemoteOnce(path, record, from, seq);
+    await loadRemoteOnce(host, path, record, from, seq);
   } catch (e) {
-    if (seq !== remoteSeq) return;
-    if (!remoteConnDead(e) || !app.isHostSubActive(props.host, "files")) {
+    if (seq !== remoteSeq || host !== props.host) return;
+    if (!remoteConnDead(e) || !app.isHostSubActive(host, "files")) {
       remoteErr.value = formatErr(e);
       return;
     }
     // 关掉标签时后端会拆连接。第一次请求可能正好撞上旧连接，稍等再连一次。
     await new Promise((r) => window.setTimeout(r, 250));
-    if (seq !== remoteSeq || !app.isHostSubActive(props.host, "files")) return;
+    if (seq !== remoteSeq || host !== props.host || !app.isHostSubActive(host, "files")) return;
     try {
-      await loadRemoteOnce(path, record, from, seq);
+      await loadRemoteOnce(host, path, record, from, seq);
     } catch (e2) {
-      if (seq !== remoteSeq) return;
+      if (seq !== remoteSeq || host !== props.host) return;
       remoteErr.value = formatErr(e2);
     }
   } finally {
@@ -545,6 +601,17 @@ function onWinKey(ev: KeyboardEvent) {
 watch(
   () => [props.host, app.isHostSubActive(props.host, "files")] as const,
   ([host, vis], prev) => {
+    const hostChanged = !prev || prev[0] !== host;
+    if (hostChanged) {
+      // 让旧主机的请求失效，再从该主机自己的目录快照恢复；绝不以空路径覆盖成家目录。
+      localSeq += 1;
+      remoteSeq += 1;
+      restoreLocation(host);
+      localEntries.value = [];
+      remoteEntries.value = [];
+      localErr.value = "";
+      remoteErr.value = "";
+    }
     if (vis) {
       if (!offDrop) offDrop = registerFileDrop(onOsDrop);
     } else {
@@ -552,24 +619,14 @@ watch(
       offDrop = null;
     }
     if (!vis) return;
-    const hostChanged = !prev || prev[0] !== host;
     if (hostChanged) {
-      localBack.value = [];
-      localFwd.value = [];
-      remoteBack.value = [];
-      remoteFwd.value = [];
-      localCwd.value = "";
-      remoteCwd.value = "";
-      remoteHome.value = "";
-      localEntries.value = [];
-      remoteEntries.value = [];
-      void loadLocalAt("", false);
-      void loadRemoteAt("", false);
+      void loadLocalAt(localCwd.value, false);
+      void loadRemoteAt(remoteCwd.value, false);
       return;
     }
-    // 切走再回来：目录、选中和传输状态都还在，不重拉
-    if (!localEntries.value.length) void loadLocalAt(localCwd.value, false);
-    if (!remoteEntries.value.length) void loadRemoteAt(remoteCwd.value, false);
+    // 切走再回来：按“是否已完成加载”判断，不用目录条目数量误判空目录。
+    if (!localLoaded.value) void loadLocalAt(localCwd.value, false);
+    if (!remoteLoaded.value) void loadRemoteAt(remoteCwd.value, false);
   },
   { immediate: true }
 );
