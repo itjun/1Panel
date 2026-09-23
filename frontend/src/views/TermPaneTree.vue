@@ -11,33 +11,45 @@
   >
     <header
       v-if="showHead"
-      class="pane-head"
-      draggable="true"
-      :title="'拖动调整 ' + node.host"
-      @dragstart.stop="onGrabStart"
-      @pointerdown.stop="emit('focus', node.id)"
+      class="pane-head drag-region"
+      @dblclick="chrome.toggleMaximise()"
+      @contextmenu.prevent="chrome.openMenu($event)"
     >
-      <span class="pane-head__host">{{ node.host }}</span>
-      <span v-if="cwdById?.[node.id]" class="pane-head__cwd">{{ cwdById[node.id] }}</span>
-      <span class="pane-head__status" :class="'is-' + faceOf(node.id)">
-        {{ paneFaceLabel(faceOf(node.id)) }}
-      </span>
+      <div
+        class="pane-tab-card no-drag"
+        draggable="true"
+        :title="'拖动调整 ' + node.host"
+        @dragstart.stop="onGrabStart"
+        @pointerdown.stop="emit('focus', node.id)"
+        @dblclick.stop
+        @contextmenu.stop
+      >
+        <span class="pane-head__host">{{ node.host }}</span>
+        <span v-if="cwdById?.[node.id]" class="pane-head__cwd">{{ cwdById[node.id] }}</span>
+        <span class="pane-head__status" :class="'is-' + faceOf(node.id)">
+          {{ paneFaceLabel(faceOf(node.id)) }}
+        </span>
+      </div>
       <button
         v-if="needsRetry(node.id)"
         type="button"
-        class="pane-head__re"
+        class="pane-head__re no-drag"
         title="重新挂上这个窗格，不关闭其它会话"
         @pointerdown.stop
         @click.stop="emit('retry', node.id)"
+        @dblclick.stop
+        @contextmenu.stop
       >
         重试
       </button>
       <button
         type="button"
-        class="pane-head__x"
+        class="pane-head__x no-drag"
         title="关闭这个窗格，其它窗格的连接还在"
         @pointerdown.stop
         @click.stop="emit('close', node.id)"
+        @dblclick.stop
+        @contextmenu.stop
       >
         ✕
       </button>
@@ -119,6 +131,7 @@
 import { ref } from "vue";
 import type { PaneNode, PaneSide } from "@/views/termPanes";
 import { paneFaceLabel, paneFailText, type PaneFace } from "@/views/termMount";
+import { useChromeDrag } from "@/composables/useChromeDrag";
 
 const props = withDefaults(
   defineProps<{
@@ -133,6 +146,7 @@ const props = withDefaults(
   }>(),
   { cwdById: () => ({}), showHead: false, faces: () => ({}), echoById: () => ({}) }
 );
+const chrome = useChromeDrag();
 
 const emit = defineEmits<{
   focus: [id: string];
@@ -326,9 +340,30 @@ function onDrop(e: DragEvent) {
   background: #111111;
   color: #e8e8e8;
   border-bottom: 1px solid #222222;
-  cursor: grab;
+  cursor: default;
   user-select: none;
   z-index: 3;
+}
+
+.pane-tab-card {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: min(100%, 620px);
+  height: 22px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid #2b2b2b;
+  border-radius: 5px;
+  background: #171717;
+  cursor: grab;
+
+  &:hover {
+    background: #1e1e1e;
+    border-color: #3a3a3a;
+  }
 
   &:active {
     cursor: grabbing;
