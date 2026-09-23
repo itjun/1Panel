@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "type-check": "vue-tsc --noEmit",
+    "test:board-model": "bun scripts/test-board-model.mjs",
     "preview": "vite preview",
     "verify:shell": "bun scripts/verify-shell.mjs",
     "test:helpers": "bun scripts/test-helpers.mjs",

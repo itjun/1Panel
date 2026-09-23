@@ -18,6 +18,7 @@ declare module 'vue' {
     BackupImportDialog: typeof import('./components/BackupImportDialog.vue')['default']
     BoardModeOverlay: typeof import('./components/board/BoardModeOverlay.vue')['default']
     BoardSparkline: typeof import('./components/board/BoardSparkline.vue')['default']
+    BoardSummaryStrip: typeof import('./components/board/BoardSummaryStrip.vue')['default']
     BoardWindowApp: typeof import('./components/board/BoardWindowApp.vue')['default']
     CardBoard: typeof import('./components/CardBoard.vue')['default']
     ChromeScope: typeof import('./components/ChromeScope.vue')['default']
