@@ -1,22 +1,32 @@
 <template>
   <div
-    class="board-mode is-dark"
+    class="board-mode"
     :class="{ 'is-embedded': embedded }"
     :role="embedded ? undefined : 'dialog'"
     :aria-modal="embedded ? undefined : 'true'"
     aria-label="看板模式"
   >
     <header v-if="!embedded" class="board-mode__bar drag-region">
-      <div class="board-mode__titles">
-        <span class="board-mode__group">{{ groupName || "分组" }}</span>
-        <span class="board-mode__count">{{ hosts.length }} 台</span>
+      <div class="board-mode__identity">
+        <span class="board-mode__live-mark" aria-hidden="true" />
+        <div class="board-mode__titles">
+          <div class="board-mode__group-line">
+            <span class="board-mode__group">{{ groupName || "分组" }}</span>
+            <span class="board-mode__count">{{ hosts.length }} 台主机</span>
+          </div>
+          <span class="board-mode__mode">实时运维监控</span>
+        </div>
       </div>
+
       <div class="board-mode__center">
-        <span v-if="boardTitle" class="board-mode__board-title">{{
-          boardTitle
-        }}</span>
+        <span v-if="boardTitle" class="board-mode__board-title">{{ boardTitle }}</span>
+        <span v-else class="board-mode__board-title board-mode__board-title--fallback">
+          运维监控看板
+        </span>
       </div>
+
       <div class="board-mode__right">
+        <span class="board-mode__last-update">{{ lastUpdateText }}</span>
         <button
           type="button"
           class="board-mode__fs-btn no-drag"
@@ -24,79 +34,71 @@
         >
           {{ isFullscreen ? "退出全屏" : "全屏" }}
         </button>
-        <time class="board-mode__clock mono" :datetime="clockIso">{{
-          clockText
-        }}</time>
+        <time class="board-mode__clock mono" :datetime="clockIso">{{ clockText }}</time>
       </div>
     </header>
 
-    <div class="board-mode__grid" :style="gridStyle">
-      <HostBoardCard
-        v-for="h in hosts"
-        :key="h.name"
-        :name="h.name"
-        :address="h.hostName || ''"
-        :loading="cardOf(h.name).loading"
-        :overview="cardOf(h.name).overview"
-        :disks="cardOf(h.name).disks"
-        :error="cardOf(h.name).error"
-        :cpu-trend="trendOf(h.name).cpu"
-        :mem-trend="trendOf(h.name).mem"
-        :app-sub-items="cardOf(h.name).appSubItems"
-        :density="cardDensity"
-        @open="onOpen"
-      />
-      <div
-        v-for="i in emptySlotCount"
-        :key="'empty-' + i"
-        class="board-mode__slot--empty"
-        aria-hidden="true"
-      />
-    </div>
+    <BoardSummaryStrip :summary="summary" :embedded="embedded" />
+
+    <main ref="gridRef" class="board-mode__grid" :style="gridStyle">
+      <template v-if="hosts.length">
+        <HostBoardCard
+          v-for="h in hosts"
+          :key="h.name"
+          :name="h.name"
+          :address="h.hostName || ''"
+          :loading="cardOf(h.name).loading"
+          :overview="cardOf(h.name).overview"
+          :disks="cardOf(h.name).disks"
+          :error="cardOf(h.name).error"
+          :cpu-trend="trendOf(h.name).cpu"
+          :mem-trend="trendOf(h.name).mem"
+          :app-sub-items="cardOf(h.name).appSubItems"
+          :app-sub-loading="cardOf(h.name).appSubLoading"
+          :updated-at="cardOf(h.name).updatedAt"
+          :density="cardDensity"
+          @open="onOpen"
+        />
+      </template>
+      <div v-else class="board-mode__empty">
+        <span class="board-mode__empty-mark" aria-hidden="true">—</span>
+        <strong>当前分组暂无主机</strong>
+        <span>添加主机后，实时监控数据会显示在这里</span>
+      </div>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { Events, Window } from "@wailsio/runtime";
-import type { monitor, sshconfig } from "@/api";
+import type { sshconfig } from "@/api";
+import BoardSummaryStrip from "@/components/board/BoardSummaryStrip.vue";
 import HostBoardCard from "@/components/board/HostBoardCard.vue";
+import {
+  boardDensityOf,
+  pickBoardGrid,
+  summarizeBoardCards,
+  type BoardAppSubItem as BoardAppSubItemModel,
+  type BoardGridShape,
+  type BoardHostCard as BoardHostCardModel,
+  type BoardHostTrend as BoardHostTrendModel,
+} from "@/utils/boardModel";
 
-export interface BoardAppSubItem {
-  name: string;
-  count: number;
-}
-
-export interface BoardHostCard {
-  loading: boolean;
-  overview?: monitor.Overview | null;
-  disks?: monitor.DiskInfo[] | null;
-  error?: string | null;
-  /** 已订阅微服务及实例数；null 表示从未配置、不显示该行；[] 表示配置过但当前为 0 */
-  appSubItems?: BoardAppSubItem[] | null;
-}
-
-/** 近 1 小时 CPU/内存趋势（0–100），供 sparkline */
-export interface BoardHostTrend {
-  cpu: number[];
-  mem: number[];
-}
-
-const emptyTrend: BoardHostTrend = { cpu: [], mem: [] };
+export type BoardAppSubItem = BoardAppSubItemModel;
+export type BoardHostCard = BoardHostCardModel;
+export type BoardHostTrend = BoardHostTrendModel;
 
 const props = withDefaults(
   defineProps<{
     groupName: string;
-    /** 看板正中标题；空则不显示 */
+    /** 看板正中标题；空则使用默认标题。 */
     boardTitle?: string;
     hosts: sshconfig.HostConfig[];
     cards: Record<string, BoardHostCard>;
-    /** 每主机近 1h 趋势；缺省则空数组 */
+    /** 每主机近 1h 趋势；缺省则空数组。 */
     trends?: Record<string, BoardHostTrend>;
-    /**
-     * 嵌入分组页时为 true：去掉全屏/独立窗顶栏 chrome，
-     * 改为撑满父容器的面板；独立看板窗口不传。
-     */
+    /** 嵌入分组页时隐藏独立窗口 chrome，但保留统一摘要和卡片网格。 */
     embedded?: boolean;
   }>(),
   { embedded: false }
@@ -107,13 +109,14 @@ const emit = defineEmits<{
   openHost: [name: string];
 }>();
 
-const emptyCard: BoardHostCard = {
-  loading: true,
-};
-
-let clockTimer: ReturnType<typeof setInterval> | null = null;
+const emptyCard: BoardHostCard = { loading: true };
+const gridRef = ref<HTMLElement | null>(null);
+const viewport = reactive({ width: 0, height: 0 });
 const nowMs = ref(Date.now());
 const isFullscreen = ref(false);
+let clockTimer: ReturnType<typeof setInterval> | null = null;
+let resizeObserver: ResizeObserver | null = null;
+let resizeHandler: (() => void) | null = null;
 const fsEventOffs: (() => void)[] = [];
 
 function pad2(n: number): string {
@@ -128,15 +131,39 @@ function formatBoardClock(ms: number): string {
   );
 }
 
+function formatTime(ms?: number): string {
+  if (!ms) return "等待数据";
+  const d = new Date(ms);
+  return `数据更新 ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
 const clockText = computed(() => formatBoardClock(nowMs.value));
 const clockIso = computed(() => new Date(nowMs.value).toISOString());
+const summary = computed(() => summarizeBoardCards(props.cards, nowMs.value));
+const latestUpdate = computed(() => {
+  let latest = 0;
+  for (const card of Object.values(props.cards)) {
+    latest = Math.max(latest, card.updatedAt || 0);
+  }
+  return latest;
+});
+const lastUpdateText = computed(() => formatTime(latestUpdate.value));
+
+const gridShape = computed<BoardGridShape>(() =>
+  pickBoardGrid(props.hosts.length, viewport.width, viewport.height)
+);
+const cardDensity = computed(() => boardDensityOf(gridShape.value));
+const gridStyle = computed(() => ({
+  "--board-cols": String(gridShape.value.cols),
+  "--board-rows": String(gridShape.value.rows),
+}));
 
 function startClock() {
   stopClock();
   nowMs.value = Date.now();
   clockTimer = setInterval(() => {
     nowMs.value = Date.now();
-  }, 1000);
+  }, props.embedded ? 5000 : 1000);
 }
 
 function stopClock() {
@@ -151,51 +178,8 @@ function cardOf(name: string): BoardHostCard {
 }
 
 function trendOf(name: string): BoardHostTrend {
-  return props.trends?.[name] || emptyTrend;
+  return props.trends?.[name] || { cpu: [], mem: [] };
 }
-
-/**
- * 固定宫格档位：升档到完整矩形，空位补齐，投屏整齐。
- * 1 → 1×1；2–4 → 2×2；5–6 → 3×2；7–9 → 3×3；10–12 → 4×3；…
- */
-function pickBoardGrid(n: number): { cols: number; rows: number; capacity: number } {
-  const count = Math.max(1, n);
-  if (count <= 1) return { cols: 1, rows: 1, capacity: 1 };
-  if (count <= 4) return { cols: 2, rows: 2, capacity: 4 };
-  if (count <= 6) return { cols: 3, rows: 2, capacity: 6 };
-  if (count <= 9) return { cols: 3, rows: 3, capacity: 9 };
-  if (count <= 12) return { cols: 4, rows: 3, capacity: 12 };
-  if (count <= 16) return { cols: 4, rows: 4, capacity: 16 };
-  if (count <= 20) return { cols: 5, rows: 4, capacity: 20 };
-  if (count <= 25) return { cols: 5, rows: 5, capacity: 25 };
-  const cols = 6;
-  const rows = Math.ceil(count / cols);
-  return { cols, rows, capacity: cols * rows };
-}
-
-const boardGrid = computed(() => pickBoardGrid(props.hosts.length));
-
-const emptySlotCount = computed(() =>
-  Math.max(0, boardGrid.value.capacity - props.hosts.length)
-);
-
-/** 宫格越密，卡内字号/间距越紧，保证各档视觉统一 */
-const cardDensity = computed<"lg" | "md" | "sm" | "xs" | "xxs">(() => {
-  const c = boardGrid.value.capacity;
-  if (c <= 4) return "lg";
-  if (c <= 9) return "md";
-  if (c <= 12) return "sm";
-  if (c <= 16) return "xs";
-  return "xxs";
-});
-
-const gridStyle = computed(() => {
-  const { cols, rows } = boardGrid.value;
-  return {
-    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-    gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-  };
-});
 
 function onOpen(name: string) {
   emit("openHost", name);
@@ -213,7 +197,7 @@ async function toggleFullscreen() {
       isFullscreen.value = true;
     }
   } catch {
-    /* 忽略 */
+    /* 忽略：保留当前窗口状态 */
   }
 }
 
@@ -230,12 +214,45 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => {
-  if (props.embedded) {
-    // 嵌入页：无时钟顶栏、无全屏快捷键
-    return;
+function observeGrid() {
+  const el = gridRef.value;
+  if (!el) return;
+  const update = () => {
+    const rect = el.getBoundingClientRect();
+    viewport.width = Math.round(rect.width);
+    viewport.height = Math.round(rect.height);
+  };
+  update();
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(el);
+  } else {
+    resizeHandler = update;
+    window.addEventListener("resize", resizeHandler);
   }
+}
+
+function stopObservingGrid() {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  if (resizeHandler) {
+    window.removeEventListener("resize", resizeHandler);
+    resizeHandler = null;
+  }
+}
+
+async function syncFullscreenFlag() {
+  try {
+    isFullscreen.value = await Window.IsFullscreen();
+  } catch {
+    isFullscreen.value = false;
+  }
+}
+
+onMounted(() => {
+  observeGrid();
   startClock();
+  if (props.embedded) return;
   window.addEventListener("keydown", onKeydown);
   fsEventOffs.push(
     Events.On(Events.Types.Common.WindowFullscreen, () => {
@@ -250,17 +267,9 @@ onMounted(() => {
   void syncFullscreenFlag();
 });
 
-/** 初始同步一次全屏状态（窗口可能是在全屏态下重载） */
-async function syncFullscreenFlag() {
-  try {
-    isFullscreen.value = await Window.IsFullscreen();
-  } catch {
-    isFullscreen.value = false;
-  }
-}
-
 onBeforeUnmount(() => {
   stopClock();
+  stopObservingGrid();
   window.removeEventListener("keydown", onKeydown);
   fsEventOffs.forEach((off) => off());
   fsEventOffs.length = 0;
@@ -269,6 +278,15 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .board-mode {
+  --board-canvas: #07131b;
+  --board-surface: #10232d;
+  --board-text: #edf7f5;
+  --board-muted: #8faeb2;
+  --board-line: rgba(160, 207, 213, 0.16);
+  --board-healthy: #51d5b0;
+  --board-attention: #eab25f;
+  --board-critical: #ff6673;
+
   position: fixed;
   inset: 0;
   display: flex;
@@ -276,127 +294,247 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 16px 20px 20px;
   box-sizing: border-box;
-  background: #0f1115;
-  color: #e8eaed;
   overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(81, 213, 176, 0.025) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(rgba(81, 213, 176, 0.018) 1px, transparent 1px) 0 0 / 64px 64px,
+    var(--board-canvas);
+  color: var(--board-text);
+  font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
   user-select: none;
   -webkit-user-select: none;
+}
 
-  &.is-embedded {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    padding: 12px;
-    border-radius: var(--m3-shape-m, 12px);
-    gap: 0;
-  }
+.board-mode.is-embedded {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  gap: 10px;
+  border: 1px solid rgba(160, 207, 213, 0.12);
+  background:
+    linear-gradient(90deg, rgba(81, 213, 176, 0.018) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(rgba(81, 213, 176, 0.012) 1px, transparent 1px) 0 0 / 56px 56px,
+    var(--board-canvas);
 }
 
 .board-mode__bar {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1.2fr) minmax(300px, 1fr);
   align-items: center;
-  gap: 16px;
-  padding: 10px 14px;
-  border-radius: 16px;
+  gap: 20px;
+  min-height: 54px;
+  border-bottom: 1px solid var(--board-line);
+}
+
+.board-mode__identity,
+.board-mode__right,
+.board-mode__group-line {
+  display: flex;
+  align-items: center;
+}
+
+.board-mode__identity {
+  min-width: 0;
+  gap: 11px;
+}
+
+.board-mode__live-mark {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 30px;
+  background: var(--board-healthy);
+  box-shadow: 0 0 16px rgba(81, 213, 176, 0.5);
 }
 
 .board-mode__titles {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
   min-width: 0;
-  justify-self: start;
 }
 
-.board-mode__group {
-  font-size: 22px;
-  font-weight: 650;
-}
-
-.board-mode__count {
-  font-size: 15px;
-  color: #9aa0a6;
-}
-
-.board-mode__center {
-  justify-self: center;
+.board-mode__group-line {
   min-width: 0;
-  max-width: 100%;
-  text-align: center;
-  padding: 0 8px;
+  gap: 10px;
 }
 
+.board-mode__group,
 .board-mode__board-title {
-  display: block;
-  font-size: 22px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  color: #e8eaed;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.board-mode__group {
+  color: var(--board-text);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.board-mode__count,
+.board-mode__mode,
+.board-mode__last-update {
+  color: var(--board-muted);
+  font-size: 11px;
+}
+
+.board-mode__count {
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-mode__mode {
+  display: block;
+  margin-top: 3px;
+  letter-spacing: 0.12em;
+}
+
+.board-mode__center {
+  min-width: 0;
+  text-align: center;
+}
+
+.board-mode__board-title {
+  display: block;
+  color: var(--board-text);
+  font-size: clamp(18px, 1.25vw, 26px);
+  font-weight: 650;
+  letter-spacing: 0.1em;
+}
+
+.board-mode__board-title--fallback {
+  color: #a6c1c2;
+  font-size: clamp(15px, 1vw, 20px);
+  font-weight: 500;
+}
+
 .board-mode__right {
-  justify-self: end;
-  display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   min-width: 0;
 }
 
+.board-mode__last-update {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .board-mode__fs-btn {
-  flex-shrink: 0;
   appearance: none;
-  border: 1px solid #2a303c;
-  background: #1a1d24;
-  color: #e8eaed;
-  font-size: 13px;
-  line-height: 1;
-  padding: 6px 12px;
-  border-radius: 6px;
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(160, 207, 213, 0.25);
+  border-radius: 3px;
+  background: rgba(16, 35, 45, 0.8);
+  color: #c7dad9;
+  font: 500 12px/1 "SF Pro Display", "PingFang SC", sans-serif;
   cursor: pointer;
+}
 
-  &:hover {
-    border-color: #3a4250;
-    background: #22262f;
-  }
+.board-mode__fs-btn:hover {
+  border-color: var(--board-healthy);
+  color: var(--board-text);
+}
 
-  &:active {
-    background: #181b22;
-  }
+.board-mode__fs-btn:focus-visible {
+  outline: 2px solid var(--board-healthy);
+  outline-offset: 3px;
 }
 
 .board-mode__clock {
   flex-shrink: 0;
-  font-size: 16px;
+  color: #d0dfdd;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
-  color: #c4c7cc;
 }
 
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
 }
 
 .board-mode__grid {
+  --board-cols: 1;
+  --board-rows: 1;
+
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: grid;
+  grid-template-columns: repeat(var(--board-cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--board-rows), minmax(150px, 1fr));
   gap: 12px;
   align-content: stretch;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(81, 213, 176, 0.38) transparent;
 }
 
-.board-mode__slot--empty {
-  min-width: 0;
-  min-height: 0;
-  pointer-events: none;
-  visibility: hidden;
+.board-mode__empty {
+  grid-column: 1 / -1;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--board-muted);
+}
+
+.board-mode__empty-mark {
+  color: var(--board-healthy);
+  font: 700 28px/1 "SF Mono", ui-monospace, monospace;
+}
+
+.board-mode__empty strong {
+  color: var(--board-text);
+  font-size: 18px;
+}
+
+.board-mode__empty span:last-child {
+  font-size: 12px;
+}
+
+@media (max-width: 1200px) {
+  .board-mode {
+    padding-inline: 14px;
+  }
+
+  .board-mode__bar {
+    grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr) minmax(240px, 1fr);
+    gap: 12px;
+  }
+
+  .board-mode__last-update {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .board-mode__bar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .board-mode__center {
+    display: none;
+  }
+
+  .board-mode__right {
+    gap: 7px;
+  }
+
+  .board-mode__clock {
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-mode__live-mark {
+    box-shadow: none;
+  }
 }
 </style>

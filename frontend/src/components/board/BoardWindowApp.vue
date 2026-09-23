@@ -18,7 +18,7 @@ import type { monitor, sshconfig } from "@/api";
 import { UNGROUPED_ID } from "@/stores/app";
 import { useSettingsStore } from "@/stores/settings";
 import { formatErr, isAgentMissing } from "@/utils/format";
-import { watchServiceSortKey } from "@/utils/watchServices";
+import { buildBoardAppSubItems } from "@/utils/boardModel";
 import BoardModeOverlay, {
   type BoardAppSubItem,
   type BoardHostCard,
@@ -48,11 +48,14 @@ interface HostSnap {
   disks?: monitor.DiskInfo[];
   error?: string;
   errorAt?: number;
+  updatedAt?: number;
 }
 
 const hostStates = ref<Record<string, HostSnap>>({});
 /** 主机 → 服务名 → 实例数（探活表行数） */
 const instanceCounts = ref<Record<string, Record<string, number>>>({});
+const instanceCountsKnown = ref<Record<string, boolean>>({});
+const instanceLoading = ref<Record<string, boolean>>({});
 const trends = ref<Record<string, BoardHostTrend>>({});
 const inFlight = new Set<string>();
 const rangeInFlight = new Set<string>();
@@ -78,27 +81,31 @@ function buildAppSubItems(hostName: string): BoardAppSubItem[] | null {
   if (!settings.hasAppNotifyConfig(hostName)) return null;
   const subs = settings.listAppNotifySubs(hostName);
   const counts = instanceCounts.value[hostName] || {};
-  return [...subs]
-    .sort((a, b) => watchServiceSortKey(a) - watchServiceSortKey(b))
-    .map((name) => ({
-      name,
-      count: counts[name] || 0,
-    }));
+  return buildBoardAppSubItems(
+    subs,
+    counts,
+    instanceCountsKnown.value[hostName] === true
+  );
 }
 
 const cards = computed<Record<string, BoardHostCard>>(() => {
   // 依赖订阅 map / 实例计数，hydrate 与探活刷新后能更新看板
   void settings.hostAppNotifySubs;
   void instanceCounts.value;
+  void instanceCountsKnown.value;
+  void instanceLoading.value;
   const out: Record<string, BoardHostCard> = {};
   for (const h of hosts.value) {
     const s = hostStates.value[h.name] || { loading: true };
+    const hasAppConfig = settings.hasAppNotifyConfig(h.name);
     out[h.name] = {
       loading: s.loading,
       overview: s.overview,
       disks: s.disks,
       error: s.error ? withErrTime(s.error, s.errorAt) : undefined,
       appSubItems: buildAppSubItems(h.name),
+      appSubLoading: hasAppConfig && instanceLoading.value[h.name] === true,
+      updatedAt: s.updatedAt,
     };
   }
   return out;
@@ -173,6 +180,7 @@ async function loadInstances(name: string) {
   const prev = hostStates.value[name];
   if (prev?.error && isAgentMissing(prev.error)) return;
   instInFlight.add(name);
+  instanceLoading.value = { ...instanceLoading.value, [name]: true };
   try {
     const rows = await api.agentWatchInstances(name);
     if (!alive) return;
@@ -186,11 +194,16 @@ async function loadInstances(name: string) {
       ...instanceCounts.value,
       [name]: counts,
     };
+    instanceCountsKnown.value = {
+      ...instanceCountsKnown.value,
+      [name]: true,
+    };
   } catch {
     if (!alive) return;
     // 探活失败时保留上次计数，避免闪空
   } finally {
     instInFlight.delete(name);
+    instanceLoading.value = { ...instanceLoading.value, [name]: false };
   }
 }
 
@@ -217,6 +230,7 @@ async function loadOne(name: string, showSkeleton: boolean, force = false) {
       overview: ov,
       disks,
       error: undefined,
+      updatedAt: Date.now(),
     };
     // overview 后到时：若已有 cpu 趋势但 mem 因缺 memTotal 为空，补拉一次 range
     const t = trends.value[name];

@@ -1,112 +1,129 @@
 <template>
-  <div
+  <article
     class="host-board-card"
-    :class="[
-      `density-${density}`,
-      {
-        'is-bad': !!error || alert,
-        'is-ok': !error && !alert && !!overview,
-        'is-loading': loading && !overview && !error,
-      },
-    ]"
+    :class="[`density-${density}`, `health-${health}`, { 'is-loading': loading && !overview && !error }]"
+    role="button"
+    tabindex="0"
+    :aria-label="`${name}，${healthLabel}`"
     @dblclick="emit('open', name)"
+    @keydown.enter="emit('open', name)"
   >
-    <div class="host-board-card__head">
-      <div class="host-board-card__title">
-        <span class="host-board-card__name" v-tip="name">{{ name }}</span>
-        <span v-if="address && showAddr" class="host-board-card__addr mono">{{
-          address
-        }}</span>
-      </div>
-    </div>
-
-    <div v-if="error" class="host-board-card__error">
-      {{ error }}
-    </div>
-    <div v-else-if="loading && !overview" class="host-board-card__loading">
-      加载中…
-    </div>
-    <!--
-      扁平 2 列网格：上下两排「标签/数值/副文/图」共享行，柱水平对齐。
-      布局：CPU | 内存（sparkline）；负载 | 磁盘（进度条）；可选第三行「订阅」。
-      xxs 隐藏 sparkline。
-    -->
-    <div
-      v-else-if="overview"
-      class="host-board-card__metrics"
-      :class="{ 'has-app-sub': showAppSub }"
-    >
-      <div class="m-label m-r1-c1" :class="{ 'is-alert': cpuAlert }">CPU</div>
-      <div class="m-label m-r1-c2" :class="{ 'is-alert': memAlert }">内存</div>
-      <div class="m-value m-r1-c1" :class="{ 'is-alert': cpuAlert }">
-        {{ overview.cpuPercent.toFixed(1) }}%
-      </div>
-      <div class="m-value m-r1-c2" :class="{ 'is-alert': memAlert }">
-        {{ overview.memPercent.toFixed(1) }}%
-      </div>
-      <div v-if="showSub" class="m-sub m-r1-c1">{{ overview.cpuCount || "—" }} 核</div>
-      <div v-if="showSub" class="m-sub m-r1-c2">{{ memUsageText }}</div>
-      <BoardSparkline
-        v-if="showSpark"
-        class="m-spark m-r1-c1"
-        :values="cpuTrend || []"
-        :alert="cpuAlert"
-        :height="sparkHeight"
-      />
-      <BoardSparkline
-        v-if="showSpark"
-        class="m-spark m-r1-c2"
-        :values="memTrend || []"
-        :alert="memAlert"
-        :height="sparkHeight"
-      />
-
-      <div class="m-label m-r2-c1" :class="{ 'is-alert': loadAlert }">负载</div>
-      <div class="m-label m-r2-c2" :class="{ 'is-alert': diskAlert }">磁盘</div>
-      <div class="m-value m-r2-c1" :class="{ 'is-alert': loadAlert }">
-        {{ overview.load1.toFixed(2) }}
-        <span class="m-unit">/ {{ overview.cpuCount || "—" }}</span>
-      </div>
-      <div class="m-value m-r2-c2" :class="{ 'is-alert': diskAlert }">
-        {{ diskPct.toFixed(1) }}%
-      </div>
-      <div v-if="showSub" class="m-sub m-r2-c1">{{ loadRatioText }}</div>
-      <div v-if="showSub" class="m-sub m-r2-c2">{{ diskUsageText }}</div>
-      <el-progress
-        class="m-bar m-r2-c1"
-        :class="{ 'is-alert-bar': loadAlert }"
-        :percentage="loadBarPct"
-        :stroke-width="barStroke"
-        :show-text="false"
-        :color="barColor(loadAlert)"
-      />
-      <el-progress
-        class="m-bar m-r2-c2"
-        :class="{ 'is-alert-bar': diskAlert }"
-        :percentage="clampPct(diskPct)"
-        :stroke-width="barStroke"
-        :show-text="false"
-        :color="barColor(diskAlert)"
-      />
-
-      <template v-if="showAppSub">
-        <div class="m-label m-r3" :class="{ 'is-alert': appSubAlert }">订阅</div>
-        <div v-if="appSubAlert" class="m-value m-r3 is-alert">0</div>
-        <div v-else class="m-app-subs m-r3">
+    <header class="host-board-card__head">
+      <div class="host-board-card__identity">
+        <span class="host-board-card__state-dot" aria-hidden="true" />
+        <div class="host-board-card__title">
+          <div class="host-board-card__name-line">
+            <span class="host-board-card__name" v-tip="name">{{ name }}</span>
+            <span class="host-board-card__health">{{ healthLabel }}</span>
+          </div>
           <span
-            v-for="it in appSubItems"
-            :key="it.name"
-            class="m-app-sub"
-            :class="{ 'is-alert': it.count === 0 }"
-          >
-            {{ it.name }} {{ it.count }}
-          </span>
+            v-if="address && showAddress"
+            class="host-board-card__addr mono"
+          >{{ address }}</span>
         </div>
-        <div v-if="showSub" class="m-sub m-r3">已订阅应用</div>
-      </template>
+      </div>
+      <span class="host-board-card__updated">{{ updatedText }}</span>
+    </header>
+
+    <div v-if="error" class="host-board-card__state host-board-card__state--error">
+      <strong>连接异常</strong>
+      <span>{{ error }}</span>
     </div>
-    <div v-else class="host-board-card__loading">暂无数据</div>
-  </div>
+    <div v-else-if="!overview" class="host-board-card__state">
+      <strong>{{ loading ? "正在采集" : "暂无数据" }}</strong>
+      <span>{{ loading ? "等待主机返回首个监控样本" : "请检查 Agent 或连接状态" }}</span>
+    </div>
+    <div v-else class="host-board-card__telemetry">
+      <section class="metric-tile">
+        <div class="metric-tile__top">
+          <span class="metric-tile__label" :class="{ 'is-alert': cpuAlert }">CPU</span>
+          <strong class="metric-tile__value" :class="{ 'is-alert': cpuAlert }">
+            {{ overview.cpuPercent.toFixed(1) }}%
+          </strong>
+        </div>
+        <span class="metric-tile__sub">{{ overview.cpuCount || "—" }} 核</span>
+        <BoardSparkline
+          class="metric-tile__visual"
+          :values="cpuTrend || []"
+          :alert="cpuAlert"
+          :height="sparkHeight"
+        />
+      </section>
+
+      <section class="metric-tile">
+        <div class="metric-tile__top">
+          <span class="metric-tile__label" :class="{ 'is-alert': memAlert }">内存</span>
+          <strong class="metric-tile__value" :class="{ 'is-alert': memAlert }">
+            {{ overview.memPercent.toFixed(1) }}%
+          </strong>
+        </div>
+        <span class="metric-tile__sub">{{ memUsageText }}</span>
+        <BoardSparkline
+          class="metric-tile__visual"
+          :values="memTrend || []"
+          :alert="memAlert"
+          :height="sparkHeight"
+        />
+      </section>
+
+      <section class="metric-tile">
+        <div class="metric-tile__top">
+          <span class="metric-tile__label" :class="{ 'is-alert': loadAlert }">负载</span>
+          <strong class="metric-tile__value" :class="{ 'is-alert': loadAlert }">
+            {{ overview.load1.toFixed(2) }}
+          </strong>
+        </div>
+        <span class="metric-tile__sub">{{ loadRatioText }}</span>
+        <el-progress
+          class="metric-tile__bar"
+          :class="{ 'is-alert-bar': loadAlert }"
+          :percentage="loadBarPct"
+          :stroke-width="barStroke"
+          :show-text="false"
+          :color="barColor(loadAlert)"
+        />
+      </section>
+
+      <section class="metric-tile">
+        <div class="metric-tile__top">
+          <span class="metric-tile__label" :class="{ 'is-alert': diskAlert }">磁盘</span>
+          <strong class="metric-tile__value" :class="{ 'is-alert': diskAlert }">
+            {{ diskPct.toFixed(1) }}%
+          </strong>
+        </div>
+        <span class="metric-tile__sub">{{ diskUsageText }}</span>
+        <el-progress
+          class="metric-tile__bar"
+          :class="{ 'is-alert-bar': diskAlert }"
+          :percentage="clampPct(diskPct)"
+          :stroke-width="barStroke"
+          :show-text="false"
+          :color="barColor(diskAlert)"
+        />
+      </section>
+    </div>
+
+    <footer class="host-board-card__apps">
+      <span class="host-board-card__apps-label">应用订阅</span>
+      <div class="host-board-card__apps-list">
+        <span v-if="appSubLoading && !appSubItems.length" class="app-sub-empty">
+          探活中…
+        </span>
+        <span v-else-if="!appSubItems.length" class="app-sub-empty">
+          未配置服务
+        </span>
+        <span
+          v-for="item in appSubItems"
+          :key="item.name"
+          class="app-sub-pill"
+          :class="`is-${item.status}`"
+        >
+          <span>{{ item.name }}</span>
+          <b>{{ item.status === "unknown" ? "—" : item.count }}</b>
+        </span>
+      </div>
+    </footer>
+  </article>
 </template>
 
 <script setup lang="ts">
@@ -122,7 +139,7 @@ import {
   summarizeDisks,
 } from "@/utils/alerts";
 import BoardSparkline from "@/components/board/BoardSparkline.vue";
-import type { BoardAppSubItem } from "@/components/board/BoardModeOverlay.vue";
+import { boardHealthOf, type BoardAppSubItem, type BoardHealth } from "@/utils/boardModel";
 
 export type BoardCardDensity = "lg" | "md" | "sm" | "xs" | "xxs";
 
@@ -134,16 +151,14 @@ const props = withDefaults(
     overview?: monitor.Overview | null;
     disks?: monitor.DiskInfo[] | null;
     error?: string | null;
-    /** 近 1h CPU% 趋势（0–100） */
     cpuTrend?: number[];
-    /** 近 1h 内存占用% 趋势（0–100） */
     memTrend?: number[];
-    /** 已订阅微服务及实例数；null/undefined 表示从未配置、不显示该行 */
     appSubItems?: BoardAppSubItem[] | null;
-    /** 由看板宫格档位驱动：越密越紧凑 */
+    appSubLoading?: boolean;
+    updatedAt?: number;
     density?: BoardCardDensity;
   }>(),
-  { density: "md" }
+  { density: "md", appSubLoading: false }
 );
 
 const emit = defineEmits<{
@@ -154,64 +169,39 @@ const overview = computed(() => props.overview || null);
 const error = computed(() => props.error || "");
 const loading = computed(() => !!props.loading);
 const density = computed(() => props.density);
+const appSubItems = computed(() => props.appSubItems || []);
+const appSubLoading = computed(() => !!props.appSubLoading);
 
-/** 超密宫格隐藏副文/地址/sparkline，给主数值和进度条留空间 */
-const showSub = computed(() => density.value !== "xxs");
-const showAddr = computed(() => density.value !== "xxs" && density.value !== "xs");
-const showSpark = computed(() => density.value !== "xxs");
-
-const appSubItems = computed(() => props.appSubItems ?? null);
-const showAppSub = computed(() => appSubItems.value !== null);
-const appSubAlert = computed(
-  () => showAppSub.value && (appSubItems.value?.length ?? 0) === 0
+const health = computed<BoardHealth>(() =>
+  boardHealthOf({
+    loading: loading.value,
+    overview: overview.value,
+    disks: props.disks,
+    error: error.value || undefined,
+    appSubItems: props.appSubItems,
+    appSubLoading: appSubLoading.value,
+    updatedAt: props.updatedAt,
+  })
 );
 
-const barStroke = computed(() => {
-  switch (density.value) {
-    case "lg":
-      return 10;
-    case "md":
-      return 8;
-    case "sm":
-      return 7;
-    case "xs":
-      return 6;
+const healthLabel = computed(() => {
+  switch (health.value) {
+    case "healthy":
+      return "正常";
+    case "attention":
+      return "注意";
+    case "critical":
+      return "严重";
     default:
-      return 5;
+      return "待采集";
   }
 });
 
-const sparkHeight = computed(() => {
-  switch (density.value) {
-    case "lg":
-      return 36;
-    case "md":
-      return 32;
-    case "sm":
-      return 26;
-    case "xs":
-      return 22;
-    default:
-      return 12;
-  }
-});
-
+const showAddress = computed(() => density.value !== "xxs");
 const cpuAlert = computed(() => isCpuAlert(overview.value));
 const memAlert = computed(() => isMemAlert(overview.value));
 const loadAlert = computed(() => isLoadAlert(overview.value));
 const diskAlert = computed(() => isDiskLow(props.disks));
-
-const alert = computed(
-  () =>
-    !error.value &&
-    !!overview.value &&
-    (cpuAlert.value ||
-      memAlert.value ||
-      loadAlert.value ||
-      diskAlert.value ||
-      appSubAlert.value)
-);
-
 const diskSummary = computed(() => summarizeDisks(props.disks));
 const diskPct = computed(() => diskSummary.value?.percent ?? 0);
 
@@ -229,18 +219,48 @@ const diskUsageText = computed(() => {
 
 const loadRatioText = computed(() => {
   const ov = overview.value;
-  if (!ov?.cpuCount) return "—";
-  const ratio = (ov.load1 || 0) / ov.cpuCount;
-  return `核均 ${ratio.toFixed(2)}`;
+  if (!ov?.cpuCount) return "核均 —";
+  return `核均 ${((ov.load1 || 0) / ov.cpuCount).toFixed(2)}`;
 });
 
-/** 负载柱：核均负载映射到 0–100（与告警阈值对齐，达阈值即满格） */
 const loadBarPct = computed(() => {
   const ov = overview.value;
   if (!ov?.cpuCount) return 0;
-  return clampPct(
-    ((ov.load1 || 0) / ov.cpuCount / ALERT.loadRatio) * 100
-  );
+  return clampPct(((ov.load1 || 0) / ov.cpuCount / ALERT.loadRatio) * 100);
+});
+
+const barStroke = computed(() => {
+  switch (density.value) {
+    case "lg":
+      return 8;
+    case "md":
+      return 7;
+    case "sm":
+      return 6;
+    default:
+      return 5;
+  }
+});
+
+const sparkHeight = computed(() => {
+  switch (density.value) {
+    case "lg":
+      return 34;
+    case "md":
+      return 28;
+    case "sm":
+      return 23;
+    case "xs":
+      return 18;
+    default:
+      return 14;
+  }
+});
+
+const updatedText = computed(() => {
+  if (!props.updatedAt) return "待更新";
+  const d = new Date(props.updatedAt);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 });
 
 function clampPct(v: number): number {
@@ -248,40 +268,23 @@ function clampPct(v: number): number {
   return Math.max(0, Math.min(100, v));
 }
 
-/** 进度条颜色：告警红，否则主题蓝 */
 function barColor(isAlert: boolean): string {
-  // Element Plus / WebView 对 CSS 变量作 color 常不生效，用实色
-  return isAlert ? "#ff6b6b" : "#7aa2ff";
+  return isAlert ? "#ff6673" : "#51d5b0";
 }
 </script>
 
 <style scoped lang="scss">
 .host-board-card {
-  --board-accent: #7aa2ff;
-  --board-danger: #ff6b6b;
-  --board-warn: #ffb020;
-  --board-ok: #3dd68c;
-  --board-surface: #1a1d24;
-  --board-border: #2a303c;
-  --board-text: #e8eaed;
-  --board-muted: #9aa0a6;
+  --card-pad: 13px 15px 11px;
+  --card-gap: 10px;
+  --value-size: 23px;
+  --label-size: 11px;
+  --sub-size: 10px;
+  --app-size: 11px;
+  --bar-h: 7px;
+  --health-color: #51d5b0;
 
-  /* 默认 = md（3×3 九宫格） */
-  --card-pad: 16px 18px;
-  --card-gap: 12px;
-  --head-min-h: 44px;
-  --name-size: 20px;
-  --addr-size: 12px;
-  --label-size: 12px;
-  --value-size: 26px;
-  --unit-size: 15px;
-  --sub-size: 12px;
-  --bar-h: 8px;
-  --spark-h: 32px;
-  --metric-col-gap: 20px;
-  --metric-row-gap: 4px;
-  --metric-mid-gap: 12px;
-
+  container-type: inline-size;
   box-sizing: border-box;
   min-width: 0;
   min-height: 0;
@@ -290,378 +293,311 @@ function barColor(isAlert: boolean): string {
   flex-direction: column;
   gap: var(--card-gap);
   padding: var(--card-pad);
-  border-radius: 12px;
-  background: var(--board-surface);
-  border: 1px solid var(--board-border);
-  color: var(--board-text);
+  overflow: hidden;
+  border: 1px solid rgba(160, 207, 213, 0.16);
+  border-left: 3px solid var(--health-color);
+  border-radius: 4px;
+  background: rgba(16, 35, 45, 0.94);
+  color: #edf7f5;
   cursor: pointer;
+  outline: none;
   user-select: none;
-  /* M3：描边/阴影态变走 short4 + standard；reduced-motion 由全局 token 置 0 */
-  transition: border-color var(--m3-motion-select), box-shadow var(--m3-motion-select);
+  transition: border-color var(--m3-motion-select), background-color var(--m3-motion-select);
+}
 
-  &:hover {
-    border-color: color-mix(in srgb, var(--board-accent) 55%, var(--board-border));
-  }
+.host-board-card:hover,
+.host-board-card:focus-visible {
+  border-color: color-mix(in srgb, var(--health-color) 70%, rgba(160, 207, 213, 0.16));
+}
 
-  &.is-bad {
-    background: #3a1518;
-    border-color: var(--board-danger);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--board-danger) 45%, transparent);
-  }
+.host-board-card:focus-visible {
+  outline: 2px solid var(--health-color);
+  outline-offset: 2px;
+}
 
-  &.is-ok {
-    border-color: color-mix(in srgb, var(--board-ok) 35%, var(--board-border));
-  }
+.host-board-card.health-attention {
+  --health-color: #eab25f;
+}
 
-  &.density-lg {
-    --card-pad: 20px 22px;
-    --card-gap: 16px;
-    --head-min-h: 52px;
-    --name-size: 26px;
-    --addr-size: 14px;
-    --label-size: 13px;
-    --value-size: 34px;
-    --unit-size: 18px;
-    --sub-size: 13px;
-    --bar-h: 10px;
-    --spark-h: 36px;
-    --metric-col-gap: 28px;
-    --metric-row-gap: 6px;
-    --metric-mid-gap: 16px;
-  }
+.host-board-card.health-critical {
+  --health-color: #ff6673;
+  background: color-mix(in srgb, #ff6673 7%, #10232d);
+}
 
-  &.density-sm {
-    --card-pad: 12px 14px;
-    --card-gap: 8px;
-    --head-min-h: 36px;
-    --name-size: 16px;
-    --addr-size: 11px;
-    --label-size: 11px;
-    --value-size: 20px;
-    --unit-size: 12px;
-    --sub-size: 11px;
-    --bar-h: 7px;
-    --spark-h: 26px;
-    --metric-col-gap: 14px;
-    --metric-row-gap: 3px;
-    --metric-mid-gap: 8px;
-  }
+.host-board-card.health-unknown {
+  --health-color: #a8bec0;
+}
 
-  &.density-xs {
-    --card-pad: 10px 12px;
-    --card-gap: 6px;
-    --head-min-h: 28px;
-    --name-size: 14px;
-    --addr-size: 10px;
-    --label-size: 10px;
-    --value-size: 17px;
-    --unit-size: 11px;
-    --sub-size: 10px;
-    --bar-h: 6px;
-    --spark-h: 22px;
-    --metric-col-gap: 12px;
-    --metric-row-gap: 2px;
-    --metric-mid-gap: 6px;
-  }
+.host-board-card.density-lg {
+  --card-pad: 17px 19px 14px;
+  --card-gap: 13px;
+  --value-size: 31px;
+  --label-size: 12px;
+  --sub-size: 11px;
+  --app-size: 12px;
+  --bar-h: 8px;
+}
 
-  &.density-xxs {
-    --card-pad: 8px 10px;
-    --card-gap: 4px;
-    --head-min-h: 22px;
-    --name-size: 13px;
-    --addr-size: 10px;
-    --label-size: 10px;
-    --value-size: 15px;
-    --unit-size: 10px;
-    --sub-size: 10px;
-    --bar-h: 5px;
-    --spark-h: 0px;
-    --metric-col-gap: 10px;
-    --metric-row-gap: 2px;
-    --metric-mid-gap: 4px;
-  }
+.host-board-card.density-sm {
+  --card-pad: 10px 12px 9px;
+  --card-gap: 8px;
+  --value-size: 19px;
+  --label-size: 10px;
+  --sub-size: 9px;
+  --app-size: 10px;
+  --bar-h: 6px;
+}
+
+.host-board-card.density-xs {
+  --card-pad: 8px 10px 7px;
+  --card-gap: 6px;
+  --value-size: 17px;
+  --label-size: 9px;
+  --sub-size: 8px;
+  --app-size: 9px;
+  --bar-h: 5px;
+}
+
+.host-board-card.density-xxs {
+  --card-pad: 7px 8px 6px;
+  --card-gap: 5px;
+  --value-size: 15px;
+  --label-size: 8px;
+  --sub-size: 8px;
+  --app-size: 8px;
+  --bar-h: 5px;
 }
 
 .host-board-card__head {
+  flex: 0 0 auto;
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  flex-shrink: 0;
-  min-height: var(--head-min-h);
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(160, 207, 213, 0.13);
+}
+
+.host-board-card__identity {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.host-board-card__state-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--health-color);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--health-color) 60%, transparent);
 }
 
 .host-board-card__title {
   min-width: 0;
+}
+
+.host-board-card__name-line {
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .host-board-card__name {
-  font-size: var(--name-size);
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #edf7f5;
+  font-size: clamp(14px, 1.2cqw, 22px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.host-board-card__health {
+  flex: 0 0 auto;
+  color: var(--health-color);
+  font-size: var(--label-size);
+  letter-spacing: 0.08em;
+}
+
+.host-board-card__addr,
+.host-board-card__updated {
+  color: #88a3a7;
+  font-size: var(--sub-size);
+  font-variant-numeric: tabular-nums;
 }
 
 .host-board-card__addr {
-  font-size: var(--addr-size);
-  color: var(--board-muted);
+  display: block;
+  margin-top: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.host-board-card.is-bad .host-board-card__name,
-.host-board-card.is-bad .host-board-card__addr {
-  color: #ffc9c9;
+.host-board-card__updated {
+  flex: 0 0 auto;
+  padding-top: 2px;
 }
 
-.host-board-card.is-bad .host-board-card__addr {
-  color: #ffb0b0;
-  opacity: 0.85;
-}
-
-.host-board-card__error,
-.host-board-card__loading {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--board-muted);
-  font-size: var(--sub-size);
-  padding: 4px;
-  overflow: hidden;
-}
-
-.host-board-card__error {
-  color: var(--board-danger);
-}
-
-/*
-  有副文：9 行（含中间空隙）；CPU/内存行高用 --spark-h，负载/磁盘用 --bar-h
-  无副文（xxs）：隐藏 sparkline，6 行
-  has-app-sub：再加空隙 + 订阅标签/数值（及可选副文）
-*/
-.host-board-card__metrics {
+.host-board-card__state {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-align: center;
+  color: #a5babb;
+  font-size: var(--sub-size);
+}
+
+.host-board-card__state strong {
+  color: var(--health-color);
+  font-size: calc(var(--value-size) * 0.72);
+}
+
+.host-board-card__state--error span {
+  max-width: 90%;
+  color: #ffb7be;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.host-board-card__telemetry {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows:
-    auto
-    auto
-    auto
-    var(--spark-h)
-    var(--metric-mid-gap)
-    auto
-    auto
-    auto
-    var(--bar-h);
-  column-gap: var(--metric-col-gap);
-  row-gap: var(--metric-row-gap);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   align-content: start;
 }
 
-.host-board-card__metrics.has-app-sub {
-  grid-template-rows:
-    auto
-    auto
-    auto
-    var(--spark-h)
-    var(--metric-mid-gap)
-    auto
-    auto
-    auto
-    var(--bar-h)
-    var(--metric-mid-gap)
-    auto
-    auto
-    auto;
-}
-
-.density-xxs .host-board-card__metrics {
-  grid-template-rows:
-    auto
-    auto
-    var(--metric-mid-gap)
-    auto
-    auto
-    var(--bar-h);
-}
-
-.density-xxs .host-board-card__metrics.has-app-sub {
-  grid-template-rows:
-    auto
-    auto
-    var(--metric-mid-gap)
-    auto
-    auto
-    var(--bar-h)
-    var(--metric-mid-gap)
-    auto
-    auto;
-}
-
-.m-r1-c1 {
-  grid-column: 1;
-}
-.m-r1-c2 {
-  grid-column: 2;
-}
-.m-r2-c1 {
-  grid-column: 1;
-}
-.m-r2-c2 {
-  grid-column: 2;
-}
-.m-r3 {
-  grid-column: 1 / -1;
-}
-
-.m-label.m-r1-c1,
-.m-label.m-r1-c2 {
-  grid-row: 1;
-}
-.m-value.m-r1-c1,
-.m-value.m-r1-c2 {
-  grid-row: 2;
-}
-.m-sub.m-r1-c1,
-.m-sub.m-r1-c2 {
-  grid-row: 3;
-}
-.m-spark.m-r1-c1,
-.m-spark.m-r1-c2 {
-  grid-row: 4;
-  align-self: center;
-}
-
-.m-label.m-r2-c1,
-.m-label.m-r2-c2 {
-  grid-row: 6;
-}
-.m-value.m-r2-c1,
-.m-value.m-r2-c2 {
-  grid-row: 7;
-}
-.m-sub.m-r2-c1,
-.m-sub.m-r2-c2 {
-  grid-row: 8;
-}
-.m-bar.m-r2-c1,
-.m-bar.m-r2-c2 {
-  grid-row: 9;
-  align-self: center;
-}
-
-.m-label.m-r3 {
-  grid-row: 11;
-}
-.m-value.m-r3,
-.m-app-subs.m-r3 {
-  grid-row: 12;
-}
-.m-sub.m-r3 {
-  grid-row: 13;
-}
-
-.density-xxs .m-label.m-r2-c1,
-.density-xxs .m-label.m-r2-c2 {
-  grid-row: 4;
-}
-.density-xxs .m-value.m-r2-c1,
-.density-xxs .m-value.m-r2-c2 {
-  grid-row: 5;
-}
-.density-xxs .m-bar.m-r2-c1,
-.density-xxs .m-bar.m-r2-c2 {
-  grid-row: 6;
-}
-
-.density-xxs .m-label.m-r3 {
-  grid-row: 8;
-}
-.density-xxs .m-value.m-r3,
-.density-xxs .m-app-subs.m-r3 {
-  grid-row: 9;
-}
-
-.m-label {
-  font-size: var(--label-size);
-  line-height: 1.2;
-  color: var(--board-muted);
-  letter-spacing: 0.04em;
-
-  &.is-alert {
-    color: var(--board-danger);
-  }
-}
-
-.m-value {
-  font-size: var(--value-size);
-  font-weight: 650;
-  line-height: 1.15;
-  height: 1.15em;
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  white-space: nowrap;
-
-  &.is-alert {
-    color: var(--board-danger);
-  }
-}
-
-.m-app-subs {
+.metric-tile {
+  min-width: 0;
+  min-height: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.15em 0.65em;
+  flex-direction: column;
+  padding: 9px 10px 8px;
+  border-top: 1px solid rgba(160, 207, 213, 0.13);
+  border-left: 1px solid rgba(160, 207, 213, 0.13);
+  background: rgba(4, 18, 26, 0.3);
+}
+
+.metric-tile__top {
+  min-width: 0;
+  display: flex;
   align-items: baseline;
-  min-height: 1.15em;
-  font-size: calc(var(--value-size) * 0.72);
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.25;
+  justify-content: space-between;
+  gap: 6px;
 }
 
-.m-app-sub {
-  white-space: nowrap;
-
-  &.is-alert {
-    color: var(--board-danger);
-  }
+.metric-tile__label {
+  color: #92adb0;
+  font-size: var(--label-size);
+  letter-spacing: 0.1em;
 }
 
-.m-unit {
-  font-size: var(--unit-size);
-  font-weight: 500;
-  color: var(--board-muted);
+.metric-tile__label.is-alert {
+  color: var(--board-critical, #ff6673);
 }
 
-.m-sub {
-  font-size: var(--sub-size);
-  line-height: 1.2;
-  height: 1.2em;
-  color: var(--board-muted);
-  font-variant-numeric: tabular-nums;
+.metric-tile__value {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #edf7f5;
+  font: 700 var(--value-size)/1 "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-.m-bar,
-.m-spark {
+.metric-tile__value.is-alert {
+  color: var(--board-critical, #ff6673);
+}
+
+.metric-tile__sub {
+  min-height: 1.2em;
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #78969a;
+  font-size: var(--sub-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-tile__visual,
+.metric-tile__bar {
   width: 100%;
   min-width: 0;
-  margin: 0 !important;
+  margin-top: 10px !important;
 }
 
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+.metric-tile__bar {
+  margin-top: auto !important;
+  padding-top: 10px;
+}
+
+.host-board-card__apps {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(160, 207, 213, 0.13);
+}
+
+.host-board-card__apps-label {
+  flex: 0 0 auto;
+  padding-top: 2px;
+  color: #92adb0;
+  font-size: var(--app-size);
+  letter-spacing: 0.08em;
+}
+
+.host-board-card__apps-list {
+  min-width: 0;
+  max-height: 42px;
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  overflow: auto;
+}
+
+.app-sub-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #b8d0ce;
+  font: 600 var(--app-size)/1.25 "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+.app-sub-pill b {
+  color: var(--board-healthy, #51d5b0);
+  font-weight: 700;
+}
+
+.app-sub-pill.is-critical,
+.app-sub-pill.is-critical b {
+  color: var(--board-critical, #ff6673);
+}
+
+.app-sub-pill.is-unknown,
+.app-sub-pill.is-unknown b,
+.app-sub-empty {
+  color: #a3b8b9;
 }
 
 :deep(.el-progress) {
@@ -670,17 +606,37 @@ function barColor(isAlert: boolean): string {
 }
 
 :deep(.el-progress-bar) {
+  width: 100%;
   padding-right: 0;
   margin-right: 0;
-  width: 100%;
 }
 
 :deep(.el-progress-bar__outer) {
-  background-color: #2c3340 !important;
   height: var(--bar-h) !important;
+  background-color: rgba(160, 207, 213, 0.16) !important;
 }
 
 :deep(.is-alert-bar .el-progress-bar__inner) {
-  background-color: #ff6b6b !important;
+  background-color: #ff6673 !important;
+}
+
+@container (max-width: 560px) {
+  .host-board-card__telemetry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-tile {
+    padding-inline: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .host-board-card {
+    transition: none;
+  }
+
+  .host-board-card__state-dot {
+    box-shadow: none;
+  }
 }
 </style>

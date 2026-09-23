@@ -116,8 +116,8 @@ const areaPoints = computed(() => {
   return `${first.x.toFixed(2)},${h} ${line} ${last.x.toFixed(2)},${h}`;
 });
 
-const BOARD_ACCENT = "#7aa2ff";
-const BOARD_DANGER = "#ff6b6b";
+const BOARD_ACCENT = "#51d5b0";
+const BOARD_DANGER = "#ff6673";
 
 const strokeColor = computed(() =>
   props.alert ? BOARD_DANGER : BOARD_ACCENT

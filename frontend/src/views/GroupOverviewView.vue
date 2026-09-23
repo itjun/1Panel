@@ -30,10 +30,10 @@
         @click="refreshAll"
       />
       <el-button
-        v-if="viewMode === 'table' && colWidths"
+        v-if="viewMode === 'table' && hasCustomTableLayout"
         :icon="ScaleToOriginal"
-        v-tip="'恢复默认列宽'"
-        @click="resetColWidths"
+        v-tip="'恢复默认列布局'"
+        @click="resetTableLayout"
       />
       <el-button
         v-if="canEditGroup"
@@ -46,196 +46,160 @@
       <div v-if="viewMode === 'table'" class="host-list-wrap">
         <el-table
           ref="hostTableRef"
-          :data="hosts"
+          :data="sortedHosts"
           size="default"
-          border
           class="host-list-table data-table-unified"
           :row-class-name="tableRowClass"
+          :default-sort="defaultSort"
+          :header-cell-class-name="headerCellClassName"
           @row-dblclick="(row: sshconfig.HostConfig) => openHost(row.name)"
-          @mousedown.capture="onHeaderResizeDown"
-          @dblclick="onHeaderDblClick"
+          @sort-change="onSortChange"
+          @pointerdown.capture="onHeaderPointerDown"
+          @click.capture="onHeaderClickCapture"
+          @dblclick.capture="onHeaderDblClick"
         >
           <el-table-column
-            type="index"
-            label="序"
-            :width="colWidth('index') ?? DEFAULT_W.index"
-            fixed
-            align="center"
-            class-name="group-index-col"
-          />
-          <el-table-column
-            label="主机"
-            :width="colWidth('host') ?? DEFAULT_W.host"
-            fixed
-            show-overflow-tooltip
+            v-for="key in columnOrder"
+            :key="key"
+            :type="key === 'index' ? 'index' : undefined"
+            :prop="key === 'index' ? undefined : key"
+            :label="COLUMN_LABELS[key]"
+            :width="colWidth(key) ?? DEFAULT_W[key]"
+            :min-width="HEADER_MIN_W[key]"
+            :align="key === 'index' ? 'center' : key === 'load' ? 'right' : undefined"
+            :sortable="key === 'index' ? false : 'custom'"
+            :column-key="key"
+            :label-class-name="columnHeaderClass(key)"
+            :class-name="key === 'index' ? 'group-index-col' : undefined"
+            :show-overflow-tooltip="key !== 'index'"
           >
             <template #default="{ row }">
-              <div class="list-host-name">
-                <span class="list-os-ico">
-                  <el-icon
-                    v-if="hostState(row.name).error"
-                    :size="18"
-                    color="#b3261e"
-                    v-tip="withErrTime(hostState(row.name).error!, hostState(row.name).errorAt)"
+              <template v-if="key === 'host'">
+                <div class="list-host-name">
+                  <span class="list-os-ico">
+                    <el-icon
+                      v-if="hostState(row.name).error"
+                      :size="18"
+                      color="#b3261e"
+                      v-tip="withErrTime(hostState(row.name).error!, hostState(row.name).errorAt)"
+                    >
+                      <WarningFilled />
+                    </el-icon>
+                    <DistroLogo
+                      v-else
+                      :os-release="hostState(row.name).overview?.osRelease || ''"
+                      :size="16"
+                      badge
+                    />
+                  </span>
+                  <span class="list-host-label">{{ row.name }}</span>
+                </div>
+              </template>
+              <template v-else-if="key === 'addr'">
+                <span class="mono">{{ row.hostName || "—" }}</span>
+              </template>
+              <template v-else-if="key === 'agent'">
+                <div v-if="batchProgressOf(row.name)" class="agent-progress-cell">
+                  <span
+                    class="agent-progress-text"
+                    :class="'is-' + batchProgressOf(row.name)!.state"
                   >
-                    <WarningFilled />
-                  </el-icon>
-                  <DistroLogo
-                    v-else
-                    :os-release="hostState(row.name).overview?.osRelease || ''"
-                    :size="16"
-                    badge
+                    {{ batchProgressLabel(row.name) }}
+                  </span>
+                  <el-progress
+                    v-if="
+                      batchProgressOf(row.name)!.state === 'running' &&
+                      batchProgressOf(row.name)!.percent >= 0
+                    "
+                    :percentage="batchProgressOf(row.name)!.percent"
+                    :stroke-width="4"
+                    :show-text="false"
                   />
-                </span>
-                <span class="list-host-label">{{ row.name }}</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="地址"
-            :width="colWidth('addr') ?? DEFAULT_W.addr"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <span class="mono">{{ row.hostName || "—" }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="Agent"
-            :width="colWidth('agent') ?? DEFAULT_W.agent"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <div v-if="batchProgressOf(row.name)" class="agent-progress-cell">
-                <span
-                  class="agent-progress-text"
-                  :class="'is-' + batchProgressOf(row.name)!.state"
+                </div>
+                <el-tag
+                  v-else
+                  size="small"
+                  round
+                  effect="light"
+                  :type="agentTagOf(row.name).type as any"
+                  class="group-status-chip"
                 >
-                  {{ batchProgressLabel(row.name) }}
-                </span>
-                <el-progress
-                  v-if="
-                    batchProgressOf(row.name)!.state === 'running' &&
-                    batchProgressOf(row.name)!.percent >= 0
-                  "
-                  :percentage="batchProgressOf(row.name)!.percent"
-                  :stroke-width="4"
-                  :show-text="false"
+                  {{ agentTagOf(row.name).text }}
+                </el-tag>
+              </template>
+              <template v-else-if="key === 'user'">
+                {{ row.user || "—" }}
+              </template>
+              <template v-else-if="key === 'version'">
+                <template v-if="hostState(row.name).error">—</template>
+                <span v-else class="mono">{{
+                  osVersion(hostState(row.name).overview?.osRelease || "") || "—"
+                }}</span>
+              </template>
+              <template v-else-if="key === 'spec'">
+                <el-skeleton
+                  v-if="hostState(row.name).loading && !hostState(row.name).overview"
+                  :rows="1"
+                  animated
+                  style="width: 80%"
+                >
+                  <template #template>
+                    <el-skeleton-item variant="text" style="width: 100%" />
+                  </template>
+                </el-skeleton>
+                <template v-else-if="hostState(row.name).error || !hostState(row.name).overview"
+                  >—</template
+                >
+                <span v-else class="mono">{{ hostSpec(hostState(row.name).overview!) }}</span>
+              </template>
+              <template v-else-if="key === 'cpu'">
+                <MetricCell
+                  :snap="hostState(row.name)"
+                  field="cpuPercent"
+                  :percent="true"
+                  :alert-threshold="THRESHOLDS.cpu"
+                  suffix="%"
                 />
-              </div>
-              <el-tag
-                v-else
-                size="small"
-                round
-                effect="light"
-                :type="agentTagOf(row.name).type as any"
-                class="group-status-chip"
-              >
-                {{ agentTagOf(row.name).text }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="用户"
-            :width="colWidth('user') ?? DEFAULT_W.user"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              {{ row.user || "—" }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="版本"
-            :width="colWidth('version') ?? DEFAULT_W.version"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <template v-if="hostState(row.name).error">—</template>
-              <span v-else class="mono">{{
-                osVersion(hostState(row.name).overview?.osRelease || "") || "—"
-              }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="规格"
-            :width="colWidth('spec') ?? DEFAULT_W.spec"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <el-skeleton
-                v-if="hostState(row.name).loading && !hostState(row.name).overview"
-                :rows="1"
-                animated
-                style="width: 80%"
-              >
-                <template #template>
-                  <el-skeleton-item variant="text" style="width: 100%" />
-                </template>
-              </el-skeleton>
-              <template v-else-if="hostState(row.name).error || !hostState(row.name).overview"
-                >—</template
-              >
-              <span v-else class="mono">{{ hostSpec(hostState(row.name).overview!) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="CPU" :width="colWidth('cpu') ?? DEFAULT_W.cpu">
-            <template #default="{ row }">
-              <MetricCell
-                :snap="hostState(row.name)"
-                field="cpuPercent"
-                :percent="true"
-                :alert-threshold="THRESHOLDS.cpu"
-                suffix="%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="内存" :width="colWidth('mem') ?? DEFAULT_W.mem">
-            <template #default="{ row }">
-              <MetricCell
-                :snap="hostState(row.name)"
-                field="memPercent"
-                :percent="true"
-                :alert-threshold="THRESHOLDS.mem"
-                :alert-op="'gt'"
-                suffix="%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="磁盘" :width="colWidth('disk') ?? DEFAULT_W.disk">
-            <template #default="{ row }">
-              <MetricCell
-                :snap="hostState(row.name)"
-                field="diskPercent"
-                :percent="true"
-                :disks="hostState(row.name).disks"
-                suffix="%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="负载"
-            :width="colWidth('load') ?? DEFAULT_W.load"
-            align="right"
-          >
-            <template #default="{ row }">
-              <el-skeleton
-                v-if="hostState(row.name).loading && !hostState(row.name).overview"
-                :rows="1"
-                animated
-                style="width: 80%"
-              >
-                <template #template><el-skeleton-item variant="text" style="width: 100%" /></template>
-              </el-skeleton>
-              <template v-else-if="!hostState(row.name).overview">—</template>
-              <span
-                v-else
-                class="load-cell"
-                :class="{ 'is-alert': isLoadAlert(hostState(row.name).overview!) }"
-              >
-                <span class="mono">{{ (hostState(row.name).overview!.load1 || 0).toFixed(2) }}</span>
-                <span class="load-sep">/</span>
-                <span class="load-cores">{{ hostState(row.name).overview!.cpuCount || 0 }}</span>
-              </span>
+              </template>
+              <template v-else-if="key === 'mem'">
+                <MetricCell
+                  :snap="hostState(row.name)"
+                  field="memPercent"
+                  :percent="true"
+                  :alert-threshold="THRESHOLDS.mem"
+                  :alert-op="'gt'"
+                  suffix="%"
+                />
+              </template>
+              <template v-else-if="key === 'disk'">
+                <MetricCell
+                  :snap="hostState(row.name)"
+                  field="diskPercent"
+                  :percent="true"
+                  :disks="hostState(row.name).disks"
+                  suffix="%"
+                />
+              </template>
+              <template v-else-if="key === 'load'">
+                <el-skeleton
+                  v-if="hostState(row.name).loading && !hostState(row.name).overview"
+                  :rows="1"
+                  animated
+                  style="width: 80%"
+                >
+                  <template #template><el-skeleton-item variant="text" style="width: 100%" /></template>
+                </el-skeleton>
+                <template v-else-if="!hostState(row.name).overview">—</template>
+                <span
+                  v-else
+                  class="load-cell"
+                  :class="{ 'is-alert': isLoadAlert(hostState(row.name).overview!) }"
+                >
+                  <span class="mono">{{ (hostState(row.name).overview!.load1 || 0).toFixed(2) }}</span>
+                  <span class="load-sep">/</span>
+                  <span class="load-cores">{{ hostState(row.name).overview!.cpuCount || 0 }}</span>
+                </span>
+              </template>
             </template>
           </el-table-column>
         </el-table>
@@ -248,6 +212,7 @@
           :board-title="boardTitle"
           :hosts="hosts"
           :cards="boardCards"
+          :trends="trends"
           @open-host="openHost"
         />
       </div>
@@ -373,6 +338,7 @@ import {
   computed,
   defineComponent,
   h,
+  onMounted,
   nextTick,
   onBeforeUnmount,
   ref,
@@ -399,12 +365,14 @@ import {
 import ChromeTeleport from "@/components/ChromeTeleport.vue";
 import DistroLogo from "@/components/DistroLogo.vue";
 import BoardModeOverlay, {
+  type BoardHostTrend,
   type BoardHostCard,
 } from "@/components/board/BoardModeOverlay.vue";
 import { api } from "@/api";
 import { Events } from "@wailsio/runtime";
 import { useAppStore, UNGROUPED_ID } from "@/stores/app";
 import { useAgentInstallStore } from "@/stores/agentInstall";
+import { useSettingsStore } from "@/stores/settings";
 import { useInjectedHostDrag } from "@/composables/useHostDrag";
 import {
   clearHostWecom,
@@ -428,7 +396,15 @@ import {
   isMemAlert,
   summarizeDisks,
 } from "@/utils/alerts";
+import {
+  moveColumn,
+  resolveResizeTarget,
+  sortRowsByGroupValue,
+  type GroupSortValue,
+  type HeaderColumnBox,
+} from "@/utils/groupTableState";
 import type { agentcli, monitor, sshconfig } from "@/api";
+import { buildBoardAppSubItems } from "@/utils/boardModel";
 
 const VIEW_MODE_KEY = "1pannel-group-view-mode";
 type GroupViewMode = "table" | "board";
@@ -450,6 +426,7 @@ const props = defineProps<{
 
 const app = useAppStore();
 const agentInstall = useAgentInstallStore();
+const settings = useSettingsStore();
 const {
   dropTargetId,
 } = useInjectedHostDrag();
@@ -467,6 +444,8 @@ watch(viewMode, (m) => {
     /* 忽略 */
   }
   if (m === "table") nextTick(scheduleAutoWidths);
+  if (m === "board") startBoardExtras();
+  else stopBoardExtras();
 });
 
 // ---------- 列宽：可拖拽 / 双击分界线自适应 / 持久化 ----------
@@ -475,7 +454,7 @@ watch(viewMode, (m) => {
 // v4：v3 期间 WebKit 把进度条量出虚大宽度被双击固化过，作废旧值
 const COL_WIDTHS_KEY = "1pannel-group-col-widths-v4";
 
-/** 列 key 列表：与模板中 el-table-column 顺序一一对应（快照列宽用） */
+/** 所有可见列 key；默认顺序也用于兼容已有列宽快照。 */
 const COL_KEYS = [
   "index", // 序
   "host", // 主机
@@ -484,11 +463,125 @@ const COL_KEYS = [
   "user", // 用户
   "version", // 版本
   "spec", // 规格
+  "load", // 负载
   "cpu", // CPU
   "mem", // 内存
   "disk", // 磁盘
-  "load", // 负载
+] as const;
+type GroupColumnKey = (typeof COL_KEYS)[number];
+
+/** 兼容此前保存的默认顺序；用户自定义过的顺序继续保留。 */
+const LEGACY_DEFAULT_COLUMN_ORDER: readonly GroupColumnKey[] = [
+  "index",
+  "host",
+  "addr",
+  "agent",
+  "user",
+  "version",
+  "spec",
+  "cpu",
+  "mem",
+  "disk",
+  "load",
 ];
+
+const COLUMN_LABELS: Record<GroupColumnKey, string> = {
+  index: "序",
+  host: "主机",
+  addr: "地址",
+  agent: "Agent",
+  user: "用户",
+  version: "版本",
+  spec: "规格",
+  cpu: "CPU",
+  mem: "内存",
+  disk: "磁盘",
+  load: "负载",
+};
+
+const COL_ORDER_KEY = "1pannel-group-col-order-v1";
+const TABLE_SORT_KEY = "1pannel-group-table-sort-v1";
+type SortOrder = "ascending" | "descending" | null;
+type GroupSortState = { key: GroupColumnKey | null; order: SortOrder };
+
+function isGroupColumnKey(value: unknown): value is GroupColumnKey {
+  return typeof value === "string" && (COL_KEYS as readonly string[]).includes(value);
+}
+
+function readColumnOrder(): GroupColumnKey[] {
+  try {
+    const raw = localStorage.getItem(COL_ORDER_KEY);
+    if (!raw) return [...COL_KEYS];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...COL_KEYS];
+    const seen = new Set<GroupColumnKey>();
+    const out: GroupColumnKey[] = [];
+    for (const key of parsed) {
+      if (isGroupColumnKey(key) && !seen.has(key)) {
+        seen.add(key);
+        out.push(key);
+      }
+    }
+    for (const key of COL_KEYS) {
+      if (!seen.has(key)) out.push(key);
+    }
+    if (
+      out.length === LEGACY_DEFAULT_COLUMN_ORDER.length &&
+      out.every((key, index) => key === LEGACY_DEFAULT_COLUMN_ORDER[index])
+    ) {
+      return [...COL_KEYS];
+    }
+    return out.length === COL_KEYS.length ? out : [...COL_KEYS];
+  } catch {
+    return [...COL_KEYS];
+  }
+}
+
+const columnOrder = ref<GroupColumnKey[]>(readColumnOrder());
+
+function persistColumnOrder() {
+  try {
+    localStorage.setItem(COL_ORDER_KEY, JSON.stringify(columnOrder.value));
+  } catch {
+    /* 忽略 */
+  }
+}
+
+function readTableSort(): GroupSortState {
+  try {
+    const raw = localStorage.getItem(TABLE_SORT_KEY);
+    if (!raw) return { key: null, order: null };
+    const parsed = JSON.parse(raw) as { key?: unknown; order?: unknown };
+    if (
+      isGroupColumnKey(parsed.key) &&
+      parsed.key !== "index" &&
+      (parsed.order === "ascending" || parsed.order === "descending")
+    ) {
+      return { key: parsed.key, order: parsed.order };
+    }
+  } catch {
+    /* 忽略 */
+  }
+  return { key: null, order: null };
+}
+
+const sortState = ref<GroupSortState>(readTableSort());
+const defaultSort = computed(() => {
+  if (!sortState.value.key || !sortState.value.order) return undefined;
+  return { prop: sortState.value.key, order: sortState.value.order };
+});
+
+function persistTableSort() {
+  try {
+    if (sortState.value.key && sortState.value.order) {
+      localStorage.setItem(TABLE_SORT_KEY, JSON.stringify(sortState.value));
+    } else {
+      localStorage.removeItem(TABLE_SORT_KEY);
+    }
+  } catch {
+    /* 忽略 */
+  }
+}
 
 function readColWidths(): Record<string, number> | null {
   try {
@@ -511,6 +604,13 @@ function readColWidths(): Record<string, number> | null {
 /** 用户自定义列宽（null = 默认布局：全部列按内容自适应，剩余宽度留白在表格右缘） */
 const colWidths = ref<Record<string, number> | null>(readColWidths());
 
+const hasCustomColumnOrder = computed(() =>
+  columnOrder.value.some((key, index) => key !== COL_KEYS[index])
+);
+const hasCustomTableLayout = computed(
+  () => !!colWidths.value || hasCustomColumnOrder.value
+);
+
 function persistColWidths() {
   try {
     if (colWidths.value) {
@@ -523,10 +623,12 @@ function persistColWidths() {
   }
 }
 
-function resetColWidths() {
+function resetTableLayout() {
   colWidths.value = null;
   persistColWidths();
-  scheduleAutoWidths();
+  columnOrder.value = [...COL_KEYS];
+  persistColumnOrder();
+  nextTick(scheduleAutoWidths);
 }
 
 // ---------- 默认布局：列宽按实际内容动态自适应 ----------
@@ -555,16 +657,31 @@ const COL_EXTRA: Record<string, number> = {
 /** 全列默认宽（模板兜底 & 剩余宽度分配时的非测量列占用） */
 const DEFAULT_W: Record<string, number> = {
   index: 64,
-  host: 160,
-  addr: 170,
+  host: 140,
+  addr: 150,
   agent: 100,
   user: 64,
   version: 108,
   spec: 80,
-  cpu: 68,
-  mem: 68,
-  disk: 92,
-  load: 72,
+  cpu: 100,
+  mem: 100,
+  disk: 160,
+  load: 100,
+};
+
+/** 表头必须完整显示的最低宽度（含排序箭头与单元格内边距）。 */
+const HEADER_MIN_W: Record<GroupColumnKey, number> = {
+  index: 64,
+  host: 132,
+  addr: 150,
+  agent: 112,
+  user: 96,
+  version: 108,
+  spec: 96,
+  cpu: 100,
+  mem: 100,
+  disk: 160,
+  load: 96,
 };
 
 /** 默认布局下各列的内容自适应宽度；用户拖过列宽后由 colWidths 固定，不再动态 */
@@ -572,7 +689,10 @@ const autoWidths = ref<Record<string, number>>({});
 
 /** 模板列宽取值：自定义列宽 > 内容自适应宽 */
 function colWidth(key: string): number | undefined {
-  return colWidths.value?.[key] ?? autoWidths.value[key];
+  const value = colWidths.value?.[key] ?? autoWidths.value[key];
+  if (value == null) return undefined;
+  const min = isGroupColumnKey(key) ? HEADER_MIN_W[key] : 32;
+  return Math.max(min, value);
 }
 
 let autoWidthTimer = 0;
@@ -586,41 +706,48 @@ function scheduleAutoWidths() {
   }, 150);
 }
 
-/** 弹性列：吸收表格剩余宽度，短内容列（规格等）保持贴合内容、不被拉长 */
-const FLEX_KEYS = ["host", "addr"];
+function headerCells(root: HTMLElement): HTMLElement[] {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(".el-table__header thead tr:first-child > th")
+  ).filter((el) => !el.classList.contains("gutter"));
+}
+
+/** 默认布局下由指标列吸收剩余空间，前置描述列保持紧凑。 */
+const FLEX_KEYS: GroupColumnKey[] = ["cpu", "mem", "disk"];
 
 /** 测未固化列（含表头）的文本内容宽度，取「内容宽 / 设计下限」较大者 */
 function measureAutoWidths() {
   if (viewMode.value !== "table") return;
   const root = hostTableRef.value?.$el as HTMLElement | undefined;
   if (!root) return;
-  const ths = Array.from(
-    root.querySelectorAll<HTMLElement>(".el-table__header thead th")
-  ).filter((el) => !el.classList.contains("gutter"));
+  const ths = headerCells(root);
   const rows = root.querySelectorAll<HTMLElement>(".el-table__body tbody tr");
-  if (ths.length < COL_KEYS.length || rows.length === 0) return;
+  if (ths.length < columnOrder.value.length || rows.length === 0) return;
   const out: Record<string, number> = {};
-  for (const key of Object.keys(COL_MIN)) {
+  for (const key of Object.keys(COL_MIN) as GroupColumnKey[]) {
     if (colWidths.value?.[key]) continue; // 用户固化过的列不再动态
-    const idx = COL_KEYS.indexOf(key);
-    const maxW = columnTextWidth(root, idx);
+    const maxW = columnTextWidth(root, key);
     // 图形元素常量修正 + .cell 24px 内边距 + td 12px×2 再留 2px 余量；
     // 上限防超长主机名/版本号把列撑爆，超长交给省略号 + 悬浮提示
     out[key] = Math.min(
       320,
-      Math.max(COL_MIN[key], maxW + (COL_EXTRA[key] || 0) + 24 + 2)
+      Math.max(
+        COL_MIN[key],
+        HEADER_MIN_W[key],
+        maxW + (COL_EXTRA[key] || 0) + 24 + 2
+      )
     );
   }
 
-  // 表格总宽锁死容器宽：全部列按「固化值 > 内容测量值 > 默认值」先就位，
-  // 剩余宽度只平分给弹性列（主机/地址），其余列严格贴合内容
+  // 前面的描述列只按内容和设计下限给宽度；表格剩余空间交给指标列，
+  // 避免主机名/地址列被拉宽，同时给进度条和指标文本足够的展示空间。
   const containerW = Math.round(root.getBoundingClientRect().width);
   let used = 0;
-  const flexPending: string[] = [];
+  const flexPending: GroupColumnKey[] = [];
   for (const key of COL_KEYS) {
     const fixedW = colWidths.value?.[key];
     if (fixedW) {
-      used += fixedW;
+      used += Math.max(fixedW, HEADER_MIN_W[key]);
       continue;
     }
     const baseW = out[key] ?? DEFAULT_W[key];
@@ -640,62 +767,226 @@ function measureAutoWidths() {
 const hostTableRef = ref<{ $el?: HTMLElement } | null>(null);
 
 const HEADER_RESIZE_ZONE = 8; // 与热区伪元素同宽
+const HEADER_DRAG_THRESHOLD = 5;
 
-/** 表头 mousedown：命中分界线热区则拦截 EP 原生拖拽，自接管改列宽。
- *  EP 的拖拽在 WKWebView 上状态可能卡死（mouseup 丢失后列宽持续跟随鼠标），
- *  且双击会误触发 header-dragend，全部绕开。 */
-function onHeaderResizeDown(e: MouseEvent) {
+type HeaderInteraction =
+  | {
+      kind: "resize";
+      pointerId: number;
+      key: GroupColumnKey;
+      startX: number;
+      startWidth: number;
+      moved: boolean;
+    }
+  | {
+      kind: "drag";
+      pointerId: number;
+      key: GroupColumnKey;
+      startX: number;
+      startY: number;
+      moved: boolean;
+      overKey: GroupColumnKey | null;
+    };
+
+let headerInteraction: HeaderInteraction | null = null;
+let suppressHeaderClick = false;
+let previousHeaderCursor = "";
+let previousHeaderUserSelect = "";
+
+function columnHeaderClass(key: GroupColumnKey): string {
+  return `group-column-${key}`;
+}
+
+function headerCellClassName({
+  column,
+}: {
+  column?: { columnKey?: string };
+}): string {
+  return isGroupColumnKey(column?.columnKey) ? columnHeaderClass(column.columnKey) : "";
+}
+
+function headerColumnKey(th: HTMLElement): GroupColumnKey | null {
+  const className = Array.from(th.classList).find((name) =>
+    name.startsWith("group-column-")
+  );
+  if (className) {
+    const key = className.slice("group-column-".length);
+    if (isGroupColumnKey(key)) return key;
+  }
+  const root = hostTableRef.value?.$el as HTMLElement | undefined;
+  if (!root) return null;
+  const index = headerCells(root).indexOf(th);
+  return index >= 0 ? columnOrder.value[index] || null : null;
+}
+
+function updateHeaderDropMarker(key: GroupColumnKey | null) {
+  const root = hostTableRef.value?.$el as HTMLElement | undefined;
+  if (!root) return;
+  root
+    .querySelectorAll<HTMLElement>(".el-table__header th.group-column-drop-target")
+    .forEach((el) => el.classList.remove("group-column-drop-target"));
+  if (!key) return;
+  root
+    .querySelectorAll<HTMLElement>(`.el-table__header th.${columnHeaderClass(key)}`)
+    .forEach((el) => el.classList.add("group-column-drop-target"));
+}
+
+function removeHeaderInteractionListeners() {
+  document.removeEventListener("pointermove", onHeaderPointerMove, true);
+  document.removeEventListener("pointerup", onHeaderPointerUp, true);
+  document.removeEventListener("pointercancel", onHeaderPointerUp, true);
+}
+
+function finishHeaderInteraction() {
+  removeHeaderInteractionListeners();
+  updateHeaderDropMarker(null);
+  document.body.style.cursor = previousHeaderCursor;
+  document.body.style.userSelect = previousHeaderUserSelect;
+  headerInteraction = null;
+}
+
+function onHeaderPointerMove(e: PointerEvent) {
+  const interaction = headerInteraction;
+  if (!interaction || interaction.pointerId !== e.pointerId) return;
+
+  const dx = e.clientX - interaction.startX;
+  const dy =
+    interaction.kind === "drag" ? e.clientY - interaction.startY : 0;
+  if (!interaction.moved) {
+    if (Math.hypot(dx, dy) < HEADER_DRAG_THRESHOLD) return;
+    interaction.moved = true;
+    suppressHeaderClick = true;
+    e.preventDefault();
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = interaction.kind === "resize" ? "col-resize" : "grabbing";
+  }
+
+  e.preventDefault();
+  if (interaction.kind === "resize") {
+    const next = Math.min(
+      800,
+      Math.max(HEADER_MIN_W[interaction.key], interaction.startWidth + dx)
+    );
+    colWidths.value = { ...(colWidths.value || {}), [interaction.key]: next };
+    return;
+  }
+
+  const node = document.elementFromPoint(e.clientX, e.clientY);
+  const th = node instanceof HTMLElement ? node.closest("th") : null;
+  const overKey = th ? headerColumnKey(th) : null;
+  interaction.overKey = overKey && overKey !== interaction.key ? overKey : null;
+  updateHeaderDropMarker(interaction.overKey);
+}
+
+function onHeaderPointerUp(e: PointerEvent) {
+  const interaction = headerInteraction;
+  if (!interaction || interaction.pointerId !== e.pointerId) return;
+
+  if (interaction.kind === "drag" && interaction.moved && interaction.overKey) {
+    const root = hostTableRef.value?.$el as HTMLElement | undefined;
+    const node = document.elementFromPoint(e.clientX, e.clientY);
+    const th = node instanceof HTMLElement ? node.closest("th") : null;
+    const target = th && root?.contains(th) ? th : null;
+    const targetKey = target ? headerColumnKey(target) : interaction.overKey;
+    if (targetKey && targetKey !== interaction.key) {
+      const rect = target?.getBoundingClientRect();
+      const after = rect ? e.clientX > rect.left + rect.width / 2 : false;
+      const next = moveColumn(
+        columnOrder.value,
+        interaction.key,
+        targetKey,
+        after
+      ) as GroupColumnKey[];
+      if (next.some((key, index) => key !== columnOrder.value[index])) {
+        columnOrder.value = next;
+        persistColumnOrder();
+        nextTick(scheduleAutoWidths);
+      }
+    }
+  } else if (interaction.kind === "resize" && interaction.moved) {
+    persistColWidths();
+    scheduleAutoWidths();
+  }
+
+  finishHeaderInteraction();
+}
+
+function onHeaderPointerDown(e: PointerEvent) {
+  if (e.button !== 0 || !e.isPrimary) return;
   const th = (e.target as HTMLElement | null)?.closest("th");
   if (!th || th.classList.contains("gutter")) return;
-  const headerThs = Array.from(
-    th.parentElement?.children ?? []
-  ).filter((el) => el.tagName === "TH" && !(el as HTMLElement).classList.contains("gutter"));
-  const idx = headerThs.indexOf(th);
-  if (idx < 0) return;
-  const rect = th.getBoundingClientRect();
-  let colIdx = idx;
-  if (rect.right - e.clientX > HEADER_RESIZE_ZONE) {
-    // 不在右缘热区：看是否命中左缘（调整左邻列）
-    if (idx > 0 && e.clientX - rect.left <= HEADER_RESIZE_ZONE) {
-      colIdx = idx - 1;
-    } else {
-      return;
-    }
+  const key = headerColumnKey(th);
+  const root = hostTableRef.value?.$el as HTMLElement | undefined;
+  if (!key || !root) return;
+
+  if (headerInteraction) finishHeaderInteraction();
+  suppressHeaderClick = false;
+
+  const boxes: HeaderColumnBox[] = headerCells(root).flatMap((cell) => {
+    const cellKey = headerColumnKey(cell);
+    if (!cellKey) return [];
+    const rect = cell.getBoundingClientRect();
+    return [{
+      key: cellKey,
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+    }];
+  });
+  const resize = resolveResizeTarget(boxes, key, e.clientX, HEADER_RESIZE_ZONE);
+  if (resize) {
+    headerInteraction = {
+      kind: "resize",
+      pointerId: e.pointerId,
+      key: resize.key as GroupColumnKey,
+      startX: e.clientX,
+      startWidth: resize.startWidth,
+      moved: false,
+    };
+    suppressHeaderClick = true;
+    e.preventDefault();
+    e.stopPropagation();
+  } else {
+    headerInteraction = {
+      kind: "drag",
+      pointerId: e.pointerId,
+      key,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      overKey: null,
+    };
   }
-  if (colIdx >= COL_KEYS.length) return;
-  e.stopPropagation(); // 阻断 EP 的 th mousedown（拖拽启动）
-  e.preventDefault(); // 阻止表头文本选择
-  const key = COL_KEYS[colIdx];
-  const startW = Math.round(th.getBoundingClientRect().width);
-  const startX = e.clientX;
-  const onMove = (ev: MouseEvent) => {
-    const next = Math.min(800, Math.max(32, startW + ev.clientX - startX));
-    colWidths.value = { ...(colWidths.value || {}), [key]: next };
-  };
-  const onUp = () => {
-    document.removeEventListener("mousemove", onMove, true);
-    document.removeEventListener("mouseup", onUp, true);
-    persistColWidths();
-    scheduleAutoWidths(); // 动态列重新分摊剩余宽度，保持表格满宽
-  };
-  document.addEventListener("mousemove", onMove, true);
-  document.addEventListener("mouseup", onUp, true);
+
+  // Keep receiving pointerup even when the pointer crosses the table/window edge.
+  th.setPointerCapture?.(e.pointerId);
+
+  previousHeaderCursor = document.body.style.cursor;
+  previousHeaderUserSelect = document.body.style.userSelect;
+  document.addEventListener("pointermove", onHeaderPointerMove, true);
+  document.addEventListener("pointerup", onHeaderPointerUp, true);
+  document.addEventListener("pointercancel", onHeaderPointerUp, true);
+}
+
+function onHeaderClickCapture(e: MouseEvent) {
+  if (!suppressHeaderClick) return;
+  e.preventDefault();
+  e.stopPropagation();
+  suppressHeaderClick = false;
 }
 
 /** 双击表头列分界线：自动适配左侧一列的内容宽度 */
 function onHeaderDblClick(e: MouseEvent) {
   const th = (e.target as HTMLElement | null)?.closest("th");
-  if (!th || th.classList.contains("gutter") || !th.parentElement) return;
-  const ths = Array.from(th.parentElement.children).filter(
-    (el) => el.tagName === "TH" && !el.classList.contains("gutter")
-  );
-  const idx = ths.indexOf(th);
-  if (idx < 0) return;
+  if (!th || th.classList.contains("gutter")) return;
+  const key = headerColumnKey(th);
+  const idx = key ? columnOrder.value.indexOf(key) : -1;
+  if (!key || idx < 0) return;
   const rect = th.getBoundingClientRect();
   if (rect.right - e.clientX <= HEADER_RESIZE_ZONE) {
-    autoFitColumn(idx);
+    autoFitColumn(key);
   } else if (idx > 0 && e.clientX - rect.left <= HEADER_RESIZE_ZONE) {
-    autoFitColumn(idx - 1);
+    autoFitColumn(columnOrder.value[idx - 1]);
   }
 }
 
@@ -732,10 +1023,10 @@ function measureCellWidth(cellDiv: HTMLElement | null): number {
 }
 
 /** 表头 + 全部数据行该列的文本内容宽最大值 */
-function columnTextWidth(root: HTMLElement, idx: number): number {
-  const ths = Array.from(
-    root.querySelectorAll<HTMLElement>(".el-table__header thead th")
-  ).filter((el) => !el.classList.contains("gutter"));
+function columnTextWidth(root: HTMLElement, key: GroupColumnKey): number {
+  const idx = columnOrder.value.indexOf(key);
+  if (idx < 0) return 0;
+  const ths = headerCells(root);
   let maxW = measureCellWidth(ths[idx]?.querySelector<HTMLElement>("div.cell") ?? null);
   root
     .querySelectorAll<HTMLElement>(".el-table__body tbody tr")
@@ -750,16 +1041,15 @@ function columnTextWidth(root: HTMLElement, idx: number): number {
 }
 
 /** 测量该列所有单元格（含表头）的自然宽度，取最大值定为列宽 */
-function autoFitColumn(idx: number) {
+function autoFitColumn(key: GroupColumnKey) {
   const root = hostTableRef.value?.$el as HTMLElement | undefined;
-  if (!root || idx < 0 || idx >= COL_KEYS.length) return;
-  const key = COL_KEYS[idx];
-  const maxW = columnTextWidth(root, idx);
+  if (!root || !columnOrder.value.includes(key)) return;
+  const maxW = columnTextWidth(root, key);
   if (maxW <= 0) return;
   // 图形元素常量修正 + .cell 24px 内边距 + td 12px×2 再留 2px 余量
   const fitted = Math.min(
     320,
-    Math.max(48, maxW + (COL_EXTRA[key] || 0) + 24 + 2)
+    Math.max(HEADER_MIN_W[key], maxW + (COL_EXTRA[key] || 0) + 24 + 2)
   );
   // 只固化这一列，其余列保持原有状态（动态或已固化）
   colWidths.value = { ...(colWidths.value || {}), [key]: fitted };
@@ -824,6 +1114,9 @@ async function saveGroupSettings() {
 
 const THRESHOLDS = ALERT;
 const POLL_MS = 3000;
+const RANGE_POLL_MS = 30000;
+const TREND_MAX_POINTS = 60;
+const TREND_WINDOW_SEC = 3600;
 
 /** 单主机面板状态：标题/地址来自 store（同步），指标通过 per-host 异步加载 */
 interface HostSnap {
@@ -833,6 +1126,8 @@ interface HostSnap {
   error?: string;
   /** 错误发生时刻（展示新鲜度用；成功刷新时随 error 一并清除） */
   errorAt?: number;
+  /** 最近一次成功的主机指标采集时间 */
+  updatedAt?: number;
 }
 
 /** 错误时间后缀（HH:MM），无时间返回空串 */
@@ -865,17 +1160,40 @@ const hosts = computed<sshconfig.HostConfig[]>(() => {
 
 /** 每主机独立的指标状态：key=host.name */
 const hostStates = ref<Record<string, HostSnap>>({});
+/** 主机 → 服务名 → 实例数；仅在看板模式下采集 */
+const instanceCounts = ref<Record<string, Record<string, number>>>({});
+const instanceCountsKnown = ref<Record<string, boolean>>({});
+const instanceLoading = ref<Record<string, boolean>>({});
+const trends = ref<Record<string, BoardHostTrend>>({});
+const rangeInFlight = new Set<string>();
+const instInFlight = new Set<string>();
+let rangePollTimer: ReturnType<typeof setInterval> | null = null;
 
-/** 看板卡片：映射页内 hostStates（暂不传 trends） */
+/** 看板卡片：与独立看板共享订阅状态和新鲜度模型 */
 const boardCards = computed<Record<string, BoardHostCard>>(() => {
+  void settings.hostAppNotifySubs;
+  void instanceCounts.value;
+  void instanceCountsKnown.value;
+  void instanceLoading.value;
   const out: Record<string, BoardHostCard> = {};
   for (const h of hosts.value) {
     const s = hostStates.value[h.name] || { loading: true };
+    const hasAppConfig = settings.hasAppNotifyConfig(h.name);
+    const appSubItems = hasAppConfig
+      ? buildBoardAppSubItems(
+          settings.listAppNotifySubs(h.name),
+          instanceCounts.value[h.name] || {},
+          instanceCountsKnown.value[h.name] === true
+        )
+      : null;
     out[h.name] = {
       loading: s.loading,
       overview: s.overview,
       disks: s.disks,
       error: s.error ? withErrTime(s.error, s.errorAt) : undefined,
+      appSubItems,
+      appSubLoading: hasAppConfig && instanceLoading.value[h.name] === true,
+      updatedAt: s.updatedAt,
     };
   }
   return out;
@@ -959,7 +1277,13 @@ async function loadOne(name: string, showSkeleton: boolean, force = false) {
       disks = [];
     }
     if (activeGroupId !== props.groupId) return;
-    hostStates.value[name] = { loading: false, overview: ov, disks, error: undefined };
+    hostStates.value[name] = {
+      loading: false,
+      overview: ov,
+      disks,
+      error: undefined,
+      updatedAt: Date.now(),
+    };
     notifyAllAlerts();
   } catch (e) {
     if (activeGroupId !== props.groupId) return;
@@ -971,6 +1295,107 @@ async function loadOne(name: string, showSkeleton: boolean, force = false) {
     notifyAllAlerts();
   } finally {
     inFlight.delete(name);
+  }
+}
+
+/** 点数过多时均匀抽稀到约 maxN，避免大屏 sparkline 过重。 */
+function downsample(values: number[], maxN: number): number[] {
+  if (values.length <= maxN) return values;
+  if (maxN < 2) return values.slice(0, maxN);
+  const out: number[] = [];
+  const last = values.length - 1;
+  for (let i = 0; i < maxN; i += 1) {
+    out.push(values[Math.round((i / (maxN - 1)) * last)]);
+  }
+  return out;
+}
+
+function emptyTrend(): BoardHostTrend {
+  return { cpu: [], mem: [] };
+}
+
+async function loadInstances(name: string) {
+  if (viewMode.value !== "board") return;
+  if (!settings.hasAppNotifyConfig(name)) return;
+  if (instInFlight.has(name) || activeGroupId !== props.groupId) return;
+  if (!app.isGroupVisible(props.groupId)) return;
+  const prev = hostStates.value[name];
+  if (prev?.error && isAgentMissing(prev.error)) return;
+  instInFlight.add(name);
+  instanceLoading.value = { ...instanceLoading.value, [name]: true };
+  try {
+    const rows = await api.agentWatchInstances(name);
+    if (activeGroupId !== props.groupId) return;
+    const counts: Record<string, number> = {};
+    for (const row of rows || []) {
+      const service = (row.service || "").trim();
+      if (!service) continue;
+      counts[service] = (counts[service] || 0) + 1;
+    }
+    instanceCounts.value = { ...instanceCounts.value, [name]: counts };
+    instanceCountsKnown.value = { ...instanceCountsKnown.value, [name]: true };
+  } catch {
+    // 保留上一次成功的计数；首次失败显示未知而不是伪造 0。
+  } finally {
+    instInFlight.delete(name);
+    instanceLoading.value = { ...instanceLoading.value, [name]: false };
+  }
+}
+
+async function loadRange(name: string) {
+  if (viewMode.value !== "board") return;
+  if (rangeInFlight.has(name) || activeGroupId !== props.groupId) return;
+  if (!app.isGroupVisible(props.groupId)) return;
+  rangeInFlight.add(name);
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const result = await api.agentRange(name, now - TREND_WINDOW_SEC, now, "auto");
+    if (activeGroupId !== props.groupId) return;
+    const points = result.points || [];
+    const memTotal = hostStates.value[name]?.overview?.memTotal || 0;
+    const cpuRaw: number[] = [];
+    const memRaw: number[] = [];
+    for (const point of points) {
+      cpuRaw.push(Number(point.cpuPercent) || 0);
+      if (memTotal > 0) {
+        memRaw.push(((Number(point.memUsed) || 0) / memTotal) * 100);
+      }
+    }
+    trends.value = {
+      ...trends.value,
+      [name]: {
+        cpu: downsample(cpuRaw, TREND_MAX_POINTS),
+        mem: memTotal > 0 ? downsample(memRaw, TREND_MAX_POINTS) : [],
+      },
+    };
+  } catch {
+    trends.value = { ...trends.value, [name]: emptyTrend() };
+  } finally {
+    rangeInFlight.delete(name);
+  }
+}
+
+function startBoardExtras() {
+  stopBoardExtras();
+  if (viewMode.value !== "board") return;
+  for (const host of hosts.value) {
+    void loadInstances(host.name);
+    void loadRange(host.name);
+  }
+  rangePollTimer = setInterval(() => {
+    if (viewMode.value !== "board" || !app.isGroupVisible(props.groupId)) return;
+    void settings.hydrateNotifySubs();
+    for (const host of hosts.value) {
+      void loadInstances(host.name);
+      void loadRange(host.name);
+    }
+  }, RANGE_POLL_MS);
+}
+
+function stopBoardExtras() {
+  if (rangePollTimer != null) {
+    clearInterval(rangePollTimer);
+    rangePollTimer = null;
   }
 }
 
@@ -995,6 +1420,12 @@ async function refreshAll() {
       hosts.value.map((h) => loadOne(h.name, false, true))
     );
     await loadAgentStatuses();
+    if (viewMode.value === "board") {
+      for (const host of hosts.value) {
+        void loadInstances(host.name);
+        void loadRange(host.name);
+      }
+    }
   } finally {
     refreshing.value = false;
   }
@@ -1166,6 +1597,61 @@ function agentTagOf(name: string): { type: string; text: string } {
   }
   return { type: "success", text: `v${st.version}` };
 }
+
+function hostSortValue(
+  row: sshconfig.HostConfig,
+  key: GroupColumnKey
+): GroupSortValue {
+  switch (key) {
+    case "host":
+      return row.name || null;
+    case "addr":
+      return row.hostName || null;
+    case "agent":
+      return agentTagOf(row.name).text || null;
+    case "user":
+      return row.user || null;
+    case "version": {
+      const snap = hostStates.value[row.name];
+      return snap?.error || !snap?.overview
+        ? null
+        : osVersion(snap.overview.osRelease || "") || null;
+    }
+    case "spec": {
+      const snap = hostStates.value[row.name];
+      return snap?.error || !snap?.overview ? null : hostSpec(snap.overview);
+    }
+    case "cpu":
+      return hostStates.value[row.name]?.overview?.cpuPercent ?? null;
+    case "mem":
+      return hostStates.value[row.name]?.overview?.memPercent ?? null;
+    case "disk":
+      return summarizeDisks(hostStates.value[row.name]?.disks)?.percent ?? null;
+    case "load":
+      return hostStates.value[row.name]?.overview?.load1 ?? null;
+    case "index":
+      return null;
+  }
+}
+
+function onSortChange(data: {
+  column?: { columnKey?: string };
+  prop?: string | null;
+  order?: SortOrder;
+}) {
+  const rawKey = data.column?.columnKey || data.prop || "";
+  const key = isGroupColumnKey(rawKey) && rawKey !== "index" ? rawKey : null;
+  const order =
+    data.order === "ascending" || data.order === "descending" ? data.order : null;
+  sortState.value = key && order ? { key, order } : { key: null, order: null };
+  persistTableSort();
+}
+
+const sortedHosts = computed<sshconfig.HostConfig[]>(() => {
+  const { key, order } = sortState.value;
+  if (!key || !order) return hosts.value;
+  return sortRowsByGroupValue(hosts.value, (row) => hostSortValue(row, key), order);
+});
 
 /** 批量安装进度 */
 const batchBusy = ref(false);
@@ -1399,11 +1885,14 @@ watch(
   (h) => {
     activeGroupId = props.groupId;
     const fresh: Record<string, HostSnap> = {};
+    const freshTrends: Record<string, BoardHostTrend> = {};
     for (const host of h) {
       const existing = hostStates.value[host.name];
       fresh[host.name] = existing ?? { loading: true };
+      freshTrends[host.name] = trends.value[host.name] ?? emptyTrend();
     }
     hostStates.value = fresh;
+    trends.value = freshTrends;
     // 注意：不重置 prevAlertKeys（store 刷新频繁触发本 watch，
     // 清空会导致仍存在的告警被当新告警重复弹窗）；仅切组时重置。
     // 已有数据的主机静默刷新，避免 Cmd+R 时全组闪骨架
@@ -1411,6 +1900,8 @@ watch(
       void loadOne(host.name, !fresh[host.name].overview);
     }
     void loadAgentStatuses();
+    if (viewMode.value === "board") startBoardExtras();
+    else stopBoardExtras();
     scheduleAutoWidths();
   },
   { immediate: true }
@@ -1424,9 +1915,15 @@ watch(
   () => {
     activeGroupId = props.groupId;
     hostStates.value = {};
+    trends.value = {};
+    instanceCounts.value = {};
+    instanceCountsKnown.value = {};
+    instanceLoading.value = {};
     prevAlertKeys = new Set();
     stopPoll();
+    stopBoardExtras();
     startPoll();
+    if (viewMode.value === "board") startBoardExtras();
   }
 );
 
@@ -1448,14 +1945,18 @@ watch(
       for (const h of hosts.value) {
         void loadOne(h.name, false);
       }
+      if (viewMode.value === "board") startBoardExtras();
     }
   }
 );
 
 onBeforeUnmount(() => {
   stopPoll();
+  stopBoardExtras();
   unbindBatchProgress();
   window.clearTimeout(autoWidthTimer);
+  finishHeaderInteraction();
+  suppressHeaderClick = false;
   activeGroupId = ""; // 取消所有 in-flight
 });
 
@@ -1541,7 +2042,9 @@ const MetricCell = defineComponent({
   },
 });
 
+void settings.hydrateNotifySubs();
 startPoll();
+if (viewMode.value === "board") startBoardExtras();
 </script>
 
 <style scoped lang="scss">
@@ -1626,7 +2129,7 @@ startPoll();
   width: 100%;
   cursor: pointer;
 
-  // border 仅为启用 EP 列宽拖拽，视觉保持无竖线的清爽样式
+  // 列宽与列顺序由本组件接管，表格本身不依赖 EP 的原生 resize。
   &.el-table--border {
     &::before,
     &::after {
@@ -1640,14 +2143,7 @@ startPoll();
     }
   }
 
-  // 列宽可拖后允许横向滚动（.data-table-unified 全局禁了横滚）
-  :deep(.el-table__header-wrapper .el-scrollbar__wrap),
-  :deep(.el-table__body-wrapper .el-scrollbar__wrap) {
-    overflow-x: auto !important;
-  }
-  :deep(.el-scrollbar__bar.is-horizontal) {
-    display: block !important;
-  }
+  // 默认布局不产生横向滚动条；列宽调整仍由表头右缘热区处理。
 
   :deep(.group-index-col .cell) {
     overflow: visible;
@@ -1655,12 +2151,9 @@ startPoll();
     font-variant-numeric: tabular-nums;
   }
 
-  // 表头右缘 8px 是列宽拖拽热区：悬停亮出分割线，提示可拖拽 / 双击自适应
+  // 表头右缘 8px 是列宽拖拽热区；其余区域用于拖动列顺序/点击排序。
   :deep(th.el-table__cell) {
-    // 固定列本身是 sticky 定位可直接挂热区；普通列补 relative 作锚点
-    &:not(.el-table-fixed-column--left):not(.el-table-fixed-column--right) {
-      position: relative;
-    }
+    position: relative;
 
     &::after {
       content: "";
@@ -1684,6 +2177,23 @@ startPoll();
       border-right: 2px solid var(--m3-primary);
       border-radius: 2px;
     }
+  }
+
+  :deep(.el-table__header th:not(.gutter)) {
+    cursor: grab;
+  }
+
+  :deep(.el-table__header th .caret-wrapper) {
+    cursor: pointer;
+  }
+
+  :deep(.el-table__header th.group-column-drop-target) {
+    background: color-mix(
+      in srgb,
+      var(--m3-primary) 12%,
+      var(--m3-table-header)
+    ) !important;
+    box-shadow: inset 2px 0 0 var(--m3-primary);
   }
 
   :deep(.host-list-row) {
