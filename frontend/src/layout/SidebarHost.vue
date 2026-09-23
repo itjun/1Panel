@@ -103,7 +103,7 @@
             :reach="null"
             :os-release="app.osReleaseMap.get(h.name) || ''"
             :running="app.isRunning(h.name)"
-            :selected="isHostRowActive(h.name) || isHostRowPicked(h.name)"
+            :selected="isHostRowVisuallySelected(sec, h.name)"
             :drag-source="dragState?.kind === 'host' && dragState.id === h.name"
             :insert-before="hostInsertMark(sec.id, h.name) === 'before'"
             :insert-after="hostInsertMark(sec.id, h.name) === 'after'"
@@ -114,7 +114,7 @@
             @pointerdown="onHostPointerDown($event, h.name, selectedHosts)"
             @click="onHostRowClick($event, h)"
             @dblclick="onHostRowDblClick($event, h)"
-            @contextmenu="onHostContext($event, h.name)"
+            @contextmenu="onHostContext($event, h.name, sec.id)"
             @edit="openHostEdit(h.name)"
             @refresh-icon="onRefreshHostIcon(h.name)"
           />
@@ -248,7 +248,7 @@
  * 主机首页：整页按分组列出主机，分组全部展开。
  * 单击分组名只选中；箭头折叠分组。
  * 单击主机只高亮；点「终端」或双击开终端。
- * ⌘（Mac）或 Ctrl（Windows）+ 单击加减多选。
+ * Shift+单击选择范围，⌘（Mac）或 Ctrl（Windows）+ 单击加减多选。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Search } from "@element-plus/icons-vue";
@@ -359,6 +359,15 @@ function groupSectionStyle(sec: GroupSection) {
   };
 }
 
+function hostSelectionKey(host: { groupId: string; name: string }): string {
+  return `${host.groupId}\u0000${host.name}`;
+}
+
+function rememberHostSelection(row: { groupId: string; name: string }) {
+  hostSelectionAnchor.value = hostSelectionKey(row);
+  hostSelectionView.value = row.groupId === PINNED_DROP_ID ? "pinned" : "group";
+}
+
 function findListedHost(name: string): SectionHost | null {
   for (const sec of sections.value) {
     const hit = sec.hosts.find((h) => h.name === name);
@@ -376,6 +385,7 @@ async function locateHost(name: string) {
   if (!hit) return;
   expandGroup(hit.groupId);
   selectedHosts.value = [name];
+  rememberHostSelection(hit);
   if (hit.groupId !== PINNED_DROP_ID) app.selectGroup(hit.groupId);
   await nextTick();
   const el = document.querySelector(`[data-host-sort="${CSS.escape(name)}"]`);
@@ -388,12 +398,14 @@ function workspaceOf(name: string) {
 
 function enterListedHost(row: SectionHost) {
   selectedHosts.value = [row.name];
+  rememberHostSelection(row);
   if (row.groupId !== PINNED_DROP_ID) app.selectGroup(row.groupId);
   app.openHostTab(row.name, "overview");
 }
 
 function openListedHost(row: SectionHost, sub: SubTab) {
   selectedHosts.value = [row.name];
+  rememberHostSelection(row);
   if (row.groupId !== PINNED_DROP_ID) app.selectGroup(row.groupId);
   app.openHostTab(row.name, sub);
 }
@@ -409,12 +421,26 @@ async function openQuick(name: string) {
   openListedHost(hit, "overview");
 }
 
-/** 单击替换为单选，⌘/Ctrl+单击加减；末项是多选锚点。 */
+/** 单击替换为单选，Shift+单击选择范围，⌘/Ctrl+单击加减。 */
 const selectedHosts = ref<string[]>([]);
+/** 范围选择锚点：普通 / Cmd / Ctrl 点击时更新，Shift 点击沿用。 */
+const hostSelectionAnchor = ref<string | null>(null);
+/** 选中主机所在的视图，用于隐藏置顶/原分组的重复高亮。 */
+const hostSelectionView = ref<"pinned" | "group" | null>(null);
+
+/** 当前实际展开并显示的主机行顺序，用于 Shift 范围选择。 */
+const visibleHostRows = computed(() => {
+  const rows: SectionHost[] = [];
+  for (const sec of sections.value) {
+    if (sectionCollapsed(sec.id)) continue;
+    rows.push(...sec.hosts);
+  }
+  return rows;
+});
 
 const homeHint = computed(() => {
   const mod = isMac ? "⌘" : "Ctrl";
-  return `单击或 Space 选中 · 双击或 Enter 进入概览 · 右键更多 · 拖动主机迁移或调整顺序 · ${mod}+单击多选`;
+  return `单击或 Space 选中 · Shift+单击选择范围 · 双击或 Enter 进入概览 · 右键更多 · 拖动主机迁移或调整顺序 · ${mod}+单击多选`;
 });
 
 const searchInputRef = ref<{
@@ -432,6 +458,12 @@ const editingHost = computed(() => {
 function openHostEdit(name: string) {
   if (!app.hosts.some((h) => h.name === name)) return;
   selectedHosts.value = [name];
+  const row = findListedHost(name);
+  if (row) rememberHostSelection(row);
+  else {
+    hostSelectionAnchor.value = null;
+    hostSelectionView.value = null;
+  }
   editingHostName.value = name;
 }
 
@@ -630,11 +662,44 @@ function isHostRowPicked(name: string): boolean {
   return list.includes(name) && list[list.length - 1] !== name;
 }
 
+/**
+ * 置顶与原分组是同一批主机的两种视图：当前操作所在视图保持强高亮，
+ * 另一处不显示第二份高亮，避免用户误以为选中了两份不同主机。
+ */
+function selectionToneFor(
+  sec: GroupSection,
+  name: string
+): "primary" | "duplicate" | undefined {
+  const list = selectedHosts.value;
+  const isSelected = list.length > 0 ? list.includes(name) : app.activeSession?.host === name;
+  if (!isSelected) return undefined;
+
+  // 没有显式选择时，活动会话只在原分组保留高亮；若主机没有原分组，只高亮置顶项。
+  if (list.length === 0) {
+    const hasNonPinnedOccurrence = sections.value.some(
+      (item) => !item.isPinned && item.hosts.some((host) => host.name === name)
+    );
+    return hasNonPinnedOccurrence && sec.isPinned ? "duplicate" : "primary";
+  }
+
+  if (hostSelectionView.value === "pinned") {
+    return sec.isPinned ? "primary" : "duplicate";
+  }
+  return sec.isPinned ? "duplicate" : "primary";
+}
+
+function isHostRowVisuallySelected(sec: GroupSection, name: string): boolean {
+  const selected = isHostRowActive(name) || isHostRowPicked(name);
+  return selected && selectionToneFor(sec, name) !== "duplicate";
+}
+
 /** 单击分组 → 只选中该组（添加主机时作为默认分组） */
 function onGroupHeadClick(sec: GroupSection) {
   if (suppressClick.value) return;
   closeHostEdit();
   selectedHosts.value = [];
+  hostSelectionAnchor.value = null;
+  hostSelectionView.value = null;
   if (!sec.isPinned) app.selectGroup(sec.id);
 }
 
@@ -654,17 +719,44 @@ function onHostRowClick(e: MouseEvent | KeyboardEvent, row: SectionHost) {
     if (i >= 0) list.splice(i, 1);
     else list.push(row.name);
     selectedHosts.value = list;
+    rememberHostSelection(row);
+    if (row.groupId !== PINNED_DROP_ID) app.selectGroup(row.groupId);
+    return;
+  }
+  if (e.shiftKey && !e.altKey) {
+    const rows = visibleHostRows.value;
+    const from = hostSelectionAnchor.value
+      ? rows.findIndex((host) => hostSelectionKey(host) === hostSelectionAnchor.value)
+      : -1;
+    const to = rows.findIndex(
+      (host) => hostSelectionKey(host) === hostSelectionKey(row)
+    );
+    if (from >= 0 && to >= 0) {
+      const lo = Math.min(from, to);
+      const hi = Math.max(from, to);
+      const range = [...new Set(rows.slice(lo, hi + 1).map((host) => host.name))];
+      // Keep the clicked host last so it remains the focused/highlighted row.
+      selectedHosts.value = [
+        ...range.filter((name) => name !== row.name),
+        row.name,
+      ];
+    } else {
+      // A filtered-out/collapsed anchor cannot define a visible range.
+      selectedHosts.value = [row.name];
+      rememberHostSelection(row);
+    }
     if (row.groupId !== PINNED_DROP_ID) app.selectGroup(row.groupId);
     return;
   }
   selectedHosts.value = [row.name];
+  rememberHostSelection(row);
   if (row.groupId !== PINNED_DROP_ID) app.selectGroup(row.groupId);
 }
 
 /** 双击主机：进入这台主机的工作区（已打开则回到上次工具） */
 function onHostRowDblClick(e: MouseEvent, row: SectionHost) {
   if (suppressClick.value) return;
-  if (isAdditiveHostSelect(e)) return;
+  if (isAdditiveHostSelect(e) || (e.shiftKey && !e.altKey)) return;
   closeHostEdit();
   enterListedHost(row);
 }
@@ -713,7 +805,7 @@ function onSectionContext(e: MouseEvent, sec: GroupSection) {
   onGroupContext(e, sec.id, sec.name);
 }
 
-function onHostContext(e: MouseEvent, host: string) {
+function onHostContext(e: MouseEvent, host: string, groupId?: string) {
   cancelDrag();
   blankCtx.value = null;
   groupCtxMenu.value = null;
@@ -723,6 +815,10 @@ function onHostContext(e: MouseEvent, host: string) {
   // 右键未选中的主机：收成单选。右键已选中的：保留多选，菜单作用在全部已选主机上
   if (!selectedHosts.value.includes(host)) {
     selectedHosts.value = [host];
+    rememberHostSelection({
+      name: host,
+      groupId: groupId || findListedHost(host)?.groupId || "",
+    });
   }
   const hosts = selectedHosts.value.slice();
   const approxH = hosts.length > 1 ? 220 : 520;
@@ -1221,7 +1317,8 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 0;
   margin-top: 4px;
-  overflow: hidden;
+  // 首尾插入线会向列表容器外伸出，不能被裁掉。
+  overflow: visible;
   border-radius: 12px;
 }
 

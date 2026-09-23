@@ -78,7 +78,8 @@ export function useHostDrag(opts?: { isBlocked?: () => boolean }) {
     selectedHostNames: readonly string[] = []
   ) {
     if (e.button !== 0 || opts?.isBlocked?.()) return;
-    if (isAdditiveHostSelect(e)) return;
+    // Shift 点击由列表负责做范围选择，不能同时启动主机拖拽。
+    if (isAdditiveHostSelect(e) || e.shiftKey) return;
     const selected = selectedHostNames.includes(hostName)
       ? [...new Set(selectedHostNames.filter(Boolean))]
       : [];
