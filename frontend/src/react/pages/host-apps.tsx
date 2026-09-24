@@ -286,11 +286,27 @@ function lineOption(opts: {
   };
 }
 
+const SERVICE_HUES = [212, 162, 32, 272, 346, 188, 92, 18, 236, 312, 54, 128];
+
+function serviceNameColors(rows: { service: string }[]): Map<string, string> {
+  const names = [...new Set(rows.map((row) => row.service).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "en"),
+  );
+  const colors = new Map<string, string>();
+  names.forEach((name, index) => {
+    const hue = SERVICE_HUES[index % SERVICE_HUES.length];
+    const lap = Math.floor(index / SERVICE_HUES.length);
+    colors.set(name, `hsl(${hue} 68% ${32 + lap * 6}%)`);
+  });
+  return colors;
+}
+
 function AppsTable({
   title,
   rows,
   showHeader,
   latestByService,
+  nameColors,
   subscribed,
   onToggleSubscribe,
   onRowClick,
@@ -300,6 +316,7 @@ function AppsTable({
   rows: InstRow[];
   showHeader: boolean;
   latestByService: Map<string, string>;
+  nameColors: Map<string, string>;
   subscribed: (service: string) => boolean;
   onToggleSubscribe: (service: string, on: boolean) => void;
   onRowClick: (row: InstRow) => void;
@@ -359,7 +376,9 @@ function AppsTable({
                 >
                   <td className="px-3 font-mono text-[13px] font-semibold">
                     <span className="inline-flex items-center gap-1.5">
-                      {row.service || "—"}
+                      <span style={{ color: nameColors.get(row.service) || "#20252b" }}>
+                        {row.service || "—"}
+                      </span>
                       {row.runtime === "bun" ? (
                         <span className="rounded border border-line px-1 text-[10px] font-normal text-muted">
                           Bun
@@ -488,6 +507,8 @@ export function AppsPage({ host }: { host: string }) {
     () => sortInstances(tableRows.filter((r) => r.group === "other")),
     [tableRows],
   );
+
+  const nameColors = useMemo(() => serviceNameColors(tableRows), [tableRows]);
 
   const latestByService = useMemo(() => {
     const m = new Map<string, string>();
@@ -738,6 +759,7 @@ export function AppsPage({ host }: { host: string }) {
             rows={sec.rows}
             showHeader={secIdx === 0}
             latestByService={latestByService}
+            nameColors={nameColors}
             subscribed={isSubscribed}
             onToggleSubscribe={toggleSubscribe}
             onRowClick={openCharts}
