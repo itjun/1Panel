@@ -1,6 +1,6 @@
 import type { agentcli } from "@/api";
 import { api } from "@/api";
-import { useSettingsStore } from "@/stores/settings";
+import { settingsAccess } from "@/utils/settingsAccess";
 import {
   appendAndNotifyDesktop,
   buildNotifyCopy,
@@ -45,7 +45,7 @@ async function fireAppDown(opts: {
   service: string;
   detail: string;
 }): Promise<void> {
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   if (!settings.isAppNotifySubscribed(opts.host, opts.service)) return;
   if (!settings.isContentKindEnabled("app")) return;
 
@@ -91,7 +91,7 @@ async function fireAppUp(opts: {
   const hadWecom = firedWecom.delete(key);
   if (!hadLocal && !hadWecom) return;
 
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   if (!settings.notifyRecoverEnabled) return;
   if (!settings.isContentKindEnabled("app")) return;
 
@@ -122,7 +122,7 @@ async function fireAppUp(opts: {
 }
 
 async function pollHost(host: string): Promise<void> {
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   const subscribed = new Set(settings.listAppNotifySubs(host));
   if (!subscribed.size) {
     prevOk.delete(host);
@@ -173,7 +173,7 @@ async function tick(): Promise<void> {
   lastTickAt = now;
   ticking = true;
   try {
-    const settings = useSettingsStore();
+    const settings = settingsAccess();
     // 只打已订阅主机；空名单绝不 listHosts / 扫全集
     const hosts = settings.hostsWithAppNotifySubs();
     if (hosts.length === 0) {

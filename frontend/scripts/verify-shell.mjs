@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * Structural smoke for shipped Vue shell after production build.
- * Asserts dist + source entrypoints that gate "app can load".
+ * 生产构建后的壳检查：dist 能加载，React 入口还在。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -34,13 +33,10 @@ if (!hasCss) fail("no .css in dist/assets");
 ok(`assets js=${hasJs} css=${hasCss} count=${assets.length}`);
 
 const requiredSrc = [
-  "src/main.ts",
-  "src/App.vue",
-  "src/layout/SidebarHost.vue",
-  "src/layout/MainArea.vue",
-  "src/views/OverviewView.vue",
-  "src/styles/element.scss",
-  "src/styles/m3/tokens.scss",
+  "index.html",
+  "src/react/main.tsx",
+  "src/react/App.tsx",
+  "src/api/index.ts",
 ];
 for (const rel of requiredSrc) {
   const p = path.join(root, rel);
@@ -49,19 +45,14 @@ for (const rel of requiredSrc) {
 }
 ok(`required sources present (${requiredSrc.length})`);
 
-// App.vue must mount shell pieces
-const appVue = fs.readFileSync(path.join(root, "src/App.vue"), "utf8");
-for (const needle of ["WorkspaceRail", "MainArea", "添加主机", "主题"]) {
-  if (!appVue.includes(needle)) fail(`App.vue missing ${needle}`);
+const app = fs.readFileSync(path.join(root, "src/react/App.tsx"), "utf8");
+for (const needle of ["SessionProvider", "主机"]) {
+  if (!app.includes(needle)) fail(`App.tsx missing ${needle}`);
 }
-if (appVue.includes("TabColumn")) fail("App.vue still references TabColumn");
-ok("App.vue shell markers present");
+ok("React shell markers present");
 
-const overview = fs.readFileSync(path.join(root, "src/views/OverviewView.vue"), "utf8");
-// 折线图随「监控」子页签独立后已从概览移除（91fae1d），概览只保留饼图 + 系统信息
-for (const needle of ["VChartPie", "系统信息", "监控"]) {
-  if (!overview.includes(needle)) fail(`OverviewView missing ${needle}`);
-}
-ok("OverviewView dashboard markers present");
+const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
+if (!entry.includes("/src/react/main.tsx")) fail("index.html does not load React");
+ok("index.html loads React");
 
 console.log("VERIFY_SHELL_PASS");

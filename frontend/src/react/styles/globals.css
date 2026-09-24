@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-ink: #20252b;
+  --color-muted: #687382;
+  --color-line: #dfe3e8;
+  --color-accent: #005eeb;
+  --color-graphite: #191c21;
+  --color-graphite-text: #e5e7eb;
+  --radius-control: 4px;
+  --radius-surface: 8px;
+  --font-sans: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco,
+    Consolas, "Segoe UI Mono", monospace;
+}
+
+@layer base {
+  .react-root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--app-font-family, var(--font-sans));
+    font-size: var(--app-font-size, 14px);
+  }
+
+  .react-root * {
+    scrollbar-width: none;
+  }
+
+  .react-root *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+/*
+  Tailwind 预检会把 border-width 清成 0。终端和代码区靠边框画光标与选区，
+  这里把它们从预检里拉回来。只在 React 样式进入页面时生效。
+*/
+.xterm,
+.xterm *,
+.cm-editor,
+.cm-editor * {
+  border-width: revert-layer;
+}
+
+.xterm,
+.xterm * {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}

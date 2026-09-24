@@ -133,15 +133,6 @@ func (a *App) allWindows() []*application.WebviewWindow {
 	if a.mainWindow != nil {
 		n++
 	}
-	a.terminalWindowMu.Lock()
-	terminals := make([]*application.WebviewWindow, 0, len(a.terminalWindows))
-	for _, terminal := range a.terminalWindows {
-		if terminal != nil {
-			terminals = append(terminals, terminal)
-		}
-	}
-	a.terminalWindowMu.Unlock()
-	n += len(terminals)
 	a.boardMu.Lock()
 	boards := make([]*application.WebviewWindow, 0, len(a.boardWindows))
 	for _, w := range a.boardWindows {
@@ -154,7 +145,6 @@ func (a *App) allWindows() []*application.WebviewWindow {
 	if a.mainWindow != nil {
 		out = append(out, a.mainWindow)
 	}
-	out = append(out, terminals...)
 	return append(out, boards...)
 }
 

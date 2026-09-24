@@ -9,7 +9,7 @@
 
 import { api } from "@/api";
 import type { agentcli, certnotify } from "@/api";
-import { useSettingsStore } from "@/stores/settings";
+import { settingsAccess } from "@/utils/settingsAccess";
 import { appendAndNotifyDesktop } from "@/utils/alertNotify";
 
 const POLL_MS = 60_000;
@@ -50,7 +50,7 @@ async function sendWecom(
   state: "down" | "up",
   notice: certnotify.Notice
 ): Promise<void> {
-  const webhook = useSettingsStore().effectiveWecomWebhook();
+  const webhook = settingsAccess().effectiveWecomWebhook();
   if (!webhook) return;
   await api.notifyHostAlert({
     webhook,
@@ -71,7 +71,7 @@ function deliveryId(host: string, date: string, key: string): string {
 }
 
 async function pollHost(host: string): Promise<void> {
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   if (!settings.isCertNotifySubscribed(host)) return;
   if (!settings.isContentKindEnabled("cert")) return;
   if ((unsupportedUntil.get(host) || 0) > Date.now()) return;
@@ -169,7 +169,7 @@ async function tick(): Promise<void> {
   lastTickAt = now;
   ticking = true;
   try {
-    const hosts = useSettingsStore().hostsWithCertNotifySubs();
+    const hosts = settingsAccess().hostsWithCertNotifySubs();
     if (!hosts.length) return;
     await Promise.all(hosts.map((host) => pollHost(host)));
   } finally {

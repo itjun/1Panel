@@ -111,6 +111,119 @@ func readRemoteFileBytes(mgr *sshd.Manager, host string, opt sshd.ConnectOption,
 	return raw, path.Base(file), nil
 }
 
+// ReadLocalFilePreview 读取本机文本文件，供 XFPT 左栏双击预览。
+func (s *Files) ReadLocalFilePreview(file string) (filetext.Preview, error) {
+	raw, name, err := readLocalFileBytes(file, maxTextPreviewBytes)
+	if err != nil {
+		return filetext.Preview{}, err
+	}
+	if !filetext.IsLikelyText(raw) {
+		return filetext.Preview{}, fmt.Errorf("不是文本文件")
+	}
+	return filetext.BuildPreview(file, name, raw)
+}
+
+// NormalizeLocalFileToLinux 将本机文本规范为 UTF-8（无 BOM）+ LF，写前备份。
+func (s *Files) NormalizeLocalFileToLinux(file string) (filetext.Preview, error) {
+	info, err := os.Stat(file)
+	if err != nil {
+		return filetext.Preview{}, fmt.Errorf("无法访问文件: %w", err)
+	}
+	if info.Size() > int64(maxTextPreviewBytes) {
+		return filetext.Preview{}, fmt.Errorf("文件超过 %dKB，不能整文件转换", maxTextPreviewBytes/1024)
+	}
+	raw, name, err := readLocalFileBytes(file, maxTextPreviewBytes)
+	if err != nil {
+		return filetext.Preview{}, err
+	}
+	if !filetext.IsLikelyText(raw) {
+		return filetext.Preview{}, fmt.Errorf("不是文本文件")
+	}
+	prev, err := filetext.BuildPreview(file, name, raw)
+	if err != nil {
+		return filetext.Preview{}, err
+	}
+	if !prev.NeedsNormalize {
+		return prev, nil
+	}
+	normalized := filetext.NormalizeLinux(prev.Content)
+	if err := writeLocalFileWithBackup(file, []byte(normalized)); err != nil {
+		return filetext.Preview{}, err
+	}
+	raw2, _, err := readLocalFileBytes(file, maxTextPreviewBytes)
+	if err != nil {
+		return filetext.Preview{
+			Path:           file,
+			Name:           name,
+			Content:        normalized,
+			Encoding:       "UTF-8",
+			LineEnding:     filetext.DetectLineEnding([]byte(normalized)),
+			NeedsNormalize: false,
+			Size:           len(normalized),
+		}, nil
+	}
+	return filetext.BuildPreview(file, name, raw2)
+}
+
+func readLocalFileBytes(file string, maxSize int) ([]byte, string, error) {
+	file = filepath.Clean(strings.TrimSpace(file))
+	if file == "" || file == "." || file == string(filepath.Separator) {
+		return nil, "", fmt.Errorf("无效路径: %s", file)
+	}
+	info, err := os.Stat(file)
+	if err != nil {
+		return nil, "", fmt.Errorf("无法访问文件: %w", err)
+	}
+	if info.IsDir() {
+		return nil, "", fmt.Errorf("不是普通文件: %s", file)
+	}
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, "", fmt.Errorf("打开失败: %w", err)
+	}
+	defer f.Close()
+	limited := io.LimitReader(f, int64(maxSize)+1)
+	raw, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, "", fmt.Errorf("读取失败: %w", err)
+	}
+	if len(raw) > maxSize {
+		raw = raw[:maxSize]
+	}
+	return raw, filepath.Base(file), nil
+}
+
+func writeLocalFileWithBackup(file string, data []byte) error {
+	file = filepath.Clean(strings.TrimSpace(file))
+	info, err := os.Stat(file)
+	if err != nil {
+		return fmt.Errorf("无法访问文件: %w", err)
+	}
+	bak := fmt.Sprintf("%s.bak.%s", file, time.Now().Format("20060102-150405"))
+	src, err := os.Open(file)
+	if err != nil {
+		return fmt.Errorf("打开源文件失败: %w", err)
+	}
+	dst, err := os.Create(bak)
+	if err != nil {
+		_ = src.Close()
+		return fmt.Errorf("创建备份失败: %w", err)
+	}
+	_, copyErr := io.Copy(dst, src)
+	_ = src.Close()
+	closeErr := dst.Close()
+	if copyErr != nil {
+		return fmt.Errorf("备份写入失败: %w", copyErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("备份写入失败: %w", closeErr)
+	}
+	if err := os.WriteFile(file, data, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("写入失败: %w", err)
+	}
+	return nil
+}
+
 func writeRemoteFileWithBackup(mgr *sshd.Manager, host string, opt sshd.ConnectOption, file string, data []byte) error {
 	client, err := mgr.GetClient(host, opt)
 	if err != nil {

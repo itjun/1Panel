@@ -1,10 +1,29 @@
-import type { PaneNode } from "@/views/termPanes";
+/** 终端分屏布局持久化（兼容旧数据读取；内置终端已移除，不再写入新布局）。 */
+
+export type PaneDir = "row" | "col";
+
+export interface PaneLeaf {
+  kind: "leaf";
+  id: string;
+  host: string;
+}
+
+export interface PaneSplit {
+  kind: "split";
+  id: string;
+  dir: PaneDir;
+  ratio: number;
+  a: PaneNode;
+  b: PaneNode;
+}
+
+export type PaneNode = PaneLeaf | PaneSplit;
 
 const KEY_BASE = "1pannel-workspace-layouts";
 const KEY = (() => {
   if (typeof location === "undefined") return KEY_BASE;
   const params = new URLSearchParams(location.search);
-  const scope = params.get("windowId") || (params.get("mode") === "terminal" ? "terminal-1" : "main");
+  const scope = params.get("windowId") || "main";
   return `${KEY_BASE}:${scope}`;
 })();
 
@@ -43,13 +62,6 @@ function readFile(): SavedFile {
   }
 }
 
-function writeFile(file: { activeId: string; items: SavedWorkspace[] }) {
-  localStorage.setItem(
-    KEY,
-    JSON.stringify({ version: 2, activeId: file.activeId, items: file.items })
-  );
-}
-
 export function isPaneNode(v: unknown): v is PaneNode {
   if (!v || typeof v !== "object") return false;
   const n = v as PaneNode;
@@ -75,50 +87,6 @@ export function isDefaultBenchTitle(title: string): boolean {
   return t === "Workspace" || t === BENCH_TITLE;
 }
 
-/** 多台主机并在一起才算工作区。改过名的工作区，就算后来只剩一台，标签还在就继续保留。 */
-export function shouldKeepWorkspace(
-  title: string,
-  titleCustom: boolean,
-  tree: PaneNode,
-  alreadySaved: boolean
-): boolean {
-  if (isDefaultBenchTitle(title)) return true;
-  const names = new Set(hostsInTree(tree));
-  if (names.size > 1) return true;
-  return alreadySaved && titleCustom;
-}
-
 export function loadSavedWorkspaces(): SavedFile {
   return readFile();
-}
-
-export function upsertSavedWorkspace(item: SavedWorkspace) {
-  const file = readFile();
-  const next = file.items.filter((it) => it.id !== item.id);
-  next.push(item);
-  writeFile({ activeId: item.id, items: next });
-}
-
-export function removeSavedWorkspace(id: string) {
-  const file = readFile();
-  if (!file.items.some((it) => it.id === id)) return;
-  const items = file.items.filter((it) => it.id !== id);
-  const activeId = file.activeId === id ? items[items.length - 1]?.id || "" : file.activeId;
-  writeFile({ activeId, items });
-}
-
-export function touchSavedWorkspaceActive(id: string) {
-  const file = readFile();
-  if (!file.items.some((it) => it.id === id)) return;
-  if (file.activeId === id) return;
-  writeFile({ ...file, activeId: id });
-}
-
-export function patchSavedWorkspaceTitle(id: string, title: string, titleCustom: boolean) {
-  const file = readFile();
-  const item = file.items.find((it) => it.id === id);
-  if (!item) return;
-  item.title = title;
-  item.titleCustom = titleCustom;
-  writeFile(file);
 }

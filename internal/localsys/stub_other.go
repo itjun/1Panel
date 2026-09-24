@@ -51,7 +51,3 @@ func StorageReveal(path string) error {
 func StorageOpenPrivacy() error {
 	return fmt.Errorf("localsys: 仅支持 macOS")
 }
-
-func CollectSystemReport(force bool) (*SystemReport, error) {
-	return nil, fmt.Errorf("localsys: 仅支持 macOS")
-}

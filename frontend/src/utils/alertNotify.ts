@@ -9,11 +9,8 @@
  */
 
 import { api } from "@/api";
-import { useAlertHistoryStore } from "@/stores/alertHistory";
-import {
-  useSettingsStore,
-  type NotifyContentField,
-} from "@/stores/settings";
+import type { NotifyContentField } from "@/react/state/settings";
+import { settingsAccess } from "@/utils/settingsAccess";
 
 /** 拼装系统通知 / 企微文案的结构化字段 */
 export type NotifyTextParts = {
@@ -25,7 +22,7 @@ export type NotifyTextParts = {
 };
 
 function fieldOn(field: NotifyContentField): boolean {
-  return useSettingsStore().isNotifyContentFieldEnabled(field);
+  return settingsAccess().isNotifyContentFieldEnabled(field);
 }
 
 /**
@@ -111,7 +108,7 @@ export async function appendAndNotifyDesktop(opts: {
   /** 系统通知点击要定位到历史行时，应用内关闭也写入历史 */
   historyForClick?: boolean;
 }): Promise<void> {
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   const wantInApp = settings.inAppNotifyEnabled;
   const wantSystem = settings.systemNotifyEnabled;
   const wantHistory = wantInApp || (!!opts.historyForClick && wantSystem);
@@ -147,7 +144,7 @@ export async function appendAndNotifyDesktop(opts: {
   }
 
   if (wantHistory) {
-    void useAlertHistoryStore().refresh();
+    window.dispatchEvent(new Event("alerts-changed"));
   }
 }
 
@@ -186,7 +183,7 @@ export async function sendWecomRecover(opts: {
   host: string;
   kind: string;
 }): Promise<void> {
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   const webhook = settings.effectiveWecomWebhook();
   if (!webhook) return;
   try {

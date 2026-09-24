@@ -56,7 +56,3 @@ func (s *LocalSys) StorageReveal(path string) error {
 func (s *LocalSys) StorageOpenPrivacy() error {
 	return localsys.StorageOpenPrivacy()
 }
-
-func (s *LocalSys) SystemReport(force bool) (*localsys.SystemReport, error) {
-	return localsys.CollectSystemReport(force)
-}

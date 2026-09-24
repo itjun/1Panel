@@ -65,7 +65,3 @@ export function StorageStatus(): $CancellablePromise<localsys$0.StorageStatus | 
 export function StorageTree(path: string): $CancellablePromise<localsys$0.StorageNode | null> {
     return $Call.ByID(3569091197, path);
 }
-
-export function SystemReport(force: boolean): $CancellablePromise<localsys$0.SystemReport | null> {
-    return $Call.ByID(1435796579, force);
-}

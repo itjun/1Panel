@@ -239,28 +239,6 @@ func (a *App) comparePanelConfigLocked() (panelsync.ConfigDiff, error) {
 	return panelsync.Compare(context.Background(), path, a.panelStore.Snapshot())
 }
 
-func (a *App) ensureTerminalConfigReady() error {
-	if a == nil || a.panelStore == nil {
-		return nil
-	}
-	a.panelConfigMu.Lock()
-	defer a.panelConfigMu.Unlock()
-	state := a.panelStore.Snapshot()
-	if state.ConfigStale {
-		if state.LastError != "" {
-			return fmt.Errorf("SSH 配置已过期: %s", state.LastError)
-		}
-		return fmt.Errorf("SSH 配置已过期，请先生成配置")
-	}
-	diff, err := a.comparePanelConfigLocked()
-	if err != nil {
-		return err
-	}
-	if diff.HasChanges() {
-		return fmt.Errorf("SSH 配置存在外部修改，请先导入差异")
-	}
-	return nil
-}
 
 func (a *App) importPanelConfigLocked() (panelsync.ImportResult, error) {
 	path, err := sshConfigPath()

@@ -17,7 +17,6 @@ import * as NotifySubs from "./notifysubs.js";
 import * as Overview from "./overview.js";
 import * as PanelConfig from "./panelconfig.js";
 import * as System from "./system.js";
-import * as TerminalSvc from "./terminalsvc.js";
 export {
     Agent,
     AlertHistory,
@@ -34,8 +33,7 @@ export {
     NotifySubs,
     Overview,
     PanelConfig,
-    System,
-    TerminalSvc
+    System
 };
 
 export type {
@@ -69,8 +67,5 @@ export type {
     PanelHostDraft,
     PanelStateDraft,
     PanelSystemEditor,
-    TerminalTransfer,
-    TerminalWindowCommand,
-    TerminalWindowInfo,
     UpdateHostInput
 } from "./models.js";

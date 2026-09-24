@@ -12,23 +12,18 @@ import {
 
 const KEY = "1pannel-last-screen";
 const MAIN_KEY = "1pannel-main-screen";
-const TERMINAL_KEY = "1pannel-terminal-screen";
-
-function terminalScreenKey(): string {
-  if (typeof location === "undefined") return TERMINAL_KEY;
-  const windowId = new URLSearchParams(location.search).get("windowId");
-  return windowId ? `${TERMINAL_KEY}:${windowId}` : TERMINAL_KEY;
-}
 
 export type LastScreenKind = "terminal" | "info" | "sftp" | "monitor";
 
-export type ScreenWorkspace = "remote" | "notify" | "terminal";
+export type ScreenWorkspace = "remote" | "notify";
 
 /** 启动与离开时共用的画面。主机标签和终端会话已经拆开。 */
 export interface NormalizedScreen {
   workspace: ScreenWorkspace;
   settingsOpen: boolean;
   activeHostSessionId: string;
+  /** 当前打开的分组页；主机页由 activeHostSessionId 表示。 */
+  activeGroupId?: string;
   activeTerminalId: string;
   hostSessions: MigratedWorkspace[];
   desks: PersistedDesk[];
@@ -126,7 +121,7 @@ function workspaceOf(v: unknown): "remote" | "notify" {
 
 function moduleOf(v: unknown): ScreenWorkspace {
   if (v === "notify") return "notify";
-  if (v === "terminal") return "terminal";
+  // 旧持久化里的 terminal 回落到主机页
   return "remote";
 }
 
@@ -137,13 +132,13 @@ function fromLifted(
   settingsOpen: boolean
 ): NormalizedScreen {
   const lifted = liftTerminalDesks(sessions, activeSessionId);
-  let next: ScreenWorkspace = "remote";
-  if (workspace === "notify") next = "notify";
-  else if (lifted.openedOnTerminal) next = "terminal";
+  // 旧 terminal 工作区一律回落到主机页
+  const next: ScreenWorkspace = workspace === "notify" ? "notify" : "remote";
   return {
     workspace: next,
     settingsOpen,
     activeHostSessionId: lifted.activeHostSessionId,
+    activeGroupId: "",
     activeTerminalId: lifted.activeDeskId,
     hostSessions: lifted.hostSessions,
     desks: lifted.desks,
@@ -160,6 +155,7 @@ function readScreen(key: string): NormalizedScreen | null {
       settingsOpen?: unknown;
       activeSessionId?: unknown;
       activeHostSessionId?: unknown;
+      activeGroupId?: unknown;
       activeTerminalId?: unknown;
       sessions?: unknown;
       desks?: unknown;
@@ -195,6 +191,8 @@ function readScreen(key: string): NormalizedScreen | null {
         workspace: moduleOf(parsed.workspace),
         settingsOpen,
         activeHostSessionId,
+        activeGroupId:
+          typeof parsed.activeGroupId === "string" ? parsed.activeGroupId : "",
         activeTerminalId,
         hostSessions,
         desks,
@@ -239,29 +237,15 @@ export function readLastScreen(): NormalizedScreen | null {
   return readScreen(KEY);
 }
 
-/** 主窗口恢复主机与内嵌终端工作区；旧版本单屏记录作为兼容回退。 */
+/** 主窗口恢复主机工作区；旧版本单屏记录作为兼容回退。 */
 export function readMainScreen(): NormalizedScreen | null {
   const screen = readScreen(MAIN_KEY) || readScreen(KEY);
   if (!screen) return null;
+  // 旧 terminal 工作区回落到主机页
+  if ((screen.workspace as string) === "terminal") {
+    return { ...screen, workspace: "remote" };
+  }
   return screen;
-}
-
-/** 终端窗口只恢复终端状态；旧版本单屏记录作为一次性兼容回退。 */
-export function readTerminalScreen(): NormalizedScreen | null {
-  const scopedKey = terminalScreenKey();
-  const screen = readScreen(scopedKey) ||
-    (scopedKey === TERMINAL_KEY ? readScreen(KEY) : null) ||
-    (new URLSearchParams(location.search).get("windowId") === "terminal-1"
-      ? readScreen(TERMINAL_KEY)
-      : null);
-  if (!screen) return null;
-  return {
-    ...screen,
-    workspace: "terminal",
-    settingsOpen: false,
-    activeHostSessionId: "",
-    hostSessions: [],
-  };
 }
 
 function writeScreen(key: string, screen: NormalizedScreen) {
@@ -273,6 +257,7 @@ function writeScreen(key: string, screen: NormalizedScreen) {
         workspace: screen.workspace,
         settingsOpen: screen.settingsOpen,
         activeHostSessionId: screen.activeHostSessionId,
+        activeGroupId: screen.activeGroupId || "",
         activeTerminalId: screen.activeTerminalId,
         sessions: screen.hostSessions,
         desks: screen.desks,
@@ -289,14 +274,4 @@ export function writeLastScreen(screen: NormalizedScreen) {
 
 export function writeMainScreen(screen: NormalizedScreen) {
   writeScreen(MAIN_KEY, screen);
-}
-
-export function writeTerminalScreen(screen: NormalizedScreen) {
-  writeScreen(terminalScreenKey(), {
-    ...screen,
-    workspace: "terminal",
-    settingsOpen: false,
-    activeHostSessionId: "",
-    hostSessions: [],
-  });
 }

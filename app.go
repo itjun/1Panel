@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,7 +25,6 @@ import (
 	"diteng-pannel/internal/notifysubs"
 	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/sshd"
-	"diteng-pannel/internal/terminal"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -42,7 +40,7 @@ const macInvisibleTitleBarHeight = 0
 
 // App 是应用核心对象：持有全部共享依赖。
 // 对外暴露的前端方法不再直接挂在 App 上，而是按域拆分为多个 v3 Service
-// （Hosts / Groups / Overview / Monitor / Files / TerminalSvc / Certs / Icons / System / Backup），
+// （Hosts / Groups / Overview / Monitor / Files / Certs / Icons / System / Backup），
 // 每个 Service 都是 App 的 defined type（字段共享，方法隔离）。
 type App struct {
 	sshMgr       *sshd.Manager
@@ -57,9 +55,6 @@ type App struct {
 	notifySubs   *notifysubs.Store
 	certNotify   *certnotify.Store
 	menuCheck    *menucheck.Watcher
-	termMgr      *terminal.Manager
-	termStream   *termStreamServer
-
 	panelConfigMu   sync.Mutex
 	panelConfigStop chan struct{}
 	panelPreviews   map[string]panelConfigPreviewRecord
@@ -71,15 +66,6 @@ type App struct {
 	boardMu      sync.Mutex
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
 
-	terminalWindowMu      sync.Mutex
-	terminalWindows       map[string]*application.WebviewWindow // key=terminal-<n>
-	terminalWindowReady   map[string]bool
-	terminalWindowVisible map[string]bool
-	pendingTerminalEvents map[string][]TerminalWindowCommand
-	terminalWindowSeq     uint64
-
-	terminalTransferMu sync.Mutex
-	terminalTransfers  map[string]*terminalTransferState
 
 	themeAppearance macui.AppearanceMode // 固定 light；零值也按 light 处理
 
@@ -105,14 +91,8 @@ func NewApp() *application.App {
 	ns := notifications.New()
 	core := &App{
 		sshMgr:                sshMgr,
-		termMgr:               terminal.NewManager(sshMgr),
 		installer:             agentinstall.New(sshMgr),
 		boardWindows:          make(map[string]*application.WebviewWindow),
-		terminalWindows:       make(map[string]*application.WebviewWindow),
-		terminalWindowReady:   make(map[string]bool),
-		terminalWindowVisible: make(map[string]bool),
-		pendingTerminalEvents: make(map[string][]TerminalWindowCommand),
-		terminalTransfers:     make(map[string]*terminalTransferState),
 		panelPreviews:         make(map[string]panelConfigPreviewRecord),
 		notifier:              ns,
 	}
@@ -135,7 +115,6 @@ func NewApp() *application.App {
 			application.NewService((*LocalSys)(core)),
 			application.NewService((*Agent)(core)),
 			application.NewService((*Files)(core)),
-			application.NewService((*TerminalSvc)(core)),
 			application.NewService((*Certs)(core)),
 			application.NewService((*Icons)(core)),
 			application.NewService((*System)(core)),
@@ -292,19 +271,6 @@ func NewApp() *application.App {
 		core.certNotify = cnStore
 	}
 	core.collector = monitor.NewCollector(sshMgr)
-	core.termMgr.Init(context.Background(), app.Event.Emit)
-
-	// 终端数据通道升级：每个终端 sid 使用独立的本地 WebSocket（绕开 Wails 主线程
-	// 事件派发）；某个 sid 无订阅者时自动回退 Events，启动失败不影响原通道。
-	if ts := newTermStreamServer(); ts.start() == nil {
-		ts.writeInput = func(sid string, data []byte) error {
-			return core.termMgr.WriteInput(sid, data)
-		}
-		core.termStream = ts
-		core.termMgr.SetStreamPush(ts.pushTerminalEvent)
-	} else {
-		app.Logger.Warn("终端流服务启动失败，终端数据走 wails 事件通道")
-	}
 
 	// 系统通知点击 → 聚焦主窗 + 通知前端打开对应主机告警历史
 	ns.OnNotificationResponse(func(result notifications.NotificationResult) {
@@ -370,13 +336,7 @@ func (a *App) shutdown() {
 	if a.mainWindow != nil {
 		a.saveMainWindowGeom()
 	}
-	a.saveAllTerminalWindowGeom()
-	a.cancelAllTerminalTransfers()
-	if a.termStream != nil {
-		a.termStream.shutdown()
-	}
 	a.sshMgr.CloseAll()
-	a.termMgr.CloseAll()
 }
 
 func (a *App) scheduleSaveGeom() {
@@ -405,61 +365,6 @@ func (a *App) saveMainWindowGeom() {
 	saveMainWindowBounds(windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
 }
 
-func (a *App) scheduleSaveTerminalGeom() {
-	a.scheduleSaveTerminalGeomFor("")
-}
-
-func (a *App) scheduleSaveTerminalGeomFor(windowID string) {
-	a.terminalWindowMu.Lock()
-	wins := make(map[string]*application.WebviewWindow)
-	if windowID != "" {
-		if win := a.terminalWindows[windowID]; win != nil {
-			wins[windowID] = win
-		}
-	} else {
-		for id, win := range a.terminalWindows {
-			if win != nil {
-				wins[id] = win
-			}
-		}
-	}
-	a.terminalWindowMu.Unlock()
-	for id, win := range wins {
-		windowID, window := id, win
-		time.AfterFunc(200*time.Millisecond, func() {
-			if window == nil {
-				return
-			}
-			w, h := window.Size()
-			x, y := window.Position()
-			saveTerminalWindowBounds(windowID, windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
-		})
-	}
-}
-
-func (a *App) saveTerminalWindowGeom(windowID string) {
-	a.terminalWindowMu.Lock()
-	win := a.terminalWindows[windowID]
-	a.terminalWindowMu.Unlock()
-	if win == nil {
-		return
-	}
-	w, h := win.Size()
-	x, y := win.Position()
-	saveTerminalWindowBounds(windowID, windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
-}
-
-func (a *App) saveAllTerminalWindowGeom() {
-	a.terminalWindowMu.Lock()
-	ids := make([]string, 0, len(a.terminalWindows))
-	for id := range a.terminalWindows {
-		ids = append(ids, id)
-	}
-	a.terminalWindowMu.Unlock()
-	for _, id := range ids {
-		a.saveTerminalWindowGeom(id)
-	}
-}
 
 func (a *App) restoreMainWindowPosition() {
 	if !a.mainBoundsOK || a.mainWindow == nil {
@@ -590,41 +495,6 @@ func (a *App) installMinimalMenu(app *application.App) {
 	if goruntime.GOOS == "darwin" {
 		m.AddRole(application.AppMenu)
 	}
-	term := m.AddSubmenu("终端")
-	addTerm := func(label, accel, action string) {
-		item := term.Add(label)
-		if accel != "" {
-			item.SetAccelerator(accel)
-		}
-		item.OnClick(func(*application.Context) {
-			// 终端默认嵌在主窗口；只有前端右键菜单或拖拽动作才会调用
-			// OpenTerminalWindow。原生菜单快捷键只把动作交给主窗口终端模块。
-			a.app.Event.Emit("main-terminal-action", action)
-		})
-	}
-	addTerm("显示会话", "CmdOrCtrl+Shift+L", "sessions")
-	addTerm("新建终端", "CmdOrCtrl+T", "new")
-	addTerm("左右分屏", "CmdOrCtrl+D", "split-right")
-	addTerm("上下分屏", "CmdOrCtrl+Shift+D", "split-down")
-	addTerm("切换终端专注模式", "CmdOrCtrl+Shift+F", "focus-toggle")
-	addTerm("返回主机", "", "return-host")
-	term.AddSeparator()
-	back := term.AddSubmenu("返回主机工具")
-	addBack := func(label, action string) {
-		back.Add(label).OnClick(func(*application.Context) {
-			a.app.Event.Emit("main-terminal-action", action)
-		})
-	}
-	addBack("概览", "return-overview")
-	addBack("文件", "return-files")
-	addBack("监控", "return-monitor")
-	addBack("服务", "return-services")
-	term.AddSeparator()
-	addTerm("关闭窗格", "", "close-pane")
-	addTerm("移出分屏", "CmdOrCtrl+Shift+M", "detach")
-	addTerm("关闭会话", "CmdOrCtrl+Shift+W", "close-session")
-	addTerm("重连", "", "reconnect")
-	addTerm("断开当前主机", "", "disconnect-host")
 	m.AddRole(application.EditMenu)
 	app.Menu.SetApplicationMenu(m)
 }

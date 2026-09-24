@@ -227,32 +227,6 @@ export interface Package {
 }
 
 /**
- * ReportItem 一个设备 / 条目（可嵌套子项）。
- */
-export interface ReportItem {
-    "name": string;
-    "rows": ReportRow[] | null;
-    "children"?: ReportItem[] | null;
-}
-
-/**
- * ReportRow 键值行。
- */
-export interface ReportRow {
-    "label": string;
-    "value": string;
-}
-
-/**
- * ReportSection 报告分类（对应 system_profiler 一类 DataType）。
- */
-export interface ReportSection {
-    "id": string;
-    "title": string;
-    "items": ReportItem[] | null;
-}
-
-/**
  * Runtime 已安装的运行时版本。
  */
 export interface Runtime {
@@ -339,22 +313,4 @@ export interface StorageStatus {
     "containerTotal": number;
     "containerUsed": number;
     "containerAvail": number;
-}
-
-/**
- * SystemReport 本机系统详细报告（对齐「关于本机 / 系统信息」可读内容）。
- */
-export interface SystemReport {
-    "sections": ReportSection[] | null;
-
-    /**
-     * unix 秒
-     */
-    "collectedAt": number;
-
-    /**
-     * system_profiler
-     */
-    "source": string;
-    "error"?: string;
 }

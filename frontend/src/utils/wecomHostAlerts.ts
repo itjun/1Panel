@@ -9,7 +9,7 @@ import {
   sendWecomRecover,
   type NotifyTextParts,
 } from "@/utils/alertNotify";
-import { useSettingsStore } from "@/stores/settings";
+import { settingsAccess } from "@/utils/settingsAccess";
 
 /** 已发企微、尚未回落的告警键（host|kind） */
 const firedWecom = new Set<string>();
@@ -33,7 +33,7 @@ export function shouldToastHostAlert(
 ): boolean {
   if (!kind) return false;
   if (kind === "conn") return true;
-  return useSettingsStore().isResourceNotifySubscribed(host, kind);
+  return settingsAccess().isResourceNotifySubscribed(host, kind);
 }
 
 function kindLabel(kind: HostWecomKind): string {
@@ -92,7 +92,7 @@ export async function fireHostWecom(opts: {
   // 客户端与目标主机断开不告警（多监控端各自断线会刷屏）
   if (opts.kind === "conn") return;
 
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   if (!settings.isResourceNotifySubscribed(opts.host, opts.kind)) return;
   if (!settings.isContentKindEnabled(opts.kind)) return;
 
@@ -136,7 +136,7 @@ export async function clearHostWecom(opts: {
   const hadWecom = firedWecom.delete(opts.key);
   if (!hadLocal && !hadWecom) return;
 
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   // 恢复总闸关：清去重态后三通道都不发
   if (!settings.notifyRecoverEnabled) return;
   // 内容类型当下关闭也不发恢复

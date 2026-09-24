@@ -8,7 +8,6 @@ import * as Overview from "../../bindings/diteng-pannel/overview";
 import * as Monitor from "../../bindings/diteng-pannel/monitor";
 import * as Agent from "../../bindings/diteng-pannel/agent";
 import * as Files from "../../bindings/diteng-pannel/files";
-import * as TerminalSvc from "../../bindings/diteng-pannel/terminalsvc";
 import * as Certs from "../../bindings/diteng-pannel/certs";
 import * as Icons from "../../bindings/diteng-pannel/icons";
 import * as System from "../../bindings/diteng-pannel/system";
@@ -311,6 +310,12 @@ const apiImpl = {
   /** 远程文本 → UTF-8 + LF（写前自动备份） */
   normalizeFileToLinux: (host: string, file: string): Promise<filetext.Preview> =>
     must(Files.NormalizeFileToLinux(host, file)),
+  /** 本机文本预览（XFPT 左栏） */
+  readLocalFilePreview: (file: string): Promise<filetext.Preview> =>
+    must(Files.ReadLocalFilePreview(file)),
+  /** 本机文本 → UTF-8 + LF（写前自动备份） */
+  normalizeLocalFileToLinux: (file: string): Promise<filetext.Preview> =>
+    must(Files.NormalizeLocalFileToLinux(file)),
   uploadFile: (
     host: string,
     localPath: string,
@@ -406,9 +411,6 @@ const apiImpl = {
 
   /** 本机系统概览 */
   localSysOverview: (): Promise<localsys.Overview> => must(LocalSys.Overview()),
-  /** 本机系统详细报告（system_profiler） */
-  localSysSystemReport: (force = false): Promise<localsys.SystemReport> =>
-    must(LocalSys.SystemReport(force)),
   /** 本机网络信息 */
   localSysNetwork: (): Promise<localsys.NetworkSnapshot> => must(LocalSys.Network()),
   /** 本机已安装软件 */
@@ -449,28 +451,6 @@ const apiImpl = {
   /** 查询单个容器的 docker inspect 原始 JSON（悬浮详情卡片用） */
   dockerInspect: (host: string, container: string): Promise<string> =>
     str(Monitor.DockerInspect(host, container)),
-
-  openTerminal: (
-    host: string,
-    eventName: string,
-    cols: number,
-    rows: number
-  ): Promise<string> => str(TerminalSvc.OpenTerminal(host, eventName, cols, rows)),
-  /** 本地终端流服务地址（JSON：base+token），失败回退 wails 事件通道 */
-  termStreamEndpoint: (): Promise<string> => str(TerminalSvc.TermStreamEndpoint()),
-  writeTerminal: async (sessionID: string, data: string): Promise<void> => {
-    await TerminalSvc.WriteTerminal(sessionID, data);
-  },
-  resizeTerminal: async (sessionID: string, cols: number, rows: number): Promise<void> => {
-    await TerminalSvc.ResizeTerminal(sessionID, cols, rows);
-  },
-  closeTerminal: async (sessionID: string): Promise<void> => {
-    await TerminalSvc.CloseTerminal(sessionID);
-  },
-  /** 断开主机全部连接：关闭所有终端会话与连接池连接 */
-  disconnectHost: async (host: string): Promise<void> => {
-    await TerminalSvc.DisconnectHost(host);
-  },
 
   /** 初始化远程 zsh 环境 */
   bootstrapZsh: (host: string): Promise<string> => str(System.BootstrapZsh(host)),
@@ -546,33 +526,6 @@ const apiImpl = {
   },
   renameCertNotifyCursor: async (from: string, to: string): Promise<void> => {
     await CertNotify.RenameCursor(from, to);
-  },
-  listTerminalWindows: (): Promise<main.TerminalWindowInfo[]> =>
-    arr(System.ListTerminalWindows()),
-  focusTerminalWindow: async (windowId: string): Promise<void> => {
-    await System.FocusTerminalWindow(windowId);
-  },
-  hideTerminalWindow: async (windowId: string): Promise<void> => {
-    await System.HideTerminalWindow(windowId);
-  },
-  /** 用户明确选择后打开或聚焦固定复用的终端独立窗 */
-  openTerminalWindow: async (
-    command: main.TerminalWindowCommand = {}
-  ): Promise<void> => {
-    await System.OpenTerminalWindow(command);
-  },
-  /** 终端独立窗加载完成后领取后端暂存的动作 */
-  terminalWindowReady: (windowId: string): Promise<main.TerminalWindowCommand[]> =>
-    arr(System.TerminalWindowReady(windowId)),
-  beginTerminalTransfer: (payload: main.TerminalTransfer): Promise<string> =>
-    str(System.BeginTerminalTransfer(payload)),
-  takeTerminalTransfer: (id: string): Promise<main.TerminalTransfer> =>
-    must(System.TakeTerminalTransfer(id)),
-  completeTerminalTransfer: async (id: string): Promise<void> => {
-    await System.CompleteTerminalTransfer(id);
-  },
-  cancelTerminalTransfer: async (id: string): Promise<void> => {
-    await System.CancelTerminalTransfer(id);
   },
   setNotifySubs: async (d: notifysubs.Data): Promise<void> => {
     await NotifySubs.Set(d);

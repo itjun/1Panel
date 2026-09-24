@@ -1,0 +1,626 @@
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { api, type localapps } from "@/api";
+import {
+  LocalAppContextMenu,
+  type LocalAppMenuTarget,
+} from "@/react/components/local-app-context-menu";
+import { Button } from "@/react/components/ui/button";
+import { Card } from "@/react/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/react/components/ui/dialog";
+import { Notice, Page } from "@/react/components/page";
+import {
+  formatBytes,
+  formatDurationLong,
+  formatErr,
+} from "@/utils/format";
+import { LOCAL_LANG_OPTIONS, localLangLabel } from "@/utils/localLang";
+import "./local.css";
+
+type KillTarget = { pid: number; name?: string; cmd?: string };
+
+type TreeRow = {
+  id: string;
+  kind: "app" | "proc";
+  seq?: number;
+  name: string;
+  typeLabel: string;
+  pidLabel: string;
+  ports: number[];
+  cpu: number;
+  rss: number;
+  diskReadRate: number;
+  diskWriteRate: number;
+  netInRate: number;
+  netOutRate: number;
+  rateKnown: boolean;
+  elapsed: number | null;
+  cmd: string;
+  children?: TreeRow[];
+  appKey?: string;
+  runtime?: string;
+  proc?: localapps.ProcNode;
+  killTargets: KillTarget[];
+};
+
+function baseName(path: string | undefined) {
+  if (!path) return "";
+  const i = path.lastIndexOf("/");
+  return i >= 0 ? path.slice(i + 1) : path;
+}
+
+function isSelfProc(p: localapps.ProcNode) {
+  return p.extra?.self === "1";
+}
+
+function formatRate(bps: number) {
+  return `${formatBytes(bps || 0)}/s`;
+}
+
+function formatIoPair(row: TreeRow, kind: "disk" | "net") {
+  if (!row.rateKnown) return "—";
+  const a = kind === "disk" ? row.diskReadRate || 0 : row.netInRate || 0;
+  const b = kind === "disk" ? row.diskWriteRate || 0 : row.netOutRate || 0;
+  if (a <= 0 && b <= 0) return "—";
+  const left = a > 0 ? formatRate(a) : "—";
+  const right = b > 0 ? formatRate(b) : "—";
+  return `${left} / ${right}`;
+}
+
+function procToRow(p: localapps.ProcNode, runtime: string, appKey: string): TreeRow {
+  return {
+    id: `proc:${p.pid}`,
+    kind: "proc",
+    name: baseName(p.exe) || `pid-${p.pid}`,
+    typeLabel: "进程",
+    pidLabel: String(p.pid),
+    ports: p.ports || [],
+    cpu: p.cpu || 0,
+    rss: p.rss || 0,
+    diskReadRate: p.diskReadRate || 0,
+    diskWriteRate: p.diskWriteRate || 0,
+    netInRate: p.netInRate || 0,
+    netOutRate: p.netOutRate || 0,
+    rateKnown: !!p.rateKnown,
+    elapsed: p.elapsed != null ? Number(p.elapsed) : null,
+    cmd: p.cmd || (p.args || []).join(" ") || "",
+    appKey,
+    runtime,
+    proc: p,
+    killTargets:
+      p.pid && !isSelfProc(p)
+        ? [
+            {
+              pid: p.pid,
+              name: baseName(p.exe) || `pid-${p.pid}`,
+              cmd: p.cmd || "",
+            },
+          ]
+        : [],
+  };
+}
+
+function appToRow(a: localapps.AppNode): TreeRow {
+  const procs = a.procs || [];
+  const children = procs.map((p) => procToRow(p, a.runtime, a.key));
+  const killTargets: KillTarget[] = [];
+  for (const c of children) {
+    killTargets.push(...c.killTargets);
+  }
+  const portSet = new Set<number>();
+  for (const c of children) {
+    for (const port of c.ports) {
+      if (port > 0) portSet.add(port);
+    }
+  }
+  const procCount = a.procCount || procs.length;
+  return {
+    id: `app:${a.key}`,
+    kind: "app",
+    name: a.name || a.key,
+    typeLabel: localLangLabel(a.runtime),
+    pidLabel: `×${procCount}`,
+    ports: [...portSet].sort((x, y) => x - y),
+    cpu: a.cpu || 0,
+    rss: a.rss || 0,
+    diskReadRate: a.diskReadRate || 0,
+    diskWriteRate: a.diskWriteRate || 0,
+    netInRate: a.netInRate || 0,
+    netOutRate: a.netOutRate || 0,
+    rateKnown: !!a.rateKnown,
+    elapsed: null,
+    cmd: "",
+    children: children.length ? children : undefined,
+    appKey: a.key,
+    runtime: a.runtime,
+    killTargets,
+  };
+}
+
+function rowMatchesKeyword(row: TreeRow, q: string): boolean {
+  if (!q) return true;
+  if ((row.name || "").toLowerCase().includes(q)) return true;
+  if ((row.cmd || "").toLowerCase().includes(q)) return true;
+  if ((row.proc?.exe || "").toLowerCase().includes(q)) return true;
+  if ((row.proc?.cwd || "").toLowerCase().includes(q)) return true;
+  if (row.ports.some((p) => String(p).includes(q))) return true;
+  return false;
+}
+
+function filterTree(rows: TreeRow[], q: string): TreeRow[] {
+  if (!q) return rows;
+  const out: TreeRow[] = [];
+  for (const row of rows) {
+    const selfHit = rowMatchesKeyword(row, q);
+    const filteredChildren = row.children ? filterTree(row.children, q) : [];
+    if (selfHit) {
+      out.push(row);
+    } else if (filteredChildren.length) {
+      out.push({ ...row, children: filteredChildren });
+    }
+  }
+  return out;
+}
+
+export function LocalAppsPage() {
+  const [keyword, setKeyword] = useState("");
+  const [runtime, setRuntime] = useState("all");
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [selectedId, setSelectedId] = useState("");
+  const [detail, setDetail] = useState<localapps.ProcNode | null>(null);
+  const [menu, setMenu] = useState<LocalAppMenuTarget | null>(null);
+  const [killTargets, setKillTargets] = useState<KillTarget[]>([]);
+  const [forceKill, setForceKill] = useState(true);
+  const [killing, setKilling] = useState(false);
+  const [killError, setKillError] = useState("");
+
+  const query = useQuery({
+    queryKey: ["local-apps"],
+    queryFn: () => api.localAppsScan(),
+    refetchInterval: 5000,
+  });
+
+  const runtimeCounts = useMemo(() => {
+    const apps = query.data?.apps || [];
+    const counts: Record<string, number> = {};
+    for (const o of LOCAL_LANG_OPTIONS) counts[o.value] = 0;
+    for (const a of apps) {
+      const rt = a.runtime || "";
+      if (rt in counts) counts[rt] += 1;
+    }
+    return counts;
+  }, [query.data]);
+
+  const runtimes = useMemo(() => {
+    const found = new Set(
+      (query.data?.apps || []).map((app) => app.runtime).filter(Boolean),
+    );
+    const ordered: string[] = LOCAL_LANG_OPTIONS.map((item) => item.value).filter(
+      (id) => found.has(id),
+    );
+    for (const id of found) {
+      if (!ordered.includes(id)) ordered.push(id);
+    }
+    return ["all", ...ordered];
+  }, [query.data]);
+
+  const treeRows = useMemo(() => {
+    const apps = query.data?.apps || [];
+    let filtered = apps;
+    if (runtime !== "all") {
+      filtered = apps.filter((a) => (a.runtime || "") === runtime);
+    }
+    const built = filtered.map(appToRow);
+    const q = keyword.trim().toLowerCase();
+    const rows = filterTree(built, q);
+    rows.forEach((row, i) => {
+      if (row.kind === "app") row.seq = i + 1;
+    });
+    return rows;
+  }, [keyword, query.data, runtime]);
+
+  const selectedRow = useMemo(() => {
+    if (!selectedId) return null;
+    for (const row of treeRows) {
+      if (row.id === selectedId) return row;
+      for (const c of row.children || []) {
+        if (c.id === selectedId) return c;
+      }
+    }
+    return null;
+  }, [selectedId, treeRows]);
+
+  // 刷新后清理无效展开键
+  useEffect(() => {
+    const valid = new Set(
+      treeRows.filter((r) => (r.children || []).length > 0).map((r) => r.id),
+    );
+    setExpanded((prev) => {
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (valid.has(id)) next.add(id);
+      }
+      return next;
+    });
+  }, [treeRows]);
+
+  useEffect(() => {
+    setExpanded(new Set());
+  }, [runtime]);
+
+  async function loadDetail(pid: number) {
+    try {
+      const node = await api.localAppsDetail(pid);
+      setDetail(node);
+    } catch (error) {
+      setDetail({
+        pid,
+        ppid: 0,
+        user: "",
+        cpu: 0,
+        rss: 0,
+        threadCount: 0,
+        elapsed: 0,
+        exe: "",
+        cwd: "",
+        cmd: formatErr(error),
+        args: null,
+        ports: null,
+        diskRead: 0,
+        diskWrite: 0,
+        netIn: 0,
+        netOut: 0,
+        diskReadRate: 0,
+        diskWriteRate: 0,
+        netInRate: 0,
+        netOutRate: 0,
+        rateKnown: false,
+        extra: null,
+        threads: null,
+      });
+    }
+  }
+
+  function openKill(targets: KillTarget[]) {
+    setForceKill(true);
+    setKillError("");
+    setKillTargets(targets);
+  }
+
+  async function confirmKill() {
+    if (!killTargets.length) return;
+    setKilling(true);
+    setKillError("");
+    let ok = 0;
+    let lastErr: unknown = null;
+    try {
+      for (const t of killTargets) {
+        try {
+          await api.localAppsKill(t.pid, forceKill);
+          ok += 1;
+        } catch (error) {
+          lastErr = error;
+        }
+      }
+      if (ok === 0 && lastErr) {
+        setKillError(formatErr(lastErr));
+        return;
+      }
+      if (ok < killTargets.length && lastErr) {
+        setKillError(`已结束 ${ok}/${killTargets.length}；其余失败：${formatErr(lastErr)}`);
+      } else {
+        setKillTargets([]);
+      }
+      setDetail(null);
+      await query.refetch();
+    } finally {
+      setKilling(false);
+    }
+  }
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const canKillSelected = (selectedRow?.killTargets || []).length > 0;
+  const killButtonLabel =
+    selectedRow?.kind === "app" ? "结束应用" : "结束进程";
+
+  /** 展开后的扁平行，便于表格 key 稳定 */
+  const flatRows = useMemo(() => {
+    const out: { row: TreeRow; depth: number }[] = [];
+    for (const row of treeRows) {
+      out.push({ row, depth: 0 });
+      if (expanded.has(row.id)) {
+        for (const child of row.children || []) {
+          out.push({ row: child, depth: 1 });
+        }
+      }
+    }
+    return out;
+  }, [expanded, treeRows]);
+
+  function renderFlatRow(row: TreeRow, depth: number) {
+    const isApp = row.kind === "app";
+    const hasChildren = (row.children || []).length > 0;
+    const isOpen = expanded.has(row.id);
+    const selected = selectedId === row.id;
+    return (
+      <tr
+        key={row.id}
+        className={
+          selected
+            ? "h-11 cursor-pointer border-t border-line bg-accent/10"
+            : "h-11 cursor-pointer border-t border-line hover:bg-[#f7f8fa]"
+        }
+        onClick={() => setSelectedId(row.id)}
+        onDoubleClick={() => {
+          if (hasChildren) toggleExpand(row.id);
+          else if (row.proc) void loadDetail(row.proc.pid);
+        }}
+        onContextMenu={(event) => {
+          if (!row.proc) return;
+          event.preventDefault();
+          setMenu({
+            x: event.clientX,
+            y: event.clientY,
+            appName: treeRows.find((a) => a.appKey === row.appKey)?.name || row.name,
+            runtime: row.runtime || "",
+            proc: row.proc,
+          });
+        }}
+      >
+        <td className="px-2 text-center font-mono text-xs text-muted">
+          {isApp ? row.seq : ""}
+        </td>
+        <td className="px-2">
+          <div className="flex items-center gap-1">
+            {depth > 0 ? <span className="local-apps-tree-indent" /> : null}
+            {hasChildren ? (
+              <button
+                type="button"
+                className="h-5 w-5 shrink-0 rounded border border-line text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpand(row.id);
+                }}
+              >
+                {isOpen ? "−" : "+"}
+              </button>
+            ) : (
+              <span className="inline-block w-5" />
+            )}
+            <span className="truncate font-medium">{row.name}</span>
+          </div>
+        </td>
+        <td className="px-2 text-sm text-muted">{row.typeLabel}</td>
+        <td className="px-2 font-mono text-sm">{row.pidLabel}</td>
+        <td className="px-2 font-mono text-sm">
+          {row.ports.length ? row.ports.join("、") : "—"}
+        </td>
+        <td
+          className={
+            row.cpu > 80
+              ? "px-2 text-right font-mono text-sm text-[#a83232]"
+              : row.cpu > 30
+                ? "px-2 text-right font-mono text-sm text-[#b97814]"
+                : "px-2 text-right font-mono text-sm"
+          }
+        >
+          {Number(row.cpu || 0).toFixed(1)}
+        </td>
+        <td className="px-2 text-right font-mono text-sm">
+          {formatBytes(row.rss || 0)}
+        </td>
+        <td className="px-2 text-right font-mono text-xs text-muted">
+          {formatIoPair(row, "disk")}
+        </td>
+        <td className="px-2 text-right font-mono text-xs text-muted">
+          {formatIoPair(row, "net")}
+        </td>
+        <td className="px-2 text-sm">
+          {row.elapsed != null && row.elapsed > 0
+            ? formatDurationLong(row.elapsed)
+            : "—"}
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <Page
+      title="应用进程"
+      actions={
+        <>
+          {runtimes.map((item) => {
+            const count =
+              item === "all"
+                ? (query.data?.apps || []).length
+                : runtimeCounts[item] || 0;
+            return (
+              <Button
+                key={item}
+                variant={runtime === item ? "primary" : "secondary"}
+                onClick={() => setRuntime(item)}
+              >
+                {item === "all" ? "全部" : localLangLabel(item)}
+                {count > 0 ? (
+                  <span className="opacity-70">({count})</span>
+                ) : null}
+              </Button>
+            );
+          })}
+          <input
+            className="h-8 w-56 rounded-control border border-line px-3"
+            value={keyword}
+            placeholder="搜索名称 / 命令 / 路径 / 端口"
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+          <Button
+            disabled={!canKillSelected}
+            onClick={() => openKill(selectedRow?.killTargets || [])}
+          >
+            {killButtonLabel}
+          </Button>
+          <Button onClick={() => void query.refetch()}>刷新</Button>
+        </>
+      }
+    >
+      {(query.data?.warnings || []).length ? (
+        <Notice tone="warn" text={(query.data?.warnings || []).join("；")} />
+      ) : null}
+      {query.error ? <Notice text={formatErr(query.error)} /> : null}
+
+      <Card className="mt-3 overflow-hidden p-0">
+        <div className="max-h-[70vh] overflow-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr className="h-10 bg-[#f7f8fa]">
+                <th className="w-12 px-2 text-center">序</th>
+                <th className="min-w-[180px] px-2">名称</th>
+                <th className="w-24 px-2">类型</th>
+                <th className="w-28 px-2">进程数/PID</th>
+                <th className="w-28 px-2">端口</th>
+                <th className="w-20 px-2 text-right">CPU%</th>
+                <th className="w-24 px-2 text-right">内存</th>
+                <th className="w-40 px-2 text-right">磁盘读/写</th>
+                <th className="w-40 px-2 text-right">网络收/发</th>
+                <th className="w-32 px-2">运行时长</th>
+              </tr>
+            </thead>
+            <tbody>
+              {flatRows.length === 0 ? (
+                <tr className="h-12 border-t border-line">
+                  <td className="px-3 text-muted" colSpan={10}>
+                    {keyword.trim() || runtime !== "all"
+                      ? "无匹配应用"
+                      : "未发现本机开发语言相关应用"}
+                  </td>
+                </tr>
+              ) : (
+                flatRows.map(({ row, depth }) => renderFlatRow(row, depth))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {detail ? (
+          <div className="border-t border-line p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="font-medium">PID {detail.pid} 详情</div>
+              <Button size="sm" onClick={() => setDetail(null)}>
+                关闭
+              </Button>
+            </div>
+            <div className="grid gap-1 text-sm text-muted md:grid-cols-2">
+              <div>用户：{detail.user || "—"}</div>
+              <div>PPID：{detail.ppid || "—"}</div>
+              <div>线程：{detail.threadCount ?? "—"}</div>
+              <div>端口：{(detail.ports || []).join("、") || "—"}</div>
+              <div className="md:col-span-2 break-all">可执行：{detail.exe || "—"}</div>
+              <div className="md:col-span-2 break-all">工作目录：{detail.cwd || "—"}</div>
+              <div className="md:col-span-2 break-all">命令：{detail.cmd || "—"}</div>
+            </div>
+            {(detail.threads || []).length ? (
+              <div className="mt-3 max-h-40 overflow-auto border border-line">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="h-8 bg-[#f7f8fa]">
+                      <th className="px-2">TID</th>
+                      <th className="px-2">名称</th>
+                      <th className="px-2">CPU</th>
+                      <th className="px-2">状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(detail.threads || []).map((thread) => (
+                      <tr key={thread.tid} className="h-8 border-t border-line">
+                        <td className="px-2 font-mono">{thread.tid}</td>
+                        <td className="px-2">{thread.name || "—"}</td>
+                        <td className="px-2 font-mono">
+                          {Number(thread.cpu || 0).toFixed(1)}
+                        </td>
+                        <td className="px-2">{thread.state || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Card>
+
+      <LocalAppContextMenu
+        menu={menu}
+        onClose={() => setMenu(null)}
+        onDetail={(proc) => void loadDetail(proc.pid)}
+        onKill={(proc) => {
+          openKill([
+            {
+              pid: proc.pid,
+              name: baseName(proc.exe) || `pid-${proc.pid}`,
+              cmd: proc.cmd || "",
+            },
+          ]);
+        }}
+      />
+
+      <Dialog
+        open={killTargets.length > 0}
+        onOpenChange={(open) => !open && setKillTargets([])}
+      >
+        <DialogContent className="w-[min(420px,calc(100%-32px))]">
+          <DialogTitle>
+            {killTargets.length > 1 ? "结束应用" : "结束进程"}
+          </DialogTitle>
+          <DialogDescription>
+            {killTargets.length === 1
+              ? `确定结束 PID ${killTargets[0].pid}${
+                  killTargets[0].cmd
+                    ? `（${killTargets[0].cmd.slice(0, 80)}）`
+                    : ""
+                }？`
+              : `确定结束 ${killTargets.length} 个进程（${killTargets
+                  .slice(0, 3)
+                  .map((t) => String(t.pid))
+                  .join("、")}${killTargets.length > 3 ? "…" : ""}）？`}
+          </DialogDescription>
+          <label className="mt-3 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={forceKill}
+              onChange={(event) => setForceKill(event.target.checked)}
+            />
+            强制结束（SIGKILL）
+          </label>
+          {killError ? <Notice text={killError} /> : null}
+          <div className="mt-4 flex justify-end gap-2">
+            <Button onClick={() => setKillTargets([])}>取消</Button>
+            <Button
+              variant="primary"
+              disabled={killing}
+              onClick={() => void confirmKill()}
+            >
+              {killing
+                ? "结束中…"
+                : killTargets.length > 1
+                  ? "结束全部"
+                  : "结束"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Page>
+  );
+}

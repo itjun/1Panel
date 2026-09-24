@@ -17,8 +17,6 @@ type windowGeom struct {
 	Width     int                      `json:"width"`
 	Height    int                      `json:"height"`
 	Main      *windowBounds            `json:"main,omitempty"`
-	Terminal  *windowBounds            `json:"terminal,omitempty"`
-	Terminals map[string]*windowBounds `json:"terminals,omitempty"`
 }
 
 type windowBounds struct {
@@ -68,24 +66,6 @@ func loadMainWindowBounds() (windowBounds, bool) {
 	return legacy, true
 }
 
-func loadTerminalWindowBounds(windowID string) (windowBounds, bool) {
-	windowGeomMu.Lock()
-	defer windowGeomMu.Unlock()
-	g, ok := readWindowGeomLocked()
-	if !ok {
-		return windowBounds{}, false
-	}
-	if windowID != "" && g.Terminals != nil {
-		if bounds := g.Terminals[windowID]; bounds != nil && validWindowBounds(*bounds) {
-			return *bounds, true
-		}
-	}
-	// 旧版本只有一个 terminal 字段；第一次创建 terminal-1 时继续复用它。
-	if (windowID == "" || windowID == "terminal-1") && g.Terminal != nil && validWindowBounds(*g.Terminal) {
-		return *g.Terminal, true
-	}
-	return windowBounds{}, false
-}
 
 func saveMainWindowBounds(bounds windowBounds) {
 	if !validWindowBounds(bounds) {
@@ -100,27 +80,6 @@ func saveMainWindowBounds(bounds windowBounds) {
 	writeWindowGeomLocked(g)
 }
 
-func saveTerminalWindowBounds(windowID string, bounds windowBounds) {
-	if !validWindowBounds(bounds) {
-		return
-	}
-	windowGeomMu.Lock()
-	defer windowGeomMu.Unlock()
-	g, _ := readWindowGeomLocked()
-	if windowID == "" {
-		windowID = "terminal-1"
-	}
-	if g.Terminals == nil {
-		g.Terminals = make(map[string]*windowBounds)
-	}
-	b := bounds
-	g.Terminals[windowID] = &b
-	// 继续写入旧字段，兼容尚未迁移的版本和 terminal-1 的旧布局。
-	if windowID == "terminal-1" {
-		g.Terminal = &b
-	}
-	writeWindowGeomLocked(g)
-}
 
 func validWindowBounds(bounds windowBounds) bool {
 	return bounds.Width >= windowMinW && bounds.Height >= windowMinH

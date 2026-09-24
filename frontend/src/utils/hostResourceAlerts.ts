@@ -1,6 +1,6 @@
 import type { monitor } from "@/api";
 import { api } from "@/api";
-import { useSettingsStore } from "@/stores/settings";
+import { settingsAccess } from "@/utils/settingsAccess";
 import {
   ALERT,
   ALL_ALERT_KINDS,
@@ -105,7 +105,7 @@ function partsOf(
 }
 
 async function pollHost(host: string): Promise<void> {
-  const settings = useSettingsStore();
+  const settings = settingsAccess();
   const subscribed = new Set(settings.listResourceNotifySubs(host));
   if (!subscribed.size) {
     prevKinds.delete(host);
@@ -184,7 +184,7 @@ async function tick(): Promise<void> {
   lastTickAt = now;
   ticking = true;
   try {
-    const settings = useSettingsStore();
+    const settings = settingsAccess();
     // 只打已订阅主机；空名单绝不 listHosts / 扫全集
     const hosts = settings.hostsWithResourceNotifySubs();
     if (hosts.length === 0) {

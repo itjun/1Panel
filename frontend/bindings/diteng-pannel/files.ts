@@ -103,11 +103,25 @@ export function NormalizeFileToLinux(host: string, file: string): $CancellablePr
 }
 
 /**
+ * NormalizeLocalFileToLinux 将本机文本规范为 UTF-8（无 BOM）+ LF，写前备份。
+ */
+export function NormalizeLocalFileToLinux(file: string): $CancellablePromise<filetext$0.Preview> {
+    return $Call.ByID(125386226, file);
+}
+
+/**
  * ReadFilePreview（Files 服务）读取远程文本文件：返回编码/换行检测 + UTF-8 内容
  * 比 ReadFileText 更完整，供预览抽屉状态栏与「转 Linux 标准」使用
  */
 export function ReadFilePreview(host: string, file: string): $CancellablePromise<filetext$0.Preview> {
     return $Call.ByID(2484376929, host, file);
+}
+
+/**
+ * ReadLocalFilePreview 读取本机文本文件，供 XFPT 左栏双击预览。
+ */
+export function ReadLocalFilePreview(file: string): $CancellablePromise<filetext$0.Preview> {
+    return $Call.ByID(61953006, file);
 }
 
 /**

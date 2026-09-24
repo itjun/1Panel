@@ -69,12 +69,22 @@ export function loadBoard(
   }
   for (const d of defaults) {
     if (used.has(d.id)) continue;
-    out.push({
+    const item: BoardSlot = {
       id: d.id,
       span: clampSpan(d.span, columns, d.span),
       pad: padNum(d),
       label: d.label,
-    });
+    };
+    let insertAt = 0;
+    const defIndex = defaults.findIndex((slot) => slot.id === d.id);
+    for (let i = defIndex - 1; i >= 0; i--) {
+      const at = out.findIndex((slot) => slot.id === defaults[i].id);
+      if (at >= 0) {
+        insertAt = at + 1;
+        break;
+      }
+    }
+    out.splice(insertAt, 0, item);
   }
   return out;
 }
