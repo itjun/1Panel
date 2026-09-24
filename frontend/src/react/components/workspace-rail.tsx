@@ -340,7 +340,7 @@ export function WorkspaceRail() {
       )}
       aria-label="应用导航"
     >
-      <div className="h-10 shrink-0" />
+      <div className="drag-region h-10 shrink-0" />
 
       <div className="flex flex-col gap-1">
         {NAV.map((item) => (

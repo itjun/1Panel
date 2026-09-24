@@ -177,7 +177,7 @@ function HostWorkspace() {
     tool === "hosts";
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-14 shrink-0 items-center border-b border-line px-3">
+      <header className="drag-region flex h-14 shrink-0 items-center border-b border-line px-3">
         <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
           {HOST_TOOLS.map((item) => (
             <button
