@@ -112,7 +112,6 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
       actions={
         <>
           <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
-          <span className="text-xs text-muted">只读预览</span>
           <Button
             onClick={() => {
               void listing.refetch();

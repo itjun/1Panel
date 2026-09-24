@@ -724,9 +724,6 @@ export function AppsPage({ host }: { host: string }) {
         </>
       }
     >
-      <p className="mb-3 text-xs text-muted">
-        实例表点行看曲线；订阅列可改，与「通知 → 订阅」同一套设置。下架前请到「Nginx」标签核对切流。
-      </p>
       {instances.error ? <Notice text={formatErr(instances.error)} /> : null}
       {status.error ? <Notice text={formatErr(status.error)} /> : null}
       {msg ? <Notice text={msg} tone="warn" /> : null}
@@ -759,12 +756,6 @@ export function AppsPage({ host }: { host: string }) {
           <DialogTitle>
             {selectedService ? `${selectedService} · 对照（近 1 小时）` : "曲线"}
           </DialogTitle>
-          <DialogDescription>
-            {isBun
-              ? "Bun：RSS / CPU 与主机对照。红虚线是探活或进程事件。"
-              : "堆 / RSS / GC pause 与主机 CPU、内存同一时间轴。红虚线是探活或进程事件。"}
-            {detailBusy ? " 加载中…" : ""}
-          </DialogDescription>
           <div className="mt-3 space-y-3">
             {isBun ? (
               <>
@@ -809,9 +800,6 @@ export function AppsPage({ host }: { host: string }) {
       <Dialog open={cfgOpen} onOpenChange={(v) => !v && setCfgOpen(false)}>
         <DialogContent className="w-[min(720px,calc(100%-32px))]">
           <DialogTitle>下发 watch.yml</DialogTitle>
-          <DialogDescription>
-            服务清单与探活路径在此编辑。企微地址在「通知 → 设置」；应用订阅也可在本页实例表直接开关。
-          </DialogDescription>
           <textarea
             className="mt-3 h-64 w-full rounded-control border border-line bg-canvas p-3 font-mono text-xs"
             value={yamlText}

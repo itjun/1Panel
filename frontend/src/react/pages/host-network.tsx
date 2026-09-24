@@ -350,10 +350,7 @@ export function NetworkPage({ host }: { host: string }) {
 
           {slowList.length ? (
             <Card>
-              <h3 className="mb-1 font-medium text-[#a83232]">疑似网络卡顿连接</h3>
-              <p className="mb-3 text-xs text-muted">
-                Send-Q/Recv-Q 积压 ≥ 8KB 或 RTT ≥ 200ms（已建立连接）
-              </p>
+              <h3 className="mb-3 font-medium text-[#a83232]">疑似网络卡顿连接</h3>
               <SimpleRows
                 headers={[
                   { key: "idx", label: "序" },

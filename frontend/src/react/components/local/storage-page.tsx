@@ -221,9 +221,6 @@ export function LocalStoragePage() {
 
         {idleNoRecord ? (
           <Card>
-            <p className="mb-3 text-sm text-muted">
-              尚未扫描磁盘占用。全盘扫描可能需要一两分钟，请手动开始。
-            </p>
             <Button variant="primary" onClick={() => void startScan()}>
               开始扫描
             </Button>

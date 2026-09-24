@@ -246,11 +246,6 @@ export function PackagesPage({ host }: { host: string }) {
         </p>
       ) : null}
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      {!query.isFetching && !list.length && !query.error ? (
-        <p className="text-sm text-muted">
-          点击刷新加载软件包列表（体积较大，按需拉取）
-        </p>
-      ) : null}
       {list.length ? (
         <SimpleRows
           headers={[

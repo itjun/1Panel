@@ -210,11 +210,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
       ) : null}
 
       <Card>
-        <div className="text-[11px] tracking-wide text-muted">THREE-WAY REVIEW</div>
-        <h2 className="mt-1 text-lg font-medium">差异与冲突</h2>
-        <p className="mt-2 text-sm text-muted">
-          磁盘文件、Panel 快照和待生成结果分开显示；冲突不会被自动覆盖。外部修改请先导入差异预览，逐项解决后再提交。
-        </p>
+        <h2 className="text-lg font-medium">差异与冲突</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {overview.data?.drift || overview.data?.needsReview ? (
             <Button disabled={busy} onClick={() => void previewExternalImport()}>
@@ -346,9 +342,6 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                       : "border-[#efc2b2] bg-[#fff7f4] text-[#a54b2c]"
                   }`}
                 >
-                  <div className="text-[11px] tracking-wide opacity-80">
-                    {preview.source === "config" ? "CONFIG DRAFT" : "PANEL JSON DRAFT"}
-                  </div>
                   <div className="font-medium">
                     {preview.valid ? "可以提交" : "需要处理后才能提交"}
                   </div>

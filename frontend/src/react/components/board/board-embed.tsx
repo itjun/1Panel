@@ -108,7 +108,6 @@ export function BoardEmbed({
               —
             </span>
             <strong>当前分组暂无主机</strong>
-            <span>添加主机后，实时监控数据会显示在这里</span>
           </div>
         )}
       </main>

@@ -500,7 +500,6 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
         </>
       }
     >
-      <p className="mb-3 text-sm text-muted">设置里关掉的类型或通道，这里订了也不会发。</p>
       <Card className="overflow-hidden p-0">
         <div className="overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
@@ -643,20 +642,6 @@ function SetupPage() {
     setWebhookTested("");
   }, [settings.wecomWebhook]);
 
-  function webhookHintText(): string {
-    if (!settings.notifyEnabled) return "企业微信已关，地址不会发出。";
-    if (!draftNorm) {
-      return savedExpanded
-        ? "清空后保存即删除地址，不用先测试。"
-        : "先粘贴地址，测试通过后才能保存。";
-    }
-    if (webhookDirty && !testedOk) {
-      return "地址改过了，先测试，群里收到后再保存。";
-    }
-    if (webhookDirty && testedOk) return "测试已通过，可以保存。";
-    return "这是已保存的地址。";
-  }
-
   return (
     <Page title="通知设置">
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -698,7 +683,6 @@ function SetupPage() {
 
         <Card>
           <div className="mb-2 font-medium">企业微信地址</div>
-          <p className="mb-2 text-sm text-muted">{webhookHintText()}</p>
           <input
             className="h-8 w-full rounded-control border border-line px-3 disabled:opacity-50"
             value={webhookDraft}

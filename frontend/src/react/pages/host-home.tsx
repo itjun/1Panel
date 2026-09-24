@@ -668,10 +668,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onCreateGroup, onCreateHost, preferredGroupId, quickOpen]);
 
-  const homeHint = isMac
-    ? "单击选中 · Shift+单击范围 · 双击进概览 · 右键更多 · 拖动迁移/排序 · ⌘+单击多选 · ⌘K 快速切主机"
-    : "单击选中 · Shift+单击范围 · 双击进概览 · 右键更多 · 拖动迁移/排序 · Ctrl+单击多选 · Ctrl+K 快速切主机";
-
   return (
     <div
       className={`flex h-full min-h-0 flex-col bg-white ${dragging ? "select-none" : ""}`}
@@ -740,9 +736,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           <p className="mt-3 text-sm text-muted">无匹配主机</p>
         ) : null}
         {!keyword && sections.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">
-            暂无主机，右键空白处可添加主机或新建分组
-          </p>
+          <p className="mt-3 text-sm text-muted">暂无主机</p>
         ) : null}
 
         {sections.map((section) => {
@@ -824,11 +818,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               </div>
 
               {!collapsed && section.hosts.length === 0 && !keyword ? (
-                <p className="px-8 text-sm text-muted">
-                  {section.isPinned
-                    ? "把主机拖到这里即可置顶"
-                    : "这个分组还没有主机"}
-                </p>
+                <p className="px-8 text-sm text-muted">没有主机</p>
               ) : null}
 
               {!collapsed ? (
@@ -944,9 +934,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           );
         })}
 
-        {sections.length > 0 ? (
-          <p className="mt-4 text-xs text-muted">{homeHint}</p>
-        ) : null}
       </div>
 
       {/* 空白 / 新建快捷菜单 */}
@@ -1260,9 +1247,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       >
         <DialogContent>
           <DialogTitle>新建分组</DialogTitle>
-          <DialogDescription>
-            只允许英文字母、数字和短横线，例如 01-cdcp-main
-          </DialogDescription>
           <input
             className="mt-3 h-9 w-full rounded-control border border-line px-3"
             value={newGroupName}

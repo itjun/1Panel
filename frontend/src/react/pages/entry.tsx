@@ -544,12 +544,7 @@ function ConfigCenterPage() {
       {section === "overview" ? (
         <div className="flex flex-col gap-4">
           <Card>
-            <div className="text-xs tracking-wide text-muted">CONFIG CONTROL CENTER</div>
-            <h2 className="mt-1 text-lg font-medium">让 Panel JSON 和 SSH 产物各司其职</h2>
-            <p className="mt-2 text-sm text-muted">
-              主机页维护连接模型，配置中心负责校验、生成、回滚和对外工具兼容。
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="primary" onClick={() => session.setConfigSection("json")}>
                 编辑 Panel JSON
               </Button>

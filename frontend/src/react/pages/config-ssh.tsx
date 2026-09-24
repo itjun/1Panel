@@ -258,7 +258,6 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
         <aside className="flex min-h-0 flex-col overflow-hidden border-r border-line bg-surface">
           <div className="flex items-center justify-between border-b border-line px-3 py-2">
             <div>
-              <div className="text-[11px] tracking-wide text-muted">CONFIG TREE</div>
               <div className="text-sm font-medium">文件树</div>
             </div>
             <Button size="sm" disabled={filesQuery.isFetching} onClick={() => void refreshTree()}>
@@ -311,9 +310,6 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
         <div className="flex min-h-0 flex-col overflow-hidden bg-surface">
           <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line px-3 py-2">
             <div className="min-w-0">
-              <div className="text-[11px] tracking-wide text-muted">
-                {selectedFile?.source || "OPENSSH CONFIG"}
-              </div>
               <div className="truncate font-medium">{selectedFile?.path || "config"}</div>
               <code className="block truncate text-[11px] text-muted" title={selectedFile?.absolutePath}>
                 {compactPath(selectedFile?.absolutePath)}
@@ -417,9 +413,6 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                       : "border-[#efc2b2] bg-[#fff7f4] text-[#a54b2c]"
                   }`}
                 >
-                  <div className="text-[11px] tracking-wide opacity-80">
-                    {preview.source === "config" ? "CONFIG DRAFT" : "PANEL JSON DRAFT"}
-                  </div>
                   <div className="font-medium">
                     {preview.valid ? "可以提交" : "需要处理后才能提交"}
                   </div>

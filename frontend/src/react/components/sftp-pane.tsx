@@ -358,7 +358,7 @@ export function SftpPane(props: Props) {
             />
           </div>
         ) : (
-          <div className="flex min-h-7 min-w-0 flex-1 cursor-text items-center gap-0.5 overflow-auto rounded-md px-1.5 hover:bg-[#f4f5f7]" title="点击上级目录直接进入，点击空白处可输入路径" onMouseDown={startEdit}>
+          <div className="flex min-h-7 min-w-0 flex-1 cursor-text items-center gap-0.5 overflow-auto rounded-md px-1.5 hover:bg-[#f4f5f7]" onMouseDown={startEdit}>
             <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[13px] text-[#3a3a3c] hover:bg-[#e8eaed] hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
               <FolderIcon />
               根目录

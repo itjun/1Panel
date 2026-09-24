@@ -1318,7 +1318,6 @@ function MonitorPage({ host }: { host: string }) {
             value={customTo}
             onChange={(e) => setCustomTo(e.target.value)}
           />
-          <span className="text-xs text-muted">最多建议 7 天</span>
         </div>
       ) : null}
 

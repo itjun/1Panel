@@ -1172,10 +1172,6 @@ export function GroupPage() {
     >
       {!hosts.length ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-          <p className="m-0 text-lg font-semibold text-ink">拖主机进来</p>
-          <p className="m-0 mb-2 max-w-sm text-sm leading-relaxed text-muted">
-            从侧栏或其它分组把主机拖到本页，或点击下方添加
-          </p>
           <Button variant="primary" onClick={openAddHost}>
             添加主机
           </Button>
@@ -1324,9 +1320,6 @@ export function GroupPage() {
                   if (e.key === "Enter") void saveGroupSettings();
                 }}
               />
-              <span className="mt-1 block text-xs text-muted">
-                只允许英文字母、数字和短横线，例如 01-cdcp-main
-              </span>
             </label>
             <label className="block">
               <span className="mb-1.5 block text-sm text-muted">看板标题</span>

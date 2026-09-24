@@ -24,8 +24,6 @@ import { ConfigSshFilesPanel } from "@/react/pages/config-ssh";
 import { useSession } from "@/react/state/session";
 import { formatBytes, formatErr } from "@/utils/format";
 
-const PASSWORD_MASK = "••••••••";
-
 type ConflictChoice = "panel" | "external" | "manual";
 
 function statusLabel(status?: {
@@ -509,13 +507,7 @@ export function ConfigCenterPage() {
       {section === "overview" ? (
         <div className="flex flex-col gap-4">
           <Card>
-            <div className="text-xs tracking-wide text-muted">CONFIG CONTROL CENTER</div>
-            <h2 className="mt-1 text-lg font-medium">让 Panel JSON 和 SSH 产物各司其职</h2>
-            <p className="mt-2 text-sm text-muted">
-              主机页维护连接模型，配置中心负责校验、生成、回滚和对外工具兼容。
-              密码留在 Panel JSON，永远不会写进 OpenSSH 配置。
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="primary" onClick={() => session.setConfigSection("json")}>
                 编辑 Panel JSON
               </Button>
@@ -534,7 +526,6 @@ export function ConfigCenterPage() {
             <Card>
               <div className="text-sm text-muted">分组</div>
               <div className="text-2xl">{overview.data?.groupCount ?? 0}</div>
-              <div className="text-xs text-muted">结构化编辑仍在主机页</div>
             </Card>
             <Card>
               <div className="text-sm text-muted">SSH 文件</div>
@@ -562,7 +553,6 @@ export function ConfigCenterPage() {
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <div className="text-[11px] tracking-wide text-muted">SOURCE & ARTIFACT</div>
                   <div className="font-medium">配置位置</div>
                 </div>
                 <Button
@@ -604,7 +594,6 @@ export function ConfigCenterPage() {
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <div className="text-[11px] tracking-wide text-muted">WHAT NEEDS ATTENTION</div>
                   <div className="font-medium">影响摘要</div>
                 </div>
                 <Button size="sm" onClick={() => session.setConfigSection("diff")}>
@@ -635,7 +624,6 @@ export function ConfigCenterPage() {
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] tracking-wide text-muted">RECOVERY</div>
                 <div className="font-medium">最近备份</div>
                 {overview.data?.lastBackup ? (
                   <p className="mt-1 text-sm text-muted">
@@ -644,9 +632,7 @@ export function ConfigCenterPage() {
                     {overview.data.lastBackup.fileCount} 个配置文件
                   </p>
                 ) : (
-                  <p className="mt-1 text-sm text-muted">
-                    尚未生成自动备份。每次提交、导入、生成和恢复前都会创建快照。
-                  </p>
+                  <p className="mt-1 text-sm text-muted">尚未生成自动备份</p>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -664,13 +650,7 @@ export function ConfigCenterPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] tracking-wide text-muted">
-                PANEL JSON · MASKED BY DEFAULT
-              </div>
               <h2 className="text-lg font-medium">Panel 状态草稿</h2>
-              <p className="mt-1 text-sm text-muted">
-                可以编辑主机、分组和额外 SSH 选项。Revision、布局和 stale 状态由后端托管。
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy} onClick={() => void togglePasswords()}>
@@ -722,9 +702,6 @@ export function ConfigCenterPage() {
             <span>
               {jsonDirty ? "草稿未保存" : "当前草稿与已加载的 Panel 状态一致"}
             </span>
-            <span>
-              密码占位符 {PASSWORD_MASK} 不会覆盖原密码；清空字段才会清除密码。
-            </span>
           </div>
         </div>
       ) : null}
@@ -757,11 +734,7 @@ export function ConfigCenterPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] tracking-wide text-muted">RECOVERY TIMELINE</div>
               <h2 className="text-lg font-medium">备份与恢复</h2>
-              <p className="mt-1 text-sm text-muted">
-                自动快照最多保留 50 份；普通导出脱敏，加密导出才包含密码。
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy} onClick={() => void beginEncryptedExport()}>
@@ -875,9 +848,6 @@ export function ConfigCenterPage() {
                       : "border-[#efc2b2] bg-[#fff7f4] text-[#a54b2c]"
                   }`}
                 >
-                  <div className="text-[11px] tracking-wide opacity-80">
-                    {preview.source === "config" ? "CONFIG DRAFT" : "PANEL JSON DRAFT"}
-                  </div>
                   <div className="font-medium">
                     {preview.valid ? "可以提交" : "需要处理后才能提交"}
                   </div>
