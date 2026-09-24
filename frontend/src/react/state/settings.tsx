@@ -95,6 +95,10 @@ function loadSettings(): AppSettings {
 
 function applyTypography(settings: AppSettings) {
   const root = document.documentElement;
+  root.classList.remove("dark");
+  root.classList.add("light");
+  root.style.colorScheme = "light";
+  root.style.background = "#f0f1f3";
   root.style.setProperty("--app-font-family", settings.fontFamily);
   root.style.setProperty("--app-font-size", `${settings.fontSize}px`);
   document.body.style.fontFamily = settings.fontFamily;
@@ -105,6 +109,7 @@ function emit() {
   applyTypography(current);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   listeners.forEach((listener) => listener());
+  void api.setThemeAppearance("light").catch(() => {});
   void api
     .setNotifySubs({
       fromDisk: true,
@@ -148,3 +153,4 @@ export function useSettings() {
 }
 
 applyTypography(current);
+void api.setThemeAppearance("light").catch(() => {});

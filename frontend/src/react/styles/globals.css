@@ -1,16 +1,28 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: #f3f4f6;
+  --color-canvas: #f0f1f3;
   --color-surface: #ffffff;
+  --color-raised: #f6f7f9;
   --color-ink: #20252b;
   --color-muted: #687382;
-  --color-line: #dfe3e8;
+  /* 发丝线：只做轻微分隔，不抢视觉 */
+  --color-line: #e8eaed;
   --color-accent: #005eeb;
   --color-graphite: #191c21;
   --color-graphite-text: #e5e7eb;
+  --color-success: #15803d;
+  --color-danger: #d64545;
+  --color-warn: #b97814;
+  --color-info: #5b8def;
+  /* 行业约定：读/下行/接收 = 绿；写/上行/发送 = 橙；单线指标 = 蓝 */
+  --color-chart-1: #005eeb;
+  --color-io-read: #15803d;
+  --color-io-write: #ea580c;
+  --color-chart-2: #15803d;
+  --color-chart-3: #ea580c;
   --radius-control: 4px;
-  --radius-surface: 8px;
+  --radius-surface: 6px;
   --font-sans: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", Arial, sans-serif;
   --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco,
@@ -24,8 +36,14 @@
     overflow: hidden;
     background: var(--color-canvas);
     color: var(--color-ink);
+    color-scheme: light;
     font-family: var(--app-font-family, var(--font-sans));
     font-size: var(--app-font-size, 14px);
+  }
+
+  .react-root ::selection {
+    background: color-mix(in srgb, #005eeb 28%, #ffffff);
+    color: #20252b;
   }
 
   .react-root * {

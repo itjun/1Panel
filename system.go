@@ -81,8 +81,7 @@ func (s *System) SetAskBeforeQuit(ask bool) {
 	}
 }
 
-// SetThemeAppearance 同步窗口原生外观。应用已固定亮色主题：
-// 无论传入什么值（历史前端仍可能传 dark/auto），一律按 light 处理。
+// SetThemeAppearance 同步窗口原生外观。应用固定浅色主题：忽略传入值，一律 light。
 func (s *System) SetThemeAppearance(_mode string) {
 	s.themeAppearance = macui.AppearanceLight
 

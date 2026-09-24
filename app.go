@@ -67,7 +67,7 @@ type App struct {
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
 
 
-	themeAppearance macui.AppearanceMode // 固定 light；零值也按 light 处理
+	themeAppearance macui.AppearanceMode // 固定 light
 
 	showMu       sync.Mutex
 	sized        bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
@@ -183,7 +183,7 @@ func NewApp() *application.App {
 	core.interceptMainWindowClose(win)
 	core.installBackgroundTray(app)
 
-	// 主题固定亮色：窗口外观强制 light
+	// 主题固定浅色
 	core.themeAppearance = macui.AppearanceLight
 	macui.SetWindowAppearance(win, core.themeAppearance)
 
