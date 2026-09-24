@@ -66,9 +66,17 @@ function formatIoPair(row: TreeRow, kind: "disk" | "net") {
   const a = kind === "disk" ? row.diskReadRate || 0 : row.netInRate || 0;
   const b = kind === "disk" ? row.diskWriteRate || 0 : row.netOutRate || 0;
   if (a <= 0 && b <= 0) return "—";
-  const left = a > 0 ? formatRate(a) : "—";
-  const right = b > 0 ? formatRate(b) : "—";
-  return `${left} / ${right}`;
+  return (
+    <span className="tabular-nums">
+      <span className={a > 0 ? "text-io-read" : undefined}>
+        {a > 0 ? formatRate(a) : "—"}
+      </span>
+      {" / "}
+      <span className={b > 0 ? "text-io-write" : undefined}>
+        {b > 0 ? formatRate(b) : "—"}
+      </span>
+    </span>
+  );
 }
 
 function procToRow(p: localapps.ProcNode, runtime: string, appKey: string): TreeRow {
@@ -359,8 +367,8 @@ export function LocalAppsPage() {
         key={row.id}
         className={
           selected
-            ? "h-11 cursor-pointer border-t border-line bg-accent/10"
-            : "h-11 cursor-pointer border-t border-line hover:bg-[#f7f8fa]"
+            ? "h-12 cursor-pointer border-t border-line bg-accent/10 font-semibold text-accent"
+            : "h-12 cursor-pointer border-t border-line hover:bg-raised"
         }
         onClick={() => setSelectedId(row.id)}
         onDoubleClick={() => {
@@ -410,9 +418,9 @@ export function LocalAppsPage() {
         <td
           className={
             row.cpu > 80
-              ? "px-2 text-right font-mono text-sm text-[#a83232]"
+              ? "px-2 text-right font-mono text-sm text-danger"
               : row.cpu > 30
-                ? "px-2 text-right font-mono text-sm text-[#b97814]"
+                ? "px-2 text-right font-mono text-sm text-warn"
                 : "px-2 text-right font-mono text-sm"
           }
         >
@@ -421,10 +429,10 @@ export function LocalAppsPage() {
         <td className="px-2 text-right font-mono text-sm">
           {formatBytes(row.rss || 0)}
         </td>
-        <td className="px-2 text-right font-mono text-xs text-muted">
+        <td className="px-2 text-right font-mono text-xs">
           {formatIoPair(row, "disk")}
         </td>
-        <td className="px-2 text-right font-mono text-xs text-muted">
+        <td className="px-2 text-right font-mono text-xs">
           {formatIoPair(row, "net")}
         </td>
         <td className="px-2 text-sm">
@@ -484,7 +492,7 @@ export function LocalAppsPage() {
         <div className="min-h-48 flex-1 overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="h-10 bg-[#f7f8fa]">
+              <tr className="h-10 bg-raised">
                 <th className="w-12 px-2 text-center">序</th>
                 <th className="min-w-[180px] px-2">名称</th>
                 <th className="w-24 px-2">类型</th>
@@ -534,7 +542,7 @@ export function LocalAppsPage() {
               <div className="mt-3 max-h-40 overflow-auto border border-line">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="h-8 bg-[#f7f8fa]">
+                    <tr className="h-8 bg-raised">
                       <th className="px-2">TID</th>
                       <th className="px-2">名称</th>
                       <th className="px-2">CPU</th>

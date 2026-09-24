@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { readThemeColor } from "@/react/lib/utils";
 import "./local.css";
 
 /** SVG 环形占比图，悬停显示明细 */
@@ -25,7 +26,13 @@ export function RingMeter({
   const r = 42;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - pct / 100);
-  const stroke = danger ? "#d64545" : "#005eeb";
+  const stroke = danger
+    ? readThemeColor("--color-danger", "#d64545")
+    : readThemeColor("--color-accent", "#005eeb");
+  const track = readThemeColor("--color-line", "#dfe3e8");
+  const centerFill = danger
+    ? readThemeColor("--color-danger", "#d64545")
+    : readThemeColor("--color-ink", "#20252b");
   const centerText = center ?? `${pct.toFixed(0)}%`;
 
   return (
@@ -37,7 +44,7 @@ export function RingMeter({
             cy="60"
             r={r}
             fill="none"
-            stroke="#e8ecf1"
+            stroke={track}
             strokeWidth="10"
           />
           <circle
@@ -67,7 +74,7 @@ export function RingMeter({
             y={showTitle ? 76 : 66}
             textAnchor="middle"
             className="local-ring__pct"
-            fill={danger ? "#d64545" : "#1a1d21"}
+            fill={centerFill}
           >
             {centerText}
           </text>

@@ -1,5 +1,6 @@
 import * as echarts from "echarts";
 import { useEffect, useRef } from "react";
+import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { formatBytes } from "@/utils/format";
 
 export function MetricChart({
@@ -43,6 +44,13 @@ function formatScaledBytes(v: number, divisor: number) {
   return (v / divisor).toFixed(divisor >= 1024 ** 2 ? 1 : 0);
 }
 
+function chartChrome() {
+  const muted = readThemeColor("--color-muted", "#687382");
+  const line = readThemeColor("--color-line", "#dfe3e8");
+  const ink = readThemeColor("--color-ink", "#20252b");
+  return { muted, line, ink };
+}
+
 /** 本机概览折线：CPU % / 内存 bytes / 磁盘 IO KB/s */
 export function buildLocalLineOption(opts: {
   xData: string[];
@@ -55,6 +63,7 @@ export function buildLocalLineOption(opts: {
   const allY = opts.series.flatMap((s) => s.data);
   const bytesScale =
     opts.unit === "bytes" ? pickByteScale(Math.max(0, ...allY, 1)) : null;
+  const chrome = chartChrome();
 
   const yAxes: echarts.YAXisComponentOption[] = [
     {
@@ -62,7 +71,7 @@ export function buildLocalLineOption(opts: {
       max: opts.yMax,
       axisLabel: {
         fontSize: 10,
-        color: "#687382",
+        color: chrome.muted,
         formatter:
           opts.unit === "bytes" && bytesScale
             ? (v: number) => formatScaledBytes(v, bytesScale.divisor)
@@ -78,8 +87,8 @@ export function buildLocalLineOption(opts: {
             : opts.unit === "percent"
               ? "%"
               : undefined,
-      nameTextStyle: { fontSize: 10, color: "#687382" },
-      splitLine: { lineStyle: { color: "#eef1f4" } },
+      nameTextStyle: { fontSize: 10, color: chrome.muted },
+      splitLine: { lineStyle: { color: chrome.line } },
     },
   ];
 
@@ -90,17 +99,17 @@ export function buildLocalLineOption(opts: {
       type: "value",
       axisLabel: {
         fontSize: 10,
-        color: "#687382",
+        color: chrome.muted,
         formatter: (v: number) => formatScaledBytes(v, rightScale.divisor),
       },
       name: rightScale.unit,
-      nameTextStyle: { fontSize: 10, color: "#687382" },
+      nameTextStyle: { fontSize: 10, color: chrome.muted },
       splitLine: { show: false },
     });
   }
 
   return {
-    color: ["#005EEB", "#14b8a6", "#f59e0b"],
+    color: seriesColorList(opts.series.map((s) => s.name)),
     grid: { left: 52, right: dual ? 52 : 16, top: 28, bottom: 28 },
     tooltip: {
       trigger: "axis",
@@ -112,12 +121,16 @@ export function buildLocalLineOption(opts: {
         return String(v);
       },
     },
-    legend: { top: 0, right: 0, textStyle: { fontSize: 11 } },
+    legend: {
+      top: 0,
+      right: 0,
+      textStyle: { fontSize: 11, color: chrome.ink },
+    },
     xAxis: {
       type: "category",
       data: opts.xData,
-      axisLabel: { fontSize: 10, color: "#687382" },
-      axisLine: { lineStyle: { color: "#dfe3e8" } },
+      axisLabel: { fontSize: 10, color: chrome.muted },
+      axisLine: { lineStyle: { color: chrome.line } },
     },
     yAxis: yAxes,
     series: opts.series.map((s, idx) => ({
@@ -127,16 +140,20 @@ export function buildLocalLineOption(opts: {
       smooth: true,
       data: s.data,
       yAxisIndex: s.yAxisIndex || 0,
-      lineStyle: { width: 1.5 },
-      areaStyle: { opacity: 0.06 },
+      lineStyle: { width: 1.75 },
+      areaStyle: idx === 0 ? { opacity: 0.08 } : undefined,
       markLine:
         idx === 0 && opts.markLine
           ? {
               silent: true,
               symbol: "none",
-              lineStyle: { type: "dashed", color: "#94a3b8" },
+              lineStyle: { type: "dashed", color: chrome.muted },
               data: [{ yAxis: opts.markLine.value, name: opts.markLine.name }],
-              label: { formatter: opts.markLine.name, fontSize: 10 },
+              label: {
+                formatter: opts.markLine.name,
+                fontSize: 10,
+                color: chrome.muted,
+              },
             }
           : undefined,
     })),

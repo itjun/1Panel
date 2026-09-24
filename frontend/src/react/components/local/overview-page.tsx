@@ -11,8 +11,9 @@ import {
   formatMemCapacity,
 } from "@/utils/format";
 import {
-  EXTERNAL_DISK_BAR_COLOR,
-  INTERNAL_DISK_BAR_COLOR,
+  dangerDiskBarColor,
+  externalDiskBarColor,
+  internalDiskBarColor,
   buildDiskGroups,
   buildDiskSummaryItems,
   diskExternalRowLabel,
@@ -315,7 +316,9 @@ export function LocalOverviewPage() {
                             style={{
                               width: `${Math.min(100, Math.max(0, item.percent))}%`,
                               background:
-                                item.percent > 90 ? "#d64545" : INTERNAL_DISK_BAR_COLOR,
+                                item.percent > 90
+                                  ? dangerDiskBarColor()
+                                  : internalDiskBarColor(),
                             }}
                           />
                         </div>
@@ -404,7 +407,9 @@ export function LocalOverviewPage() {
                                   style={{
                                     width: `${pct}%`,
                                     background:
-                                      pct > 90 ? "#d64545" : INTERNAL_DISK_BAR_COLOR,
+                                      pct > 90
+                                        ? dangerDiskBarColor()
+                                        : internalDiskBarColor(),
                                   }}
                                 />
                               </div>
@@ -437,7 +442,9 @@ export function LocalOverviewPage() {
                                 style={{
                                   width: `${pct}%`,
                                   background:
-                                    pct > 90 ? "#d64545" : EXTERNAL_DISK_BAR_COLOR,
+                                    pct > 90
+                                      ? dangerDiskBarColor()
+                                      : externalDiskBarColor(),
                                 }}
                               />
                             </div>
@@ -492,10 +499,10 @@ export function LocalOverviewPage() {
           <Card>
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="font-medium">磁盘 IO</span>
-              <span className="rounded border border-line px-1.5 py-0.5 text-xs">
+              <span className="rounded border border-io-read/30 bg-io-read/10 px-1.5 py-0.5 text-xs text-io-read">
                 读 {formatBytes(ioRates.readBps)}/s
               </span>
-              <span className="rounded border border-line px-1.5 py-0.5 text-xs">
+              <span className="rounded border border-io-write/30 bg-io-write/10 px-1.5 py-0.5 text-xs text-io-write">
                 写 {formatBytes(ioRates.writeBps)}/s
               </span>
             </div>

@@ -182,7 +182,7 @@ export function LocalNetworkPage() {
               </div>
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="h-10 bg-[#f7f8fa]">
+                  <tr className="h-10 bg-raised">
                     <th className="w-12 px-3 text-center">序</th>
                     <th className="px-3">名称</th>
                     <th className="px-3">状态</th>
@@ -222,9 +222,14 @@ export function LocalNetworkPage() {
                       </td>
                       <td className="px-3 font-mono">{ifc.ipv4 || "—"}</td>
                       <td className="px-3 font-mono">{ifc.mac || "—"}</td>
-                      <td className="px-3 font-mono">
-                        {formatBytes(ifc.rxBytes || 0)} /{" "}
-                        {formatBytes(ifc.txBytes || 0)}
+                      <td className="px-3 font-mono tabular-nums">
+                        <span className="text-io-read">
+                          {formatBytes(ifc.rxBytes || 0)}
+                        </span>
+                        {" / "}
+                        <span className="text-io-write">
+                          {formatBytes(ifc.txBytes || 0)}
+                        </span>
                       </td>
                     </tr>
                   ))}

@@ -31,6 +31,34 @@ function uniqIps(list: string[] | undefined | null): string[] {
   return out;
 }
 
+function ConnState({ state }: { state: string }) {
+  const s = (state || "").toUpperCase();
+  let tone = "bg-raised text-muted";
+  if (s === "ESTABLISHED" || s === "ESTAB") {
+    tone = "bg-io-read/15 text-io-read";
+  } else if (s === "LISTEN" || s === "LISTENING") {
+    tone = "bg-accent/10 text-accent";
+  } else if (s.includes("WAIT") || s === "CLOSE" || s === "CLOSED") {
+    tone = "bg-warn/15 text-warn";
+  }
+  return (
+    <span
+      className={`inline-block rounded-control px-1.5 py-0.5 font-mono text-xs font-medium ${tone}`}
+    >
+      {state || "—"}
+    </span>
+  );
+}
+
+function IfaceState({ state }: { state: string }) {
+  const up = (state || "").toUpperCase() === "UP";
+  return (
+    <span className={up ? "font-medium text-io-read" : "text-muted"}>
+      {state || "—"}
+    </span>
+  );
+}
+
 function kindLabel(k: string) {
   if (k === "physical") return "物理";
   if (k === "docker") return "Docker";
@@ -54,7 +82,7 @@ function SimpleRows({
   return (
     <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-[#f7f8fa]">
+        <thead className="sticky top-0 z-[1] bg-raised">
           <tr className="h-10">
             {headers.map((header) => (
               <th key={header.key} className="px-3 font-medium">
@@ -74,7 +102,7 @@ function SimpleRows({
             rows.map((row) => (
               <tr
                 key={row.id}
-                className={row.className || "h-12 border-t border-line hover:bg-ink/5"}
+                className={row.className || "h-12 border-t border-line/70 hover:bg-raised"}
               >
                 {row.cells.map((cell, index) => (
                   <td key={index} className="max-w-[360px] truncate px-3 align-top">
@@ -105,7 +133,7 @@ function IpCopyButton({
     <button
       type="button"
       title={`点击复制 ${ip}`}
-      className="mt-1 flex w-full items-center gap-2 rounded-control border border-line bg-surface px-3 py-2 text-left hover:bg-ink/5"
+      className="mt-1 flex w-full items-center gap-2 rounded-control bg-raised px-3 py-2 text-left hover:bg-line"
       onClick={() => {
         void copyText(ip)
           .then(() => onCopied(`已复制 ${ip}`))
@@ -164,7 +192,7 @@ function IpCard({
       {hasMore ? (
         <button
           type="button"
-          className="mt-2 w-full rounded-control px-2 py-1.5 text-center text-sm text-accent hover:bg-ink/5"
+          className="mt-2 w-full rounded-control px-2 py-1.5 text-center text-sm text-accent hover:bg-raised"
           onClick={onToggle}
         >
           {expanded ? "收起" : `展开剩余 ${ips.length - IP_COLLAPSE_LIMIT} 个`}
@@ -251,7 +279,7 @@ export function NetworkPage({ host }: { host: string }) {
             {snap?.connListen ?? 0} · TIME_WAIT {snap?.connTimeWait ?? 0}
           </span>
           {slowList.length ? (
-            <span className="rounded-control bg-[#d64545] px-2 py-0.5 text-xs text-white">
+            <span className="rounded-control bg-danger px-2 py-0.5 text-xs text-white">
               卡顿连接 {slowList.length}
             </span>
           ) : null}
@@ -268,7 +296,7 @@ export function NetworkPage({ host }: { host: string }) {
 
       {snap ? (
         <div className="flex flex-col gap-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <IpCard
               title="内网 IP"
               emptyText="未获取到"
@@ -333,7 +361,7 @@ export function NetworkPage({ host }: { host: string }) {
                   index + 1,
                   n.name || "—",
                   kindLabel(n.kind),
-                  n.state || "—",
+                  <IfaceState key="state" state={n.state || ""} />,
                   n.mtu || "—",
                   n.mac || "—",
                   <div key="ips" className="flex flex-col gap-0.5 whitespace-normal">
@@ -341,8 +369,12 @@ export function NetworkPage({ host }: { host: string }) {
                       ? ifaceIpv4List(n.ipv4).map((ip) => <span key={ip}>{ip}</span>)
                       : "—"}
                   </div>,
-                  formatBytes(n.rxBytes || 0),
-                  formatBytes(n.txBytes || 0),
+                  <span className="font-mono tabular-nums text-io-read">
+                    {formatBytes(n.rxBytes || 0)}
+                  </span>,
+                  <span className="font-mono tabular-nums text-io-write">
+                    {formatBytes(n.txBytes || 0)}
+                  </span>,
                 ],
               }))}
             />
@@ -350,7 +382,7 @@ export function NetworkPage({ host }: { host: string }) {
 
           {slowList.length ? (
             <Card>
-              <h3 className="mb-3 font-medium text-[#a83232]">疑似网络卡顿连接</h3>
+              <h3 className="mb-3 font-medium text-danger">疑似网络卡顿连接</h3>
               <SimpleRows
                 headers={[
                   { key: "idx", label: "序" },
@@ -365,7 +397,7 @@ export function NetworkPage({ host }: { host: string }) {
                 ]}
                 rows={slowList.map((conn, index) => ({
                   id: `slow-${index}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
-                  className: "h-12 border-t border-line bg-[#d64545]/10",
+                  className: "h-12 border-t border-line/70 bg-danger/10",
                   cells: [
                     index + 1,
                     conn.process || "—",
@@ -383,10 +415,10 @@ export function NetworkPage({ host }: { host: string }) {
           ) : null}
 
           <Card>
-            <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="mb-3 flex flex-wrap items-center gap-4">
               <h3 className="font-medium">TCP 连接</h3>
               <input
-                className="h-8 w-[220px] rounded-control border border-line px-3"
+                className="h-8 w-[220px] rounded-control bg-raised px-3 outline-none ring-0 focus:bg-surface focus:ring-1 focus:ring-accent/30"
                 placeholder="过滤 进程/地址/状态..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
@@ -427,11 +459,11 @@ export function NetworkPage({ host }: { host: string }) {
                 return {
                   id: `conn-${seq}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
                   className: conn.slow
-                    ? "h-12 border-t border-line bg-[#d64545]/10"
-                    : "h-12 border-t border-line hover:bg-ink/5",
+                    ? "h-12 border-t border-line/70 bg-danger/10"
+                    : "h-12 border-t border-line/70 hover:bg-raised",
                   cells: [
                     seq,
-                    conn.state || "—",
+                    <ConnState key="state" state={conn.state || ""} />,
                     conn.process || "—",
                     conn.pid || "—",
                     conn.localAddr || "—",
@@ -440,7 +472,7 @@ export function NetworkPage({ host }: { host: string }) {
                     conn.sendQ ?? 0,
                     conn.rttMs ? `${conn.rttMs.toFixed(1)}ms` : "—",
                     conn.slow ? (
-                      <span className="rounded-control bg-[#d64545] px-1.5 py-0.5 text-xs text-white">
+                      <span className="rounded-control bg-danger px-1.5 py-0.5 text-xs text-white">
                         卡顿
                       </span>
                     ) : (

@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
+import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
 import { formatBytes, formatErr, formatScaledBytes, pickByteScale } from "@/utils/format";
 import { settingsAccess } from "@/utils/settingsAccess";
@@ -207,6 +208,9 @@ function lineOption(opts: {
   markLines?: { name: string; x: string }[];
   dualBytesOnRight?: boolean;
 }): echarts.EChartsOption {
+  const muted = readThemeColor("--color-muted", "#687382");
+  const line = readThemeColor("--color-line", "#dfe3e8");
+  const danger = readThemeColor("--color-danger", "#d64545");
   const markLineData = (opts.markLines || []).map((m) => ({
     name: m.name,
     xAxis: m.x,
@@ -220,12 +224,12 @@ function lineOption(opts: {
       type: "value",
       axisLabel: {
         fontSize: 10,
-        color: "#687382",
+        color: muted,
         formatter: bytesFmt ? (v: number) => bytesFmt.formatter(v) : undefined,
       },
       name: bytesFmt?.name,
-      nameTextStyle: { fontSize: 10, color: "#687382" },
-      splitLine: { lineStyle: { color: "#eef1f4" } },
+      nameTextStyle: { fontSize: 10, color: muted },
+      splitLine: { lineStyle: { color: line } },
     },
   ];
 
@@ -236,17 +240,17 @@ function lineOption(opts: {
       type: "value",
       axisLabel: {
         fontSize: 10,
-        color: "#687382",
+        color: muted,
         formatter: (v: number) => rightFmt.formatter(v),
       },
       name: rightFmt.name,
-      nameTextStyle: { fontSize: 10, color: "#687382" },
+      nameTextStyle: { fontSize: 10, color: muted },
       splitLine: { show: false },
     });
   }
 
   return {
-    color: ["#005EEB", "#14b8a6", "#f59e0b"],
+    color: seriesColorList(opts.series.map((s) => s.name)),
     grid: { left: 52, right: opts.dualBytesOnRight ? 52 : 16, top: 28, bottom: 28 },
     tooltip: {
       trigger: "axis",
@@ -260,8 +264,8 @@ function lineOption(opts: {
     xAxis: {
       type: "category",
       data: opts.xData,
-      axisLabel: { fontSize: 10, color: "#687382" },
-      axisLine: { lineStyle: { color: "#dfe3e8" } },
+      axisLabel: { fontSize: 10, color: muted },
+      axisLine: { lineStyle: { color: line } },
     },
     yAxis: yAxes,
     series: opts.series.map((s, index) => ({
@@ -271,14 +275,14 @@ function lineOption(opts: {
       smooth: true,
       data: s.data,
       yAxisIndex: s.yAxisIndex || 0,
-      lineStyle: { width: 1.5 },
-      areaStyle: { opacity: 0.06 },
+      lineStyle: { width: 1.75 },
+      areaStyle: index === 0 ? { opacity: 0.08 } : undefined,
       markLine:
         index === 0 && markLineData.length
           ? {
               symbol: "none",
               label: { show: false },
-              lineStyle: { type: "dashed", color: "#b3261e", width: 1 },
+              lineStyle: { type: "dashed", color: danger, width: 1 },
               data: markLineData,
             }
           : undefined,
@@ -296,7 +300,7 @@ function serviceNameColors(rows: { service: string }[]): Map<string, string> {
   names.forEach((name, index) => {
     const hue = SERVICE_HUES[index % SERVICE_HUES.length];
     const lap = Math.floor(index / SERVICE_HUES.length);
-    colors.set(name, `hsl(${hue} 68% ${32 + lap * 6}%)`);
+    colors.set(name, `hsl(${hue} 72% ${68 - lap * 4}%)`);
   });
   return colors;
 }
@@ -336,14 +340,14 @@ function AppsTable({
 
   return (
     <div className="overflow-hidden border-b border-line bg-surface">
-      <div className="flex items-center gap-2 border-b border-line bg-[#f7f8fa] px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-line bg-raised px-3 py-2">
         <span className="text-sm font-medium">{title}</span>
         <span className="text-xs text-muted">{rows.length} 条</span>
       </div>
       <div className="overflow-auto">
         <table className="w-full border-collapse text-left text-sm">
           {showHeader ? (
-            <thead className="bg-[#f7f8fa]">
+            <thead className="bg-raised">
               <tr className="h-10">
                 {headers.map((h) => (
                   <th key={h} className="px-3 font-medium whitespace-nowrap">
@@ -364,9 +368,9 @@ function AppsTable({
                   key={`${row.service}-${row.pid}-${row.port}-${idx}`}
                   className={
                     latestHit
-                      ? "h-12 border-t border-line bg-emerald-50/80 hover:bg-emerald-50"
+                      ? "h-12 border-t border-line bg-success/10 hover:bg-success/10"
                       : clickable
-                        ? "h-12 cursor-pointer border-t border-line hover:bg-ink/5"
+                        ? "h-12 cursor-pointer border-t border-line hover:bg-raised"
                         : "h-12 border-t border-line text-muted"
                   }
                   style={clickable ? { cursor: "pointer" } : undefined}
@@ -376,7 +380,7 @@ function AppsTable({
                 >
                   <td className="px-3 font-mono text-[13px] font-semibold">
                     <span className="inline-flex items-center gap-1.5">
-                      <span style={{ color: nameColors.get(row.service) || "#20252b" }}>
+                      <span style={{ color: nameColors.get(row.service) || "var(--color-ink)" }}>
                         {row.service || "—"}
                       </span>
                       {row.runtime === "bun" ? (
@@ -389,7 +393,7 @@ function AppsTable({
                   <td
                     className={
                       latestHit && row.port
-                        ? "px-3 text-center font-semibold text-emerald-600"
+                        ? "px-3 text-center font-semibold text-success"
                         : "px-3 text-center"
                     }
                   >
@@ -398,7 +402,7 @@ function AppsTable({
                   <td
                     className={
                       latestHit && row.deployVer
-                        ? "px-3 font-semibold text-emerald-600"
+                        ? "px-3 font-semibold text-success"
                         : "px-3"
                     }
                   >
@@ -415,8 +419,8 @@ function AppsTable({
                     <span
                       className={
                         online
-                          ? "font-semibold text-[#52c41a]"
-                          : "font-semibold text-[#8c8c8c]"
+                          ? "font-semibold text-success"
+                          : "font-semibold text-muted"
                       }
                     >
                       {online ? "在线" : "离线"}
@@ -446,7 +450,7 @@ function AppsTable({
                     {canShutdown(row) ? (
                       <button
                         type="button"
-                        className="font-semibold text-[#ff4d4f] hover:text-[#ff7875]"
+                        className="font-semibold text-danger hover:text-danger"
                         onClick={() => onShutdown(row)}
                       >
                         下架
@@ -794,7 +798,7 @@ export function AppsPage({ host }: { host: string }) {
             {events.length ? (
               <div className="overflow-auto border border-line bg-surface">
                 <table className="w-full border-collapse text-left text-sm">
-                  <thead className="bg-[#f7f8fa]">
+                  <thead className="bg-raised">
                     <tr className="h-10">
                       <th className="px-3 font-medium">序</th>
                       <th className="px-3 font-medium">层</th>
@@ -858,7 +862,7 @@ export function AppsPage({ host }: { host: string }) {
             <Button onClick={() => setShutdownTarget(null)}>取消</Button>
             <Button
               variant="primary"
-              className="bg-[#d64545] hover:bg-[#b93a3a]"
+              className="bg-danger hover:bg-danger/80"
               disabled={shutdownBusy}
               onClick={() => void confirmShutdown()}
             >

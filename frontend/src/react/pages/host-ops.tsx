@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Meter, Notice, Page } from "@/react/components/page";
+import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { AppsPage } from "@/react/pages/host-apps";
 import { NetworkPage } from "@/react/pages/host-network";
 import { PackagesPage } from "@/react/pages/host-packages";
@@ -77,7 +78,7 @@ function ContextMenu({ menu, onClose }: { menu: CtxMenu | null; onClose: () => v
   if (!menu) return null;
   return (
     <div
-      className="fixed z-50 min-w-[160px] rounded-surface border border-line bg-surface py-1 text-sm shadow-[0_8px_24px_rgba(32,37,43,0.12)]"
+      className="fixed z-50 min-w-[160px] rounded-surface border border-line bg-surface py-1 text-sm shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
       style={{ left: menu.x, top: menu.y }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -87,8 +88,8 @@ function ContextMenu({ menu, onClose }: { menu: CtxMenu | null; onClose: () => v
           type="button"
           className={
             item.danger
-              ? "block w-full px-3 py-2 text-left text-[#a83232] hover:bg-[#d64545]/10"
-              : "block w-full px-3 py-2 text-left hover:bg-ink/5"
+              ? "block w-full px-3 py-2 text-left text-danger hover:bg-danger/10"
+              : "block w-full px-3 py-2 text-left hover:bg-raised"
           }
           onClick={() => {
             item.onClick();
@@ -130,7 +131,7 @@ function ConfirmDialog({
           <Button onClick={onClose}>取消</Button>
           <Button
             variant="primary"
-            className={danger ? "bg-[#d64545] hover:bg-[#b93a3a]" : undefined}
+            className={danger ? "bg-danger hover:bg-danger/80" : undefined}
             disabled={busy}
             onClick={onConfirm}
           >
@@ -158,7 +159,7 @@ function SimpleRows({
   return (
     <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-[#f7f8fa]">
+        <thead className="sticky top-0 z-[1] bg-raised">
           <tr className="h-10">
             {headers.map((header) => (
               <th key={header.key} className="px-3 font-medium">
@@ -180,8 +181,8 @@ function SimpleRows({
                 key={row.id}
                 className={
                   row.id === selectedId
-                    ? "h-12 cursor-pointer border-t border-line bg-accent/10"
-                    : "h-12 cursor-pointer border-t border-line hover:bg-ink/5"
+                    ? "h-12 cursor-pointer border-t border-line/70 bg-accent/10 font-semibold text-accent"
+                    : "h-12 cursor-pointer border-t border-line/70 hover:bg-raised"
                 }
                 onClick={(e) => onRowClick?.(row.id, e)}
                 onContextMenu={(e) => {
@@ -230,7 +231,7 @@ function DetailPanel({
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-4">
       <span className="w-24 shrink-0 text-muted">{label}</span>
       <span className="min-w-0 break-all font-mono text-[13px]">{value ?? "—"}</span>
     </div>
@@ -419,7 +420,7 @@ function OverviewPage({ host }: { host: string }) {
                     <p className="mb-3 text-sm text-muted">
                       {hostConfig?.user || "—"}@{hostConfig?.hostName || data?.ipAddress || "—"}
                     </p>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <div className="text-muted">账号</div>
                         <div className="font-medium">{hostConfig?.user || "—"}</div>
@@ -465,7 +466,7 @@ function OverviewPage({ host }: { host: string }) {
                       <ul className="mt-3 space-y-1 text-sm">
                         <li className="text-muted">{checkReport.summary}</li>
                         {(checkReport.items || []).map((item) => (
-                          <li key={item.key} className={item.ok ? "text-ink" : "text-[#a83232]"}>
+                          <li key={item.key} className={item.ok ? "text-ink" : "text-danger"}>
                             {item.ok ? "✓" : "✗"} {item.name}
                             {item.detail ? ` · ${item.detail}` : ""}
                           </li>
@@ -663,22 +664,22 @@ function OverviewPage({ host }: { host: string }) {
                         <div className="font-medium">{formatDurationLong(data.uptime)}</div>
                       </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-control border border-line px-3 py-2">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-control bg-raised px-3 py-2">
                         <div className="text-muted">CPU 核心</div>
                         <div className="text-lg font-medium">{data.cpuCount}</div>
                       </div>
-                      <div className="rounded-control border border-line px-3 py-2">
+                      <div className="rounded-control bg-raised px-3 py-2">
                         <div className="text-muted">磁盘分区</div>
                         <div className="text-lg font-medium">{mounts.length}</div>
                       </div>
-                      <div className="rounded-control border border-line px-3 py-2">
+                      <div className="rounded-control bg-raised px-3 py-2">
                         <div className="text-muted">Docker 容器</div>
                         <div className="text-lg font-medium">
                           {docker.data?.containers?.length ?? 0}
                         </div>
                       </div>
-                      <div className="rounded-control border border-line px-3 py-2">
+                      <div className="rounded-control bg-raised px-3 py-2">
                         <div className="text-muted">运行中容器</div>
                         <div className="text-lg font-medium">{runningDocker}</div>
                       </div>
@@ -710,7 +711,7 @@ function OverviewPage({ host }: { host: string }) {
                       }))}
                     />
                     {isDiskLow(disks.data) ? (
-                      <p className="mt-2 text-sm text-[#a83232]">
+                      <p className="mt-2 text-sm text-danger">
                         存在分区可用空间偏低（≤ 10 GB）
                       </p>
                     ) : null}
@@ -724,7 +725,7 @@ function OverviewPage({ host }: { host: string }) {
                 title: "网络摘要",
                 span: 4,
                 children: network.data ? (
-                  <div className="grid gap-3 text-sm md:grid-cols-3">
+                  <div className="grid gap-4 text-sm md:grid-cols-3">
                     <div>
                       <div className="text-muted">内网</div>
                       <div>{(network.data.privateIPs || []).join(", ") || "—"}</div>
@@ -884,8 +885,10 @@ function lineOption(
   series: { name: string; data: number[] }[],
   opts?: { yMax?: number; yFormatter?: (v: number) => string },
 ): echarts.EChartsOption {
+  const muted = readThemeColor("--color-muted", "#687382");
+  const line = readThemeColor("--color-line", "#dfe3e8");
   return {
-    color: ["#005EEB", "#14b8a6", "#f59e0b"],
+    color: seriesColorList(series.map((s) => s.name)),
     grid: { left: 48, right: 16, top: 28, bottom: 28 },
     tooltip: {
       trigger: "axis",
@@ -910,27 +913,27 @@ function lineOption(
     xAxis: {
       type: "category",
       data: xData,
-      axisLabel: { fontSize: 10, color: "#687382" },
-      axisLine: { lineStyle: { color: "#dfe3e8" } },
+      axisLabel: { fontSize: 10, color: muted },
+      axisLine: { lineStyle: { color: line } },
     },
     yAxis: {
       type: "value",
       max: opts?.yMax,
       axisLabel: {
         fontSize: 10,
-        color: "#687382",
+        color: muted,
         formatter: opts?.yFormatter ? (v: number) => opts.yFormatter!(v) : undefined,
       },
-      splitLine: { lineStyle: { color: "#eef1f4" } },
+      splitLine: { lineStyle: { color: line } },
     },
-    series: series.map((s) => ({
+    series: series.map((s, idx) => ({
       name: s.name,
       type: "line" as const,
       showSymbol: false,
       smooth: true,
       data: s.data,
-      lineStyle: { width: 1.5 },
-      areaStyle: { opacity: 0.06 },
+      lineStyle: { width: 1.75 },
+      areaStyle: series.length === 1 && idx === 0 ? { opacity: 0.08 } : undefined,
     })),
   };
 }
@@ -1202,12 +1205,12 @@ function MonitorPage({ host }: { host: string }) {
         isLive ? traffic.map((p) => p.time) : history.map((p) => historyTimeLabel(p.ts)),
         [
           {
-            name: "上行",
-            data: isLive ? traffic.map((p) => p.a) : history.map((p) => p.netTxKBps),
-          },
-          {
             name: "下行",
             data: isLive ? traffic.map((p) => p.b) : history.map((p) => p.netRxKBps),
+          },
+          {
+            name: "上行",
+            data: isLive ? traffic.map((p) => p.a) : history.map((p) => p.netTxKBps),
           },
         ],
         { yFormatter: (v) => formatRateKBps(v) },
@@ -1718,9 +1721,19 @@ function ProcessesPage({ host }: { host: string }) {
                   <DetailRow
                     label="磁盘 IO"
                     value={
-                      detail.readBytes || detail.writeBytes
-                        ? `读 ${formatBytes(detail.readBytes)} / 写 ${formatBytes(detail.writeBytes)}`
-                        : "—（无权限）"
+                      detail.readBytes || detail.writeBytes ? (
+                        <span className="tabular-nums">
+                          <span className="text-io-read">
+                            读 {formatBytes(detail.readBytes)}
+                          </span>
+                          {" / "}
+                          <span className="text-io-write">
+                            写 {formatBytes(detail.writeBytes)}
+                          </span>
+                        </span>
+                      ) : (
+                        "—（无权限）"
+                      )
                     }
                   />
                 </>
@@ -1866,7 +1879,7 @@ function CertsPage({ host }: { host: string }) {
               cert.issuer || "—",
               formatUnix(cert.notAfter),
               String(cert.daysLeft),
-              <span key="s" className={st.warn ? "text-[#a83232]" : undefined}>
+              <span key="s" className={st.warn ? "text-danger" : undefined}>
                 {st.text}
               </span>,
             ],
