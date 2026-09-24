@@ -39,9 +39,9 @@ export function DataTable<T extends Record<string, unknown>>({
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="overflow-hidden border border-line bg-surface">
+    <div className="overflow-hidden rounded-surface bg-surface">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="bg-[#f7f8fa] text-ink">
+        <thead className="bg-raised text-ink">
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id} className="h-10">
               {group.headers.map((header) => (
@@ -66,7 +66,7 @@ export function DataTable<T extends Record<string, unknown>>({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.id} className="h-12 border-t border-line">
+              <tr key={row.id} className="h-12 border-t border-line/70">
                 {row.getAllCells().map((cell) => (
                   <td key={cell.id} className={cn("px-3 text-ink")}>
                     <table.FlexRender cell={cell} />
@@ -264,7 +264,7 @@ export function InteractiveDataTable<T>({
   return (
     <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm" style={{ tableLayout: "fixed" }}>
-        <thead className="sticky top-0 z-[1] bg-[#f7f8fa] text-ink">
+        <thead className="sticky top-0 z-[1] bg-raised text-ink">
           <tr ref={headerRef} className="h-10">
             {ordered.map((column) => {
               const width = columnWidths[column.key] ?? column.width;
@@ -277,7 +277,7 @@ export function InteractiveDataTable<T>({
                     "relative select-none px-3 font-medium",
                     column.align === "center" && "text-center",
                     column.align === "right" && "text-right",
-                    draggingKey === column.key && "bg-accent/10",
+                    draggingKey === column.key && "shadow-[inset_0_-2px_0_0_var(--color-accent)]",
                     column.sortable !== false && "cursor-pointer",
                   )}
                   style={{ width, minWidth: column.minWidth ?? 48 }}
@@ -305,7 +305,7 @@ export function InteractiveDataTable<T>({
             data.map((row, index) => (
               <tr
                 key={getRowId?.(row, index) ?? String(index)}
-                className="h-12 border-t border-line hover:bg-accent/5"
+                className="h-12 border-t border-line/70 hover:bg-raised"
                 onDoubleClick={() => onRowDoubleClick?.(row)}
               >
                 {ordered.map((column) => (

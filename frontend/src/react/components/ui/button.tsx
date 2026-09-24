@@ -10,7 +10,7 @@ const buttonVariants = cva(
       variant: {
         primary: "bg-accent text-white hover:bg-[#004fcc]",
         secondary:
-          "border border-line bg-surface text-ink hover:bg-[#f7f8fa]",
+          "bg-raised text-ink hover:bg-line",
         ghost: "text-ink hover:bg-ink/5",
       },
       size: {

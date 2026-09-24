@@ -6,11 +6,14 @@ export function Page({
   actions,
   children,
   dark = false,
+  flush = false,
 }: {
   title?: string;
   actions?: ReactNode;
   children: ReactNode;
   dark?: boolean;
+  /** 左右分栏等需要贴边铺满时关掉内边距 */
+  flush?: boolean;
 }) {
   return (
     <div
@@ -20,12 +23,20 @@ export function Page({
       )}
     >
       {title || actions ? (
-        <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-line px-4">
-          {title ? <h1 className="text-base font-medium">{title}</h1> : null}
+        <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-line px-5 py-1">
+          {title ? <h1 className="text-lg font-semibold">{title}</h1> : null}
           <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-surface">{children}</div>
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-auto",
+          dark ? "bg-graphite" : "bg-canvas",
+          !flush && !dark && "gap-3 p-4",
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -64,8 +75,8 @@ export function Notice({
     <p
       className={
         tone === "warn"
-          ? "shrink-0 border-b border-[#b97814]/30 bg-[#b97814]/10 px-4 py-2 text-sm text-[#76500f]"
-          : "shrink-0 border-b border-[#d64545]/30 bg-[#d64545]/10 px-4 py-2 text-sm text-[#a83232]"
+          ? "shrink-0 rounded-control bg-warn/10 px-4 py-2 text-sm text-warn"
+          : "shrink-0 rounded-control bg-danger/10 px-4 py-2 text-sm text-danger"
       }
     >
       {text}

@@ -297,7 +297,7 @@ export function MonitorGrid({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {showReset ? (
         <div className="flex items-center gap-2">
           <Button disabled={!dirty} onClick={reset}>
@@ -318,7 +318,7 @@ export function MonitorGrid({
       <div
         ref={rootRef}
         className={cn(
-          "grid min-h-0 flex-1 gap-0",
+          "grid min-h-0 flex-1 gap-3",
           narrow ? "grid-cols-1" : "grid-cols-4",
           maximizedId ? "relative" : "",
         )}
@@ -345,7 +345,7 @@ export function MonitorGrid({
               data-monitor-card={id}
               style={style}
               className={cn(
-                "relative flex flex-col border-b border-r border-line bg-surface",
+                "relative flex flex-col rounded-surface bg-surface",
                 isHidden && "invisible pointer-events-none",
                 draggingId === id && "opacity-60",
                 dropTargetId === id && "ring-2 ring-accent",
@@ -386,7 +386,7 @@ export function MonitorGrid({
                 </div>
               ) : null}
               <div
-                className="flex h-10 shrink-0 cursor-grab items-center gap-2 border-b border-line px-3 pl-7 active:cursor-grabbing"
+                className="flex h-10 shrink-0 cursor-grab items-center gap-2 border-b border-line/70 px-3 pl-7 active:cursor-grabbing"
                 onDoubleClick={() => toggleMaximize(id)}
                 onPointerDown={(e) => onGripPointerDown(e, id)}
               >
@@ -399,8 +399,8 @@ export function MonitorGrid({
                     <span
                       key={tag.text}
                       className={cn(
-                        "rounded-control border border-line px-1.5 text-xs text-muted",
-                        tag.warn && "border-[#d64545]/40 text-[#a83232]",
+                        "rounded-control bg-raised px-1.5 text-xs text-muted",
+                        tag.warn && "bg-danger/10 text-danger",
                       )}
                     >
                       {tag.text}
@@ -409,7 +409,7 @@ export function MonitorGrid({
                 </div>
                 <button
                   type="button"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded-control text-muted hover:bg-ink/5 hover:text-ink"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-control text-muted hover:bg-raised hover:text-ink"
                   aria-label={isMax ? "还原" : "最大化"}
                   title={isMax ? "还原" : "最大化"}
                   onPointerDown={(e) => e.stopPropagation()}
