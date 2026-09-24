@@ -622,7 +622,7 @@ function ConfigCenterPage() {
       ) : null}
 
       {section === "json" ? (
-        <div className="flex h-[70vh] flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy} onClick={() => void runPreviewJson()}>
               预览变更
@@ -646,7 +646,7 @@ function ConfigCenterPage() {
               生成 SSH 配置
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden rounded-surface border border-line">
+          <div className="min-h-0 flex-1 overflow-hidden border-t border-line">
             <CodeSurface
               value={jsonText}
               language="json"
@@ -686,8 +686,8 @@ function ConfigCenterPage() {
       ) : null}
 
       {section === "backups" ? (
-        <div className="grid min-h-[60vh] gap-3 md:grid-cols-[280px_1fr]">
-          <div className="overflow-auto rounded-surface border border-line bg-surface">
+        <div className="grid min-h-0 flex-1 md:grid-cols-[280px_1fr]">
+          <div className="min-h-0 overflow-auto border-r border-line bg-surface">
             {(backups.data || []).map((backup) => (
               <button
                 key={backup.id}

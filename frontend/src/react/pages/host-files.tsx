@@ -126,8 +126,8 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
     >
       {listing.error ? <Notice text={formatErr(listing.error)} /> : null}
       {listing.data?.aptOnly ? <Notice tone="warn" text="仅支持 apt（Debian / Ubuntu）" /> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-[220px_1fr]">
-        <div className="overflow-auto rounded-surface border border-line bg-surface">
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr]">
+        <div className="min-h-0 overflow-auto border-r border-line bg-surface">
           {(listing.data?.files || []).map((file) => (
             <button
               key={file.path}
@@ -146,7 +146,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
             <p className="px-3 py-4 text-sm text-muted">目录为空</p>
           ) : null}
         </div>
-        <div className="min-h-0 overflow-hidden rounded-surface border border-line bg-[#191c21]">
+        <div className="min-h-0 overflow-hidden bg-[#191c21]">
           {needFetch && body.isLoading && !loadedText ? (
             <pre className="p-4 font-mono text-sm text-[#e5e7eb]">加载中…</pre>
           ) : (

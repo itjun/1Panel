@@ -242,7 +242,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
   }
 
   return (
-    <div className="flex h-[70vh] min-h-0 flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col">
       {error ? (
         <div className="rounded-control border border-[#efc2b2] bg-[#fff7f4] px-3 py-2 text-sm text-[#a54b2c]">
           {error}
@@ -254,8 +254,8 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
         </div>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-[260px_1fr]">
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-surface border border-line bg-surface">
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+        <aside className="flex min-h-0 flex-col overflow-hidden border-r border-line bg-surface">
           <div className="flex items-center justify-between border-b border-line px-3 py-2">
             <div>
               <div className="text-[11px] tracking-wide text-muted">CONFIG TREE</div>
@@ -308,7 +308,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
           </div>
         </aside>
 
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-surface border border-line bg-surface">
+        <div className="flex min-h-0 flex-col overflow-hidden bg-surface">
           <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line px-3 py-2">
             <div className="min-w-0">
               <div className="text-[11px] tracking-wide text-muted">

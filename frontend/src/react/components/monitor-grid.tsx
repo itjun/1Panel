@@ -318,7 +318,7 @@ export function MonitorGrid({
       <div
         ref={rootRef}
         className={cn(
-          "grid min-h-0 flex-1 gap-3",
+          "grid min-h-0 flex-1 gap-0",
           narrow ? "grid-cols-1" : "grid-cols-4",
           maximizedId ? "relative" : "",
         )}
@@ -345,7 +345,7 @@ export function MonitorGrid({
               data-monitor-card={id}
               style={style}
               className={cn(
-                "relative flex flex-col rounded-surface border border-line bg-surface",
+                "relative flex flex-col border-b border-r border-line bg-surface",
                 isHidden && "invisible pointer-events-none",
                 draggingId === id && "opacity-60",
                 dropTargetId === id && "ring-2 ring-accent",

@@ -52,9 +52,9 @@ function SimpleRows({
   rows: { id: string; cells: ReactNode[]; className?: string }[];
 }) {
   return (
-    <div className="overflow-auto border border-line bg-surface">
+    <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="bg-[#f7f8fa]">
+        <thead className="sticky top-0 z-[1] bg-[#f7f8fa]">
           <tr className="h-10">
             {headers.map((header) => (
               <th key={header.key} className="px-3 font-medium">

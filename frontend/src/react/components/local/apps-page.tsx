@@ -6,7 +6,6 @@ import {
   type LocalAppMenuTarget,
 } from "@/react/components/local-app-context-menu";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -481,8 +480,8 @@ export function LocalAppsPage() {
       ) : null}
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
 
-      <Card className="mt-3 overflow-hidden p-0">
-        <div className="max-h-[70vh] overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-48 flex-1 overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="h-10 bg-[#f7f8fa]">
@@ -559,7 +558,7 @@ export function LocalAppsPage() {
             ) : null}
           </div>
         ) : null}
-      </Card>
+      </div>
 
       <LocalAppContextMenu
         menu={menu}

@@ -262,9 +262,9 @@ export function InteractiveDataTable<T>({
   }, [draggingKey, measureBoxes]);
 
   return (
-    <div className="overflow-auto border border-line bg-surface">
+    <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm" style={{ tableLayout: "fixed" }}>
-        <thead className="bg-[#f7f8fa] text-ink">
+        <thead className="sticky top-0 z-[1] bg-[#f7f8fa] text-ink">
           <tr ref={headerRef} className="h-10">
             {ordered.map((column) => {
               const width = columnWidths[column.key] ?? column.width;

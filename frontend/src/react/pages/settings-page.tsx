@@ -59,7 +59,7 @@ export function SettingsPage() {
         </Button>
       }
     >
-      <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-5">
         {message ? <Notice text={message} /> : null}
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium text-muted">外观</h2>

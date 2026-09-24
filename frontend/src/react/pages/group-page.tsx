@@ -1171,7 +1171,7 @@ export function GroupPage() {
       }
     >
       {!hosts.length ? (
-        <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-surface border-2 border-dashed border-line bg-surface px-6 py-12 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
           <p className="m-0 text-lg font-semibold text-ink">拖主机进来</p>
           <p className="m-0 mb-2 max-w-sm text-sm leading-relaxed text-muted">
             从侧栏或其它分组把主机拖到本页，或点击下方添加
@@ -1195,7 +1195,7 @@ export function GroupPage() {
           getRowId={(row) => row.name}
         />
       ) : (
-        <div className="-m-4 flex h-[calc(100%+2rem)] min-h-[480px] flex-col md:-m-6 md:h-[calc(100%+3rem)]">
+        <div className="flex min-h-0 flex-1 flex-col">
           <BoardEmbed
             hosts={hosts}
             cards={boardCards}

@@ -156,9 +156,9 @@ function SimpleRows({
   selectedId?: string | null;
 }) {
   return (
-    <div className="overflow-auto border border-line bg-surface">
+    <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="bg-[#f7f8fa]">
+        <thead className="sticky top-0 z-[1] bg-[#f7f8fa]">
           <tr className="h-10">
             {headers.map((header) => (
               <th key={header.key} className="px-3 font-medium">
@@ -404,7 +404,7 @@ function OverviewPage({ host }: { host: string }) {
       {agentErr ? <Notice text={agentErr} /> : null}
       {actionMsg ? <Notice text={actionMsg} tone="warn" /> : null}
 
-      <div className="flex min-h-[480px] flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
           <MonitorGrid
             boardId={`host-info-${host}`}
             defaults={OVERVIEW_DEFAULTS}
@@ -1322,7 +1322,7 @@ function MonitorPage({ host }: { host: string }) {
         </div>
       ) : null}
 
-      <div className="flex min-h-[900px] flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         <MonitorGrid
           ref={gridRef}
           boardId={`host-monitor-${host}`}
@@ -2177,7 +2177,7 @@ function LogsPage({ host }: { host: string }) {
       {query.data?.source ? (
         <p className="mb-2 text-xs text-muted">来源 {query.data.source}</p>
       ) : null}
-      <div className="h-[calc(100vh-180px)] overflow-hidden rounded-surface border border-line">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <HighlightPane html={html} text={text} pinBottom wrap />
       </div>
     </Page>

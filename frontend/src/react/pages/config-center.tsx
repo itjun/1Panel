@@ -661,7 +661,7 @@ export function ConfigCenterPage() {
       ) : null}
 
       {section === "json" ? (
-        <div className="flex h-[70vh] flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-[11px] tracking-wide text-muted">
@@ -702,7 +702,7 @@ export function ConfigCenterPage() {
               </Button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden rounded-surface border border-line">
+          <div className="min-h-0 flex-1 overflow-hidden border-t border-line">
             <CodeSurface
               value={jsonText}
               language="json"
@@ -754,7 +754,7 @@ export function ConfigCenterPage() {
       ) : null}
 
       {section === "backups" ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-[11px] tracking-wide text-muted">RECOVERY TIMELINE</div>
@@ -775,8 +775,8 @@ export function ConfigCenterPage() {
               </Button>
             </div>
           </div>
-          <div className="grid min-h-[60vh] gap-3 md:grid-cols-[280px_1fr]">
-            <div className="overflow-auto rounded-surface border border-line bg-surface">
+          <div className="grid min-h-0 flex-1 md:grid-cols-[280px_1fr]">
+            <div className="min-h-0 overflow-auto border-r border-line bg-surface">
               {(backups.data || []).map((backup) => (
                 <button
                   key={backup.id}

@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
 
@@ -83,10 +82,9 @@ export function LocalPackagesPage() {
       }
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      <Card className="overflow-hidden p-0">
-        <div className="overflow-auto">
+      <div className="min-h-48 flex-1 overflow-auto">
           <table className="w-full text-left text-sm">
-            <thead>
+            <thead className="sticky top-0 z-[1]">
               <tr className="h-10 bg-[#f7f8fa]">
                 <th className="w-14 px-3 text-center">序</th>
                 <th className="px-3">名称</th>
@@ -122,8 +120,7 @@ export function LocalPackagesPage() {
               )}
             </tbody>
           </table>
-        </div>
-      </Card>
+      </div>
     </Page>
   );
 }

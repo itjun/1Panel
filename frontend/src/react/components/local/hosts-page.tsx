@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { api } from "@/api";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
 import { hostsHighlightHtml } from "@/utils/hostsHighlight";
@@ -36,8 +35,7 @@ export function LocalHostsPage() {
       }
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      <Card className="min-h-0 flex-1 overflow-hidden p-0">
-        <div className="grid h-full grid-cols-1 md:grid-cols-[220px_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr]">
           <div className="border-r border-line">
             <div className="flex h-12 items-center justify-between bg-accent/10 px-3 text-accent">
               <span className="font-mono text-sm">hosts</span>
@@ -54,7 +52,6 @@ export function LocalHostsPage() {
             )}
           </div>
         </div>
-      </Card>
     </Page>
   );
 }

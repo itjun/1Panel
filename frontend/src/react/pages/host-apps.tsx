@@ -318,7 +318,7 @@ function AppsTable({
   ];
 
   return (
-    <div className="mb-4 overflow-hidden border border-line bg-surface">
+    <div className="overflow-hidden border-b border-line bg-surface">
       <div className="flex items-center gap-2 border-b border-line bg-[#f7f8fa] px-3 py-2">
         <span className="text-sm font-medium">{title}</span>
         <span className="text-xs text-muted">{rows.length} 条</span>

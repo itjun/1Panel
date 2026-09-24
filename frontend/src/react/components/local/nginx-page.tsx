@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
 import { highlightFileHtml } from "@/utils/codeHighlight";
@@ -58,8 +57,7 @@ export function LocalNginxPage() {
       {info.data && !info.data.installed ? (
         <Notice tone="warn" text="未检测到 nginx 可执行文件" />
       ) : null}
-      <Card className="min-h-0 flex-1 overflow-hidden p-0">
-        <div className="grid h-full grid-cols-1 md:grid-cols-[260px_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
           <div className="overflow-auto border-r border-line">
             {(info.data?.files || []).map((file) => (
               <button
@@ -98,7 +96,6 @@ export function LocalNginxPage() {
             )}
           </div>
         </div>
-      </Card>
     </Page>
   );
 }
