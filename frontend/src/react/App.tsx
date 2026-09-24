@@ -172,23 +172,22 @@ function HostWorkspace() {
   const tool = session.activeTool;
   const fileTool =
     tool === "files" ||
-    tool === "file-manager" ||
     tool === "nginx" ||
     tool === "apt" ||
     tool === "hosts";
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3">
-        <div className="max-w-[160px] truncate font-medium">{host}</div>
+      <header className="flex h-14 shrink-0 items-center border-b border-line px-3">
         <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
           {HOST_TOOLS.map((item) => (
             <button
               key={item.id}
               type="button"
               className={
-                item.id === tool
-                  ? "h-8 shrink-0 rounded-control bg-accent/10 px-2 font-semibold text-accent"
-                  : "h-8 shrink-0 rounded-control px-2 text-muted"
+                "box-border inline-flex h-8 w-[calc(4em+12px)] min-w-[calc(4em+12px)] max-w-[calc(4em+12px)] shrink-0 grow-0 cursor-pointer appearance-none items-center justify-center overflow-hidden whitespace-nowrap rounded-control px-1.5 " +
+                (item.id === tool
+                  ? "bg-accent/10 font-semibold text-accent"
+                  : "text-muted hover:bg-ink/5 hover:text-ink")
               }
               onClick={() => session.setTool(item.id)}
             >

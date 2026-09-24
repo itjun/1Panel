@@ -28,7 +28,6 @@ export type Workspace =
 
 export type Tool =
   | "overview"
-  | "file-manager"
   | "files"
   | "monitor"
   | "apps"
@@ -70,20 +69,19 @@ export type OpenedHost = {
 
 export const HOST_TOOLS: { id: Tool; label: string }[] = [
   { id: "overview", label: "概览" },
-  { id: "file-manager", label: "文件" },
-  { id: "files", label: "XFPT" },
   { id: "monitor", label: "监控" },
+  { id: "files", label: "文件" },
   { id: "apps", label: "应用" },
-  { id: "certs", label: "证书" },
   { id: "nginx", label: "Nginx" },
-  { id: "processes", label: "进程" },
-  { id: "network", label: "网络" },
   { id: "hosts", label: "Hosts" },
-  { id: "apt", label: "apt 源" },
+  { id: "certs", label: "证书" },
+  { id: "network", label: "网络" },
+  { id: "processes", label: "进程" },
   { id: "services", label: "服务" },
-  { id: "cron", label: "定时任务" },
   { id: "logs", label: "日志" },
   { id: "packages", label: "软件包" },
+  { id: "apt", label: "软件源" },
+  { id: "cron", label: "定时任务" },
 ];
 
 const TOOL_IDS = new Set<string>(HOST_TOOLS.map((item) => item.id));
@@ -91,7 +89,7 @@ const TOOL_IDS = new Set<string>(HOST_TOOLS.map((item) => item.id));
 function persistToolToReact(tool: PersistTool): Tool | null {
   if (tool === "terminal") return null;
   if (tool === "info") return "overview";
-  if (tool === "sftp") return "files";
+  if (tool === "sftp" || tool === "file-manager") return "files";
   if (TOOL_IDS.has(tool)) return tool as Tool;
   return null;
 }
@@ -152,9 +150,11 @@ function loadNav(): Nav {
         if (!item || typeof item !== "object") continue;
         const name = typeof item.name === "string" ? item.name.trim() : "";
         if (!name || seen.has(name)) continue;
+        const storedTool = item.tool as string;
+        const rawTool = storedTool === "file-manager" ? "files" : storedTool;
         const tool =
-          typeof item.tool === "string" && TOOL_IDS.has(item.tool)
-            ? (item.tool as Tool)
+          typeof rawTool === "string" && TOOL_IDS.has(rawTool)
+            ? (rawTool as Tool)
             : "overview";
         seen.add(name);
         openedHosts.push({ name, tool });
@@ -178,6 +178,13 @@ function loadNav(): Nav {
     // 旧「关于本机」分区已删除，回落到系统概览
     if ((merged.localSection as string) === "sysinfo") {
       merged.localSection = "overview";
+    }
+    // 旧单栏文件管理器已删除，落到双栏文件页
+    if ((merged.activeTool as string) === "file-manager") {
+      merged.activeTool = "files";
+    }
+    if (!TOOL_IDS.has(merged.activeTool)) {
+      merged.activeTool = "overview";
     }
     if (merged.homeView !== "home" && merged.homeView !== "group") {
       merged.homeView = "home";

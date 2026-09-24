@@ -60,7 +60,7 @@ const SETTINGS_SECTIONS = [
 
 const BATCH_OPEN_TOOLS: { id: Tool; label: string }[] = [
   { id: "overview", label: "概览" },
-  { id: "files", label: "XFPT" },
+  { id: "files", label: "文件" },
   { id: "monitor", label: "监控" },
 ];
 

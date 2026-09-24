@@ -5,7 +5,7 @@ import {
   type SavedWorkspace,
 } from "@/utils/workspaceLayout";
 
-/** 持久化工具名。sftp 保留为双栏 XFPT；file-manager 是旧版文件管理器。 */
+/** 持久化工具名。sftp 是双栏文件页；file-manager 是已删除的单栏文件管理器，读入后归到 sftp。 */
 export type PersistTool =
   | "terminal"
   | "info"

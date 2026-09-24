@@ -1055,7 +1055,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           />
           {/* 「打开」即进概览；与 Vue「打开概览」同义，避免重复两项 */}
           <MenuItem
-            label="打开 XFPT"
+            label="打开文件"
             onClick={() => {
               const hosts = hostMenu.hosts.slice();
               closeAllMenus();
