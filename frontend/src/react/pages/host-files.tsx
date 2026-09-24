@@ -109,6 +109,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
   return (
     <Page
       title={title}
+      flush
       actions={
         <>
           <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
@@ -133,8 +134,8 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
               type="button"
               className={
                 file.path === path
-                  ? "block w-full bg-accent/10 px-3 py-2 text-left font-mono text-[13px] text-accent"
-                  : "block w-full px-3 py-2 text-left font-mono text-[13px] hover:bg-ink/5"
+                  ? "block w-full bg-accent/10 px-3 py-2 text-left font-mono text-[13px] font-semibold text-accent"
+                  : "block w-full px-3 py-2 text-left font-mono text-[13px] hover:bg-raised"
               }
               onClick={() => setSelected(file.path)}
             >
@@ -145,9 +146,9 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
             <p className="px-3 py-4 text-sm text-muted">目录为空</p>
           ) : null}
         </div>
-        <div className="min-h-0 overflow-hidden bg-[#191c21]">
+        <div className="min-h-0 overflow-hidden bg-graphite">
           {needFetch && body.isLoading && !loadedText ? (
-            <pre className="p-4 font-mono text-sm text-[#e5e7eb]">加载中…</pre>
+            <pre className="p-4 font-mono text-sm text-graphite-text">加载中…</pre>
           ) : (
             <HighlightPane html={html} text={loadedText} />
           )}

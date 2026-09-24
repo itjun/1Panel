@@ -62,10 +62,10 @@ function shortHash(value?: string) {
 }
 
 function kindDotClass(type: string) {
-  if (type === "added") return "bg-[#56a884]";
-  if (type === "removed" || type === "danger") return "bg-[#d66d4c]";
-  if (type === "changed") return "bg-[#6798d8]";
-  return "bg-[#6798d8]";
+  if (type === "added") return "bg-success";
+  if (type === "removed" || type === "danger") return "bg-danger";
+  if (type === "changed") return "bg-info";
+  return "bg-info";
 }
 
 export function ConfigCenterPage() {
@@ -487,6 +487,7 @@ export function ConfigCenterPage() {
   return (
     <Page
       title="配置中心"
+      flush={section === "json" || section === "files" || section === "diff"}
       actions={
         <>
           <span className="text-sm text-muted">{statusLabel(overview.data)}</span>
@@ -537,7 +538,7 @@ export function ConfigCenterPage() {
             <Card
               className={
                 overview.data?.configStale || overview.data?.drift
-                  ? "border-[#f0c8b9] bg-[#fffaf8]"
+                  ? "border-danger/40 bg-danger/10"
                   : undefined
               }
             >
@@ -696,7 +697,7 @@ export function ConfigCenterPage() {
           </div>
           <div
             className={`flex flex-wrap justify-between gap-2 text-xs ${
-              jsonDirty ? "text-[#b15a32]" : "text-muted"
+              jsonDirty ? "text-danger" : "text-muted"
             }`}
           >
             <span>
@@ -754,8 +755,10 @@ export function ConfigCenterPage() {
                 <button
                   key={backup.id}
                   type="button"
-                  className={`block w-full border-b border-line px-3 py-3 text-left hover:bg-accent/5 ${
-                    selectedBackupId === backup.id ? "bg-accent/10" : ""
+                  className={`block w-full border-b border-line px-3 py-3 text-left hover:bg-raised ${
+                    selectedBackupId === backup.id
+                      ? "bg-accent/10 font-semibold text-accent"
+                      : ""
                   }`}
                   onClick={() => setSelectedBackupId(backup.id)}
                 >
@@ -844,8 +847,8 @@ export function ConfigCenterPage() {
                 <div
                   className={`mb-3 rounded-control border px-3 py-2 ${
                     preview.valid
-                      ? "border-[#c8e8d8] bg-[#f1fbf5] text-[#4b7b63]"
-                      : "border-[#efc2b2] bg-[#fff7f4] text-[#a54b2c]"
+                      ? "border-success/40 bg-success/10 text-success"
+                      : "border-danger/40 bg-danger/10 text-danger"
                   }`}
                 >
                   <div className="font-medium">
@@ -871,8 +874,8 @@ export function ConfigCenterPage() {
                           <span
                             className={`rounded-control px-1.5 py-0.5 text-xs ${
                               test.success
-                                ? "bg-[#f1fbf5] text-[#4b7b63]"
-                                : "bg-[#fff7f4] text-[#a54b2c]"
+                                ? "bg-success/10 text-success"
+                                : "bg-danger/10 text-danger"
                             }`}
                           >
                             {test.success ? "通过" : "失败"}
@@ -906,14 +909,14 @@ export function ConfigCenterPage() {
                         return (
                           <div
                             key={conflict.id}
-                            className="rounded-control border border-[#efc2b2] bg-[#fff7f4] px-3 py-3"
+                            className="rounded-control border border-danger/40 bg-danger/10 px-3 py-3"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="font-medium text-ink">
                                   {conflict.alias || conflict.file || "配置项"}
                                 </div>
-                                <div className="mt-0.5 text-sm text-[#a54b2c]">
+                                <div className="mt-0.5 text-sm text-danger">
                                   {conflict.summary}
                                 </div>
                               </div>
@@ -974,7 +977,7 @@ export function ConfigCenterPage() {
                         type="button"
                         className={`rounded-control border px-2 py-1 text-xs ${
                           previewFile?.path === file.path
-                            ? "border-accent bg-accent/10 text-accent"
+                            ? "border-accent bg-accent/10 font-semibold text-accent"
                             : "border-line"
                         }`}
                         onClick={() => setPreviewFilePath(file.path)}
@@ -1095,7 +1098,7 @@ export function ConfigCenterPage() {
                   key={editor.id}
                   type="button"
                   disabled={!!launchingEditorId}
-                  className={`flex w-full items-center gap-3 rounded-control border px-3 py-2 text-left hover:bg-accent/5 ${
+                  className={`flex w-full items-center gap-3 rounded-control border px-3 py-2 text-left hover:bg-raised ${
                     editor.systemDefault ? "border-dashed border-accent/40" : "border-line"
                   }`}
                   onClick={() => void launchEditor(editor)}
@@ -1132,7 +1135,7 @@ export function ConfigCenterPage() {
 function DiffPane({ title, text }: { title: string; text: string }) {
   return (
     <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-      <div className="border-b border-line bg-[#f5f7fa] px-2 py-1.5 text-[10px] font-semibold text-muted">
+      <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
         {title}
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">

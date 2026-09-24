@@ -85,7 +85,7 @@ export function LocalPackagesPage() {
       <div className="min-h-48 flex-1 overflow-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-[1]">
-              <tr className="h-10 bg-[#f7f8fa]">
+              <tr className="h-10 bg-raised">
                 <th className="w-14 px-3 text-center">序</th>
                 <th className="px-3">名称</th>
                 <th className="px-3">版本</th>

@@ -149,8 +149,8 @@ function MenuItem({
     <button
       type="button"
       className={cn(
-        "flex w-full px-3 py-2 text-left hover:bg-accent/5",
-        danger ? "text-[#a83232]" : "text-ink",
+        "flex w-full px-3 py-2 text-left hover:bg-raised",
+        danger ? "text-danger" : "text-ink",
       )}
       onClick={onClick}
     >

@@ -71,12 +71,11 @@ function TreeNodeRow({
         type="button"
         className={
           selected
-            ? "flex w-full items-center gap-1 px-2 py-1.5 text-left text-sm text-accent"
+            ? "flex w-full items-center gap-1 bg-accent/10 px-2 py-1.5 text-left text-sm font-semibold text-accent"
             : "flex w-full items-center gap-1 px-2 py-1.5 text-left text-sm hover:bg-ink/5"
         }
         style={{
           paddingLeft: 8 + depth * 14,
-          background: selected ? "color-mix(in srgb, #005EEB 10%, transparent)" : undefined,
         }}
         onClick={() => onSelect(entry)}
       >
@@ -184,7 +183,7 @@ export function FileTree({
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      {error ? <p className="px-2 py-1 text-xs text-[#a83232]">{error}</p> : null}
+      {error ? <p className="px-2 py-1 text-xs text-danger">{error}</p> : null}
       {loadingDirs.has(rootPath || "/") && roots.length === 0 ? (
         <p className="px-3 py-2 text-sm text-muted">加载中…</p>
       ) : null}

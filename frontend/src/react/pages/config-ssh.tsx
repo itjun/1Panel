@@ -244,12 +244,12 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {error ? (
-        <div className="rounded-control border border-[#efc2b2] bg-[#fff7f4] px-3 py-2 text-sm text-[#a54b2c]">
+        <div className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
         </div>
       ) : null}
       {message ? (
-        <div className="rounded-control border border-[#c8e8d8] bg-[#f1fbf5] px-3 py-2 text-sm text-[#4b7b63]">
+        <div className="rounded-control border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
           {message}
         </div>
       ) : null}
@@ -272,9 +272,9 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                 <button
                   key={file.path}
                   type="button"
-                  className={`flex w-full items-center gap-2 truncate px-3 py-2 text-left text-sm hover:bg-accent/5 ${
-                    active ? "bg-accent/10 text-accent" : ""
-                  } ${dirty ? "font-medium" : ""}`}
+                  className={`flex w-full items-center gap-2 truncate px-3 py-2 text-left text-sm hover:bg-raised ${
+                    active ? "bg-accent/10 font-semibold text-accent" : ""
+                  } ${dirty && !active ? "font-medium" : ""}`}
                   onClick={() => selectFile(file.path)}
                 >
                   <span className="min-w-0 flex-1 truncate">
@@ -285,7 +285,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                       ●
                     </span>
                   ) : file.externalChanged ? (
-                    <span className="shrink-0 text-[11px] text-[#b15a32]">外部</span>
+                    <span className="shrink-0 text-[11px] text-danger">外部</span>
                   ) : null}
                 </button>
               );
@@ -322,7 +322,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                 </span>
               ) : null}
               {selectedFile?.externalChanged ? (
-                <span className="rounded-control border border-[#efc2b2] bg-[#fff7f4] px-2 py-0.5 text-xs text-[#a54b2c]">
+                <span className="rounded-control border border-danger/40 bg-danger/10 px-2 py-0.5 text-xs text-danger">
                   磁盘已变化
                 </span>
               ) : null}
@@ -376,7 +376,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-3 py-2 text-xs text-muted">
-            <span className={fileDirty ? "text-[#b15a32]" : ""}>
+            <span className={fileDirty ? "text-danger" : ""}>
               {fileDirty
                 ? "草稿未保存，提交时会先导入 Panel JSON 再生成配置"
                 : "文件内容来自当前磁盘快照"}
@@ -409,8 +409,8 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                 <div
                   className={`mb-3 rounded-control border px-3 py-2 ${
                     preview.valid
-                      ? "border-[#c8e8d8] bg-[#f1fbf5] text-[#4b7b63]"
-                      : "border-[#efc2b2] bg-[#fff7f4] text-[#a54b2c]"
+                      ? "border-success/40 bg-success/10 text-success"
+                      : "border-danger/40 bg-danger/10 text-danger"
                   }`}
                 >
                   <div className="font-medium">
@@ -436,8 +436,8 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                           <span
                             className={`rounded-control px-1.5 py-0.5 text-xs ${
                               test.success
-                                ? "bg-[#f1fbf5] text-[#4b7b63]"
-                                : "bg-[#fff7f4] text-[#a54b2c]"
+                                ? "bg-success/10 text-success"
+                                : "bg-danger/10 text-danger"
                             }`}
                           >
                             {test.success ? "通过" : "失败"}
@@ -469,14 +469,14 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                         return (
                           <div
                             key={conflict.id}
-                            className="rounded-control border border-[#efc2b2] bg-[#fff7f4] px-3 py-3"
+                            className="rounded-control border border-danger/40 bg-danger/10 px-3 py-3"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="font-medium text-ink">
                                   {conflict.alias || conflict.file || "配置项"}
                                 </div>
-                                <div className="mt-0.5 text-sm text-[#a54b2c]">
+                                <div className="mt-0.5 text-sm text-danger">
                                   {conflict.summary}
                                 </div>
                               </div>
@@ -537,7 +537,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                         type="button"
                         className={`rounded-control border px-2 py-1 text-xs ${
                           previewFile?.path === file.path
-                            ? "border-accent bg-accent/10 text-accent"
+                            ? "border-accent bg-accent/10 font-semibold text-accent"
                             : "border-line"
                         }`}
                         onClick={() => setPreviewFilePath(file.path)}
@@ -592,7 +592,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
 
 function DiffPane({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-control border border-line bg-[#f7f8fa] p-2">
+    <div className="rounded-control border border-line bg-raised p-2">
       <div className="mb-1 text-xs text-muted">{title}</div>
       <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-ink">
         {text || "（空）"}

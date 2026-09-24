@@ -248,16 +248,16 @@ function MetricBar({
   const width = Math.max(0, Math.min(100, percent));
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <div className="h-1 w-full overflow-hidden rounded-full bg-[#e7edf3]">
+      <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
         <div
-          className={alert ? "h-full rounded-full bg-[#b3261e]" : "h-full rounded-full bg-accent"}
+          className={alert ? "h-full rounded-full bg-danger" : "h-full rounded-full bg-accent"}
           style={{ width: `${width}%` }}
         />
       </div>
       <span
         className={
           alert
-            ? "truncate text-xs font-semibold tabular-nums text-[#b3261e]"
+            ? "truncate text-xs font-semibold tabular-nums text-danger"
             : "truncate text-xs font-semibold tabular-nums"
         }
       >
@@ -398,7 +398,7 @@ function groupRowSortValue(row: GroupRow, key: GroupColumnKey): GroupSortValue {
 }
 
 const INPUT_CLASS =
-  "h-9 w-full rounded-[4px] border border-[#DFE3E8] bg-white px-3 text-sm text-[#20252B] outline-none focus:border-[#005EEB]";
+  "h-9 w-full rounded-[4px] border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-accent";
 
 export function GroupPage() {
   const session = useSession();
@@ -756,7 +756,7 @@ export function GroupPage() {
                   <span
                     className={
                       progress.state === "error"
-                        ? "truncate text-xs text-[#b3261e]"
+                        ? "truncate text-xs text-danger"
                         : progress.state === "running" || progress.state === "done"
                           ? "truncate text-xs text-accent"
                           : "truncate text-xs text-muted"
@@ -765,7 +765,7 @@ export function GroupPage() {
                     {batchRowLabel(progress)}
                   </span>
                   {progress.state === "running" && progress.percent >= 0 ? (
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-[#e7edf3]">
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
                       <div
                         className="h-full bg-accent transition-[width]"
                         style={{ width: `${Math.min(100, progress.percent)}%` }}
@@ -778,9 +778,9 @@ export function GroupPage() {
             const tag = agentTagOf(agentStatuses[row.name], latestAgentVersion);
             let chip =
               "inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium";
-            if (tag.tone === "ok") chip += " bg-[#e8f5e9] text-[#1b5e20]";
-            else if (tag.tone === "warn") chip += " bg-[#fff8e1] text-[#e65100]";
-            else chip += " bg-[#f0f2f5] text-[#687382]";
+            if (tag.tone === "ok") chip += " bg-raised text-success";
+            else if (tag.tone === "warn") chip += " bg-raised text-warn";
+            else chip += " bg-raised text-muted";
             return <span className={chip}>{tag.text}</span>;
           }
           if (key === "user") return row.user || "—";
@@ -1171,7 +1171,7 @@ export function GroupPage() {
       }
     >
       {!hosts.length ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
           <Button variant="primary" onClick={openAddHost}>
             添加主机
           </Button>
@@ -1239,7 +1239,7 @@ export function GroupPage() {
         >
           <DialogTitle>安装 Agent</DialogTitle>
           {batchRows.length ? (
-            <p className="mt-3 rounded-control bg-[#f0f2f5] px-3.5 py-2.5 text-sm text-muted">
+            <p className="mt-3 rounded-control bg-raised px-3.5 py-2.5 text-sm text-muted">
               {batchSummaryText}
             </p>
           ) : null}
@@ -1249,22 +1249,22 @@ export function GroupPage() {
                 key={r.host}
                 className={
                   r.state === "error"
-                    ? "flex items-start gap-3 rounded-control bg-[#fef0f0] px-3.5 py-3"
+                    ? "flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
                     : r.state === "running"
-                      ? "flex items-start gap-3 rounded-control bg-[#eef5ff] px-3.5 py-3"
-                      : "flex items-start gap-3 rounded-control bg-[#f7f8fa] px-3.5 py-3"
+                      ? "flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
+                      : "flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
                 }
               >
                 <div className="mt-0.5 w-5 shrink-0 text-center text-sm" aria-hidden="true">
                   {r.state === "running" ? "…" : r.state === "done" ? "✓" : r.state === "error" ? "✕" : "·"}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start justify-between gap-4">
                     <span className="min-w-0 truncate font-medium text-ink">{r.host}</span>
                     <span
                       className={
                         r.state === "error"
-                          ? "max-w-[52%] shrink-0 text-right text-xs text-[#b3261e]"
+                          ? "max-w-[52%] shrink-0 text-right text-xs text-danger"
                           : r.state === "running" || r.state === "done"
                             ? "max-w-[52%] shrink-0 text-right text-xs text-accent"
                             : "max-w-[52%] shrink-0 text-right text-xs text-muted"
@@ -1274,7 +1274,7 @@ export function GroupPage() {
                     </span>
                   </div>
                   {r.state === "running" && r.percent >= 0 ? (
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-[#e7edf3]">
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
                       <div
                         className="h-full bg-accent transition-[width]"
                         style={{ width: `${Math.min(100, r.percent)}%` }}
@@ -1285,7 +1285,7 @@ export function GroupPage() {
               </div>
             ))}
           </div>
-          <div className="mt-5 flex items-center justify-end gap-3">
+          <div className="mt-5 flex items-center justify-end gap-4">
             {!batchDone ? (
               <p className="m-0 flex-1 text-left text-sm text-muted">
                 正在安装，请稍候…（全部主机并行）
@@ -1361,7 +1361,7 @@ export function GroupPage() {
               <Notice text={addError} />
             </div>
           ) : null}
-          <div className="mt-4 flex flex-col gap-3">
+          <div className="mt-4 flex flex-col gap-4">
             <input
               className={INPUT_CLASS}
               placeholder="别名"
@@ -1391,7 +1391,7 @@ export function GroupPage() {
               }}
             />
             <textarea
-              className="min-h-[72px] w-full resize-y rounded-[4px] border border-[#DFE3E8] bg-white px-3 py-2 text-sm outline-none focus:border-[#005EEB]"
+              className="min-h-[72px] w-full resize-y rounded-[4px] border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
               placeholder="备注（可选）"
               value={addForm.note}
               onChange={(e) => setAddForm((f) => ({ ...f, note: e.target.value }))}

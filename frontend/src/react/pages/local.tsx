@@ -122,9 +122,9 @@ export function InspectPage() {
                   <span
                     className={
                       status === "ok"
-                        ? "h-2.5 w-2.5 rounded-full bg-[#1f7a3f]"
+                        ? "h-2.5 w-2.5 rounded-full bg-success"
                         : status === "bad"
-                          ? "h-2.5 w-2.5 rounded-full bg-[#a83232]"
+                          ? "h-2.5 w-2.5 rounded-full bg-danger"
                           : status === "checking"
                             ? "h-2.5 w-2.5 animate-pulse rounded-full bg-accent"
                             : "h-2.5 w-2.5 rounded-full bg-line"
@@ -144,14 +144,14 @@ export function InspectPage() {
                 <div className="grid gap-2 text-sm">
                   <div className="flex gap-3">
                     <span className="w-10 shrink-0 text-muted">菜单</span>
-                    <span className={item.ok ? "text-[#1f7a3f]" : checked ? "text-[#a83232]" : ""}>
+                    <span className={item.ok ? "text-success" : checked ? "text-danger" : ""}>
                       {item.menuText || "—"}
                     </span>
                   </div>
                   <div className="flex gap-3">
                     <span className="w-10 shrink-0 text-muted">数据</span>
                     <span
-                      className={item.hasData ? "text-[#1f7a3f]" : checked ? "text-[#a83232]" : ""}
+                      className={item.hasData ? "text-success" : checked ? "text-danger" : ""}
                     >
                       {item.dataText || "—"}
                     </span>

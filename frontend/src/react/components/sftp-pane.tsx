@@ -275,9 +275,9 @@ export function SftpPane(props: Props) {
   }
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-white outline-none" tabIndex={0} onKeyDown={onKey}>
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-[#ececee] px-3">
-        <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-[#20252B]">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface outline-none" tabIndex={0} onKeyDown={onKey}>
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
+        <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-ink">
           {props.side === "local" ? <LocalIcon /> : null}
           <span className="truncate">{props.title}</span>
         </span>
@@ -306,7 +306,7 @@ export function SftpPane(props: Props) {
           {menuOpen ? (
             <>
               <div className="fixed inset-0 z-40" onMouseDown={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-[calc(100%+4px)] z-[41] min-w-[176px] rounded-control bg-white p-1 shadow-[0_8px_24px_rgba(32,37,43,0.12)]" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="absolute right-0 top-[calc(100%+4px)] z-[41] min-w-[176px] rounded-control bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]" onMouseDown={(event) => event.stopPropagation()}>
                 <MenuActions
                   canCreate={props.canCreate}
                   canRemove={props.canRemove}
@@ -334,7 +334,7 @@ export function SftpPane(props: Props) {
           <path d="M6 10.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-8.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </IconButton>
         {editing ? (
-          <div className="flex min-h-7 min-w-0 flex-1 items-center rounded-md bg-[#f4f5f7] px-1.5">
+          <div className="flex min-h-7 min-w-0 flex-1 items-center rounded-md bg-raised px-1.5">
             <input
               ref={pathInput}
               value={draft}
@@ -358,18 +358,18 @@ export function SftpPane(props: Props) {
             />
           </div>
         ) : (
-          <div className="flex min-h-7 min-w-0 flex-1 cursor-text items-center gap-0.5 overflow-auto rounded-md px-1.5 hover:bg-[#f4f5f7]" onMouseDown={startEdit}>
-            <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[13px] text-[#3a3a3c] hover:bg-[#e8eaed] hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
+          <div className="flex min-h-7 min-w-0 flex-1 cursor-text items-center gap-0.5 overflow-auto rounded-md px-1.5 hover:bg-raised" onMouseDown={startEdit}>
+            <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
               <FolderIcon />
               根目录
             </button>
             {segments.map((seg, index) => (
               <span key={seg.path} className="flex shrink-0 items-center gap-0.5">
-                <span className="text-[#c7c7cc]">›</span>
+                <span className="text-muted">›</span>
                 <button
                   type="button"
                   className={cn(
-                    "inline-flex max-w-[200px] items-center gap-1 truncate rounded px-1.5 py-1 text-[13px] text-[#3a3a3c] hover:bg-[#e8eaed] hover:text-accent",
+                    "inline-flex max-w-[200px] items-center gap-1 truncate rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent",
                     index === segments.length - 1 && "font-semibold",
                   )}
                   onMouseDown={(event) => {
@@ -388,10 +388,10 @@ export function SftpPane(props: Props) {
         )}
       </div>
 
-      {props.error ? <p className="mx-3 mb-1.5 text-xs text-[#e5484d]">{props.error}</p> : null}
+      {props.error ? <p className="mx-3 mb-1.5 text-xs text-danger">{props.error}</p> : null}
 
       <div
-        className="relative flex min-h-0 flex-1 flex-col border-t border-[#ececee]"
+        className="relative flex min-h-0 flex-1 flex-col border-t border-line"
         {...(props.side === "remote" ? { "data-file-drop-target": "" } : {})}
         onDragEnter={(event) => {
           if (!canAccept(event)) return;
@@ -425,7 +425,7 @@ export function SftpPane(props: Props) {
         }}
       >
         {props.loading ? <div className="absolute inset-x-0 top-0 z-[3] h-0.5 animate-pulse bg-accent" /> : null}
-        <div className="grid h-8 shrink-0 grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line bg-[#f3f4f6] px-3 text-xs text-muted">
+        <div className="grid h-10 shrink-0 grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line bg-raised px-3 text-xs text-muted">
           <SortButton label="名称" active={sortKey === "name"} asc={sortAsc} onClick={() => toggleSort("name")} />
           <SortButton label="修改时间" active={sortKey === "time"} asc={sortAsc} onClick={() => toggleSort("time")} />
           <SortButton label="大小" active={sortKey === "size"} asc={sortAsc} align="right" onClick={() => toggleSort("size")} />
@@ -452,9 +452,13 @@ export function SftpPane(props: Props) {
               data-path={entry.path}
               draggable={!props.locked}
               className={cn(
-                "grid min-h-11 cursor-grab grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-[#ececee] px-3 text-sm",
-                selected.includes(entry.path) ? "bg-accent text-white" : "hover:bg-accent/10",
-                hoverDir === entry.path && !selected.includes(entry.path) && "bg-accent/15 shadow-[inset_0_0_0_1px_#005EEB]",
+                "grid h-12 cursor-grab grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-sm",
+                selected.includes(entry.path)
+                  ? "bg-accent/10 font-semibold text-accent"
+                  : "hover:bg-ink/5",
+                hoverDir === entry.path &&
+                  !selected.includes(entry.path) &&
+                  "bg-accent/15 ring-1 ring-accent/40",
                 dragging.includes(entry.path) && "opacity-45",
               )}
               onClick={(event) => {
@@ -528,21 +532,21 @@ export function SftpPane(props: Props) {
               <div className="flex min-w-0 items-center gap-2">
                 {entry.isDir ? <FolderIcon /> : <FileIcon />}
                 <div className="min-w-0">
-                  <div className={cn("truncate", entry.name.startsWith(".") && !selected.includes(entry.path) && "text-[#8e8e93]")}>{entry.name}</div>
+                  <div className={cn("truncate", entry.name.startsWith(".") && !selected.includes(entry.path) && "text-muted")}>{entry.name}</div>
                   {entry.mode ? (
-                    <div className={cn("truncate font-mono text-[11px]", selected.includes(entry.path) ? "text-white/80" : "text-[#8e8e93]")}>{entry.mode}</div>
+                    <div className="truncate font-mono text-[11px] text-muted">{entry.mode}</div>
                   ) : null}
                 </div>
               </div>
-              <span className={cn("truncate text-xs", selected.includes(entry.path) ? "text-white/80" : "text-[#636366]")}>{entry.modTime || "—"}</span>
-              <span className={cn("text-right text-xs tabular-nums", selected.includes(entry.path) ? "text-white/80" : "text-[#636366]")}>{entry.isDir ? "—" : formatBytes(entry.size)}</span>
-              <span className={cn("truncate text-xs", selected.includes(entry.path) ? "text-white/80" : "text-[#636366]")}>{kindOf(entry)}</span>
+              <span className="truncate text-xs text-muted">{entry.modTime || "—"}</span>
+              <span className="text-right text-xs tabular-nums text-muted">{entry.isDir ? "—" : formatBytes(entry.size)}</span>
+              <span className="truncate text-xs text-muted">{kindOf(entry)}</span>
               <span />
             </div>
           ))}
         </div>
-        <div className={cn("pointer-events-none absolute inset-2.5 z-[4] grid place-items-center rounded-[10px] bg-white/80", hot ? "visible opacity-100" : "invisible opacity-0")}>
-          <div className="text-center text-[#1c1c1e]">
+        <div className={cn("pointer-events-none absolute inset-2.5 z-[4] grid place-items-center rounded-[10px] bg-surface/80", hot ? "visible opacity-100" : "invisible opacity-0")}>
+          <div className="text-center text-ink">
             <p className="text-base font-semibold">{hint}</p>
           </div>
         </div>
@@ -560,7 +564,7 @@ export function SftpPane(props: Props) {
           />
           <div
             ref={ctxEl}
-            className="fixed z-[41] min-w-[176px] rounded-control bg-white p-1 shadow-[0_8px_24px_rgba(32,37,43,0.12)]"
+            className="fixed z-[41] min-w-[176px] rounded-control bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
             style={{ left: ctx.x, top: ctx.y }}
             onMouseDown={(event) => event.stopPropagation()}
           >
@@ -603,13 +607,13 @@ function MenuActions({
         <>
           <MenuButton label="创建目录" onClick={() => onRun("mkdir")} />
           <MenuButton label="创建文件" onClick={() => onRun("mkfile")} />
-          <div className="mx-1.5 my-1 h-px bg-[#ececee]" />
+          <div className="mx-1.5 my-1 h-px bg-line" />
         </>
       ) : null}
       <MenuButton label="打开" disabled={!canOpen} onClick={() => onRun("open")} />
       <MenuButton label="传到对面" disabled={!selectedCount} onClick={() => onRun("send")} />
       {canRemove ? <MenuButton label="删除" danger disabled={!selectedCount} onClick={() => onRun("remove")} /> : null}
-      <div className="mx-1.5 my-1 h-px bg-[#ececee]" />
+      <div className="mx-1.5 my-1 h-px bg-line" />
       <MenuButton label="刷新" onClick={() => onRun("refresh")} />
       <MenuButton label={showHidden ? "不显示隐藏文件" : "显示隐藏文件"} onClick={() => onRun("hidden")} />
       <MenuButton label="全选" disabled={!shownCount} onClick={() => onRun("all")} />
@@ -634,8 +638,8 @@ function MenuButton({
       disabled={disabled}
       className={cn(
         "flex w-full rounded-md px-2.5 py-1.5 text-left text-sm",
-        danger ? "text-[#e5484d]" : "text-ink",
-        disabled ? "cursor-default opacity-35" : "hover:bg-[#f2f3f5]",
+        danger ? "text-danger" : "text-ink",
+        disabled ? "cursor-default opacity-35" : "hover:bg-raised",
       )}
       onClick={onClick}
     >
@@ -682,7 +686,7 @@ function IconButton({
       title={label}
       aria-label={label}
       disabled={disabled}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-control text-ink hover:bg-[#f2f3f5] disabled:cursor-default disabled:opacity-30"
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-control text-ink hover:bg-raised disabled:cursor-default disabled:opacity-30"
       onClick={onClick}
     >
       <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -711,7 +715,7 @@ function FileIcon() {
 
 function LocalIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-[#3a3a3c]" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-ink" aria-hidden="true">
       <rect x="3" y="4" width="18" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
       <path d="M8 20h8M12 16v4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>

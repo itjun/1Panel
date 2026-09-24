@@ -37,10 +37,10 @@ function formatUnixTime(value?: number) {
 }
 
 function kindClass(kind: string) {
-  if (kind === "added") return "border-[#b7dfc8] bg-[#f1fbf5] text-[#267955]";
-  if (kind === "removed") return "border-[#efc2b2] bg-[#fff7f4] text-[#a7472a]";
-  if (kind === "changed") return "border-[#efd9a8] bg-[#fff8eb] text-[#9a641f]";
-  return "border-line bg-[#eef2f7] text-muted";
+  if (kind === "added") return "border-success/40 bg-success/10 text-success";
+  if (kind === "removed") return "border-danger/40 bg-danger/10 text-danger";
+  if (kind === "changed") return "border-warn/40 bg-warn/10 text-warn";
+  return "border-line bg-raised text-muted";
 }
 
 /**
@@ -199,12 +199,12 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {error ? (
-        <div className="rounded-control border border-[#efc2b2] bg-[#fff7f4] px-3 py-2 text-sm text-[#a54b2c]">
+        <div className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
         </div>
       ) : null}
       {message ? (
-        <div className="rounded-control border border-[#c8e8d8] bg-[#f1fbf5] px-3 py-2 text-sm text-[#4b7b63]">
+        <div className="rounded-control border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
           {message}
         </div>
       ) : null}
@@ -338,8 +338,8 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                 <div
                   className={`mb-3 rounded-control border px-3 py-2 ${
                     preview.valid
-                      ? "border-[#c8e8d8] bg-[#f1fbf5] text-[#4b7b63]"
-                      : "border-[#efc2b2] bg-[#fff7f4] text-[#a54b2c]"
+                      ? "border-success/40 bg-success/10 text-success"
+                      : "border-danger/40 bg-danger/10 text-danger"
                   }`}
                 >
                   <div className="font-medium">
@@ -365,8 +365,8 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                           <span
                             className={`rounded-control px-1.5 py-0.5 text-xs ${
                               test.success
-                                ? "bg-[#f1fbf5] text-[#4b7b63]"
-                                : "bg-[#fff7f4] text-[#a54b2c]"
+                                ? "bg-success/10 text-success"
+                                : "bg-danger/10 text-danger"
                             }`}
                           >
                             {test.success ? "通过" : "失败"}
@@ -398,14 +398,14 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                         return (
                           <div
                             key={conflict.id}
-                            className="rounded-control border border-[#efc2b2] bg-[#fff7f4] px-3 py-3"
+                            className="rounded-control border border-danger/40 bg-danger/10 px-3 py-3"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="font-medium text-ink">
                                   {conflict.alias || conflict.file || "配置项"}
                                 </div>
-                                <div className="mt-0.5 text-sm text-[#a54b2c]">
+                                <div className="mt-0.5 text-sm text-danger">
                                   {conflict.summary}
                                 </div>
                               </div>
@@ -466,7 +466,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                         type="button"
                         className={`rounded-control border px-2 py-1 text-xs ${
                           previewFile?.path === file.path
-                            ? "border-accent bg-accent/10 text-accent"
+                            ? "border-accent bg-accent/10 font-semibold text-accent"
                             : "border-line"
                         }`}
                         onClick={() => setPreviewFilePath(file.path)}
@@ -478,7 +478,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                   {previewFile ? (
                     <div className="mb-3 grid max-h-64 gap-2 overflow-auto md:grid-cols-3">
                       <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-                        <div className="border-b border-line bg-[#f5f7fa] px-2 py-1.5 text-[10px] font-semibold text-muted">
+                        <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
                           Panel 快照
                         </div>
                         <div className="min-h-0 flex-1 overflow-hidden">
@@ -490,7 +490,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                         </div>
                       </div>
                       <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-                        <div className="border-b border-line bg-[#f5f7fa] px-2 py-1.5 text-[10px] font-semibold text-muted">
+                        <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
                           当前磁盘
                         </div>
                         <div className="min-h-0 flex-1 overflow-hidden">
@@ -502,7 +502,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                         </div>
                       </div>
                       <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-                        <div className="border-b border-line bg-[#f5f7fa] px-2 py-1.5 text-[10px] font-semibold text-muted">
+                        <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
                           待生成结果
                         </div>
                         <div className="min-h-0 flex-1 overflow-hidden">
@@ -554,7 +554,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
 
 function DiffPane({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-control border border-line bg-[#f7f8fa] p-2">
+    <div className="rounded-control border border-line bg-raised p-2">
       <div className="mb-1 text-xs text-muted">{title}</div>
       <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-ink">
         {text || "（空）"}

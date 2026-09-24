@@ -37,7 +37,7 @@ export function LocalHostsPage() {
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr]">
           <div className="border-r border-line">
-            <div className="flex h-12 items-center justify-between bg-accent/10 px-3 text-accent">
+            <div className="flex h-12 items-center justify-between bg-accent/10 px-3 font-semibold text-accent">
               <span className="font-mono text-sm">hosts</span>
               <span className="text-xs text-muted">{formatSize(raw.length)}</span>
             </div>
@@ -46,7 +46,7 @@ export function LocalHostsPage() {
             {raw ? (
               <HighlightPane html={html} text={raw} />
             ) : (
-              <pre className="h-full bg-[#191c21] p-4 text-sm text-[#8b98a8]">
+              <pre className="h-full bg-graphite p-4 text-sm text-muted">
                 {query.isLoading ? "加载中…" : "暂无内容"}
               </pre>
             )}

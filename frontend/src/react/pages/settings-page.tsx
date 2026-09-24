@@ -59,13 +59,13 @@ export function SettingsPage() {
         </Button>
       }
     >
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-5">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-6 py-5">
         {message ? <Notice text={message} /> : null}
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-muted">外观</h2>
+          <h2 className="text-xs font-semibold tracking-wide text-muted">外观</h2>
           <SettingRow label="界面字体" hint="改完立刻生效">
             <select
-              className="h-8 rounded-control border border-line bg-surface px-2"
+              className="h-8 rounded-control border border-line bg-surface px-2 text-sm"
               value={settings.fontFamily}
               onChange={(event) => updateSettings({ fontFamily: event.target.value })}
             >
@@ -87,7 +87,7 @@ export function SettingsPage() {
           </SettingRow>
         </section>
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-muted">会话</h2>
+          <h2 className="text-xs font-semibold tracking-wide text-muted">会话</h2>
           <SettingRow label="启动时打开">
             <label className="mr-3">
               <input
@@ -108,7 +108,7 @@ export function SettingsPage() {
           </SettingRow>
         </section>
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-muted">应用</h2>
+          <h2 className="text-xs font-semibold tracking-wide text-muted">应用</h2>
           <SettingRow label="本机出口" hint="公网 IP，来自 myip.ipip.net">
             <span>{egress.data?.ip || (egress.isLoading ? "检测中…" : "未知")}</span>
             {egress.data?.location ? (
@@ -181,10 +181,10 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-surface border border-line bg-surface px-5 py-4">
-      <div>
-        <div className="font-medium">{label}</div>
-        {hint ? <div className="text-sm text-muted">{hint}</div> : null}
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-surface bg-surface px-5 py-4">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-ink">{label}</div>
+        {hint ? <div className="mt-0.5 text-xs text-muted">{hint}</div> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>

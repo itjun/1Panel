@@ -26,7 +26,7 @@ function SimpleRows({
   return (
     <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-[#f7f8fa]">
+        <thead className="sticky top-0 z-[1] bg-raised">
           <tr className="h-10">
             {headers.map((header) => (
               <th key={header.key} className="px-3 font-medium">
@@ -44,7 +44,7 @@ function SimpleRows({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.id} className="h-12 border-t border-line hover:bg-ink/5">
+              <tr key={row.id} className="h-12 border-t border-line hover:bg-raised">
                 {row.cells.map((cell, index) => (
                   <td key={index} className="max-w-[360px] truncate px-3">
                     {cell}
@@ -310,7 +310,7 @@ export function PackagesPage({ host }: { host: string }) {
           {depLoading ? (
             <p className="mt-3 text-sm text-muted">加载依赖中…</p>
           ) : (
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="text-sm font-medium">这个包装了谁</span>

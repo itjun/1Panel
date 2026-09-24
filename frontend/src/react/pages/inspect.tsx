@@ -276,9 +276,9 @@ export function InspectPage() {
                   <span
                     className={
                       status === "ok"
-                        ? "h-2.5 w-2.5 rounded-full bg-[#1f7a3f]"
+                        ? "h-2.5 w-2.5 rounded-full bg-success"
                         : status === "bad"
-                          ? "h-2.5 w-2.5 rounded-full bg-[#a83232]"
+                          ? "h-2.5 w-2.5 rounded-full bg-danger"
                           : status === "checking"
                             ? "h-2.5 w-2.5 animate-pulse rounded-full bg-accent"
                             : "h-2.5 w-2.5 rounded-full bg-line"
@@ -303,9 +303,9 @@ export function InspectPage() {
                     <span
                       className={
                         item.ok
-                          ? "text-[#1f7a3f]"
+                          ? "text-success"
                           : checked
-                            ? "text-[#a83232]"
+                            ? "text-danger"
                             : "text-muted"
                       }
                     >
@@ -317,9 +317,9 @@ export function InspectPage() {
                     <span
                       className={
                         item.hasData
-                          ? "text-[#1f7a3f]"
+                          ? "text-success"
                           : checked
-                            ? "text-[#a83232]"
+                            ? "text-danger"
                             : "text-muted"
                       }
                     >
@@ -361,8 +361,8 @@ export function InspectPage() {
               <div
                 className={
                   resultDialog.menuOk
-                    ? "flex items-start gap-2 text-base text-[#1f7a3f]"
-                    : "flex items-start gap-2 text-base text-[#a83232]"
+                    ? "flex items-start gap-2 text-base text-success"
+                    : "flex items-start gap-2 text-base text-danger"
                 }
               >
                 <span className="shrink-0 font-bold">
@@ -373,8 +373,8 @@ export function InspectPage() {
               <div
                 className={
                   resultDialog.dataOk
-                    ? "flex items-start gap-2 text-base text-[#1f7a3f]"
-                    : "flex items-start gap-2 text-base text-[#a83232]"
+                    ? "flex items-start gap-2 text-base text-success"
+                    : "flex items-start gap-2 text-base text-danger"
                 }
               >
                 <span className="shrink-0 font-bold">

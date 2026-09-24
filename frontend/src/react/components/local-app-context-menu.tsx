@@ -183,8 +183,8 @@ function MenuItem({
       disabled={disabled}
       className={
         danger
-          ? "block h-9 w-full px-3 text-left text-sm text-[#a83232] hover:bg-[#d64545]/10 disabled:opacity-40"
-          : "block h-9 w-full px-3 text-left text-sm text-ink hover:bg-[#f7f8fa] disabled:opacity-40"
+          ? "block h-9 w-full px-3 text-left text-sm text-danger hover:bg-danger/10 disabled:opacity-40"
+          : "block h-9 w-full px-3 text-left text-sm text-ink hover:bg-raised disabled:opacity-40"
       }
       onClick={onClick}
     >

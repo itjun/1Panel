@@ -730,10 +730,10 @@ function UtilityNav({
       <button
         type="button"
         className={cn(
-          "relative flex h-10 items-center rounded-control px-2.5 text-left",
+          "relative flex h-10 items-center rounded-control text-left",
           !open && activeLabel
-            ? "bg-accent/10 font-semibold text-accent"
-            : "text-muted hover:bg-ink/5 hover:text-ink",
+            ? "bg-accent/10 px-2.5 font-semibold text-accent"
+            : "px-2.5 text-muted hover:bg-ink/5 hover:text-ink",
         )}
         title={open ? "收起" : "展开"}
         onClick={onToggle}
@@ -741,12 +741,12 @@ function UtilityNav({
         <span className="mr-1.5 w-3 shrink-0 text-center text-[10px]">{open ? "▾" : "▸"}</span>
         <span className="truncate">{open ? "收起" : activeLabel || "更多"}</span>
         {!open && badge ? (
-          <span className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-[#C62828] px-1 text-[10px] font-bold leading-4 text-white">
+          <span className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
             {badge}
           </span>
         ) : null}
         {!open && !badge && configNeedsAttention ? (
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C62828]" />
+          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
         ) : null}
       </button>
       {open ? (
@@ -786,20 +786,22 @@ function RailNavButton({
     <button
       type="button"
       className={cn(
-        "relative flex h-10 items-center rounded-control px-2.5 text-left",
-        active ? "bg-accent/10 font-semibold text-accent" : "text-muted hover:bg-ink/5 hover:text-ink",
+        "relative flex h-10 items-center rounded-control text-left",
+        active
+          ? "bg-accent/10 px-2.5 font-semibold text-accent"
+          : "px-2.5 text-muted hover:bg-ink/5 hover:text-ink",
       )}
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
       <span className="truncate">{label}</span>
       {badge ? (
-        <span className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-[#C62828] px-1 text-[10px] font-bold leading-4 text-white">
+        <span className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
           {badge}
         </span>
       ) : null}
       {statusDot ? (
-        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C62828]" />
+        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
       ) : null}
     </button>
   );
@@ -837,10 +839,10 @@ function RailSessionRow({
       type="button"
       draggable
       className={cn(
-        "relative flex h-10 cursor-grab items-center gap-1.5 truncate rounded-control px-2.5 text-left active:cursor-grabbing",
+        "relative flex h-10 cursor-grab items-center gap-1.5 truncate rounded-control text-left active:cursor-grabbing",
         active || selected
-          ? "bg-accent/10 font-semibold text-accent"
-          : "text-muted hover:bg-ink/5 hover:text-ink",
+          ? "bg-accent/10 px-2.5 font-semibold text-accent"
+          : "px-2.5 text-muted hover:bg-ink/5 hover:text-ink",
         dragging && "opacity-40",
       )}
       onPointerDown={onPointerDown}
@@ -918,7 +920,7 @@ function CtxItem({
       type="button"
       className={cn(
         "flex w-full items-center px-3 py-2 text-left hover:bg-ink/5",
-        danger && "text-[#C62828] hover:bg-[#C62828]/8",
+        danger && "text-danger hover:bg-danger/10",
       )}
       onClick={onClick}
     >

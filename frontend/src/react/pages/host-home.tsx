@@ -131,8 +131,8 @@ function MenuItem({
   return (
     <button
       type="button"
-      className={`flex w-full items-center justify-between gap-4 px-3 py-2 text-left hover:bg-accent/5 ${
-        danger ? "text-[#a83232]" : "text-ink"
+      className={`flex w-full items-center justify-between gap-4 px-3 py-2 text-left hover:bg-raised ${
+        danger ? "text-danger" : "text-ink"
       }`}
       onClick={onClick}
     >
@@ -670,7 +670,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
   return (
     <div
-      className={`flex h-full min-h-0 flex-col bg-white ${dragging ? "select-none" : ""}`}
+      className={`flex h-full min-h-0 flex-col bg-surface ${dragging ? "select-none" : ""}`}
       onContextMenu={(event) => {
         const el = (event.target as HTMLElement).closest(
           "[data-group-head], [data-host-row], .host-home-toolbar, button, input, textarea",
@@ -769,7 +769,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   type="button"
                   aria-label="折叠或展开分组"
                   aria-expanded={!collapsed}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-muted hover:bg-black/5"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised"
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleCollapsed(section.id);
@@ -797,7 +797,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 </button>
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1.5 text-left hover:bg-black/5"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1.5 text-left hover:bg-raised"
                   onClick={() => {
                     if (suppressClick.current) return;
                     if (section.isPinned) return;
@@ -808,10 +808,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                     setSelectionSection(null);
                   }}
                 >
-                  <span className="truncate font-semibold text-[#20252B]">
+                  <span className="truncate font-semibold text-ink">
                     {section.name}
                   </span>
-                  <span className="rounded-full bg-[#eef1f4] px-2 text-xs font-semibold text-[#4a5562]">
+                  <span className="rounded-full bg-raised px-2 text-xs font-semibold text-muted">
                     {section.hosts.length}
                   </span>
                 </button>
@@ -842,8 +842,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                         data-host-axis="y"
                         className={`group relative flex h-[60px] cursor-grab items-center gap-[14px] px-[18px] active:cursor-grabbing ${
                           selectedRow
-                            ? "bg-[#e7edf3]"
-                            : "bg-white hover:bg-[#e7edf3]"
+                            ? "bg-accent/10 font-semibold text-accent"
+                            : "bg-surface hover:bg-raised"
                         }`}
                         onPointerDown={(event) =>
                           onHostPointerDown(event, section.id, host.name)
@@ -889,17 +889,21 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                         ) : null}
                         <DistroBadge osRelease={session.osRelease[host.name]} />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold text-[#20252B]">
+                          <div
+                            className={`truncate font-semibold ${
+                              selectedRow ? "text-accent" : "text-ink"
+                            }`}
+                          >
                             {host.name}
                           </div>
-                          <div className="truncate text-[12px] leading-tight text-[#687382]">
+                          <div className="truncate text-[12px] leading-tight text-muted">
                             ssh, {host.user || "root"}
                           </div>
                         </div>
                         <button
                           type="button"
                           aria-label="编辑主机"
-                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-[#4a5562] hover:bg-black/5 ${
+                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised ${
                             selectedRow
                               ? "opacity-100"
                               : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
@@ -1115,7 +1119,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               >
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-accent/5"
+                  className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-raised"
                 >
                   <span>迁移分组</span>
                   <span className="text-muted">›</span>
@@ -1124,9 +1128,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   <div className="absolute left-full top-0 z-[62] ml-1 max-h-[280px] min-w-[148px] overflow-y-auto rounded-surface border border-line bg-surface py-1 shadow-lg">
                     <button
                       type="button"
-                      className={`flex w-full px-3 py-2 text-left hover:bg-accent/5 ${
+                      className={`flex w-full px-3 py-2 text-left hover:bg-raised ${
                         session.groupIdOf(hostMenu.host) === ""
-                          ? "font-semibold text-accent"
+                          ? "bg-accent/10 font-semibold text-accent"
                           : ""
                       }`}
                       onClick={() => {
@@ -1141,9 +1145,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                       <button
                         key={g.id}
                         type="button"
-                        className={`flex w-full px-3 py-2 text-left hover:bg-accent/5 ${
+                        className={`flex w-full px-3 py-2 text-left hover:bg-raised ${
                           session.groupIdOf(hostMenu.host) === g.id
-                            ? "font-semibold text-accent"
+                            ? "bg-accent/10 font-semibold text-accent"
                             : ""
                         }`}
                         onClick={() => {
@@ -1349,7 +1353,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       <Dialog open={checkOpen} onOpenChange={(open) => !open && setCheckOpen(false)}>
         <DialogContent className="w-[min(520px,calc(100%-32px))]">
           <DialogTitle>检查 Agent · {checkHost}</DialogTitle>
-          <pre className="mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-control bg-[#f5f7f9] p-3 text-xs text-ink">
+          <pre className="mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-control bg-raised p-3 text-xs text-ink">
             {checkBusy ? "检查中…" : checkText}
           </pre>
           <div className="mt-4 flex justify-end">
@@ -1477,7 +1481,7 @@ function HostQuickSwitcher({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex justify-center bg-[#20252b]/28 pt-[12vh]"
+      className="fixed inset-0 z-[70] flex justify-center bg-black/45 pt-[12vh]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -1526,7 +1530,9 @@ function HostQuickSwitcher({
                   role="option"
                   aria-selected={i === active}
                   className={`flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left ${
-                    i === active ? "bg-accent/10 text-accent" : "text-ink"
+                    i === active
+                      ? "bg-accent/10 font-semibold text-accent"
+                      : "text-ink"
                   }`}
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(event) => {
@@ -1535,11 +1541,7 @@ function HostQuickSwitcher({
                   }}
                 >
                   <span className="shrink-0 font-medium">{row.name}</span>
-                  <span
-                    className={`min-w-0 flex-1 truncate text-xs ${
-                      i === active ? "text-accent/80" : "text-muted"
-                    }`}
-                  >
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted">
                     {row.meta}
                   </span>
                   {row.running ? (

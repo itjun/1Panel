@@ -109,11 +109,11 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
     <div className="fixed inset-0 z-40 flex justify-end">
       <button
         type="button"
-        className="absolute inset-0 bg-[#20252b]/40"
+        className="absolute inset-0 bg-black/55"
         aria-label="关闭预览"
         onClick={onClose}
       />
-      <aside className="relative z-10 flex h-full w-1/2 min-w-[320px] flex-col border-l border-line bg-surface shadow-[0_8px_24px_rgba(32,37,43,0.12)]">
+      <aside className="relative z-10 flex h-full w-1/2 min-w-[320px] flex-col border-l border-line bg-surface shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
             {preview?.name || target?.name || "预览"}
@@ -124,7 +124,7 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
         </div>
         <div className="flex min-h-0 flex-1 flex-col p-3">
           {needsNormalize ? (
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-surface border border-[#b97814]/30 bg-[#b97814]/10 px-3 py-2 text-sm text-[#76500f]">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-surface border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
               <span>
                 当前不是 Linux 标准格式（期望 UTF-8 + LF）：编码{" "}
                 <strong>{preview?.encoding || "—"}</strong>，换行{" "}
@@ -157,22 +157,22 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
               </div>
             </div>
           ) : null}
-          {error ? <p className="mb-2 text-sm text-[#a83232]">{error}</p> : null}
-          <div className="min-h-0 flex-1 overflow-hidden rounded-surface border border-line bg-[#191c21]">
+          {error ? <p className="mb-2 text-sm text-danger">{error}</p> : null}
+          <div className="min-h-0 flex-1 overflow-hidden rounded-surface border border-line bg-graphite">
             {loading ? (
-              <pre className="p-4 font-mono text-sm text-[#e5e7eb]">加载中…</pre>
+              <pre className="p-4 font-mono text-sm text-graphite-text">加载中…</pre>
             ) : (
               <HighlightPane html={html} text={preview?.content || ""} />
             )}
           </div>
-          <div className="mt-2 flex shrink-0 items-center justify-between gap-3 text-[11px] text-muted">
+          <div className="mt-2 flex shrink-0 items-center justify-between gap-4 text-[11px] text-muted">
             <span>{preview ? `${lineCount} 行` : ""}</span>
             <span className="inline-flex items-center gap-2 tabular-nums">
-              <span className={needsNormalize ? "font-semibold text-[#a83232]" : "text-ink"}>
+              <span className={needsNormalize ? "font-semibold text-danger" : "text-ink"}>
                 {preview?.encoding || "—"}
               </span>
               <span>|</span>
-              <span className={needsNormalize ? "font-semibold text-[#a83232]" : "text-ink"}>
+              <span className={needsNormalize ? "font-semibold text-danger" : "text-ink"}>
                 {preview?.lineEnding || "—"}
               </span>
             </span>

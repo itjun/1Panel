@@ -110,7 +110,7 @@ function Shell() {
           )}
         </div>
         {!session.settingsOpen && editing ? (
-          <aside className="flex h-full w-[380px] shrink-0 flex-col overflow-hidden border-l border-[#DFE3E8] bg-white">
+          <aside className="flex h-full w-[380px] shrink-0 flex-col overflow-hidden border-l border-line bg-surface">
             <HostEditForm
               key={editing.name}
               host={editing}

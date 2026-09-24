@@ -19,7 +19,7 @@
 
 .local-ring__title {
   font-size: 12px;
-  fill: #687382;
+  fill: var(--color-muted);
 }
 
 .local-ring__pct {
@@ -31,12 +31,12 @@
   margin-top: 6px;
   text-align: center;
   font-size: 12px;
-  color: #687382;
+  color: var(--color-muted);
   line-height: 1.4;
 }
 
 .local-ring__caption.is-danger {
-  color: #d64545;
+  color: var(--color-danger);
 }
 
 .local-pop-row {
@@ -54,7 +54,7 @@
 .local-disk-bar {
   height: 8px;
   border-radius: 999px;
-  background: #e8ecf1;
+  background: var(--color-line);
   overflow: hidden;
 }
 
@@ -72,7 +72,7 @@
   min-width: 0;
   min-height: 0;
   height: 100%;
-  background: #191c21;
+  background: var(--color-graphite);
 }
 
 .local-code-copy {
@@ -85,17 +85,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(248, 248, 242, 0.25);
+  border: 1px solid color-mix(in srgb, var(--color-graphite-text) 25%, transparent);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8f8f2;
+  background: color-mix(in srgb, var(--color-graphite-text) 8%, transparent);
+  color: var(--color-graphite-text);
   opacity: 0.6;
   cursor: pointer;
 }
 
 .local-code-copy:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--color-graphite-text) 18%, transparent);
 }
 
 .local-code-copy.is-copied {
@@ -115,8 +115,8 @@
   font-family: var(--font-mono, "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco, monospace);
   font-size: 14px;
   line-height: 1.55;
-  color: #f8f8f2;
-  background: #191c21;
+  color: var(--color-graphite-text);
+  background: var(--color-graphite);
   white-space: pre;
   tab-size: 2;
   counter-reset: ng-line;
@@ -124,7 +124,7 @@
 }
 
 .local-code-pre.muted {
-  color: #8b98a8;
+  color: color-mix(in srgb, var(--color-graphite-text) 55%, transparent);
 }
 
 .local-code-pre.is-wrap {
@@ -150,10 +150,11 @@
   left: 0;
   width: 2.6em;
   text-align: right;
-  color: #6b7280;
+  color: color-mix(in srgb, var(--color-graphite-text) 45%, transparent);
   user-select: none;
 }
 
+/* Monokai 语法高亮：固定深底配色，不随浅色主题切换 */
 .local-code-pre .hljs-comment,
 .local-code-pre .hljs-quote {
   color: #75715e;

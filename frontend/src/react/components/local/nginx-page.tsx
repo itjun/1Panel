@@ -65,8 +65,8 @@ export function LocalNginxPage() {
                 type="button"
                 className={
                   chosen === file.path
-                    ? "flex h-12 w-full items-center justify-between bg-accent/10 px-3 text-left text-accent"
-                    : "flex h-12 w-full items-center justify-between px-3 text-left hover:bg-[#f7f8fa]"
+                    ? "flex h-12 w-full items-center justify-between bg-accent/10 px-3 text-left font-semibold text-accent"
+                    : "flex h-12 w-full items-center justify-between px-3 text-left hover:bg-raised"
                 }
                 onClick={() => setPath(file.path)}
               >
@@ -85,14 +85,14 @@ export function LocalNginxPage() {
           <div className="min-h-0 overflow-hidden">
             {chosen ? (
               body.isError || !html ? (
-                <pre className="h-full overflow-auto bg-[#191c21] p-4 font-mono text-sm text-[#e5e7eb]">
+                <pre className="h-full overflow-auto bg-graphite p-4 font-mono text-sm text-graphite-text">
                   {previewText}
                 </pre>
               ) : (
                 <HighlightPane html={html} text={body.data || ""} />
               )
             ) : (
-              <div className="p-4 text-sm text-[#8b98a8]">选择左侧文件预览</div>
+              <div className="p-4 text-sm text-muted">选择左侧文件预览</div>
             )}
           </div>
         </div>

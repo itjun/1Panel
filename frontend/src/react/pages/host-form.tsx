@@ -14,7 +14,7 @@ import { UNGROUPED_ID, useSession } from "@/react/state/session";
 import { formatErr } from "@/utils/format";
 
 const EDIT_INPUT =
-  "h-9 w-full rounded-[4px] border border-[#DFE3E8] bg-white px-3 text-sm text-[#20252B] outline-none focus:border-[#005EEB] disabled:bg-[#f5f7f9] disabled:text-[#687382]";
+  "h-9 w-full rounded-[4px] border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-accent disabled:bg-raised disabled:text-muted";
 
 const CREATE_INPUT = "h-8 rounded-control border border-line px-3";
 
@@ -167,7 +167,7 @@ export function HostCreateForm({
   return (
     <Card className="mb-4">
       {error ? <Notice text={error} /> : null}
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <div className="mt-3 grid gap-4 md:grid-cols-2">
         <input
           className={CREATE_INPUT}
           placeholder={kind === "group" ? "分组名" : "别名"}
@@ -318,16 +318,16 @@ export function HostEditForm({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-auto px-5 pb-4 pt-5">
-        <div className="mb-6 flex items-start gap-3">
+        <div className="mb-6 flex items-start gap-4">
           <DistroBadge osRelease={session.osRelease[host.name]} />
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-semibold leading-tight text-[#20252B]">编辑主机</div>
-            <div className="mt-0.5 truncate text-[12px] text-[#687382]">{host.name}</div>
+            <div className="text-lg font-semibold leading-tight text-ink">编辑主机</div>
+            <div className="mt-0.5 truncate text-[12px] text-muted">{host.name}</div>
           </div>
           <button
             type="button"
             aria-label="关闭"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] text-[#687382] hover:bg-black/5"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] text-muted hover:bg-raised"
             onClick={onClose}
           >
             <svg
@@ -354,7 +354,7 @@ export function HostEditForm({
         ) : null}
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">地址</div>
+          <div className="mb-2 text-[12px] text-muted">地址</div>
           <input
             className={EDIT_INPUT}
             placeholder="IP / 域名"
@@ -365,7 +365,7 @@ export function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">常规</div>
+          <div className="mb-2 text-[12px] text-muted">常规</div>
           <div className="flex flex-col gap-2">
             <input
               className={EDIT_INPUT}
@@ -384,11 +384,11 @@ export function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">SSH</div>
-          <div className="flex items-center gap-2 text-sm text-[#20252B]">
+          <div className="mb-2 text-[12px] text-muted">SSH</div>
+          <div className="flex items-center gap-2 text-sm text-ink">
             <span>端口</span>
             <input
-              className="h-9 w-16 rounded-[4px] border border-[#DFE3E8] bg-white px-2 text-center text-sm text-[#20252B] outline-none focus:border-[#005EEB] disabled:bg-[#f5f7f9] disabled:text-[#687382]"
+              className="h-9 w-16 rounded-[4px] border border-line bg-surface px-2 text-center text-sm text-ink outline-none focus:border-accent disabled:bg-raised disabled:text-muted"
               value={port}
               disabled={busy}
               onChange={(event) => setPort(event.target.value)}
@@ -397,7 +397,7 @@ export function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">登录</div>
+          <div className="mb-2 text-[12px] text-muted">登录</div>
           <div className="flex flex-col gap-2">
             <input
               className={EDIT_INPUT}
@@ -418,9 +418,9 @@ export function HostEditForm({
         </section>
 
         <section className="mb-2">
-          <div className="mb-2 text-[12px] text-[#687382]">备注</div>
+          <div className="mb-2 text-[12px] text-muted">备注</div>
           <textarea
-            className="min-h-[88px] w-full resize-y rounded-[4px] border border-[#DFE3E8] bg-white px-3 py-2 text-sm text-[#20252B] outline-none focus:border-[#005EEB] disabled:bg-[#f5f7f9]"
+            className="min-h-[88px] w-full resize-y rounded-[4px] border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent disabled:bg-raised"
             placeholder="备注"
             value={note}
             disabled={busy}
@@ -429,11 +429,11 @@ export function HostEditForm({
         </section>
       </div>
 
-      <div className="shrink-0 border-t border-[#DFE3E8] p-4">
+      <div className="shrink-0 border-t border-line p-4">
         <button
           type="button"
           disabled={busy || !alias.trim() || !hostName.trim() || !user.trim() || !password}
-          className="h-10 w-full rounded-[4px] bg-[#005EEB] text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 w-full rounded-[4px] bg-accent text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void handleSave()}
         >
           {busy ? "验证并保存…" : "测试并保存"}

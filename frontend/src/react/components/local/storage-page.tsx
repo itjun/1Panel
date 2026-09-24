@@ -5,9 +5,7 @@ import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
 import { Notice, Page } from "@/react/components/page";
 import { formatBytesSI, formatErr } from "@/utils/format";
-import {
-  INTERNAL_DISK_BAR_COLOR,
-} from "./disk-utils";
+import { internalDiskBarColor } from "./disk-utils";
 import "./local.css";
 
 type TabId = "apps" | "tree" | "large";
@@ -206,7 +204,7 @@ export function LocalStoragePage() {
             )}
           </p>
           {(status?.deniedDirs || 0) > 0 ? (
-            <p className="mt-2 text-sm text-[#b97814]">
+            <p className="mt-2 text-sm text-warn">
               {status?.deniedDirs} 个目录因权限跳过
               <button
                 type="button"
@@ -257,7 +255,7 @@ export function LocalStoragePage() {
               <Card className="overflow-hidden p-0">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="h-10 bg-[#f7f8fa]">
+                    <tr className="h-10 bg-raised">
                       <th className="w-10 px-2" />
                       <th className="w-12 px-2 text-center">序</th>
                       <th className="px-3">应用</th>
@@ -320,7 +318,7 @@ export function LocalStoragePage() {
                               </td>
                             </tr>
                             {open ? (
-                              <tr className="border-t border-line bg-[#fafbfc]">
+                              <tr className="border-t border-line bg-raised">
                                 <td colSpan={8} className="px-4 py-2">
                                   {parts.length ? (
                                     <div className="flex flex-col gap-1">
@@ -396,7 +394,7 @@ export function LocalStoragePage() {
                 ) : null}
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="h-10 bg-[#f7f8fa]">
+                    <tr className="h-10 bg-raised">
                       <th className="w-12 px-2 text-center">序</th>
                       <th className="px-3">名称</th>
                       <th className="px-3 text-right">大小</th>
@@ -417,7 +415,7 @@ export function LocalStoragePage() {
                         return (
                           <tr
                             key={row.path}
-                            className="h-12 cursor-pointer border-t border-line hover:bg-[#f7f8fa]"
+                            className="h-12 cursor-pointer border-t border-line hover:bg-raised"
                             onClick={() => {
                               if (row.isDir) setTreePath(row.path);
                             }}
@@ -442,7 +440,7 @@ export function LocalStoragePage() {
                                   <i
                                     style={{
                                       width: `${pct}%`,
-                                      background: INTERNAL_DISK_BAR_COLOR,
+                                      background: internalDiskBarColor(),
                                     }}
                                   />
                                 </div>
@@ -476,7 +474,7 @@ export function LocalStoragePage() {
               <Card className="overflow-hidden p-0">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="h-10 bg-[#f7f8fa]">
+                    <tr className="h-10 bg-raised">
                       <th className="w-12 px-2 text-center">序</th>
                       <th className="px-3">路径</th>
                       <th className="px-3 text-right">大小</th>

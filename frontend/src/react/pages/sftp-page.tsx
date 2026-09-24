@@ -454,8 +454,8 @@ export function SftpPage({ host }: { host: string }) {
   void tick;
 
   return (
-    <div className="relative grid h-full min-h-0 flex-1 grid-cols-2 bg-white">
-      <div className="h-full min-h-0 border-r border-[#e6e8eb]">
+    <div className="relative grid h-full min-h-0 flex-1 grid-cols-2 bg-surface">
+      <div className="h-full min-h-0 border-r border-line">
         <SftpPane
           side="local"
           title="本机"
@@ -526,7 +526,7 @@ export function SftpPage({ host }: { host: string }) {
       />
 
       {xfer ? (
-        <div className={`absolute bottom-4 left-1/2 z-[6] -translate-x-1/2 rounded-full px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] ${xferBad ? "bg-[#e5484d]" : "bg-[#1c1c1e]"}`}>
+        <div className={`absolute bottom-4 left-1/2 z-[6] -translate-x-1/2 rounded-full px-3.5 py-2 text-[13px] font-semibold shadow-[0_8px_24px_rgba(0,0,0,0.18)] ${xferBad ? "bg-danger text-white" : "bg-raised text-ink"}`}>
           {xfer}
         </div>
       ) : null}
@@ -536,8 +536,8 @@ export function SftpPage({ host }: { host: string }) {
           {preview.map((item) => (
             <p key={item.path} className="mb-1.5 text-sm">{item.name}</p>
           ))}
-          {more ? <p className="mb-1.5 text-xs text-[#8e8e93]">还有 {more} 项</p> : null}
-          <p className="mb-1.5 text-xs text-[#8e8e93]">{confirmNote}</p>
+          {more ? <p className="mb-1.5 text-xs text-muted">还有 {more} 项</p> : null}
+          <p className="mb-1.5 text-xs text-muted">{confirmNote}</p>
           <div className="mt-3 flex justify-end gap-2">
             {confirmArmed ? (
               <Button disabled={deleting} onClick={() => setConfirmArmed(false)}>取消</Button>
@@ -545,7 +545,7 @@ export function SftpPage({ host }: { host: string }) {
             <button
               type="button"
               disabled={deleting}
-              className="rounded-lg bg-[#e5484d] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               onClick={() => void confirmDelete()}
             >
               {deleting ? "正在删除…" : confirmArmed ? "确认删除" : "删除"}
@@ -559,14 +559,14 @@ export function SftpPage({ host }: { host: string }) {
           {conflictPreview.map((name) => (
             <p key={name} className="mb-1.5 text-sm">{name}</p>
           ))}
-          {conflictMore ? <p className="mb-1.5 text-xs text-[#8e8e93]">还有 {conflictMore} 项</p> : null}
-          <p className="mb-1.5 text-xs text-[#8e8e93]">
+          {conflictMore ? <p className="mb-1.5 text-xs text-muted">还有 {conflictMore} 项</p> : null}
+          <p className="mb-1.5 text-xs text-muted">
             覆盖会替换这些文件或文件夹。保留副本会在名字后面加序号，例如 {numberedName(conflictNames[0] || "文件.pdf", 1)}，这个名字也被占用就继续用 2、3、4。
           </p>
           <div className="mt-3 flex justify-end gap-2">
             <Button onClick={() => pickConflict("cancel")}>取消</Button>
             <Button variant="primary" onClick={() => pickConflict("rename")}>保留副本</Button>
-            <button type="button" className="rounded-lg bg-[#e5484d] px-4 py-2 text-sm font-semibold text-white" onClick={() => pickConflict("overwrite")}>
+            <button type="button" className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white" onClick={() => pickConflict("overwrite")}>
               覆盖
             </button>
           </div>
@@ -585,7 +585,7 @@ export function SftpPage({ host }: { host: string }) {
               if (event.key === "Enter") void submitCreate();
             }}
           />
-          {createError ? <p className="mt-2 text-xs text-[#e5484d]">{createError}</p> : null}
+          {createError ? <p className="mt-2 text-xs text-danger">{createError}</p> : null}
           <div className="mt-3 flex justify-end gap-2">
             <Button onClick={() => setCreateKind(null)}>取消</Button>
             <Button variant="primary" onClick={() => void submitCreate()}>创建</Button>
@@ -599,8 +599,8 @@ export function SftpPage({ host }: { host: string }) {
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="absolute inset-0 z-[8] grid place-items-center bg-black/30" onMouseDown={onClose}>
-      <div className="w-[min(420px,calc(100%-48px))] overflow-hidden rounded-xl bg-white shadow-[0_16px_48px_rgba(0,0,0,0.22)]" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="flex items-center gap-3 bg-[#2c2c2e] px-4 py-3.5 text-[15px] font-semibold text-white">
+      <div className="w-[min(420px,calc(100%-48px))] overflow-hidden rounded-surface border border-line bg-surface shadow-[0_12px_40px_rgba(32,37,43,0.12)]" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="flex items-center gap-4 bg-raised px-4 py-3.5 text-[15px] font-semibold text-ink">
           <span>{title}</span>
           <button type="button" className="ml-auto text-xl leading-none" onClick={onClose}>×</button>
         </header>

@@ -373,7 +373,7 @@ function MessagesPage({
         <div className="overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="h-10 bg-[#f7f8fa]">
+              <tr className="h-10 bg-raised">
                 <th className="px-3">时间</th>
                 <th className="px-3">主机</th>
                 <th className="px-3">类型</th>
@@ -397,10 +397,10 @@ function MessagesPage({
                     }}
                     className={
                       highlightId && event.id === highlightId
-                        ? "h-12 cursor-pointer border-t border-line bg-accent/20 font-medium"
+                        ? "h-12 cursor-pointer border-t border-line bg-accent/10 font-semibold text-accent"
                         : event.read
-                          ? "h-12 cursor-pointer border-t border-line hover:bg-[#f7f8fa]"
-                          : "h-12 cursor-pointer border-t border-line bg-accent/5 font-medium hover:bg-accent/10"
+                          ? "h-12 cursor-pointer border-t border-line hover:bg-raised"
+                          : "h-12 cursor-pointer border-t border-line bg-raised font-medium hover:bg-accent/5"
                     }
                     onClick={() => {
                       if (!event.id || event.read) return;
@@ -413,8 +413,8 @@ function MessagesPage({
                     <td
                       className={
                         event.state === "up"
-                          ? "whitespace-nowrap px-3 text-[#1f7a3f]"
-                          : "whitespace-nowrap px-3 text-[#a83232]"
+                          ? "whitespace-nowrap px-3 text-success"
+                          : "whitespace-nowrap px-3 text-danger"
                       }
                     >
                       {alertStateLabel(event.state, event.kind)}
@@ -504,8 +504,8 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
         <div className="overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="h-10 bg-[#f7f8fa]">
-                <th className="sticky left-0 z-10 bg-[#f7f8fa] px-3">主机</th>
+              <tr className="h-10 bg-raised">
+                <th className="sticky left-0 z-10 bg-raised px-3">主机</th>
                 {kind === "metricSubs" ? (
                   <>
                     {ALERT_RULES.map((rule) => (

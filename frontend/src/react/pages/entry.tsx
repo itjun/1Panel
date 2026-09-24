@@ -687,8 +687,10 @@ function ConfigCenterPage() {
               <button
                 key={backup.id}
                 type="button"
-                className={`block w-full border-b border-line px-3 py-3 text-left hover:bg-accent/5 ${
-                  selectedBackupId === backup.id ? "bg-accent/10" : ""
+                className={`block w-full border-b border-line px-3 py-3 text-left hover:bg-raised ${
+                  selectedBackupId === backup.id
+                    ? "bg-accent/10 font-semibold text-accent"
+                    : ""
                 }`}
                 onClick={() => setSelectedBackupId(backup.id)}
               >
@@ -964,15 +966,15 @@ function GroupPage() {
             <button
               key={row.name}
               type="button"
-              className="rounded-surface border border-[#3a414b] bg-[#232830] p-5 text-left"
+              className="rounded-surface border border-line bg-graphite p-5 text-left"
               onDoubleClick={() => session.openHost(row.name, "overview")}
             >
               <div className="font-medium">{row.name}</div>
-              <div className="mt-2 text-sm text-[#8b98a8]">{row.hostName}</div>
+              <div className="mt-2 text-sm text-muted">{row.hostName}</div>
               <div className="mt-3 text-sm">
                 CPU {row.cpuText} · 内存 {row.memText}
               </div>
-              <div className="mt-1 text-sm text-[#8b98a8]">Agent {row.agent}</div>
+              <div className="mt-1 text-sm text-muted">Agent {row.agent}</div>
             </button>
           ))}
         </div>
@@ -1216,9 +1218,9 @@ function HostHomePage() {
             }}
           />
         ) : null}
-        <div className="flex flex-col bg-white">
+        <div className="flex flex-col bg-surface">
           {sections.map((section) => (
-            <section key={section.id} className="bg-white" data-drop-group={section.id}>
+            <section key={section.id} className="bg-surface" data-drop-group={section.id}>
               <button
                 type="button"
                 className="flex w-full items-center gap-2 px-[18px] py-3 text-left"
@@ -1244,7 +1246,9 @@ function HostHomePage() {
                       data-host-sort={host.name}
                       data-host-group={section.id}
                       className={`group relative flex h-[60px] cursor-grab items-center gap-[14px] px-[18px] active:cursor-grabbing ${
-                        selectedRow ? "bg-[#e7edf3]" : "bg-white hover:bg-[#e7edf3]"
+                        selectedRow
+                          ? "bg-accent/10 font-semibold text-accent"
+                          : "bg-surface hover:bg-raised"
                       }`}
                       onPointerDown={(event) => onHostPointerDown(event, section.id, host.name)}
                       onClick={(event) => {
@@ -1278,15 +1282,21 @@ function HostHomePage() {
                       ) : null}
                       <DistroBadge osRelease={session.osRelease[host.name]} />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold text-[#20252B]">{host.name}</div>
-                        <div className="truncate text-[12px] leading-tight text-[#687382]">
+                        <div
+                          className={`truncate font-semibold ${
+                            selectedRow ? "text-accent" : "text-ink"
+                          }`}
+                        >
+                          {host.name}
+                        </div>
+                        <div className="truncate text-[12px] leading-tight text-muted">
                           ssh, {host.user || "root"}
                         </div>
                       </div>
                       <button
                         type="button"
                         aria-label="编辑主机"
-                        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-[#4a5562] hover:bg-black/5 ${
+                        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised ${
                           selectedRow
                             ? "opacity-100"
                             : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
@@ -1352,7 +1362,7 @@ function HostHomePage() {
 }
 
 const EDIT_INPUT =
-  "h-9 w-full rounded-[4px] border border-[#DFE3E8] bg-white px-3 text-sm text-[#20252B] outline-none focus:border-[#005EEB] disabled:bg-[#f5f7f9] disabled:text-[#687382]";
+  "h-9 w-full rounded-[4px] border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-accent disabled:bg-raised disabled:text-muted";
 
 /** 已由 host-form.tsx 接管；保留实现避免误删，不再导出。 */
 function HostEditForm({
@@ -1416,13 +1426,13 @@ function HostEditForm({
         <div className="mb-6 flex items-start gap-3">
           <DistroBadge osRelease={session.osRelease[host.name]} />
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-semibold leading-tight text-[#20252B]">编辑主机</div>
-            <div className="mt-0.5 truncate text-[12px] text-[#687382]">{host.name}</div>
+            <div className="text-lg font-semibold leading-tight text-ink">编辑主机</div>
+            <div className="mt-0.5 truncate text-[12px] text-muted">{host.name}</div>
           </div>
           <button
             type="button"
             aria-label="关闭"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] text-[#687382] hover:bg-black/5"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] text-muted hover:bg-raised"
             onClick={onClose}
           >
             <svg
@@ -1449,7 +1459,7 @@ function HostEditForm({
         ) : null}
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">地址</div>
+          <div className="mb-2 text-[12px] text-muted">地址</div>
           <input
             className={EDIT_INPUT}
             placeholder="IP / 域名"
@@ -1459,7 +1469,7 @@ function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">常规</div>
+          <div className="mb-2 text-[12px] text-muted">常规</div>
           <div className="flex flex-col gap-2">
             <input
               className={EDIT_INPUT}
@@ -1477,11 +1487,11 @@ function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">SSH</div>
-          <div className="flex items-center gap-2 text-sm text-[#20252B]">
+          <div className="mb-2 text-[12px] text-muted">SSH</div>
+          <div className="flex items-center gap-2 text-sm text-ink">
             <span>端口</span>
             <input
-              className="h-9 w-16 rounded-[4px] border border-[#DFE3E8] bg-[#f5f7f9] px-2 text-center text-sm text-[#687382]"
+              className="h-9 w-16 rounded-[4px] border border-line bg-raised px-2 text-center text-sm text-muted"
               value={portDisplay}
               disabled
               readOnly
@@ -1490,7 +1500,7 @@ function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-[#687382]">登录</div>
+          <div className="mb-2 text-[12px] text-muted">登录</div>
           <div className="flex flex-col gap-2">
             <input
               className={EDIT_INPUT}
@@ -1509,9 +1519,9 @@ function HostEditForm({
         </section>
 
         <section className="mb-2">
-          <div className="mb-2 text-[12px] text-[#687382]">备注</div>
+          <div className="mb-2 text-[12px] text-muted">备注</div>
           <textarea
-            className="min-h-[88px] w-full resize-y rounded-[4px] border border-[#DFE3E8] bg-white px-3 py-2 text-sm text-[#20252B] outline-none focus:border-[#005EEB]"
+            className="min-h-[88px] w-full resize-y rounded-[4px] border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
             placeholder="备注"
             value={note}
             onChange={(event) => setNote(event.target.value)}
@@ -1519,11 +1529,11 @@ function HostEditForm({
         </section>
       </div>
 
-      <div className="shrink-0 border-t border-[#DFE3E8] p-4">
+      <div className="shrink-0 border-t border-line p-4">
         <button
           type="button"
           disabled={busy || !hostName.trim() || !user.trim() || !password}
-          className="h-10 w-full rounded-[4px] bg-[#005EEB] text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 w-full rounded-[4px] bg-accent text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
           onClick={handleSave}
         >
           {busy ? "验证并保存…" : "测试并保存"}
