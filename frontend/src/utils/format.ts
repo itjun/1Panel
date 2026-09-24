@@ -140,9 +140,10 @@ export function bytesToKBps(deltaBytes: number, deltaMs: number): number {
 }
 
 export function formatRateKBps(kbps: number): string {
+  if (!Number.isFinite(kbps) || kbps <= 0) return "0.00 B/s";
   if (kbps >= 1024) return `${(kbps / 1024).toFixed(2)} MB/s`;
   if (kbps >= 1) return `${kbps.toFixed(2)} KB/s`;
-  return `${(kbps * 1024).toFixed(0)} B/s`;
+  return `${(kbps * 1024).toFixed(2)} B/s`;
 }
 
 /**

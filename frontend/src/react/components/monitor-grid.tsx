@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 import { Button } from "@/react/components/ui/button";
 import { cn } from "@/react/lib/utils";
@@ -73,17 +75,34 @@ function RestoreIcon() {
   );
 }
 
+export type MonitorGridHandle = {
+  reset: () => void;
+};
+
 /**
  * 监控页图表网格：可拖拽排序、可最大化，窄窗堆叠；最大化必须能还原。
+ * showReset 为 false 时不画顶部按钮，由页面把「恢复默认」放到自己的工具条。
  */
 export function MonitorGrid({
   boardId,
   items,
   defaults,
+  showReset = true,
+  onDirtyChange,
+  rowMinPx = 220,
+  fill = false,
+  ref,
 }: {
   boardId: string;
   items: MonitorGridItem[];
   defaults: BoardSlot[];
+  showReset?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  /** 每张卡片的最小高度（像素） */
+  rowMinPx?: number;
+  /** 有多余纵向空间时把各行拉开 */
+  fill?: boolean;
+  ref?: Ref<MonitorGridHandle>;
 }) {
   const [layout, setLayout] = useState(() => loadBoard(boardId, defaults, COLS));
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
@@ -140,6 +159,12 @@ export function MonitorGrid({
     clearBoard(boardId);
     setLayout(defaults.map((d) => ({ id: d.id, span: d.span })));
   }, [boardId, defaults]);
+
+  useImperativeHandle(ref, () => ({ reset }), [reset]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const liveCols = narrow ? 1 : COLS;
   const ordered = useMemo(() => {
@@ -273,21 +298,23 @@ export function MonitorGrid({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Button disabled={!dirty} onClick={reset}>
-          恢复默认
-        </Button>
-        {maximizedId ? (
-          <Button
-            variant="ghost"
-            aria-label="还原"
-            title="还原"
-            onClick={() => toggleMaximize(maximizedId)}
-          >
-            <RestoreIcon />
+      {showReset ? (
+        <div className="flex items-center gap-2">
+          <Button disabled={!dirty} onClick={reset}>
+            恢复默认
           </Button>
-        ) : null}
-      </div>
+          {maximizedId ? (
+            <Button
+              variant="ghost"
+              aria-label="还原"
+              title="还原"
+              onClick={() => toggleMaximize(maximizedId)}
+            >
+              <RestoreIcon />
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <div
         ref={rootRef}
         className={cn(
@@ -295,6 +322,7 @@ export function MonitorGrid({
           narrow ? "grid-cols-1" : "grid-cols-4",
           maximizedId ? "relative" : "",
         )}
+        style={fill ? { gridAutoRows: `minmax(${rowMinPx}px, 1fr)` } : undefined}
       >
         {ordered.map(({ id, span, col, row, item }) => {
           const isMax = maximizedId === id;
@@ -302,6 +330,7 @@ export function MonitorGrid({
           const style: CSSProperties = {
             gridColumn: `${col} / span ${span}`,
             gridRow: String(row),
+            minHeight: rowMinPx,
           };
           if (isMax) {
             style.position = "absolute";
@@ -316,7 +345,7 @@ export function MonitorGrid({
               data-monitor-card={id}
               style={style}
               className={cn(
-                "relative flex min-h-[220px] flex-col rounded-surface border border-line bg-surface",
+                "relative flex flex-col rounded-surface border border-line bg-surface",
                 isHidden && "invisible pointer-events-none",
                 draggingId === id && "opacity-60",
                 dropTargetId === id && "ring-2 ring-accent",

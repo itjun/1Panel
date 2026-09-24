@@ -12,7 +12,7 @@ import { api } from "@/api";
 import type { agentapi, agentcli, monitor, sshconfig } from "@/api";
 import type { CertPairCheck } from "@/api";
 import { RingMeter } from "@/react/components/local/ring-meter";
-import { MonitorGrid } from "@/react/components/monitor-grid";
+import { MonitorGrid, type MonitorGridHandle } from "@/react/components/monitor-grid";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
 import {
@@ -26,16 +26,13 @@ import { AppsPage } from "@/react/pages/host-apps";
 import { NetworkPage } from "@/react/pages/host-network";
 import { PackagesPage } from "@/react/pages/host-packages";
 import type { Tool } from "@/react/state/session";
-import { updateSettings, useSettings } from "@/react/state/settings";
 import {
-  ALERT_RULES,
   isCpuAlert,
   isDiskLow,
   isLoadAlert,
   isMemAlert,
   mountDisks,
   summarizeDisks,
-  type ResourceAlertKind,
 } from "@/utils/alerts";
 import {
   bytesToKBps,
@@ -48,7 +45,6 @@ import {
 } from "@/utils/format";
 import { logHighlightHtml } from "@/utils/logHighlight";
 import { HighlightPane } from "@/react/components/local/highlight-pane";
-import { WATCH_SERVICE_META, WATCH_SERVICE_ORDER, type WatchServiceName } from "@/utils/watchServices";
 
 export function HostToolPage({ host, tool }: { host: string; tool: Tool }) {
   if (tool === "overview") return <OverviewPage host={host} />;
@@ -849,11 +845,6 @@ function downsampleBySec(
   return out;
 }
 
-function watchServiceLabel(name: WatchServiceName): string {
-  const meta = WATCH_SERVICE_META.find((item) => item.name === name);
-  return meta ? meta.label : name;
-}
-
 function ChartHost({
   option,
   connectGroup,
@@ -896,7 +887,15 @@ function lineOption(
   return {
     color: ["#005EEB", "#14b8a6", "#f59e0b"],
     grid: { left: 48, right: 16, top: 28, bottom: 28 },
-    tooltip: { trigger: "axis" },
+    tooltip: {
+      trigger: "axis",
+      valueFormatter: (v) => {
+        const n = typeof v === "number" ? v : Number(v);
+        if (!Number.isFinite(n)) return String(v ?? "");
+        if (opts?.yFormatter) return opts.yFormatter(n);
+        return n.toFixed(2);
+      },
+    },
     legend: { top: 0, right: 0, textStyle: { fontSize: 11 } },
     // 滚轮缩放、拖动平移（与 Vue VChartLine zoomable 一致）
     dataZoom: [
@@ -937,7 +936,9 @@ function lineOption(
 }
 
 function MonitorPage({ host }: { host: string }) {
-  const settings = useSettings();
+  const gridRef = useRef<MonitorGridHandle>(null);
+  const [layoutDirty, setLayoutDirty] = useState(false);
+  const onLayoutDirty = useCallback((dirty: boolean) => setLayoutDirty(dirty), []);
   const [range, setRange] = useState<RangeMode>("live");
   const [grain, setGrain] = useState<GrainMode>("auto");
   const [customFrom, setCustomFrom] = useState("");
@@ -1153,29 +1154,6 @@ function MonitorPage({ host }: { host: string }) {
   const loadWord =
     loadPct < 30 ? "运行流畅" : loadPct < 70 ? "运行正常" : loadPct < 80 ? "运行缓慢" : "运行堵塞";
 
-  const resourceOn = ALERT_RULES.filter((rule) =>
-    (settings.hostResourceNotifySubs[host] || []).includes(rule.kind),
-  ).length;
-  const appOn = WATCH_SERVICE_ORDER.filter((svc) =>
-    (settings.hostAppNotifySubs[host] || []).includes(svc),
-  ).length;
-
-  function toggleResource(kind: ResourceAlertKind, on: boolean) {
-    const current = settings.hostResourceNotifySubs;
-    const list = new Set(current[host] || []);
-    if (on) list.add(kind);
-    else list.delete(kind);
-    updateSettings({ hostResourceNotifySubs: { ...current, [host]: [...list] } });
-  }
-
-  function toggleApp(svc: string, on: boolean) {
-    const current = settings.hostAppNotifySubs;
-    const list = new Set(current[host] || []);
-    if (on) list.add(svc);
-    else list.delete(svc);
-    updateSettings({ hostAppNotifySubs: { ...current, [host]: [...list] } });
-  }
-
   const cpuOpt = useMemo(
     () =>
       lineOption(
@@ -1186,7 +1164,7 @@ function MonitorPage({ host }: { host: string }) {
             data: isLive ? cpuSeries.map((p) => p.value) : history.map((p) => p.cpuPercent),
           },
         ],
-        { yMax: 100, yFormatter: (v) => `${v}%` },
+        { yMax: 100, yFormatter: (v) => `${v.toFixed(2)}%` },
       ),
     [isLive, cpuSeries, history],
   );
@@ -1200,6 +1178,7 @@ function MonitorPage({ host }: { host: string }) {
             data: isLive ? loadSeries.map((p) => p.value) : history.map((p) => p.load1),
           },
         ],
+        { yFormatter: (v) => v.toFixed(2) },
       ),
     [isLive, loadSeries, history],
   );
@@ -1213,7 +1192,7 @@ function MonitorPage({ host }: { host: string }) {
             data: isLive ? memSeries.map((p) => p.value) : history.map((p) => p.memUsed),
           },
         ],
-        { yFormatter: (v) => formatBytes(v) },
+        { yFormatter: (v) => formatBytes(v, 2) },
       ),
     [isLive, memSeries, history],
   );
@@ -1316,6 +1295,9 @@ function MonitorPage({ host }: { host: string }) {
           </label>
           {grainHint ? <span className="text-xs text-muted">{grainHint}</span> : null}
           <Button onClick={refreshMonitor}>刷新</Button>
+          <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
+            恢复默认
+          </Button>
         </>
       }
     >
@@ -1340,10 +1322,15 @@ function MonitorPage({ host }: { host: string }) {
         </div>
       ) : null}
 
-      <div className="flex min-h-[640px] flex-col">
+      <div className="flex min-h-[900px] flex-1 flex-col">
         <MonitorGrid
+          ref={gridRef}
           boardId={`host-monitor-${host}`}
           defaults={MONITOR_DEFAULTS}
+          showReset={false}
+          onDirtyChange={onLayoutDirty}
+          rowMinPx={300}
+          fill
           items={[
             {
               id: "CPU",
@@ -1395,49 +1382,6 @@ function MonitorPage({ host }: { host: string }) {
           ]}
         />
       </div>
-
-      {/* 对齐 HostMonitorPane：资源告警 + 应用探活订阅 */}
-      <details className="mt-4 rounded-surface border border-line bg-surface px-3 py-2">
-        <summary className="cursor-pointer select-none text-sm font-medium">
-          通知设置
-          <span className="ml-2 font-normal text-muted">
-            资源 {resourceOn}/{ALERT_RULES.length} · 应用 {appOn}/{WATCH_SERVICE_ORDER.length}
-          </span>
-        </summary>
-        <div className="mt-3 grid gap-4 md:grid-cols-2">
-          <div>
-            <div className="mb-2 text-xs font-medium text-muted">资源告警</div>
-            <div className="flex flex-col gap-1.5">
-              {ALERT_RULES.map((rule) => (
-                <label key={rule.kind} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={(settings.hostResourceNotifySubs[host] || []).includes(rule.kind)}
-                    onChange={(e) => toggleResource(rule.kind, e.target.checked)}
-                  />
-                  <span>{rule.name}</span>
-                  <span className="text-xs text-muted">{rule.desc}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="mb-2 text-xs font-medium text-muted">应用探活</div>
-            <div className="flex flex-col gap-1.5">
-              {WATCH_SERVICE_ORDER.map((svc) => (
-                <label key={svc} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={(settings.hostAppNotifySubs[host] || []).includes(svc)}
-                    onChange={(e) => toggleApp(svc, e.target.checked)}
-                  />
-                  <span>{watchServiceLabel(svc)}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-      </details>
     </Page>
   );
 }
