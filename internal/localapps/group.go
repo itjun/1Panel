@@ -9,31 +9,36 @@ import (
 
 // RawProc 分组前的原始进程（由扫描器填充；IsGo 由调用方根据 buildinfo 判定）。
 type RawProc struct {
-	PID           int
-	PPID          int
-	User          string
-	CPU           float64
-	RSS           uint64
-	ThreadCount   int
-	Elapsed       uint64
-	Comm          string
-	Exe           string
-	Cwd           string
-	Cmd           string
-	Args          []string
-	Ports         []int
-	DiskRead      uint64
-	DiskWrite     uint64
-	NetIn         uint64
-	NetOut        uint64
-	DiskReadRate  uint64
-	DiskWriteRate uint64
-	NetInRate     uint64
-	NetOutRate    uint64
-	RateKnown     bool
-	IsGo          bool
-	Extra         map[string]string
-	Threads       []ThreadNode
+	PID             int
+	PPID            int
+	User            string
+	Kind            string
+	Runtime         string
+	Confidence      string
+	Evidence        []string
+	CPU             float64
+	RSS             uint64
+	ThreadCount     int
+	Elapsed         uint64
+	Comm            string
+	Exe             string
+	Cwd             string
+	Cmd             string
+	Args            []string
+	Ports           []int
+	ListenAddresses []string
+	DiskRead        uint64
+	DiskWrite       uint64
+	NetIn           uint64
+	NetOut          uint64
+	DiskReadRate    uint64
+	DiskWriteRate   uint64
+	NetInRate       uint64
+	NetOutRate      uint64
+	RateKnown       bool
+	IsGo            bool
+	Extra           map[string]string
+	Threads         []ThreadNode
 }
 
 // DetectRuntime 识别开发语言分类（写入 AppNode.Runtime）：
@@ -122,8 +127,7 @@ func argsContainNPMCli(args []string) bool {
 	return false
 }
 
-// GroupApps 将运行时进程归并为应用节点。
-// 规则：若 PPID 也是本批运行时进程 → 归到祖先根进程所在应用；否则按身份键归并。
+// GroupApps 将开发运行时和监听服务候选归并为应用节点。
 func GroupApps(procs []RawProc) []AppNode {
 	if len(procs) == 0 {
 		return []AppNode{}
@@ -132,12 +136,31 @@ func GroupApps(procs []RawProc) []AppNode {
 	byPID := make(map[int]*RawProc, len(procs))
 	for i := range procs {
 		p := &procs[i]
+		if p.Runtime == "" {
+			p.Runtime = DetectRuntime(p.Comm, p.Args, p.Exe, p.IsGo)
+		}
+		if p.Kind == "" {
+			if p.Runtime != "" {
+				p.Kind = AppKindRuntime
+				p.Confidence = ConfidenceHigh
+				p.Evidence = []string{"识别到开发运行时：" + p.Runtime}
+			} else if len(p.Ports) > 0 || len(p.ListenAddresses) > 0 {
+				p.Kind = AppKindService
+				p.Runtime = "unknown"
+				p.Confidence = ConfidenceMedium
+				p.Evidence = listenerEvidence(p.ListenAddresses, p.Ports)
+			}
+		}
 		byPID[p.PID] = p
 	}
 
 	type bucket struct {
-		root *RawProc
-		list []*RawProc
+		root       *RawProc
+		kind       string
+		runtime    string
+		confidence string
+		evidence   []string
+		list       []*RawProc
 	}
 	buckets := map[string]*bucket{}
 	order := []string{}
@@ -145,33 +168,52 @@ func GroupApps(procs []RawProc) []AppNode {
 	for i := range procs {
 		p := &procs[i]
 		root := findRuntimeRoot(p, byPID)
-		idKey, idName, runtime := identityOf(root)
-		if runtime == "" {
+		kind := root.Kind
+		runtime := root.Runtime
+		if runtime == "" && kind == AppKindRuntime {
+			runtime = DetectRuntime(root.Comm, root.Args, root.Exe, root.IsGo)
+		}
+		if kind == "" || (kind == AppKindRuntime && runtime == "") {
 			continue
+		}
+		idKey, idName := "", ""
+		if kind == AppKindService {
+			idKey, idName = serviceIdentity(root)
+			runtime = "unknown"
+		} else {
+			idKey, idName, runtime = identityOf(root)
 		}
 		b, ok := buckets[idKey]
 		if !ok {
-			b = &bucket{root: root}
+			b = &bucket{
+				root:       root,
+				kind:       kind,
+				runtime:    runtime,
+				confidence: root.Confidence,
+			}
 			buckets[idKey] = b
 			order = append(order, idKey)
 		}
 		b.list = append(b.list, p)
+		b.evidence = appendUnique(b.evidence, p.Evidence...)
 		_ = idName
 	}
 
 	apps := make([]AppNode, 0, len(order))
 	for _, idKey := range order {
 		b := buckets[idKey]
-		_, idName, runtime := identityOf(b.root)
 		app := AppNode{
-			Key:     idKey,
-			Name:    idName,
-			Runtime: runtime,
-			Procs:   make([]ProcNode, 0, len(b.list)),
+			Key:        idKey,
+			Name:       identityName(b.root, b.kind),
+			Runtime:    b.runtime,
+			Kind:       b.kind,
+			Confidence: b.confidence,
+			Evidence:   b.evidence,
+			Procs:      make([]ProcNode, 0, len(b.list)),
 		}
 		hasSelf := false
 		for _, rp := range b.list {
-			node := rawToProcNode(rp, runtime)
+			node := rawToProcNode(rp, b.runtime)
 			if node.Extra != nil && node.Extra["self"] == "1" {
 				hasSelf = true
 			}
@@ -208,6 +250,8 @@ func GroupApps(procs []RawProc) []AppNode {
 
 func findRuntimeRoot(p *RawProc, byPID map[int]*RawProc) *RawProc {
 	cur := p
+	groupKind := p.Kind
+	groupRuntime := p.Runtime
 	seen := map[int]bool{}
 	for {
 		if seen[cur.PID] {
@@ -215,11 +259,69 @@ func findRuntimeRoot(p *RawProc, byPID map[int]*RawProc) *RawProc {
 		}
 		seen[cur.PID] = true
 		parent, ok := byPID[cur.PPID]
-		if !ok {
+		if !ok || parent.Kind != groupKind || parent.User != p.User ||
+			(groupKind == AppKindRuntime && parent.Runtime != groupRuntime) {
 			return cur
 		}
 		cur = parent
 	}
+}
+
+func serviceIdentity(root *RawProc) (key, name string) {
+	exe := root.Exe
+	if exe == "" {
+		exe = root.Comm
+	}
+	if exe == "" {
+		exe = "unknown"
+	}
+	project := filepath.Base(root.Cwd)
+	if project == "." || project == "/" {
+		project = ""
+	}
+	exeName := filepath.Base(exe)
+	name = exeName
+	if project != "" && project != exeName {
+		name = project + " · " + exeName
+	}
+	key = "service:user:" + root.User + ":exe:" + exe + ":cwd:" + root.Cwd + ":root:" + strconv.Itoa(root.PID)
+	return key, name
+}
+
+func identityName(root *RawProc, kind string) string {
+	if kind == AppKindService {
+		_, name := serviceIdentity(root)
+		return name
+	}
+	_, name, _ := identityOf(root)
+	return name
+}
+
+func listenerEvidence(addresses []string, ports []int) []string {
+	evidence := make([]string, 0, len(addresses)+len(ports))
+	for _, address := range addresses {
+		evidence = appendUnique(evidence, "TCP 监听："+address)
+	}
+	if len(addresses) == 0 {
+		for _, port := range uniqueSortedPorts(ports) {
+			evidence = appendUnique(evidence, "TCP 监听端口："+strconv.Itoa(port))
+		}
+	}
+	return evidence
+}
+
+func appendUnique(values []string, additions ...string) []string {
+	seen := make(map[string]bool, len(values)+len(additions))
+	for _, value := range values {
+		seen[value] = true
+	}
+	for _, value := range additions {
+		if value != "" && !seen[value] {
+			seen[value] = true
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func rawToProcNode(rp *RawProc, runtime string) ProcNode {
@@ -243,29 +345,33 @@ func rawToProcNode(rp *RawProc, runtime string) ProcNode {
 	}
 
 	return ProcNode{
-		PID:           rp.PID,
-		PPID:          rp.PPID,
-		User:          rp.User,
-		CPU:           rp.CPU,
-		RSS:           rp.RSS,
-		ThreadCount:   rp.ThreadCount,
-		Elapsed:       rp.Elapsed,
-		Exe:           rp.Exe,
-		Cwd:           rp.Cwd,
-		Cmd:           rp.Cmd,
-		Args:          args,
-		Ports:         ports,
-		DiskRead:      rp.DiskRead,
-		DiskWrite:     rp.DiskWrite,
-		NetIn:         rp.NetIn,
-		NetOut:        rp.NetOut,
-		DiskReadRate:  rp.DiskReadRate,
-		DiskWriteRate: rp.DiskWriteRate,
-		NetInRate:     rp.NetInRate,
-		NetOutRate:    rp.NetOutRate,
-		RateKnown:     rp.RateKnown,
-		Extra:         extra,
-		Threads:       threads,
+		PID:             rp.PID,
+		PPID:            rp.PPID,
+		User:            rp.User,
+		Kind:            rp.Kind,
+		Confidence:      rp.Confidence,
+		Evidence:        append([]string(nil), rp.Evidence...),
+		CPU:             rp.CPU,
+		RSS:             rp.RSS,
+		ThreadCount:     rp.ThreadCount,
+		Elapsed:         rp.Elapsed,
+		Exe:             rp.Exe,
+		Cwd:             rp.Cwd,
+		Cmd:             rp.Cmd,
+		Args:            args,
+		Ports:           ports,
+		ListenAddresses: append([]string(nil), rp.ListenAddresses...),
+		DiskRead:        rp.DiskRead,
+		DiskWrite:       rp.DiskWrite,
+		NetIn:           rp.NetIn,
+		NetOut:          rp.NetOut,
+		DiskReadRate:    rp.DiskReadRate,
+		DiskWriteRate:   rp.DiskWriteRate,
+		NetInRate:       rp.NetInRate,
+		NetOutRate:      rp.NetOutRate,
+		RateKnown:       rp.RateKnown,
+		Extra:           extra,
+		Threads:         threads,
 	}
 }
 

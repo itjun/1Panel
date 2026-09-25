@@ -208,9 +208,9 @@ function lineOption(opts: {
   markLines?: { name: string; x: string }[];
   dualBytesOnRight?: boolean;
 }): echarts.EChartsOption {
-  const muted = readThemeColor("--color-muted", "#687382");
-  const line = readThemeColor("--color-line", "#dfe3e8");
-  const danger = readThemeColor("--color-danger", "#d64545");
+  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
+  const line = readThemeColor("--color-line", "#e8e8e8");
+  const danger = readThemeColor("--color-danger", "#ad352f");
   const markLineData = (opts.markLines || []).map((m) => ({
     name: m.name,
     xAxis: m.x,
@@ -368,7 +368,7 @@ function AppsTable({
                   key={`${row.service}-${row.pid}-${row.port}-${idx}`}
                   className={
                     latestHit
-                      ? "h-12 border-t border-line bg-success/10 hover:bg-success/10"
+                      ? "h-12 border-t border-line bg-success-soft hover:bg-success-soft"
                       : clickable
                         ? "h-12 cursor-pointer border-t border-line hover:bg-raised"
                         : "h-12 border-t border-line text-muted"

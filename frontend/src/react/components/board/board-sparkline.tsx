@@ -2,8 +2,6 @@
 
 const VB_W = 100;
 const PAD_Y = 2;
-const BOARD_ACCENT = "#51d5b0";
-const BOARD_DANGER = "#ff6673";
 
 function yScale(vals: number[]): { lo: number; hi: number } {
   let lo = Infinity;
@@ -56,7 +54,9 @@ export function BoardSparkline({
   const line = points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
   const first = points[0];
   const area = `${first.x.toFixed(2)},${vbH} ${line} ${last.x.toFixed(2)},${vbH}`;
-  const color = alert ? BOARD_DANGER : BOARD_ACCENT;
+  const color = alert
+    ? "var(--board-critical, #fb6e77)"
+    : "var(--board-accent, #2174ff)";
 
   return (
     <svg

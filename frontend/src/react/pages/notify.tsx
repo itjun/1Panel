@@ -397,7 +397,7 @@ function MessagesPage({
                     }}
                     className={
                       highlightId && event.id === highlightId
-                        ? "h-12 cursor-pointer border-t border-line bg-accent/10 font-semibold text-accent"
+                        ? "h-12 cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
                         : event.read
                           ? "h-12 cursor-pointer border-t border-line hover:bg-raised"
                           : "h-12 cursor-pointer border-t border-line bg-raised font-medium hover:bg-accent/5"

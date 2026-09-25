@@ -20,11 +20,11 @@ static MacuiQuitConfirmResult macuiShowQuitConfirm(int askChecked, const char *q
 	void (^block)(void) = ^{
 		NSAlert *alert = [[NSAlert alloc] init];
 		alert.alertStyle = NSAlertStyleInformational;
-		alert.messageText = @"要退出 1Pannel 还是挂到后台运行？";
+		alert.messageText = @"要退出 1Panel 还是挂到后台运行？";
 		alert.informativeText = @"挂到后台后，告警与企微仍会送达。";
 
 		// 先加的在右侧：退出（默认）→ 挂到后台 → 取消（Esc）
-		NSButton *quitBtn = [alert addButtonWithTitle:@"退出 1Pannel"];
+		NSButton *quitBtn = [alert addButtonWithTitle:@"退出 1Panel"];
 		quitBtn.keyEquivalent = @"\r";
 		[alert addButtonWithTitle:@"挂到后台运行"];
 		NSButton *cancelBtn = [alert addButtonWithTitle:@"取消"];

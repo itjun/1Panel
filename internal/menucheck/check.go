@@ -55,7 +55,7 @@ func Check(rawURL string) Result {
 	if err != nil {
 		return failMenu("构造请求失败: " + err.Error())
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36 1Pannel-MenuCheck")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36 1Panel-MenuCheck")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
 
 	resp, err := client.Do(req)

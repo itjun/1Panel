@@ -202,3 +202,38 @@ func TestGroupApps_SelfName(t *testing.T) {
 		t.Fatalf("runtime=%s", apps[0].Runtime)
 	}
 }
+
+func TestGroupApps_ServiceCandidatesUseProcessTree(t *testing.T) {
+	procs := []RawProc{
+		{
+			PID: 500, PPID: 1, User: "me", Exe: "/opt/tools/custom-server",
+			Cwd: "/Users/me/Project One", Ports: []int{3000}, CPU: 2,
+		},
+		{
+			PID: 501, PPID: 500, User: "me", Exe: "/opt/tools/custom-worker",
+			Cwd: "/Users/me/Project One", Ports: []int{3001}, CPU: 1,
+		},
+		{
+			PID: 502, PPID: 1, User: "me", Exe: "/opt/tools/custom-server",
+			Cwd: "/Users/me/Project One", Ports: []int{3000}, CPU: 0.5,
+		},
+		{PID: 503, PPID: 1, User: "me", Exe: "/opt/tools/helper"},
+	}
+
+	apps := GroupApps(procs)
+	if len(apps) != 2 {
+		t.Fatalf("期望 2 个服务候选组，得到 %d: %+v", len(apps), apps)
+	}
+	if apps[0].Kind != AppKindService || apps[0].Runtime != "unknown" {
+		t.Fatalf("服务候选分类错误: %+v", apps[0])
+	}
+	if apps[0].Confidence != ConfidenceMedium || len(apps[0].Evidence) == 0 {
+		t.Fatalf("服务候选缺少置信度或发现依据: %+v", apps[0])
+	}
+	if apps[0].ProcCount != 2 {
+		t.Fatalf("父子服务进程应归入同组，进程数=%d", apps[0].ProcCount)
+	}
+	if apps[1].ProcCount != 1 {
+		t.Fatalf("独立启动的同名服务应保持独立，进程数=%d", apps[1].ProcCount)
+	}
+}

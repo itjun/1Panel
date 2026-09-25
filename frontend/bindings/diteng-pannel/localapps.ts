@@ -29,6 +29,13 @@ export function ProcDetail(pid: number): $CancellablePromise<localapps$0.ProcNod
 }
 
 /**
+ * Resources 按需查询单个本机进程打开的文件描述符资源。
+ */
+export function Resources(pid: number): $CancellablePromise<localapps$0.ResourceSnapshot | null> {
+    return $Call.ByID(3363368346, pid);
+}
+
+/**
  * Scan 扫描本机应用进程树快照。
  */
 export function Scan(): $CancellablePromise<localapps$0.Snapshot | null> {

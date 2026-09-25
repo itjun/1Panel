@@ -3,7 +3,7 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "1Pannel"
+name: "1Panel"
 arch: ${GOARCH}
 platform: "linux"
 version: "1.1.0"
@@ -17,12 +17,12 @@ license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/1Pannel"
-    dst: "/usr/local/bin/1Pannel"
+  - src: "./bin/1Panel"
+    dst: "/usr/local/bin/1Panel"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/1Pannel.png"
-  - src: "./build/linux/1Pannel.desktop"
-    dst: "/usr/share/applications/1Pannel.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/1Panel.png"
+  - src: "./build/linux/1Panel.desktop"
+    dst: "/usr/share/applications/1Panel.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

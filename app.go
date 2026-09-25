@@ -103,7 +103,7 @@ func NewApp() *application.App {
 	initAskBeforeQuit()
 
 	app := application.New(application.Options{
-		Name:        "1Pannel",
+		Name:        "1Panel",
 		Description: "运维管理",
 		Services: []application.Service{
 			application.NewService((*Hosts)(core)),
@@ -153,7 +153,7 @@ func NewApp() *application.App {
 	}
 	winOpts := application.WebviewWindowOptions{
 		Name:                       "main",
-		Title:                      "1Pannel",
+		Title:                      "1Panel",
 		Width:                      winW,
 		Height:                     winH,
 		MinWidth:                   windowMinW,

@@ -98,7 +98,7 @@ function applyTypography(settings: AppSettings) {
   root.classList.remove("dark");
   root.classList.add("light");
   root.style.colorScheme = "light";
-  root.style.background = "#f0f1f3";
+  root.style.background = "var(--color-canvas)";
   root.style.setProperty("--app-font-family", settings.fontFamily);
   root.style.setProperty("--app-font-size", `${settings.fontSize}px`);
   document.body.style.fontFamily = settings.fontFamily;

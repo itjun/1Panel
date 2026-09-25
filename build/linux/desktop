@@ -1,13 +1,13 @@
 [Desktop Entry]
 Version=1.0
-Name=1Pannel
+Name=1Panel
 Comment=运维管理
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/1Pannel %u
+Exec=/usr/local/bin/1Panel %u
 Terminal=false
 Type=Application
-Icon=1Pannel
+Icon=1Panel
 Categories=Utility;
-StartupWMClass=1Pannel
+StartupWMClass=1Panel
 
  

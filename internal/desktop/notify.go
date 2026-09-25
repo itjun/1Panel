@@ -47,7 +47,7 @@ func Notify(p Payload) error {
 		return nil
 	}
 	if p.Title == "" {
-		p.Title = "1Pannel"
+		p.Title = "1Panel"
 	}
 
 	notifyMu.RLock()

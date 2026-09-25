@@ -400,7 +400,7 @@ export function MonitorGrid({
                       key={tag.text}
                       className={cn(
                         "rounded-control bg-raised px-1.5 text-xs text-muted",
-                        tag.warn && "bg-danger/10 text-danger",
+                        tag.warn && "bg-danger-soft text-danger",
                       )}
                     >
                       {tag.text}

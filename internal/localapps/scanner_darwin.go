@@ -18,26 +18,19 @@ import (
 )
 
 const (
-	lsofCacheTTL   = 10 * time.Second
 	goPathCacheTTL = 15 * time.Second
 	nettopIdleStop = 60 * time.Second
 )
 
 type rateSample struct {
-	at                time.Time
-	diskRead          uint64
-	diskWrite         uint64
-	netIn             uint64
-	netOut            uint64
-	diskReadKnown     bool
-	diskWriteKnown    bool
-	netKnown          bool
-}
-
-type lsofCacheEntry struct {
-	at    time.Time
-	cwd   string
-	ports []int
+	at             time.Time
+	diskRead       uint64
+	diskWrite      uint64
+	netIn          uint64
+	netOut         uint64
+	diskReadKnown  bool
+	diskWriteKnown bool
+	netKnown       bool
 }
 
 type goCacheEntry struct {
@@ -48,11 +41,10 @@ type goCacheEntry struct {
 }
 
 var (
-	scanMu       sync.Mutex
-	lastScanAt   time.Time
-	rateHistory  = map[int]rateSample{}
-	lsofCache    = map[int]lsofCacheEntry{}
-	goPathCache  = map[string]goCacheEntry{}
+	scanMu      sync.Mutex
+	lastScanAt  time.Time
+	rateHistory = map[int]rateSample{}
+	goPathCache = map[string]goCacheEntry{}
 
 	netMu        sync.Mutex
 	netBytes     = map[int]struct{ in, out uint64 }{}
@@ -60,7 +52,7 @@ var (
 	nettopStopCh chan struct{}
 )
 
-// Scan 扫描本机常见开发语言进程并归并。
+// Scan 扫描当前用户的开发运行时和 TCP 服务候选并归并。
 func Scan() (*Snapshot, error) {
 	scanMu.Lock()
 	defer scanMu.Unlock()
@@ -79,11 +71,17 @@ func Scan() (*Snapshot, error) {
 		warnings = append(warnings, "读取进程参数失败: "+err.Error())
 		argsByPID = map[int][]string{}
 	}
+	listeners, lsofWarnings := collectListeningSockets()
+	warnings = append(warnings, lsofWarnings...)
 
 	selfPID := os.Getpid()
+	currentUID := uint64(os.Getuid())
 	raws := make([]RawProc, 0, 32)
 
 	for _, base := range psList {
+		if base.uid != currentUID {
+			continue
+		}
 		args := argsByPID[base.pid]
 		if args == nil {
 			args = []string{}
@@ -97,22 +95,42 @@ func Scan() (*Snapshot, error) {
 			runtime = DetectRuntime(base.comm, args, exe, goInfo.isGo)
 		}
 		if runtime == "" {
-			continue
+			if len(listeners[base.pid]) == 0 {
+				continue
+			}
+		}
+
+		kind := AppKindRuntime
+		confidence := ConfidenceHigh
+		evidence := []string{"识别到开发运行时：" + runtime}
+		if runtime == "" {
+			runtime = "unknown"
+			kind = AppKindService
+			confidence = ConfidenceMedium
+			evidence = make([]string, 0, len(listeners[base.pid]))
+			for _, address := range listeners[base.pid] {
+				evidence = append(evidence, "TCP 监听："+address)
+			}
 		}
 
 		rp := RawProc{
-			PID:     base.pid,
-			PPID:    base.ppid,
-			User:    base.user,
-			CPU:     base.cpu,
-			RSS:     base.rss,
-			Elapsed: base.elapsed,
-			Comm:    base.comm,
-			Exe:     exe,
-			Cmd:     strings.Join(args, " "),
-			Args:    args,
-			IsGo:    goInfo.isGo,
-			Extra:   map[string]string{},
+			PID:             base.pid,
+			PPID:            base.ppid,
+			User:            base.user,
+			Kind:            kind,
+			Runtime:         runtime,
+			Confidence:      confidence,
+			Evidence:        evidence,
+			CPU:             base.cpu,
+			RSS:             base.rss,
+			Elapsed:         base.elapsed,
+			Comm:            base.comm,
+			Exe:             exe,
+			Cmd:             strings.Join(args, " "),
+			Args:            args,
+			ListenAddresses: append([]string(nil), listeners[base.pid]...),
+			IsGo:            goInfo.isGo,
+			Extra:           map[string]string{},
 		}
 		if goInfo.isGo {
 			if goInfo.module != "" {
@@ -126,40 +144,47 @@ func Scan() (*Snapshot, error) {
 			rp.Extra["self"] = "1"
 		}
 
-		// 磁盘 IO
-		if r, w, ok := libprocDiskIO(base.pid); ok {
-			rp.DiskRead = r
-			rp.DiskWrite = w
-		}
+		raws = append(raws, rp)
+	}
 
-		// 网络累计（nettop 后台采样）
+	// 一次批量 lsof 查询补齐所有候选进程的 cwd，避免逐 PID 启动子进程。
+	pids := make([]int, 0, len(raws))
+	for i := range raws {
+		pids = append(pids, raws[i].PID)
+	}
+	cwds, cwdWarnings := collectWorkingDirectories(pids)
+	warnings = append(warnings, cwdWarnings...)
+	for i := range raws {
+		rp := &raws[i]
+		rp.Cwd = cwds[rp.PID]
+		for _, address := range rp.ListenAddresses {
+			if port := parseListenPort(address); port > 0 {
+				rp.Ports = append(rp.Ports, port)
+			}
+		}
+		rp.Ports = uniqueSortedPorts(rp.Ports)
+
+		if read, write, ok := libprocDiskIO(rp.PID); ok {
+			rp.DiskRead = read
+			rp.DiskWrite = write
+		}
 		netMu.Lock()
-		if nb, ok := netBytes[base.pid]; ok {
-			rp.NetIn = nb.in
-			rp.NetOut = nb.out
+		if values, ok := netBytes[rp.PID]; ok {
+			rp.NetIn = values.in
+			rp.NetOut = values.out
 		}
 		netMu.Unlock()
+		applyRates(rp, now)
 
-		// 速率
-		applyRates(&rp, now)
-
-		// 线程
-		threads := libprocThreads(base.pid)
+		threads := libprocThreads(rp.PID)
 		if threads == nil {
-			threads = threadsFromPS(base.pid)
+			threads = threadsFromPS(rp.PID)
 		}
 		rp.Threads = threads
 		rp.ThreadCount = len(threads)
 		if rp.ThreadCount == 0 {
 			rp.ThreadCount = 1
 		}
-
-		// cwd / ports：lsof + TTL 缓存；分组（尤其 npm/node）依赖 cwd
-		cwd, ports := lookupLsofCached(base.pid, false)
-		rp.Cwd = cwd
-		rp.Ports = ports
-
-		raws = append(raws, rp)
 	}
 
 	apps := GroupApps(raws)
@@ -174,12 +199,6 @@ func Scan() (*Snapshot, error) {
 			delete(rateHistory, pid)
 		}
 	}
-	for pid := range lsofCache {
-		if !alive[pid] {
-			delete(lsofCache, pid)
-		}
-	}
-
 	return &Snapshot{
 		SampledAt: now.Unix(),
 		Apps:      apps,
@@ -271,9 +290,35 @@ func ProcDetail(pid int) (*ProcNode, error) {
 		rp.ThreadCount = 1
 	}
 
-	cwd, ports := lookupLsofCached(pid, true)
-	rp.Cwd = cwd
-	rp.Ports = ports
+	resourceSnapshot, _ := Resources(pid)
+	if resourceSnapshot != nil {
+		for _, resource := range resourceSnapshot.Resources {
+			if strings.EqualFold(resource.FD, "cwd") {
+				rp.Cwd = resource.Name
+			}
+			if strings.EqualFold(resource.State, "LISTEN") && parseListenPort(resource.Name) > 0 {
+				address := formatListenAddress(lsofEntry{
+					Name:     resource.Name,
+					Protocol: resource.Protocol,
+					State:    resource.State,
+				})
+				rp.ListenAddresses = append(rp.ListenAddresses, address)
+				rp.Ports = append(rp.Ports, parseListenPort(resource.Name))
+			}
+		}
+	}
+	rp.Ports = uniqueSortedPorts(rp.Ports)
+	if runtime != "" {
+		rp.Kind = AppKindRuntime
+		rp.Confidence = ConfidenceHigh
+		rp.Evidence = []string{"识别到开发运行时：" + runtime}
+	} else if len(rp.ListenAddresses) > 0 {
+		rp.Kind = AppKindService
+		rp.Confidence = ConfidenceMedium
+		for _, address := range rp.ListenAddresses {
+			rp.Evidence = append(rp.Evidence, "TCP 监听："+address)
+		}
+	}
 
 	if runtime == "" {
 		runtime = "unknown"
@@ -331,6 +376,7 @@ func Kill(pid int, force bool) error {
 type psRow struct {
 	pid     int
 	ppid    int
+	uid     uint64
 	user    string
 	cpu     float64
 	rss     uint64 // bytes
@@ -339,7 +385,7 @@ type psRow struct {
 }
 
 func listPSProcesses() ([]psRow, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=,user=,pcpu=,rss=,etime=,comm=").Output()
+	out, err := exec.Command("ps", "-ww", "-axo", "pid=,ppid=,uid=,user=,pcpu=,rss=,etime=,comm=").Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps 失败: %w", err)
 	}
@@ -350,23 +396,25 @@ func listPSProcesses() ([]psRow, error) {
 			continue
 		}
 		fields := strings.Fields(line)
-		// pid ppid user pcpu rss etime comm...
-		if len(fields) < 7 {
+		// pid ppid uid user pcpu rss etime comm...
+		if len(fields) < 8 {
 			continue
 		}
 		pid, err1 := strconv.Atoi(fields[0])
 		ppid, err2 := strconv.Atoi(fields[1])
-		if err1 != nil || err2 != nil {
+		uid, err3 := strconv.ParseUint(fields[2], 10, 64)
+		if err1 != nil || err2 != nil || err3 != nil {
 			continue
 		}
-		cpu, _ := strconv.ParseFloat(fields[3], 64)
-		rssKB, _ := strconv.ParseUint(fields[4], 10, 64)
-		etime := fields[5]
-		comm := strings.Join(fields[6:], " ")
+		cpu, _ := strconv.ParseFloat(fields[4], 64)
+		rssKB, _ := strconv.ParseUint(fields[5], 10, 64)
+		etime := fields[6]
+		comm := strings.Join(fields[7:], " ")
 		rows = append(rows, psRow{
 			pid:     pid,
 			ppid:    ppid,
-			user:    fields[2],
+			uid:     uid,
+			user:    fields[3],
 			cpu:     cpu,
 			rss:     rssKB * 1024,
 			elapsed: parseElapsedToSeconds(etime),
@@ -377,7 +425,7 @@ func listPSProcesses() ([]psRow, error) {
 }
 
 func listPSArgs() (map[int][]string, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,args=").Output()
+	out, err := exec.Command("ps", "-ww", "-axo", "pid=,args=").Output()
 	if err != nil {
 		return nil, err
 	}
@@ -490,87 +538,6 @@ func lookupGoInfo(exe string) goCacheEntry {
 	}
 	goPathCache[exe] = e
 	return e
-}
-
-// ---------- lsof 缓存 ----------
-
-func peekLsofCache(pid int) (cwd string, ports []int, ok bool) {
-	e, hit := lsofCache[pid]
-	if !hit || time.Since(e.at) >= lsofCacheTTL {
-		return "", nil, false
-	}
-	return e.cwd, append([]int(nil), e.ports...), true
-}
-
-func lookupLsofCached(pid int, force bool) (cwd string, ports []int) {
-	if !force {
-		if c, p, ok := peekLsofCache(pid); ok {
-			return c, p
-		}
-	}
-	cwd, ports = fetchLsof(pid)
-	lsofCache[pid] = lsofCacheEntry{at: time.Now(), cwd: cwd, ports: ports}
-	return cwd, append([]int(nil), ports...)
-}
-
-func fetchLsof(pid int) (cwd string, ports []int) {
-	ports = []int{}
-	// cwd
-	out, err := exec.Command("lsof", "-a", "-p", strconv.Itoa(pid), "-d", "cwd", "-Fn").Output()
-	if err == nil {
-		for _, line := range strings.Split(string(out), "\n") {
-			if strings.HasPrefix(line, "n") {
-				cwd = strings.TrimPrefix(line, "n")
-				break
-			}
-		}
-	}
-	// 监听端口
-	// -P -n：端口与地址保持数字，避免被解析成服务名导致取端口失败
-	out2, err2 := exec.Command("lsof", "-a", "-p", strconv.Itoa(pid), "-iTCP", "-sTCP:LISTEN", "-P", "-n", "-Fn").Output()
-	if err2 != nil {
-		return cwd, ports
-	}
-	seen := map[int]bool{}
-	for _, line := range strings.Split(string(out2), "\n") {
-		if !strings.HasPrefix(line, "n") {
-			continue
-		}
-		addr := strings.TrimPrefix(line, "n")
-		// 形如 *:8080 / 127.0.0.1:3000 / [::1]:8080
-		port := parseListenPort(addr)
-		if port > 0 && !seen[port] {
-			seen[port] = true
-			ports = append(ports, port)
-		}
-	}
-	return cwd, ports
-}
-
-func parseListenPort(addr string) int {
-	addr = strings.TrimSpace(addr)
-	if addr == "" {
-		return 0
-	}
-	// 去掉可能的协议前缀 "TCP "
-	if i := strings.IndexByte(addr, ' '); i >= 0 {
-		addr = addr[i+1:]
-	}
-	if strings.HasPrefix(addr, "[") {
-		// [ipv6]:port
-		rb := strings.LastIndex(addr, "]:")
-		if rb < 0 {
-			return 0
-		}
-		p, _ := strconv.Atoi(addr[rb+2:])
-		return p
-	}
-	idx := strings.LastIndex(addr, ":")
-	if idx < 0 {
-		return 0
-	}
-	p, _ := strconv.Atoi(addr[idx+1:])
-	return p
 }
 
 // ---------- 线程：ps -M 退化 ----------

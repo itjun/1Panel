@@ -45,9 +45,9 @@ function formatScaledBytes(v: number, divisor: number) {
 }
 
 function chartChrome() {
-  const muted = readThemeColor("--color-muted", "#687382");
-  const line = readThemeColor("--color-line", "#dfe3e8");
-  const ink = readThemeColor("--color-ink", "#20252b");
+  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
+  const line = readThemeColor("--color-line", "#e8e8e8");
+  const ink = readThemeColor("--color-ink", "rgba(0, 0, 0, 0.9)");
   return { muted, line, ink };
 }
 

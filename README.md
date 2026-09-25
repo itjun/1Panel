@@ -1,4 +1,4 @@
-# 1Pannel
+# 1Panel
 
 一个 macOS/Windows 原生的运维管理面板，基于 Wails v3（Go + Vue 3 + TypeScript）。
 
@@ -36,7 +36,7 @@ task darwin:package
 
 > **版本对齐**：Wails CLI（`wails3`）、`go.mod` 中的 `github.com/wailsapp/wails/v3`、前端 `@wailsio/runtime` 必须同一版本（当前以 `go.mod` 为准）。不要自行升 beta；漂移时用 `task wails:check` 检查。
 
-构建产物：`build/bin/1Pannel.app`（macOS）/ `build/bin/1Pannel.exe`（Windows）。
+构建产物：`build/bin/1Panel.app`（macOS）/ `build/bin/1Panel.exe`（Windows）。
 
 ## 分发
 
@@ -44,13 +44,13 @@ task darwin:package
 
 打 `v*` tag 时,GitHub Actions 自动构建并发布到 **GitHub Releases**（页面右侧 Releases）：
 
-- `1Pannel-v<版本>-mac-universal.zip` —— macOS 通用包（Apple Silicon + Intel 通吃，含 `1Pannel.app`）
-- `1Pannel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Pannel.exe`）
+- `1Panel-v<版本>-mac-universal.zip` —— macOS 通用包（Apple Silicon + Intel 通吃，含 `1Panel.app`）
+- `1Panel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Panel.exe`）
 
 ### macOS 同事侧使用步骤
 
-1. **解压 zip**：双击解压出 `1Pannel.app`
-2. **拖入 `/Applications`**：把 `1Pannel.app` 拖到「应用程序」文件夹
+1. **解压 zip**：双击解压出 `1Panel.app`
+2. **拖入 `/Applications`**：把 `1Panel.app` 拖到「应用程序」文件夹
 3. **首次打开**：右键 → 打开（macOS Gatekeeper 会拦未签名应用，普通双击会被拒；右键打开后选「仍要打开」即可，只需做一次）
 4. **配置 SSH**：应用读取的是同事本机的 `~/.ssh/config`，请确保：
    - 已生成密钥：`ssh-keygen -t ed25519`（一路回车）
@@ -60,8 +60,8 @@ task darwin:package
 
 ### Windows 同事侧使用步骤
 
-1. **解压 zip**：解压出 `1Pannel.exe`
-2. **运行**：双击 `1Pannel.exe`；首次运行 SmartScreen 会提示「Windows 已保护你的电脑」（未签名应用），点「更多信息」→「仍要运行」即可
+1. **解压 zip**：解压出 `1Panel.exe`
+2. **运行**：双击 `1Panel.exe`；首次运行 SmartScreen 会提示「Windows 已保护你的电脑」（未签名应用），点「更多信息」→「仍要运行」即可
 3. **配置 SSH**：与 macOS 相同，读取本机 `%USERPROFILE%\.ssh\config`，确保已有目标主机配置与密钥
 4. **解锁**：Windows 无系统认证面板，直接进入主界面
 

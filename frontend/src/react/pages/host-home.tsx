@@ -842,7 +842,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                         data-host-axis="y"
                         className={`group relative flex h-[60px] cursor-grab items-center gap-[14px] px-[18px] active:cursor-grabbing ${
                           selectedRow
-                            ? "bg-accent/10 font-semibold text-accent"
+                            ? "bg-accent-soft font-semibold text-accent"
                             : "bg-surface hover:bg-raised"
                         }`}
                         onPointerDown={(event) =>
@@ -1130,7 +1130,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                       type="button"
                       className={`flex w-full px-3 py-2 text-left hover:bg-raised ${
                         session.groupIdOf(hostMenu.host) === ""
-                          ? "bg-accent/10 font-semibold text-accent"
+                          ? "bg-accent-soft font-semibold text-accent"
                           : ""
                       }`}
                       onClick={() => {
@@ -1147,7 +1147,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                         type="button"
                         className={`flex w-full px-3 py-2 text-left hover:bg-raised ${
                           session.groupIdOf(hostMenu.host) === g.id
-                            ? "bg-accent/10 font-semibold text-accent"
+                            ? "bg-accent-soft font-semibold text-accent"
                             : ""
                         }`}
                         onClick={() => {
@@ -1531,7 +1531,7 @@ function HostQuickSwitcher({
                   aria-selected={i === active}
                   className={`flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left ${
                     i === active
-                      ? "bg-accent/10 font-semibold text-accent"
+                      ? "bg-accent-soft font-semibold text-accent"
                       : "text-ink"
                   }`}
                   onMouseEnter={() => setActive(i)}

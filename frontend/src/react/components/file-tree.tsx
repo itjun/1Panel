@@ -71,8 +71,8 @@ function TreeNodeRow({
         type="button"
         className={
           selected
-            ? "flex w-full items-center gap-1 bg-accent/10 px-2 py-1.5 text-left text-sm font-semibold text-accent"
-            : "flex w-full items-center gap-1 px-2 py-1.5 text-left text-sm hover:bg-ink/5"
+            ? "flex w-full items-center gap-1 bg-accent-soft px-2 py-1.5 text-left text-sm font-semibold text-accent"
+            : "flex w-full items-center gap-1 px-2 py-1.5 text-left text-sm hover:bg-raised"
         }
         style={{
           paddingLeft: 8 + depth * 14,

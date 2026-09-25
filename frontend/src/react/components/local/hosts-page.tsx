@@ -37,7 +37,7 @@ export function LocalHostsPage() {
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr]">
           <div className="border-r border-line">
-            <div className="flex h-12 items-center justify-between bg-accent/10 px-3 font-semibold text-accent">
+            <div className="flex h-12 items-center justify-between bg-accent-soft px-3 font-semibold text-accent">
               <span className="font-mono text-sm">hosts</span>
               <span className="text-xs text-muted">{formatSize(raw.length)}</span>
             </div>

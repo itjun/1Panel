@@ -294,7 +294,7 @@ export function SftpPane(props: Props) {
         <div className="relative">
           <button
             type="button"
-            className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-ink/5"
+            className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-raised"
             onClick={(event) => {
               event.stopPropagation();
               setMenuOpen((value) => !value);
@@ -454,8 +454,8 @@ export function SftpPane(props: Props) {
               className={cn(
                 "grid h-12 cursor-grab grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-sm",
                 selected.includes(entry.path)
-                  ? "bg-accent/10 font-semibold text-accent"
-                  : "hover:bg-ink/5",
+                  ? "bg-accent-soft font-semibold text-accent"
+                  : "hover:bg-raised",
                 hoverDir === entry.path &&
                   !selected.includes(entry.path) &&
                   "bg-accent/15 ring-1 ring-accent/40",

@@ -1,20 +1,26 @@
-/* 看板独立窗口皮肤；不作用于主窗口 */
+/* 看板独立窗口皮肤；不作用于主窗口
+   TDesign Dark：页面 Gray14 / 容器 Gray13 / 次级 Gray12 / 描边 Gray11 / 边框 Gray9
+   文字白 90%/60%/40%；功能色深色色板第 6 档；内容优先，无装饰网格与强发光 */
 
 .board-mode {
-  --board-canvas: #07131b;
-  --board-surface: #10232d;
-  --board-raised: #16303b;
-  --board-text: #edf7f5;
-  --board-muted: #8faeb2;
-  --board-line: rgba(160, 207, 213, 0.16);
-  --board-accent: #51d5b0;
-  --board-healthy: #51d5b0;
-  --board-attention: #eab25f;
-  --board-critical: #ff6673;
-  --board-panel: color-mix(in srgb, var(--board-surface) 88%, #000 12%);
-  --board-panel-deep: color-mix(in srgb, var(--board-canvas) 75%, #000 25%);
-  --board-hairline: color-mix(in srgb, var(--board-text) 14%, transparent);
-  --board-hairline-strong: color-mix(in srgb, var(--board-text) 18%, transparent);
+  --board-canvas: #181818;
+  --board-surface: #242424;
+  --board-raised: #2c2c2c;
+  --board-component: #393939;
+  --board-border: #5e5e5e;
+  --board-text: rgba(255, 255, 255, 0.9);
+  --board-muted: rgba(255, 255, 255, 0.6);
+  --board-placeholder: rgba(255, 255, 255, 0.4);
+  --board-disabled: rgba(255, 255, 255, 0.26);
+  --board-line: #393939;
+  --board-accent: #2174ff;
+  --board-healthy: #07a872;
+  --board-attention: #ed8139;
+  --board-critical: #fb6e77;
+  --board-critical-soft: #730524;
+  --board-healthy-soft: #034116;
+  --board-hairline: var(--board-line);
+  --board-hairline-strong: var(--board-border);
 
   position: fixed;
   inset: 0;
@@ -24,10 +30,7 @@
   padding: 16px 20px 20px;
   box-sizing: border-box;
   overflow: hidden;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--board-accent) 2.5%, transparent) 1px, transparent 1px) 0 0 / 64px 64px,
-    linear-gradient(color-mix(in srgb, var(--board-accent) 1.8%, transparent) 1px, transparent 1px) 0 0 / 64px 64px,
-    var(--board-canvas);
+  background: var(--board-canvas);
   color: var(--board-text);
   font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
   user-select: none;
@@ -43,11 +46,9 @@
   min-height: 0;
   padding: 12px;
   gap: 10px;
-  border: 1px solid var(--board-hairline);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--board-accent) 1.8%, transparent) 1px, transparent 1px) 0 0 / 56px 56px,
-    linear-gradient(color-mix(in srgb, var(--board-accent) 1.2%, transparent) 1px, transparent 1px) 0 0 / 56px 56px,
-    var(--board-canvas);
+  border: 1px solid var(--board-line);
+  border-radius: var(--radius-surface, 6px);
+  background: var(--board-canvas);
 }
 
 .board-mode__bar {
@@ -76,8 +77,7 @@
   flex: 0 0 auto;
   width: 9px;
   height: 30px;
-  background: var(--board-healthy);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--board-accent) 50%, transparent);
+  background: var(--board-accent);
 }
 
 .board-mode__titles {
@@ -135,7 +135,7 @@
 }
 
 .board-mode__board-title--fallback {
-  color: var(--board-muted);
+  color: var(--board-placeholder);
   font-size: clamp(15px, 1vw, 20px);
   font-weight: 500;
 }
@@ -157,27 +157,28 @@
   flex-shrink: 0;
   min-height: 28px;
   padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--board-text) 25%, transparent);
-  border-radius: var(--radius-control, 5px);
-  background: color-mix(in srgb, var(--board-panel) 80%, transparent);
-  color: color-mix(in srgb, var(--board-text) 78%, var(--board-muted));
+  border: 1px solid var(--board-border);
+  border-radius: var(--radius-control, 4px);
+  background: var(--board-raised);
+  color: var(--board-muted);
   font: 500 12px/1 "SF Pro Display", "PingFang SC", sans-serif;
   cursor: pointer;
 }
 
 .board-mode__fs-btn:hover {
-  border-color: var(--board-healthy);
+  border-color: var(--board-accent);
   color: var(--board-text);
+  background: var(--board-component);
 }
 
 .board-mode__fs-btn:focus-visible {
-  outline: 2px solid var(--board-healthy);
+  outline: 2px solid var(--board-accent);
   outline-offset: 3px;
 }
 
 .board-mode__clock {
   flex-shrink: 0;
-  color: color-mix(in srgb, var(--board-text) 82%, var(--board-muted));
+  color: var(--board-muted);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -198,7 +199,7 @@
   align-content: stretch;
   overflow: auto;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--board-accent) 38%, transparent) transparent;
+  scrollbar-color: var(--board-component) transparent;
 }
 
 .board-mode__empty {
@@ -213,7 +214,7 @@
 }
 
 .board-mode__empty-mark {
-  color: var(--board-healthy);
+  color: var(--board-accent);
   font: 700 28px/1 "SF Mono", ui-monospace, monospace;
 }
 
@@ -226,7 +227,7 @@
   font-size: 12px;
 }
 
-/* —— 摘要条 —— */
+/* —— 摘要条：容器 Gray13 + 描边 Gray11 —— */
 
 .board-summary {
   flex-shrink: 0;
@@ -234,9 +235,9 @@
   align-items: stretch;
   min-width: 0;
   min-height: 78px;
-  border-top: 1px solid color-mix(in srgb, var(--board-healthy) 28%, transparent);
-  border-bottom: 1px solid var(--board-hairline-strong);
-  background: color-mix(in srgb, var(--board-panel) 72%, transparent);
+  border: 1px solid var(--board-line);
+  border-radius: var(--radius-control, 4px);
+  background: var(--board-surface);
 }
 
 .board-summary.is-embedded {
@@ -249,7 +250,7 @@
   align-items: center;
   gap: 10px;
   padding: 0 18px;
-  border-right: 1px solid color-mix(in srgb, var(--board-text) 13%, transparent);
+  border-right: 1px solid var(--board-line);
 }
 
 .board-summary__live-dot {
@@ -257,9 +258,6 @@
   height: 8px;
   border-radius: 50%;
   background: var(--board-healthy);
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--board-accent) 12%, transparent),
-    0 0 14px color-mix(in srgb, var(--board-accent) 65%, transparent);
 }
 
 .board-summary__eyebrow,
@@ -272,7 +270,7 @@
 }
 
 .board-summary__eyebrow {
-  color: var(--board-muted);
+  color: var(--board-placeholder);
   font-size: 11px;
   letter-spacing: 0.12em;
 }
@@ -300,7 +298,7 @@
   align-content: center;
   column-gap: 10px;
   padding: 0 16px;
-  border-right: 1px solid color-mix(in srgb, var(--board-text) 10%, transparent);
+  border-right: 1px solid var(--board-line);
 }
 
 .board-summary__item:last-child {
@@ -310,7 +308,7 @@
 .board-summary__label {
   grid-column: 1 / -1;
   margin-bottom: 4px;
-  color: var(--board-muted);
+  color: var(--board-placeholder);
   font-size: 11px;
   letter-spacing: 0.08em;
 }
@@ -326,7 +324,7 @@
   align-self: end;
   min-width: 0;
   padding-bottom: 2px;
-  color: color-mix(in srgb, var(--board-muted) 88%, var(--board-text));
+  color: var(--board-muted);
   font-size: 11px;
 }
 
@@ -346,7 +344,8 @@
   color: var(--board-muted);
 }
 
-/* —— 主机卡 —— */
+/* 交互色（品牌 Blue6）与语义色分离：曲线/进度条/hover 用 accent；
+   仅「正常 / LIVE / 应用 OK」等状态文案与色点用 healthy */
 
 .host-board-card {
   --card-pad: 13px 15px 11px;
@@ -368,10 +367,9 @@
   gap: var(--card-gap);
   padding: var(--card-pad);
   overflow: hidden;
-  border: 1px solid var(--board-hairline-strong);
-  border-left: 3px solid var(--health-color);
-  border-radius: var(--radius-control, 5px);
-  background: color-mix(in srgb, var(--board-panel) 94%, transparent);
+  border: 1px solid var(--board-border);
+  border-radius: var(--radius-control, 4px);
+  background: var(--board-surface);
   color: var(--board-text);
   cursor: pointer;
   outline: none;
@@ -381,11 +379,12 @@
 
 .host-board-card:hover,
 .host-board-card:focus-visible {
-  border-color: color-mix(in srgb, var(--health-color) 70%, var(--board-hairline-strong));
+  background: var(--board-raised);
+  border-color: var(--board-accent);
 }
 
 .host-board-card:focus-visible {
-  outline: 2px solid var(--health-color);
+  outline: 2px solid var(--board-accent);
   outline-offset: 2px;
 }
 
@@ -395,7 +394,14 @@
 
 .host-board-card.health-critical {
   --health-color: var(--board-critical);
-  background: color-mix(in srgb, var(--board-critical) 7%, var(--board-surface));
+  background: var(--board-critical-soft);
+  border-color: var(--board-critical);
+}
+
+.host-board-card.health-critical:hover,
+.host-board-card.health-critical:focus-visible {
+  background: color-mix(in srgb, var(--board-critical-soft) 80%, var(--board-raised));
+  border-color: var(--board-accent);
 }
 
 .host-board-card.health-unknown {
@@ -450,7 +456,7 @@
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--board-text) 13%, transparent);
+  border-bottom: 1px solid var(--board-line);
 }
 
 .host-board-card__identity {
@@ -467,7 +473,6 @@
   margin-top: 5px;
   border-radius: 50%;
   background: var(--health-color);
-  box-shadow: 0 0 9px color-mix(in srgb, var(--health-color) 60%, transparent);
 }
 
 .host-board-card__title {
@@ -501,7 +506,7 @@
 
 .host-board-card__addr,
 .host-board-card__updated {
-  color: color-mix(in srgb, var(--board-muted) 88%, var(--board-text));
+  color: var(--board-placeholder);
   font-size: var(--sub-size);
   font-variant-numeric: tabular-nums;
 }
@@ -540,7 +545,7 @@
 
 .host-board-card__state--error span {
   max-width: 90%;
-  color: color-mix(in srgb, var(--board-critical) 72%, var(--board-text));
+  color: var(--board-critical);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -561,9 +566,9 @@
   display: flex;
   flex-direction: column;
   padding: 9px 10px 8px;
-  border-top: 1px solid color-mix(in srgb, var(--board-text) 13%, transparent);
-  border-left: 1px solid color-mix(in srgb, var(--board-text) 13%, transparent);
-  background: color-mix(in srgb, var(--board-panel-deep) 30%, transparent);
+  border: 1px solid var(--board-line);
+  border-radius: var(--radius-control, 4px);
+  background: var(--board-raised);
 }
 
 .metric-tile__top {
@@ -575,7 +580,7 @@
 }
 
 .metric-tile__label {
-  color: var(--board-muted);
+  color: var(--board-placeholder);
   font-size: var(--label-size);
   letter-spacing: 0.1em;
 }
@@ -604,7 +609,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--board-muted) 85%, transparent);
+  color: var(--board-placeholder);
   font-size: var(--sub-size);
   font-variant-numeric: tabular-nums;
 }
@@ -621,15 +626,15 @@
   margin-top: auto;
   padding-top: 10px;
   height: var(--bar-h);
-  border-radius: var(--radius-control, 5px);
-  background: color-mix(in srgb, var(--board-text) 16%, transparent);
+  border-radius: var(--radius-control, 4px);
+  background: var(--board-component);
   overflow: hidden;
 }
 
 .metric-tile__bar-fill {
   height: 100%;
   border-radius: inherit;
-  background: var(--board-healthy);
+  background: var(--board-accent);
   transition: width 0.2s ease;
 }
 
@@ -644,13 +649,13 @@
   align-items: flex-start;
   gap: 10px;
   padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--board-text) 13%, transparent);
+  border-top: 1px solid var(--board-line);
 }
 
 .host-board-card__apps-label {
   flex: 0 0 auto;
   padding-top: 2px;
-  color: var(--board-muted);
+  color: var(--board-placeholder);
   font-size: var(--app-size);
   letter-spacing: 0.08em;
 }
@@ -670,7 +675,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  color: color-mix(in srgb, var(--board-text) 72%, var(--board-muted));
+  color: var(--board-muted);
   font: 600 var(--app-size) / 1.25 "SF Mono", "JetBrains Mono", ui-monospace, monospace;
   white-space: nowrap;
 }
@@ -750,7 +755,7 @@
   .board-summary__lead {
     height: 48px;
     border-right: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--board-text) 10%, transparent);
+    border-bottom: 1px solid var(--board-line);
   }
 
   .board-summary__items {
@@ -779,15 +784,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board-mode__live-mark,
-  .host-board-card__state-dot {
-    box-shadow: none;
-  }
-
-  .board-summary__live-dot {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--board-accent) 12%, transparent);
-  }
-
   .host-board-card {
     transition: none;
   }

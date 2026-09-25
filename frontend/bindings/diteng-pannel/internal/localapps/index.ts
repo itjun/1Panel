@@ -4,6 +4,8 @@
 export type {
     AppNode,
     ProcNode,
+    ProcResource,
+    ResourceSnapshot,
     Snapshot,
     ThreadNode
 } from "./models.js";

@@ -186,8 +186,8 @@ function HostWorkspace() {
               className={
                 "box-border inline-flex h-8 w-[calc(4em+12px)] min-w-[calc(4em+12px)] max-w-[calc(4em+12px)] shrink-0 grow-0 cursor-pointer appearance-none items-center justify-center overflow-hidden whitespace-nowrap rounded-control px-1.5 " +
                 (item.id === tool
-                  ? "bg-accent/10 font-semibold text-accent"
-                  : "text-muted hover:bg-ink/5 hover:text-ink")
+                  ? "bg-accent-soft font-semibold text-accent"
+                  : "text-muted hover:bg-raised hover:text-ink")
               }
               onClick={() => session.setTool(item.id)}
             >

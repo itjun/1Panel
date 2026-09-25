@@ -689,7 +689,7 @@ function ConfigCenterPage() {
                 type="button"
                 className={`block w-full border-b border-line px-3 py-3 text-left hover:bg-raised ${
                   selectedBackupId === backup.id
-                    ? "bg-accent/10 font-semibold text-accent"
+                    ? "bg-accent-soft font-semibold text-accent"
                     : ""
                 }`}
                 onClick={() => setSelectedBackupId(backup.id)}
@@ -1247,7 +1247,7 @@ function HostHomePage() {
                       data-host-group={section.id}
                       className={`group relative flex h-[60px] cursor-grab items-center gap-[14px] px-[18px] active:cursor-grabbing ${
                         selectedRow
-                          ? "bg-accent/10 font-semibold text-accent"
+                          ? "bg-accent-soft font-semibold text-accent"
                           : "bg-surface hover:bg-raised"
                       }`}
                       onPointerDown={(event) => onHostPointerDown(event, section.id, host.name)}

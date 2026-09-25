@@ -27,12 +27,12 @@ export function RingMeter({
   const c = 2 * Math.PI * r;
   const offset = c * (1 - pct / 100);
   const stroke = danger
-    ? readThemeColor("--color-danger", "#d64545")
-    : readThemeColor("--color-accent", "#005eeb");
-  const track = readThemeColor("--color-line", "#dfe3e8");
+    ? readThemeColor("--color-danger", "#ad352f")
+    : readThemeColor("--color-accent", "#0052d9");
+  const track = readThemeColor("--color-line", "#e8e8e8");
   const centerFill = danger
-    ? readThemeColor("--color-danger", "#d64545")
-    : readThemeColor("--color-ink", "#20252b");
+    ? readThemeColor("--color-danger", "#ad352f")
+    : readThemeColor("--color-ink", "rgba(0, 0, 0, 0.9)");
   const centerText = center ?? `${pct.toFixed(0)}%`;
 
   return (

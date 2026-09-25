@@ -4,11 +4,11 @@
         <key>CFBundlePackageType</key>
             <string>APPL</string>
         <key>CFBundleName</key>
-            <string>1Pannel</string>
+            <string>1Panel</string>
         <key>CFBundleExecutable</key>
-            <string>1Pannel</string>
+            <string>1Panel</string>
         <key>CFBundleIdentifier</key>
-            <string>com.huangrongjun.1pannel</string>
+            <string>com.itjun.1panel</string>
         <key>CFBundleVersion</key>
             <string>1.1.0</string>
         <key>CFBundleGetInfoString</key>

@@ -75,8 +75,8 @@ export function Notice({
     <p
       className={
         tone === "warn"
-          ? "shrink-0 rounded-control bg-warn/10 px-4 py-2 text-sm text-warn"
-          : "shrink-0 rounded-control bg-danger/10 px-4 py-2 text-sm text-danger"
+          ? "shrink-0 rounded-control bg-warn-soft px-4 py-2 text-sm text-warn"
+          : "shrink-0 rounded-control bg-danger-soft px-4 py-2 text-sm text-danger"
       }
     >
       {text}

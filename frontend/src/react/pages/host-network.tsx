@@ -37,9 +37,9 @@ function ConnState({ state }: { state: string }) {
   if (s === "ESTABLISHED" || s === "ESTAB") {
     tone = "bg-io-read/15 text-io-read";
   } else if (s === "LISTEN" || s === "LISTENING") {
-    tone = "bg-accent/10 text-accent";
+    tone = "bg-accent-soft text-accent";
   } else if (s.includes("WAIT") || s === "CLOSE" || s === "CLOSED") {
-    tone = "bg-warn/15 text-warn";
+    tone = "bg-warn-soft text-warn";
   }
   return (
     <span
@@ -397,7 +397,7 @@ export function NetworkPage({ host }: { host: string }) {
                 ]}
                 rows={slowList.map((conn, index) => ({
                   id: `slow-${index}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
-                  className: "h-12 border-t border-line/70 bg-danger/10",
+                  className: "h-12 border-t border-line/70 bg-danger-soft",
                   cells: [
                     index + 1,
                     conn.process || "—",
@@ -459,7 +459,7 @@ export function NetworkPage({ host }: { host: string }) {
                 return {
                   id: `conn-${seq}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
                   className: conn.slow
-                    ? "h-12 border-t border-line/70 bg-danger/10"
+                    ? "h-12 border-t border-line/70 bg-danger-soft"
                     : "h-12 border-t border-line/70 hover:bg-raised",
                   cells: [
                     seq,

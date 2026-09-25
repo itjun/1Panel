@@ -1,26 +1,36 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: #f0f1f3;
+  /* 中性色：TDesign Gray1 / White / Gray3 */
+  --color-canvas: #f3f3f3;
   --color-surface: #ffffff;
-  --color-raised: #f6f7f9;
-  --color-ink: #20252b;
-  --color-muted: #687382;
+  --color-raised: #f3f3f3;
+  --color-ink: rgba(0, 0, 0, 0.9);
+  --color-muted: rgba(0, 0, 0, 0.6);
   /* 发丝线：只做轻微分隔，不抢视觉 */
-  --color-line: #e8eaed;
-  --color-accent: #005eeb;
+  --color-line: #e8e8e8;
+  /* 品牌：Blue7 / hover Blue6 / active Blue8 / 选中浅底 Blue1 */
+  --color-accent: #0052d9;
+  --color-accent-hover: #366ef4;
+  --color-accent-active: #003cab;
+  --color-accent-soft: #f2f3ff;
   --color-graphite: #191c21;
   --color-graphite-text: #e5e7eb;
-  --color-success: #15803d;
-  --color-danger: #d64545;
-  --color-warn: #b97814;
-  --color-info: #5b8def;
+  /* 功能色小字：同色相加深，保证 Gray1 上 ≥4.5 */
+  --color-success: #006c45;
+  --color-danger: #ad352f;
+  --color-warn: #954500;
+  --color-info: #366ef4;
+  /* 功能色浅底：Red1 / Orange1 / Green1 */
+  --color-success-soft: #e3f9e9;
+  --color-danger-soft: #fff0ed;
+  --color-warn-soft: #fff1e9;
   /* 行业约定：读/下行/接收 = 绿；写/上行/发送 = 橙；单线指标 = 蓝 */
-  --color-chart-1: #005eeb;
-  --color-io-read: #15803d;
-  --color-io-write: #ea580c;
-  --color-chart-2: #15803d;
-  --color-chart-3: #ea580c;
+  --color-chart-1: #0052d9;
+  --color-io-read: #2ba471;
+  --color-io-write: #e37318;
+  --color-chart-2: #2ba471;
+  --color-chart-3: #e37318;
   --radius-control: 4px;
   --radius-surface: 6px;
   --font-sans: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
@@ -42,8 +52,8 @@
   }
 
   .react-root ::selection {
-    background: color-mix(in srgb, #005eeb 28%, #ffffff);
-    color: #20252b;
+    background: color-mix(in srgb, #0052d9 28%, #ffffff);
+    color: rgba(0, 0, 0, 0.9);
   }
 
   .react-root * {

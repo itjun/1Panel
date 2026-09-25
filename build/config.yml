@@ -6,8 +6,8 @@ version: '3'
 # This information is used to generate the build assets.
 info:
   companyName: "黄荣君" # The name of the company
-  productName: "1Pannel" # The name of the application
-  productIdentifier: "com.huangrongjun.1pannel" # The unique product identifier
+  productName: "1Panel" # The name of the application
+  productIdentifier: "com.itjun.1panel" # The unique product identifier
   description: "运维管理" # The application description
   copyright: "(c) 2026, 黄荣君" # Copyright text
   comments: "运维管理" # Comments

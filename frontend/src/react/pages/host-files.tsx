@@ -134,7 +134,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
               type="button"
               className={
                 file.path === path
-                  ? "block w-full bg-accent/10 px-3 py-2 text-left font-mono text-[13px] font-semibold text-accent"
+                  ? "block w-full bg-accent-soft px-3 py-2 text-left font-mono text-[13px] font-semibold text-accent"
                   : "block w-full px-3 py-2 text-left font-mono text-[13px] hover:bg-raised"
               }
               onClick={() => setSelected(file.path)}

@@ -404,6 +404,9 @@ const apiImpl = {
   /** 本机单个进程详情（含线程） */
   localAppsDetail: (pid: number): Promise<localapps.ProcNode> =>
     must(LocalApps.ProcDetail(pid)),
+  /** 按需读取单个本机进程的文件描述符资源 */
+  localAppsResources: (pid: number): Promise<localapps.ResourceSnapshot> =>
+    must(LocalApps.Resources(pid)),
   /** 结束本机进程；force=true 发 SIGKILL */
   localAppsKill: async (pid: number, force: boolean): Promise<void> => {
     await LocalApps.Kill(pid, force);

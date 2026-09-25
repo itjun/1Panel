@@ -309,7 +309,7 @@ export function WorkspaceRail() {
     return (
       <button
         type="button"
-        className="absolute left-0 top-12 z-[70] rounded-r-control border border-l-0 border-line bg-canvas px-1.5 py-2 text-xs text-muted hover:bg-ink/5"
+        className="absolute left-0 top-12 z-[70] rounded-r-control border border-l-0 border-line bg-canvas px-1.5 py-2 text-xs text-muted hover:bg-raised"
         title="展开侧栏（⌘B）"
         onClick={toggleSidebar}
       >
@@ -732,8 +732,8 @@ function UtilityNav({
         className={cn(
           "relative flex h-10 items-center rounded-control text-left",
           !open && activeLabel
-            ? "bg-accent/10 px-2.5 font-semibold text-accent"
-            : "px-2.5 text-muted hover:bg-ink/5 hover:text-ink",
+            ? "bg-accent-soft px-2.5 font-semibold text-accent"
+            : "px-2.5 text-muted hover:bg-raised hover:text-ink",
         )}
         title={open ? "收起" : "展开"}
         onClick={onToggle}
@@ -788,8 +788,8 @@ function RailNavButton({
       className={cn(
         "relative flex h-10 items-center rounded-control text-left",
         active
-          ? "bg-accent/10 px-2.5 font-semibold text-accent"
-          : "px-2.5 text-muted hover:bg-ink/5 hover:text-ink",
+          ? "bg-accent-soft px-2.5 font-semibold text-accent"
+          : "px-2.5 text-muted hover:bg-raised hover:text-ink",
       )}
       onClick={onClick}
       onContextMenu={onContextMenu}
@@ -841,8 +841,8 @@ function RailSessionRow({
       className={cn(
         "relative flex h-10 cursor-grab items-center gap-1.5 truncate rounded-control text-left active:cursor-grabbing",
         active || selected
-          ? "bg-accent/10 px-2.5 font-semibold text-accent"
-          : "px-2.5 text-muted hover:bg-ink/5 hover:text-ink",
+          ? "bg-accent-soft px-2.5 font-semibold text-accent"
+          : "px-2.5 text-muted hover:bg-raised hover:text-ink",
         dragging && "opacity-40",
       )}
       onPointerDown={onPointerDown}
@@ -919,8 +919,8 @@ function CtxItem({
     <button
       type="button"
       className={cn(
-        "flex w-full items-center px-3 py-2 text-left hover:bg-ink/5",
-        danger && "text-danger hover:bg-danger/10",
+        "flex w-full items-center px-3 py-2 text-left hover:bg-raised",
+        danger && "text-danger hover:bg-danger-soft",
       )}
       onClick={onClick}
     >

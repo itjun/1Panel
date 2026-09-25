@@ -124,7 +124,7 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
         </div>
         <div className="flex min-h-0 flex-1 flex-col p-3">
           {needsNormalize ? (
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-surface border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-surface border border-warn/40 bg-warn-soft px-3 py-2 text-sm text-warn">
               <span>
                 当前不是 Linux 标准格式（期望 UTF-8 + LF）：编码{" "}
                 <strong>{preview?.encoding || "—"}</strong>，换行{" "}

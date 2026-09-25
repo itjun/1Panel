@@ -88,7 +88,7 @@ function ContextMenu({ menu, onClose }: { menu: CtxMenu | null; onClose: () => v
           type="button"
           className={
             item.danger
-              ? "block w-full px-3 py-2 text-left text-danger hover:bg-danger/10"
+              ? "block w-full px-3 py-2 text-left text-danger hover:bg-danger-soft"
               : "block w-full px-3 py-2 text-left hover:bg-raised"
           }
           onClick={() => {
@@ -181,7 +181,7 @@ function SimpleRows({
                 key={row.id}
                 className={
                   row.id === selectedId
-                    ? "h-12 cursor-pointer border-t border-line/70 bg-accent/10 font-semibold text-accent"
+                    ? "h-12 cursor-pointer border-t border-line/70 bg-accent-soft font-semibold text-accent"
                     : "h-12 cursor-pointer border-t border-line/70 hover:bg-raised"
                 }
                 onClick={(e) => onRowClick?.(row.id, e)}
@@ -885,8 +885,8 @@ function lineOption(
   series: { name: string; data: number[] }[],
   opts?: { yMax?: number; yFormatter?: (v: number) => string },
 ): echarts.EChartsOption {
-  const muted = readThemeColor("--color-muted", "#687382");
-  const line = readThemeColor("--color-line", "#dfe3e8");
+  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
+  const line = readThemeColor("--color-line", "#e8e8e8");
   return {
     color: seriesColorList(series.map((s) => s.name)),
     grid: { left: 48, right: 16, top: 28, bottom: 28 },

@@ -174,7 +174,7 @@ tasks:
       - task: '{{if eq OS "darwin"}}unregister:repo:apps{{else}}codesign:skip{{end}}'
 
   unregister:repo:apps:
-    summary: 把仓库里的 .app 从 Launch Services 注销，避免「本地网络」里堆出多份 1Pannel
+    summary: 把仓库里的 .app 从 Launch Services 注销，避免「本地网络」里堆出多份 1Panel
     internal: true
     platforms: [darwin]
     cmds:

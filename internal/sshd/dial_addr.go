@@ -19,7 +19,7 @@ func wrapDialErr(addr string, err error) error {
 		return nil
 	}
 	if isNoRoute(err) {
-		return fmt.Errorf("连接 %s 失败: %w（若目标在局域网：系统设置 → 隐私与安全性 → 本地网络 → 打开 1Pannel）", addr, err)
+		return fmt.Errorf("连接 %s 失败: %w（若目标在局域网：系统设置 → 隐私与安全性 → 本地网络 → 打开 1Panel）", addr, err)
 	}
 	return fmt.Errorf("连接 %s 失败: %w", addr, err)
 }

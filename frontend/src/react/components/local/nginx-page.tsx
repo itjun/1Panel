@@ -65,7 +65,7 @@ export function LocalNginxPage() {
                 type="button"
                 className={
                   chosen === file.path
-                    ? "flex h-12 w-full items-center justify-between bg-accent/10 px-3 text-left font-semibold text-accent"
+                    ? "flex h-12 w-full items-center justify-between bg-accent-soft px-3 text-left font-semibold text-accent"
                     : "flex h-12 w-full items-center justify-between px-3 text-left hover:bg-raised"
                 }
                 onClick={() => setPath(file.path)}

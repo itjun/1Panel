@@ -244,12 +244,12 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {error ? (
-        <div className="rounded-control border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+        <div className="rounded-control border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </div>
       ) : null}
       {message ? (
-        <div className="rounded-control border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
+        <div className="rounded-control border border-success/40 bg-success-soft px-3 py-2 text-sm text-success">
           {message}
         </div>
       ) : null}
@@ -273,7 +273,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                   key={file.path}
                   type="button"
                   className={`flex w-full items-center gap-2 truncate px-3 py-2 text-left text-sm hover:bg-raised ${
-                    active ? "bg-accent/10 font-semibold text-accent" : ""
+                    active ? "bg-accent-soft font-semibold text-accent" : ""
                   } ${dirty && !active ? "font-medium" : ""}`}
                   onClick={() => selectFile(file.path)}
                 >
@@ -322,7 +322,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                 </span>
               ) : null}
               {selectedFile?.externalChanged ? (
-                <span className="rounded-control border border-danger/40 bg-danger/10 px-2 py-0.5 text-xs text-danger">
+                <span className="rounded-control border border-danger/40 bg-danger-soft px-2 py-0.5 text-xs text-danger">
                   磁盘已变化
                 </span>
               ) : null}
@@ -409,8 +409,8 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                 <div
                   className={`mb-3 rounded-control border px-3 py-2 ${
                     preview.valid
-                      ? "border-success/40 bg-success/10 text-success"
-                      : "border-danger/40 bg-danger/10 text-danger"
+                      ? "border-success/40 bg-success-soft text-success"
+                      : "border-danger/40 bg-danger-soft text-danger"
                   }`}
                 >
                   <div className="font-medium">
@@ -436,8 +436,8 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                           <span
                             className={`rounded-control px-1.5 py-0.5 text-xs ${
                               test.success
-                                ? "bg-success/10 text-success"
-                                : "bg-danger/10 text-danger"
+                                ? "bg-success-soft text-success"
+                                : "bg-danger-soft text-danger"
                             }`}
                           >
                             {test.success ? "通过" : "失败"}
@@ -469,7 +469,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                         return (
                           <div
                             key={conflict.id}
-                            className="rounded-control border border-danger/40 bg-danger/10 px-3 py-3"
+                            className="rounded-control border border-danger/40 bg-danger-soft px-3 py-3"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -537,7 +537,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                         type="button"
                         className={`rounded-control border px-2 py-1 text-xs ${
                           previewFile?.path === file.path
-                            ? "border-accent bg-accent/10 font-semibold text-accent"
+                            ? "border-accent bg-accent-soft font-semibold text-accent"
                             : "border-line"
                         }`}
                         onClick={() => setPreviewFilePath(file.path)}

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 #
 # build.py
-# 一键更新部署 1Pannel（Windows / macOS）:
+# 一键更新部署 1Panel（Windows / macOS）:
 #   1 - 停旧进程，拉代码，编译打包并启动
 #                              → 停止旧进程 → git pull --ff-only → 编译 agent + 前端 + Go
-#                                打包后在 bin/ 直接启动（macOS 产出 .app；Windows 产出 1Pannel.exe）
+#                                打包后在 bin/ 直接启动（macOS 产出 .app；Windows 产出 1Panel.exe）
 #   2 - 拷贝到应用程序并启动  → 全量清理重打包，覆盖安装到 /Applications 并启动（仅 macOS）
 #
 # 用法:
@@ -28,7 +28,7 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-APP_NAME = "1Pannel"
+APP_NAME = "1Panel"
 BIN_DIR = "bin"
 APP_BUNDLE = f"{BIN_DIR}/{APP_NAME}.app"
 WIN_EXE = f"{BIN_DIR}/{APP_NAME}.exe"
@@ -196,7 +196,7 @@ def build(full: bool = False):
 
 
 def stop_running():
-    # 先停掉正在运行的 1Pannel，再编译/覆盖安装，避免占用旧二进制
+    # 先停掉正在运行的 1Panel，再编译/覆盖安装，避免占用旧二进制
     if IS_WINDOWS:
         # 先枚举进程再 kill，拿到 PID 便于确认；taskkill /IM 需要进程名
         proc = subprocess.run(
@@ -262,7 +262,7 @@ def launch_mac(path):
 
 def print_menu():
     print("======================================")
-    print("  1Pannel 打包部署")
+    print("  1Panel 打包部署")
     print("======================================")
     print("  1 - 停旧进程，拉代码，编译打包并启动")
     if not IS_WINDOWS:

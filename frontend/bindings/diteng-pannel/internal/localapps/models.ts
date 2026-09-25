@@ -12,6 +12,17 @@ export interface AppNode {
      * 语言：java / go / javascript / python / csharp / swift / …
      */
     "runtime": string;
+
+    /**
+     * runtime / service
+     */
+    "kind": string;
+
+    /**
+     * high / medium
+     */
+    "confidence": string;
+    "evidence": string[] | null;
     "procCount": number;
     "threadCount": number;
     "cpu": number;
@@ -51,6 +62,9 @@ export interface ProcNode {
     "pid": number;
     "ppid": number;
     "user": string;
+    "kind": string;
+    "confidence": string;
+    "evidence": string[] | null;
     "cpu": number;
     "rss": number;
     "threadCount": number;
@@ -60,6 +74,7 @@ export interface ProcNode {
     "cmd": string;
     "args": string[] | null;
     "ports": number[] | null;
+    "listenAddresses": string[] | null;
     "diskRead": number;
     "diskWrite": number;
     "netIn": number;
@@ -75,6 +90,29 @@ export interface ProcNode {
      */
     "extra": { [_ in string]?: string } | null;
     "threads": ThreadNode[] | null;
+}
+
+/**
+ * ProcResource 单个进程打开的文件、目录、socket 或 pipe。
+ */
+export interface ProcResource {
+    "fd": string;
+    "type": string;
+    "name": string;
+    "access": string;
+    "protocol": string;
+    "state": string;
+    "localAddress": string;
+    "remoteAddress": string;
+}
+
+/**
+ * ResourceSnapshot 单个进程按需读取的文件描述符快照。
+ */
+export interface ResourceSnapshot {
+    "pid": number;
+    "resources": ProcResource[] | null;
+    "warnings": string[] | null;
 }
 
 /**

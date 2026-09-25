@@ -15,9 +15,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: 1Pannel-${{ github.ref_name }}-mac-universal.zip
+            artifact: 1Panel-${{ github.ref_name }}-mac-universal.zip
           - os: windows-latest
-            artifact: 1Pannel-${{ github.ref_name }}-win-amd64.zip
+            artifact: 1Panel-${{ github.ref_name }}-win-amd64.zip
     steps:
       - uses: actions/checkout@v4
 
@@ -67,14 +67,14 @@ jobs:
       - name: Package macOS app
         if: runner.os == 'macOS'
         shell: bash
-        run: cd bin && zip -r -y "$ARTIFACT" 1Pannel.app
+        run: cd bin && zip -r -y "$ARTIFACT" 1Panel.app
         env:
           ARTIFACT: ${{ matrix.artifact }}
 
       - name: Package Windows exe
         if: runner.os == 'Windows'
         shell: bash
-        run: cd bin && 7z a "$ARTIFACT" 1Pannel.exe
+        run: cd bin && 7z a "$ARTIFACT" 1Panel.exe
         env:
           ARTIFACT: ${{ matrix.artifact }}
 

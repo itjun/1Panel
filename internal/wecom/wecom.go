@@ -86,7 +86,7 @@ func TestWebhook(webhook string) error {
 	}
 	md := FormatWatchMarkdown(WatchNotify{
 		Level:       "ok",
-		Service:     "1Pannel",
+		Service:     "1Panel",
 		TitleSuffix: "通讯测试",
 		Detail:      "设置页发出的测试消息。能在本群看到，说明企业微信通知地址可用。",
 		NotifyAt:    time.Now(),

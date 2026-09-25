@@ -98,9 +98,9 @@ func (a *App) showQuitConfirmWails(askAgain bool) (macui.QuitConfirmAction, bool
 		return action, askAgain
 	}
 	dialog := a.app.Dialog.Question().
-		SetTitle("退出 1Pannel？").
-		SetMessage("要退出 1Pannel 还是挂到后台运行？\n挂到后台后，告警与企微仍会送达。")
-	quitBtn := dialog.AddButton("退出 1Pannel").OnClick(func() {
+		SetTitle("退出 1Panel？").
+		SetMessage("要退出 1Panel 还是挂到后台运行？\n挂到后台后，告警与企微仍会送达。")
+	quitBtn := dialog.AddButton("退出 1Panel").OnClick(func() {
 		action = macui.QuitConfirmQuit
 	})
 	dialog.AddButton("挂到后台运行").OnClick(func() {
@@ -179,7 +179,7 @@ func (a *App) installBackgroundTray(app *application.App) {
 	} else {
 		tray.SetIcon(systrayColorPNG)
 	}
-	tray.SetTooltip("1Pannel")
+	tray.SetTooltip("1Panel")
 
 	menu := app.Menu.New()
 	menu.Add("显示主窗口").OnClick(func(*application.Context) {
