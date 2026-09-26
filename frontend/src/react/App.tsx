@@ -146,11 +146,11 @@ function Shell() {
       </main>
       {sidebar.open ? null : (
         <div
-          className={`pointer-events-none absolute top-0 left-0 z-30 flex h-10 items-center ${
+          className={`pointer-events-none absolute top-0 left-0 z-30 flex h-[40px] items-center ${
             isMac ? "pl-[72px]" : "pl-0.5"
           }`}
         >
-          <div className="pointer-events-auto rounded-control glass-chrome">
+          <div className="pointer-events-auto flex h-full items-center rounded-control glass-chrome">
             <WindowChrome />
           </div>
         </div>

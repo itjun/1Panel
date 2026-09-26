@@ -43,7 +43,7 @@ function ChromeButton({
       aria-label={label}
       aria-pressed={pressed}
       disabled={disabled}
-      className="no-drag grid h-7 w-7 shrink-0 place-items-center rounded-control text-ink hover:bg-raised disabled:cursor-default disabled:opacity-30"
+      className="no-drag grid h-7 w-7 shrink-0 place-items-center rounded-control leading-none text-ink hover:bg-raised disabled:cursor-default disabled:opacity-30"
       onClick={onClick}
     >
       <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -83,7 +83,7 @@ export function WindowChrome() {
   }, [goBack, goForward, toggle]);
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex h-full items-center gap-0.5">
       <ChromeButton label="后退" disabled={!canBack} onClick={goBack}>
         <path
           d="M14 6l-6 6 6 6"
