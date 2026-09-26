@@ -96,7 +96,8 @@
   -webkit-app-region: no-drag;
 }
 
-/* 自绘顶栏空白：拖动窗口；macOS 双击走系统「标题栏双击」偏好（默认缩放）。 */
+/* 自绘顶栏空白：拖动窗口。macOS 双击这块区域会最大化或还原（跟系统「标题栏双击」偏好，默认是缩放）。
+   按钮、输入框等控件在下面单独标成 no-drag，单击仍然点得到。 */
 .drag-region {
   --wails-draggable: drag;
   -webkit-app-region: drag;
@@ -133,7 +134,7 @@ html[data-platform="other"] .glass-chrome {
   padding-right: var(--window-chrome-inset);
 }
 
-/* 侧栏收起后，原来的拖拽带没了，改由 40px 页面顶栏拖动窗口。 */
+/* 侧栏收起后，页面顶栏继续承担拖拽；类名 drag-region 在侧栏展开时同样生效。 */
 .react-root[data-sidebar="closed"] :is(.shell-top.h-10, .host-home-toolbar) {
   --wails-draggable: drag;
   -webkit-app-region: drag;
