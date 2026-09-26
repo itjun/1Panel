@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -13,6 +14,7 @@ import {
   writeMainScreen,
   type NormalizedScreen,
 } from "@/utils/lastScreen";
+import { pushView, viewSnap, type ViewSnap } from "@/react/state/nav-history";
 import { readSettings } from "@/react/state/settings";
 import type { PersistTool } from "@/utils/workspaceMigrate";
 
@@ -301,6 +303,15 @@ type SessionValue = Nav & {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
+type NavHistoryValue = {
+  canBack: boolean;
+  canForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
+};
+
+const NavHistoryContext = createContext<NavHistoryValue | null>(null);
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [nav, setNav] = useState<Nav>(restoreNav);
   const [hosts, setHosts] = useState<sshconfig.HostConfig[]>([]);
@@ -308,6 +319,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [osRelease, setOsRelease] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [editingHost, setEditingHostState] = useState("");
+  const historyRef = useRef({ stack: [viewSnap(nav)], index: 0 });
+  const [, setHistoryRev] = useState(0);
 
   const patch = useCallback((partial: Partial<Nav>) => {
     setNav((prev) => ({ ...prev, ...partial }));
@@ -340,6 +353,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(NAV_KEY, JSON.stringify(nav));
     localStorage.setItem("1pannel-pinned-hosts", JSON.stringify(nav.pinned));
+  }, [nav]);
+
+  // 后退/前进落地后，当前下标已经指向目标页，viewKey 相同，不会再次入栈。
+  useEffect(() => {
+    const pushed = pushView(historyRef.current.stack, historyRef.current.index, viewSnap(nav));
+    if (!pushed) return;
+    historyRef.current = pushed;
+    setHistoryRev((n) => n + 1);
   }, [nav]);
 
   const groupName = useCallback(
@@ -531,13 +552,79 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const applyView = useCallback((snap: ViewSnap) => {
+    setNav((prev) => {
+      let openedHosts = prev.openedHosts;
+      if (snap.workspace === "remote" && !snap.settingsOpen && snap.activeHost) {
+        const name = snap.activeHost;
+        const existing = openedHosts.find((item) => item.name === name);
+        if (existing) {
+          openedHosts = openedHosts.map((item) =>
+            item.name === name ? { name, tool: snap.activeTool } : item,
+          );
+        } else {
+          openedHosts = [...openedHosts, { name, tool: snap.activeTool }];
+        }
+      }
+      const next = {
+        ...prev,
+        workspace: snap.workspace,
+        settingsOpen: snap.settingsOpen,
+        localSection: snap.localSection,
+        notifySection: snap.notifySection,
+        configSection: snap.configSection,
+        inspectSection: snap.inspectSection,
+        homeView: snap.homeView,
+        activeGroupId: snap.activeGroupId,
+        activeHost: snap.activeHost,
+        activeTool: snap.activeTool,
+        openedHosts,
+      };
+      writeMainFromNav(next);
+      return next;
+    });
+  }, []);
+
+  const goBack = useCallback(() => {
+    const hist = historyRef.current;
+    if (hist.index <= 0) return;
+    const nextIndex = hist.index - 1;
+    historyRef.current = { stack: hist.stack, index: nextIndex };
+    applyView(hist.stack[nextIndex]);
+    setHistoryRev((n) => n + 1);
+  }, [applyView]);
+
+  const goForward = useCallback(() => {
+    const hist = historyRef.current;
+    if (hist.index >= hist.stack.length - 1) return;
+    const nextIndex = hist.index + 1;
+    historyRef.current = { stack: hist.stack, index: nextIndex };
+    applyView(hist.stack[nextIndex]);
+    setHistoryRev((n) => n + 1);
+  }, [applyView]);
+
+  const canBack = historyRef.current.index > 0;
+  const canForward = historyRef.current.index < historyRef.current.stack.length - 1;
+  const historyValue = useMemo<NavHistoryValue>(
+    () => ({ canBack, canForward, goBack, goForward }),
+    [canBack, canForward, goBack, goForward],
+  );
+
   return (
-    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+    <SessionContext.Provider value={value}>
+      <NavHistoryContext.Provider value={historyValue}>{children}</NavHistoryContext.Provider>
+    </SessionContext.Provider>
   );
 }
 
 export function useSession() {
   const value = useContext(SessionContext);
   if (!value) throw new Error("useSession 必须在 SessionProvider 内使用");
+  return value;
+}
+
+export function useNavHistory() {
+  const value = useContext(NavHistoryContext);
+  if (!value) throw new Error("useNavHistory 必须在 SessionProvider 内使用");
   return value;
 }
