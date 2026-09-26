@@ -675,7 +675,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         setBlankMenu(next);
       }}
     >
-      <div className="host-home-toolbar shell-top glass-chrome grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line px-5">
+      <div className="host-home-toolbar shell-top drag-region glass-chrome grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line px-5">
         <div />
         <input
           ref={searchRef}

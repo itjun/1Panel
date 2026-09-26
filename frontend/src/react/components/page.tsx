@@ -25,7 +25,7 @@ export function Page({
       {title || actions ? (
         <div
           className={cn(
-            "shell-top flex h-10 shrink-0 flex-wrap items-center gap-3 border-b border-line px-5",
+            "shell-top drag-region flex h-10 shrink-0 flex-wrap items-center gap-3 border-b border-line px-5",
             dark ? "bg-graphite" : "glass-chrome",
           )}
         >
