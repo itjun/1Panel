@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { localapps } from "@/api";
+import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatDurationLong, formatErr } from "@/utils/format";
 import { localLangLabel } from "@/utils/localLang";
@@ -24,22 +25,26 @@ export function LocalAppContextMenu({
   onKill: (proc: localapps.ProcNode) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
+  const lastMenuRef = useRef(menu);
+  if (menu) lastMenuRef.current = menu;
+  const { mounted, visible } = usePresence(!!menu, MOTION_MS.moderate);
+  const active = menu ?? lastMenuRef.current;
 
   useEffect(() => {
-    if (!menu) return;
+    if (!active) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [menu, onClose]);
+  }, [active, onClose]);
 
   useEffect(() => {
-    if (!menu || !elRef.current) return;
+    if (!active || !elRef.current) return;
     const rect = elRef.current.getBoundingClientRect();
     const pad = 8;
-    let left = menu.x;
-    let top = menu.y;
+    let left = active.x;
+    let top = active.y;
     if (left + rect.width > window.innerWidth - pad) {
       left = Math.max(pad, window.innerWidth - rect.width - pad);
     }
@@ -48,12 +53,11 @@ export function LocalAppContextMenu({
     }
     elRef.current.style.left = `${left}px`;
     elRef.current.style.top = `${top}px`;
-  }, [menu]);
+  }, [active]);
 
-  if (!menu) return null;
-
-  const active = menu;
-  const proc = active.proc;
+  if (!mounted || !active) return null;
+  const current = active;
+  const proc = current.proc;
   const startCmd = (proc.cmd || "").trim();
   const cwd = (proc.cwd || "").trim();
   const cdAndCmd =
@@ -62,8 +66,8 @@ export function LocalAppContextMenu({
   const canKill = !!proc.pid && !isSelf;
 
   async function copyAll() {
-    const appName = active.appName;
-    const runtime = active.runtime;
+    const appName = current.appName;
+    const runtime = current.runtime;
     onClose();
     const lines = [
       `### 进程 ${appName || proc.pid}`,
@@ -125,8 +129,9 @@ export function LocalAppContextMenu({
       />
       <div
         ref={elRef}
-        className="fixed z-50 min-w-[180px] rounded-surface border border-line bg-surface py-1 shadow-lg"
-        style={{ left: active.x, top: active.y }}
+        className="motion-menu-panel fixed z-50 min-w-[180px] rounded-surface border border-line bg-surface py-1 shadow-lg"
+        data-open={visible ? "true" : "false"}
+        style={{ left: current.x, top: current.y }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <MenuItem

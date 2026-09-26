@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { api, type localapps } from "@/api";
 import {
@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
@@ -304,6 +305,9 @@ export function LocalAppsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<localapps.ProcNode | null>(null);
+  const lastDetailRef = useRef(detail);
+  if (detail) lastDetailRef.current = detail;
+  const shownDetail = detail ?? lastDetailRef.current;
   const [menu, setMenu] = useState<LocalAppMenuTarget | null>(null);
   const [killTargets, setKillTargets] = useState<KillTarget[]>([]);
   const [forceKill, setForceKill] = useState(false);
@@ -492,21 +496,21 @@ export function LocalAppsPage() {
     return out;
   }, [expanded, treeRows]);
 
-  const detailIsService = detail?.kind === "service";
+  const detailIsService = shownDetail?.kind === "service";
   const detailKindLabel = detailIsService ? "服务候选" : "开发运行时";
   const detailKindClass = detailIsService
     ? "bg-warn text-white"
     : "bg-accent text-white";
   const detailConfidenceLabel =
-    detail?.confidence === "high"
+    shownDetail?.confidence === "high"
       ? "高置信"
-      : detail?.confidence === "medium"
+      : shownDetail?.confidence === "medium"
         ? "中置信"
         : "置信度未知";
   const detailConfidenceClass =
-    detail?.confidence === "high"
+    shownDetail?.confidence === "high"
       ? "border border-success/30 bg-success-soft text-success"
-      : detail?.confidence === "medium"
+      : shownDetail?.confidence === "medium"
         ? "border border-warn/30 bg-warn-soft text-warn"
         : "border border-line bg-raised text-muted";
 
@@ -752,19 +756,20 @@ export function LocalAppsPage() {
         open={detail !== null}
         onOpenChange={(open) => !open && setDetail(null)}
       >
-        <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/45" />
-          {detail ? (
+        <DialogPrimitive.Portal container={document.body}>
+          <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-4">
+          <DialogPrimitive.Overlay className="motion-dialog-overlay pointer-events-auto absolute inset-0 bg-black/60" />
+          {shownDetail ? (
             <DialogPrimitive.Content
-              className={`fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-48px)] w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-surface border border-line border-t-4 bg-surface text-ink shadow-[0_24px_80px_rgba(0,0,0,0.25)] focus:outline-none sm:w-[min(1280px,calc(100vw-64px))] ${detailIsService ? "border-t-warn" : "border-t-accent"}`}
+              className={`motion-dialog-content pointer-events-auto relative z-10 flex max-h-[calc(100vh-48px)] w-[min(1280px,calc(100vw-64px))] flex-col overflow-hidden rounded-surface border border-line border-t-4 bg-surface text-ink shadow-[0_8px_10px_-5px_rgba(0,0,0,0.08),0_16px_24px_2px_rgba(0,0,0,0.04)] focus:outline-none ${detailIsService ? "border-t-warn" : "border-t-accent"}`}
             >
               <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-raised px-4">
                 <div className="min-w-0 flex-1">
                   <DialogPrimitive.Title className="truncate text-base font-semibold text-ink">
-                    {baseName(detail.exe) || `PID ${detail.pid}`}
+                    {baseName(shownDetail.exe) || `PID ${shownDetail.pid}`}
                   </DialogPrimitive.Title>
                   <DialogPrimitive.Description className="text-xs text-muted">
-                    本机进程详情 · PID {detail.pid}
+                    本机进程详情 · PID {shownDetail.pid}
                   </DialogPrimitive.Description>
                 </div>
                 <Button size="sm" onClick={() => setDetail(null)}>
@@ -787,20 +792,20 @@ export function LocalAppsPage() {
                   <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
                     <div>
                       <dt className="text-xs text-muted">用户</dt>
-                      <dd className="mt-0.5 font-medium">{detail.user || "—"}</dd>
+                      <dd className="mt-0.5 font-medium">{shownDetail.user || "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted">父进程</dt>
-                      <dd className="mt-0.5 font-mono font-medium">{detail.ppid || "—"}</dd>
+                      <dd className="mt-0.5 font-mono font-medium">{shownDetail.ppid || "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted">线程</dt>
-                      <dd className="mt-0.5 font-mono font-medium">{detail.threadCount ?? "—"}</dd>
+                      <dd className="mt-0.5 font-mono font-medium">{shownDetail.threadCount ?? "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted">监听端口</dt>
                       <dd className="mt-0.5 font-mono font-medium text-accent">
-                        {(detail.ports || []).join("、") || "—"}
+                        {(shownDetail.ports || []).join("、") || "—"}
                       </dd>
                     </div>
                   </dl>
@@ -809,9 +814,9 @@ export function LocalAppsPage() {
                 <div className="space-y-4 p-4">
                   <section>
                     <h3 className="text-sm font-semibold text-ink">监听地址</h3>
-                    {(detail.listenAddresses || []).length ? (
+                    {(shownDetail.listenAddresses || []).length ? (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {(detail.listenAddresses || []).map((address) => (
+                        {(shownDetail.listenAddresses || []).map((address) => (
                           <code
                             key={address}
                             className="break-all rounded-control border border-accent/25 bg-accent-soft px-2 py-1 text-xs font-medium text-accent"
@@ -825,11 +830,11 @@ export function LocalAppsPage() {
                     )}
                   </section>
 
-                  {(detail.evidence || []).length ? (
+                  {(shownDetail.evidence || []).length ? (
                     <section>
                       <h3 className="text-sm font-semibold text-ink">发现依据</h3>
                       <ul className="mt-1 space-y-1 text-sm text-muted">
-                        {(detail.evidence || []).map((item) => (
+                        {(shownDetail.evidence || []).map((item) => (
                           <li key={item} className="break-all">{item}</li>
                         ))}
                       </ul>
@@ -839,15 +844,15 @@ export function LocalAppsPage() {
                   <section className="grid gap-3 border-y border-line py-3 text-sm">
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-muted">可执行文件</div>
-                      <div className="mt-0.5 break-all font-mono text-xs">{detail.exe || "—"}</div>
+                      <div className="mt-0.5 break-all font-mono text-xs">{shownDetail.exe || "—"}</div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-muted">工作目录</div>
-                      <div className="mt-0.5 break-all font-mono text-xs">{detail.cwd || "—"}</div>
+                      <div className="mt-0.5 break-all font-mono text-xs">{shownDetail.cwd || "—"}</div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-muted">命令</div>
-                      <div className="mt-0.5 break-all font-mono text-xs">{detail.cmd || "—"}</div>
+                      <div className="mt-0.5 break-all font-mono text-xs">{shownDetail.cmd || "—"}</div>
                     </div>
                   </section>
 
@@ -914,7 +919,7 @@ export function LocalAppsPage() {
                     </div>
                   </section>
 
-                  {(detail.threads || []).length ? (
+                  {(shownDetail.threads || []).length ? (
                     <section className="overflow-hidden border border-line">
                       <h3 className="bg-raised px-3 py-2 text-sm font-semibold text-ink">线程</h3>
                       <div className="max-h-40 overflow-auto">
@@ -928,7 +933,7 @@ export function LocalAppsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(detail.threads || []).map((thread) => (
+                            {(shownDetail.threads || []).map((thread) => (
                               <tr key={thread.tid} className="h-8 border-t border-line">
                                 <td className="px-2 font-mono">{thread.tid}</td>
                                 <td className="px-2">{thread.name || "—"}</td>
@@ -947,6 +952,7 @@ export function LocalAppsPage() {
               </div>
             </DialogPrimitive.Content>
           ) : null}
+          </div>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
@@ -994,10 +1000,10 @@ export function LocalAppsPage() {
             强制结束（SIGKILL；默认发送 SIGTERM）
           </label>
           {killError ? <Notice text={killError} /> : null}
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setKillTargets([])}>取消</Button>
             <Button
-              variant="primary"
+              variant="danger"
               disabled={killing}
               onClick={() => void confirmKill()}
             >
@@ -1007,7 +1013,7 @@ export function LocalAppsPage() {
                   ? "结束全部"
                   : "结束"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Page>

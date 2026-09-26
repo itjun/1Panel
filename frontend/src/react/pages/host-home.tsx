@@ -1,5 +1,5 @@
 /**
- * 主机首页（分组列表 + 拖拽 + 右键 + 快捷键 + 快速切主机）。
+ * 主机首页（分组列表 + 拖拽 + 右键 + 快捷键）。
  *
  * INTEGRATION:
  * - 需要 entry 改为使用本文件的 HostHomePage
@@ -21,6 +21,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice } from "@/react/components/page";
@@ -188,7 +189,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [checkHost, setCheckHost] = useState("");
   const [checkText, setCheckText] = useState("");
   const [checkBusy, setCheckBusy] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
 
@@ -625,12 +625,11 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     }
   }
 
-  // 快捷键：⌘F 筛选、⌘N 加主机、⌘⇧N 新建分组、⌘K 快速切主机
+  // 快捷键：⌘F 筛选、⌘N 加主机、⌘⇧N 新建分组
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         closeAllMenus();
-        if (quickOpen) setQuickOpen(false);
         return;
       }
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
@@ -655,22 +654,16 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         if (isTypingTarget(e.target)) return;
         e.preventDefault();
         requestCreateHost();
-        return;
-      }
-      if (e.code === "KeyK") {
-        if (isTypingTarget(e.target)) return;
-        e.preventDefault();
-        setQuickOpen(true);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onCreateGroup, onCreateHost, preferredGroupId, quickOpen]);
+  }, [onCreateGroup, onCreateHost, preferredGroupId]);
 
   return (
     <div
-      className={`flex h-full min-h-0 flex-col bg-surface ${dragging ? "select-none" : ""}`}
+      className={`flex h-full min-h-0 flex-col ${dragging ? "select-none" : ""}`}
       onContextMenu={(event) => {
         const el = (event.target as HTMLElement).closest(
           "[data-group-head], [data-host-row], .host-home-toolbar, button, input, textarea",
@@ -682,7 +675,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         setBlankMenu(next);
       }}
     >
-      <div className="host-home-toolbar flex shrink-0 gap-2 border-b border-line px-4 pb-2 pt-4 md:px-6">
+      <div className="host-home-toolbar shell-top glass-chrome grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line px-5">
+        <div />
         <input
           ref={searchRef}
           value={query}
@@ -698,32 +692,26 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             }
           }}
           placeholder={isMac ? "筛选主机 (⌘F)" : "筛选主机 (Ctrl+F)"}
-          className="h-8 w-full max-w-sm rounded-control border border-line bg-surface px-3"
+          className="h-8 w-[min(24rem,40vw)] rounded-control border border-line bg-surface px-3"
         />
-        <div className="relative">
+        <div className="relative justify-self-end">
           <Button
             aria-label="新建"
             onClick={(event) => {
               event.stopPropagation();
               const btn = event.currentTarget;
               const rect = btn.getBoundingClientRect();
-              // 简易下拉：用 blank 菜单样式挂在按钮下
+              // 按钮在最右侧，菜单右缘跟按钮对齐
               closeAllMenus();
-              setBlankMenu({ x: rect.left, y: rect.bottom + 4 });
+              setBlankMenu({ x: rect.right - 180, y: rect.bottom + 4 });
             }}
           >
             +
           </Button>
         </div>
-        <Button onClick={() => requestCreateGroup()}>新建分组</Button>
-        <Button variant="primary" onClick={() => requestCreateHost()}>
-          新建主机
-        </Button>
-        <Button onClick={() => setQuickOpen(true)}>
-          切主机 {isMac ? "⌘K" : "Ctrl+K"}
-        </Button>
       </div>
 
+      <div className="flex min-h-0 flex-1 flex-col bg-surface">
       {(toast || error) && (
         <div className="px-4 pt-2 md:px-6">
           {error ? <Notice text={error} /> : null}
@@ -731,7 +719,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 pb-6 md:px-6">
+      <div className="min-h-0 flex-1 overflow-auto px-5 pb-6">
         {keyword && sections.length === 0 ? (
           <p className="mt-3 text-sm text-muted">无匹配主机</p>
         ) : null}
@@ -745,12 +733,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           return (
             <section
               key={section.id}
-              className={`mt-5 first:mt-4 ${isDrop ? "rounded-control outline outline-dashed outline-accent" : ""}`}
+              className={`mt-5 first:mt-0 ${isDrop ? "rounded-control outline outline-dashed outline-accent" : ""}`}
               data-drop-group={section.id}
             >
               <div
                 data-group-head
-                className="flex w-full items-center gap-1 px-1 py-1"
+                className="flex h-10 w-full items-center gap-1"
                 onContextMenu={(event) => {
                   if (section.isPinned) return;
                   event.preventDefault();
@@ -780,9 +768,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                     height="12"
                     viewBox="0 0 12 12"
                     aria-hidden="true"
+                    className="motion-transform"
                     style={{
                       transform: collapsed ? "rotate(-90deg)" : undefined,
-                      transition: "transform 120ms",
                     }}
                   >
                     <path
@@ -797,7 +785,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 </button>
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1.5 text-left hover:bg-raised"
+                  className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-control px-1 text-left hover:bg-raised"
                   onClick={() => {
                     if (suppressClick.current) return;
                     if (section.isPinned) return;
@@ -938,6 +926,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           );
         })}
 
+      </div>
       </div>
 
       {/* 空白 / 新建快捷菜单 */}
@@ -1212,21 +1201,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         </CtxPortal>
       ) : null}
 
-      <HostQuickSwitcher
-        open={quickOpen}
-        onClose={() => setQuickOpen(false)}
-        hosts={session.hosts}
-        groupNameOf={(name) => {
-          const id = session.groupIdOf(name);
-          return id ? session.groupName(id) : "未分组";
-        }}
-        openedNames={session.openedHosts.map((item) => item.name)}
-        onPick={(name) => {
-          setQuickOpen(false);
-          session.openHost(name, "overview");
-        }}
-      />
-
       <Dialog
         open={!!deletingHosts}
         onOpenChange={(open) => !open && setDeletingHosts(null)}
@@ -1236,12 +1210,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           <DialogDescription>
             确定删除 {(deletingHosts || []).join("、")}？此操作不可撤销。
           </DialogDescription>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setDeletingHosts(null)}>取消</Button>
-            <Button variant="primary" onClick={() => void confirmDeleteHosts()}>
+            <Button variant="danger" onClick={() => void confirmDeleteHosts()}>
               删除
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1261,12 +1235,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             }}
             autoFocus
           />
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setCreateGroupOpen(false)}>取消</Button>
             <Button variant="primary" onClick={() => void submitCreateGroup()}>
               创建
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1297,7 +1271,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               )
             }
           />
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setGroupSettings(null)}>取消</Button>
             <Button
               variant="primary"
@@ -1306,7 +1280,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             >
               {groupSettingsBusy ? "保存中…" : "保存"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1319,12 +1293,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           <DialogDescription className="whitespace-pre-wrap">
             {deleteGroupConfirm?.detail || ""}
           </DialogDescription>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setDeleteGroupConfirm(null)}>取消</Button>
-            <Button variant="primary" onClick={() => void confirmDeleteGroup()}>
+            <Button variant="danger" onClick={() => void confirmDeleteGroup()}>
               删除
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1337,7 +1311,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           <DialogDescription>
             将向 {installConfirm} 部署 spanel-agent（systemd 服务，约 10MB）。已安装时更新到面板内置版本，历史数据保留。
           </DialogDescription>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setInstallConfirm(null)}>取消</Button>
             <Button
               variant="primary"
@@ -1346,7 +1320,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             >
               {agentBusy ? "安装中…" : "安装"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1356,9 +1330,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           <pre className="mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-control bg-raised p-3 text-xs text-ink">
             {checkBusy ? "检查中…" : checkText}
           </pre>
-          <div className="mt-4 flex justify-end">
+          <DialogFooter>
             <Button onClick={() => setCheckOpen(false)}>关闭</Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -1412,151 +1386,3 @@ function CtxPortal({
   );
 }
 
-function HostQuickSwitcher({
-  open,
-  onClose,
-  hosts,
-  groupNameOf,
-  openedNames,
-  onPick,
-}: {
-  open: boolean;
-  onClose: () => void;
-  hosts: sshconfig.HostConfig[];
-  groupNameOf: (name: string) => string;
-  openedNames: string[];
-  onPick: (name: string) => void;
-}) {
-  const [q, setQ] = useState("");
-  const [active, setActive] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const isMac = isMacPlatform();
-  const opened = useMemo(() => new Set(openedNames), [openedNames]);
-
-  const results = useMemo(() => {
-    const keyword = q.trim().toLowerCase();
-    const rows: { name: string; meta: string; running: boolean }[] = [];
-    for (const h of hosts) {
-      const name = h.name || "";
-      if (!name) continue;
-      const group = groupNameOf(name);
-      const user = h.user || "";
-      const addr = h.hostName || "";
-      const hay = `${name} ${addr} ${user} ${group}`.toLowerCase();
-      if (keyword && !hay.includes(keyword)) continue;
-      rows.push({
-        name,
-        meta: `${user}@${addr} · ${group}`,
-        running: opened.has(name),
-      });
-    }
-    rows.sort((a, b) => {
-      if (a.running !== b.running) return a.running ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    return rows;
-  }, [groupNameOf, hosts, opened, q]);
-
-  useEffect(() => {
-    if (!open) return;
-    setQ("");
-    setActive(0);
-    const t = window.setTimeout(() => inputRef.current?.focus(), 0);
-    return () => window.clearTimeout(t);
-  }, [open]);
-
-  useEffect(() => {
-    if (active >= results.length) {
-      setActive(Math.max(0, results.length - 1));
-    }
-  }, [active, results.length]);
-
-  if (!open) return null;
-
-  function move(dir: 1 | -1) {
-    const n = results.length;
-    if (n === 0) return;
-    setActive((prev) => (prev + dir + n) % n);
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-[70] flex justify-center bg-black/45 pt-[12vh]"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="flex max-h-[min(64vh,520px)] w-[min(560px,calc(100vw-48px))] flex-col overflow-hidden rounded-surface border border-line bg-surface shadow-lg"
-        role="dialog"
-        aria-label="切换主机"
-      >
-        <div className="flex items-center gap-2 border-b border-line px-3.5 py-3">
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            className="min-w-0 flex-1 bg-transparent text-base outline-none"
-            placeholder="搜索别名 / 地址 / 用户 / 分组"
-            autoComplete="off"
-            spellCheck={false}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                move(1);
-              } else if (event.key === "ArrowUp") {
-                event.preventDefault();
-                move(-1);
-              } else if (event.key === "Enter") {
-                event.preventDefault();
-                const row = results[active];
-                if (row) onPick(row.name);
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                onClose();
-              }
-            }}
-          />
-          <span className="shrink-0 text-xs text-muted">
-            {isMac ? "⌘K" : "Ctrl+K"}
-          </span>
-        </div>
-        {results.length > 0 ? (
-          <ul className="m-0 list-none overflow-auto p-1.5" role="listbox">
-            {results.map((row, i) => (
-              <li key={row.name}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={i === active}
-                  className={`flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left ${
-                    i === active
-                      ? "bg-accent-soft font-semibold text-accent"
-                      : "text-ink"
-                  }`}
-                  onMouseEnter={() => setActive(i)}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    onPick(row.name);
-                  }}
-                >
-                  <span className="shrink-0 font-medium">{row.name}</span>
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted">
-                    {row.meta}
-                  </span>
-                  {row.running ? (
-                    <span className="shrink-0 text-xs">已打开</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="px-4 py-7 text-center text-sm text-muted">
-            没有匹配的主机
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}

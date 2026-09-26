@@ -58,6 +58,11 @@ export function RingMeter({
             strokeDasharray={c}
             strokeDashoffset={offset}
             transform="rotate(-90 60 60)"
+            style={{
+              transition:
+                "stroke-dashoffset var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1))",
+            }}
+            className="motion-ring-stroke"
           />
           {showTitle ? (
             <text

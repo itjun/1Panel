@@ -19,9 +19,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Meter, Notice, Page } from "@/react/components/page";
+import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { AppsPage } from "@/react/pages/host-apps";
 import { NetworkPage } from "@/react/pages/host-network";
@@ -65,6 +67,11 @@ type CtxItem = { label: string; danger?: boolean; onClick: () => void };
 type CtxMenu = { x: number; y: number; items: CtxItem[] };
 
 function ContextMenu({ menu, onClose }: { menu: CtxMenu | null; onClose: () => void }) {
+  const lastMenuRef = useRef(menu);
+  if (menu) lastMenuRef.current = menu;
+  const { mounted, visible } = usePresence(!!menu, MOTION_MS.moderate);
+  const active = menu ?? lastMenuRef.current;
+
   useEffect(() => {
     if (!menu) return;
     const close = () => onClose();
@@ -75,14 +82,15 @@ function ContextMenu({ menu, onClose }: { menu: CtxMenu | null; onClose: () => v
       window.removeEventListener("scroll", close, true);
     };
   }, [menu, onClose]);
-  if (!menu) return null;
+  if (!mounted || !active) return null;
   return (
     <div
-      className="fixed z-50 min-w-[160px] rounded-surface border border-line bg-surface py-1 text-sm shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
-      style={{ left: menu.x, top: menu.y }}
+      className="motion-menu-panel fixed z-50 min-w-[160px] rounded-surface border border-line bg-surface py-1 text-sm shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+      data-open={visible ? "true" : "false"}
+      style={{ left: active.x, top: active.y }}
       onClick={(e) => e.stopPropagation()}
     >
-      {menu.items.map((item) => (
+      {active.items.map((item) => (
         <button
           key={item.label}
           type="button"
@@ -127,17 +135,16 @@ function ConfirmDialog({
       <DialogContent>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription className="whitespace-pre-wrap">{description}</DialogDescription>
-        <div className="mt-4 flex justify-end gap-2">
+        <DialogFooter>
           <Button onClick={onClose}>取消</Button>
           <Button
-            variant="primary"
-            className={danger ? "bg-danger hover:bg-danger/80" : undefined}
+            variant={danger ? "danger" : "primary"}
             disabled={busy}
             onClick={onConfirm}
           >
             {confirmLabel}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -874,7 +881,14 @@ function ChartHost({
   }, [connectGroup]);
 
   useEffect(() => {
-    chartRef.current?.setOption(option, { notMerge: true });
+    chartRef.current?.setOption(
+      {
+        animationDuration: 240,
+        animationEasing: "cubicOut",
+        ...option,
+      },
+      { notMerge: true },
+    );
   }, [option]);
 
   return <div ref={ref} className="h-full min-h-[180px] w-full" />;
@@ -1932,7 +1946,7 @@ function CertsPage({ host }: { host: string }) {
               onChange={(e) => setKeyPath(e.target.value)}
             />
           </div>
-          <div className="mt-3 flex justify-end gap-2">
+          <DialogFooter>
             <Button disabled={busy} onClick={() => void checkPair()}>
               校验配对
             </Button>
@@ -1943,7 +1957,7 @@ function CertsPage({ host }: { host: string }) {
             >
               上传
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

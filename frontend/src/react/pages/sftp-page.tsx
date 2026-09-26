@@ -4,6 +4,12 @@ import { api, type monitor } from "@/api";
 import { FilePreviewDrawer } from "@/react/components/file-preview-drawer";
 import { SftpPane, type SftpDeleteItem } from "@/react/components/sftp-pane";
 import { Button } from "@/react/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from "@/react/components/ui/dialog";
 import { formatErr } from "@/utils/format";
 import { registerFileDrop } from "@/utils/fileDrop";
 import { getSftpLocation, saveSftpLocation, type SftpLocationState } from "@/utils/sftpLocationState";
@@ -454,7 +460,7 @@ export function SftpPage({ host }: { host: string }) {
   void tick;
 
   return (
-    <div className="relative grid h-full min-h-0 flex-1 grid-cols-2 bg-surface">
+    <div className="relative grid h-full min-h-0 flex-1 grid-cols-2">
       <div className="h-full min-h-0 border-r border-line">
         <SftpPane
           side="local"
@@ -538,19 +544,18 @@ export function SftpPage({ host }: { host: string }) {
           ))}
           {more ? <p className="mb-1.5 text-xs text-muted">还有 {more} 项</p> : null}
           <p className="mb-1.5 text-xs text-muted">{confirmNote}</p>
-          <div className="mt-3 flex justify-end gap-2">
+          <DialogFooter>
             {confirmArmed ? (
               <Button disabled={deleting} onClick={() => setConfirmArmed(false)}>取消</Button>
             ) : null}
-            <button
-              type="button"
+            <Button
+              variant="danger"
               disabled={deleting}
-              className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               onClick={() => void confirmDelete()}
             >
               {deleting ? "正在删除…" : confirmArmed ? "确认删除" : "删除"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </Modal>
       ) : null}
 
@@ -563,13 +568,13 @@ export function SftpPage({ host }: { host: string }) {
           <p className="mb-1.5 text-xs text-muted">
             覆盖会替换这些文件或文件夹。保留副本会在名字后面加序号，例如 {numberedName(conflictNames[0] || "文件.pdf", 1)}，这个名字也被占用就继续用 2、3、4。
           </p>
-          <div className="mt-3 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => pickConflict("cancel")}>取消</Button>
             <Button variant="primary" onClick={() => pickConflict("rename")}>保留副本</Button>
-            <button type="button" className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white" onClick={() => pickConflict("overwrite")}>
+            <Button variant="danger" onClick={() => pickConflict("overwrite")}>
               覆盖
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </Modal>
       ) : null}
 
@@ -586,10 +591,10 @@ export function SftpPage({ host }: { host: string }) {
             }}
           />
           {createError ? <p className="mt-2 text-xs text-danger">{createError}</p> : null}
-          <div className="mt-3 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setCreateKind(null)}>取消</Button>
             <Button variant="primary" onClick={() => void submitCreate()}>创建</Button>
-          </div>
+          </DialogFooter>
         </Modal>
       ) : null}
     </div>
@@ -598,15 +603,12 @@ export function SftpPage({ host }: { host: string }) {
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="absolute inset-0 z-[8] grid place-items-center bg-black/30" onMouseDown={onClose}>
-      <div className="w-[min(420px,calc(100%-48px))] overflow-hidden rounded-surface border border-line bg-surface shadow-[0_12px_40px_rgba(32,37,43,0.12)]" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="flex items-center gap-4 bg-raised px-4 py-3.5 text-[15px] font-semibold text-ink">
-          <span>{title}</span>
-          <button type="button" className="ml-auto text-xl leading-none" onClick={onClose}>×</button>
-        </header>
-        <div className="px-4 pb-4 pt-4">{children}</div>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent>
+        <DialogTitle>{title}</DialogTitle>
+        <div className="mt-3">{children}</div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

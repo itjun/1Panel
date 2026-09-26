@@ -509,7 +509,16 @@ export function BoardPage({ groupId }: { groupId: string }) {
   const cardDensity = boardDensityOf(gridShape);
 
   return (
-    <div className="board-mode" role="dialog" aria-modal="true" aria-label="看板模式">
+    <div
+      className={
+        /Mac|iPhone|iPad/.test(navigator.platform)
+          ? "board-mode is-macos"
+          : "board-mode"
+      }
+      role="dialog"
+      aria-modal="true"
+      aria-label="看板模式"
+    >
       <header className="board-mode__bar drag-region">
         <div className="board-mode__identity">
           <span className="board-mode__live-mark" aria-hidden="true" />

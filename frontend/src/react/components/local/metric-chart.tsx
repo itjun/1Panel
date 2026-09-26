@@ -27,7 +27,14 @@ export function MetricChart({
   }, []);
 
   useEffect(() => {
-    chartRef.current?.setOption(option, { notMerge: true });
+    chartRef.current?.setOption(
+      {
+        animationDuration: 240,
+        animationEasing: "cubicOut",
+        ...option,
+      },
+      { notMerge: true },
+    );
   }, [option]);
 
   return <div ref={ref} style={{ height }} className="w-full min-w-0" />;

@@ -61,6 +61,11 @@
   border-bottom: 1px solid var(--board-line);
 }
 
+/* 独立看板窗口没有侧栏。外层已有 20px 内边距，再补到红绿灯右侧。 */
+.board-mode.is-macos .board-mode__bar {
+  padding-left: 52px;
+}
+
 .board-mode__identity,
 .board-mode__right,
 .board-mode__group-line {
@@ -374,7 +379,8 @@
   cursor: pointer;
   outline: none;
   user-select: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1)),
+    background-color var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1));
 }
 
 .host-board-card:hover,
@@ -635,7 +641,7 @@
   height: 100%;
   border-radius: inherit;
   background: var(--board-accent);
-  transition: width 0.2s ease;
+  transition: width var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1));
 }
 
 .metric-tile__bar.is-alert .metric-tile__bar-fill {
@@ -784,7 +790,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .host-board-card {
+  .host-board-card,
+  .metric-tile__bar-fill {
     transition: none;
   }
 }

@@ -19,12 +19,17 @@ export function Page({
     <div
       className={cn(
         "flex h-full min-h-0 min-w-0 flex-col",
-        dark ? "bg-graphite text-graphite-text" : "bg-canvas text-ink",
+        dark ? "bg-graphite text-graphite-text" : "text-ink",
       )}
     >
       {title || actions ? (
-        <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-line px-5 py-1">
-          {title ? <h1 className="text-lg font-semibold">{title}</h1> : null}
+        <div
+          className={cn(
+            "shell-top flex h-10 shrink-0 flex-wrap items-center gap-3 border-b border-line px-5",
+            dark ? "bg-graphite" : "glass-chrome",
+          )}
+        >
+          {title ? <h1 className="text-base font-semibold">{title}</h1> : null}
           <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
         </div>
       ) : null}
@@ -58,7 +63,10 @@ export function Meter({
         <span className="text-sm font-medium">{text || `${width.toFixed(1)}%`}</span>
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-line">
-        <div className="h-full bg-accent" style={{ width: `${width}%` }} />
+        <div
+          className="motion-width h-full bg-accent"
+          style={{ width: `${width}%` }}
+        />
       </div>
     </div>
   );
@@ -75,8 +83,8 @@ export function Notice({
     <p
       className={
         tone === "warn"
-          ? "shrink-0 rounded-control bg-warn-soft px-4 py-2 text-sm text-warn"
-          : "shrink-0 rounded-control bg-danger-soft px-4 py-2 text-sm text-danger"
+          ? "motion-notice-in shrink-0 rounded-control bg-warn-soft px-4 py-2 text-sm text-warn"
+          : "motion-notice-in shrink-0 rounded-control bg-danger-soft px-4 py-2 text-sm text-danger"
       }
     >
       {text}

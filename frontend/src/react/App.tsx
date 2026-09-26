@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Events } from "@wailsio/runtime";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import { startAppWatchAlertPoll, stopAppWatchAlertPoll } from "@/utils/appWatchAlerts";
 import { startCertAlertPoll, stopCertAlertPoll } from "@/utils/certAlerts";
 import { startHostResourceAlertPoll, stopHostResourceAlertPoll } from "@/utils/hostResourceAlerts";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
+import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { ConfigCenterPage } from "@/react/pages/config-center";
 import { GroupPage } from "@/react/pages/group-page";
 import { HostCreateForm, HostEditForm } from "@/react/pages/host-form";
@@ -16,11 +17,7 @@ import { InspectPage } from "@/react/pages/inspect";
 import { LocalPage } from "@/react/pages/local";
 import { NotifyPage } from "@/react/pages/notify";
 import { SettingsPage } from "@/react/pages/settings-page";
-import {
-  HOST_TOOLS,
-  SessionProvider,
-  useSession,
-} from "@/react/state/session";
+import { SessionProvider, useSession } from "@/react/state/session";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +40,11 @@ function Shell() {
   const session = useSession();
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
+  const editOpen = !session.settingsOpen && !!editing;
+  const lastEditRef = useRef(editing);
+  if (editing) lastEditRef.current = editing;
+  const editPresence = usePresence(editOpen, MOTION_MS.slow);
+  const editHost = editing ?? lastEditRef.current;
 
   useEffect(() => {
     const offs = [
@@ -92,10 +94,12 @@ function Shell() {
   return (
     <div className="react-root flex h-full min-h-0">
       <WorkspaceRail />
-      <main className="flex min-h-0 min-w-0 flex-1 bg-canvas">
+      <main className="flex min-h-0 min-w-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1">
           {session.settingsOpen ? (
-            <SettingsPage />
+            <div key="settings" className="motion-fade-in h-full min-h-0">
+              <SettingsPage />
+            </div>
           ) : (
             <WorkspaceBody
               creating={creating}
@@ -109,11 +113,14 @@ function Shell() {
             />
           )}
         </div>
-        {!session.settingsOpen && editing ? (
-          <aside className="flex h-full w-[380px] shrink-0 flex-col overflow-hidden border-l border-line bg-surface">
+        {editPresence.mounted && editHost ? (
+          <aside
+            className="motion-drawer-panel flex h-full w-[380px] shrink-0 flex-col overflow-hidden border-l border-line bg-surface"
+            data-open={editPresence.visible ? "true" : "false"}
+          >
             <HostEditForm
-              key={editing.name}
-              host={editing}
+              key={editHost.name}
+              host={editHost}
               onClose={() => session.setEditingHost("")}
               onDone={async () => {
                 session.setEditingHost("");
@@ -125,6 +132,16 @@ function Shell() {
       </main>
     </div>
   );
+}
+
+function workspaceKey(session: ReturnType<typeof useSession>): string {
+  if (session.workspace === "notify") return "notify";
+  if (session.workspace === "config") return "config";
+  if (session.workspace === "local") return "local";
+  if (session.workspace === "inspect") return "inspect";
+  if (session.activeHost) return `host:${session.activeHost}`;
+  if (session.homeView === "group") return `group:${session.activeGroupId || ""}`;
+  return "home";
 }
 
 function WorkspaceBody({
@@ -141,27 +158,36 @@ function WorkspaceBody({
   onCreateDone: () => Promise<void>;
 }) {
   const session = useSession();
-  if (session.workspace === "notify") return <NotifyPage />;
-  if (session.workspace === "config") return <ConfigCenterPage />;
-  if (session.workspace === "local") return <LocalPage />;
-  if (session.workspace === "inspect") return <InspectPage />;
-  if (session.activeHost) return <HostWorkspace />;
-  if (session.homeView === "group") return <GroupPage />;
+  const key = workspaceKey(session);
+  let body: ReactNode;
+  if (session.workspace === "notify") body = <NotifyPage />;
+  else if (session.workspace === "config") body = <ConfigCenterPage />;
+  else if (session.workspace === "local") body = <LocalPage />;
+  else if (session.workspace === "inspect") body = <InspectPage />;
+  else if (session.activeHost) body = <HostWorkspace />;
+  else if (session.homeView === "group") body = <GroupPage />;
+  else {
+    body = (
+      <div className="flex h-full min-h-0 flex-col overflow-auto">
+        {creating ? (
+          <div className="shell-top px-4 pt-4 md:px-6">
+            <HostCreateForm
+              kind={creating.kind}
+              defaultGroupId={creating.groupId}
+              onClose={onCloseCreate}
+              onDone={() => {
+                void onCreateDone();
+              }}
+            />
+          </div>
+        ) : null}
+        <HostHomePage onCreateHost={onCreateHost} onCreateGroup={onCreateGroup} />
+      </div>
+    );
+  }
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto">
-      {creating ? (
-        <div className="px-4 pt-4 md:px-6">
-          <HostCreateForm
-            kind={creating.kind}
-            defaultGroupId={creating.groupId}
-            onClose={onCloseCreate}
-            onDone={() => {
-              void onCreateDone();
-            }}
-          />
-        </div>
-      ) : null}
-      <HostHomePage onCreateHost={onCreateHost} onCreateGroup={onCreateGroup} />
+    <div key={key} className="motion-fade-in h-full min-h-0">
+      {body}
     </div>
   );
 }
@@ -175,28 +201,16 @@ function HostWorkspace() {
     tool === "nginx" ||
     tool === "apt" ||
     tool === "hosts";
+  // 终端 / 代码编辑器 / 图表页只淡入，避免整页 X 轴平移拖垮 canvas
+  const heavyPane =
+    fileTool ||
+    tool === "overview" ||
+    tool === "monitor" ||
+    tool === "apps";
+  const paneClass = heavyPane ? "motion-fade-in" : "motion-axis-x-in";
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="drag-region flex h-14 shrink-0 items-center border-b border-line px-3">
-        <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-          {HOST_TOOLS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={
-                "box-border inline-flex h-8 w-[calc(4em+12px)] min-w-[calc(4em+12px)] max-w-[calc(4em+12px)] shrink-0 grow-0 cursor-pointer appearance-none items-center justify-center overflow-hidden whitespace-nowrap rounded-control px-1.5 " +
-                (item.id === tool
-                  ? "bg-accent-soft font-semibold text-accent"
-                  : "text-muted hover:bg-raised hover:text-ink")
-              }
-              onClick={() => session.setTool(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col">
+    <div className="workspace-host flex h-full min-h-0 flex-col">
+      <div key={`${host}:${tool}`} className={`flex min-h-0 flex-1 flex-col ${paneClass}`}>
         {fileTool ? (
           <HostFilePage host={host} tool={tool} />
         ) : (

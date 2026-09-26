@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type filetext } from "@/api";
 import { HighlightPane } from "@/react/components/local/highlight-pane";
 import { Button } from "@/react/components/ui/button";
+import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { highlightFileHtml } from "@/utils/codeHighlight";
 import { formatErr, splitTextLines } from "@/utils/format";
 
@@ -23,7 +24,11 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
   const [error, setError] = useState("");
 
   const open = !!target;
-  const path = target?.path || "";
+  const lastTargetRef = useRef(target);
+  if (target) lastTargetRef.current = target;
+  const displayTarget = target ?? lastTargetRef.current;
+  const { mounted, visible } = usePresence(open, MOTION_MS.slow);
+  const path = displayTarget?.path || "";
   const needsNormalize = !!preview?.needsNormalize && !!path;
   const lineCount = preview ? splitTextLines(preview.content ?? "").length : 0;
   const html = useMemo(
@@ -103,20 +108,24 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
     }
   }
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <button
         type="button"
-        className="absolute inset-0 bg-black/55"
+        className="motion-overlay absolute inset-0 bg-black/55"
+        data-open={visible ? "true" : "false"}
         aria-label="关闭预览"
         onClick={onClose}
       />
-      <aside className="relative z-10 flex h-full w-1/2 min-w-[320px] flex-col border-l border-line bg-surface shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+      <aside
+        className="motion-drawer-panel relative z-10 flex h-full w-1/2 min-w-[320px] flex-col border-l border-line bg-surface shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+        data-open={visible ? "true" : "false"}
+      >
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-            {preview?.name || target?.name || "预览"}
+            {preview?.name || displayTarget?.name || "预览"}
           </h2>
           <Button size="sm" onClick={onClose}>
             关闭

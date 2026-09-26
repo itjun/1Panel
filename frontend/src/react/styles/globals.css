@@ -37,14 +37,27 @@
     "Microsoft YaHei", Arial, sans-serif;
   --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco,
     Consolas, "Segoe UI Mono", monospace;
+  /* TDesign Motion · 桌面端固定时值与缓动 */
+  --duration-base: 200ms;
+  --duration-moderate: 240ms;
+  --duration-slow: 280ms;
+  --ease-standard: cubic-bezier(0.38, 0, 0.24, 1);
+  --ease-out: cubic-bezier(0, 0, 0.15, 1);
+  --ease-in: cubic-bezier(0.82, 0, 1, 0.9);
 }
 
 @layer base {
+  html,
+  body,
+  #app,
+  .react-root {
+    background-color: transparent;
+  }
+
   .react-root {
     height: 100%;
     margin: 0;
     overflow: hidden;
-    background: var(--color-canvas);
     color: var(--color-ink);
     color-scheme: light;
     font-family: var(--app-font-family, var(--font-sans));
@@ -97,4 +110,252 @@
   -webkit-app-region: no-drag;
   user-select: auto;
   -webkit-user-select: auto;
+}
+
+/* 侧栏和顶部通栏同一层。磨砂来自窗口后的系统材质，上面罩一层偏白的冷色，
+   接近 Codex 那种发白的半透明，不要让墙纸颜色透得太重。
+   用 background-color，不要用 background 简写：构建时 transparent 会被收成无效值。 */
+.glass-chrome {
+  background-color: rgba(248, 248, 252, 0.72);
+}
+
+html[data-platform="other"] .glass-chrome {
+  background-color: var(--color-canvas);
+}
+
+/* ---------- TDesign Motion 工具类 ---------- */
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes motion-axis-x-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motion-axis-y-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motion-axis-z-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motion-axis-z-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes motion-menu-z-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motion-menu-z-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes motion-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motion-drawer-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes motion-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.motion-fade-in {
+  animation: motion-fade-in var(--duration-base) var(--ease-out) both;
+}
+
+.motion-axis-x-in {
+  animation: motion-axis-x-in var(--duration-moderate) var(--ease-out) both;
+}
+
+.motion-axis-y-in {
+  animation: motion-axis-y-in var(--duration-moderate) var(--ease-out) both;
+}
+
+.motion-overlay {
+  opacity: 0;
+  transition: opacity var(--duration-base) linear;
+}
+
+.motion-overlay[data-open="true"],
+.motion-overlay[data-state="open"] {
+  opacity: 1;
+}
+
+.motion-overlay[data-open="false"],
+.motion-overlay[data-state="closed"] {
+  opacity: 0;
+}
+
+.motion-dialog-overlay[data-state="open"] {
+  animation: motion-fade-in var(--duration-base) linear both;
+}
+
+.motion-dialog-overlay[data-state="closed"] {
+  animation: motion-fade-out var(--duration-base) linear both;
+}
+
+.motion-dialog-content[data-state="open"] {
+  animation: motion-axis-z-in var(--duration-slow) var(--ease-out) both;
+}
+
+.motion-dialog-content[data-state="closed"] {
+  animation: motion-axis-z-out var(--duration-slow) var(--ease-in) both;
+}
+
+.motion-menu-panel {
+  transform-origin: top left;
+}
+
+.motion-menu-panel[data-open="true"] {
+  animation: motion-menu-z-in var(--duration-moderate) var(--ease-out) both;
+}
+
+.motion-menu-panel[data-open="false"] {
+  animation: motion-menu-z-out var(--duration-moderate) var(--ease-in) both;
+}
+
+.motion-drawer-panel[data-open="true"] {
+  animation: motion-drawer-in var(--duration-slow) var(--ease-out) both;
+}
+
+.motion-drawer-panel[data-open="false"] {
+  animation: motion-drawer-out var(--duration-slow) var(--ease-in) both;
+}
+
+.motion-notice-in {
+  animation: motion-notice-in var(--duration-slow) var(--ease-out) both;
+}
+
+.motion-colors {
+  transition:
+    color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard);
+}
+
+.motion-width {
+  transition: width var(--duration-base) var(--ease-standard);
+}
+
+.motion-transform {
+  transition: transform var(--duration-moderate) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade-in,
+  .motion-axis-x-in,
+  .motion-axis-y-in,
+  .motion-notice-in,
+  .motion-dialog-overlay[data-state="open"],
+  .motion-dialog-overlay[data-state="closed"],
+  .motion-dialog-content[data-state="open"],
+  .motion-dialog-content[data-state="closed"],
+  .motion-menu-panel[data-open="true"],
+  .motion-menu-panel[data-open="false"],
+  .motion-drawer-panel[data-open="true"],
+  .motion-drawer-panel[data-open="false"] {
+    animation: none !important;
+  }
+
+  .motion-overlay,
+  .motion-colors,
+  .motion-width,
+  .motion-transform {
+    transition: none !important;
+  }
+
+  .motion-ring-stroke {
+    transition: none !important;
+  }
+
+  .motion-dialog-content[data-state="open"],
+  .motion-dialog-content[data-state="closed"],
+  .motion-menu-panel,
+  .motion-drawer-panel {
+    transform: none !important;
+  }
 }

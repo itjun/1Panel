@@ -16,6 +16,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
@@ -1012,7 +1013,7 @@ export function ConfigCenterPage() {
             ) : null}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
+          <DialogFooter className="mt-0 border-t border-line px-5 py-3">
             <Button onClick={() => setPreviewOpen(false)}>取消</Button>
             <Button
               variant="primary"
@@ -1021,7 +1022,7 @@ export function ConfigCenterPage() {
             >
               确认备份并提交
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1032,12 +1033,12 @@ export function ConfigCenterPage() {
             将恢复 {formatUnixTime(backupDetail?.summary.createdAt)} 的 Panel JSON 与 SSH
             文件树。当前状态会先自动备份。
           </DialogDescription>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setRestoreOpen(false)}>取消</Button>
             <Button variant="primary" disabled={busy} onClick={() => void restoreSelected()}>
               恢复
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1067,7 +1068,7 @@ export function ConfigCenterPage() {
             onChange={(event) => setExportPassphrase(event.target.value)}
             autoFocus
           />
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setExportOpen(false)}>取消</Button>
             <Button
               variant="primary"
@@ -1076,7 +1077,7 @@ export function ConfigCenterPage() {
             >
               导出
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1123,9 +1124,9 @@ export function ConfigCenterPage() {
               <p className="text-sm text-muted">没有发现可用的系统编辑器</p>
             )}
           </div>
-          <div className="mt-4 flex justify-end">
+          <DialogFooter>
             <Button onClick={() => setEditorOpen(false)}>取消</Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Page>

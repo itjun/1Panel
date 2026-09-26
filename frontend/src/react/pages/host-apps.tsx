@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
@@ -185,7 +186,14 @@ function ChartHost({
   }, []);
 
   useEffect(() => {
-    chartRef.current?.setOption(option, { notMerge: true });
+    chartRef.current?.setOption(
+      {
+        animationDuration: 240,
+        animationEasing: "cubicOut",
+        ...option,
+      },
+      { notMerge: true },
+    );
   }, [option]);
 
   return <div ref={ref} style={{ height }} className="w-full min-w-0" />;
@@ -831,12 +839,12 @@ export function AppsPage({ host }: { host: string }) {
             value={yamlText}
             onChange={(e) => setYamlText(e.target.value)}
           />
-          <div className="mt-3 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setCfgOpen(false)}>取消</Button>
             <Button variant="primary" disabled={saving} onClick={() => void saveCfg()}>
               下发
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -858,17 +866,16 @@ export function AppsPage({ host }: { host: string }) {
               <Kv label="部署版本" value={shutdownTarget.deployVer || "—"} />
             </div>
           ) : null}
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setShutdownTarget(null)}>取消</Button>
             <Button
-              variant="primary"
-              className="bg-danger hover:bg-danger/80"
+              variant="danger"
               disabled={shutdownBusy}
               onClick={() => void confirmShutdown()}
             >
               确认下架
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Page>

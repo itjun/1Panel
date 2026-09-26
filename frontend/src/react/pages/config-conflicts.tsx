@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { formatErr } from "@/utils/format";
@@ -536,7 +537,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
             ) : null}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
+          <DialogFooter className="mt-0 border-t border-line px-5 py-3">
             <Button onClick={() => setPreviewOpen(false)}>取消</Button>
             <Button
               variant="primary"
@@ -545,7 +546,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
             >
               确认备份并提交
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

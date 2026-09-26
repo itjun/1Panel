@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { cn } from "@/react/lib/utils";
 
 export type HostContextMenuState = {
@@ -33,23 +34,27 @@ export function HostContextMenu({
   onDisconnect,
 }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
+  const lastMenuRef = useRef(menu);
+  if (menu) lastMenuRef.current = menu;
+  const { mounted, visible } = usePresence(!!menu, MOTION_MS.moderate);
+  const active = menu ?? lastMenuRef.current;
 
   useEffect(() => {
-    if (!menu || !elRef.current) return;
+    if (!active || !elRef.current) return;
     const rect = elRef.current.getBoundingClientRect();
     const maxX = window.innerWidth - rect.width - 8;
     const maxY = window.innerHeight - rect.height - 8;
-    const x = Math.max(8, Math.min(menu.x, maxX));
-    const y = Math.max(8, Math.min(menu.y, maxY));
+    const x = Math.max(8, Math.min(active.x, maxX));
+    const y = Math.max(8, Math.min(active.y, maxY));
     elRef.current.style.left = `${x}px`;
     elRef.current.style.top = `${y}px`;
-  }, [menu]);
+  }, [active]);
 
-  if (!menu) return null;
+  if (!mounted || !active) return null;
 
-  const hosts = menu.hosts.length > 0 ? menu.hosts : [menu.host];
+  const hosts = active.hosts.length > 0 ? active.hosts : [active.host];
   const batch = hosts.length > 1;
-  const isPinned = pinned.includes(menu.host);
+  const isPinned = pinned.includes(active.host);
 
   return (
     <>
@@ -63,8 +68,9 @@ export function HostContextMenu({
       />
       <div
         ref={elRef}
-        className="fixed z-[61] min-w-[180px] rounded-surface border border-line bg-surface py-1 text-sm text-ink"
-        style={{ left: menu.x, top: menu.y }}
+        className="motion-menu-panel fixed z-[61] min-w-[180px] rounded-surface border border-line bg-surface py-1 text-sm text-ink"
+        data-open={visible ? "true" : "false"}
+        style={{ left: active.x, top: active.y }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         {batch ? (
@@ -84,14 +90,14 @@ export function HostContextMenu({
               label={isPinned ? "取消置顶" : "置顶"}
               onClick={() => {
                 onClose();
-                onTogglePin(menu.host);
+                onTogglePin(active.host);
               }}
             />
             <MenuItem
               label="编辑…"
               onClick={() => {
                 onClose();
-                onEdit(menu.host);
+                onEdit(active.host);
               }}
             />
             {onDisconnect ? (
@@ -100,7 +106,7 @@ export function HostContextMenu({
                 danger
                 onClick={() => {
                   onClose();
-                  onDisconnect(menu.host);
+                  onDisconnect(active.host);
                 }}
               />
             ) : null}

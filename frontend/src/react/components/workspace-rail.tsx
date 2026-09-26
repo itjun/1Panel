@@ -17,6 +17,7 @@ import { HostContextMenu, type HostContextMenuState } from "@/react/components/h
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { cn } from "@/react/lib/utils";
 import {
+  HOST_TOOLS,
   useSession,
   type ConfigSection,
   type NotifySection,
@@ -25,15 +26,12 @@ import {
 } from "@/react/state/session";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 
-const SIDEBAR_KEY = "ipannel.sidebarOpen";
 const UTILITY_OPEN_KEY = "1pannel-utility-nav-open";
 const RAIL_ORDER_KEY = "1pannel-rail-order";
 const VISITED_GROUPS_KEY = "1pannel-visited-groups";
 const RAIL_ENTRY_MIME = "application/x-rail-entry";
 
-const NAV: { id: Workspace; label: string }[] = [
-  { id: "remote", label: "主机" },
-];
+const HOST_MODULE: { id: Workspace; label: string } = { id: "remote", label: "主机" };
 
 const NOTIFY_SECTIONS: { id: NotifySection; label: string }[] = [
   { id: "metricMessages", label: "指标消息" },
@@ -70,23 +68,6 @@ type RailEntry =
 
 type HostBatchMenu = { ids: string[]; x: number; y: number };
 type GroupMenu = { id: string; x: number; y: number };
-
-function loadSidebarOpen(): boolean {
-  try {
-    const v = localStorage.getItem(SIDEBAR_KEY);
-    return v === null ? true : v === "1";
-  } catch {
-    return true;
-  }
-}
-
-function saveSidebarOpen(open: boolean) {
-  try {
-    localStorage.setItem(SIDEBAR_KEY, open ? "1" : "0");
-  } catch {
-    /* ignore */
-  }
-}
 
 function loadUtilityOpen(): boolean {
   try {
@@ -128,7 +109,6 @@ function formatCount(n: number): string {
 
 export function WorkspaceRail() {
   const session = useSession();
-  const [sidebarOpen, setSidebarOpen] = useState(loadSidebarOpen);
   const [utilityOpen, setUtilityOpen] = useState(loadUtilityOpen);
   const [unread, setUnread] = useState(0);
   const [configNeedsAttention, setConfigNeedsAttention] = useState(false);
@@ -172,26 +152,6 @@ export function WorkspaceRail() {
     const names = new Set(session.openedHosts.map((h) => h.name));
     setSelectedHostNames((prev) => prev.filter((n) => names.has(n)));
   }, [session.openedHosts]);
-
-  // ⌘B / Ctrl+B 收起展开
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-      if (e.code !== "KeyB") return;
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement | null)?.isContentEditable) {
-        return;
-      }
-      e.preventDefault();
-      setSidebarOpen((prev) => {
-        const next = !prev;
-        saveSidebarOpen(next);
-        return next;
-      });
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   // 通知未读数
   useEffect(() => {
@@ -237,14 +197,6 @@ export function WorkspaceRail() {
       offs.forEach((off) => off());
     };
   }, []);
-
-  function toggleSidebar() {
-    setSidebarOpen((prev) => {
-      const next = !prev;
-      saveSidebarOpen(next);
-      return next;
-    });
-  }
 
   function closeGroupTab(id: string) {
     const gid = id.trim();
@@ -305,18 +257,7 @@ export function WorkspaceRail() {
     if (hostNames.length > 0) session.reorderOpenedHosts(hostNames);
   }
 
-  if (!sidebarOpen) {
-    return (
-      <button
-        type="button"
-        className="absolute left-0 top-12 z-[70] rounded-r-control border border-l-0 border-line bg-canvas px-1.5 py-2 text-xs text-muted hover:bg-raised"
-        title="展开侧栏（⌘B）"
-        onClick={toggleSidebar}
-      >
-        ›
-      </button>
-    );
-  }
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
   const listKind = session.settingsOpen
     ? "settings"
@@ -333,36 +274,24 @@ export function WorkspaceRail() {
   const railEntries = buildRailEntries();
 
   return (
-    <aside
-      className={cn(
-        "flex w-[220px] min-w-[220px] flex-col border-r border-line bg-canvas px-1.5 pb-2.5",
-        /Mac|iPhone|iPad/.test(navigator.platform) && "pt-0",
-      )}
-      aria-label="应用导航"
-    >
-      <div className="drag-region h-10 shrink-0" />
-
-      <div className="flex flex-col gap-1">
-        {NAV.map((item) => (
-          <RailNavButton
-            key={item.id}
-            active={!session.settingsOpen && session.workspace === item.id}
-            label={item.label}
-            onClick={() => {
-              if (item.id === "remote") {
-                if (session.workspace === "remote" && !session.settingsOpen) {
-                  session.goHome();
-                  return;
-                }
-                session.setWorkspace("remote");
-              }
-            }}
-          />
-        ))}
+      <aside
+        className={cn(
+          "glass-chrome flex w-[220px] min-w-[220px] flex-col pb-2.5",
+          isMac && "pt-0",
+        )}
+        aria-label="应用导航"
+      >
+      <div
+        className={cn(
+            "rail-traffic drag-region flex h-10 shrink-0 items-center",
+          isMac ? "pl-[72px]" : "pl-0.5",
+        )}
+      >
+        <div className="h-full min-w-0 flex-1" />
       </div>
 
       <div
-        className="mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-auto border-t border-line pt-2"
+        className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-1.5"
         onContextMenu={(e) => {
           if (listKind !== "hosts") return;
           if ((e.target as HTMLElement).closest("button")) return;
@@ -590,6 +519,19 @@ export function WorkspaceRail() {
             })}
           </>
         ) : null}
+
+        {listKind === "hosts" && session.activeHost ? (
+          <div className="mt-1 flex shrink-0 flex-col gap-1 border-t border-line pt-2">
+            {HOST_TOOLS.map((item) => (
+              <RailNavButton
+                key={item.id}
+                label={item.label}
+                active={session.activeTool === item.id}
+                onClick={() => session.setTool(item.id)}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <UtilityNav
@@ -604,6 +546,14 @@ export function WorkspaceRail() {
             return next;
           });
         }}
+        onHost={() => {
+          if (session.workspace === "remote" && !session.settingsOpen) {
+            session.goHome();
+            return;
+          }
+          session.setWorkspace("remote");
+        }}
+        hostActive={!session.settingsOpen && session.workspace === "remote"}
         onLocal={() => session.setWorkspace("local")}
         onInspect={() => session.setWorkspace("inspect")}
         onNotify={() => session.setWorkspace("notify")}
@@ -684,6 +634,7 @@ export function WorkspaceRail() {
 
 function utilityActiveLabel(settingsOpen: boolean, workspace: Workspace): string {
   if (settingsOpen) return "设置";
+  if (workspace === "remote") return HOST_MODULE.label;
   if (workspace === "local") return "本机";
   if (workspace === "inspect") return "巡检";
   if (workspace === "notify") return "通知";
@@ -697,6 +648,8 @@ function UtilityNav({
   configNeedsAttention,
   activeLabel,
   onToggle,
+  onHost,
+  hostActive,
   onLocal,
   onInspect,
   onNotify,
@@ -713,6 +666,8 @@ function UtilityNav({
   configNeedsAttention: boolean;
   activeLabel: string;
   onToggle: () => void;
+  onHost: () => void;
+  hostActive: boolean;
   onLocal: () => void;
   onInspect: () => void;
   onNotify: () => void;
@@ -726,11 +681,11 @@ function UtilityNav({
 }) {
   const badge = unread > 0 ? formatCount(unread) : null;
   return (
-    <div className="mt-2 flex flex-col gap-1 border-t border-line pt-2">
+    <div className="mt-1 flex flex-col gap-1 px-1.5">
       <button
         type="button"
         className={cn(
-          "relative flex h-10 items-center rounded-control text-left",
+          "relative flex h-10 shrink-0 items-center rounded-control text-left",
           !open && activeLabel
             ? "bg-accent-soft px-2.5 font-semibold text-accent"
             : "px-2.5 text-muted hover:bg-raised hover:text-ink",
@@ -751,6 +706,7 @@ function UtilityNav({
       </button>
       {open ? (
         <>
+          <RailNavButton active={hostActive} label={HOST_MODULE.label} onClick={onHost} />
           <RailNavButton active={localActive} label="本机" onClick={onLocal} />
           <RailNavButton active={inspectActive} label="巡检" onClick={onInspect} />
           <RailNavButton active={notifyActive} label="通知" badge={badge} onClick={onNotify} />
@@ -786,7 +742,7 @@ function RailNavButton({
     <button
       type="button"
       className={cn(
-        "relative flex h-10 items-center rounded-control text-left",
+        "relative flex h-10 shrink-0 items-center rounded-control text-left",
         active
           ? "bg-accent-soft px-2.5 font-semibold text-accent"
           : "px-2.5 text-muted hover:bg-raised hover:text-ink",
@@ -839,7 +795,7 @@ function RailSessionRow({
       type="button"
       draggable
       className={cn(
-        "relative flex h-10 cursor-grab items-center gap-1.5 truncate rounded-control text-left active:cursor-grabbing",
+        "relative flex h-10 shrink-0 cursor-grab items-center gap-1.5 truncate rounded-control text-left active:cursor-grabbing",
         active || selected
           ? "bg-accent-soft px-2.5 font-semibold text-accent"
           : "px-2.5 text-muted hover:bg-raised hover:text-ink",
@@ -896,7 +852,8 @@ function CtxMenu({
       />
       <div
         ref={ref}
-        className="fixed z-[61] min-w-[180px] rounded-surface border border-line bg-surface py-1 text-sm text-ink shadow-sm"
+        className="motion-menu-panel fixed z-[61] min-w-[180px] rounded-surface border border-line bg-surface py-1 text-sm text-ink shadow-sm"
+        data-open="true"
         style={{ left: x, top: y }}
         onMouseDown={(e) => e.stopPropagation()}
       >

@@ -275,8 +275,8 @@ export function SftpPane(props: Props) {
   }
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface outline-none" tabIndex={0} onKeyDown={onKey}>
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
+    <section className="flex h-full min-h-0 min-w-0 flex-col outline-none" tabIndex={0} onKeyDown={onKey}>
+      <header className="glass-chrome flex h-10 shrink-0 items-center gap-2 px-3">
         <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-ink">
           {props.side === "local" ? <LocalIcon /> : null}
           <span className="truncate">{props.title}</span>
@@ -322,7 +322,7 @@ export function SftpPane(props: Props) {
         </div>
       </header>
 
-      <div className="flex shrink-0 items-center gap-0.5 px-2 pb-2 pt-0.5">
+      <div className="glass-chrome flex shrink-0 items-center gap-0.5 border-b border-line px-2 pb-2 pt-0.5">
         <IconButton label="后退" disabled={!props.canBack} onClick={props.onBack}>
           <path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </IconButton>
@@ -388,10 +388,11 @@ export function SftpPane(props: Props) {
         )}
       </div>
 
-      {props.error ? <p className="mx-3 mb-1.5 text-xs text-danger">{props.error}</p> : null}
+      <div className="flex min-h-0 flex-1 flex-col bg-surface">
+      {props.error ? <p className="mx-3 mt-1.5 text-xs text-danger">{props.error}</p> : null}
 
       <div
-        className="relative flex min-h-0 flex-1 flex-col border-t border-line"
+        className="relative flex min-h-0 flex-1 flex-col"
         {...(props.side === "remote" ? { "data-file-drop-target": "" } : {})}
         onDragEnter={(event) => {
           if (!canAccept(event)) return;
@@ -550,6 +551,7 @@ export function SftpPane(props: Props) {
             <p className="text-base font-semibold">{hint}</p>
           </div>
         </div>
+      </div>
       </div>
 
       {ctx ? (

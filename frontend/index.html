@@ -11,7 +11,7 @@
       #app {
         margin: 0;
         height: 100%;
-        background: #f0f1f3;
+        background-color: transparent !important;
         color-scheme: light;
       }
       .boot-skel {
@@ -19,7 +19,7 @@
         height: 100%;
         grid-template-rows: 40px 1fr;
         grid-template-columns: var(--boot-sidebar, 320px) 1fr;
-        background: #f0f1f3;
+        background: transparent;
       }
       html.boot-no-side .boot-skel {
         grid-template-columns: 1fr;
@@ -92,13 +92,15 @@
       (function () {
         document.documentElement.className = "light";
         document.documentElement.style.colorScheme = "light";
+        var ua = navigator.userAgent || "";
+        var platform = navigator.platform || "";
+        if (/Win|Linux/.test(platform) || /Windows|Linux|Android|CrOS/.test(ua)) {
+          document.documentElement.dataset.platform = "other";
+        }
         try {
           var n = Number(localStorage.getItem("ipannel.sidebarWidth"));
           if (n >= 180 && n <= 320) {
             document.documentElement.style.setProperty("--boot-sidebar", n + "px");
-          }
-          if (localStorage.getItem("ipannel.sidebarOpen") === "0") {
-            document.documentElement.classList.add("boot-no-side");
           }
         } catch (e) {}
       })();

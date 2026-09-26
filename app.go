@@ -43,18 +43,18 @@ const macInvisibleTitleBarHeight = 0
 // （Hosts / Groups / Overview / Monitor / Files / Certs / Icons / System / Backup），
 // 每个 Service 都是 App 的 defined type（字段共享，方法隔离）。
 type App struct {
-	sshMgr       *sshd.Manager
-	collector    *monitor.Collector
-	agentPool    *agentcli.Pool
-	installer    *agentinstall.Installer
-	groups       *groups.Store
-	panelStore   *panelstore.Store
-	hostIcons    *hosticon.Store
-	hostMeta     *hostmeta.Store
-	alertHistory *alerthistory.Store
-	notifySubs   *notifysubs.Store
-	certNotify   *certnotify.Store
-	menuCheck    *menucheck.Watcher
+	sshMgr          *sshd.Manager
+	collector       *monitor.Collector
+	agentPool       *agentcli.Pool
+	installer       *agentinstall.Installer
+	groups          *groups.Store
+	panelStore      *panelstore.Store
+	hostIcons       *hosticon.Store
+	hostMeta        *hostmeta.Store
+	alertHistory    *alerthistory.Store
+	notifySubs      *notifysubs.Store
+	certNotify      *certnotify.Store
+	menuCheck       *menucheck.Watcher
 	panelConfigMu   sync.Mutex
 	panelConfigStop chan struct{}
 	panelPreviews   map[string]panelConfigPreviewRecord
@@ -65,7 +65,6 @@ type App struct {
 
 	boardMu      sync.Mutex
 	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
-
 
 	themeAppearance macui.AppearanceMode // 固定 light
 
@@ -86,15 +85,23 @@ const RetryInterval = 30 * time.Second
 
 // NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
 // 返回的 *application.App 由 main.go 调用 Run。
+func mainWindowBackgroundColour() application.RGBA {
+	// macOS 要透出桌面磨砂，窗口底必须是透明的。其他系统没有这层材质，用实色。
+	if goruntime.GOOS == "darwin" {
+		return application.NewRGBA(0, 0, 0, 0)
+	}
+	return application.NewRGB(244, 244, 244)
+}
+
 func NewApp() *application.App {
 	sshMgr := sshd.NewManager()
 	ns := notifications.New()
 	core := &App{
-		sshMgr:                sshMgr,
-		installer:             agentinstall.New(sshMgr),
-		boardWindows:          make(map[string]*application.WebviewWindow),
-		panelPreviews:         make(map[string]panelConfigPreviewRecord),
-		notifier:              ns,
+		sshMgr:        sshMgr,
+		installer:     agentinstall.New(sshMgr),
+		boardWindows:  make(map[string]*application.WebviewWindow),
+		panelPreviews: make(map[string]panelConfigPreviewRecord),
+		notifier:      ns,
 	}
 	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
 		return core.connectOptionFor(host)
@@ -158,7 +165,7 @@ func NewApp() *application.App {
 		Height:                     winH,
 		MinWidth:                   windowMinW,
 		MinHeight:                  windowMinH,
-		BackgroundColour:           application.NewRGB(244, 244, 244), // 非 Mac 实色，避免透明怪底
+		BackgroundColour:           mainWindowBackgroundColour(),
 		Hidden:                     true,
 		InitialPosition:            application.WindowCentered,
 		EnableFileDrop:             true,
@@ -166,11 +173,11 @@ func NewApp() *application.App {
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHidden,
 			InvisibleTitleBarHeight: macInvisibleTitleBarHeight,
-			Backdrop:                application.MacBackdropNormal,
+			Backdrop:                application.MacBackdropTranslucent,
 		},
 		URL: "/",
 	}
-	// 默认实色壳。
+	// macOS 主窗口用磨砂底，侧栏透出这层；内容区自己铺实色。
 	// Windows/Linux：无系统标题栏/菜单，窗口按钮画在应用内标题栏。
 	// macOS 继续隐藏系统标题栏、保留左上红绿灯（不走 Frameless，否则红绿灯会被藏掉）。
 	if goruntime.GOOS != "darwin" {
@@ -186,6 +193,7 @@ func NewApp() *application.App {
 	// 主题固定浅色
 	core.themeAppearance = macui.AppearanceLight
 	macui.SetWindowAppearance(win, core.themeAppearance)
+	macui.EnableFrostedBackdrop(win)
 
 	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
 	// 没有：按主屏算完再 Show，仍然不等 Vue。
@@ -365,7 +373,6 @@ func (a *App) saveMainWindowGeom() {
 	saveMainWindowBounds(windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
 }
 
-
 func (a *App) restoreMainWindowPosition() {
 	if !a.mainBoundsOK || a.mainWindow == nil {
 		return
@@ -390,6 +397,10 @@ func (a *App) maybeShowMainWindow() {
 	win.Center()
 	win.Show()
 	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
+	macui.EnableFrostedBackdrop(win)
+	if goruntime.GOOS == "darwin" {
+		win.ExecJS(`document.documentElement.style.setProperty("background-color","transparent","important");document.body.style.setProperty("background-color","transparent","important");`)
+	}
 	a.syncTrafficLights()
 }
 

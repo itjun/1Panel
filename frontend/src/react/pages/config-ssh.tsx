@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { formatBytes, formatErr } from "@/utils/format";
@@ -572,7 +573,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
             ) : null}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
+          <DialogFooter className="mt-0 border-t border-line px-5 py-3">
             <Button disabled={busy} onClick={() => setPreviewOpen(false)}>
               取消
             </Button>
@@ -583,7 +584,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
             >
               确认备份并提交
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

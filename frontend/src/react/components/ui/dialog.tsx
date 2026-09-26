@@ -18,17 +18,19 @@ export function DialogContent({
   ...props
 }: ComponentProps<typeof DialogPrimitive.Content>) {
   return (
-    <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60" />
-      <DialogPrimitive.Content
-        className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-[min(420px,calc(100%-32px))] -translate-x-1/2 -translate-y-1/2 rounded-surface border border-line bg-surface p-5 text-ink shadow-[0_12px_40px_rgba(32,37,43,0.12)] focus:outline-none",
-          className,
-        )}
-        {...props}
-      >
-        {children}
-      </DialogPrimitive.Content>
+    <DialogPrimitive.Portal container={document.body}>
+      <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+        <DialogPrimitive.Overlay className="motion-dialog-overlay pointer-events-auto absolute inset-0 bg-black/60" />
+        <DialogPrimitive.Content
+          className={cn(
+            "motion-dialog-content pointer-events-auto relative z-10 max-h-[calc(100vh-64px)] w-[min(480px,calc(100vw-32px))] overflow-auto rounded-surface border border-line bg-surface px-8 py-6 text-ink shadow-[0_8px_10px_-5px_rgba(0,0,0,0.08),0_16px_24px_2px_rgba(0,0,0,0.04)] focus:outline-none",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </div>
     </DialogPrimitive.Portal>
   );
 }
@@ -38,7 +40,23 @@ export function DialogTitle(
 ) {
   return (
     <DialogPrimitive.Title
-      className="text-base font-medium text-ink"
+      className="text-base font-semibold text-ink"
+      {...props}
+    />
+  );
+}
+
+/** 底栏按钮固定同一行、右对齐，高度与字号跟页面按钮一致。 */
+export function DialogFooter({
+  className,
+  ...props
+}: ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "mt-6 flex flex-nowrap items-center justify-end gap-2 [&_button]:shrink-0",
+        className,
+      )}
       {...props}
     />
   );

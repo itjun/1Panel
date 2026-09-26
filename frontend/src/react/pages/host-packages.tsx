@@ -7,6 +7,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
@@ -353,9 +354,9 @@ export function PackagesPage({ host }: { host: string }) {
           {!depLoading && !depError && !deps.length && !rdeps.length ? (
             <p className="mt-2 text-sm text-muted">无直接依赖关系</p>
           ) : null}
-          <div className="mt-3 flex justify-end">
+          <DialogFooter>
             <Button onClick={() => setDepOpen(false)}>关闭</Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Page>

@@ -22,6 +22,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
@@ -767,7 +768,7 @@ export function GroupPage() {
                   {progress.state === "running" && progress.percent >= 0 ? (
                     <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
                       <div
-                        className="h-full bg-accent transition-[width]"
+                        className="motion-width h-full bg-accent"
                         style={{ width: `${Math.min(100, progress.percent)}%` }}
                       />
                     </div>
@@ -1134,6 +1135,7 @@ export function GroupPage() {
   return (
     <Page
       title={groupLabel}
+      flush={mode === "table" && hosts.length > 0}
       dark={mode === "board" && hosts.length > 0}
       actions={
         <>
@@ -1208,12 +1210,12 @@ export function GroupPage() {
           <DialogDescription className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted">
             {`将向本组全部 ${hosts.length} 台主机安装 spanel-agent（内置 v${latestAgentVersion || "?"}，历史数据保留）。其中 ${needInstallCount} 台未装或可更新${alreadyOkCount ? `，${alreadyOkCount} 台已是最新将跳过` : ""}。全部并行，可在进度窗口查看各主机状态。`}
           </DialogDescription>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button onClick={() => setBatchConfirmOpen(false)}>取消</Button>
             <Button variant="primary" onClick={() => void runBatchInstall()}>
               开始
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1276,7 +1278,7 @@ export function GroupPage() {
                   {r.state === "running" && r.percent >= 0 ? (
                     <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
                       <div
-                        className="h-full bg-accent transition-[width]"
+                        className="motion-width h-full bg-accent"
                         style={{ width: `${Math.min(100, r.percent)}%` }}
                       />
                     </div>
@@ -1285,9 +1287,9 @@ export function GroupPage() {
               </div>
             ))}
           </div>
-          <div className="mt-5 flex items-center justify-end gap-4">
+          <DialogFooter>
             {!batchDone ? (
-              <p className="m-0 flex-1 text-left text-sm text-muted">
+              <p className="m-0 mr-auto text-left text-sm text-muted">
                 正在安装，请稍候…（全部主机并行）
               </p>
             ) : (
@@ -1295,7 +1297,7 @@ export function GroupPage() {
                 完成
               </Button>
             )}
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1334,7 +1336,7 @@ export function GroupPage() {
               />
             </label>
           </div>
-          <div className="mt-5 flex justify-end gap-2">
+          <DialogFooter>
             <Button disabled={settingsSaving} onClick={() => setSettingsOpen(false)}>
               取消
             </Button>
@@ -1345,7 +1347,7 @@ export function GroupPage() {
             >
               {settingsSaving ? "保存中…" : "保存"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1397,14 +1399,14 @@ export function GroupPage() {
               onChange={(e) => setAddForm((f) => ({ ...f, note: e.target.value }))}
             />
           </div>
-          <div className="mt-5 flex justify-end gap-2">
+          <DialogFooter>
             <Button disabled={addSaving} onClick={() => setAddHostOpen(false)}>
               取消
             </Button>
             <Button variant="primary" disabled={addSaving} onClick={() => void saveAddHost()}>
               {addSaving ? "连接中…" : "保存"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Page>

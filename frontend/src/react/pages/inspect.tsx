@@ -16,6 +16,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
@@ -395,7 +396,7 @@ export function InspectPage() {
                 </div>
               ) : null}
 
-              <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <DialogFooter>
                 {copyHint ? (
                   <span className="mr-auto text-sm text-muted">{copyHint}</span>
                 ) : null}
@@ -412,7 +413,7 @@ export function InspectPage() {
                 >
                   知道了
                 </Button>
-              </div>
+              </DialogFooter>
             </div>
           ) : null}
         </DialogContent>
