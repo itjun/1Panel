@@ -284,7 +284,7 @@ export function WorkspaceRail() {
       >
       <div
         className={cn(
-            "rail-traffic drag-region flex h-10 shrink-0 items-center",
+            "rail-traffic shell-toolbar drag-region flex shrink-0",
           isMac ? "pl-[72px]" : "pl-0.5",
         )}
       >

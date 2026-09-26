@@ -276,7 +276,7 @@ export function SftpPane(props: Props) {
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col outline-none" tabIndex={0} onKeyDown={onKey}>
-      <header className="glass-chrome flex h-10 shrink-0 items-center gap-2 px-3">
+      <header className="shell-toolbar glass-chrome flex shrink-0 gap-2 px-3">
         <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-ink">
           {props.side === "local" ? <LocalIcon /> : null}
           <span className="truncate">{props.title}</span>

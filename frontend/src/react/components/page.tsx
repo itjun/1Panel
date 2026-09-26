@@ -25,12 +25,12 @@ export function Page({
       {title || actions ? (
         <div
           className={cn(
-            "shell-top drag-region flex h-10 shrink-0 flex-wrap items-center gap-3 border-b border-line px-5",
+            "shell-top shell-toolbar shell-toolbar--rule drag-region flex shrink-0 gap-3 px-5",
             dark ? "bg-graphite" : "glass-chrome",
           )}
         >
-          {title ? <h1 className="text-base font-semibold">{title}</h1> : null}
-          <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
+          {title ? <h1 className="text-base font-semibold leading-none">{title}</h1> : null}
+          <div className="ml-auto flex h-full items-center gap-2">{actions}</div>
         </div>
       ) : null}
       <div

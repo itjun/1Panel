@@ -124,6 +124,22 @@ html[data-platform="other"] .glass-chrome {
   background-color: var(--color-canvas);
 }
 
+/* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。
+   上下各留 4px：h-8 控件刚好铺满，h-7 再居中后总间距仍是 6/6。
+   底部分隔用 inset shadow，不占用高度（border-b 会让居中看起来上紧下松）。 */
+.shell-toolbar {
+  box-sizing: border-box;
+  height: 40px;
+  align-items: center;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.shell-toolbar--rule {
+  border-bottom-width: 0;
+  box-shadow: inset 0 -1px 0 0 var(--color-line);
+}
+
 /* 侧栏收起后，窗口按钮浮在顶栏左侧，标题要让开；主机首页搜索左右对称，保持居中。 */
 .react-root[data-sidebar="closed"] .shell-top:not(.host-home-toolbar) {
   padding-left: var(--window-chrome-inset);
@@ -135,14 +151,14 @@ html[data-platform="other"] .glass-chrome {
 }
 
 /* 侧栏收起后，页面顶栏继续承担拖拽；类名 drag-region 在侧栏展开时同样生效。 */
-.react-root[data-sidebar="closed"] :is(.shell-top.h-10, .host-home-toolbar) {
+.react-root[data-sidebar="closed"] :is(.shell-top.shell-toolbar, .host-home-toolbar) {
   --wails-draggable: drag;
   -webkit-app-region: drag;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.react-root[data-sidebar="closed"] :is(.shell-top.h-10, .host-home-toolbar) :is(button, a, input, textarea, select, label, [role="button"]) {
+.react-root[data-sidebar="closed"] :is(.shell-top.shell-toolbar, .host-home-toolbar) :is(button, a, input, textarea, select, label, [role="button"]) {
   --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
   user-select: auto;

@@ -675,7 +675,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         setBlankMenu(next);
       }}
     >
-      <div className="host-home-toolbar shell-top drag-region glass-chrome grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line px-5">
+      <div className="host-home-toolbar shell-top shell-toolbar shell-toolbar--rule drag-region glass-chrome grid shrink-0 grid-cols-[1fr_auto_1fr] px-5">
         <div />
         <input
           ref={searchRef}
@@ -692,9 +692,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             }
           }}
           placeholder={isMac ? "筛选主机 (⌘F)" : "筛选主机 (Ctrl+F)"}
-          className="h-8 w-[min(24rem,40vw)] rounded-control border border-line bg-surface px-3"
+          className="box-border h-8 w-[min(24rem,40vw)] rounded-control border border-line bg-surface px-3 leading-none"
         />
-        <div className="relative justify-self-end">
+        <div className="relative flex h-full items-center justify-self-end">
           <Button
             aria-label="新建"
             onClick={(event) => {
