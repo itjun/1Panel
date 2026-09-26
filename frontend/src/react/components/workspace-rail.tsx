@@ -574,6 +574,11 @@ export function WorkspaceRail() {
         onOpen={(hosts) => {
           for (const name of hosts) session.openHost(name, "overview");
         }}
+        onOpenInTerminal={(hosts) => {
+          void api.openHostsInTerminal(hosts).catch((err) => {
+            window.alert(`终端打开失败: ${err instanceof Error ? err.message : String(err)}`);
+          });
+        }}
         onTogglePin={(host) => session.togglePin(host)}
         onEdit={(name) => session.setEditingHost(name)}
         onDisconnect={(name) => session.closeHost(name)}
@@ -601,6 +606,16 @@ export function WorkspaceRail() {
               }}
             />
           ))}
+          <CtxItem
+            label="终端打开"
+            onClick={() => {
+              const names = hostBatchMenu.ids.slice();
+              setHostBatchMenu(null);
+              void api.openHostsInTerminal(names).catch((err) => {
+                window.alert(`终端打开失败: ${err instanceof Error ? err.message : String(err)}`);
+              });
+            }}
+          />
           <CtxDivider />
           <CtxItem
             label="关闭主机页"

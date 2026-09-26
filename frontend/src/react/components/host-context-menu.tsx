@@ -14,6 +14,7 @@ type Props = {
   pinned: string[];
   onClose: () => void;
   onOpen: (hosts: string[]) => void;
+  onOpenInTerminal?: (hosts: string[]) => void;
   onTogglePin: (host: string) => void;
   onEdit: (host: string) => void;
   onDelete?: (hosts: string[]) => void;
@@ -27,6 +28,7 @@ export function HostContextMenu({
   pinned,
   onClose,
   onOpen,
+  onOpenInTerminal,
   onTogglePin,
   onEdit,
   onDelete,
@@ -83,6 +85,15 @@ export function HostContextMenu({
             onOpen(hosts);
           }}
         />
+        {onOpenInTerminal ? (
+          <MenuItem
+            label="终端打开"
+            onClick={() => {
+              onClose();
+              onOpenInTerminal(hosts);
+            }}
+          />
+        ) : null}
         {!batch ? (
           <>
             <div className="my-1 border-t border-line" />

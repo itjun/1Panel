@@ -859,7 +859,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                             event.clientX,
                             event.clientY,
                             200,
-                            hosts.length > 1 ? 220 : 480,
+                            hosts.length > 1 ? 260 : 520,
                           );
                           setHostMenu({
                             host: host.name,
@@ -1048,6 +1048,16 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               const hosts = hostMenu.hosts.slice();
               closeAllMenus();
               for (const name of hosts) session.openHost(name, "monitor");
+            }}
+          />
+          <MenuItem
+            label="终端打开"
+            onClick={() => {
+              const hosts = hostMenu.hosts.slice();
+              closeAllMenus();
+              void api
+                .openHostsInTerminal(hosts)
+                .catch((err) => showError(`终端打开失败: ${formatErr(err)}`));
             }}
           />
           {hostMenu.hosts.length <= 1 ? (

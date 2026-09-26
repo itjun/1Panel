@@ -564,6 +564,10 @@ const apiImpl = {
   focusMainWindow: async (): Promise<void> => {
     await System.FocusMainWindow();
   },
+  /** 把 SSH Host 别名交给 1Agent 打开（支持多台） */
+  openHostsInTerminal: async (hosts: string[]): Promise<void> => {
+    await System.OpenHostsInTerminal(hosts);
+  },
 
   // ============ 备份与恢复（主机配置） ============
   /** 导出到 dir 下的日期文件夹，返回摘要文案 */

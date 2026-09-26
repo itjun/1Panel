@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"os/exec"
 	"runtime"
 	"strings"
 	"time"
@@ -379,6 +380,46 @@ func resourceAlertLabel(kind string) string {
 // 空地址或企微拒绝时返回错误；前端据此决定能否保存新地址。
 func (s *System) TestWecomWebhook(webhook string) error {
 	return wecom.TestWebhook(webhook)
+}
+
+// oneAgentOpenURL 拼出 1Agent 认的地址。空格必须写成 %20。
+// Go 的 QueryEscape 会把空格写成 +，1Agent 会把加号留在主机名里。
+func oneAgentOpenURL(hosts []string) (string, error) {
+	parts := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		alias := strings.TrimSpace(host)
+		if alias == "" || strings.ContainsAny(alias, "\r\n") {
+			continue
+		}
+		escaped := strings.ReplaceAll(url.QueryEscape(alias), "+", "%20")
+		parts = append(parts, "host="+escaped)
+	}
+	if len(parts) == 0 {
+		return "", fmt.Errorf("没有主机")
+	}
+	return "oneagent://open?" + strings.Join(parts, "&"), nil
+}
+
+// OpenHostsInTerminal 把 SSH Host 别名交给 1Agent 打开终端。
+// 单台与批量都走 oneagent://open?host=…，由终端自己建会话。
+func (s *System) OpenHostsInTerminal(hosts []string) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("仅支持在 macOS 上打开 1Agent")
+	}
+	target, err := oneAgentOpenURL(hosts)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("open", target)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			return fmt.Errorf("无法打开 1Agent: %w", err)
+		}
+		return fmt.Errorf("无法打开 1Agent: %s", msg)
+	}
+	return nil
 }
 
 // CheckMenuPage 立即用 Go HTTP 检查菜单项（不打开浏览器）。id 空则检查全部，返回最后一项结果以兼容旧调用。

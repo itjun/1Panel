@@ -103,6 +103,14 @@ export function OpenBoardWindow(groupID: string): $CancellablePromise<void> {
 }
 
 /**
+ * OpenHostsInTerminal 把 SSH Host 别名交给 1Agent 打开终端。
+ * 单台与批量都走 oneagent://open?host=…，由终端自己建会话。
+ */
+export function OpenHostsInTerminal(hosts: string[] | null): $CancellablePromise<void> {
+    return $Call.ByID(328655905, hosts);
+}
+
+/**
  * SetAskBeforeQuit 设置「退出前询问」；与确认框内勾选写入同一份配置。
  */
 export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
