@@ -575,6 +575,8 @@ export function WorkspaceRail() {
           for (const name of hosts) session.openHost(name, "overview");
         }}
         onOpenInTerminal={(hosts) => {
+          setSelectedHostNames([]);
+          hostAnchorRef.current = "";
           void api.openHostsInTerminal(hosts).catch((err) => {
             window.alert(`终端打开失败: ${err instanceof Error ? err.message : String(err)}`);
           });
@@ -611,6 +613,8 @@ export function WorkspaceRail() {
             onClick={() => {
               const names = hostBatchMenu.ids.slice();
               setHostBatchMenu(null);
+              setSelectedHostNames([]);
+              hostAnchorRef.current = "";
               void api.openHostsInTerminal(names).catch((err) => {
                 window.alert(`终端打开失败: ${err instanceof Error ? err.message : String(err)}`);
               });

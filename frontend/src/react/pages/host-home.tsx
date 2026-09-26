@@ -1055,6 +1055,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             onClick={() => {
               const hosts = hostMenu.hosts.slice();
               closeAllMenus();
+              setSelected([]);
               void api
                 .openHostsInTerminal(hosts)
                 .catch((err) => showError(`终端打开失败: ${formatErr(err)}`));
