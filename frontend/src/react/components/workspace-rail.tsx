@@ -618,7 +618,7 @@ export function WorkspaceRail() {
           />
           <CtxDivider />
           <CtxItem
-            label="关闭主机页"
+            label="断开连接"
             danger
             onClick={() => {
               const names = hostBatchMenu.ids;
