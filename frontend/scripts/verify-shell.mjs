@@ -66,14 +66,21 @@ const shellStyles = fs.readFileSync(path.join(root, "src/react/styles/globals.cs
 if (shellStyles.includes("--shell-gutter")) fail("collapsed shell gutter should be gone");
 if (!shellStyles.includes(".glass-chrome")) fail("shared frosted chrome rule missing");
 if (!rail.includes("glass-chrome")) fail("sidebar is not frosted chrome");
-if (rail.includes("sidebarOpen") || rail.includes("收起侧栏")) {
-  fail("sidebar collapse is still implemented");
-}
 if (!rail.includes("w-[220px]")) fail("sidebar is not a fixed width");
-if (app.includes("sidebarOpen") || app.includes("readSidebarOpenPreference")) {
-  fail("App still toggles the sidebar");
+if (!rail.includes("WindowChrome")) fail("sidebar does not host window chrome");
+if (!app.includes("WindowChrome")) fail("collapsed sidebar does not keep window chrome");
+if (!app.includes("data-sidebar")) fail("shell does not mark sidebar state");
+if (!shellStyles.includes("--window-chrome-inset")) fail("collapsed header inset missing");
+const chrome = fs.readFileSync(
+  path.join(root, "src/react/components/window-chrome.tsx"),
+  "utf8",
+);
+if (!chrome.includes("后退") || !chrome.includes("前进") || !chrome.includes("收起侧栏")) {
+  fail("window chrome is missing back, forward, or sidebar toggle");
 }
-ok("sidebar stays open at a fixed width");
+const sidebarState = fs.readFileSync(path.join(root, "src/react/state/sidebar.tsx"), "utf8");
+if (!sidebarState.includes("1pannel-sidebar-open")) fail("sidebar open state is not persisted");
+ok("sidebar has a fixed open width and window chrome");
 
 const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (!entry.includes("/src/react/main.tsx")) fail("index.html does not load React");

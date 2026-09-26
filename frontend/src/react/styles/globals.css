@@ -123,6 +123,31 @@ html[data-platform="other"] .glass-chrome {
   background-color: var(--color-canvas);
 }
 
+/* 侧栏收起后，窗口按钮浮在顶栏左侧，标题要让开；主机首页搜索左右对称，保持居中。 */
+.react-root[data-sidebar="closed"] .shell-top:not(.host-home-toolbar) {
+  padding-left: var(--window-chrome-inset);
+}
+
+.react-root[data-sidebar="closed"] .host-home-toolbar {
+  padding-left: var(--window-chrome-inset);
+  padding-right: var(--window-chrome-inset);
+}
+
+/* 侧栏收起后，原来的拖拽带没了，改由 40px 页面顶栏拖动窗口。 */
+.react-root[data-sidebar="closed"] :is(.shell-top.h-10, .host-home-toolbar) {
+  --wails-draggable: drag;
+  -webkit-app-region: drag;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.react-root[data-sidebar="closed"] :is(.shell-top.h-10, .host-home-toolbar) :is(button, a, input, textarea, select, label, [role="button"]) {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+
 /* ---------- TDesign Motion 工具类 ---------- */
 
 @keyframes motion-fade-in {

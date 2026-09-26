@@ -14,6 +14,7 @@ import {
 } from "react";
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
+import { WindowChrome } from "@/react/components/window-chrome";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { cn } from "@/react/lib/utils";
 import {
@@ -287,6 +288,7 @@ export function WorkspaceRail() {
           isMac ? "pl-[72px]" : "pl-0.5",
         )}
       >
+        <WindowChrome />
         <div className="h-full min-w-0 flex-1" />
       </div>
 

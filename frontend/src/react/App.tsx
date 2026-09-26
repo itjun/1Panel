@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Events } from "@wailsio/runtime";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { api } from "@/api";
 import { startAppWatchAlertPoll, stopAppWatchAlertPoll } from "@/utils/appWatchAlerts";
 import { startCertAlertPoll, stopCertAlertPoll } from "@/utils/certAlerts";
 import { startHostResourceAlertPoll, stopHostResourceAlertPoll } from "@/utils/hostResourceAlerts";
+import { isMacPlatform, WindowChrome, windowChromeInset } from "@/react/components/window-chrome";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
+import { SidebarProvider, useSidebar } from "@/react/state/sidebar";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { ConfigCenterPage } from "@/react/pages/config-center";
 import { GroupPage } from "@/react/pages/group-page";
@@ -30,7 +32,9 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <Shell />
+        <SidebarProvider>
+          <Shell />
+        </SidebarProvider>
       </SessionProvider>
     </QueryClientProvider>
   );
@@ -38,6 +42,8 @@ export function App() {
 
 function Shell() {
   const session = useSession();
+  const sidebar = useSidebar();
+  const isMac = isMacPlatform();
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
   const editOpen = !session.settingsOpen && !!editing;
@@ -91,9 +97,17 @@ function Shell() {
     };
   }, []);
 
+  const chromeInset = sidebar.open
+    ? undefined
+    : ({ "--window-chrome-inset": windowChromeInset(isMac) } as CSSProperties);
+
   return (
-    <div className="react-root flex h-full min-h-0">
-      <WorkspaceRail />
+    <div
+      className="react-root relative flex h-full min-h-0"
+      data-sidebar={sidebar.open ? "open" : "closed"}
+      style={chromeInset}
+    >
+      {sidebar.open ? <WorkspaceRail /> : null}
       <main className="flex min-h-0 min-w-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1">
           {session.settingsOpen ? (
@@ -130,6 +144,17 @@ function Shell() {
           </aside>
         ) : null}
       </main>
+      {sidebar.open ? null : (
+        <div
+          className={`pointer-events-none absolute top-0 left-0 z-30 flex h-10 items-center ${
+            isMac ? "pl-[72px]" : "pl-0.5"
+          }`}
+        >
+          <div className="pointer-events-auto rounded-control glass-chrome">
+            <WindowChrome />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
