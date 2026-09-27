@@ -20,6 +20,8 @@ export function SettingsPage() {
   const settings = useSettings();
   const [ask, setAsk] = useState(true);
   const [message, setMessage] = useState("");
+  const [boardEnabled, setBoardEnabled] = useState(true);
+  const [boardPort, setBoardPort] = useState(8888);
   const egress = useQuery({
     queryKey: ["egress"],
     queryFn: () => api.getMyEgress(),
@@ -28,6 +30,12 @@ export function SettingsPage() {
     queryKey: ["panel-config-status"],
     queryFn: () => api.getPanelConfigStatus(),
   });
+  const boardUrls = useQuery({
+    queryKey: ["board-http-urls", boardEnabled, boardPort],
+    queryFn: () => api.listBoardURLs(""),
+    enabled: boardEnabled,
+    retry: false,
+  });
 
   useQuery({
     queryKey: ["ask-before-quit"],
@@ -35,6 +43,16 @@ export function SettingsPage() {
       const value = await api.getAskBeforeQuit();
       setAsk(value);
       return value;
+    },
+  });
+
+  useQuery({
+    queryKey: ["board-http-config"],
+    queryFn: async () => {
+      const cfg = await api.getBoardHTTPConfig();
+      setBoardEnabled(!!cfg.enabled);
+      setBoardPort(cfg.port > 0 ? cfg.port : 8888);
+      return cfg;
     },
   });
 
@@ -105,6 +123,72 @@ export function SettingsPage() {
               />
               离开画面
             </label>
+          </SettingRow>
+        </section>
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xs font-semibold tracking-wide text-muted">看板 HTTP</h2>
+          <SettingRow
+            label="内网看板"
+            hint="仅私网 IPv4 可访问；浏览器打开 http://内网IP:端口/分组名"
+          >
+            <label className="mr-3 inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={boardEnabled}
+                onChange={(event) => {
+                  const enabled = event.target.checked;
+                  setBoardEnabled(enabled);
+                  void api
+                    .setBoardHTTPConfig({ enabled, port: boardPort })
+                    .then(() => setMessage(enabled ? "看板 HTTP 已开启" : "看板 HTTP 已关闭"))
+                    .catch((error) => setMessage(formatErr(error)));
+                }}
+              />
+              开启
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm">
+              端口
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                className="h-8 w-24 rounded-control border border-line bg-surface px-2 text-sm"
+                value={boardPort}
+                onChange={(event) => setBoardPort(Number(event.target.value) || 8888)}
+                onBlur={() => {
+                  const port = boardPort > 0 && boardPort <= 65535 ? boardPort : 8888;
+                  setBoardPort(port);
+                  void api
+                    .setBoardHTTPConfig({ enabled: boardEnabled, port })
+                    .then(() => {
+                      setMessage(`看板端口已设为 ${port}`);
+                      void boardUrls.refetch();
+                    })
+                    .catch((error) => setMessage(formatErr(error)));
+                }}
+              />
+            </label>
+          </SettingRow>
+          <SettingRow label="示例链接" hint="本机私网地址">
+            <div className="flex flex-col gap-1 text-sm">
+              {(boardUrls.data || []).length ? (
+                (boardUrls.data || []).map((url) => (
+                  <code key={url} className="break-all text-xs text-muted">
+                    {url}
+                  </code>
+                ))
+              ) : (
+                <span className="text-muted">
+                  {boardEnabled ? "暂无私网 IP，可用 127.0.0.1" : "未开启"}
+                </span>
+              )}
+            </div>
+            <Button
+              disabled={!boardEnabled}
+              onClick={() => void boardUrls.refetch()}
+            >
+              刷新
+            </Button>
           </SettingRow>
         </section>
         <section className="flex flex-col gap-3">
