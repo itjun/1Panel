@@ -4,14 +4,7 @@ function twoDigits(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }
 
-export function BoardSummaryStrip({
-  summary,
-  embedded = false,
-}: {
-  summary: BoardSummary;
-  /** 嵌入分组页时略压缩高度 */
-  embedded?: boolean;
-}) {
+export function BoardSummaryStrip({ summary }: { summary: BoardSummary }) {
   let appDetail = "未配置";
   if (summary.appCritical) appDetail = `${summary.appCritical} 项异常`;
   else if (summary.appUnknown) appDetail = `${summary.appUnknown} 项待确认`;
@@ -21,11 +14,8 @@ export function BoardSummaryStrip({
   if (summary.appCritical > 0) appsClass += " is-critical";
   else if (summary.appUnknown > 0) appsClass += " is-attention";
 
-  let sectionClass = "board-summary";
-  if (embedded) sectionClass += " is-embedded";
-
   return (
-    <section className={sectionClass} aria-label="看板运行摘要">
+    <section className="board-summary" aria-label="看板运行摘要">
       <div className="board-summary__lead">
         <span className="board-summary__live-dot" aria-hidden="true" />
         <div>

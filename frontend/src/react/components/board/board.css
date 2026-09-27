@@ -46,20 +46,6 @@ html.board-http #app {
   -webkit-user-select: none;
 }
 
-/* 嵌入分组页：相对定位填满容器，去掉独立窗口全屏 chrome */
-.board-mode.is-embedded {
-  position: relative;
-  inset: auto;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  padding: 12px;
-  gap: 10px;
-  border: 1px solid var(--board-line);
-  border-radius: var(--radius-surface, 6px);
-  background: var(--board-canvas);
-}
-
 .board-mode__bar {
   flex-shrink: 0;
   display: grid;
@@ -252,10 +238,6 @@ html.board-http #app {
   border: 1px solid var(--board-line);
   border-radius: var(--radius-control, 4px);
   background: var(--board-surface);
-}
-
-.board-summary.is-embedded {
-  min-height: 68px;
 }
 
 .board-summary__lead {
