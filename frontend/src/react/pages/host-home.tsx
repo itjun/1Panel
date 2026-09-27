@@ -929,7 +929,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                       const url = (urls || [])[0];
                       if (!url) throw new Error("无可用内网地址");
                       await copyText(url);
-                      showError("看板链接已复制");
+                      showToast("看板链接已复制");
                     })
                     .catch((err) => {
                       showError(`复制失败: ${formatErr(err)}`);
