@@ -16,27 +16,19 @@ export function Page({
   flush?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "flex h-full min-h-0 min-w-0 flex-col",
-        dark ? "bg-graphite text-graphite-text" : "text-ink",
-      )}
-    >
+    <div className="flex h-full min-h-0 min-w-0 flex-col text-ink">
       {title || actions ? (
-        <div
-          className={cn(
-            "shell-top shell-toolbar shell-toolbar--rule drag-region flex shrink-0 gap-3 px-5",
-            dark ? "bg-graphite" : "glass-chrome",
-          )}
-        >
+        <div className="shell-top shell-toolbar drag-region flex shrink-0 items-center gap-3 px-5">
           {title ? <h1 className="text-base font-semibold leading-none">{title}</h1> : null}
-          <div className="ml-auto flex h-full items-center gap-2">{actions}</div>
+          <div className="ml-auto flex items-center gap-2">{actions}</div>
         </div>
-      ) : null}
+      ) : (
+        <div className="shell-top shell-toolbar drag-region shrink-0" />
+      )}
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-auto",
-          dark ? "bg-graphite" : "bg-canvas",
+          "content-float flex min-w-0 flex-1 flex-col",
+          dark ? "bg-graphite text-graphite-text" : "bg-canvas",
           !flush && !dark && "gap-3 p-4",
         )}
       >

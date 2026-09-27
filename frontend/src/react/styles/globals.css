@@ -120,29 +120,75 @@
   background-color: rgba(248, 248, 252, 0.72);
 }
 
+/* 非 macOS 没有磨砂。底色要比画布深一档，8px 缝才看得见。 */
 html[data-platform="other"] .glass-chrome {
+  background-color: #e7e7e7;
+}
+
+/* 顶栏以下的内容体。边距露在磨砂上，圆角只加在这一张面板。
+   flex 子项用 margin 时，自由空间会先扣掉边距，再把剩余高度分给面板。 */
+.content-float {
+  flex: 1 1 0%;
+  /* 顶上不留缝，通栏底边停在原来的 40px；左右下仍是 8px。 */
+  margin: 0 8px 8px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* 编辑主机打开时，面板右缘接到表单上，合成一个圆角。 */
+.react-root[data-edit="open"] .content-float {
+  margin-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.edit-dock {
+  width: 380px;
+  flex-shrink: 0;
+  margin-top: 40px;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--color-line);
+  border-radius: 0 12px 12px 0;
   background-color: var(--color-canvas);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
 /* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。
-   上下各留 4px：h-8 控件刚好铺满，h-7 再居中后总间距仍是 6/6。
-   底部分隔用 inset shadow，不占用高度（border-b 会让居中看起来上紧下松）。 */
+   不另加上下 padding，控件在这 40px 里居中，上下留白相同。
+   h-8 控件上下各 4px，h-7 各 6px。
+   通栏本身不铺底色，磨砂来自窗口底，避免和缝隙叠成两层。 */
 .shell-toolbar {
   box-sizing: border-box;
   height: 40px;
+  min-height: 40px;
+  max-height: 40px;
   align-items: center;
-  padding-top: 4px;
-  padding-bottom: 4px;
+  padding-top: 0;
+  padding-bottom: 0;
+  flex-shrink: 0;
 }
 
-.shell-toolbar--rule {
-  border-bottom-width: 0;
-  box-shadow: inset 0 -1px 0 0 var(--color-line);
-}
-
-/* 侧栏收起后，窗口按钮浮在顶栏左侧，标题要让开；主机首页搜索左右对称，保持居中。 */
-.react-root[data-sidebar="closed"] .shell-top:not(.host-home-toolbar) {
+/* 侧栏收起后，窗口按钮浮在顶栏左侧，标题要让开；主机首页搜索左右对称，保持居中。
+   文件页是左右两栏标题，不能整条通栏一起右移，见 .sftp-toolbar。 */
+.react-root[data-sidebar="closed"] .shell-top:not(.host-home-toolbar):not(.sftp-toolbar) {
   padding-left: var(--window-chrome-inset);
+}
+
+/* 文件页标题跟通栏走，左右各让出和内容面板一样的 8px，两栏才能对上。 */
+.sftp-toolbar {
+  padding-left: 8px;
+  padding-right: 8px;
+  align-items: stretch;
+}
+
+.react-root[data-sidebar="closed"] .sftp-toolbar-local {
+  padding-left: calc(var(--window-chrome-inset) - 8px);
 }
 
 .react-root[data-sidebar="closed"] .host-home-toolbar {

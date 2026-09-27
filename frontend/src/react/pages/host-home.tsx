@@ -675,7 +675,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         setBlankMenu(next);
       }}
     >
-      <div className="host-home-toolbar shell-top shell-toolbar shell-toolbar--rule drag-region glass-chrome grid shrink-0 grid-cols-[1fr_auto_1fr] px-5">
+      <div className="host-home-toolbar shell-top shell-toolbar drag-region grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-5">
         <div />
         <input
           ref={searchRef}
@@ -711,7 +711,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col bg-surface">
+      <div className="content-float flex min-w-0 flex-1 flex-col bg-canvas">
       {(toast || error) && (
         <div className="px-4 pt-2 md:px-6">
           {error ? <Notice text={error} /> : null}

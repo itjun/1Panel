@@ -105,10 +105,11 @@ function Shell() {
     <div
       className="react-root relative flex h-full min-h-0"
       data-sidebar={sidebar.open ? "open" : "closed"}
+      data-edit={editPresence.mounted ? "open" : undefined}
       style={chromeInset}
     >
       {sidebar.open ? <WorkspaceRail /> : null}
-      <main className="flex min-h-0 min-w-0 flex-1">
+      <main className="glass-chrome flex min-h-0 min-w-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1">
           {session.settingsOpen ? (
             <div key="settings" className="motion-fade-in h-full min-h-0">
@@ -129,7 +130,7 @@ function Shell() {
         </div>
         {editPresence.mounted && editHost ? (
           <aside
-            className="motion-drawer-panel flex h-full w-[380px] shrink-0 flex-col overflow-hidden border-l border-line bg-surface"
+            className="edit-dock motion-drawer-panel flex flex-col"
             data-open={editPresence.visible ? "true" : "false"}
           >
             <HostEditForm
@@ -150,7 +151,7 @@ function Shell() {
             isMac ? "pl-[72px]" : "pl-0.5"
           }`}
         >
-          <div className="pointer-events-auto flex h-full items-center rounded-control glass-chrome">
+          <div className="pointer-events-auto flex h-full items-center">
             <WindowChrome />
           </div>
         </div>
