@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"diteng-pannel/internal/boardhttp"
 	"diteng-pannel/internal/desktop"
+	"diteng-pannel/internal/groupid"
 	"diteng-pannel/internal/macui"
 	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
@@ -16,38 +18,7 @@ import (
 	"diteng-pannel/internal/winui"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/events"
 )
-
-const (
-	ungroupedGroupID = "__ungrouped__"
-	// 默认约可整齐放下 3×2 / 3×3 主机卡（含顶栏与间距）
-	boardWindowW    = 1440
-	boardWindowH    = 900
-	boardWindowMinW = 1100
-	boardWindowMinH = 720
-)
-
-// 实色窗底：看板深色
-var (
-	boardWindowSolidColour = application.NewRGB(15, 17, 21)
-)
-
-func boardWindowName(groupID string) string {
-	return "board-" + groupID
-}
-
-func boardWindowTitle(groupID, groupName string) string {
-	name := strings.TrimSpace(groupName)
-	if name == "" {
-		if groupID == ungroupedGroupID {
-			name = "未分组"
-		} else {
-			name = groupID
-		}
-	}
-	return "看板 · " + name
-}
 
 // SetTrafficLightsHidden 隐藏/恢复 macOS 窗口红绿灯按钮
 // 供前端卡片最大化时调用：最大化期间隐藏，退出时恢复。
@@ -85,19 +56,7 @@ func (s *System) SetAskBeforeQuit(ask bool) {
 // SetThemeAppearance 同步窗口原生外观。应用固定浅色主题：忽略传入值，一律 light。
 func (s *System) SetThemeAppearance(_mode string) {
 	s.themeAppearance = macui.AppearanceLight
-
 	s.applyAppearanceOnWindow(s.mainWindow)
-
-	s.boardMu.Lock()
-	boards := make([]*application.WebviewWindow, 0, len(s.boardWindows))
-	for _, w := range s.boardWindows {
-		boards = append(boards, w)
-	}
-	s.boardMu.Unlock()
-	for _, w := range boards {
-		s.applyAppearanceOnWindow(w)
-	}
-
 }
 
 func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
@@ -111,119 +70,101 @@ func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
 	macui.SetWindowAppearance(win, mode)
 }
 
-// OpenBoardWindow 打开或聚焦该分组的看板窗（普通尺寸，不立刻全屏、不调进程级 kiosk）。
-// 同分组重复调用只聚焦已有窗；不同分组各自一窗，互不影响。
-func (s *System) OpenBoardWindow(groupID string) error {
-	groupID = strings.TrimSpace(groupID)
-	if groupID == "" {
-		return fmt.Errorf("groupID 不能为空")
-	}
+// BoardHTTPConfig 看板 HTTP 网关配置（供前端设置页）。
+type BoardHTTPConfig struct {
+	Enabled bool `json:"enabled"`
+	Port    int  `json:"port"`
+}
 
-	groupName := ""
-	if groupID == ungroupedGroupID {
-		groupName = "未分组"
-	} else {
-		if s.groups == nil {
-			return fmt.Errorf("分组存储未初始化")
-		}
-		found := false
-		for _, g := range s.groups.List() {
-			if g.ID == groupID {
-				found = true
-				groupName = g.Name
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("分组不存在: %s", groupID)
-		}
+// GetBoardHTTPConfig 返回当前看板 HTTP 开关与端口。
+func (s *System) GetBoardHTTPConfig() BoardHTTPConfig {
+	if s.boardHTTP != nil {
+		c := s.boardHTTP.Config()
+		return BoardHTTPConfig{Enabled: c.Enabled, Port: c.Port}
 	}
-	if s.app == nil {
-		return fmt.Errorf("应用未就绪")
+	c := boardhttp.LoadConfig("ServerPanel")
+	return BoardHTTPConfig{Enabled: c.Enabled, Port: c.Port}
+}
+
+// SetBoardHTTPConfig 保存并热重载看板 HTTP 监听。
+func (s *System) SetBoardHTTPConfig(cfg BoardHTTPConfig) error {
+	next := boardhttp.Config{Enabled: cfg.Enabled, Port: cfg.Port}
+	if next.Port <= 0 {
+		next.Port = boardhttp.DefaultPort
 	}
-
-	winName := boardWindowName(groupID)
-	title := boardWindowTitle(groupID, groupName)
-
-	s.boardMu.Lock()
-	defer s.boardMu.Unlock()
-	win := s.boardWindows[groupID]
-	if win == nil {
-		if existing, ok := s.app.Window.GetByName(winName); ok {
-			if bw, ok := existing.(*application.WebviewWindow); ok {
-				win = bw
-				s.boardWindows[groupID] = bw
-			}
+	if err := boardhttp.SaveConfig("ServerPanel", next); err != nil {
+		return err
+	}
+	if s.boardHTTP == nil {
+		(*App)(s).startBoardHTTP()
+		if s.boardHTTP == nil {
+			return fmt.Errorf("看板 HTTP 未启动")
 		}
-	}
-
-	if win != nil {
-		win.SetTitle(title)
-		win.Show()
-		win.Focus()
 		return nil
 	}
+	return s.boardHTTP.Apply(next)
+}
 
-	boardURL := "/?mode=board&groupId=" + url.QueryEscape(groupID)
-	opts := application.WebviewWindowOptions{
-		Name:                       winName,
-		Title:                      title,
-		URL:                        boardURL,
-		Width:                      boardWindowW,
-		Height:                     boardWindowH,
-		MinWidth:                   boardWindowMinW,
-		MinHeight:                  boardWindowMinH,
-		InitialPosition:            application.WindowCentered,
-		BackgroundColour:           boardWindowSolidColour, // 默认深色实底
-		Hidden:                     false,
-		DefaultContextMenuDisabled: true,
-		Mac: application.MacWindow{
-			TitleBar:                application.MacTitleBarHidden,
-			InvisibleTitleBarHeight: macInvisibleTitleBarHeight,
-			Backdrop:                application.MacBackdropNormal,
-		},
-	}
-	if runtime.GOOS != "darwin" {
-		opts.Frameless = true
-		opts.Windows.DisableMenu = true
-		opts.Windows.NonClientRegionSupport = true
-	}
-
-	win = s.app.Window.NewWithOptions(opts)
-	s.boardWindows[groupID] = win
-
-	win.SetBackgroundColour(boardWindowSolidColour)
-	s.applyAppearanceOnWindow(win)
-
-	gid := groupID
-	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
-		s.boardMu.Lock()
-		if s.boardWindows[gid] == win {
-			delete(s.boardWindows, gid)
+// ListBoardURLs 返回该分组在本机私网 IP 上的看板链接。
+// groupName 为空时只返回 http://ip:port 基址（设置页示例）。
+func (s *System) ListBoardURLs(groupName string) ([]string, error) {
+	groupName = strings.TrimSpace(groupName)
+	if groupName != "" {
+		if err := groupid.Validate(groupName); err != nil {
+			return nil, err
 		}
-		s.boardMu.Unlock()
-	})
+	}
+	port := boardhttp.DefaultPort
+	if s.boardHTTP != nil {
+		c := s.boardHTTP.Config()
+		if !c.Enabled {
+			return nil, fmt.Errorf("看板 HTTP 未开启")
+		}
+		port = c.Port
+	} else {
+		c := boardhttp.LoadConfig("ServerPanel")
+		if !c.Enabled {
+			return nil, fmt.Errorf("看板 HTTP 未开启")
+		}
+		port = c.Port
+	}
+	return boardhttp.BuildURLs(port, groupName), nil
+}
 
-	win.Show()
-	win.Focus()
+// OpenBoardInBrowser 用系统浏览器打开该分组看板（取第一条私网 URL）。
+func (s *System) OpenBoardInBrowser(groupName string) error {
+	urls, err := s.ListBoardURLs(groupName)
+	if err != nil {
+		return err
+	}
+	if len(urls) == 0 {
+		return fmt.Errorf("无可用内网地址")
+	}
+	return openSystemURL(urls[0])
+}
+
+func openSystemURL(target string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", target)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", target)
+	default:
+		cmd = exec.Command("xdg-open", target)
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			return fmt.Errorf("无法打开浏览器: %w", err)
+		}
+		return fmt.Errorf("无法打开浏览器: %s", msg)
+	}
 	return nil
 }
 
-// CloseBoardWindow 按 groupID 关闭对应看板窗；groupID 为空则无操作（须显式传分组）。
-func (s *System) CloseBoardWindow(groupID string) {
-	groupID = strings.TrimSpace(groupID)
-	if groupID == "" {
-		return
-	}
-	s.boardMu.Lock()
-	win := s.boardWindows[groupID]
-	s.boardMu.Unlock()
-	if win != nil {
-		win.Close()
-	}
-}
-
-// FocusMainWindow 显示并聚焦主窗口（看板双击主机后切回主窗操作）。
+// FocusMainWindow 显示并聚焦主窗口。
 // 从后台挂起恢复时先把 Dock 图标加回来（Regular），再出示窗口。
 func (s *System) FocusMainWindow() {
 	w := s.mainWindow

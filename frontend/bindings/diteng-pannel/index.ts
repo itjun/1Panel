@@ -40,6 +40,7 @@ export type {
     AddHostInput,
     AgentBatchResult,
     BackupData,
+    BoardHTTPConfig,
     CertPairCheck,
     ConfigDraft,
     ConnectionTestResult,

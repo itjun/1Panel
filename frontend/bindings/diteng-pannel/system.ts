@@ -35,14 +35,7 @@ export function CheckMenuPage(id: string): $CancellablePromise<$models.MenuCheck
 }
 
 /**
- * CloseBoardWindow 按 groupID 关闭对应看板窗；groupID 为空则无操作（须显式传分组）。
- */
-export function CloseBoardWindow(groupID: string): $CancellablePromise<void> {
-    return $Call.ByID(2474462435, groupID);
-}
-
-/**
- * FocusMainWindow 显示并聚焦主窗口（看板双击主机后切回主窗操作）。
+ * FocusMainWindow 显示并聚焦主窗口。
  * 从后台挂起恢复时先把 Dock 图标加回来（Regular），再出示窗口。
  */
 export function FocusMainWindow(): $CancellablePromise<void> {
@@ -57,11 +50,26 @@ export function GetAskBeforeQuit(): $CancellablePromise<boolean> {
 }
 
 /**
+ * GetBoardHTTPConfig 返回当前看板 HTTP 开关与端口。
+ */
+export function GetBoardHTTPConfig(): $CancellablePromise<$models.BoardHTTPConfig> {
+    return $Call.ByID(2985159029);
+}
+
+/**
  * GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）
  * 用于设置页本机信息。不依赖任何主机。
  */
 export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
     return $Call.ByID(772990904);
+}
+
+/**
+ * ListBoardURLs 返回该分组在本机私网 IP 上的看板链接。
+ * groupName 为空时只返回 http://ip:port 基址（设置页示例）。
+ */
+export function ListBoardURLs(groupName: string): $CancellablePromise<string[] | null> {
+    return $Call.ByID(745813447, groupName);
 }
 
 /**
@@ -95,11 +103,10 @@ export function NotifyHostConn($in: $models.HostConnNotify): $CancellablePromise
 }
 
 /**
- * OpenBoardWindow 打开或聚焦该分组的看板窗（普通尺寸，不立刻全屏、不调进程级 kiosk）。
- * 同分组重复调用只聚焦已有窗；不同分组各自一窗，互不影响。
+ * OpenBoardInBrowser 用系统浏览器打开该分组看板（取第一条私网 URL）。
  */
-export function OpenBoardWindow(groupID: string): $CancellablePromise<void> {
-    return $Call.ByID(1404223385, groupID);
+export function OpenBoardInBrowser(groupName: string): $CancellablePromise<void> {
+    return $Call.ByID(3206514446, groupName);
 }
 
 /**
@@ -115,6 +122,13 @@ export function OpenHostsInTerminal(hosts: string[] | null): $CancellablePromise
  */
 export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
     return $Call.ByID(1165354974, ask);
+}
+
+/**
+ * SetBoardHTTPConfig 保存并热重载看板 HTTP 监听。
+ */
+export function SetBoardHTTPConfig(cfg: $models.BoardHTTPConfig): $CancellablePromise<void> {
+    return $Call.ByID(919152713, cfg);
 }
 
 /**

@@ -85,12 +85,6 @@ function Shell() {
 
   useEffect(() => {
     const offs = [
-      Events.On("board-open-host", (ev: { data?: { name?: string } }) => {
-        const name = (ev?.data?.name || "").trim();
-        if (!name) return;
-        session.openHost(name, "monitor");
-        void api.focusMainWindow();
-      }),
       // 系统通知点进来：切到通知工作区，并把定位 id 交给 NotifyPage
       Events.On(
         "alert-open-host",
@@ -225,7 +219,8 @@ function WorkspaceBody({
   else if (session.workspace === "local") body = <LocalPage />;
   else if (session.workspace === "inspect") body = <InspectPage />;
   else if (session.activeHost) body = <HostWorkspace />;
-  else if (session.homeView === "group") body = <GroupPage />;
+  else if (session.homeView === "group")
+    body = <GroupPage onCreateHost={onCreateHost} />;
   else {
     body = (
       <div className="flex h-full min-h-0 flex-col overflow-auto">

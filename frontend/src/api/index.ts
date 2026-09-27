@@ -552,13 +552,18 @@ const apiImpl = {
   setThemeAppearance: async (mode: string): Promise<void> => {
     await System.SetThemeAppearance(mode);
   },
-  /** 打开或聚焦该分组的看板窗（普通尺寸，可再全屏） */
-  openBoardWindow: async (groupId: string): Promise<void> => {
-    await System.OpenBoardWindow(groupId);
+  /** 看板 HTTP 配置 */
+  getBoardHTTPConfig: (): Promise<main.BoardHTTPConfig> =>
+    must(System.GetBoardHTTPConfig()),
+  setBoardHTTPConfig: async (cfg: main.BoardHTTPConfig): Promise<void> => {
+    await System.SetBoardHTTPConfig(cfg);
   },
-  /** 按 groupId 关闭对应看板窗 */
-  closeBoardWindow: async (groupId: string): Promise<void> => {
-    await System.CloseBoardWindow(groupId);
+  /** 该分组看板内网链接列表 */
+  listBoardURLs: (groupName: string): Promise<string[]> =>
+    arr(System.ListBoardURLs(groupName)),
+  /** 系统浏览器打开看板 */
+  openBoardInBrowser: async (groupName: string): Promise<void> => {
+    await System.OpenBoardInBrowser(groupName);
   },
   /** 显示并聚焦主窗口 */
   focusMainWindow: async (): Promise<void> => {

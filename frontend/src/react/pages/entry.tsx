@@ -937,8 +937,11 @@ function GroupPage() {
           <Button variant={mode === "board" ? "primary" : "secondary"} onClick={() => choose("board")}>
             看板
           </Button>
-          <Button onClick={() => void api.openBoardWindow(session.activeGroupId || UNGROUPED_ID)}>
-            弹出看板
+          <Button
+            disabled={(session.activeGroupId || UNGROUPED_ID) === UNGROUPED_ID}
+            onClick={() => void api.openBoardInBrowser(session.activeGroupId || "").catch(() => {})}
+          >
+            浏览器打开
           </Button>
           {mode === "table" && hasCustomLayout ? (
             <Button onClick={resetLayout}>恢复默认列布局</Button>

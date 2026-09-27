@@ -10,8 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { api, type agentcli, type main, type monitor, type sshconfig } from "@/api";
-import { BoardEmbed } from "@/react/components/board/board-embed";
+import { api, type agentcli, type main } from "@/api";
 import {
   InteractiveDataTable,
   type InteractiveColumn,
@@ -26,12 +25,6 @@ import {
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice, Page } from "@/react/components/page";
-import {
-  updateSettings,
-  useSettings,
-  type AlertContentKind,
-  type NotifyContentField,
-} from "@/react/state/settings";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
 import {
   isCpuAlert,
@@ -39,25 +32,14 @@ import {
   isLoadAlert,
   isMemAlert,
   summarizeDisks,
-  type ResourceAlertKind,
 } from "@/utils/alerts";
-import {
-  buildBoardAppSubItems,
-  type BoardHostCard,
-  type BoardHostTrend,
-} from "@/utils/boardModel";
-import { formatErr, formatMemCapacity, isAgentMissing } from "@/utils/format";
+import { copyText } from "@/utils/clipboard";
+import { formatErr, formatMemCapacity } from "@/utils/format";
 import { sortRowsByGroupValue, type GroupSortValue } from "@/utils/groupTableState";
 
-const VIEW_MODE_KEY = "1pannel-group-view-mode";
 const COL_WIDTHS_KEY = "1pannel-group-col-widths-v4";
 const COL_ORDER_KEY = "1pannel-group-col-order-v1";
 const TABLE_SORT_KEY = "1pannel-group-table-sort-v1";
-
-const POLL_MS = 3000;
-const RANGE_POLL_MS = 30000;
-const TREND_MAX_POINTS = 60;
-const TREND_WINDOW_SEC = 3600;
 
 const GROUP_NAME_RE = /^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
@@ -162,19 +144,6 @@ type GroupRow = {
   loadAlert: boolean;
 };
 
-type HostSnap = {
-  loading: boolean;
-  overview?: monitor.Overview;
-  disks?: monitor.DiskInfo[];
-  error?: string;
-  errorAt?: number;
-  updatedAt?: number;
-};
-
-function readViewMode(): "table" | "board" {
-  return localStorage.getItem(VIEW_MODE_KEY) === "board" ? "board" : "table";
-}
-
 function isGroupColumnKey(value: unknown): value is GroupColumnKey {
   return typeof value === "string" && (GROUP_COL_KEYS as readonly string[]).includes(value);
 }
@@ -276,93 +245,6 @@ function osVersion(osRelease: string): string {
   return text;
 }
 
-function errTimeSuffix(at?: number): string {
-  if (!at) return "";
-  const d = new Date(at);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `（${hh}:${mm}）`;
-}
-
-function emptyTrend(): BoardHostTrend {
-  return { cpu: [], mem: [] };
-}
-
-/** 点数过多时均匀抽稀到约 maxN */
-function downsample(values: number[], maxN: number): number[] {
-  if (values.length <= maxN) return values;
-  if (maxN < 2) return values.slice(0, maxN);
-  const out: number[] = [];
-  const last = values.length - 1;
-  for (let i = 0; i < maxN; i++) {
-    out.push(values[Math.round((i / (maxN - 1)) * last)]);
-  }
-  return out;
-}
-
-function hasAppNotifyConfig(
-  hostAppNotifySubs: Record<string, string[]>,
-  host: string,
-): boolean {
-  const name = (host || "").trim();
-  if (!name) return false;
-  return Object.prototype.hasOwnProperty.call(hostAppNotifySubs, name);
-}
-
-function normalizeStringMap(
-  raw: { [_ in string]?: string[] | null } | null | undefined,
-): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
-  if (!raw) return out;
-  for (const [k, v] of Object.entries(raw)) {
-    out[k] = Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
-  }
-  return out;
-}
-
-function normalizeBoolMap(
-  raw: { [_ in string]?: boolean } | null | undefined,
-): Record<string, boolean> {
-  const out: Record<string, boolean> = {};
-  if (!raw) return out;
-  for (const [k, v] of Object.entries(raw)) {
-    if (v === true) out[k] = true;
-  }
-  return out;
-}
-
-async function hydrateNotifySubsFromDisk() {
-  try {
-    const d = await api.getNotifySubs();
-    if (!d.fromDisk) return;
-    const patch: Parameters<typeof updateSettings>[0] = {
-      notifyEnabled: !!d.notifyEnabled,
-      wecomWebhook: typeof d.wecomWebhook === "string" ? d.wecomWebhook : "",
-      systemNotifyEnabled: d.systemNotifyEnabled !== false,
-      inAppNotifyEnabled: d.inAppNotifyEnabled !== false,
-      notifyRecoverEnabled: d.notifyRecoverEnabled !== false,
-      hostAppNotifySubs: normalizeStringMap(d.hostAppNotifySubs),
-      hostCertNotifySubs: normalizeBoolMap(d.hostCertNotifySubs),
-    };
-    if (Array.isArray(d.alertContentKinds)) {
-      patch.alertContentKinds = d.alertContentKinds as AlertContentKind[];
-    }
-    if (Array.isArray(d.notifyContentFields)) {
-      patch.notifyContentFields = d.notifyContentFields as NotifyContentField[];
-    }
-    if (d.hostResourceNotifySubs) {
-      const res: Record<string, ResourceAlertKind[]> = {};
-      for (const [k, v] of Object.entries(d.hostResourceNotifySubs)) {
-        res[k] = Array.isArray(v) ? (v as ResourceAlertKind[]) : [];
-      }
-      patch.hostResourceNotifySubs = res;
-    }
-    updateSettings(patch);
-  } catch {
-    /* 磁盘订阅读失败时沿用 localStorage */
-  }
-}
-
 function batchRowLabel(row: BatchRow): string {
   if (row.state === "pending") return "排队中";
   if (row.state === "done") {
@@ -401,14 +283,17 @@ function groupRowSortValue(row: GroupRow, key: GroupColumnKey): GroupSortValue {
 const INPUT_CLASS =
   "h-9 w-full rounded-[4px] border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-accent";
 
-export function GroupPage() {
+export function GroupPage({
+  onCreateHost,
+}: {
+  onCreateHost?: (groupId?: string) => void;
+} = {}) {
   const session = useSession();
-  const settings = useSettings();
   const groupId = session.activeGroupId || UNGROUPED_ID;
   const canEditGroup = groupId !== UNGROUPED_ID;
   const groupLabel = session.groupName(groupId);
   const hosts = session.hostsOf(groupId);
-  /** 稳定键：避免 hosts 数组每帧新引用导致看板 effect 空转 */
+  /** 稳定键：避免 hosts 数组每帧新引用导致 effect 空转 */
   const hostNamesKey = useMemo(
     () => hosts.map((h) => h.name).join("\0"),
     [hosts],
@@ -419,43 +304,24 @@ export function GroupPage() {
     return (g?.boardTitle || "").trim();
   }, [canEditGroup, groupId, session.groups]);
 
-  const [mode, setMode] = useState<"table" | "board">(readViewMode);
   const [columnOrder, setColumnOrder] = useState<GroupColumnKey[]>(readColumnOrder);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(readColWidths);
   const [sort, setSort] = useState(readTableSort);
   const [refreshing, setRefreshing] = useState(false);
-  const [boardOpening, setBoardOpening] = useState(false);
+  const [boardBusy, setBoardBusy] = useState(false);
+  const [boardMsg, setBoardMsg] = useState("");
 
-  // ---------- Agent 状态（表格徽章） ----------
   const [agentStatuses, setAgentStatuses] = useState<Record<string, agentcli.Status>>({});
   const [latestAgentVersion, setLatestAgentVersion] = useState("");
   const latestAgentVersionRef = useRef("");
   latestAgentVersionRef.current = latestAgentVersion;
 
-  // ---------- 看板采集 ----------
-  const [hostStates, setHostStates] = useState<Record<string, HostSnap>>({});
-  const [trends, setTrends] = useState<Record<string, BoardHostTrend>>({});
-  const [instanceCounts, setInstanceCounts] = useState<Record<string, Record<string, number>>>({});
-  const [instanceCountsKnown, setInstanceCountsKnown] = useState<Record<string, boolean>>({});
-  const [instanceLoading, setInstanceLoading] = useState<Record<string, boolean>>({});
-
   const aliveRef = useRef(true);
   const groupIdRef = useRef(groupId);
-  const modeRef = useRef(mode);
   const hostsRef = useRef(hosts);
-  const hostStatesRef = useRef(hostStates);
-  const settingsRef = useRef(settings);
-  const inFlight = useRef(new Set<string>());
-  const rangeInFlight = useRef(new Set<string>());
-  const instInFlight = useRef(new Set<string>());
-
   groupIdRef.current = groupId;
-  modeRef.current = mode;
   hostsRef.current = hosts;
-  hostStatesRef.current = hostStates;
-  settingsRef.current = settings;
 
-  // ---------- 批量安装 ----------
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [batchDone, setBatchDone] = useState(false);
@@ -464,7 +330,6 @@ export function GroupPage() {
   const batchRowsRef = useRef(batchRows);
   batchRowsRef.current = batchRows;
 
-  // ---------- 分组设置 ----------
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsName, setSettingsName] = useState("");
@@ -510,164 +375,10 @@ export function GroupPage() {
     }
   }, []);
 
-  const loadRange = useCallback(async (name: string) => {
-    if (modeRef.current !== "board") return;
-    if (rangeInFlight.current.has(name) || groupIdRef.current !== groupId) return;
-    rangeInFlight.current.add(name);
-    try {
-      const now = Math.floor(Date.now() / 1000);
-      const result = await api.agentRange(name, now - TREND_WINDOW_SEC, now, "auto");
-      if (!aliveRef.current || groupIdRef.current !== groupId) return;
-      const points = result.points || [];
-      const memTotal = hostStatesRef.current[name]?.overview?.memTotal || 0;
-      const cpuRaw: number[] = [];
-      const memRaw: number[] = [];
-      for (const point of points) {
-        cpuRaw.push(Number(point.cpuPercent) || 0);
-        if (memTotal > 0) {
-          memRaw.push(((Number(point.memUsed) || 0) / memTotal) * 100);
-        }
-      }
-      setTrends((prev) => ({
-        ...prev,
-        [name]: {
-          cpu: downsample(cpuRaw, TREND_MAX_POINTS),
-          mem: memTotal > 0 ? downsample(memRaw, TREND_MAX_POINTS) : [],
-        },
-      }));
-    } catch {
-      if (aliveRef.current) {
-        setTrends((prev) => ({ ...prev, [name]: emptyTrend() }));
-      }
-    } finally {
-      rangeInFlight.current.delete(name);
-    }
-  }, [groupId]);
-
-  const loadInstances = useCallback(async (name: string) => {
-    if (modeRef.current !== "board") return;
-    if (!hasAppNotifyConfig(settingsRef.current.hostAppNotifySubs, name)) return;
-    if (instInFlight.current.has(name) || groupIdRef.current !== groupId) return;
-    const prev = hostStatesRef.current[name];
-    if (prev?.error && isAgentMissing(prev.error)) return;
-    instInFlight.current.add(name);
-    setInstanceLoading((m) => ({ ...m, [name]: true }));
-    try {
-      const rows = await api.agentWatchInstances(name);
-      if (!aliveRef.current || groupIdRef.current !== groupId) return;
-      const counts: Record<string, number> = {};
-      for (const row of rows || []) {
-        const service = (row.service || "").trim();
-        if (!service) continue;
-        counts[service] = (counts[service] || 0) + 1;
-      }
-      setInstanceCounts((m) => ({ ...m, [name]: counts }));
-      setInstanceCountsKnown((m) => ({ ...m, [name]: true }));
-    } catch {
-      /* 保留上次成功计数 */
-    } finally {
-      instInFlight.current.delete(name);
-      setInstanceLoading((m) => ({ ...m, [name]: false }));
-    }
-  }, [groupId]);
-
-  const loadOne = useCallback(
-    async (name: string, showSkeleton: boolean, force = false) => {
-      if (inFlight.current.has(name) || groupIdRef.current !== groupId) return;
-      const prev = hostStatesRef.current[name];
-      if (!force && prev?.error && isAgentMissing(prev.error)) return;
-      inFlight.current.add(name);
-      if (showSkeleton) {
-        setHostStates((m) => ({ ...m, [name]: { loading: true } }));
-      }
-      try {
-        const ov = await api.collectOverview(name);
-        let disks: monitor.DiskInfo[] = [];
-        try {
-          disks = (await api.collectDisks(name)) || [];
-        } catch {
-          disks = [];
-        }
-        if (!aliveRef.current || groupIdRef.current !== groupId) return;
-        setHostStates((m) => ({
-          ...m,
-          [name]: {
-            loading: false,
-            overview: ov,
-            disks,
-            updatedAt: Date.now(),
-          },
-        }));
-        if (modeRef.current === "board") void loadRange(name);
-      } catch (e) {
-        if (!aliveRef.current || groupIdRef.current !== groupId) return;
-        setHostStates((m) => ({
-          ...m,
-          [name]: {
-            loading: false,
-            error: formatErr(e),
-            errorAt: Date.now(),
-          },
-        }));
-      } finally {
-        inFlight.current.delete(name);
-      }
-    },
-    [groupId, loadRange],
-  );
-
-  // 切组 / 主机列表变化：重置看板状态并补采集
   useEffect(() => {
     aliveRef.current = true;
-    const list = hostsRef.current;
-    setHostStates((prev) => {
-      const fresh: Record<string, HostSnap> = {};
-      for (const h of list) {
-        fresh[h.name] = prev[h.name] ?? { loading: true };
-      }
-      return fresh;
-    });
-    setTrends((prev) => {
-      const fresh: Record<string, BoardHostTrend> = {};
-      for (const h of list) {
-        fresh[h.name] = prev[h.name] ?? emptyTrend();
-      }
-      return fresh;
-    });
     void loadAgentStatuses();
-    if (mode === "board") {
-      void hydrateNotifySubsFromDisk();
-      for (const h of list) {
-        const had = hostStatesRef.current[h.name]?.overview;
-        void loadOne(h.name, !had);
-        void loadRange(h.name);
-        void loadInstances(h.name);
-      }
-    }
-  }, [groupId, hostNamesKey, mode, loadAgentStatuses, loadOne, loadRange, loadInstances]);
-
-  // 看板轮询
-  useEffect(() => {
-    if (mode !== "board") return;
-    const poll = setInterval(() => {
-      if (!aliveRef.current) return;
-      for (const h of hostsRef.current) {
-        void loadOne(h.name, false);
-        void loadInstances(h.name);
-      }
-    }, POLL_MS);
-    const range = setInterval(() => {
-      if (!aliveRef.current) return;
-      void hydrateNotifySubsFromDisk();
-      for (const h of hostsRef.current) {
-        void loadRange(h.name);
-      }
-    }, RANGE_POLL_MS);
-    return () => {
-      clearInterval(poll);
-      clearInterval(range);
-    };
-  }, [mode, loadOne, loadRange, loadInstances]);
+  }, [groupId, hostNamesKey, loadAgentStatuses]);
 
   useEffect(() => {
     return () => {
@@ -721,7 +432,7 @@ export function GroupPage() {
     return map;
   }, [batchRows]);
 
-  const showBatchInTable = batchBusy || batchDialogOpen;
+  const showBatchInTable = batchBusy || (batchDialogOpen && !batchDone);
 
   const columns: InteractiveColumn<GroupRow>[] = useMemo(
     () =>
@@ -731,15 +442,14 @@ export function GroupPage() {
         width: GROUP_DEFAULT_W[key],
         minWidth: GROUP_MIN_W[key],
         sortable: key !== "index",
-        align: key === "index" || key === "load" ? "center" : "left",
-        wrap: key === "load" || key === "cpu" || key === "mem" || key === "disk",
-        render: (row, index) => {
+        wrap: key === "agent" || key === "load" || key === "cpu" || key === "mem" || key === "disk",
+        render: (row: GroupRow, index: number) => {
           if (key === "index") return index + 1;
           if (key === "host") return row.name;
           if (key === "addr") return row.hostName || "—";
           if (key === "agent") {
-            const progress = showBatchInTable ? batchRowMap.get(row.name) : undefined;
-            if (progress) {
+            const progress = batchRowMap.get(row.name);
+            if (showBatchInTable && progress) {
               return (
                 <div className="flex min-w-0 flex-col gap-1">
                   <span
@@ -793,43 +503,6 @@ export function GroupPage() {
     [agentStatuses, batchRowMap, latestAgentVersion, showBatchInTable],
   );
 
-  const boardCards = useMemo(() => {
-    const out: Record<string, BoardHostCard> = {};
-    for (const h of hosts) {
-      const s = hostStates[h.name] || { loading: true };
-      const configured = hasAppNotifyConfig(settings.hostAppNotifySubs, h.name);
-      const subs = configured ? settings.hostAppNotifySubs[h.name] || [] : null;
-      out[h.name] = {
-        loading: s.loading,
-        overview: s.overview,
-        disks: s.disks,
-        error: s.error ? s.error + errTimeSuffix(s.errorAt) : undefined,
-        appSubItems: configured
-          ? buildBoardAppSubItems(
-              subs,
-              instanceCounts[h.name],
-              instanceCountsKnown[h.name] === true,
-            )
-          : null,
-        appSubLoading: configured && instanceLoading[h.name] === true,
-        updatedAt: s.updatedAt,
-      };
-    }
-    return out;
-  }, [
-    hosts,
-    hostStates,
-    settings.hostAppNotifySubs,
-    instanceCounts,
-    instanceCountsKnown,
-    instanceLoading,
-  ]);
-
-  function choose(next: "table" | "board") {
-    setMode(next);
-    localStorage.setItem(VIEW_MODE_KEY, next);
-  }
-
   function persistOrder(next: string[]) {
     const filtered = next.filter(isGroupColumnKey);
     setColumnOrder(filtered);
@@ -872,26 +545,38 @@ export function GroupPage() {
     try {
       await overview.refetch();
       await loadAgentStatuses();
-      if (mode === "board") {
-        await Promise.allSettled(hosts.map((h) => loadOne(h.name, false, true)));
-        for (const h of hosts) {
-          void loadInstances(h.name);
-          void loadRange(h.name);
-        }
-      }
     } finally {
       setRefreshing(false);
     }
   }
 
-  async function openBoardWindow() {
-    setBoardOpening(true);
+  async function copyBoardLink() {
+    if (!canEditGroup) return;
+    setBoardBusy(true);
+    setBoardMsg("");
     try {
-      await api.openBoardWindow(groupId);
+      const urls = await api.listBoardURLs(groupId);
+      const url = (urls || [])[0];
+      if (!url) throw new Error("无可用内网地址");
+      await copyText(url);
+      setBoardMsg("看板链接已复制");
     } catch (err) {
-      console.error(formatErr(err));
+      setBoardMsg(`复制失败: ${formatErr(err)}`);
     } finally {
-      setBoardOpening(false);
+      setBoardBusy(false);
+    }
+  }
+
+  async function openBoardBrowser() {
+    if (!canEditGroup) return;
+    setBoardBusy(true);
+    setBoardMsg("");
+    try {
+      await api.openBoardInBrowser(groupId);
+    } catch (err) {
+      setBoardMsg(`打开失败: ${formatErr(err)}`);
+    } finally {
+      setBoardBusy(false);
     }
   }
 
@@ -970,23 +655,6 @@ export function GroupPage() {
     });
   }
 
-  function resumeHostAfterAgentReady(name: string) {
-    setHostStates((prev) => {
-      const cur = prev[name];
-      if (cur?.error && isAgentMissing(cur.error)) {
-        return { ...prev, [name]: { loading: false } };
-      }
-      if (cur?.error) {
-        return {
-          ...prev,
-          [name]: { ...cur, error: undefined, errorAt: undefined },
-        };
-      }
-      return prev;
-    });
-    void loadOne(name, false, true);
-  }
-
   async function runBatchInstall() {
     setBatchConfirmOpen(false);
     if (batchBusy) return;
@@ -1050,10 +718,6 @@ export function GroupPage() {
       });
       setBatchDone(true);
       await loadAgentStatuses();
-      for (const r of results) {
-        if (r.ok) resumeHostAfterAgentReady(r.host);
-      }
-      for (const name of alreadyOk) resumeHostAfterAgentReady(name);
       void overview.refetch();
     } catch (e) {
       setBatchDone(true);
@@ -1068,6 +732,10 @@ export function GroupPage() {
       setBatchBusy(false);
       off?.();
     }
+  }
+
+  function openAddHost() {
+    onCreateHost?.(canEditGroup ? groupId : undefined);
   }
 
   const batchSummaryText = useMemo(() => {
@@ -1087,19 +755,19 @@ export function GroupPage() {
   return (
     <Page
       title={groupLabel}
-      flush={mode === "table" && hosts.length > 0}
-      dark={mode === "board" && hosts.length > 0}
+      flush={hosts.length > 0}
       actions={
         <>
-          <Button variant={mode === "table" ? "primary" : "secondary"} onClick={() => choose("table")}>
-            表格
-          </Button>
-          <Button variant={mode === "board" ? "primary" : "secondary"} onClick={() => choose("board")}>
-            看板
-          </Button>
-          <Button disabled={boardOpening} onClick={() => void openBoardWindow()}>
-            {boardOpening ? "打开中…" : "弹出看板"}
-          </Button>
+          {canEditGroup ? (
+            <>
+              <Button disabled={boardBusy} onClick={() => void copyBoardLink()}>
+                复制看板链接
+              </Button>
+              <Button disabled={boardBusy} onClick={() => void openBoardBrowser()}>
+                浏览器打开
+              </Button>
+            </>
+          ) : null}
           <Button
             disabled={!hosts.length || batchBusy}
             onClick={() => setBatchConfirmOpen(true)}
@@ -1110,22 +778,30 @@ export function GroupPage() {
           <Button disabled={refreshing} onClick={() => void refreshAll()}>
             {refreshing ? "刷新中…" : "刷新"}
           </Button>
-          {mode === "table" && hasCustomLayout ? (
-            <Button onClick={resetLayout}>恢复默认列</Button>
-          ) : null}
+          {hasCustomLayout ? <Button onClick={resetLayout}>恢复默认列</Button> : null}
           {canEditGroup ? (
             <Button onClick={openGroupSettings} title="分组设置">
               分组设置
             </Button>
           ) : null}
+          <Button variant="primary" onClick={openAddHost}>
+            添加主机
+          </Button>
         </>
       }
     >
-      {!hosts.length ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-          <p className="text-sm text-muted">暂无主机，请到主机页添加</p>
+      {boardMsg ? (
+        <div className="px-4 pt-3">
+          <Notice text={boardMsg} />
         </div>
-      ) : mode === "table" ? (
+      ) : null}
+      {!hosts.length ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+          <Button variant="primary" onClick={openAddHost}>
+            添加主机
+          </Button>
+        </div>
+      ) : (
         <InteractiveDataTable
           columns={columns}
           data={sortedRows}
@@ -1139,18 +815,8 @@ export function GroupPage() {
           onRowDoubleClick={(row) => session.openHost(row.name, "overview")}
           getRowId={(row) => row.name}
         />
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <BoardEmbed
-            hosts={hosts}
-            cards={boardCards}
-            trends={trends}
-            onOpenHost={(name) => session.openHost(name, "overview")}
-          />
-        </div>
       )}
 
-      {/* 批量安装确认 */}
       <Dialog open={batchConfirmOpen} onOpenChange={setBatchConfirmOpen}>
         <DialogContent className="w-[min(480px,calc(100%-32px))]">
           <DialogTitle>安装 Agent</DialogTitle>
@@ -1166,7 +832,6 @@ export function GroupPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 批量安装进度 */}
       <Dialog
         open={batchDialogOpen}
         onOpenChange={(open) => {
@@ -1196,13 +861,7 @@ export function GroupPage() {
             {batchRows.map((r) => (
               <div
                 key={r.host}
-                className={
-                  r.state === "error"
-                    ? "flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
-                    : r.state === "running"
-                      ? "flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
-                      : "flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
-                }
+                className="flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
               >
                 <div className="mt-0.5 w-5 shrink-0 text-center text-sm" aria-hidden="true">
                   {r.state === "running" ? "…" : r.state === "done" ? "✓" : r.state === "error" ? "✕" : "·"}
@@ -1248,7 +907,6 @@ export function GroupPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 分组设置 */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent>
           <DialogTitle>分组设置</DialogTitle>

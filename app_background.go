@@ -116,36 +116,15 @@ func (a *App) showQuitConfirmWails(askAgain bool) (macui.QuitConfirmAction, bool
 	return action, askAgain
 }
 
-// hideToBackground 隐藏主窗与看板，不销毁 WebView，前端轮询继续跑。
+// hideToBackground 隐藏主窗，不销毁 WebView，前端轮询与看板 HTTP 继续跑。
 // macOS：切到 Accessory，Dock / Cmd-Tab 不显示，菜单栏 extra 保留。
 // Windows：从任务栏拿掉，只留右下角托盘；右键「退出应用」才真正退出。
 func (a *App) hideToBackground() {
-	wins := a.allWindows()
-	for _, w := range wins {
-		w.Hide()
-		winui.SetHiddenOnTaskbar(w, true)
+	if a.mainWindow != nil {
+		a.mainWindow.Hide()
+		winui.SetHiddenOnTaskbar(a.mainWindow, true)
 	}
 	macui.SetDockIconVisible(false)
-}
-
-func (a *App) allWindows() []*application.WebviewWindow {
-	n := 0
-	if a.mainWindow != nil {
-		n++
-	}
-	a.boardMu.Lock()
-	boards := make([]*application.WebviewWindow, 0, len(a.boardWindows))
-	for _, w := range a.boardWindows {
-		if w != nil {
-			boards = append(boards, w)
-		}
-	}
-	a.boardMu.Unlock()
-	out := make([]*application.WebviewWindow, 0, n+len(boards))
-	if a.mainWindow != nil {
-		out = append(out, a.mainWindow)
-	}
-	return append(out, boards...)
 }
 
 func (a *App) quitForReal() {

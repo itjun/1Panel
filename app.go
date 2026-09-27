@@ -14,6 +14,7 @@ import (
 	"diteng-pannel/internal/agentcli"
 	"diteng-pannel/internal/agentinstall"
 	"diteng-pannel/internal/alerthistory"
+	"diteng-pannel/internal/boardhttp"
 	"diteng-pannel/internal/certnotify"
 	"diteng-pannel/internal/desktop"
 	"diteng-pannel/internal/groups"
@@ -63,8 +64,7 @@ type App struct {
 	mainWindow *application.WebviewWindow
 	notifier   *notifications.NotificationService
 
-	boardMu      sync.Mutex
-	boardWindows map[string]*application.WebviewWindow // 看板独立窗：key=groupID，Name=board-{groupID}
+	boardHTTP *boardhttp.Server // 内网只读看板 HTTP 网关
 
 	themeAppearance macui.AppearanceMode // 固定 light
 
@@ -99,7 +99,6 @@ func NewApp() *application.App {
 	core := &App{
 		sshMgr:        sshMgr,
 		installer:     agentinstall.New(sshMgr),
-		boardWindows:  make(map[string]*application.WebviewWindow),
 		panelPreviews: make(map[string]panelConfigPreviewRecord),
 		notifier:      ns,
 	}
@@ -217,6 +216,7 @@ func NewApp() *application.App {
 		}()
 		core.startAlertPollKeepalive()
 		core.startMenuCheckWatcher()
+		core.startBoardHTTP()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
 		core.enforceMinSize()
@@ -340,6 +340,9 @@ func (a *App) shutdown() {
 	if a.panelConfigStop != nil {
 		close(a.panelConfigStop)
 		a.panelConfigStop = nil
+	}
+	if a.boardHTTP != nil {
+		a.boardHTTP.Stop()
 	}
 	if a.mainWindow != nil {
 		a.saveMainWindowGeom()

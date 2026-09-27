@@ -77,6 +77,14 @@ export interface BackupData {
 }
 
 /**
+ * BoardHTTPConfig 看板 HTTP 网关配置（供前端设置页）。
+ */
+export interface BoardHTTPConfig {
+    "enabled": boolean;
+    "port": number;
+}
+
+/**
  * CertPairCheck 本地「证书 + 私钥」配对校验结果（不上传、不触网）
  */
 export interface CertPairCheck {

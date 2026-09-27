@@ -907,16 +907,36 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             }}
           />
           {groupMenu.id !== UNGROUPED_ID ? (
-            <MenuItem
-              label="打开看板"
-              onClick={() => {
-                const id = groupMenu.id;
-                closeAllMenus();
-                void api.openBoardWindow(id).catch((err) => {
-                  showError(`打开看板失败: ${formatErr(err)}`);
-                });
-              }}
-            />
+            <>
+              <MenuItem
+                label="浏览器打开看板"
+                onClick={() => {
+                  const id = groupMenu.id;
+                  closeAllMenus();
+                  void api.openBoardInBrowser(id).catch((err) => {
+                    showError(`打开看板失败: ${formatErr(err)}`);
+                  });
+                }}
+              />
+              <MenuItem
+                label="复制看板链接"
+                onClick={() => {
+                  const id = groupMenu.id;
+                  closeAllMenus();
+                  void api
+                    .listBoardURLs(id)
+                    .then(async (urls) => {
+                      const url = (urls || [])[0];
+                      if (!url) throw new Error("无可用内网地址");
+                      await copyText(url);
+                      showError("看板链接已复制");
+                    })
+                    .catch((err) => {
+                      showError(`复制失败: ${formatErr(err)}`);
+                    });
+                }}
+              />
+            </>
           ) : null}
           {groupMenu.id !== UNGROUPED_ID ? (
             <>
