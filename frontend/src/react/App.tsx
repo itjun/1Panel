@@ -46,11 +46,42 @@ function Shell() {
   const isMac = isMacPlatform();
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
-  const editOpen = !session.settingsOpen && !!editing;
+  const createOpen = !session.settingsOpen && !!creating;
+  const editOpen = !session.settingsOpen && !!editing && !creating;
+  const lastCreateRef = useRef(creating);
+  if (creating) lastCreateRef.current = creating;
   const lastEditRef = useRef(editing);
   if (editing) lastEditRef.current = editing;
+  const createPresence = usePresence(createOpen, MOTION_MS.slow);
   const editPresence = usePresence(editOpen, MOTION_MS.slow);
+  const createState = creating ?? lastCreateRef.current;
   const editHost = editing ?? lastEditRef.current;
+
+  function openCreateHost(groupId?: string) {
+    session.setEditingHost("");
+    setCreating({ kind: "host", groupId });
+  }
+
+  function openCreateGroup() {
+    session.setEditingHost("");
+    setCreating({ kind: "group" });
+  }
+
+  function closeCreate() {
+    setCreating(null);
+  }
+
+  async function finishCreate() {
+    setCreating(null);
+    await session.refresh();
+  }
+
+  // 编辑打开时关掉创建抽屉，保持互斥
+  useEffect(() => {
+    if (session.editingHost && creating) {
+      setCreating(null);
+    }
+  }, [session.editingHost, creating]);
 
   useEffect(() => {
     const offs = [
@@ -101,11 +132,13 @@ function Shell() {
     ? undefined
     : ({ "--window-chrome-inset": windowChromeInset(isMac) } as CSSProperties);
 
+  const dockMounted = createPresence.mounted || editPresence.mounted;
+
   return (
     <div
       className="react-root relative flex h-full min-h-0"
       data-sidebar={sidebar.open ? "open" : "closed"}
-      data-edit={editPresence.mounted ? "open" : undefined}
+      data-edit={dockMounted ? "open" : undefined}
       style={chromeInset}
     >
       {sidebar.open ? <WorkspaceRail /> : null}
@@ -116,18 +149,25 @@ function Shell() {
               <SettingsPage />
             </div>
           ) : (
-            <WorkspaceBody
-              creating={creating}
-              onCreateHost={(groupId) => setCreating({ kind: "host", groupId })}
-              onCreateGroup={() => setCreating({ kind: "group" })}
-              onCloseCreate={() => setCreating(null)}
-              onCreateDone={async () => {
-                setCreating(null);
-                await session.refresh();
-              }}
-            />
+            <WorkspaceBody onCreateHost={openCreateHost} onCreateGroup={openCreateGroup} />
           )}
         </div>
+        {createPresence.mounted && createState ? (
+          <aside
+            className="edit-dock motion-drawer-panel flex flex-col"
+            data-open={createPresence.visible ? "true" : "false"}
+          >
+            <HostCreateForm
+              key={`${createState.kind}:${createState.groupId || ""}`}
+              kind={createState.kind}
+              defaultGroupId={createState.groupId}
+              onClose={closeCreate}
+              onDone={() => {
+                void finishCreate();
+              }}
+            />
+          </aside>
+        ) : null}
         {editPresence.mounted && editHost ? (
           <aside
             className="edit-dock motion-drawer-panel flex flex-col"
@@ -171,17 +211,11 @@ function workspaceKey(session: ReturnType<typeof useSession>): string {
 }
 
 function WorkspaceBody({
-  creating,
   onCreateHost,
   onCreateGroup,
-  onCloseCreate,
-  onCreateDone,
 }: {
-  creating: CreatingState | null;
   onCreateHost: (groupId?: string) => void;
   onCreateGroup: () => void;
-  onCloseCreate: () => void;
-  onCreateDone: () => Promise<void>;
 }) {
   const session = useSession();
   const key = workspaceKey(session);
@@ -195,18 +229,6 @@ function WorkspaceBody({
   else {
     body = (
       <div className="flex h-full min-h-0 flex-col overflow-auto">
-        {creating ? (
-          <div className="shell-top px-4 pt-4 md:px-6">
-            <HostCreateForm
-              kind={creating.kind}
-              defaultGroupId={creating.groupId}
-              onClose={onCloseCreate}
-              onDone={() => {
-                void onCreateDone();
-              }}
-            />
-          </div>
-        ) : null}
         <HostHomePage onCreateHost={onCreateHost} onCreateGroup={onCreateGroup} />
       </div>
     );
