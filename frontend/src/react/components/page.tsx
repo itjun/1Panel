@@ -28,7 +28,7 @@ export function Page({
       <div
         className={cn(
           "content-float flex min-w-0 flex-1 flex-col",
-          dark ? "bg-graphite text-graphite-text" : "bg-canvas",
+          dark && "bg-graphite text-graphite-text",
           !flush && !dark && "gap-3 p-4",
         )}
       >

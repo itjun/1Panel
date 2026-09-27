@@ -122,43 +122,26 @@
   background-color: rgba(248, 248, 252, 0.72);
 }
 
-/* 非 macOS 没有磨砂。底色要比画布深一档，8px 缝才看得见。 */
+/* 非 macOS 没有磨砂，用略深的实色当窗口底。 */
 html[data-platform="other"] .glass-chrome {
   background-color: #e7e7e7;
 }
 
-/* 顶栏以下的内容体。边距露在磨砂上，圆角只加在这一张面板。
-   flex 子项用 margin 时，自由空间会先扣掉边距，再把剩余高度分给面板。 */
+/* 顶栏以下的内容体：透明贴边，白卡片直接落在 glass-chrome / 磨砂上。 */
 .content-float {
   flex: 1 1 0%;
-  /* 顶上不留缝，通栏底边停在原来的 40px；左右下仍是 8px。 */
-  margin: 0 8px 8px;
   min-width: 0;
   min-height: 0;
-  border-radius: 12px;
   overflow: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-}
-
-/* 编辑主机打开时，面板右缘接到表单上，合成一个圆角。 */
-.react-root[data-edit="open"] .content-float {
-  margin-right: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
 }
 
 .edit-dock {
   width: 380px;
   flex-shrink: 0;
   margin-top: 40px;
-  margin-right: 8px;
-  margin-bottom: 8px;
   min-height: 0;
   overflow: hidden;
   border-left: 1px solid var(--color-line);
-  border-radius: 0 12px 12px 0;
-  background-color: var(--color-canvas);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
 /* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。

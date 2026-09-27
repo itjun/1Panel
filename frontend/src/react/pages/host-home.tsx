@@ -663,7 +663,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         </div>
       </div>
 
-      <div className="content-float flex min-w-0 flex-1 flex-col bg-canvas">
+      <div className="content-float flex min-w-0 flex-1 flex-col">
       {(toast || error) && (
         <div className="px-4 pt-2 md:px-6">
           {error ? <Notice text={error} /> : null}

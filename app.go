@@ -176,7 +176,7 @@ func NewApp() *application.App {
 		},
 		URL: "/",
 	}
-	// macOS 主窗口用磨砂底，侧栏透出这层；内容区自己铺实色。
+	// macOS 主窗口用磨砂底，侧栏与内容区都透出这层；白卡片直接落在磨砂上。
 	// Windows/Linux：无系统标题栏/菜单，窗口按钮画在应用内标题栏。
 	// macOS 继续隐藏系统标题栏、保留左上红绿灯（不走 Frameless，否则红绿灯会被藏掉）。
 	if goruntime.GOOS != "darwin" {
