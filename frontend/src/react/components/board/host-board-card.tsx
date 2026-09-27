@@ -64,7 +64,7 @@ export function HostBoardCard({
   appSubLoading?: boolean;
   updatedAt?: number;
   density?: BoardCardDensity;
-  onOpen: (name: string) => void;
+  onOpen?: (name: string) => void;
 }) {
   const health = boardHealthOf({
     loading,
@@ -124,13 +124,17 @@ export function HostBoardCard({
   return (
     <article
       className={className}
-      role="button"
-      tabIndex={0}
+      role={onOpen ? "button" : "group"}
+      tabIndex={onOpen ? 0 : undefined}
       aria-label={`${name}，${healthLabel}`}
-      onDoubleClick={() => onOpen(name)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onOpen(name);
-      }}
+      onDoubleClick={onOpen ? () => onOpen(name) : undefined}
+      onKeyDown={
+        onOpen
+          ? (e) => {
+              if (e.key === "Enter") onOpen(name);
+            }
+          : undefined
+      }
     >
       <header className="host-board-card__head">
         <div className="host-board-card__identity">

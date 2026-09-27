@@ -2,6 +2,15 @@
    TDesign Dark：页面 Gray14 / 容器 Gray13 / 次级 Gray12 / 描边 Gray11 / 边框 Gray9
    文字白 90%/60%/40%；功能色深色色板第 6 档；内容优先，无装饰网格与强发光 */
 
+html.board-http,
+html.board-http body,
+html.board-http #app {
+  height: 100%;
+  margin: 0;
+  background: #181818 !important;
+  color-scheme: dark;
+}
+
 .board-mode {
   --board-canvas: #181818;
   --board-surface: #242424;
