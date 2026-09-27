@@ -198,7 +198,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
     (diff?.changedFiles || []).length > 0 || (diff?.hostDiff || []).length > 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="gap-card flex flex-col">
       {error ? (
         <div className="rounded-control border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}

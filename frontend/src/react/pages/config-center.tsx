@@ -507,7 +507,7 @@ export function ConfigCenterPage() {
       {message ? <Notice text={message} tone="warn" /> : null}
 
       {section === "overview" ? (
-        <div className="flex flex-col gap-4">
+        <div className="gap-card flex flex-col">
           <Card>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" onClick={() => session.setConfigSection("json")}>
@@ -519,7 +519,7 @@ export function ConfigCenterPage() {
             </div>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="gap-card grid md:grid-cols-2 xl:grid-cols-4">
             <Card>
               <div className="text-sm text-muted">Panel 主机</div>
               <div className="text-2xl">{overview.data?.hostCount ?? 0}</div>
@@ -551,7 +551,7 @@ export function ConfigCenterPage() {
             </Card>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="gap-card grid md:grid-cols-2">
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <div>
@@ -649,8 +649,8 @@ export function ConfigCenterPage() {
       ) : null}
 
       {section === "json" ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="surface-float m-[var(--gap-card)] flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
             <div>
               <h2 className="text-lg font-medium">Panel 状态草稿</h2>
             </div>
@@ -697,7 +697,7 @@ export function ConfigCenterPage() {
             />
           </div>
           <div
-            className={`flex flex-wrap justify-between gap-2 text-xs ${
+            className={`flex flex-wrap justify-between gap-2 px-4 py-2 text-xs ${
               jsonDirty ? "text-danger" : "text-muted"
             }`}
           >
@@ -709,27 +709,35 @@ export function ConfigCenterPage() {
       ) : null}
 
       {section === "files" ? (
-        <ConfigSshFilesPanel
-          onOpenPanelJson={() => session.setConfigSection("json")}
-          onCommitted={async () => {
-            setPreview(null);
-            setJsonDirty(false);
-            await refreshAll();
-            await session.refresh();
-          }}
-        />
+        <div className="m-[var(--gap-card)] min-h-0 flex-1">
+          <div className="surface-float flex h-full min-h-0 flex-col overflow-hidden">
+            <ConfigSshFilesPanel
+              onOpenPanelJson={() => session.setConfigSection("json")}
+              onCommitted={async () => {
+                setPreview(null);
+                setJsonDirty(false);
+                await refreshAll();
+                await session.refresh();
+              }}
+            />
+          </div>
+        </div>
       ) : null}
 
       {section === "diff" ? (
-        <ConfigConflictsPanel
-          onOpenSshFiles={() => session.setConfigSection("files")}
-          onCommitted={async () => {
-            setPreview(null);
-            setJsonDirty(false);
-            await refreshAll();
-            await session.refresh();
-          }}
-        />
+        <div className="m-[var(--gap-card)] min-h-0 flex-1">
+          <div className="surface-float flex h-full min-h-0 flex-col overflow-hidden">
+            <ConfigConflictsPanel
+              onOpenSshFiles={() => session.setConfigSection("files")}
+              onCommitted={async () => {
+                setPreview(null);
+                setJsonDirty(false);
+                await refreshAll();
+                await session.refresh();
+              }}
+            />
+          </div>
+        </div>
       ) : null}
 
       {section === "backups" ? (

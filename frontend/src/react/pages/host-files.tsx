@@ -124,18 +124,26 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
         </>
       }
     >
-      {listing.error ? <Notice text={formatErr(listing.error)} /> : null}
-      {listing.data?.aptOnly ? <Notice tone="warn" text="仅支持 apt（Debian / Ubuntu）" /> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr]">
-        <div className="min-h-0 overflow-auto border-r border-line bg-surface">
+      {listing.error ? (
+        <div className="px-3 pt-3">
+          <Notice text={formatErr(listing.error)} />
+        </div>
+      ) : null}
+      {listing.data?.aptOnly ? (
+        <div className="px-3 pt-3">
+          <Notice tone="warn" text="仅支持 apt（Debian / Ubuntu）" />
+        </div>
+      ) : null}
+      <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+        <div className="surface-float min-h-0 overflow-auto">
           {(listing.data?.files || []).map((file) => (
             <button
               key={file.path}
               type="button"
               className={
                 file.path === path
-                  ? "block w-full bg-accent-soft px-3 py-2 text-left font-mono text-[13px] font-semibold text-accent"
-                  : "block w-full px-3 py-2 text-left font-mono text-[13px] hover:bg-raised"
+                  ? "flex h-12 w-full items-center px-3 text-left font-mono text-sm font-semibold text-accent bg-accent-soft"
+                  : "flex h-12 w-full items-center px-3 text-left font-mono text-sm hover:bg-raised"
               }
               onClick={() => setSelected(file.path)}
             >
@@ -146,7 +154,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
             <p className="px-3 py-4 text-sm text-muted">目录为空</p>
           ) : null}
         </div>
-        <div className="min-h-0 overflow-hidden bg-graphite">
+        <div className="surface-float min-h-0 overflow-hidden !bg-graphite">
           {needFetch && body.isLoading && !loadedText ? (
             <pre className="p-4 font-mono text-sm text-graphite-text">加载中…</pre>
           ) : (

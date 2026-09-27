@@ -297,7 +297,7 @@ export function MonitorGrid({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className="gap-card flex min-h-0 flex-1 flex-col">
       {showReset ? (
         <div className="flex items-center gap-2">
           <Button disabled={!dirty} onClick={reset}>
@@ -318,7 +318,7 @@ export function MonitorGrid({
       <div
         ref={rootRef}
         className={cn(
-          "grid min-h-0 flex-1 gap-3",
+          "gap-card grid min-h-0 flex-1",
           narrow ? "grid-cols-1" : "grid-cols-4",
           maximizedId ? "relative" : "",
         )}
@@ -345,7 +345,7 @@ export function MonitorGrid({
               data-monitor-card={id}
               style={style}
               className={cn(
-                "relative flex flex-col rounded-surface border border-line bg-surface",
+                "surface-float relative flex flex-col",
                 isHidden && "invisible pointer-events-none",
                 draggingId === id && "opacity-60",
                 dropTargetId === id && "ring-2 ring-accent",

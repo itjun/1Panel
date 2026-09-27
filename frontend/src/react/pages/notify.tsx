@@ -644,7 +644,7 @@ function SetupPage() {
 
   return (
     <Page title="通知设置">
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <div className="gap-card mx-auto flex max-w-3xl flex-col">
         <Card>
           <div className="mb-3 font-medium">送到哪里</div>
           <div className="flex flex-wrap gap-4 text-sm">

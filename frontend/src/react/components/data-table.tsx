@@ -39,7 +39,7 @@ export function DataTable<T extends Record<string, unknown>>({
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="overflow-hidden rounded-surface bg-surface">
+    <div className="surface-float overflow-hidden">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-raised text-ink">
           {table.getHeaderGroups().map((group) => (
@@ -262,7 +262,7 @@ export function InteractiveDataTable<T>({
   }, [draggingKey, measureBoxes]);
 
   return (
-    <div className="min-h-48 flex-1 overflow-auto bg-surface">
+    <div className="surface-float mx-[var(--gap-card)] mb-[var(--gap-card)] min-h-48 flex-1 overflow-auto">
       <table className="w-full border-collapse text-left text-sm" style={{ tableLayout: "fixed" }}>
         <thead className="sticky top-0 z-[1] bg-raised text-ink">
           <tr ref={headerRef} className="h-10">

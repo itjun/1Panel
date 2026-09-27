@@ -86,7 +86,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--color-graphite-text) 25%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-surface);
   background: color-mix(in srgb, var(--color-graphite-text) 8%, transparent);
   color: var(--color-graphite-text);
   opacity: 0.6;

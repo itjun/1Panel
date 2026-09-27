@@ -34,7 +34,9 @@
   --color-chart-2: #2ba471;
   --color-chart-3: #e37318;
   --radius-control: 4px;
-  --radius-surface: 6px;
+  /* 卡片 / 表格 / 弹窗 / 提示条等表面统一直角 */
+  --radius-surface: 0px;
+  --gap-card: 5px;
   --font-sans: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", Arial, sans-serif;
   --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco,
@@ -115,16 +117,25 @@
   -webkit-user-select: auto;
 }
 
-/* 侧栏和顶部通栏同一层。磨砂来自窗口后的系统材质，上面罩一层偏白的冷色，
-   接近 Codex 那种发白的半透明，不要让墙纸颜色透得太重。
+/* 磨砂来自窗口后的系统材质。
+   主区：罩色要实，墙纸几乎不透，仍留一点磨砂感（别发成死白）。
+   侧栏：更透，和主区拉开层次。
    用 background-color，不要用 background 简写：构建时 transparent 会被收成无效值。 */
 .glass-chrome {
-  background-color: rgba(248, 248, 252, 0.72);
+  background-color: rgba(255, 255, 255, 0.32);
 }
 
-/* 非 macOS 没有磨砂，用略深的实色当窗口底。 */
+.glass-chrome-main {
+  background-color: rgba(245, 245, 248, 0.82);
+}
+
+/* 非 macOS 没有磨砂，用两档实灰保持左右层次。 */
 html[data-platform="other"] .glass-chrome {
-  background-color: #e7e7e7;
+  background-color: #ececec;
+}
+
+html[data-platform="other"] .glass-chrome-main {
+  background-color: #e6e6e8;
 }
 
 /* 顶栏以下的内容体：透明贴边，白卡片直接落在 glass-chrome / 磨砂上。 */
@@ -135,13 +146,27 @@ html[data-platform="other"] .glass-chrome {
   overflow: auto;
 }
 
+/* 悬浮表面：白底直角，落在磨砂上（无阴影）。
+   需要裁切内容时再加 overflow-hidden（表格/列表）。 */
+.surface-float {
+  border-radius: var(--radius-surface);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+
+.gap-card {
+  gap: var(--gap-card);
+}
+
 .edit-dock {
   width: 380px;
   flex-shrink: 0;
-  margin-top: 40px;
+  margin: 40px 12px 12px 0;
   min-height: 0;
+  border-radius: var(--radius-surface);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
   overflow: hidden;
-  border-left: 1px solid var(--color-line);
 }
 
 /* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。
@@ -390,12 +415,12 @@ html[data-platform="other"] .glass-chrome {
     opacity var(--duration-base) var(--ease-standard);
 }
 
-/* 输入框微观动效，对齐 TDesign Input：
-   边框、外环、底色用 200ms 标准缓动。悬停边框变品牌色，聚焦再加 2px 焦点环。 */
+/* 输入框微观动效：通栏上统一透出磨砂底，平时留浅灰描边；
+   悬停/聚焦换成品牌色边，聚焦再加 2px 焦点环。 */
 .motion-field {
   position: relative;
   border: 1px solid var(--color-line);
-  background-color: var(--color-surface);
+  background-color: transparent;
   box-shadow: 0 0 0 0 var(--color-accent-focus);
   outline: none;
   transition:
@@ -412,6 +437,7 @@ html[data-platform="other"] .glass-chrome {
 .motion-field:focus-within {
   z-index: 1;
   border-color: var(--color-accent);
+  background-color: rgba(255, 255, 255, 0.55);
   box-shadow: 0 0 0 2px var(--color-accent-focus);
 }
 

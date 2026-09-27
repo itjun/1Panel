@@ -42,6 +42,7 @@ export function LocalNginxPage() {
   return (
     <Page
       title="本机 Nginx"
+      flush
       actions={
         <>
           <span className="max-w-[420px] truncate text-sm text-muted" title={info.data?.confPath}>
@@ -53,49 +54,55 @@ export function LocalNginxPage() {
         </>
       }
     >
-      {info.error ? <Notice text={formatErr(info.error)} /> : null}
-      {info.data && !info.data.installed ? (
-        <Notice tone="warn" text="未检测到 nginx 可执行文件" />
-      ) : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
-          <div className="overflow-auto border-r border-line">
-            {(info.data?.files || []).map((file) => (
-              <button
-                key={file.path}
-                type="button"
-                className={
-                  chosen === file.path
-                    ? "flex h-12 w-full items-center justify-between bg-accent-soft px-3 text-left font-semibold text-accent"
-                    : "flex h-12 w-full items-center justify-between px-3 text-left hover:bg-raised"
-                }
-                onClick={() => setPath(file.path)}
-              >
-                <span className="truncate font-mono text-sm">
-                  {file.name || file.path}
-                </span>
-                <span className="shrink-0 text-xs text-muted">
-                  {formatSize(file.size || 0)}
-                </span>
-              </button>
-            ))}
-            {!info.isLoading && !(info.data?.files || []).length ? (
-              <div className="px-3 py-6 text-sm text-muted">无配置文件</div>
-            ) : null}
-          </div>
-          <div className="min-h-0 overflow-hidden">
-            {chosen ? (
-              body.isError || !html ? (
-                <pre className="h-full overflow-auto bg-graphite p-4 font-mono text-sm text-graphite-text">
-                  {previewText}
-                </pre>
-              ) : (
-                <HighlightPane html={html} text={body.data || ""} />
-              )
-            ) : (
-              <div className="p-4 text-sm text-muted">选择左侧文件预览</div>
-            )}
-          </div>
+      {info.error ? (
+        <div className="px-3 pt-3">
+          <Notice text={formatErr(info.error)} />
         </div>
+      ) : null}
+      {info.data && !info.data.installed ? (
+        <div className="px-3 pt-3">
+          <Notice tone="warn" text="未检测到 nginx 可执行文件" />
+        </div>
+      ) : null}
+      <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+        <div className="surface-float min-h-0 overflow-auto">
+          {(info.data?.files || []).map((file) => (
+            <button
+              key={file.path}
+              type="button"
+              className={
+                chosen === file.path
+                  ? "flex h-12 w-full items-center justify-between bg-accent-soft px-3 text-left font-semibold text-accent"
+                  : "flex h-12 w-full items-center justify-between px-3 text-left hover:bg-raised"
+              }
+              onClick={() => setPath(file.path)}
+            >
+              <span className="truncate font-mono text-sm">
+                {file.name || file.path}
+              </span>
+              <span className="shrink-0 text-xs text-muted">
+                {formatSize(file.size || 0)}
+              </span>
+            </button>
+          ))}
+          {!info.isLoading && !(info.data?.files || []).length ? (
+            <div className="px-3 py-6 text-sm text-muted">无配置文件</div>
+          ) : null}
+        </div>
+        <div className="surface-float min-h-0 overflow-hidden !bg-graphite">
+          {chosen ? (
+            body.isError || !html ? (
+              <pre className="h-full overflow-auto p-4 font-mono text-sm text-graphite-text">
+                {previewText}
+              </pre>
+            ) : (
+              <HighlightPane html={html} text={body.data || ""} />
+            )
+          ) : (
+            <div className="p-4 text-sm text-muted">选择左侧文件预览</div>
+          )}
+        </div>
+      </div>
     </Page>
   );
 }

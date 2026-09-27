@@ -467,8 +467,8 @@ export function SftpPage({ host }: { host: string }) {
         <div ref={setLocalHeaderHost} className="sftp-toolbar-local min-w-0" />
         <div ref={setRemoteHeaderHost} className="min-w-0" />
       </div>
-      <div className="content-float relative grid min-w-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)]">
-      <div className="h-full min-h-0 border-r border-line bg-surface">
+      <div className="content-float gap-card relative grid min-w-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] p-[var(--gap-card)]">
+      <div className="surface-float h-full min-h-0 overflow-hidden">
         <SftpPane
           side="local"
           title="本机"
@@ -497,7 +497,7 @@ export function SftpPage({ host }: { host: string }) {
           headerHost={localHeaderHost}
         />
       </div>
-      <div className="h-full min-h-0 bg-surface">
+      <div className="surface-float h-full min-h-0 overflow-hidden">
         <SftpPane
           side="remote"
           title={host}

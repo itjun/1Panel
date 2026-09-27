@@ -354,7 +354,7 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-surface border border-line bg-surface px-5 py-4">
+    <div className="surface-float flex flex-wrap items-center justify-between gap-4 px-5 py-4">
       <div>
         <div className="font-medium">{label}</div>
         {hint ? <div className="text-sm text-muted">{hint}</div> : null}
@@ -543,7 +543,7 @@ function ConfigCenterPage() {
       {message ? <Notice text={message} tone="warn" /> : null}
 
       {section === "overview" ? (
-        <div className="flex flex-col gap-4">
+        <div className="gap-card flex flex-col">
           <Card>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" onClick={() => session.setConfigSection("json")}>
@@ -554,7 +554,7 @@ function ConfigCenterPage() {
               <Button onClick={() => session.setConfigSection("backups")}>备份与恢复</Button>
             </div>
           </Card>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="gap-card grid md:grid-cols-2 xl:grid-cols-4">
             <Card>
               <div className="text-sm text-muted">Panel 主机</div>
               <div className="text-2xl">{overview.data?.hostCount ?? 0}</div>
@@ -577,7 +577,7 @@ function ConfigCenterPage() {
               </div>
             </Card>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="gap-card grid md:grid-cols-2">
             <Card>
               <div className="mb-2 flex items-center justify-between">
                 <div className="font-medium">配置位置</div>

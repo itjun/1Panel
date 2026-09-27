@@ -79,7 +79,7 @@ export function SettingsPage() {
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-6 py-5">
         {message ? <Notice text={message} /> : null}
-        <section className="flex flex-col gap-3">
+        <section className="gap-card flex flex-col">
           <h2 className="text-xs font-semibold tracking-wide text-muted">外观</h2>
           <SettingRow label="界面字体" hint="改完立刻生效">
             <select
@@ -104,7 +104,7 @@ export function SettingsPage() {
             />
           </SettingRow>
         </section>
-        <section className="flex flex-col gap-3">
+        <section className="gap-card flex flex-col">
           <h2 className="text-xs font-semibold tracking-wide text-muted">会话</h2>
           <SettingRow label="启动时打开">
             <label className="mr-3">
@@ -125,7 +125,7 @@ export function SettingsPage() {
             </label>
           </SettingRow>
         </section>
-        <section className="flex flex-col gap-3">
+        <section className="gap-card flex flex-col">
           <h2 className="text-xs font-semibold tracking-wide text-muted">看板 HTTP</h2>
           <SettingRow
             label="内网看板"
@@ -191,7 +191,7 @@ export function SettingsPage() {
             </Button>
           </SettingRow>
         </section>
-        <section className="flex flex-col gap-3">
+        <section className="gap-card flex flex-col">
           <h2 className="text-xs font-semibold tracking-wide text-muted">应用</h2>
           <SettingRow label="本机出口" hint="公网 IP，来自 myip.ipip.net">
             <span>{egress.data?.ip || (egress.isLoading ? "检测中…" : "未知")}</span>
@@ -265,7 +265,7 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-surface bg-surface px-5 py-4">
+    <div className="surface-float flex flex-wrap items-center justify-between gap-4 px-5 py-4">
       <div className="min-w-0">
         <div className="text-sm font-medium text-ink">{label}</div>
         {hint ? <div className="mt-0.5 text-xs text-muted">{hint}</div> : null}

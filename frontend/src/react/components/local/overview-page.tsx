@@ -159,7 +159,7 @@ export function LocalOverviewPage() {
       {!data ? (
         <p className="text-sm text-muted">加载中…</p>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="gap-card flex flex-col">
           {/* 状态环图 */}
           <Card>
             <div className="mb-3 font-medium">状态</div>
@@ -459,7 +459,7 @@ export function LocalOverviewPage() {
           </Card>
 
           {/* CPU / 内存曲线 */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="gap-card grid md:grid-cols-2">
             <Card>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span className="font-medium">CPU</span>

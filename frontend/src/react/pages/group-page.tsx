@@ -784,9 +784,6 @@ export function GroupPage({
               分组设置
             </Button>
           ) : null}
-          <Button variant="primary" onClick={openAddHost}>
-            添加主机
-          </Button>
         </>
       }
     >

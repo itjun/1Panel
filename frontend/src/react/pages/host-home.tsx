@@ -709,7 +709,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   type="button"
                   aria-label="折叠或展开分组"
                   aria-expanded={!collapsed}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:text-ink"
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleCollapsed(section.id);
@@ -737,7 +737,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 </button>
                 <button
                   type="button"
-                  className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-control px-1 text-left hover:bg-raised"
+                  className="flex h-8 min-w-0 flex-1 items-center gap-2 px-1 text-left hover:text-accent"
                   onClick={() => {
                     if (suppressClick.current) return;
                     if (section.isPinned) return;
@@ -751,18 +751,17 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   <span className="truncate font-semibold text-ink">
                     {section.name}
                   </span>
-                  <span className="rounded-full bg-raised px-2 text-xs font-semibold text-muted">
+                  <span className="text-xs font-semibold text-muted">
                     {section.hosts.length}
                   </span>
                 </button>
               </div>
 
-              {!collapsed && section.hosts.length === 0 && !keyword ? (
-                <p className="px-8 text-sm text-muted">没有主机</p>
-              ) : null}
-
               {!collapsed ? (
                 <div className="flex flex-col">
+                  {section.hosts.length === 0 && !keyword ? (
+                    <p className="px-8 py-4 text-sm text-muted">没有主机</p>
+                  ) : null}
                   {section.hosts.map((host) => {
                     const selectedRow = selected.includes(host.name);
                     const mark =
@@ -783,7 +782,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                         className={`group relative flex h-[60px] cursor-grab items-center gap-[14px] px-[18px] active:cursor-grabbing ${
                           selectedRow
                             ? "bg-accent-soft font-semibold text-accent"
-                            : "bg-surface hover:bg-raised"
+                            : "hover:bg-raised"
                         }`}
                         onPointerDown={(event) =>
                           onHostPointerDown(event, section.id, host.name)

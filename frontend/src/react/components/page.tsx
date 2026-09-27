@@ -18,7 +18,7 @@ export function Page({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col text-ink">
       {title || actions ? (
-        <div className="shell-top shell-toolbar drag-region flex shrink-0 items-center gap-3 px-5">
+        <div className="shell-top shell-toolbar drag-region flex shrink-0 items-center gap-3 px-[var(--gap-card)]">
           {title ? <h1 className="text-base font-semibold leading-none">{title}</h1> : null}
           <div className="ml-auto flex items-center gap-2">{actions}</div>
         </div>
@@ -29,7 +29,7 @@ export function Page({
         className={cn(
           "content-float flex min-w-0 flex-1 flex-col",
           dark && "bg-graphite text-graphite-text",
-          !flush && !dark && "gap-3 p-4",
+          !flush && !dark && "gap-card p-[var(--gap-card)]",
         )}
       >
         {children}
@@ -75,8 +75,8 @@ export function Notice({
     <p
       className={
         tone === "warn"
-          ? "motion-notice-in shrink-0 rounded-control bg-warn-soft px-4 py-2 text-sm text-warn"
-          : "motion-notice-in shrink-0 rounded-control bg-danger-soft px-4 py-2 text-sm text-danger"
+          ? "motion-notice-in shrink-0 rounded-surface bg-warn-soft px-4 py-2 text-sm text-warn"
+          : "motion-notice-in shrink-0 rounded-surface bg-danger-soft px-4 py-2 text-sm text-danger"
       }
     >
       {text}

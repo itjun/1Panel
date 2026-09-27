@@ -25,6 +25,7 @@ export function LocalHostsPage() {
   return (
     <Page
       title="本机 Hosts"
+      flush
       actions={
         <>
           <span className="font-mono text-sm text-muted" title={pathLabel}>
@@ -34,24 +35,28 @@ export function LocalHostsPage() {
         </>
       }
     >
-      {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_1fr]">
-          <div className="border-r border-line">
-            <div className="flex h-12 items-center justify-between bg-accent-soft px-3 font-semibold text-accent">
-              <span className="font-mono text-sm">hosts</span>
-              <span className="text-xs text-muted">{formatSize(raw.length)}</span>
-            </div>
-          </div>
-          <div className="min-h-0 overflow-hidden">
-            {raw ? (
-              <HighlightPane html={html} text={raw} />
-            ) : (
-              <pre className="h-full bg-graphite p-4 text-sm text-muted">
-                {query.isLoading ? "加载中…" : "暂无内容"}
-              </pre>
-            )}
+      {query.error ? (
+        <div className="px-3 pt-3">
+          <Notice text={formatErr(query.error)} />
+        </div>
+      ) : null}
+      <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+        <div className="surface-float min-h-0 overflow-auto">
+          <div className="flex h-12 items-center justify-between bg-accent-soft px-3 font-semibold text-accent">
+            <span className="font-mono text-sm">hosts</span>
+            <span className="text-xs text-muted">{formatSize(raw.length)}</span>
           </div>
         </div>
+        <div className="surface-float min-h-0 overflow-hidden !bg-graphite">
+          {raw ? (
+            <HighlightPane html={html} text={raw} />
+          ) : (
+            <pre className="h-full p-4 text-sm text-muted">
+              {query.isLoading ? "加载中…" : "暂无内容"}
+            </pre>
+          )}
+        </div>
+      </div>
     </Page>
   );
 }

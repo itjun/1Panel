@@ -329,7 +329,7 @@ export function SftpPane(props: Props) {
     <section className="flex h-full min-h-0 min-w-0 flex-col outline-none" tabIndex={0} onKeyDown={onKey}>
       {props.headerHost ? createPortal(titleBar, props.headerHost) : null}
 
-      <div className="glass-chrome flex shrink-0 items-center gap-0.5 border-b border-line px-2 pb-2 pt-0.5">
+      <div className="glass-chrome-main flex shrink-0 items-center gap-0.5 border-b border-line px-2 pb-2 pt-0.5">
         <IconButton label="后退" disabled={!props.canBack} onClick={props.onBack}>
           <path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </IconButton>
@@ -559,7 +559,7 @@ export function SftpPane(props: Props) {
             </div>
           ))}
         </div>
-        <div className={cn("pointer-events-none absolute inset-2.5 z-[4] grid place-items-center rounded-[10px] bg-surface/80", hot ? "visible opacity-100" : "invisible opacity-0")}>
+        <div className={cn("pointer-events-none absolute inset-2.5 z-[4] grid place-items-center rounded-surface bg-surface/80", hot ? "visible opacity-100" : "invisible opacity-0")}>
           <div className="text-center text-ink">
             <p className="text-base font-semibold">{hint}</p>
           </div>

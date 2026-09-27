@@ -277,7 +277,7 @@ export function WorkspaceRail() {
   return (
       <aside
         className={cn(
-          "glass-chrome flex w-[220px] min-w-[220px] flex-col pb-2.5",
+          "glass-chrome flex w-[220px] min-w-[220px] flex-col border-r border-line pb-2.5",
           isMac && "pt-0",
         )}
         aria-label="应用导航"

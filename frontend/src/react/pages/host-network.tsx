@@ -295,8 +295,8 @@ export function NetworkPage({ host }: { host: string }) {
       {!snap && query.isLoading ? <p className="text-sm text-muted">加载中…</p> : null}
 
       {snap ? (
-        <div className="flex flex-col gap-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="gap-card flex flex-col">
+          <div className="gap-card grid md:grid-cols-2 xl:grid-cols-4">
             <IpCard
               title="内网 IP"
               emptyText="未获取到"
