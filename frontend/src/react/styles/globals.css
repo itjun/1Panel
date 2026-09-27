@@ -14,6 +14,8 @@
   --color-accent-hover: #366ef4;
   --color-accent-active: #003cab;
   --color-accent-soft: #f2f3ff;
+  /* TDesign brand-color-focus：输入框聚焦时的 2px 外环 */
+  --color-accent-focus: #d9e1ff;
   --color-graphite: #191c21;
   --color-graphite-text: #e5e7eb;
   /* 功能色小字：同色相加深，保证 Gray1 上 ≥4.5 */
@@ -405,6 +407,50 @@ html[data-platform="other"] .glass-chrome {
     opacity var(--duration-base) var(--ease-standard);
 }
 
+/* 输入框微观动效，对齐 TDesign Input：
+   边框、外环、底色用 200ms 标准缓动。悬停边框变品牌色，聚焦再加 2px 焦点环。 */
+.motion-field {
+  position: relative;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 0 var(--color-accent-focus);
+  outline: none;
+  transition:
+    border-color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard);
+}
+
+.motion-field:hover {
+  border-color: var(--color-accent);
+}
+
+.motion-field:focus,
+.motion-field:focus-within {
+  z-index: 1;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-focus);
+}
+
+/* 路径条平时没有边框，点进去才收成输入框。同一容器上改边框，过渡才接得上。 */
+.motion-field.motion-field-quiet {
+  border-color: transparent;
+  background-color: transparent;
+}
+
+.motion-field.motion-field-quiet:not(.motion-field-active):hover {
+  border-color: transparent;
+  background-color: var(--color-raised);
+}
+
+.motion-field.motion-field-active,
+.motion-field.motion-field-quiet:focus-within {
+  z-index: 1;
+  border-color: var(--color-accent);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 2px var(--color-accent-focus);
+}
+
 .motion-width {
   transition: width var(--duration-base) var(--ease-standard);
 }
@@ -432,7 +478,8 @@ html[data-platform="other"] .glass-chrome {
   .motion-overlay,
   .motion-colors,
   .motion-width,
-  .motion-transform {
+  .motion-transform,
+  .motion-field {
     transition: none !important;
   }
 

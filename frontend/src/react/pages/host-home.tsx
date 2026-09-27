@@ -692,7 +692,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             }
           }}
           placeholder={isMac ? "筛选主机 (⌘F)" : "筛选主机 (Ctrl+F)"}
-          className="box-border h-8 w-[min(24rem,40vw)] rounded-control border border-line bg-surface px-3 leading-none"
+          className="motion-field box-border h-8 w-[min(24rem,40vw)] rounded-control px-3 leading-none"
         />
         <div className="relative flex h-full items-center justify-self-end">
           <Button
