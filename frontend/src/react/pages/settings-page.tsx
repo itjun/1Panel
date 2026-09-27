@@ -57,6 +57,7 @@ export function SettingsPage() {
   });
 
   const changed =
+    settings.appearance !== SETTINGS_DEFAULTS.appearance ||
     settings.fontFamily !== SETTINGS_DEFAULTS.fontFamily ||
     settings.fontSize !== SETTINGS_DEFAULTS.fontSize ||
     settings.startupPage !== SETTINGS_DEFAULTS.startupPage ||
@@ -81,6 +82,32 @@ export function SettingsPage() {
         {message ? <Notice text={message} /> : null}
         <section className="gap-card flex flex-col">
           <h2 className="text-xs font-semibold tracking-wide text-muted">外观</h2>
+          <SettingRow label="主题" hint="改完立刻生效">
+            <label className="mr-3">
+              <input
+                type="radio"
+                checked={settings.appearance === "light"}
+                onChange={() => updateSettings({ appearance: "light" })}
+              />
+              白色
+            </label>
+            <label className="mr-3">
+              <input
+                type="radio"
+                checked={settings.appearance === "dark"}
+                onChange={() => updateSettings({ appearance: "dark" })}
+              />
+              黑色
+            </label>
+            <label>
+              <input
+                type="radio"
+                checked={settings.appearance === "system"}
+                onChange={() => updateSettings({ appearance: "system" })}
+              />
+              跟随系统
+            </label>
+          </SettingRow>
           <SettingRow label="界面字体" hint="改完立刻生效">
             <select
               className="h-8 rounded-control border border-line bg-surface px-2 text-sm"

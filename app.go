@@ -66,7 +66,7 @@ type App struct {
 
 	boardHTTP *boardhttp.Server // 内网只读看板 HTTP 网关
 
-	themeAppearance macui.AppearanceMode // 固定 light
+	themeAppearance macui.AppearanceMode // light / dark / auto，由前端设置同步
 
 	showMu       sync.Mutex
 	sized        bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
@@ -189,7 +189,7 @@ func NewApp() *application.App {
 	core.interceptMainWindowClose(win)
 	core.installBackgroundTray(app)
 
-	// 主题固定浅色
+	// 启动默认浅色；前端加载设置后会再调 SetThemeAppearance
 	core.themeAppearance = macui.AppearanceLight
 	macui.SetWindowAppearance(win, core.themeAppearance)
 	macui.EnableFrostedBackdrop(win)

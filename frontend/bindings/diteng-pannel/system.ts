@@ -132,10 +132,10 @@ export function SetBoardHTTPConfig(cfg: $models.BoardHTTPConfig): $CancellablePr
 }
 
 /**
- * SetThemeAppearance 同步窗口原生外观。应用固定浅色主题：忽略传入值，一律 light。
+ * SetThemeAppearance 同步窗口原生外观：light / dark / auto（跟随系统）。
  */
-export function SetThemeAppearance(_mode: string): $CancellablePromise<void> {
-    return $Call.ByID(474639928, _mode);
+export function SetThemeAppearance(mode: string): $CancellablePromise<void> {
+    return $Call.ByID(474639928, mode);
 }
 
 /**

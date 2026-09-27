@@ -50,6 +50,35 @@
   --ease-in: cubic-bezier(0.82, 0, 1, 0.9);
 }
 
+/* TDesign 深色：https://tdesign.tencent.com/design/dark */
+html.dark {
+  --color-canvas: #181818;
+  --color-surface: #242424;
+  --color-raised: #2c2c2c;
+  --color-ink: rgba(255, 255, 255, 0.9);
+  --color-muted: rgba(255, 255, 255, 0.55);
+  --color-line: #393939;
+  --color-accent: #4582e6;
+  --color-accent-hover: #2667d4;
+  --color-accent-active: #699ef5;
+  --color-accent-soft: #1b2f51;
+  --color-accent-focus: #173463;
+  --color-graphite: #181818;
+  --color-graphite-text: rgba(255, 255, 255, 0.9);
+  --color-success: #059465;
+  --color-danger: #c64751;
+  --color-warn: #cf6e2d;
+  --color-info: #4582e6;
+  --color-success-soft: #193a2a;
+  --color-danger-soft: #472324;
+  --color-warn-soft: #4f2a1d;
+  --color-chart-1: #4582e6;
+  --color-io-read: #2ba471;
+  --color-io-write: #e37318;
+  --color-chart-2: #2ba471;
+  --color-chart-3: #e37318;
+}
+
 @layer base {
   html,
   body,
@@ -68,9 +97,13 @@
     font-size: var(--app-font-size, 14px);
   }
 
+  html.dark .react-root {
+    color-scheme: dark;
+  }
+
   .react-root ::selection {
-    background: color-mix(in srgb, #0052d9 28%, #ffffff);
-    color: rgba(0, 0, 0, 0.9);
+    background: color-mix(in srgb, var(--color-accent) 28%, var(--color-surface));
+    color: var(--color-ink);
   }
 
   .react-root * {
@@ -129,6 +162,14 @@
   background-color: rgba(245, 245, 248, 0.82);
 }
 
+html.dark .glass-chrome {
+  background-color: rgba(0, 0, 0, 0.28);
+}
+
+html.dark .glass-chrome-main {
+  background-color: rgba(24, 24, 24, 0.82);
+}
+
 /* 非 macOS 没有磨砂，用两档实灰保持左右层次。 */
 html[data-platform="other"] .glass-chrome {
   background-color: #ececec;
@@ -136,6 +177,14 @@ html[data-platform="other"] .glass-chrome {
 
 html[data-platform="other"] .glass-chrome-main {
   background-color: #e6e6e8;
+}
+
+html.dark[data-platform="other"] .glass-chrome {
+  background-color: #2c2c2c;
+}
+
+html.dark[data-platform="other"] .glass-chrome-main {
+  background-color: #242424;
 }
 
 /* 顶栏以下的内容体：透明贴边，白卡片直接落在 glass-chrome / 磨砂上。 */
@@ -437,7 +486,7 @@ html[data-platform="other"] .glass-chrome-main {
 .motion-field:focus-within {
   z-index: 1;
   border-color: var(--color-accent);
-  background-color: rgba(255, 255, 255, 0.55);
+  background-color: color-mix(in srgb, var(--color-surface) 55%, transparent);
   box-shadow: 0 0 0 2px var(--color-accent-focus);
 }
 

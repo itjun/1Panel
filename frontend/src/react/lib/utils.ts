@@ -47,19 +47,33 @@ export function seriesColorList(names: string[]): string[] {
   return names.map((name, i) => seriesColorByName(name, i));
 }
 
-/** 与设置页共用同一份本地配置，预览窗沿用已选字体和字号。 */
+/** 与设置页共用同一份本地配置，预览窗沿用已选主题、字体和字号。 */
 export function applySavedFont() {
   try {
     const raw = localStorage.getItem("ipannel.settings.v1");
     if (!raw) return;
     const parsed = JSON.parse(raw) as {
+      appearance?: unknown;
       fontFamily?: unknown;
       fontSize?: unknown;
     };
+    const appearance =
+      parsed.appearance === "light" ||
+      parsed.appearance === "dark" ||
+      parsed.appearance === "system"
+        ? parsed.appearance
+        : "light";
     const root = document.documentElement;
-    root.classList.remove("dark");
-    root.classList.add("light");
-    root.style.colorScheme = "light";
+    const resolved =
+      appearance === "system"
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+        : appearance;
+    root.classList.remove("light", "dark");
+    root.classList.add(resolved);
+    root.style.colorScheme = resolved;
+    root.style.background = "var(--color-canvas)";
     if (typeof parsed.fontFamily === "string" && parsed.fontFamily) {
       root.style.setProperty("--app-font-family", parsed.fontFamily);
     }

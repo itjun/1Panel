@@ -29,6 +29,9 @@ export const FONT_OPTIONS: { label: string; value: string }[] = [
   },
 ];
 
+export type AppearancePref = "light" | "dark" | "system";
+export type ResolvedAppearance = "light" | "dark";
+
 export type AlertContentKind = ResourceAlertKind | "app" | "cert";
 export type NotifyContentField =
   | "hostName"
@@ -38,6 +41,7 @@ export type NotifyContentField =
   | "service";
 
 export type AppSettings = {
+  appearance: AppearancePref;
   fontFamily: string;
   fontSize: number;
   startupPage: "home" | "resume";
@@ -54,6 +58,7 @@ export type AppSettings = {
 };
 
 export const SETTINGS_DEFAULTS: AppSettings = {
+  appearance: "light",
   fontFamily: FONT_OPTIONS[0].value,
   fontSize: 14,
   startupPage: "home",
@@ -71,6 +76,15 @@ export const SETTINGS_DEFAULTS: AppSettings = {
 
 let current = loadSettings();
 const listeners = new Set<() => void>();
+let mediaQuery: MediaQueryList | null = null;
+let mediaListener: (() => void) | null = null;
+
+function parseAppearance(value: unknown): AppearancePref {
+  if (value === "light" || value === "dark" || value === "system") {
+    return value;
+  }
+  return SETTINGS_DEFAULTS.appearance;
+}
 
 function loadSettings(): AppSettings {
   try {
@@ -80,6 +94,7 @@ function loadSettings(): AppSettings {
     return {
       ...SETTINGS_DEFAULTS,
       ...parsed,
+      appearance: parseAppearance(parsed.appearance),
       alertContentKinds:
         parsed.alertContentKinds || SETTINGS_DEFAULTS.alertContentKinds,
       notifyContentFields:
@@ -93,23 +108,87 @@ function loadSettings(): AppSettings {
   }
 }
 
-function applyTypography(settings: AppSettings) {
+export function resolveAppearance(pref: AppearancePref): ResolvedAppearance {
+  if (pref === "light" || pref === "dark") {
+    return pref;
+  }
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return "light";
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+/** 把偏好映射到原生窗口外观 API（跟随系统用 auto）。 */
+export function appearanceToNativeMode(pref: AppearancePref): string {
+  if (pref === "system") {
+    return "auto";
+  }
+  return pref;
+}
+
+export function applyAppearanceToDocument(
+  appearance: AppearancePref,
+  fontFamily?: string,
+  fontSize?: number,
+) {
   const root = document.documentElement;
-  root.classList.remove("dark");
-  root.classList.add("light");
-  root.style.colorScheme = "light";
+  const resolved = resolveAppearance(appearance);
+  root.classList.remove("light", "dark");
+  root.classList.add(resolved);
+  root.style.colorScheme = resolved;
   root.style.background = "var(--color-canvas)";
-  root.style.setProperty("--app-font-family", settings.fontFamily);
-  root.style.setProperty("--app-font-size", `${settings.fontSize}px`);
-  document.body.style.fontFamily = settings.fontFamily;
-  document.body.style.fontSize = `${settings.fontSize}px`;
+  if (typeof fontFamily === "string" && fontFamily) {
+    root.style.setProperty("--app-font-family", fontFamily);
+    document.body.style.fontFamily = fontFamily;
+  }
+  if (typeof fontSize === "number" && Number.isFinite(fontSize)) {
+    root.style.setProperty("--app-font-size", `${fontSize}px`);
+    document.body.style.fontSize = `${fontSize}px`;
+  }
+}
+
+function stopSystemAppearanceWatch() {
+  if (mediaQuery && mediaListener) {
+    mediaQuery.removeEventListener("change", mediaListener);
+  }
+  mediaQuery = null;
+  mediaListener = null;
+}
+
+function syncSystemAppearanceWatch(pref: AppearancePref) {
+  stopSystemAppearanceWatch();
+  if (pref !== "system" || typeof window === "undefined" || !window.matchMedia) {
+    return;
+  }
+  mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  mediaListener = () => {
+    applyAppearanceToDocument(
+      current.appearance,
+      current.fontFamily,
+      current.fontSize,
+    );
+  };
+  mediaQuery.addEventListener("change", mediaListener);
+}
+
+function applySettings(settings: AppSettings) {
+  applyAppearanceToDocument(
+    settings.appearance,
+    settings.fontFamily,
+    settings.fontSize,
+  );
+  syncSystemAppearanceWatch(settings.appearance);
 }
 
 function emit() {
-  applyTypography(current);
+  applySettings(current);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   listeners.forEach((listener) => listener());
-  void api.setThemeAppearance("light").catch(() => {});
+  void api
+    .setThemeAppearance(appearanceToNativeMode(current.appearance))
+    .catch(() => {});
   void api
     .setNotifySubs({
       fromDisk: true,
@@ -130,6 +209,9 @@ function emit() {
 
 export function updateSettings(patch: Partial<AppSettings>) {
   current = { ...current, ...patch };
+  if (patch.appearance !== undefined) {
+    current.appearance = parseAppearance(patch.appearance);
+  }
   emit();
 }
 
@@ -152,5 +234,7 @@ export function useSettings() {
   );
 }
 
-applyTypography(current);
-void api.setThemeAppearance("light").catch(() => {});
+applySettings(current);
+void api
+  .setThemeAppearance(appearanceToNativeMode(current.appearance))
+  .catch(() => {});
