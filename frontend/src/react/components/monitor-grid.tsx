@@ -345,7 +345,7 @@ export function MonitorGrid({
               data-monitor-card={id}
               style={style}
               className={cn(
-                "relative flex flex-col rounded-surface bg-surface",
+                "relative flex flex-col rounded-surface border border-line bg-surface",
                 isHidden && "invisible pointer-events-none",
                 draggingId === id && "opacity-60",
                 dropTargetId === id && "ring-2 ring-accent",
