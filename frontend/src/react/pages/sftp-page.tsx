@@ -27,6 +27,8 @@ export function SftpPage({ host }: { host: string }) {
   const gate = useRef({ asking: false, busy: false, pending: false, conflict: false });
 
   const [tick, setTick] = useState(0);
+  const [localHeaderHost, setLocalHeaderHost] = useState<HTMLDivElement | null>(null);
+  const [remoteHeaderHost, setRemoteHeaderHost] = useState<HTMLDivElement | null>(null);
   const [localEntries, setLocalEntries] = useState<monitor.FileEntry[]>([]);
   const [remoteEntries, setRemoteEntries] = useState<monitor.FileEntry[]>([]);
   const [localErr, setLocalErr] = useState("");
@@ -460,7 +462,12 @@ export function SftpPage({ host }: { host: string }) {
   void tick;
 
   return (
-    <div className="relative grid h-full min-h-0 flex-1 grid-cols-2">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shell-top shell-toolbar sftp-toolbar drag-region relative z-20 grid shrink-0 grid-cols-2">
+        <div ref={setLocalHeaderHost} className="sftp-toolbar-local min-w-0" />
+        <div ref={setRemoteHeaderHost} className="min-w-0" />
+      </div>
+      <div className="content-float relative grid min-w-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] bg-canvas">
       <div className="h-full min-h-0 border-r border-line">
         <SftpPane
           side="local"
@@ -487,6 +494,7 @@ export function SftpPage({ host }: { host: string }) {
           onDragBegin={(paths) => onDragBegin("local", paths)}
           onDragEnd={onDragEnd}
           onOpenFile={(entry) => setPreviewFile({ path: entry.path, name: entry.name, source: "local" })}
+          headerHost={localHeaderHost}
         />
       </div>
       <div className="h-full min-h-0">
@@ -521,6 +529,7 @@ export function SftpPage({ host }: { host: string }) {
             setRemoteHover(dir);
           }}
           onOpenFile={(entry) => setPreviewFile({ path: entry.path, name: entry.name, source: "remote" })}
+          headerHost={remoteHeaderHost}
         />
       </div>
 
@@ -597,6 +606,7 @@ export function SftpPage({ host }: { host: string }) {
           </DialogFooter>
         </Modal>
       ) : null}
+      </div>
     </div>
   );
 }

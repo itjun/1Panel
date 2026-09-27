@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { monitor } from "@/api";
 import { cn } from "@/react/lib/utils";
 import { formatBytes } from "@/utils/format";
@@ -43,6 +44,8 @@ type Props = {
   onCreate?: (kind: "dir" | "file") => void;
   onHoverTarget?: (dir: string) => void;
   onOpenFile?: (entry: monitor.FileEntry) => void;
+  /** 标题（本机 / 主机名、筛选、操作）挂到页面通栏，不留在内容卡片里 */
+  headerHost?: HTMLElement | null;
 };
 
 export function SftpPane(props: Props) {
@@ -274,53 +277,57 @@ export function SftpPane(props: Props) {
     emptyText = "隐藏文件已收起，可在「操作」里打开";
   }
 
+  const titleBar = (
+    <header className="flex h-full min-w-0 items-center gap-2 px-3">
+      <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-ink">
+        {props.side === "local" ? <LocalIcon /> : null}
+        <span className="truncate">{props.title}</span>
+      </span>
+      <label className="flex h-8 w-[132px] items-center gap-1 rounded-control border border-line px-2 text-muted">
+        <SearchIcon />
+        <input
+          value={filter}
+          placeholder="筛选"
+          className="w-full bg-transparent text-[13px] text-ink outline-none"
+          onChange={(event) => setFilter(event.target.value)}
+          onKeyDown={(event) => event.stopPropagation()}
+        />
+      </label>
+      <div className="relative">
+        <button
+          type="button"
+          className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-raised"
+          onClick={(event) => {
+            event.stopPropagation();
+            setMenuOpen((value) => !value);
+          }}
+        >
+          操作
+          <CaretIcon />
+        </button>
+        {menuOpen ? (
+          <>
+            <div className="fixed inset-0 z-40" onMouseDown={() => setMenuOpen(false)} />
+            <div className="absolute right-0 top-[calc(100%+4px)] z-[41] min-w-[176px] rounded-control bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]" onMouseDown={(event) => event.stopPropagation()}>
+              <MenuActions
+                canCreate={props.canCreate}
+                canRemove={props.canRemove}
+                canOpen={canOpen}
+                selectedCount={selected.length}
+                shownCount={shown.length}
+                showHidden={showHidden}
+                onRun={runMenu}
+              />
+            </div>
+          </>
+        ) : null}
+      </div>
+    </header>
+  );
+
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col outline-none" tabIndex={0} onKeyDown={onKey}>
-      <header className="shell-toolbar glass-chrome flex shrink-0 gap-2 px-3">
-        <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-ink">
-          {props.side === "local" ? <LocalIcon /> : null}
-          <span className="truncate">{props.title}</span>
-        </span>
-        <label className="flex h-8 w-[132px] items-center gap-1 rounded-control border border-line px-2 text-muted">
-          <SearchIcon />
-          <input
-            value={filter}
-            placeholder="筛选"
-            className="w-full bg-transparent text-[13px] text-ink outline-none"
-            onChange={(event) => setFilter(event.target.value)}
-            onKeyDown={(event) => event.stopPropagation()}
-          />
-        </label>
-        <div className="relative">
-          <button
-            type="button"
-            className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-raised"
-            onClick={(event) => {
-              event.stopPropagation();
-              setMenuOpen((value) => !value);
-            }}
-          >
-            操作
-            <CaretIcon />
-          </button>
-          {menuOpen ? (
-            <>
-              <div className="fixed inset-0 z-40" onMouseDown={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-[calc(100%+4px)] z-[41] min-w-[176px] rounded-control bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]" onMouseDown={(event) => event.stopPropagation()}>
-                <MenuActions
-                  canCreate={props.canCreate}
-                  canRemove={props.canRemove}
-                  canOpen={canOpen}
-                  selectedCount={selected.length}
-                  shownCount={shown.length}
-                  showHidden={showHidden}
-                  onRun={runMenu}
-                />
-              </div>
-            </>
-          ) : null}
-        </div>
-      </header>
+      {props.headerHost ? createPortal(titleBar, props.headerHost) : null}
 
       <div className="glass-chrome flex shrink-0 items-center gap-0.5 border-b border-line px-2 pb-2 pt-0.5">
         <IconButton label="后退" disabled={!props.canBack} onClick={props.onBack}>
