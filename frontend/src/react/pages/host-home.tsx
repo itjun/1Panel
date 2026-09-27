@@ -110,14 +110,6 @@ function clampMenuPos(x: number, y: number, w: number, h: number) {
   };
 }
 
-function isTypingTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  if (target.isContentEditable) return true;
-  return !!target.closest("input, textarea, select, [contenteditable='true']");
-}
-
 function MenuItem({
   label,
   onClick,
@@ -170,8 +162,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [moveSubOpen, setMoveSubOpen] = useState(false);
 
   const [deletingHosts, setDeletingHosts] = useState<string[] | null>(null);
-  const [createGroupOpen, setCreateGroupOpen] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
   const [groupSettings, setGroupSettings] = useState<{
     id: string;
     name: string;
@@ -285,8 +275,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       onCreateGroup();
       return;
     }
-    setNewGroupName("");
-    setCreateGroupOpen(true);
+    showToast("请在 App 接入新建分组抽屉（见文件顶部 INTEGRATION）");
   }
 
   const selectHost = useCallback(
@@ -512,27 +501,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     showToast("已删除");
   }
 
-  async function submitCreateGroup() {
-    const name = newGroupName.trim();
-    if (!name) {
-      showError("名称不能为空");
-      return;
-    }
-    if (!GROUP_NAME_RE.test(name)) {
-      showError("只允许英文字母、数字和短横线，例如 01-cdcp-main");
-      return;
-    }
-    try {
-      await api.upsertGroup({ id: "", name, parentId: "", order: 0, hosts: [] });
-      setCreateGroupOpen(false);
-      setNewGroupName("");
-      await session.refresh();
-      showToast("已创建分组");
-    } catch (err) {
-      showError(`创建失败: ${formatErr(err)}`);
-    }
-  }
-
   async function saveGroupSettings() {
     if (!groupSettings || groupSettingsBusy) return;
     const id = groupSettings.id.trim();
@@ -625,41 +593,25 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     }
   }
 
-  // 快捷键：⌘F 筛选、⌘N 加主机、⌘⇧N 新建分组
+  // 快捷键：⌘F 筛选
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         closeAllMenus();
         return;
       }
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-
-      if (e.shiftKey && e.code === "KeyN") {
-        if (isTypingTarget(e.target) && !(e.target instanceof HTMLInputElement && e.target === searchRef.current)) {
-          return;
-        }
-        e.preventDefault();
-        requestCreateGroup();
-        return;
-      }
-      if (e.shiftKey) return;
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
 
       if (e.code === "KeyF") {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
-        return;
-      }
-      if (e.code === "KeyN") {
-        if (isTypingTarget(e.target)) return;
-        e.preventDefault();
-        requestCreateHost();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onCreateGroup, onCreateHost, preferredGroupId]);
+  }, []);
 
   return (
     <div
@@ -933,13 +885,11 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       {blankMenu ? (
         <CtxPortal x={blankMenu.x} y={blankMenu.y} onClose={closeAllMenus}>
           <MenuItem
-            label="添加主机…"
-            kbd={isMac ? "⌘N" : "Ctrl+N"}
+            label="添加主机"
             onClick={() => requestCreateHost()}
           />
           <MenuItem
-            label="新建分组…"
-            kbd={isMac ? "⌘⇧N" : "Ctrl+Shift+N"}
+            label="新建分组"
             onClick={() => requestCreateGroup()}
           />
         </CtxPortal>
@@ -989,7 +939,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           ) : null}
           <MenuDivider />
           <MenuItem
-            label="添加主机…"
+            label="添加主机"
             onClick={() => {
               const gid = groupMenu.id === UNGROUPED_ID ? "" : groupMenu.id;
               requestCreateHost(gid);
@@ -1225,31 +1175,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             <Button onClick={() => setDeletingHosts(null)}>取消</Button>
             <Button variant="danger" onClick={() => void confirmDeleteHosts()}>
               删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={createGroupOpen}
-        onOpenChange={(open) => !open && setCreateGroupOpen(false)}
-      >
-        <DialogContent>
-          <DialogTitle>新建分组</DialogTitle>
-          <input
-            className="mt-3 h-9 w-full rounded-control border border-line px-3"
-            value={newGroupName}
-            placeholder="如 04-new-group"
-            onChange={(event) => setNewGroupName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void submitCreateGroup();
-            }}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button onClick={() => setCreateGroupOpen(false)}>取消</Button>
-            <Button variant="primary" onClick={() => void submitCreateGroup()}>
-              创建
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -471,18 +471,6 @@ export function GroupPage() {
   const [settingsBoardTitle, setSettingsBoardTitle] = useState("");
   const [settingsError, setSettingsError] = useState("");
 
-  // ---------- 添加主机 ----------
-  const [addHostOpen, setAddHostOpen] = useState(false);
-  const [addSaving, setAddSaving] = useState(false);
-  const [addError, setAddError] = useState("");
-  const [addForm, setAddForm] = useState({
-    name: "",
-    hostName: "",
-    user: "root",
-    password: "",
-    note: "",
-  });
-
   const overview = useQuery({
     queryKey: ["group-overview", groupId],
     queryFn: () => api.listOneGroupOverview(groupId),
@@ -947,42 +935,6 @@ export function GroupPage() {
     }
   }
 
-  function openAddHost() {
-    setAddForm({ name: "", hostName: "", user: "root", password: "", note: "" });
-    setAddError("");
-    setAddHostOpen(true);
-  }
-
-  async function saveAddHost() {
-    const name = addForm.name.trim();
-    const hostName = addForm.hostName.trim();
-    const user = addForm.user.trim();
-    if (!name || !hostName || !user || !addForm.password) {
-      setAddError("别名、地址、用户、密码均不能为空");
-      return;
-    }
-    setAddSaving(true);
-    setAddError("");
-    try {
-      await api.addHost({
-        name,
-        hostName,
-        user,
-        password: addForm.password,
-        note: addForm.note.trim(),
-      });
-      if (canEditGroup) {
-        await api.assignHost(name, groupId);
-      }
-      setAddHostOpen(false);
-      await session.refresh();
-    } catch (err) {
-      setAddError(formatErr(err));
-    } finally {
-      setAddSaving(false);
-    }
-  }
-
   function applyBatchProgress(d: {
     host?: string;
     step?: string;
@@ -1166,17 +1118,12 @@ export function GroupPage() {
               分组设置
             </Button>
           ) : null}
-          <Button variant="primary" onClick={openAddHost}>
-            添加主机
-          </Button>
         </>
       }
     >
       {!hosts.length ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-          <Button variant="primary" onClick={openAddHost}>
-            添加主机
-          </Button>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+          <p className="text-sm text-muted">暂无主机，请到主机页添加</p>
         </div>
       ) : mode === "table" ? (
         <InteractiveDataTable
@@ -1346,65 +1293,6 @@ export function GroupPage() {
               onClick={() => void saveGroupSettings()}
             >
               {settingsSaving ? "保存中…" : "保存"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 添加主机 */}
-      <Dialog open={addHostOpen} onOpenChange={setAddHostOpen}>
-        <DialogContent>
-          <DialogTitle>添加主机</DialogTitle>
-          <DialogDescription className="mt-1 text-sm text-muted">
-            {canEditGroup ? `将加入分组「${groupLabel}」` : "将加入未分组"}
-          </DialogDescription>
-          {addError ? (
-            <div className="mt-3">
-              <Notice text={addError} />
-            </div>
-          ) : null}
-          <div className="mt-4 flex flex-col gap-4">
-            <input
-              className={INPUT_CLASS}
-              placeholder="别名"
-              value={addForm.name}
-              onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <input
-              className={INPUT_CLASS}
-              placeholder="地址（IP / 域名）"
-              value={addForm.hostName}
-              onChange={(e) => setAddForm((f) => ({ ...f, hostName: e.target.value }))}
-            />
-            <input
-              className={INPUT_CLASS}
-              placeholder="用户"
-              value={addForm.user}
-              onChange={(e) => setAddForm((f) => ({ ...f, user: e.target.value }))}
-            />
-            <input
-              className={INPUT_CLASS}
-              placeholder="密码"
-              type="password"
-              value={addForm.password}
-              onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void saveAddHost();
-              }}
-            />
-            <textarea
-              className="min-h-[72px] w-full resize-y rounded-[4px] border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
-              placeholder="备注（可选）"
-              value={addForm.note}
-              onChange={(e) => setAddForm((f) => ({ ...f, note: e.target.value }))}
-            />
-          </div>
-          <DialogFooter>
-            <Button disabled={addSaving} onClick={() => setAddHostOpen(false)}>
-              取消
-            </Button>
-            <Button variant="primary" disabled={addSaving} onClick={() => void saveAddHost()}>
-              {addSaving ? "连接中…" : "保存"}
             </Button>
           </DialogFooter>
         </DialogContent>
