@@ -283,7 +283,7 @@ export function SftpPane(props: Props) {
         {props.side === "local" ? <LocalIcon /> : null}
         <span className="truncate">{props.title}</span>
       </span>
-      <label className="flex h-8 w-[132px] items-center gap-1 rounded-control border border-line px-2 text-muted">
+      <label className="motion-field flex h-8 w-[132px] items-center gap-1 rounded-control px-2 text-muted">
         <SearchIcon />
         <input
           value={filter}
@@ -340,8 +340,14 @@ export function SftpPane(props: Props) {
           <path d="M4 11.2 12 4.5l8 6.7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M6 10.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-8.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </IconButton>
-        {editing ? (
-          <div className="flex min-h-7 min-w-0 flex-1 items-center rounded-md bg-raised px-1.5">
+        <div
+          className={cn(
+            "motion-field motion-field-quiet flex min-h-7 min-w-0 flex-1 items-center rounded-control px-1.5",
+            editing ? "motion-field-active" : "cursor-text",
+          )}
+          onMouseDown={editing ? undefined : startEdit}
+        >
+          {editing ? (
             <input
               ref={pathInput}
               value={draft}
@@ -363,36 +369,36 @@ export function SftpPane(props: Props) {
               }}
               onBlur={commitPath}
             />
-          </div>
-        ) : (
-          <div className="flex min-h-7 min-w-0 flex-1 cursor-text items-center gap-0.5 overflow-auto rounded-md px-1.5 hover:bg-raised" onMouseDown={startEdit}>
-            <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
-              <FolderIcon />
-              根目录
-            </button>
-            {segments.map((seg, index) => (
-              <span key={seg.path} className="flex shrink-0 items-center gap-0.5">
-                <span className="text-muted">›</span>
-                <button
-                  type="button"
-                  className={cn(
-                    "inline-flex max-w-[200px] items-center gap-1 truncate rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent",
-                    index === segments.length - 1 && "font-semibold",
-                  )}
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    if (index === segments.length - 1) startEdit();
-                    else go(seg.path);
-                  }}
-                >
-                  <FolderIcon />
-                  {seg.name}
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+          ) : (
+            <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-auto">
+              <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
+                <FolderIcon />
+                根目录
+              </button>
+              {segments.map((seg, index) => (
+                <span key={seg.path} className="flex shrink-0 items-center gap-0.5">
+                  <span className="text-muted">›</span>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex max-w-[200px] items-center gap-1 truncate rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent",
+                      index === segments.length - 1 && "font-semibold",
+                    )}
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      if (index === segments.length - 1) startEdit();
+                      else go(seg.path);
+                    }}
+                  >
+                    <FolderIcon />
+                    {seg.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col bg-surface">
