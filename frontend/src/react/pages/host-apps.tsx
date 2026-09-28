@@ -356,17 +356,17 @@ function AppsTable({
         </div>
       </div>
       <div className="overflow-auto">
-        <table className="w-full border-collapse text-left text-[13px]">
+        <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="h-9 border-b border-line bg-raised/80 text-[11px] text-muted">
+            <tr className="h-10 border-b border-line bg-raised/80 text-xs text-muted">
               <th className="w-10 px-2.5 text-center font-medium">序</th>
               <th className="px-3 font-medium whitespace-nowrap">标识</th>
-              <th className="w-16 px-2 text-center font-medium">端口</th>
+              <th className="w-[72px] px-2 text-center font-medium">端口</th>
               <th className="px-3 font-medium whitespace-nowrap">部署版本</th>
               <th className="px-3 font-medium whitespace-nowrap">启动时间</th>
               <th className="px-3 font-medium whitespace-nowrap">screen</th>
               <th className="px-3 font-medium whitespace-nowrap">路径</th>
-              <th className="w-[72px] px-2 text-center font-medium">状态</th>
+              <th className="w-16 px-2 text-center font-medium">状态</th>
               <th className="w-12 px-2 text-center font-medium">订阅</th>
               <th className="w-14 px-2 text-center font-medium">操作</th>
             </tr>
@@ -383,21 +383,21 @@ function AppsTable({
                   key={`${row.service}-${row.pid}-${row.port}-${idx}`}
                   className={
                     clickable
-                      ? "group h-11 border-b border-line/80 last:border-b-0 hover:bg-accent-soft/50"
-                      : "h-11 border-b border-line/80 text-muted last:border-b-0"
+                      ? "group h-12 border-b border-line/80 last:border-b-0 hover:bg-accent-soft/50"
+                      : "h-12 border-b border-line/80 text-muted last:border-b-0"
                   }
                   style={clickable ? { cursor: "pointer" } : undefined}
                   onClick={() => {
                     if (clickable) onRowClick(row);
                   }}
                 >
-                  <td className="px-2.5 text-center font-mono text-[11px] tabular-nums text-muted">
+                  <td className="px-2.5 text-center align-middle font-mono text-xs tabular-nums text-muted">
                     {idx + 1}
                   </td>
-                  <td className="px-3 font-mono text-[13px] font-semibold">
+                  <td className="px-3 align-middle font-mono text-sm font-semibold">
                     <span className="inline-flex items-center gap-1.5">
                       <span
-                        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
                         style={{ background: online ? nameColor : "var(--color-line)" }}
                         aria-hidden
                       />
@@ -405,7 +405,7 @@ function AppsTable({
                         {row.service || "—"}
                       </span>
                       {row.runtime === "bun" ? (
-                        <span className="rounded-control border border-line px-1 text-[10px] font-normal text-muted">
+                        <span className="rounded-control border border-line px-1 text-[11px] font-normal text-muted">
                           Bun
                         </span>
                       ) : null}
@@ -414,26 +414,26 @@ function AppsTable({
                   <td
                     className={
                       latestHit && row.port
-                        ? "px-2 text-center font-mono text-[13px] font-semibold tabular-nums text-success"
-                        : "px-2 text-center font-mono text-[13px] tabular-nums"
+                        ? "px-2 text-center align-middle font-mono text-sm font-bold tabular-nums text-success"
+                        : "px-2 text-center align-middle font-mono text-sm tabular-nums"
                     }
                   >
                     {row.port || "—"}
                   </td>
-                  <td className="px-3">
+                  <td className="px-3 align-middle">
                     {row.deployVer ? (
-                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-2 whitespace-nowrap">
                         <span
                           className={
                             latestHit
-                              ? "font-mono text-[12px] font-semibold tabular-nums text-success"
-                              : "font-mono text-[12px] tabular-nums"
+                              ? "font-mono text-sm font-bold tabular-nums text-success"
+                              : "font-mono text-sm font-medium tabular-nums"
                           }
                         >
                           {row.deployVer}
                         </span>
                         {latestHit ? (
-                          <span className="rounded-control bg-success-soft px-1 py-px text-[10px] font-medium leading-none text-success">
+                          <span className="rounded-control bg-success px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
                             最新
                           </span>
                         ) : null}
@@ -442,31 +442,31 @@ function AppsTable({
                       "—"
                     )}
                   </td>
-                  <td className="px-3 font-mono text-[12px] tabular-nums whitespace-nowrap text-muted">
+                  <td className="px-3 align-middle font-mono text-sm tabular-nums whitespace-nowrap">
                     {row.startTime || "—"}
                   </td>
-                  <td className="px-3 font-mono text-[12px] whitespace-nowrap">
+                  <td className="px-3 align-middle font-mono text-sm whitespace-nowrap">
                     {row.screen || "—"}
                   </td>
                   <td
-                    className="max-w-[200px] truncate px-3 font-mono text-[12px] text-muted"
+                    className="max-w-[200px] truncate px-3 align-middle font-mono text-sm text-muted"
                     title={row.jarPath || ""}
                   >
                     {shortJarPath(row.jarPath)}
                   </td>
-                  <td className="px-2 text-center">
+                  <td className="px-2 text-center align-middle">
                     <span
                       className={
                         online
-                          ? "inline-block rounded-control bg-success-soft px-1.5 py-0.5 text-[11px] font-medium leading-none text-success"
-                          : "inline-block rounded-control bg-raised px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted"
+                          ? "inline-block rounded-control bg-success-soft px-2 py-0.5 text-xs font-semibold leading-none text-success"
+                          : "inline-block rounded-control bg-raised px-2 py-0.5 text-xs font-semibold leading-none text-muted"
                       }
                     >
                       {online ? "在线" : "离线"}
                     </span>
                   </td>
                   <td
-                    className="px-2 text-center"
+                    className="px-2 text-center align-middle"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canSubscribeNotify(row.service) ? (
@@ -483,13 +483,13 @@ function AppsTable({
                     )}
                   </td>
                   <td
-                    className="px-2 text-center"
+                    className="px-2 text-center align-middle"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canShutdown(row) ? (
                       <button
                         type="button"
-                        className="text-[12px] font-medium text-danger opacity-80 hover:opacity-100"
+                        className="text-sm font-semibold text-danger hover:opacity-80"
                         onClick={() => onShutdown(row)}
                       >
                         下架
