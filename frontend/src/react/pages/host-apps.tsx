@@ -14,7 +14,13 @@ import {
 import { Notice, Page } from "@/react/components/page";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
-import { formatBytes, formatErr, formatScaledBytes, pickByteScale } from "@/utils/format";
+import {
+  formatBytes,
+  formatDurationLong,
+  formatErr,
+  formatScaledBytes,
+  pickByteScale,
+} from "@/utils/format";
 import { settingsAccess } from "@/utils/settingsAccess";
 import {
   isWatchServiceName,
@@ -46,6 +52,33 @@ function shortJarPath(p: string | undefined): string {
   if (!p) return "—";
   const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts[parts.length - 1] || p;
+}
+
+/** 解析 "YYYY-MM-DD HH:mm:ss"，返回距今秒数；解析失败返回 null */
+function elapsedSinceStart(startTime: string): number | null {
+  const m = startTime.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/,
+  );
+  if (!m) return null;
+  const d = new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6]),
+  );
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / 1000);
+}
+
+function formatStartTimeCell(startTime: string | undefined): string {
+  if (!startTime) return "—";
+  const elapsed = elapsedSinceStart(startTime);
+  if (elapsed == null || elapsed <= 0) return startTime;
+  const dur = formatDurationLong(elapsed);
+  if (!dur || dur === "—") return startTime;
+  return `${startTime}（${dur}）`;
 }
 
 function isOnline(row: InstRow) {
@@ -260,23 +293,49 @@ function lineOption(opts: {
       axisLabel: {
         fontSize: 10,
         color: muted,
-        formatter: (v: number) => rightFmt.formatter(v),
+        // 单位跟在刻度后，避免轴名「GB」和图例「主机 内存」挤在右上角
+        formatter: (v: number) => {
+          const n = rightFmt.formatter(v);
+          if (n === "0") return "0";
+          return `${n} ${rightFmt.name}`;
+        },
       },
-      name: rightFmt.name,
-      nameTextStyle: { fontSize: 10, color: muted },
       splitLine: { show: false },
     });
   }
 
   return {
     color: seriesColorList(opts.series.map((s) => s.name)),
-    grid: { left: 52, right: opts.dualBytesOnRight ? 52 : 16, top: 28, bottom: 28 },
+    grid: { left: 52, right: opts.dualBytesOnRight ? 68 : 16, top: 28, bottom: 28 },
     tooltip: {
       trigger: "axis",
-      valueFormatter: (v) => {
-        if (typeof v !== "number") return String(v ?? "");
-        if (opts.unit === "bytes") return formatBytes(v);
-        return String(v);
+      formatter: (params) => {
+        const items = Array.isArray(params) ? params : [params];
+        if (!items.length) return "";
+        const head = String(items[0].axisValueLabel ?? items[0].name ?? "");
+        const lines = items.map((p) => {
+          const name = String(p.seriesName ?? "");
+          const raw = typeof p.value === "number" ? p.value : Number(p.value);
+          let text: string;
+          if (!Number.isFinite(raw)) {
+            text = String(p.value ?? "");
+          } else if (opts.unit === "bytes") {
+            text = formatBytes(raw);
+          } else if (
+            opts.dualBytesOnRight &&
+            opts.series[p.seriesIndex ?? -1]?.yAxisIndex === 1
+          ) {
+            text = formatBytes(raw);
+          } else if (name.includes("CPU")) {
+            text = raw.toFixed(2);
+          } else if (Number.isInteger(raw)) {
+            text = String(raw);
+          } else {
+            text = raw.toFixed(2);
+          }
+          return `${p.marker}${name} ${text}`;
+        });
+        return [head, ...lines].join("<br/>");
       },
     },
     legend: { top: 0, right: 0, textStyle: { fontSize: 11 } },
@@ -443,7 +502,7 @@ function AppsTable({
                     )}
                   </td>
                   <td className="px-3 align-middle font-mono text-sm tabular-nums whitespace-nowrap">
-                    {row.startTime || "—"}
+                    {formatStartTimeCell(row.startTime)}
                   </td>
                   <td className="px-3 align-middle font-mono text-sm whitespace-nowrap">
                     {row.screen || "—"}
