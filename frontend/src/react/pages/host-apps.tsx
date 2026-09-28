@@ -164,10 +164,12 @@ function buildTableRows(
 
 function ChartHost({
   option,
-  height = 200,
+  height,
+  className,
 }: {
   option: echarts.EChartsOption;
   height?: number;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.EChartsType | null>(null);
@@ -178,8 +180,11 @@ function ChartHost({
     chartRef.current = chart;
     const onResize = () => chart.resize();
     window.addEventListener("resize", onResize);
+    const ro = new ResizeObserver(onResize);
+    ro.observe(ref.current);
     return () => {
       window.removeEventListener("resize", onResize);
+      ro.disconnect();
       chart.dispose();
       chartRef.current = null;
     };
@@ -196,7 +201,13 @@ function ChartHost({
     );
   }, [option]);
 
-  return <div ref={ref} style={{ height }} className="w-full min-w-0" />;
+  return (
+    <div
+      ref={ref}
+      style={height != null ? { height } : undefined}
+      className={`w-full min-h-0 min-w-0 ${className || ""}`}
+    />
+  );
 }
 
 function bytesAxisFormatter(values: number[]) {
@@ -807,27 +818,32 @@ export function AppsPage({ host }: { host: string }) {
           if (!v) setChartsOpen(false);
         }}
       >
-        <DialogContent className="w-[min(860px,calc(100%-32px))] max-h-[90vh] overflow-auto">
-          <DialogTitle>
+        <DialogContent className="flex h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw] flex-col overflow-hidden px-6 py-5">
+          <DialogTitle className="shrink-0">
             {selectedService ? `${selectedService} · 对照（近 1 小时）` : "曲线"}
           </DialogTitle>
-          <div className="mt-3 space-y-3">
-            {isBun ? (
-              <>
-                <ChartHost option={rssOption} height={200} />
-                <ChartHost option={cpuOption} height={160} />
-              </>
-            ) : (
-              <>
-                <ChartHost option={heapOption} height={200} />
-                <ChartHost option={gcOption} height={160} />
-              </>
-            )}
-            <ChartHost option={hostOption} height={160} />
+          <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
+            <div className="flex min-h-0 flex-[1.25] flex-col">
+              {isBun ? (
+                <ChartHost option={rssOption} className="h-full flex-1" />
+              ) : (
+                <ChartHost option={heapOption} className="h-full flex-1" />
+              )}
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col">
+              {isBun ? (
+                <ChartHost option={cpuOption} className="h-full flex-1" />
+              ) : (
+                <ChartHost option={gcOption} className="h-full flex-1" />
+              )}
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col">
+              <ChartHost option={hostOption} className="h-full flex-1" />
+            </div>
             {events.length ? (
-              <div className="overflow-auto border border-line bg-surface">
+              <div className="max-h-[22%] shrink-0 overflow-auto border border-line bg-surface">
                 <table className="w-full border-collapse text-left text-sm">
-                  <thead className="bg-raised">
+                  <thead className="sticky top-0 z-[1] bg-raised">
                     <tr className="h-10">
                       <th className="px-3 font-medium">序</th>
                       <th className="px-3 font-medium">层</th>
