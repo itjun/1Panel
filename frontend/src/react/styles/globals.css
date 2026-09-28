@@ -84,7 +84,7 @@ html.dark {
   body,
   #app,
   .react-root {
-    background-color: transparent;
+    background-color: var(--color-canvas);
   }
 
   .react-root {
@@ -150,16 +150,21 @@ html.dark {
   -webkit-user-select: auto;
 }
 
-/* 磨砂来自窗口后的系统材质。侧栏与通栏同一罩色，避免导航钮所在通栏和侧栏各一层。
-   用 background-color，不要用 background 简写：构建时 transparent 会被收成无效值。 */
+/* 壳 chrome：顶栏 + 侧栏实色 surface；主区 canvas。
+   类名暂留 glass-chrome*，语义为实色（暗色走 token）。
+   用 background-color，不要用 background 简写。 */
 .glass-chrome,
-.glass-chrome-main {
-  background-color: rgba(245, 245, 248, 0.82);
+.shell-app-toolbar {
+  background-color: var(--color-surface);
 }
 
 .glass-chrome {
   border-right: 1px solid var(--color-line);
   position: relative;
+}
+
+.glass-chrome-main {
+  background-color: var(--color-canvas);
 }
 
 /* Firefox 式侧栏分割条：平时细命中区，拖动时显出品牌色竖线 */
@@ -180,23 +185,7 @@ html.dark {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-html.dark .glass-chrome,
-html.dark .glass-chrome-main {
-  background-color: rgba(24, 24, 24, 0.82);
-}
-
-/* Windows/Linux：不做透明。侧栏与通栏同色，内容区仍是这块底。 */
-html[data-platform="solid"] .glass-chrome,
-html[data-platform="solid"] .glass-chrome-main {
-  background-color: #ffffff;
-}
-
-html.dark[data-platform="solid"] .glass-chrome,
-html.dark[data-platform="solid"] .glass-chrome-main {
-  background-color: #1e1e1e;
-}
-
-/* 顶栏以下的内容体：透明贴边，白卡片直接落在 glass-chrome / 磨砂上。 */
+/* 顶栏以下的内容体：贴边可滚动，白卡片直接落在 canvas 主区上。 */
 .content-float {
   flex: 1 1 0%;
   min-width: 0;
@@ -204,7 +193,7 @@ html.dark[data-platform="solid"] .glass-chrome-main {
   overflow: auto;
 }
 
-/* 悬浮表面：白底直角，落在磨砂上（无阴影）。
+/* 悬浮表面：白底直角，落在 canvas 上（无阴影）。
    需要裁切内容时再加 overflow-hidden（表格/列表）。 */
 .surface-float {
   border-radius: var(--radius-surface);
@@ -214,6 +203,18 @@ html.dark[data-platform="solid"] .glass-chrome-main {
 
 .gap-card {
   gap: var(--gap-card);
+}
+
+/* 侧栏导航项：选中铺满整宽；实色 accent-soft */
+.rail-item {
+  width: 100%;
+  border-radius: 0;
+}
+
+.rail-item-active {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .edit-dock {
@@ -230,7 +231,7 @@ html.dark[data-platform="solid"] .glass-chrome-main {
 /* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。
    不另加上下 padding，控件在这 40px 里居中，上下留白相同。
    窗控导航按钮用 h-10 贴满通栏；其余 h-8 上下各 4px、h-7 各 6px。
-   通栏本身不铺底色，磨砂来自窗口底，避免和缝隙叠成两层。 */
+   通栏罩色与侧栏同级（见 .shell-app-toolbar / .glass-chrome）。 */
 .shell-toolbar {
   box-sizing: border-box;
   height: 40px;
@@ -240,23 +241,6 @@ html.dark[data-platform="solid"] .glass-chrome-main {
   padding-top: 0;
   padding-bottom: 0;
   flex-shrink: 0;
-}
-
-/* Firefox 式整窗通栏：与侧栏同色，贯穿到红绿灯旁。 */
-.shell-app-toolbar {
-  background-color: rgba(245, 245, 248, 0.82);
-}
-
-html.dark .shell-app-toolbar {
-  background-color: rgba(24, 24, 24, 0.82);
-}
-
-html[data-platform="solid"] .shell-app-toolbar {
-  background-color: #ffffff;
-}
-
-html.dark[data-platform="solid"] .shell-app-toolbar {
-  background-color: #1e1e1e;
 }
 
 /* 通栏与内容区之间的分隔线。 */

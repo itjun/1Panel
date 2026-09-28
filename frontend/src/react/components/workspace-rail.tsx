@@ -141,6 +141,14 @@ export function WorkspaceRail() {
     setSelectedHostNames((prev) => prev.filter((n) => names.has(n)));
   }, [session.openedHosts]);
 
+  // 进入分组页时清掉主机多选，避免与分组 active 叠出双高亮
+  useEffect(() => {
+    if (session.homeView !== "group") return;
+    if (session.activeHost) return;
+    setSelectedHostNames((prev) => (prev.length === 0 ? prev : []));
+    hostAnchorRef.current = "";
+  }, [session.activeGroupId, session.activeHost, session.homeView]);
+
   // 通知未读数
   useEffect(() => {
     let cancelled = false;
@@ -266,7 +274,7 @@ export function WorkspaceRail() {
         aria-label="应用导航"
       >
       <div
-        className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-1.5"
+        className="flex min-h-0 flex-1 flex-col overflow-auto"
         onContextMenu={(e) => {
           if (listKind !== "hosts") return;
           if ((e.target as HTMLElement).closest("button")) return;
@@ -353,6 +361,9 @@ export function WorkspaceRail() {
                     }
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;
+                      // 切到分组时清掉主机多选，避免 selected 与分组 active 叠出双高亮
+                      setSelectedHostNames([]);
+                      hostAnchorRef.current = "";
                       session.openGroup(entry.key);
                     }}
                     onContextMenu={(e) => {
@@ -394,7 +405,9 @@ export function WorkspaceRail() {
                 );
               }
 
-              const selected = selectedHostNames.includes(entry.name);
+              // 仅在当前落在某台主机时展示多选高亮；分组页上 leftover selected 不得冒充 active
+              const selected =
+                !!session.activeHost && selectedHostNames.includes(entry.name);
               const active = session.activeHost === entry.name;
               return (
                 <RailSessionRow
@@ -694,14 +707,14 @@ function UtilityNav({
   }, [open, onClose]);
 
   return (
-    <div className="relative mt-1 px-1.5">
+    <div className="relative mt-1">
       <button
         type="button"
         className={cn(
-          "relative flex h-10 w-full shrink-0 items-center rounded-control text-left",
+          "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
           activeLabel
-            ? "bg-accent-soft px-2.5 font-semibold text-accent"
-            : "px-2.5 text-muted hover:bg-raised hover:text-ink",
+            ? "rail-item-active"
+            : "text-muted hover:bg-raised hover:text-ink",
         )}
         title="切换模块"
         aria-expanded={open}
@@ -773,10 +786,8 @@ function RailNavButton({
     <button
       type="button"
       className={cn(
-        "relative flex h-10 shrink-0 items-center rounded-control text-left",
-        active
-          ? "bg-accent-soft px-2.5 font-semibold text-accent"
-          : "px-2.5 text-muted hover:bg-raised hover:text-ink",
+        "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
+        active ? "rail-item-active" : "text-muted hover:bg-raised hover:text-ink",
       )}
       onClick={onClick}
       onContextMenu={onContextMenu}
@@ -826,10 +837,10 @@ function RailSessionRow({
       type="button"
       draggable
       className={cn(
-        "relative flex h-10 shrink-0 cursor-grab items-center gap-1.5 truncate rounded-control text-left active:cursor-grabbing",
+        "rail-item relative flex h-10 shrink-0 cursor-grab items-center gap-1.5 truncate px-3 text-left active:cursor-grabbing",
         active || selected
-          ? "bg-accent-soft px-2.5 font-semibold text-accent"
-          : "px-2.5 text-muted hover:bg-raised hover:text-ink",
+          ? "rail-item-active"
+          : "text-muted hover:bg-raised hover:text-ink",
         dragging && "opacity-40",
       )}
       onPointerDown={onPointerDown}
@@ -840,12 +851,12 @@ function RailSessionRow({
       onDragEnd={onDragEnd}
     >
       {dropEdge === "before" ? (
-        <span className="pointer-events-none absolute inset-x-1 top-0 h-[3px] rounded-sm bg-accent" />
+        <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-accent" />
       ) : null}
       {prefix ? <span className="shrink-0 text-[12px] opacity-70">{prefix}</span> : null}
       <span className="truncate">{label}</span>
       {dropEdge === "after" ? (
-        <span className="pointer-events-none absolute inset-x-1 bottom-0 h-[3px] rounded-sm bg-accent" />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-accent" />
       ) : null}
     </button>
   );

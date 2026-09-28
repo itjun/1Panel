@@ -143,9 +143,9 @@
 
 | 区域 | 约定 |
 |---|---|
-| 侧栏（Sider） | 整站导航；展开/收起由应用状态控制；位于整窗通栏**下方**；默认宽对齐通栏主页图标右缘；可拖拽改宽（160–480px），双击分割条复位 |
-| 顶栏工具条 | 固定 **40px**（`.shell-app-toolbar`），**整窗贯通**至红绿灯旁（Firefox 式）；与侧栏同色；页面标题/操作经 portal 挂入 |
-| 内容区 | `.content-float`；卡片用 `.surface-float` |
+| 侧栏（Sider） | 整站导航；展开/收起由应用状态控制；位于整窗通栏**下方**；默认宽对齐通栏主页图标右缘；可拖拽改宽（160–480px），双击分割条复位；与顶栏同为不透明 `--color-surface` 实色 |
+| 顶栏工具条 | 固定 **40px**（`.shell-app-toolbar`），**整窗贯通**至红绿灯旁（Firefox 式）；与侧栏同色实色 surface；页面标题/操作经 portal 挂入 |
+| 内容区 | 主区灰画布（`--color-canvas`）上贴边 `.content-float`；卡片用 `.surface-float`（直角） |
 | 卡片间隙 | `--gap-card`（见 §9 特例） |
 
 ### 4.2 网格与间距原则
@@ -244,8 +244,8 @@
 
 ### 8.1 表面层级
 
-1. **画布** `--color-canvas`（磨砂/窗口底之上的逻辑底）
-2. **悬浮内容面** `.surface-float`：`--color-surface` + `1px solid var(--color-line)` + `--radius-surface`，**默认无阴影**
+1. **画布** `--color-canvas`（主区灰底）
+2. **悬浮内容面** `.surface-float`：`--color-surface` + `1px solid var(--color-line)` + `--radius-surface`（直角），**默认无阴影**；`.content-float` 仅为可滚动内容区（贴边、无自带底色/描边/圆角）
 3. **浮层**（菜单/对话框）：可用克制阴影；仍用 surface + line，动画走 Motion token
 4. **终端 / 代码 / 日志**：石墨表面，保留 ANSI / 编辑器主题，**不随亮色主题洗成浅底**
 
@@ -254,7 +254,7 @@
 - 按钮：共享 `Button`（primary / secondary / danger / ghost）；主操作才用 `primary`。
 - 焦点：可见 `focus-visible`，输入类可用 `--color-accent-focus` 外环。
 - 表格：行高、表头高度与虚拟表常量一致（见 §9）；hover 用 raised/状态层，不加夸张阴影。
-- 卡片：Outlined 风格（描边 + 白底），hover **不加 elevation**，可用轻微底色变化。
+- 卡片（`.surface-float`）：Outlined 风格（描边 + surface 白底 + 直角）；hover **不加 elevation**，可用轻微底色变化。
 
 ### 8.3 技术栈约束
 
@@ -270,7 +270,8 @@
 
 | 特例 | 现行值 | 说明 |
 |---|---|---|
-| 表面圆角 | `--radius-surface: 0` | 卡片/表/弹窗直角，区别于部分 TDesign 模板圆角 |
+| 表面圆角 | `--radius-surface: 0` | 卡片/表/弹窗直角；不做整页圆角悬浮面板 |
+| 壳层 chrome | 顶栏 + 侧栏不透明 `--color-surface`；Mac/Win/Linux 统一视觉 | 无系统磨砂（Mac 不再用 vibrancy/透桌面）；无 Win/Linux 浅蓝侧栏分叉 |
 | 控件圆角 | `--radius-control: 4px` | 按钮、输入等 |
 | 卡片间隙 | `--gap-card: 5px` | 历史密度选择；新间距仍优先 8 倍数，勿再扩散更多「5px 体系」 |
 | 顶栏高度 | 40px | 对齐桌面窗口控件带；整窗贯通，侧栏在其下 |

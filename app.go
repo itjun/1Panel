@@ -86,11 +86,7 @@ const RetryInterval = 30 * time.Second
 // NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
 // 返回的 *application.App 由 main.go 调用 Run。
 func mainWindowBackgroundColour() application.RGBA {
-	// macOS 透出桌面磨砂，窗口底必须透明。
-	// Windows/Linux 共用 Chrome 式实色界面，窗口底用白色贴近内容区。
-	if goruntime.GOOS == "darwin" {
-		return application.NewRGBA(0, 0, 0, 0)
-	}
+	// 三端统一不透明白底，不走系统磨砂/透明窗。
 	return application.NewRGB(255, 255, 255)
 }
 
@@ -173,11 +169,10 @@ func NewApp() *application.App {
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHidden,
 			InvisibleTitleBarHeight: macInvisibleTitleBarHeight,
-			Backdrop:                application.MacBackdropTranslucent,
+			Backdrop:                application.MacBackdropNormal,
 		},
 		URL: "/",
 	}
-	// macOS 主窗口用磨砂底，侧栏与内容区都透出这层；白卡片直接落在磨砂上。
 	// Windows/Linux：无系统标题栏/菜单，窗口按钮画在应用内标题栏。
 	// macOS 继续隐藏系统标题栏、保留左上红绿灯（不走 Frameless，否则红绿灯会被藏掉）。
 	if goruntime.GOOS != "darwin" {
@@ -193,7 +188,6 @@ func NewApp() *application.App {
 	// 启动默认浅色；前端加载设置后会再调 SetThemeAppearance
 	core.themeAppearance = macui.AppearanceLight
 	macui.SetWindowAppearance(win, core.themeAppearance)
-	macui.EnableFrostedBackdrop(win)
 
 	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
 	// 没有：按主屏算完再 Show，仍然不等 Vue。
@@ -401,10 +395,6 @@ func (a *App) maybeShowMainWindow() {
 	win.Center()
 	win.Show()
 	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
-	macui.EnableFrostedBackdrop(win)
-	if goruntime.GOOS == "darwin" {
-		win.ExecJS(`document.documentElement.style.setProperty("background-color","transparent","important");document.body.style.setProperty("background-color","transparent","important");`)
-	}
 	a.syncTrafficLights()
 }
 

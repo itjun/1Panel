@@ -64,8 +64,43 @@ ok("React shell and workspace navigation markers present");
 
 const shellStyles = fs.readFileSync(path.join(root, "src/react/styles/globals.css"), "utf8");
 if (shellStyles.includes("--shell-gutter")) fail("collapsed shell gutter should be gone");
-if (!shellStyles.includes(".glass-chrome")) fail("shared frosted chrome rule missing");
-if (!rail.includes("glass-chrome")) fail("sidebar is not frosted chrome");
+if (!shellStyles.includes(".glass-chrome")) fail("shared solid chrome rule missing");
+if (!rail.includes("glass-chrome")) fail("sidebar is not solid chrome");
+if (shellStyles.includes('data-platform="solid"')) {
+  fail("platform solid light-blue / white fork should be removed");
+}
+if (shellStyles.includes("rgba(255, 255, 255, 0.62)")) {
+  fail("frosted/transparent chrome still present on glass-chrome");
+}
+if (shellStyles.includes("rgba(18, 18, 18, 0.58)")) {
+  fail("frosted/transparent dark chrome still present");
+}
+if (!/background-color:\s*var\(--color-surface\)/.test(shellStyles)) {
+  fail("chrome must use --color-surface");
+}
+if (!/\.glass-chrome-main\s*\{[^}]*var\(--color-canvas\)/s.test(shellStyles)) {
+  fail("glass-chrome-main must use --color-canvas");
+}
+if (!/\.content-float\s*\{[^}]*overflow:\s*auto/s.test(shellStyles)) {
+  fail("content-float must be a flush scroll region");
+}
+if (/\.content-float\s*\{[^}]*margin:\s*8px/s.test(shellStyles)) {
+  fail("content-float must not be a floating panel with margin");
+}
+if (/\.content-float\s*\{[^}]*border-radius:/s.test(shellStyles)) {
+  fail("content-float must not set border-radius (flush, not floating panel)");
+}
+if (!shellStyles.includes("--radius-surface: 0px") && !shellStyles.includes("--radius-surface: 0;")) {
+  fail("--radius-surface must be 0 (right angles)");
+}
+if (!/\.rail-item-active\s*\{[^}]*var\(--color-accent-soft\)/s.test(shellStyles)) {
+  fail("rail-item-active must use --color-accent-soft");
+}
+if (
+  /html,\s*body,\s*#app,\s*\.react-root\s*\{[^}]*transparent/s.test(shellStyles)
+) {
+  fail("html/body/#app/.react-root must not be transparent");
+}
 if (!rail.includes("sidebarWidth") && !rail.includes("useSidebar")) {
   fail("sidebar width is not driven by sidebar state");
 }
@@ -90,10 +125,20 @@ if (!sidebarState.includes("1pannel-sidebar-width")) fail("sidebar width is not 
 if (!sidebarState.includes("SIDEBAR_WIDTH_MIN") || !sidebarState.includes("SIDEBAR_WIDTH_MAX")) {
   fail("sidebar width min/max missing");
 }
+ok("solid chrome + flush content-float (right-angle surfaces) contract");
 ok("sidebar sits below the full-width app toolbar and is resizable");
 
 const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (!entry.includes("/src/react/main.tsx")) fail("index.html does not load React");
-ok("index.html loads React");
+if (entry.includes('dataset.platform') || entry.includes('data-platform')) {
+  fail("index.html must not set data-platform=solid");
+}
+if (/background-color:\s*transparent\s*!important/.test(entry)) {
+  fail("index.html boot must not use transparent root background");
+}
+if (!entry.includes("background-color: #f3f3f3")) {
+  fail("index.html boot root should use solid canvas #f3f3f3");
+}
+ok("index.html loads React with solid boot skeleton");
 
 console.log("VERIFY_SHELL_PASS");

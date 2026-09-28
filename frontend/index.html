@@ -6,12 +6,13 @@
     <title>1Panel</title>
     <link rel="icon" type="image/svg+xml" href="/src/assets/1panel-favicon.svg" />
     <style>
+      /* boot 骨架：与壳契约对齐 — canvas 底 + surface chrome，无透明/磨砂 */
       html,
       body,
       #app {
         margin: 0;
         height: 100%;
-        background-color: transparent !important;
+        background-color: #f3f3f3 !important;
         color-scheme: light;
       }
       .boot-skel {
@@ -19,7 +20,7 @@
         height: 100%;
         grid-template-rows: 40px 1fr;
         grid-template-columns: var(--boot-sidebar, 320px) 1fr;
-        background: transparent;
+        background: #f3f3f3;
       }
       html.boot-no-side .boot-skel {
         grid-template-columns: 1fr;
@@ -30,7 +31,8 @@
       }
       .boot-tb-l,
       .boot-tb-r {
-        background: transparent;
+        background: #ffffff;
+        border-bottom: 1px solid #e8e8e8;
       }
       .boot-tb-r {
         display: flex;
@@ -45,6 +47,8 @@
       }
       .boot-side {
         padding: 12px 10px;
+        background: #ffffff;
+        border-right: 1px solid #e8e8e8;
       }
       .boot-line {
         height: 28px;
@@ -53,16 +57,15 @@
         background: rgba(31, 35, 41, 0.06);
       }
       .boot-main {
-        background: #f4f4f4;
-        padding: 16px 20px;
+        background: #f3f3f3;
         overflow: hidden;
       }
       .boot-card {
         height: 88px;
         margin-bottom: 8px;
-        border-radius: 8px;
+        border-radius: 0;
         background: #ffffff;
-        box-shadow: 0 0 0 1px #e4e7ed;
+        box-shadow: 0 0 0 1px #e8e8e8;
       }
       .boot-grid {
         display: grid;
@@ -71,9 +74,9 @@
       }
       .boot-tile {
         height: 72px;
-        border-radius: 8px;
+        border-radius: 0;
         background: #ffffff;
-        box-shadow: 0 0 0 1px #e4e7ed;
+        box-shadow: 0 0 0 1px #e8e8e8;
       }
       .boot-pulse {
         animation: boot-pulse 1.1s ease-in-out infinite;
@@ -92,12 +95,6 @@
       (function () {
         document.documentElement.className = "light";
         document.documentElement.style.colorScheme = "light";
-        var ua = navigator.userAgent || "";
-        var platform = navigator.platform || "";
-        // Windows / Linux：Chrome 式实色蓝白；macOS 不标，走默认磨砂透明。
-        if (/Win|Linux/.test(platform) || /Windows|Linux|Android|CrOS/.test(ua)) {
-          document.documentElement.dataset.platform = "solid";
-        }
         try {
           var n = Number(localStorage.getItem("ipannel.sidebarWidth"));
           if (n >= 180 && n <= 320) {
