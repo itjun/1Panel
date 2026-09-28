@@ -364,9 +364,9 @@ function MessagesPage({
           >
             全部已读
           </Button>
-          <Button onClick={() => void query.refetch()}>刷新</Button>
         </>
       }
+      onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <Card className="overflow-hidden p-0">

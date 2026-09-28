@@ -24,6 +24,7 @@ import { InspectPage } from "@/react/pages/inspect";
 import { LocalPage } from "@/react/pages/local";
 import { NotifyPage } from "@/react/pages/notify";
 import { SettingsPage } from "@/react/pages/settings-page";
+import { PageRefreshProvider } from "@/react/state/page-refresh";
 import { SessionProvider, useSession } from "@/react/state/session";
 
 const queryClient = new QueryClient();
@@ -37,9 +38,11 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <SidebarProvider>
-          <Shell />
-        </SidebarProvider>
+        <PageRefreshProvider>
+          <SidebarProvider>
+            <Shell />
+          </SidebarProvider>
+        </PageRefreshProvider>
       </SessionProvider>
     </QueryClientProvider>
   );

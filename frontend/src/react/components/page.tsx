@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/react/lib/utils";
+import { useRegisterPageRefresh } from "@/react/state/page-refresh";
 
 export function Page({
   title,
@@ -7,6 +8,8 @@ export function Page({
   children,
   dark = false,
   flush = false,
+  onRefresh,
+  refreshing = false,
 }: {
   title?: string;
   actions?: ReactNode;
@@ -14,7 +17,11 @@ export function Page({
   dark?: boolean;
   /** 左右分栏等需要贴边铺满时关掉内边距 */
   flush?: boolean;
+  /** 挂到红绿灯旁刷新图标；无则 chrome 回退 session.refresh */
+  onRefresh?: () => void | Promise<void>;
+  refreshing?: boolean;
 }) {
+  useRegisterPageRefresh(onRefresh, refreshing);
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col text-ink">
       {title || actions ? (

@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { api } from "@/api";
-import { Button } from "@/react/components/ui/button";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
 import { hostsHighlightHtml } from "@/utils/hostsHighlight";
@@ -27,13 +26,11 @@ export function LocalHostsPage() {
       title="本机 Hosts"
       flush
       actions={
-        <>
-          <span className="font-mono text-sm text-muted" title={pathLabel}>
-            {pathLabel}
-          </span>
-          <Button onClick={() => void query.refetch()}>刷新</Button>
-        </>
+        <span className="font-mono text-sm text-muted" title={pathLabel}>
+          {pathLabel}
+        </span>
       }
+      onRefresh={() => void query.refetch()}
     >
       {query.error ? (
         <div className="px-3 pt-3">

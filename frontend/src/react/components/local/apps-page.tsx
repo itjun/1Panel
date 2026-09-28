@@ -648,9 +648,9 @@ export function LocalAppsPage() {
           >
             {killButtonLabel}
           </Button>
-          <Button onClick={() => void query.refetch()}>刷新</Button>
         </>
       }
+      onRefresh={() => void query.refetch()}
     >
       {(query.data?.warnings || []).length ? (
         <Notice tone="warn" text={(query.data?.warnings || []).join("；")} />

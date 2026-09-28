@@ -77,9 +77,9 @@ export function LocalPackagesPage() {
             onChange={(event) => setKeyword(event.target.value)}
             placeholder="搜索名称 / 路径…"
           />
-          <Button onClick={() => void query.refetch()}>刷新</Button>
         </>
       }
+      onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <div className="min-h-48 flex-1 overflow-auto">

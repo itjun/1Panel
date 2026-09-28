@@ -240,11 +240,10 @@ export function PackagesPage({ host }: { host: string }) {
           >
             按依赖数{sortKey === "depends" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
           </Button>
-          <Button onClick={() => void query.refetch()} disabled={query.isFetching}>
-            {query.isFetching ? "刷新中…" : "刷新"}
-          </Button>
         </>
       }
+      onRefresh={() => void query.refetch()}
+      refreshing={query.isFetching}
     >
       {stats ? (
         <p className="mb-3 text-sm text-muted">

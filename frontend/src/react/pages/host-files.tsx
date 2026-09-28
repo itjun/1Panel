@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api";
 import { HighlightPane } from "@/react/components/local/highlight-pane";
-import { Button } from "@/react/components/ui/button";
 import { Notice, Page } from "@/react/components/page";
 import { SftpPage } from "@/react/pages/sftp-page";
 import type { Tool } from "@/react/state/session";
@@ -111,18 +110,12 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
       title={title}
       flush
       actions={
-        <>
-          <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
-          <Button
-            onClick={() => {
-              void listing.refetch();
-              if (needFetch) void body.refetch();
-            }}
-          >
-            刷新
-          </Button>
-        </>
+        <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
       }
+      onRefresh={() => {
+        void listing.refetch();
+        if (needFetch) void body.refetch();
+      }}
     >
       {listing.error ? (
         <div className="px-3 pt-3">

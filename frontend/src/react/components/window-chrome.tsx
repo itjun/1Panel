@@ -5,6 +5,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Window } from "@wailsio/runtime";
+import { usePageRefresh } from "@/react/state/page-refresh";
 import { useNavHistory, useSession } from "@/react/state/session";
 import { useSidebar } from "@/react/state/sidebar";
 
@@ -73,6 +74,7 @@ export function WindowChrome() {
   const { canBack, canForward, goBack, goForward } = useNavHistory();
   const { open, toggle } = useSidebar();
   const session = useSession();
+  const pageRefresh = usePageRefresh();
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -161,9 +163,9 @@ export function WindowChrome() {
       </ChromeButton>
       <ChromeButton
         label="刷新"
-        disabled={session.loading}
+        disabled={pageRefresh.busy || session.loading}
         onClick={() => {
-          void session.refresh();
+          void pageRefresh.run();
         }}
       >
         <path

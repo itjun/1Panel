@@ -151,9 +151,9 @@ export function LocalStoragePage() {
           <Button onClick={() => void api.localSysStorageOpenPrivacy()}>
             打开完全磁盘访问
           </Button>
-          <Button onClick={() => void statusQuery.refetch()}>刷新</Button>
         </>
       }
+      onRefresh={() => void statusQuery.refetch()}
     >
       {statusQuery.error ? <Notice text={formatErr(statusQuery.error)} /> : null}
       {status?.error ? <Notice text={status.error} /> : null}

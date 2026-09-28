@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
-import { Button } from "@/react/components/ui/button";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
 import { highlightFileHtml } from "@/utils/codeHighlight";
@@ -44,15 +43,13 @@ export function LocalNginxPage() {
       title="本机 Nginx"
       flush
       actions={
-        <>
-          <span className="max-w-[420px] truncate text-sm text-muted" title={info.data?.confPath}>
-            {info.data?.running ? "运行中" : "未运行"}
-            {info.data?.version ? ` · v${info.data.version}` : ""}
-            {info.data?.confPath ? ` · ${info.data.confPath}` : ""}
-          </span>
-          <Button onClick={() => void info.refetch()}>刷新</Button>
-        </>
+        <span className="max-w-[420px] truncate text-sm text-muted" title={info.data?.confPath}>
+          {info.data?.running ? "运行中" : "未运行"}
+          {info.data?.version ? ` · v${info.data.version}` : ""}
+          {info.data?.confPath ? ` · ${info.data.confPath}` : ""}
+        </span>
       }
+      onRefresh={() => void info.refetch()}
     >
       {info.error ? (
         <div className="px-3 pt-3">

@@ -421,13 +421,11 @@ function OverviewPage({ host }: { host: string }) {
   return (
     <Page
       title="概览"
+      onRefresh={() => void refreshAll()}
       actions={
-        <>
-          <Button onClick={() => void refreshAll()}>刷新</Button>
-          <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
-            恢复默认
-          </Button>
-        </>
+        <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
+          恢复默认
+        </Button>
       }
     >
       {agentErr ? <Notice text={agentErr} /> : null}
@@ -1335,12 +1333,12 @@ function MonitorPage({ host }: { host: string }) {
             </select>
           </label>
           {grainHint ? <span className="text-xs text-muted">{grainHint}</span> : null}
-          <Button onClick={refreshMonitor}>刷新</Button>
           <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
             恢复默认
           </Button>
         </>
       }
+      onRefresh={refreshMonitor}
     >
       {overview.error ? <Notice text={formatErr(overview.error)} /> : null}
       {range === "custom" ? (
@@ -1604,18 +1602,14 @@ function ProcessesPage({ host }: { host: string }) {
               </Button>
             </>
           ) : null}
-          <Button
-            onClick={() =>
-              void (view === "docker"
-                ? docker.refetch()
-                : view === "all"
-                  ? procs.refetch()
-                  : runtime.refetch())
-            }
-          >
-            刷新
-          </Button>
         </>
+      }
+      onRefresh={() =>
+        void (view === "docker"
+          ? docker.refetch()
+          : view === "all"
+            ? procs.refetch()
+            : runtime.refetch())
       }
     >
       {msg ? <Notice text={msg} tone="warn" /> : null}
@@ -1881,13 +1875,11 @@ function CertsPage({ host }: { host: string }) {
     <Page
       title="证书"
       actions={
-        <>
-          <Button variant="primary" onClick={() => setUploadOpen(true)}>
-            上传证书
-          </Button>
-          <Button onClick={() => void query.refetch()}>刷新</Button>
-        </>
+        <Button variant="primary" onClick={() => setUploadOpen(true)}>
+          上传证书
+        </Button>
       }
+      onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       {msg ? <Notice text={msg} tone="warn" /> : null}
@@ -2033,16 +2025,14 @@ function ServicesPage({ host }: { host: string }) {
     <Page
       title="服务"
       actions={
-        <>
-          <input
-            className="h-8 rounded-control border border-line px-3"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="搜索服务名"
-          />
-          <Button onClick={() => void query.refetch()}>刷新</Button>
-        </>
+        <input
+          className="h-8 rounded-control border border-line px-3"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="搜索服务名"
+        />
       }
+      onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <SimpleRows
@@ -2109,7 +2099,10 @@ function CronPage({ host }: { host: string }) {
   }, [query.data]);
 
   return (
-    <Page title="定时任务" actions={<Button onClick={() => void query.refetch()}>刷新</Button>}>
+    <Page
+      title="定时任务"
+      onRefresh={() => void query.refetch()}
+    >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       {msg ? <Notice text={msg} tone="warn" /> : null}
       <SimpleRows
@@ -2219,9 +2212,9 @@ function LogsPage({ host }: { host: string }) {
             placeholder="搜索过滤"
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Button onClick={() => void query.refetch()}>刷新</Button>
         </>
       }
+      onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       {query.data?.source ? (

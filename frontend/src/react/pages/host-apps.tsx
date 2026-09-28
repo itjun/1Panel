@@ -781,11 +781,9 @@ export function AppsPage({ host }: { host: string }) {
   return (
     <Page
       title="应用"
+      onRefresh={() => void refreshAll()}
       actions={
-        <>
-          <Button onClick={() => void refreshAll()}>刷新</Button>
-          <Button onClick={() => void openCfg()}>监视配置</Button>
-        </>
+        <Button onClick={() => void openCfg()}>监视配置</Button>
       }
     >
       {instances.error ? <Notice text={formatErr(instances.error)} /> : null}

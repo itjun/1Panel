@@ -492,9 +492,6 @@ export function ConfigCenterPage() {
       actions={
         <>
           <span className="text-sm text-muted">{statusLabel(overview.data)}</span>
-          <Button disabled={busy} onClick={() => void refreshAll()}>
-            刷新
-          </Button>
           {overview.data?.drift || overview.data?.needsReview ? (
             <Button disabled={busy} onClick={() => void previewExternalImport()}>
               导入差异
@@ -502,6 +499,8 @@ export function ConfigCenterPage() {
           ) : null}
         </>
       }
+      onRefresh={() => void refreshAll()}
+      refreshing={busy}
     >
       {error ? <Notice text={error} /> : null}
       {message ? <Notice text={message} tone="warn" /> : null}

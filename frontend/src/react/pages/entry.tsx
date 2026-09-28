@@ -531,9 +531,6 @@ function ConfigCenterPage() {
       actions={
         <>
           <span className="text-sm text-muted">{statusLabel(overview.data)}</span>
-          <Button disabled={busy} onClick={() => void refreshAll()}>
-            刷新
-          </Button>
           {overview.data?.drift || overview.data?.needsReview ? (
             <Button disabled={busy} onClick={() => void runPreviewImport()}>
               导入差异
@@ -541,6 +538,8 @@ function ConfigCenterPage() {
           ) : null}
         </>
       }
+      onRefresh={() => void refreshAll()}
+      refreshing={busy}
     >
       {error ? <Notice text={error} /> : null}
       {message ? <Notice text={message} tone="warn" /> : null}
@@ -949,9 +948,9 @@ function GroupPage() {
           {mode === "table" && hasCustomLayout ? (
             <Button onClick={resetLayout}>恢复默认列布局</Button>
           ) : null}
-          <Button onClick={() => void overview.refetch()}>刷新</Button>
         </>
       }
+      onRefresh={() => void overview.refetch()}
     >
       {mode === "table" ? (
         <InteractiveDataTable

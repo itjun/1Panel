@@ -297,11 +297,10 @@ export function NetworkPage({ host }: { host: string }) {
               卡顿连接 {slowList.length}
             </span>
           ) : null}
-          <Button disabled={query.isFetching} onClick={() => void query.refetch()}>
-            {query.isFetching ? "刷新中…" : "刷新"}
-          </Button>
         </>
       }
+      onRefresh={() => void query.refetch()}
+      refreshing={query.isFetching}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       {msg ? <Notice tone="warn" text={msg} /> : null}

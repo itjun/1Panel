@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api, type localsys } from "@/api";
-import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
 import { Notice, Page } from "@/react/components/page";
 import { formatBytes, formatErr } from "@/utils/format";
@@ -118,7 +117,7 @@ export function LocalNetworkPage() {
   return (
     <Page
       title="网络信息"
-      actions={<Button onClick={() => void query.refetch()}>刷新</Button>}
+      onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <div className="flex flex-col gap-4">

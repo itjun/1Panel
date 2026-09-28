@@ -775,9 +775,6 @@ export function GroupPage({
           >
             {batchBusy ? "安装中…" : "安装 Agent"}
           </Button>
-          <Button disabled={refreshing} onClick={() => void refreshAll()}>
-            {refreshing ? "刷新中…" : "刷新"}
-          </Button>
           {hasCustomLayout ? <Button onClick={resetLayout}>恢复默认列</Button> : null}
           {canEditGroup ? (
             <Button onClick={openGroupSettings} title="分组设置">
@@ -786,6 +783,8 @@ export function GroupPage({
           ) : null}
         </>
       }
+      onRefresh={() => void refreshAll()}
+      refreshing={refreshing}
     >
       {boardMsg ? (
         <div className="px-4 pt-3">
