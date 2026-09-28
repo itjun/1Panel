@@ -156,6 +156,7 @@ html.dark {
    用 background-color，不要用 background 简写：构建时 transparent 会被收成无效值。 */
 .glass-chrome {
   background-color: rgba(255, 255, 255, 0.32);
+  border-right: 1px solid var(--color-line);
 }
 
 .glass-chrome-main {
@@ -170,21 +171,30 @@ html.dark .glass-chrome-main {
   background-color: rgba(24, 24, 24, 0.82);
 }
 
-/* 非 macOS 没有磨砂，用两档实灰保持左右层次。 */
-html[data-platform="other"] .glass-chrome {
-  background-color: #ececec;
+/* Windows/Linux：不做透明，共用 Chrome 式配色——左侧栏 Material 浅蓝
+   （Chrome Side Panel 同款 #d3e3fd），右侧内容区纯白。侧栏内 hover/选中相应换成蓝调。
+   macOS 不设 data-platform，继续走上方磨砂透明。 */
+html[data-platform="solid"] .glass-chrome {
+  --color-raised: #c2d7fb;
+  --color-accent-soft: #b8cffb;
+  background-color: #d3e3fd;
+  /* 浅蓝侧栏上 #e8e8e8 发丝线几乎看不见，略加深以便和白内容区分开 */
+  border-right-color: #b6c9e8;
 }
 
-html[data-platform="other"] .glass-chrome-main {
-  background-color: #e6e6e8;
+html[data-platform="solid"] .glass-chrome-main {
+  background-color: #ffffff;
 }
 
-html.dark[data-platform="other"] .glass-chrome {
-  background-color: #2c2c2c;
+html.dark[data-platform="solid"] .glass-chrome {
+  --color-raised: #2e3550;
+  --color-accent-soft: #2b3a5e;
+  background-color: #23283a;
+  border-right-color: #3a4560;
 }
 
-html.dark[data-platform="other"] .glass-chrome-main {
-  background-color: #242424;
+html.dark[data-platform="solid"] .glass-chrome-main {
+  background-color: #1e1e1e;
 }
 
 /* 顶栏以下的内容体：透明贴边，白卡片直接落在 glass-chrome / 磨砂上。 */
@@ -233,6 +243,11 @@ html.dark[data-platform="other"] .glass-chrome-main {
   flex-shrink: 0;
 }
 
+/* 通栏与内容区之间的分隔线（侧栏 traffic 区不用 shell-top，不受影响）。 */
+.shell-top {
+  border-bottom: 1px solid var(--color-line);
+}
+
 /* 侧栏收起后，窗口按钮浮在顶栏左侧，标题要让开；主机首页搜索左右对称，保持居中。
    文件页是左右两栏标题，不能整条通栏一起右移，见 .sftp-toolbar。 */
 .react-root[data-sidebar="closed"] .shell-top:not(.host-home-toolbar):not(.sftp-toolbar) {
@@ -253,6 +268,22 @@ html.dark[data-platform="other"] .glass-chrome-main {
 .react-root[data-sidebar="closed"] .host-home-toolbar {
   padding-left: var(--window-chrome-inset);
   padding-right: var(--window-chrome-inset);
+}
+
+/* Windows/Linux：Frameless 窗口无系统按钮，右上角由前端自绘
+   （最小化/最大化/关闭）。三类顶栏的标题/操作从右侧让出按钮宽度。
+   data-os 区分真实平台；窗控让位对 win/linux 都生效。 */
+.react-root:is([data-os="win"], [data-os="linux"]) {
+  --window-controls-inset: 124px;
+}
+
+.react-root:is([data-os="win"], [data-os="linux"]) .shell-top:not(.sftp-toolbar) {
+  padding-right: var(--window-controls-inset);
+}
+
+/* 文件页右栏标题贴窗口右缘，在原有 8px 基础上再让出按钮宽度 */
+.react-root:is([data-os="win"], [data-os="linux"]) .sftp-toolbar {
+  padding-right: calc(var(--window-controls-inset) + 8px);
 }
 
 /* 侧栏收起后，页面顶栏继续承担拖拽；类名 drag-region 在侧栏展开时同样生效。 */
@@ -517,7 +548,163 @@ html.dark[data-platform="other"] .glass-chrome-main {
   transition: transform var(--duration-moderate) var(--ease-standard);
 }
 
+/*
+  表单勾选：自绘，覆盖全部原生 checkbox / radio。
+  弹层挂 document.body，不能只写 .react-root。
+  - 默认 input[type=checkbox|radio]
+  - .sub-check：订阅矩阵整格可点
+  - .opt-check：单选/多选整块可点
+*/
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  flex-shrink: 0;
+  border: 1.5px solid color-mix(in srgb, var(--color-ink) 28%, var(--color-line));
+  background-color: var(--color-surface);
+  background-position: center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  vertical-align: middle;
+  transition:
+    border-color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard),
+    background-image var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+
+input[type="checkbox"] {
+  border-radius: var(--radius-control);
+  background-size: 0.75rem 0.75rem;
+}
+
+input[type="radio"] {
+  border-radius: 999px;
+}
+
+input[type="checkbox"]:hover,
+input[type="radio"]:hover {
+  border-color: var(--color-accent);
+}
+
+input[type="checkbox"]:checked {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.2 8.2l3.1 3.1 6.5-6.5'/%3E%3C/svg%3E");
+}
+
+input[type="radio"]:checked {
+  border-color: var(--color-accent);
+  background-image: radial-gradient(
+    circle,
+    var(--color-accent) 0 0.28rem,
+    transparent 0.3rem
+  );
+}
+
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--color-accent-focus);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"]:active,
+input[type="radio"]:active {
+  border-color: var(--color-accent-active);
+}
+
+input[type="checkbox"]:checked:active {
+  background-color: var(--color-accent-active);
+  border-color: var(--color-accent-active);
+}
+
+input[type="radio"]:checked:active {
+  border-color: var(--color-accent-active);
+  background-image: radial-gradient(
+    circle,
+    var(--color-accent-active) 0 0.28rem,
+    transparent 0.3rem
+  );
+}
+
+.sub-check:hover input[type="checkbox"] {
+  border-color: var(--color-accent);
+}
+
+.sub-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3rem;
+  cursor: pointer;
+  transition: background-color var(--duration-base) var(--ease-standard);
+}
+
+.sub-check:hover {
+  background-color: var(--color-accent-soft);
+}
+
+.sub-check:has(input:checked) {
+  background-color: color-mix(in srgb, var(--color-accent-soft) 55%, transparent);
+}
+
+.sub-check:has(input:focus-visible) {
+  background-color: var(--color-accent-soft);
+}
+
+/* 单选 / 多选：整块可点，高度对齐按钮 */
+.opt-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard),
+    color var(--duration-base) var(--ease-standard);
+}
+
+.opt-check:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+}
+
+.opt-check:has(input:checked) {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.opt-check:has(input:focus-visible) {
+  box-shadow: 0 0 0 2px var(--color-accent-focus);
+}
+
+.opt-check input[type="checkbox"],
+.opt-check input[type="radio"] {
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  input[type="checkbox"],
+  input[type="radio"],
+  .sub-check,
+  .opt-check {
+    transition: none !important;
+  }
+
   .motion-fade-in,
   .motion-axis-x-in,
   .motion-axis-y-in,

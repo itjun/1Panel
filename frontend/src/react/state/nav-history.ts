@@ -8,6 +8,7 @@ import type {
   InspectSection,
   LocalSection,
   NotifySection,
+  SettingsSection,
   Tool,
   Workspace,
 } from "@/react/state/session";
@@ -21,6 +22,7 @@ export type ViewSnap = {
   notifySection: NotifySection;
   configSection: ConfigSection;
   inspectSection: InspectSection;
+  settingsSection: SettingsSection;
   homeView: HomeView;
   activeGroupId: string;
   activeHost: string;
@@ -35,6 +37,7 @@ export function viewSnap(nav: ViewSnap): ViewSnap {
     notifySection: nav.notifySection,
     configSection: nav.configSection,
     inspectSection: nav.inspectSection,
+    settingsSection: nav.settingsSection,
     homeView: nav.homeView,
     activeGroupId: nav.activeGroupId,
     activeHost: nav.activeHost,
@@ -44,7 +47,7 @@ export function viewSnap(nav: ViewSnap): ViewSnap {
 
 /** 和主窗口的页面优先级一致：设置 > 工作区 > 主机 > 分组 > 首页。 */
 export function viewKey(snap: ViewSnap): string {
-  if (snap.settingsOpen) return "settings";
+  if (snap.settingsOpen) return `settings:${snap.settingsSection || "look"}`;
   if (snap.workspace === "local") return `local:${snap.localSection}`;
   if (snap.workspace === "notify") return `notify:${snap.notifySection}`;
   if (snap.workspace === "config") return `config:${snap.configSection}`;

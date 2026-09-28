@@ -11,6 +11,7 @@ import (
 
 	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/panelsync"
+	"diteng-pannel/internal/prochide"
 	"diteng-pannel/internal/sshd"
 )
 
@@ -492,6 +493,7 @@ func validateGeneratedConfig(state panelstore.State, generation panelsync.Genera
 	}
 	for _, host := range state.Hosts {
 		cmd := exec.Command("ssh", "-G", "-F", configPath, host.Alias)
+		prochide.Hide(cmd)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("ssh -G 校验主机 %s 失败: %w: %s", host.Alias, err, strings.TrimSpace(string(output)))
 		}

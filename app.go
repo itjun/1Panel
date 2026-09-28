@@ -86,11 +86,12 @@ const RetryInterval = 30 * time.Second
 // NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
 // 返回的 *application.App 由 main.go 调用 Run。
 func mainWindowBackgroundColour() application.RGBA {
-	// macOS 要透出桌面磨砂，窗口底必须是透明的。其他系统没有这层材质，用实色。
+	// macOS 透出桌面磨砂，窗口底必须透明。
+	// Windows/Linux 共用 Chrome 式实色界面，窗口底用白色贴近内容区。
 	if goruntime.GOOS == "darwin" {
 		return application.NewRGBA(0, 0, 0, 0)
 	}
-	return application.NewRGB(244, 244, 244)
+	return application.NewRGB(255, 255, 255)
 }
 
 func NewApp() *application.App {

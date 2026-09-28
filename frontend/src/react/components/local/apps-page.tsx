@@ -999,7 +999,7 @@ export function LocalAppsPage() {
                   .map((t) => String(t.pid))
                   .join("、")}${killTargets.length > 3 ? "…" : ""}）？`}
           </DialogDescription>
-          <label className="mt-3 flex items-center gap-2 text-sm">
+          <label className="opt-check mt-3">
             <input
               type="checkbox"
               checked={forceKill}

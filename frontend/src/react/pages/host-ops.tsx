@@ -294,6 +294,9 @@ const OVERVIEW_DEFAULTS = [
 ];
 
 function OverviewPage({ host }: { host: string }) {
+  const gridRef = useRef<MonitorGridHandle>(null);
+  const [layoutDirty, setLayoutDirty] = useState(false);
+  const onLayoutDirty = useCallback((dirty: boolean) => setLayoutDirty(dirty), []);
   const overview = useQuery({
     queryKey: ["overview", host],
     queryFn: () => api.collectOverview(host),
@@ -416,14 +419,27 @@ function OverviewPage({ host }: { host: string }) {
         : "";
 
   return (
-    <Page title="概览" actions={<Button onClick={() => void refreshAll()}>刷新</Button>}>
+    <Page
+      title="概览"
+      actions={
+        <>
+          <Button onClick={() => void refreshAll()}>刷新</Button>
+          <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
+            恢复默认
+          </Button>
+        </>
+      }
+    >
       {agentErr ? <Notice text={agentErr} /> : null}
       {actionMsg ? <Notice text={actionMsg} tone="warn" /> : null}
 
       <div className="flex min-h-0 flex-1 flex-col">
           <MonitorGrid
+            ref={gridRef}
             boardId={`host-info-${host}`}
             defaults={OVERVIEW_DEFAULTS}
+            showReset={false}
+            onDirtyChange={onLayoutDirty}
             items={[
               {
                 id: "ssh",

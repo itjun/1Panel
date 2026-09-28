@@ -5,7 +5,12 @@ import { api } from "@/api";
 import { startAppWatchAlertPoll, stopAppWatchAlertPoll } from "@/utils/appWatchAlerts";
 import { startCertAlertPoll, stopCertAlertPoll } from "@/utils/certAlerts";
 import { startHostResourceAlertPoll, stopHostResourceAlertPoll } from "@/utils/hostResourceAlerts";
-import { isMacPlatform, WindowChrome, windowChromeInset } from "@/react/components/window-chrome";
+import {
+  detectAppOs,
+  WindowChrome,
+  WindowControls,
+  windowChromeInset,
+} from "@/react/components/window-chrome";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
 import { SidebarProvider, useSidebar } from "@/react/state/sidebar";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
@@ -43,7 +48,8 @@ export function App() {
 function Shell() {
   const session = useSession();
   const sidebar = useSidebar();
-  const isMac = isMacPlatform();
+  const appOs = detectAppOs();
+  const isMac = appOs === "mac";
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
   const createOpen = !session.settingsOpen && !!creating;
@@ -132,6 +138,7 @@ function Shell() {
     <div
       className="react-root relative flex h-full min-h-0"
       data-sidebar={sidebar.open ? "open" : "closed"}
+      data-os={appOs}
       data-edit={dockMounted ? "open" : undefined}
       style={chromeInset}
     >
@@ -187,6 +194,14 @@ function Shell() {
         >
           <div className="pointer-events-auto flex h-full items-center">
             <WindowChrome />
+          </div>
+        </div>
+      )}
+      {isMac ? null : (
+        // Windows/Linux：Frameless 无系统按钮，右上角常驻自绘窗口控制（各类顶栏 CSS 已让位）
+        <div className="pointer-events-none absolute top-0 right-0 z-30 flex h-[40px] items-center pr-1">
+          <div className="pointer-events-auto flex h-full items-center">
+            <WindowControls />
           </div>
         </div>
       )}

@@ -22,12 +22,12 @@ import {
   useSession,
   type ConfigSection,
   type NotifySection,
+  type SettingsSection,
   type Tool,
   type Workspace,
 } from "@/react/state/session";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 
-const UTILITY_OPEN_KEY = "1pannel-utility-nav-open";
 const RAIL_ORDER_KEY = "1pannel-rail-order";
 const VISITED_GROUPS_KEY = "1pannel-visited-groups";
 const RAIL_ENTRY_MIME = "application/x-rail-entry";
@@ -50,12 +50,14 @@ const CONFIG_SECTIONS: { id: ConfigSection; label: string }[] = [
   { id: "backups", label: "备份" },
 ];
 
-/** 设置页尚无 section 状态；按钮仅打开设置。 */
-const SETTINGS_SECTIONS = [
+/** 设置页分区，与 SettingsPage 内区块一一对应。 */
+const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "look", label: "外观" },
   { id: "session", label: "会话" },
+  { id: "board", label: "看板" },
   { id: "app", label: "应用" },
-] as const;
+  { id: "shortcuts", label: "快捷键" },
+];
 
 const BATCH_OPEN_TOOLS: { id: Tool; label: string }[] = [
   { id: "overview", label: "概览" },
@@ -69,22 +71,6 @@ type RailEntry =
 
 type HostBatchMenu = { ids: string[]; x: number; y: number };
 type GroupMenu = { id: string; x: number; y: number };
-
-function loadUtilityOpen(): boolean {
-  try {
-    return localStorage.getItem(UTILITY_OPEN_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function saveUtilityOpen(open: boolean) {
-  try {
-    localStorage.setItem(UTILITY_OPEN_KEY, open ? "1" : "0");
-  } catch {
-    /* ignore */
-  }
-}
 
 function loadStringList(key: string): string[] {
   try {
@@ -110,7 +96,7 @@ function formatCount(n: number): string {
 
 export function WorkspaceRail() {
   const session = useSession();
-  const [utilityOpen, setUtilityOpen] = useState(loadUtilityOpen);
+  const [utilityOpen, setUtilityOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [configNeedsAttention, setConfigNeedsAttention] = useState(false);
   const [visitedGroupIds, setVisitedGroupIds] = useState(() =>
@@ -277,7 +263,7 @@ export function WorkspaceRail() {
   return (
       <aside
         className={cn(
-          "glass-chrome flex w-[220px] min-w-[220px] flex-col border-r border-line pb-2.5",
+          "glass-chrome flex w-[220px] min-w-[220px] flex-col pb-2.5",
           isMac && "pt-0",
         )}
         aria-label="应用导航"
@@ -329,8 +315,8 @@ export function WorkspaceRail() {
               <RailNavButton
                 key={item.id}
                 label={item.label}
-                active={session.settingsOpen}
-                onClick={() => session.openSettings(true)}
+                active={session.settingsSection === item.id}
+                onClick={() => session.setSettingsSection(item.id)}
               />
             ))
           : null}
@@ -541,26 +527,33 @@ export function WorkspaceRail() {
         unread={unread}
         configNeedsAttention={configNeedsAttention}
         activeLabel={utilityActiveLabel(session.settingsOpen, session.workspace)}
-        onToggle={() => {
-          setUtilityOpen((open) => {
-            const next = !open;
-            saveUtilityOpen(next);
-            return next;
-          });
-        }}
+        onToggle={() => setUtilityOpen((open) => !open)}
+        onClose={() => setUtilityOpen(false)}
         onHost={() => {
-          if (session.workspace === "remote" && !session.settingsOpen) {
-            session.goHome();
-            return;
-          }
-          session.setWorkspace("remote");
+          session.goHome();
+          setUtilityOpen(false);
         }}
         hostActive={!session.settingsOpen && session.workspace === "remote"}
-        onLocal={() => session.setWorkspace("local")}
-        onInspect={() => session.setWorkspace("inspect")}
-        onNotify={() => session.setWorkspace("notify")}
-        onConfig={() => session.setWorkspace("config")}
-        onSettings={() => session.openSettings(true)}
+        onLocal={() => {
+          session.setWorkspace("local");
+          setUtilityOpen(false);
+        }}
+        onInspect={() => {
+          session.setWorkspace("inspect");
+          setUtilityOpen(false);
+        }}
+        onNotify={() => {
+          session.setWorkspace("notify");
+          setUtilityOpen(false);
+        }}
+        onConfig={() => {
+          session.setWorkspace("config");
+          setUtilityOpen(false);
+        }}
+        onSettings={() => {
+          session.openSettings(true);
+          setUtilityOpen(false);
+        }}
         localActive={!session.settingsOpen && session.workspace === "local"}
         inspectActive={!session.settingsOpen && session.workspace === "inspect"}
         notifyActive={!session.settingsOpen && session.workspace === "notify"}
@@ -669,6 +662,7 @@ function UtilityNav({
   configNeedsAttention,
   activeLabel,
   onToggle,
+  onClose,
   onHost,
   hostActive,
   onLocal,
@@ -687,6 +681,7 @@ function UtilityNav({
   configNeedsAttention: boolean;
   activeLabel: string;
   onToggle: () => void;
+  onClose: () => void;
   onHost: () => void;
   hostActive: boolean;
   onLocal: () => void;
@@ -701,43 +696,71 @@ function UtilityNav({
   settingsActive: boolean;
 }) {
   const badge = unread > 0 ? formatCount(unread) : null;
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   return (
-    <div className="mt-1 flex flex-col gap-1 px-1.5">
+    <div className="relative mt-1 px-1.5">
       <button
         type="button"
         className={cn(
-          "relative flex h-10 shrink-0 items-center rounded-control text-left",
-          !open && activeLabel
+          "relative flex h-10 w-full shrink-0 items-center rounded-control text-left",
+          activeLabel
             ? "bg-accent-soft px-2.5 font-semibold text-accent"
             : "px-2.5 text-muted hover:bg-raised hover:text-ink",
         )}
-        title={open ? "收起" : "展开"}
+        title="切换模块"
+        aria-expanded={open}
+        aria-haspopup="menu"
         onClick={onToggle}
       >
         <span className="mr-1.5 w-3 shrink-0 text-center text-[10px]">{open ? "▾" : "▸"}</span>
-        <span className="truncate">{open ? "收起" : activeLabel || "更多"}</span>
-        {!open && badge ? (
+        <span className="truncate">{activeLabel || "更多"}</span>
+        {badge ? (
           <span className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
             {badge}
           </span>
         ) : null}
-        {!open && !badge && configNeedsAttention ? (
+        {!badge && configNeedsAttention ? (
           <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
         ) : null}
       </button>
       {open ? (
         <>
-          <RailNavButton active={hostActive} label={HOST_MODULE.label} onClick={onHost} />
-          <RailNavButton active={localActive} label="本机" onClick={onLocal} />
-          <RailNavButton active={inspectActive} label="巡检" onClick={onInspect} />
-          <RailNavButton active={notifyActive} label="通知" badge={badge} onClick={onNotify} />
-          <RailNavButton
-            active={configActive}
-            label="配置"
-            statusDot={configNeedsAttention}
-            onClick={onConfig}
+          <div
+            className="fixed inset-0 z-40"
+            onMouseDown={onClose}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              onClose();
+            }}
           />
-          <RailNavButton active={settingsActive} label="设置" onClick={onSettings} />
+          <div
+            role="menu"
+            className="absolute bottom-0 left-full z-50 ml-1.5 w-[200px] rounded-surface border border-line bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-col gap-0.5">
+              <RailNavButton active={hostActive} label={HOST_MODULE.label} onClick={onHost} />
+              <RailNavButton active={localActive} label="本机" onClick={onLocal} />
+              <RailNavButton active={inspectActive} label="巡检" onClick={onInspect} />
+              <RailNavButton active={notifyActive} label="通知" badge={badge} onClick={onNotify} />
+              <RailNavButton
+                active={configActive}
+                label="配置"
+                statusDot={configNeedsAttention}
+                onClick={onConfig}
+              />
+              <RailNavButton active={settingsActive} label="设置" onClick={onSettings} />
+            </div>
+          </div>
         </>
       ) : null}
     </div>

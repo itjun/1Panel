@@ -433,7 +433,7 @@ export function NetworkPage({ host }: { host: string }) {
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
-              <label className="flex items-center gap-1.5 text-sm">
+              <label className="opt-check">
                 <input
                   type="checkbox"
                   checked={onlyEstab}
@@ -441,7 +441,7 @@ export function NetworkPage({ host }: { host: string }) {
                 />
                 只看已建立
               </label>
-              <label className="flex items-center gap-1.5 text-sm">
+              <label className="opt-check">
                 <input
                   type="checkbox"
                   checked={onlySlow}

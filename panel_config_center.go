@@ -23,6 +23,7 @@ import (
 
 	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/panelsync"
+	"diteng-pannel/internal/prochide"
 )
 
 const (
@@ -1172,6 +1173,7 @@ func openPanelPath(path string, reveal bool) error {
 		}
 		cmd = exec.Command("xdg-open", path)
 	}
+	prochide.Hide(cmd)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("打开配置路径失败: %w", err)
 	}

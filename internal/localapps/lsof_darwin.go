@@ -243,19 +243,6 @@ func uniqueSortedPIDs(pids []int) []int {
 	return unique
 }
 
-func uniqueSortedPorts(ports []int) []int {
-	seen := make(map[int]bool, len(ports))
-	unique := make([]int, 0, len(ports))
-	for _, port := range ports {
-		if port > 0 && !seen[port] {
-			seen[port] = true
-			unique = append(unique, port)
-		}
-	}
-	sort.Ints(unique)
-	return unique
-}
-
 func Resources(pid int) (*ResourceSnapshot, error) {
 	if pid <= 0 {
 		return nil, fmt.Errorf("非法 PID")

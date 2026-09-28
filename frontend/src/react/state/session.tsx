@@ -62,6 +62,7 @@ export type NotifySection =
 
 export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";
 export type InspectSection = "menuCheck";
+export type SettingsSection = "look" | "session" | "board" | "app" | "shortcuts";
 export type HomeView = "home" | "group";
 
 export type OpenedHost = {
@@ -109,6 +110,7 @@ type Nav = {
   notifySection: NotifySection;
   configSection: ConfigSection;
   inspectSection: InspectSection;
+  settingsSection: SettingsSection;
   homeView: HomeView;
   activeGroupId: string;
   activeHost: string;
@@ -124,6 +126,7 @@ const defaultNav = (): Nav => ({
   notifySection: "metricMessages",
   configSection: "overview",
   inspectSection: "menuCheck",
+  settingsSection: "look",
   homeView: "home",
   activeGroupId: "",
   activeHost: "",
@@ -190,6 +193,10 @@ function loadNav(): Nav {
     }
     if (merged.homeView !== "home" && merged.homeView !== "group") {
       merged.homeView = "home";
+    }
+    const settingsSections = new Set(["look", "session", "board", "app", "shortcuts"]);
+    if (!settingsSections.has(merged.settingsSection as string)) {
+      merged.settingsSection = "look";
     }
     return merged;
   } catch {
@@ -283,6 +290,7 @@ type SessionValue = Nav & {
   setNotifySection: (section: NotifySection) => void;
   setConfigSection: (section: ConfigSection) => void;
   setInspectSection: (section: InspectSection) => void;
+  setSettingsSection: (section: SettingsSection) => void;
   goHome: () => void;
   openGroup: (id: string) => void;
   openHost: (name: string, tool?: Tool) => void;
@@ -404,7 +412,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       loading,
       refresh,
       setWorkspace: (workspace) => patch({ workspace, settingsOpen: false }),
-      openSettings: (open = true) => patch({ settingsOpen: open }),
+      openSettings: (open = true) =>
+        patch(open ? { settingsOpen: true } : { settingsOpen: false }),
       setLocalSection: (localSection) =>
         patch({ localSection, workspace: "local", settingsOpen: false }),
       setNotifySection: (notifySection) =>
@@ -413,6 +422,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         patch({ configSection, workspace: "config", settingsOpen: false }),
       setInspectSection: (inspectSection) =>
         patch({ inspectSection, workspace: "inspect", settingsOpen: false }),
+      setSettingsSection: (settingsSection) =>
+        patch({ settingsSection, settingsOpen: true }),
       goHome: () => {
         setNav((prev) => {
           const next = {
@@ -574,6 +585,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         notifySection: snap.notifySection,
         configSection: snap.configSection,
         inspectSection: snap.inspectSection,
+        settingsSection: snap.settingsSection,
         homeView: snap.homeView,
         activeGroupId: snap.activeGroupId,
         activeHost: snap.activeHost,

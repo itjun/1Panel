@@ -94,8 +94,9 @@
         document.documentElement.style.colorScheme = "light";
         var ua = navigator.userAgent || "";
         var platform = navigator.platform || "";
+        // Windows / Linux：Chrome 式实色蓝白；macOS 不标，走默认磨砂透明。
         if (/Win|Linux/.test(platform) || /Windows|Linux|Android|CrOS/.test(ua)) {
-          document.documentElement.dataset.platform = "other";
+          document.documentElement.dataset.platform = "solid";
         }
         try {
           var n = Number(localStorage.getItem("ipannel.sidebarWidth"));

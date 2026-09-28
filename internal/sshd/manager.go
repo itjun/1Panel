@@ -14,6 +14,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"diteng-pannel/internal/prochide"
 )
 
 // 连接超时：覆盖 TCP 建连 + SSH 握手/认证全过程
@@ -480,6 +482,7 @@ func dialProxyJump(addr, jump string) (net.Conn, error) {
 		return nil, fmt.Errorf("暂不支持多级 ProxyJump: %s", jump)
 	}
 	cmd := exec.Command("ssh", "-T", "-o", "ConnectTimeout=15", "-W", addr, "--", jump)
+	prochide.Hide(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("创建 ProxyJump stdin 失败: %w", err)

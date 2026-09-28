@@ -16,6 +16,7 @@ import (
 
 	"diteng-pannel/internal/groupid"
 	"diteng-pannel/internal/panelstore"
+	"diteng-pannel/internal/prochide"
 )
 
 const generatedMarker = "# 1PANNEL-GENERATED"
@@ -205,6 +206,7 @@ func normalizeGeneratedPathRelocations(files []ConfigFile, state panelstore.Stat
 
 func validateConfigSyntax(ctx context.Context, root string) error {
 	cmd := exec.CommandContext(ctx, "ssh", "-G", "-F", root, "__1pannel_config_probe__")
+	prochide.Hide(cmd)
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil

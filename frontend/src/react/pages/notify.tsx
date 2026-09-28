@@ -546,53 +546,59 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                     {kind === "metricSubs" ? (
                       <>
                         {ALERT_RULES.map((rule) => (
-                          <td key={rule.kind} className="px-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={(settings.hostResourceNotifySubs[host] || []).includes(
-                                rule.kind,
-                              )}
-                              onChange={(event) =>
-                                toggleResource(
-                                  host,
+                          <td key={rule.kind} className="p-0">
+                            <label className="sub-check">
+                              <input
+                                type="checkbox"
+                                checked={(settings.hostResourceNotifySubs[host] || []).includes(
                                   rule.kind,
-                                  event.target.checked,
-                                  settings.hostResourceNotifySubs,
-                                )
-                              }
-                            />
+                                )}
+                                onChange={(event) =>
+                                  toggleResource(
+                                    host,
+                                    rule.kind,
+                                    event.target.checked,
+                                    settings.hostResourceNotifySubs,
+                                  )
+                                }
+                              />
+                            </label>
                           </td>
                         ))}
-                        <td className="px-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={!!settings.hostCertNotifySubs[host]}
-                            onChange={(event) =>
-                              updateSettings({
-                                hostCertNotifySubs: {
-                                  ...settings.hostCertNotifySubs,
-                                  [host]: event.target.checked,
-                                },
-                              })
-                            }
-                          />
+                        <td className="p-0">
+                          <label className="sub-check">
+                            <input
+                              type="checkbox"
+                              checked={!!settings.hostCertNotifySubs[host]}
+                              onChange={(event) =>
+                                updateSettings({
+                                  hostCertNotifySubs: {
+                                    ...settings.hostCertNotifySubs,
+                                    [host]: event.target.checked,
+                                  },
+                                })
+                              }
+                            />
+                          </label>
                         </td>
                       </>
                     ) : (
                       WATCH_SERVICE_ORDER.map((svc) => (
-                        <td key={svc} className="px-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={(settings.hostAppNotifySubs[host] || []).includes(svc)}
-                            onChange={(event) =>
-                              toggleAppService(
-                                host,
-                                svc,
-                                event.target.checked,
-                                settings.hostAppNotifySubs,
-                              )
-                            }
-                          />
+                        <td key={svc} className="p-0">
+                          <label className="sub-check">
+                            <input
+                              type="checkbox"
+                              checked={(settings.hostAppNotifySubs[host] || []).includes(svc)}
+                              onChange={(event) =>
+                                toggleAppService(
+                                  host,
+                                  svc,
+                                  event.target.checked,
+                                  settings.hostAppNotifySubs,
+                                )
+                              }
+                            />
+                          </label>
                         </td>
                       ))
                     )}
@@ -655,8 +661,8 @@ function SetupPage() {
       <div className="gap-card mx-auto flex max-w-3xl flex-col">
         <Card>
           <div className="mb-3 font-medium">送到哪里</div>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className="inline-flex items-center gap-2">
+          <div className="flex flex-wrap gap-2 text-sm">
+            <label className="opt-check">
               <input
                 type="checkbox"
                 checked={settings.systemNotifyEnabled}
@@ -666,7 +672,7 @@ function SetupPage() {
               />
               系统通知
             </label>
-            <label className="inline-flex items-center gap-2">
+            <label className="opt-check">
               <input
                 type="checkbox"
                 checked={settings.inAppNotifyEnabled}
@@ -676,7 +682,7 @@ function SetupPage() {
               />
               应用内
             </label>
-            <label className="inline-flex items-center gap-2">
+            <label className="opt-check">
               <input
                 type="checkbox"
                 checked={settings.notifyEnabled}
@@ -769,10 +775,10 @@ function SetupPage() {
 
         <Card>
           <div className="mb-3 font-medium">通知什么</div>
-          <div className="flex flex-wrap gap-4 text-sm">
+          <div className="flex flex-wrap gap-2 text-sm">
             {(["cpu", "mem", "disk", "load", "app", "cert"] as AlertContentKind[]).map(
               (kind) => (
-                <label key={kind} className="inline-flex items-center gap-2">
+                <label key={kind} className="opt-check">
                   <input
                     type="checkbox"
                     checked={settings.alertContentKinds.includes(kind)}
@@ -787,7 +793,7 @@ function SetupPage() {
                 </label>
               ),
             )}
-            <label className="inline-flex items-center gap-2">
+            <label className="opt-check">
               <input
                 type="checkbox"
                 checked={settings.notifyRecoverEnabled}
@@ -802,10 +808,10 @@ function SetupPage() {
 
         <Card>
           <div className="mb-3 font-medium">正文带上</div>
-          <div className="flex flex-wrap gap-4 text-sm">
+          <div className="flex flex-wrap gap-2 text-sm">
             {(["hostName", "metric", "threshold", "value", "service"] as NotifyContentField[]).map(
               (field) => (
-                <label key={field} className="inline-flex items-center gap-2">
+                <label key={field} className="opt-check">
                   <input
                     type="checkbox"
                     checked={settings.notifyContentFields.includes(field)}

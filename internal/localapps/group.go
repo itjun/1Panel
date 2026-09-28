@@ -324,6 +324,21 @@ func appendUnique(values []string, additions ...string) []string {
 	return values
 }
 
+// uniqueSortedPorts 去重（丢弃非正数）并升序排序端口；跨平台通用，
+// 不能放进 darwin 专属文件，否则 group.go 在 Windows/Linux 下编不过。
+func uniqueSortedPorts(ports []int) []int {
+	seen := make(map[int]bool, len(ports))
+	unique := make([]int, 0, len(ports))
+	for _, port := range ports {
+		if port > 0 && !seen[port] {
+			seen[port] = true
+			unique = append(unique, port)
+		}
+	}
+	sort.Ints(unique)
+	return unique
+}
+
 func rawToProcNode(rp *RawProc, runtime string) ProcNode {
 	extra := map[string]string{}
 	for k, v := range rp.Extra {

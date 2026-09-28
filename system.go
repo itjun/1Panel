@@ -14,6 +14,7 @@ import (
 	"diteng-pannel/internal/macui"
 	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
+	"diteng-pannel/internal/prochide"
 	"diteng-pannel/internal/wecom"
 	"diteng-pannel/internal/winui"
 
@@ -160,6 +161,7 @@ func openSystemURL(target string) error {
 	default:
 		cmd = exec.Command("xdg-open", target)
 	}
+	prochide.Hide(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))

@@ -264,7 +264,7 @@ function SettingsPage() {
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium text-muted">会话</h2>
           <SettingRow label="启动时打开">
-            <label className="mr-3">
+            <label className="opt-check">
               <input
                 type="radio"
                 checked={settings.startupPage === "home"}
@@ -272,7 +272,7 @@ function SettingsPage() {
               />
               应用首页
             </label>
-            <label>
+            <label className="opt-check">
               <input
                 type="radio"
                 checked={settings.startupPage === "resume"}
@@ -316,15 +316,18 @@ function SettingsPage() {
             <Button onClick={() => session.setConfigSection("overview")}>打开配置中心</Button>
           </SettingRow>
           <SettingRow label="退出前询问">
-            <input
-              type="checkbox"
-              checked={ask}
-              onChange={(event) => {
-                const next = event.target.checked;
-                setAsk(next);
-                void api.setAskBeforeQuit(next);
-              }}
-            />
+            <label className="opt-check">
+              <input
+                type="checkbox"
+                checked={ask}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setAsk(next);
+                  void api.setAskBeforeQuit(next);
+                }}
+              />
+              开启
+            </label>
           </SettingRow>
         </section>
       </div>
