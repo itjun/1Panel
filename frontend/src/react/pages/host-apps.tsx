@@ -308,7 +308,7 @@ function serviceNameColors(rows: { service: string }[]): Map<string, string> {
   names.forEach((name, index) => {
     const hue = SERVICE_HUES[index % SERVICE_HUES.length];
     const lap = Math.floor(index / SERVICE_HUES.length);
-    colors.set(name, `hsl(${hue} 72% ${68 - lap * 4}%)`);
+    colors.set(name, `hsl(${hue} 48% ${42 - lap * 3}%)`);
   });
   return colors;
 }
@@ -316,7 +316,6 @@ function serviceNameColors(rows: { service: string }[]): Map<string, string> {
 function AppsTable({
   title,
   rows,
-  showHeader,
   latestByService,
   nameColors,
   subscribed,
@@ -326,7 +325,6 @@ function AppsTable({
 }: {
   title: string;
   rows: InstRow[];
-  showHeader: boolean;
   latestByService: Map<string, string>;
   nameColors: Map<string, string>;
   subscribed: (service: string) => boolean;
@@ -334,65 +332,69 @@ function AppsTable({
   onRowClick: (row: InstRow) => void;
   onShutdown: (row: InstRow) => void;
 }) {
-  const headers = [
-    "标识",
-    "端口",
-    "部署版本",
-    "启动时间",
-    "screen",
-    "路径",
-    "状态",
-    "订阅",
-    "操作",
-  ];
+  const onlineCount = rows.filter((r) => isOnline(r)).length;
 
   return (
-    <div className="overflow-hidden border-b border-line bg-surface">
-      <div className="flex items-center gap-2 border-b border-line bg-raised px-3 py-2">
-        <span className="text-sm font-medium">{title}</span>
-        <span className="text-xs text-muted">{rows.length} 条</span>
+    <section className="overflow-hidden border border-line bg-surface">
+      <div className="flex items-baseline justify-between gap-3 border-b border-line px-3.5 py-2.5">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+          <span className="font-mono text-[11px] tabular-nums text-muted">
+            {onlineCount}/{rows.length} 在线
+          </span>
+        </div>
       </div>
       <div className="overflow-auto">
-        <table className="w-full border-collapse text-left text-sm">
-          {showHeader ? (
-            <thead className="bg-raised">
-              <tr className="h-10">
-                {headers.map((h) => (
-                  <th key={h} className="px-3 font-medium whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-          ) : null}
+        <table className="w-full border-collapse text-left text-[13px]">
+          <thead>
+            <tr className="h-9 border-b border-line bg-raised/80 text-[11px] text-muted">
+              <th className="w-10 px-2.5 text-center font-medium">序</th>
+              <th className="px-3 font-medium whitespace-nowrap">标识</th>
+              <th className="w-16 px-2 text-center font-medium">端口</th>
+              <th className="px-3 font-medium whitespace-nowrap">部署版本</th>
+              <th className="px-3 font-medium whitespace-nowrap">启动时间</th>
+              <th className="px-3 font-medium whitespace-nowrap">screen</th>
+              <th className="px-3 font-medium whitespace-nowrap">路径</th>
+              <th className="w-[72px] px-2 text-center font-medium">状态</th>
+              <th className="w-12 px-2 text-center font-medium">订阅</th>
+              <th className="w-14 px-2 text-center font-medium">操作</th>
+            </tr>
+          </thead>
           <tbody>
             {rows.map((row, idx) => {
               const latest = latestDeployVerForRow(row, latestByService);
               const latestHit = isLatestDeploy(row.deployVer || "", latest);
               const clickable = canOpenCharts(row);
               const online = isOnline(row);
+              const nameColor = nameColors.get(row.service) || "var(--color-ink)";
               return (
                 <tr
                   key={`${row.service}-${row.pid}-${row.port}-${idx}`}
                   className={
-                    latestHit
-                      ? "h-12 border-t border-line bg-success-soft hover:bg-success-soft"
-                      : clickable
-                        ? "h-12 cursor-pointer border-t border-line hover:bg-raised"
-                        : "h-12 border-t border-line text-muted"
+                    clickable
+                      ? "group h-11 border-b border-line/80 last:border-b-0 hover:bg-accent-soft/50"
+                      : "h-11 border-b border-line/80 text-muted last:border-b-0"
                   }
                   style={clickable ? { cursor: "pointer" } : undefined}
                   onClick={() => {
                     if (clickable) onRowClick(row);
                   }}
                 >
+                  <td className="px-2.5 text-center font-mono text-[11px] tabular-nums text-muted">
+                    {idx + 1}
+                  </td>
                   <td className="px-3 font-mono text-[13px] font-semibold">
                     <span className="inline-flex items-center gap-1.5">
-                      <span style={{ color: nameColors.get(row.service) || "var(--color-ink)" }}>
+                      <span
+                        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ background: online ? nameColor : "var(--color-line)" }}
+                        aria-hidden
+                      />
+                      <span style={{ color: online ? nameColor : undefined }}>
                         {row.service || "—"}
                       </span>
                       {row.runtime === "bun" ? (
-                        <span className="rounded border border-line px-1 text-[10px] font-normal text-muted">
+                        <span className="rounded-control border border-line px-1 text-[10px] font-normal text-muted">
                           Bun
                         </span>
                       ) : null}
@@ -401,41 +403,59 @@ function AppsTable({
                   <td
                     className={
                       latestHit && row.port
-                        ? "px-3 text-center font-semibold text-success"
-                        : "px-3 text-center"
+                        ? "px-2 text-center font-mono text-[13px] font-semibold tabular-nums text-success"
+                        : "px-2 text-center font-mono text-[13px] tabular-nums"
                     }
                   >
                     {row.port || "—"}
                   </td>
-                  <td
-                    className={
-                      latestHit && row.deployVer
-                        ? "px-3 font-semibold text-success"
-                        : "px-3"
-                    }
-                  >
-                    {row.deployVer || "—"}
+                  <td className="px-3">
+                    {row.deployVer ? (
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <span
+                          className={
+                            latestHit
+                              ? "font-mono text-[12px] font-semibold tabular-nums text-success"
+                              : "font-mono text-[12px] tabular-nums"
+                          }
+                        >
+                          {row.deployVer}
+                        </span>
+                        {latestHit ? (
+                          <span className="rounded-control bg-success-soft px-1 py-px text-[10px] font-medium leading-none text-success">
+                            最新
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
-                  <td className="px-3 tabular-nums whitespace-nowrap">
+                  <td className="px-3 font-mono text-[12px] tabular-nums whitespace-nowrap text-muted">
                     {row.startTime || "—"}
                   </td>
-                  <td className="px-3">{row.screen || "—"}</td>
-                  <td className="max-w-[180px] truncate px-3 font-mono text-xs" title={row.jarPath || ""}>
+                  <td className="px-3 font-mono text-[12px] whitespace-nowrap">
+                    {row.screen || "—"}
+                  </td>
+                  <td
+                    className="max-w-[200px] truncate px-3 font-mono text-[12px] text-muted"
+                    title={row.jarPath || ""}
+                  >
                     {shortJarPath(row.jarPath)}
                   </td>
-                  <td className="px-3 text-center">
+                  <td className="px-2 text-center">
                     <span
                       className={
                         online
-                          ? "font-semibold text-success"
-                          : "font-semibold text-muted"
+                          ? "inline-block rounded-control bg-success-soft px-1.5 py-0.5 text-[11px] font-medium leading-none text-success"
+                          : "inline-block rounded-control bg-raised px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted"
                       }
                     >
                       {online ? "在线" : "离线"}
                     </span>
                   </td>
                   <td
-                    className="px-3 text-center"
+                    className="px-2 text-center"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canSubscribeNotify(row.service) ? (
@@ -452,13 +472,13 @@ function AppsTable({
                     )}
                   </td>
                   <td
-                    className="px-3 text-center"
+                    className="px-2 text-center"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canShutdown(row) ? (
                       <button
                         type="button"
-                        className="font-semibold text-danger hover:text-danger"
+                        className="text-[12px] font-medium text-danger opacity-80 hover:opacity-100"
                         onClick={() => onShutdown(row)}
                       >
                         下架
@@ -471,7 +491,7 @@ function AppsTable({
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -764,20 +784,21 @@ export function AppsPage({ host }: { host: string }) {
       {sections.length === 0 && !instances.isLoading ? (
         <div className="py-8 text-center text-sm text-muted">暂无监视实例</div>
       ) : (
-        sections.map((sec, secIdx) => (
-          <AppsTable
-            key={sec.key}
-            title={sec.title}
-            rows={sec.rows}
-            showHeader={secIdx === 0}
-            latestByService={latestByService}
-            nameColors={nameColors}
-            subscribed={isSubscribed}
-            onToggleSubscribe={toggleSubscribe}
-            onRowClick={openCharts}
-            onShutdown={setShutdownTarget}
-          />
-        ))
+        <div className="flex min-h-0 flex-col gap-2">
+          {sections.map((sec) => (
+            <AppsTable
+              key={sec.key}
+              title={sec.title}
+              rows={sec.rows}
+              latestByService={latestByService}
+              nameColors={nameColors}
+              subscribed={isSubscribed}
+              onToggleSubscribe={toggleSubscribe}
+              onRowClick={openCharts}
+              onShutdown={setShutdownTarget}
+            />
+          ))}
+        </div>
       )}
 
       <Dialog

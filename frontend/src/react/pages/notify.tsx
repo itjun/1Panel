@@ -374,6 +374,7 @@ function MessagesPage({
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="h-10 bg-raised">
+                <th className="w-12 px-2 text-center">序</th>
                 <th className="px-3">时间</th>
                 <th className="px-3">主机</th>
                 <th className="px-3">类型</th>
@@ -384,12 +385,12 @@ function MessagesPage({
             <tbody>
               {rows.length === 0 ? (
                 <tr className="h-12 border-t border-line">
-                  <td className="px-3 text-muted" colSpan={5}>
+                  <td className="px-3 text-muted" colSpan={6}>
                     暂无告警消息
                   </td>
                 </tr>
               ) : (
-                rows.map((event) => (
+                rows.map((event, index) => (
                   <tr
                     key={event.id}
                     ref={(node) => {
@@ -407,6 +408,9 @@ function MessagesPage({
                       void api.markAlertRead(event.id).then(() => query.refetch());
                     }}
                   >
+                    <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
+                      {index + 1}
+                    </td>
                     <td className="whitespace-nowrap px-3">{formatEventTime(event.at)}</td>
                     <td className="whitespace-nowrap px-3">{event.host || "—"}</td>
                     <td className="whitespace-nowrap px-3">{alertKindLabel(event.kind)}</td>
@@ -505,6 +509,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="h-10 bg-raised">
+                <th className="w-12 px-2 text-center">序</th>
                 <th className="sticky left-0 z-10 bg-raised px-3">主机</th>
                 {kind === "metricSubs" ? (
                   <>
@@ -527,13 +532,16 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             <tbody>
               {hosts.length === 0 ? (
                 <tr className="h-12 border-t border-line">
-                  <td className="px-3 text-muted" colSpan={kind === "metricSubs" ? 6 : 9}>
+                  <td className="px-3 text-muted" colSpan={kind === "metricSubs" ? 7 : 10}>
                     没有匹配的主机
                   </td>
                 </tr>
               ) : (
-                hosts.map((host) => (
+                hosts.map((host, index) => (
                   <tr key={host} className="h-12 border-t border-line">
+                    <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
+                      {index + 1}
+                    </td>
                     <td className="sticky left-0 z-10 bg-surface px-3">{host}</td>
                     {kind === "metricSubs" ? (
                       <>

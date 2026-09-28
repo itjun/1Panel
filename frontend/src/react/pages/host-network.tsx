@@ -75,15 +75,24 @@ function ifaceIpv4List(list: string[] | undefined | null): string[] {
 function SimpleRows({
   headers,
   rows,
+  /** 为 false 时不自动加「序」（调用方已自行提供序号列时用） */
+  showIndex = true,
+  indexOffset = 0,
 }: {
   headers: { key: string; label: string }[];
   rows: { id: string; cells: ReactNode[]; className?: string }[];
+  showIndex?: boolean;
+  indexOffset?: number;
 }) {
+  const colCount = headers.length + (showIndex ? 1 : 0);
   return (
     <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="sticky top-0 z-[1] bg-raised">
           <tr className="h-10">
+            {showIndex ? (
+              <th className="w-12 px-2 text-center font-medium">序</th>
+            ) : null}
             {headers.map((header) => (
               <th key={header.key} className="px-3 font-medium">
                 {header.label}
@@ -94,18 +103,23 @@ function SimpleRows({
         <tbody>
           {rows.length === 0 ? (
             <tr className="h-12">
-              <td className="px-3 text-muted" colSpan={headers.length}>
+              <td className="px-3 text-muted" colSpan={colCount || 1}>
                 暂无数据
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
+            rows.map((row, rowIndex) => (
               <tr
                 key={row.id}
                 className={row.className || "h-12 border-t border-line/70 hover:bg-raised"}
               >
+                {showIndex ? (
+                  <td className="px-2 text-center align-middle font-mono text-xs tabular-nums text-muted">
+                    {indexOffset + rowIndex + 1}
+                  </td>
+                ) : null}
                 {row.cells.map((cell, index) => (
-                  <td key={index} className="max-w-[360px] truncate px-3 align-top">
+                  <td key={index} className="max-w-[360px] truncate px-3 align-middle">
                     {cell}
                   </td>
                 ))}
@@ -345,7 +359,6 @@ export function NetworkPage({ host }: { host: string }) {
             <h3 className="mb-3 font-medium">网卡</h3>
             <SimpleRows
               headers={[
-                { key: "idx", label: "序" },
                 { key: "name", label: "接口" },
                 { key: "kind", label: "类型" },
                 { key: "state", label: "状态" },
@@ -355,10 +368,9 @@ export function NetworkPage({ host }: { host: string }) {
                 { key: "rx", label: "接收" },
                 { key: "tx", label: "发送" },
               ]}
-              rows={(snap.interfaces || []).map((n, index) => ({
+              rows={(snap.interfaces || []).map((n) => ({
                 id: n.name,
                 cells: [
-                  index + 1,
                   n.name || "—",
                   kindLabel(n.kind),
                   <IfaceState key="state" state={n.state || ""} />,
@@ -385,7 +397,6 @@ export function NetworkPage({ host }: { host: string }) {
               <h3 className="mb-3 font-medium text-danger">疑似网络卡顿连接</h3>
               <SimpleRows
                 headers={[
-                  { key: "idx", label: "序" },
                   { key: "process", label: "进程" },
                   { key: "pid", label: "PID" },
                   { key: "local", label: "本地" },
@@ -399,7 +410,6 @@ export function NetworkPage({ host }: { host: string }) {
                   id: `slow-${index}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
                   className: "h-12 border-t border-line/70 bg-danger-soft",
                   cells: [
-                    index + 1,
                     conn.process || "—",
                     conn.pid || "—",
                     conn.localAddr || "—",
@@ -442,8 +452,8 @@ export function NetworkPage({ host }: { host: string }) {
               <span className="text-sm text-muted">共 {filteredConns.length} 条</span>
             </div>
             <SimpleRows
+              indexOffset={(safePage - 1) * PAGE_SIZE}
               headers={[
-                { key: "idx", label: "序" },
                 { key: "state", label: "状态" },
                 { key: "process", label: "进程" },
                 { key: "pid", label: "PID" },
@@ -462,7 +472,6 @@ export function NetworkPage({ host }: { host: string }) {
                     ? "h-12 border-t border-line/70 bg-danger-soft"
                     : "h-12 border-t border-line/70 hover:bg-raised",
                   cells: [
-                    seq,
                     <ConnState key="state" state={conn.state || ""} />,
                     conn.process || "—",
                     conn.pid || "—",

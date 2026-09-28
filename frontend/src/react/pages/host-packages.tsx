@@ -24,11 +24,13 @@ function SimpleRows({
   headers: { key: string; label: string }[];
   rows: { id: string; cells: ReactNode[] }[];
 }) {
+  const colCount = headers.length + 1;
   return (
     <div className="min-h-48 flex-1 overflow-auto bg-surface">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="sticky top-0 z-[1] bg-raised">
           <tr className="h-10">
+            <th className="w-12 px-2 text-center font-medium">序</th>
             {headers.map((header) => (
               <th key={header.key} className="px-3 font-medium">
                 {header.label}
@@ -39,13 +41,16 @@ function SimpleRows({
         <tbody>
           {rows.length === 0 ? (
             <tr className="h-12">
-              <td className="px-3 text-muted" colSpan={headers.length}>
+              <td className="px-3 text-muted" colSpan={colCount}>
                 暂无数据
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
+            rows.map((row, rowIndex) => (
               <tr key={row.id} className="h-12 border-t border-line hover:bg-raised">
+                <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
+                  {rowIndex + 1}
+                </td>
                 {row.cells.map((cell, index) => (
                   <td key={index} className="max-w-[360px] truncate px-3">
                     {cell}

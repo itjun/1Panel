@@ -880,6 +880,7 @@ export function LocalAppsPage() {
                         <table className="w-full min-w-[560px] text-left text-xs">
                           <thead className="sticky top-0 z-10 bg-raised">
                             <tr className="h-8">
+                              <th className="w-10 px-2 text-center">序</th>
                               <th className="px-2">FD</th>
                               <th className="px-2">类型</th>
                               <th className="px-2">访问</th>
@@ -888,11 +889,14 @@ export function LocalAppsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(resourcesQuery.data?.resources || []).map((resource) => (
+                            {(resourcesQuery.data?.resources || []).map((resource, index) => (
                               <tr
                                 key={resource.fd + ":" + resource.type + ":" + resource.name}
                                 className="border-t border-line align-top"
                               >
+                                <td className="px-2 py-1 text-center font-mono text-muted">
+                                  {index + 1}
+                                </td>
                                 <td className="px-2 py-1 font-mono">{resource.fd || "—"}</td>
                                 <td className="px-2 py-1">{resource.type || "—"}</td>
                                 <td className="px-2 py-1 font-mono">{resource.access || "—"}</td>
@@ -926,6 +930,7 @@ export function LocalAppsPage() {
                         <table className="w-full text-left text-xs">
                           <thead className="sticky top-0 bg-raised">
                             <tr className="h-8">
+                              <th className="w-10 px-2 text-center">序</th>
                               <th className="px-2">TID</th>
                               <th className="px-2">名称</th>
                               <th className="px-2">CPU</th>
@@ -933,8 +938,11 @@ export function LocalAppsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(shownDetail.threads || []).map((thread) => (
+                            {(shownDetail.threads || []).map((thread, index) => (
                               <tr key={thread.tid} className="h-8 border-t border-line">
+                                <td className="px-2 text-center font-mono text-muted">
+                                  {index + 1}
+                                </td>
                                 <td className="px-2 font-mono">{thread.tid}</td>
                                 <td className="px-2">{thread.name || "—"}</td>
                                 <td className="px-2 font-mono">
