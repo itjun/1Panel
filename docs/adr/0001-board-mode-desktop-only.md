@@ -1,7 +1,0 @@
-# 看板模式首版仅桌面独立窗口全屏，不做局域网 HTTP
-
-> **已废止**（2026-09）：被 [0002-board-http-intranet](0002-board-http-intranet.md) 取代。看板现为同进程内网只读 HTTP 网关。
-
-看板模式需要投屏展示，但桌面端 Wails 不对外监听 HTTP；要支持「内网 IP:端口」须新增只读网关与鉴权，与投屏 UI 解耦。首版用 Wails 独立窗口（`Name=board-{groupId}`，多分组多窗）以普通尺寸打开，拖到外屏后再全屏；主窗口照常操作；独立窗只对本窗 `Fullscreen`，不调用进程级 HideDock/菜单栏（避免拖累主桌面）。局域网浏览器访问留待后续独立交付。
-
-**Considered Options**: 同进程局域网 HTTP；独立轻量服务进程；主窗 Teleport 全屏覆盖；独立窗口全屏（采纳）。

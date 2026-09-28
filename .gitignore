@@ -83,20 +83,12 @@ tmp/
 .codex/
 .mimosa/
 
-# --- 本地冒烟/截图产物（可选手动提交 docs 正文）---
-docs/*-smoke-report.html
-docs/ipannel-vue-smoke-report.html
-docs/**/screenshots/
-docs/**/*.png
-!docs/**/README.md
-
 # --- 系统 / 压缩包杂项 ---
 __MACOSX/
 Thumbs.db
 Desktop.ini
 *.zip
 *.tar.gz
-!docs/**/*.md
 
 # task 缓存
 .task/
