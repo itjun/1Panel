@@ -1,24 +1,20 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Events } from "@wailsio/runtime";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { api } from "@/api";
-import { startAppWatchAlertPoll, stopAppWatchAlertPoll } from "@/utils/appWatchAlerts";
-import { startCertAlertPoll, stopCertAlertPoll } from "@/utils/certAlerts";
-import { startHostResourceAlertPoll, stopHostResourceAlertPoll } from "@/utils/hostResourceAlerts";
+import { SidebarSplitter } from "@/react/components/sidebar-splitter";
+import {
+  ShellToolbarProvider,
+  useShellToolbarSlot,
+} from "@/react/components/shell-toolbar";
 import {
   detectAppOs,
   WindowChrome,
   WindowControls,
-  windowChromeInset,
 } from "@/react/components/window-chrome";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
-import { SidebarProvider, useSidebar } from "@/react/state/sidebar";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { ConfigCenterPage } from "@/react/pages/config-center";
 import { GroupPage } from "@/react/pages/group-page";
 import { HostCreateForm, HostEditForm } from "@/react/pages/host-form";
-import { HostHomePage } from "@/react/pages/host-home";
 import { HostFilePage } from "@/react/pages/host-files";
+import { HostHomePage } from "@/react/pages/host-home";
 import { HostToolPage } from "@/react/pages/host-ops";
 import { InspectPage } from "@/react/pages/inspect";
 import { LocalPage } from "@/react/pages/local";
@@ -26,6 +22,14 @@ import { NotifyPage } from "@/react/pages/notify";
 import { SettingsPage } from "@/react/pages/settings-page";
 import { PageRefreshProvider } from "@/react/state/page-refresh";
 import { SessionProvider, useSession } from "@/react/state/session";
+import { SidebarProvider, useSidebar } from "@/react/state/sidebar";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Events } from "@wailsio/runtime";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { api } from "@/api";
+import { startAppWatchAlertPoll, stopAppWatchAlertPoll } from "@/utils/appWatchAlerts";
+import { startCertAlertPoll, stopCertAlertPoll } from "@/utils/certAlerts";
+import { startHostResourceAlertPoll, stopHostResourceAlertPoll } from "@/utils/hostResourceAlerts";
 
 const queryClient = new QueryClient();
 
@@ -40,7 +44,9 @@ export function App() {
       <SessionProvider>
         <PageRefreshProvider>
           <SidebarProvider>
-            <Shell />
+            <ShellToolbarProvider>
+              <Shell />
+            </ShellToolbarProvider>
           </SidebarProvider>
         </PageRefreshProvider>
       </SessionProvider>
@@ -53,6 +59,7 @@ function Shell() {
   const sidebar = useSidebar();
   const appOs = detectAppOs();
   const isMac = appOs === "mac";
+  const { setSlot } = useShellToolbarSlot();
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
   const createOpen = !session.settingsOpen && !!creating;
@@ -131,83 +138,86 @@ function Shell() {
     };
   }, []);
 
-  const chromeInset = sidebar.open
-    ? undefined
-    : ({ "--window-chrome-inset": windowChromeInset(isMac) } as CSSProperties);
-
   const dockMounted = createPresence.mounted || editPresence.mounted;
 
   return (
     <div
-      className="react-root relative flex h-full min-h-0"
+      className="react-root relative flex h-full min-h-0 flex-col"
       data-sidebar={sidebar.open ? "open" : "closed"}
       data-os={appOs}
       data-edit={dockMounted ? "open" : undefined}
-      style={chromeInset}
     >
-      {sidebar.open ? <WorkspaceRail /> : null}
-      <main className="glass-chrome-main flex min-h-0 min-w-0 flex-1">
-        <div className="relative min-h-0 min-w-0 flex-1">
-          {session.settingsOpen ? (
-            <div key="settings" className="motion-fade-in h-full min-h-0">
-              <SettingsPage />
-            </div>
-          ) : (
-            <WorkspaceBody onCreateHost={openCreateHost} onCreateGroup={openCreateGroup} />
-          )}
-        </div>
-        {createPresence.mounted && createState ? (
-          <aside
-            className="edit-dock motion-drawer-panel flex flex-col"
-            data-open={createPresence.visible ? "true" : "false"}
-          >
-            <HostCreateForm
-              key={`${createState.kind}:${createState.groupId || ""}`}
-              kind={createState.kind}
-              defaultGroupId={createState.groupId}
-              onClose={closeCreate}
-              onDone={() => {
-                void finishCreate();
-              }}
-            />
-          </aside>
-        ) : null}
-        {editPresence.mounted && editHost ? (
-          <aside
-            className="edit-dock motion-drawer-panel flex flex-col"
-            data-open={editPresence.visible ? "true" : "false"}
-          >
-            <HostEditForm
-              key={editHost.name}
-              host={editHost}
-              onClose={() => session.setEditingHost("")}
-              onDone={async () => {
-                session.setEditingHost("");
-                await session.refresh();
-              }}
-            />
-          </aside>
-        ) : null}
-      </main>
-      {sidebar.open ? null : (
+      {/* Firefox 式整窗通栏：红绿灯旁放导航，标题/操作挂到右侧槽 */}
+      <header className="shell-app-toolbar shell-top shell-toolbar drag-region relative z-30 flex shrink-0 items-center">
         <div
-          className={`pointer-events-none absolute top-0 left-0 z-30 flex h-[40px] items-center ${
+          className={`pointer-events-auto flex h-full shrink-0 items-center ${
             isMac ? "pl-[72px]" : "pl-0.5"
           }`}
         >
-          <div className="pointer-events-auto flex h-full items-center">
-            <WindowChrome />
-          </div>
+          <WindowChrome />
         </div>
-      )}
-      {isMac ? null : (
-        // Windows/Linux：Frameless 无系统按钮，右上角常驻自绘窗口控制（各类顶栏 CSS 已让位）
-        <div className="pointer-events-none absolute top-0 right-0 z-30 flex h-[40px] items-center pr-1">
-          <div className="pointer-events-auto flex h-full items-center">
+        <div
+          ref={setSlot}
+          className="shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"
+        />
+        {isMac ? null : (
+          <div className="pointer-events-auto absolute top-0 right-0 flex h-full items-center pr-1">
             <WindowControls />
           </div>
-        </div>
-      )}
+        )}
+      </header>
+
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+        {sidebar.open ? (
+          <>
+            <WorkspaceRail />
+            <SidebarSplitter />
+          </>
+        ) : null}
+        <main className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
+          <div className="relative min-h-0 min-w-0 flex-1">
+            {session.settingsOpen ? (
+              <div key="settings" className="motion-fade-in h-full min-h-0">
+                <SettingsPage />
+              </div>
+            ) : (
+              <WorkspaceBody onCreateHost={openCreateHost} onCreateGroup={openCreateGroup} />
+            )}
+          </div>
+          {createPresence.mounted && createState ? (
+            <aside
+              className="edit-dock motion-drawer-panel flex flex-col"
+              data-open={createPresence.visible ? "true" : "false"}
+            >
+              <HostCreateForm
+                key={`${createState.kind}:${createState.groupId || ""}`}
+                kind={createState.kind}
+                defaultGroupId={createState.groupId}
+                onClose={closeCreate}
+                onDone={() => {
+                  void finishCreate();
+                }}
+              />
+            </aside>
+          ) : null}
+          {editPresence.mounted && editHost ? (
+            <aside
+              className="edit-dock motion-drawer-panel flex flex-col"
+              data-open={editPresence.visible ? "true" : "false"}
+            >
+              <HostEditForm
+                key={editHost.name}
+                host={editHost}
+                onClose={() => session.setEditingHost("")}
+                onDone={async () => {
+                  session.setEditingHost("");
+                  await session.refresh();
+                }}
+              />
+            </aside>
+          ) : null}
+        </main>
+      </div>
     </div>
   );
 }

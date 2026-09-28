@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
 import { cn } from "@/react/lib/utils";
 import { useRegisterPageRefresh } from "@/react/state/page-refresh";
 
@@ -24,14 +25,12 @@ export function Page({
   useRegisterPageRefresh(onRefresh, refreshing);
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col text-ink">
-      {title || actions ? (
-        <div className="shell-top shell-toolbar drag-region flex shrink-0 items-center gap-3 px-[var(--gap-card)]">
+      <ShellToolbarPortal>
+        <div className="flex h-full w-full items-center gap-3 px-[var(--gap-card)]">
           {title ? <h1 className="text-base font-semibold leading-none">{title}</h1> : null}
           <div className="ml-auto flex items-center gap-2">{actions}</div>
         </div>
-      ) : (
-        <div className="shell-top shell-toolbar drag-region shrink-0" />
-      )}
+      </ShellToolbarPortal>
       <div
         className={cn(
           "content-float flex min-w-0 flex-1 flex-col",

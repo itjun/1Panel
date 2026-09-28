@@ -150,49 +150,48 @@ html.dark {
   -webkit-user-select: auto;
 }
 
-/* 磨砂来自窗口后的系统材质。
-   主区：罩色要实，墙纸几乎不透，仍留一点磨砂感（别发成死白）。
-   侧栏：更透，和主区拉开层次。
+/* 磨砂来自窗口后的系统材质。侧栏与通栏同一罩色，避免导航钮所在通栏和侧栏各一层。
    用 background-color，不要用 background 简写：构建时 transparent 会被收成无效值。 */
-.glass-chrome {
-  background-color: rgba(255, 255, 255, 0.32);
-  border-right: 1px solid var(--color-line);
-}
-
+.glass-chrome,
 .glass-chrome-main {
   background-color: rgba(245, 245, 248, 0.82);
 }
 
-html.dark .glass-chrome {
-  background-color: rgba(0, 0, 0, 0.28);
+.glass-chrome {
+  border-right: 1px solid var(--color-line);
+  position: relative;
 }
 
+/* Firefox 式侧栏分割条：平时细命中区，拖动时显出品牌色竖线 */
+.sidebar-splitter-line {
+  background-color: transparent;
+}
+
+.sidebar-splitter:hover .sidebar-splitter-line,
+.sidebar-splitter.is-active .sidebar-splitter-line {
+  background-color: var(--color-accent);
+  width: 2px;
+  left: -1px;
+}
+
+.sidebar-splitter.is-active .sidebar-splitter-line {
+  width: 3px;
+  left: -1.5px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+html.dark .glass-chrome,
 html.dark .glass-chrome-main {
   background-color: rgba(24, 24, 24, 0.82);
 }
 
-/* Windows/Linux：不做透明，共用 Chrome 式配色——左侧栏 Material 浅蓝
-   （Chrome Side Panel 同款 #d3e3fd），右侧内容区纯白。侧栏内 hover/选中相应换成蓝调。
-   macOS 不设 data-platform，继续走上方磨砂透明。 */
-html[data-platform="solid"] .glass-chrome {
-  --color-raised: #c2d7fb;
-  --color-accent-soft: #b8cffb;
-  background-color: #d3e3fd;
-  /* 浅蓝侧栏上 #e8e8e8 发丝线几乎看不见，略加深以便和白内容区分开 */
-  border-right-color: #b6c9e8;
-}
-
+/* Windows/Linux：不做透明。侧栏与通栏同色，内容区仍是这块底。 */
+html[data-platform="solid"] .glass-chrome,
 html[data-platform="solid"] .glass-chrome-main {
   background-color: #ffffff;
 }
 
-html.dark[data-platform="solid"] .glass-chrome {
-  --color-raised: #2e3550;
-  --color-accent-soft: #2b3a5e;
-  background-color: #23283a;
-  border-right-color: #3a4560;
-}
-
+html.dark[data-platform="solid"] .glass-chrome,
 html.dark[data-platform="solid"] .glass-chrome-main {
   background-color: #1e1e1e;
 }
@@ -220,7 +219,7 @@ html.dark[data-platform="solid"] .glass-chrome-main {
 .edit-dock {
   width: 380px;
   flex-shrink: 0;
-  margin: 40px 12px 12px 0;
+  margin: 12px 12px 12px 0;
   min-height: 0;
   border-radius: var(--radius-surface);
   background-color: var(--color-surface);
@@ -230,7 +229,7 @@ html.dark[data-platform="solid"] .glass-chrome-main {
 
 /* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。
    不另加上下 padding，控件在这 40px 里居中，上下留白相同。
-   h-8 控件上下各 4px，h-7 各 6px。
+   窗控导航按钮用 h-10 贴满通栏；其余 h-8 上下各 4px、h-7 各 6px。
    通栏本身不铺底色，磨砂来自窗口底，避免和缝隙叠成两层。 */
 .shell-toolbar {
   box-sizing: border-box;
@@ -243,58 +242,53 @@ html.dark[data-platform="solid"] .glass-chrome-main {
   flex-shrink: 0;
 }
 
-/* 通栏与内容区之间的分隔线（侧栏 traffic 区不用 shell-top，不受影响）。 */
+/* Firefox 式整窗通栏：与侧栏同色，贯穿到红绿灯旁。 */
+.shell-app-toolbar {
+  background-color: rgba(245, 245, 248, 0.82);
+}
+
+html.dark .shell-app-toolbar {
+  background-color: rgba(24, 24, 24, 0.82);
+}
+
+html[data-platform="solid"] .shell-app-toolbar {
+  background-color: #ffffff;
+}
+
+html.dark[data-platform="solid"] .shell-app-toolbar {
+  background-color: #1e1e1e;
+}
+
+/* 通栏与内容区之间的分隔线。 */
 .shell-top {
   border-bottom: 1px solid var(--color-line);
 }
 
-/* 侧栏收起后，窗口按钮浮在顶栏左侧，标题要让开；主机首页搜索左右对称，保持居中。
-   文件页是左右两栏标题，不能整条通栏一起右移，见 .sftp-toolbar。 */
-.react-root[data-sidebar="closed"] .shell-top:not(.host-home-toolbar):not(.sftp-toolbar) {
-  padding-left: var(--window-chrome-inset);
-}
-
-/* 文件页标题跟通栏走，左右各让出和内容面板一样的 8px，两栏才能对上。 */
+/* 文件页左右两栏标题，挂在整窗通栏槽里。 */
 .sftp-toolbar {
-  padding-left: 8px;
-  padding-right: 8px;
   align-items: stretch;
 }
 
-.react-root[data-sidebar="closed"] .sftp-toolbar-local {
-  padding-left: calc(var(--window-chrome-inset) - 8px);
-}
-
-.react-root[data-sidebar="closed"] .host-home-toolbar {
-  padding-left: var(--window-chrome-inset);
-  padding-right: var(--window-chrome-inset);
-}
-
 /* Windows/Linux：Frameless 窗口无系统按钮，右上角由前端自绘
-   （最小化/最大化/关闭）。三类顶栏的标题/操作从右侧让出按钮宽度。
+   （最小化/最大化/关闭）。通栏右侧槽让出按钮宽度。
    data-os 区分真实平台；窗控让位对 win/linux 都生效。 */
 .react-root:is([data-os="win"], [data-os="linux"]) {
   --window-controls-inset: 124px;
 }
 
-.react-root:is([data-os="win"], [data-os="linux"]) .shell-top:not(.sftp-toolbar) {
+.react-root:is([data-os="win"], [data-os="linux"]) .shell-app-toolbar-slot {
   padding-right: var(--window-controls-inset);
 }
 
-/* 文件页右栏标题贴窗口右缘，在原有 8px 基础上再让出按钮宽度 */
-.react-root:is([data-os="win"], [data-os="linux"]) .sftp-toolbar {
-  padding-right: calc(var(--window-controls-inset) + 8px);
-}
-
-/* 侧栏收起后，页面顶栏继续承担拖拽；类名 drag-region 在侧栏展开时同样生效。 */
-.react-root[data-sidebar="closed"] :is(.shell-top.shell-toolbar, .host-home-toolbar) {
+/* 整窗通栏承担拖拽；交互控件显式 no-drag。 */
+.shell-app-toolbar {
   --wails-draggable: drag;
   -webkit-app-region: drag;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.react-root[data-sidebar="closed"] :is(.shell-top.shell-toolbar, .host-home-toolbar) :is(button, a, input, textarea, select, label, [role="button"]) {
+.shell-app-toolbar :is(button, a, input, textarea, select, label, [role="button"]) {
   --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
   user-select: auto;

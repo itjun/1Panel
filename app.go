@@ -32,7 +32,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
-// macTrafficLightBand 红绿灯垂直居中带高度，对齐前端 WorkspaceRail .rail-traffic。
+// macTrafficLightBand 红绿灯垂直居中带高度，对齐前端整窗通栏 .shell-app-toolbar（40px）。
 const macTrafficLightBand = 40
 
 // macInvisibleTitleBarHeight 置 0：原生顶栏拖拽带会吞导航按钮的首次点击

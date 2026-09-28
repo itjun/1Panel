@@ -1,5 +1,5 @@
 /**
- * 侧栏展开状态。收起后窗口按钮仍留在左上角。
+ * 侧栏展开状态与可调宽度（Firefox 式拖拽改宽）。
  */
 
 import {
@@ -12,6 +12,25 @@ import {
 } from "react";
 
 const SIDEBAR_OPEN_KEY = "1pannel-sidebar-open";
+const SIDEBAR_WIDTH_KEY = "1pannel-sidebar-width";
+
+/** 与 WindowChrome 按钮一致：28px 按钮 + 两侧各 2px outer padding。 */
+const CHROME_NAV_BTN = 28;
+const CHROME_NAV_OUTER = 2;
+const CHROME_NAV_COUNT = 5;
+
+function isMacPlatform() {
+  return /Mac|iPhone|iPad/.test(navigator.platform || "");
+}
+
+/** 默认宽度 = 红绿灯留白 + 五个导航钮（对齐主页图标右缘）。 */
+export function defaultSidebarWidth(isMac = isMacPlatform()): number {
+  const nav = CHROME_NAV_COUNT * (CHROME_NAV_BTN + CHROME_NAV_OUTER * 2);
+  return (isMac ? 72 : 2) + nav;
+}
+
+export const SIDEBAR_WIDTH_MIN = 160;
+export const SIDEBAR_WIDTH_MAX = 480;
 
 function loadSidebarOpen(): boolean {
   try {
@@ -29,15 +48,49 @@ function saveSidebarOpen(open: boolean) {
   }
 }
 
+function clampWidth(value: number) {
+  return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(value)));
+}
+
+function loadSidebarWidth(): number {
+  const fallback = defaultSidebarWidth();
+  try {
+    const raw = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (!raw) return fallback;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return fallback;
+    return clampWidth(n);
+  } catch {
+    return fallback;
+  }
+}
+
+function saveSidebarWidth(width: number) {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  } catch {
+    /* ignore */
+  }
+}
+
 type SidebarValue = {
   open: boolean;
   toggle: () => void;
+  width: number;
+  setWidth: (width: number) => void;
+  resetWidth: () => void;
+  widthMin: number;
+  widthMax: number;
+  widthDefault: number;
 };
 
 const SidebarContext = createContext<SidebarValue | null>(null);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
+  const widthDefault = useMemo(() => defaultSidebarWidth(), []);
   const [open, setOpen] = useState(loadSidebarOpen);
+  const [width, setWidthState] = useState(loadSidebarWidth);
+
   const toggle = useCallback(() => {
     setOpen((prev) => {
       const next = !prev;
@@ -45,7 +98,31 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
-  const value = useMemo(() => ({ open, toggle }), [open, toggle]);
+
+  const setWidth = useCallback((next: number) => {
+    const clamped = clampWidth(next);
+    setWidthState(clamped);
+    saveSidebarWidth(clamped);
+  }, []);
+
+  const resetWidth = useCallback(() => {
+    setWidthState(widthDefault);
+    saveSidebarWidth(widthDefault);
+  }, [widthDefault]);
+
+  const value = useMemo(
+    () => ({
+      open,
+      toggle,
+      width,
+      setWidth,
+      resetWidth,
+      widthMin: SIDEBAR_WIDTH_MIN,
+      widthMax: SIDEBAR_WIDTH_MAX,
+      widthDefault,
+    }),
+    [open, toggle, width, setWidth, resetWidth, widthDefault],
+  );
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
 }
 

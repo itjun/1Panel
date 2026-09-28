@@ -14,7 +14,6 @@ import {
 } from "react";
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
-import { WindowChrome } from "@/react/components/window-chrome";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { cn } from "@/react/lib/utils";
 import {
@@ -26,6 +25,7 @@ import {
   type Tool,
   type Workspace,
 } from "@/react/state/session";
+import { useSidebar } from "@/react/state/sidebar";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 
 const RAIL_ORDER_KEY = "1pannel-rail-order";
@@ -96,6 +96,7 @@ function formatCount(n: number): string {
 
 export function WorkspaceRail() {
   const session = useSession();
+  const { width: sidebarWidth } = useSidebar();
   const [utilityOpen, setUtilityOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [configNeedsAttention, setConfigNeedsAttention] = useState(false);
@@ -244,8 +245,6 @@ export function WorkspaceRail() {
     if (hostNames.length > 0) session.reorderOpenedHosts(hostNames);
   }
 
-  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-
   const listKind = session.settingsOpen
     ? "settings"
     : session.workspace === "config"
@@ -262,22 +261,10 @@ export function WorkspaceRail() {
 
   return (
       <aside
-        className={cn(
-          "glass-chrome flex w-[220px] min-w-[220px] flex-col pb-2.5",
-          isMac && "pt-0",
-        )}
+        className="glass-chrome flex shrink-0 flex-col pb-2.5"
+        style={{ width: sidebarWidth, minWidth: sidebarWidth }}
         aria-label="应用导航"
       >
-      <div
-        className={cn(
-            "rail-traffic shell-toolbar drag-region flex shrink-0",
-          isMac ? "pl-[72px]" : "pl-0.5",
-        )}
-      >
-        <WindowChrome />
-        <div className="h-full min-w-0 flex-1" />
-      </div>
-
       <div
         className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-1.5"
         onContextMenu={(e) => {

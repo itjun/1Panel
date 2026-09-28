@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type monitor } from "@/api";
 import { FilePreviewDrawer } from "@/react/components/file-preview-drawer";
 import { SftpPane, type SftpDeleteItem } from "@/react/components/sftp-pane";
+import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
 import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
@@ -463,10 +464,12 @@ export function SftpPage({ host }: { host: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shell-top shell-toolbar sftp-toolbar drag-region relative z-20 grid shrink-0 grid-cols-2">
-        <div ref={setLocalHeaderHost} className="sftp-toolbar-local min-w-0" />
-        <div ref={setRemoteHeaderHost} className="min-w-0" />
-      </div>
+      <ShellToolbarPortal>
+        <div className="sftp-toolbar relative z-20 grid h-full w-full grid-cols-2">
+          <div ref={setLocalHeaderHost} className="sftp-toolbar-local min-w-0" />
+          <div ref={setRemoteHeaderHost} className="min-w-0" />
+        </div>
+      </ShellToolbarPortal>
       <div className="content-float gap-card relative grid min-w-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] p-[var(--gap-card)]">
       <div className="surface-float h-full min-h-0 overflow-hidden">
         <SftpPane

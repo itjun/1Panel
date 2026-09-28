@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { Notice } from "@/react/components/page";
+import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
@@ -627,41 +628,43 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         setBlankMenu(next);
       }}
     >
-      <div className="host-home-toolbar shell-top shell-toolbar drag-region grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-5">
-        <div />
-        <input
-          ref={searchRef}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              if (query) {
-                event.stopPropagation();
-                setQuery("");
-                return;
+      <ShellToolbarPortal>
+        <div className="host-home-toolbar grid h-full w-full grid-cols-[1fr_auto_1fr] items-center px-5">
+          <div />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                if (query) {
+                  event.stopPropagation();
+                  setQuery("");
+                  return;
+                }
+                (event.target as HTMLInputElement).blur();
               }
-              (event.target as HTMLInputElement).blur();
-            }
-          }}
-          placeholder={isMac ? "筛选主机 (⌘F)" : "筛选主机 (Ctrl+F)"}
-          className="motion-field box-border h-8 w-[min(24rem,40vw)] rounded-control px-3 leading-none"
-        />
-        <div className="relative flex h-full items-center justify-self-end">
-          <Button
-            aria-label="新建"
-            onClick={(event) => {
-              event.stopPropagation();
-              const btn = event.currentTarget;
-              const rect = btn.getBoundingClientRect();
-              // 按钮在最右侧，菜单右缘跟按钮对齐
-              closeAllMenus();
-              setBlankMenu({ x: rect.right - 180, y: rect.bottom + 4 });
             }}
-          >
-            +
-          </Button>
+            placeholder={isMac ? "筛选主机 (⌘F)" : "筛选主机 (Ctrl+F)"}
+            className="motion-field box-border h-8 w-[min(24rem,40vw)] rounded-control px-3 leading-none"
+          />
+          <div className="relative flex h-full items-center justify-self-end">
+            <Button
+              aria-label="新建"
+              onClick={(event) => {
+                event.stopPropagation();
+                const btn = event.currentTarget;
+                const rect = btn.getBoundingClientRect();
+                // 按钮在最右侧，菜单右缘跟按钮对齐
+                closeAllMenus();
+                setBlankMenu({ x: rect.right - 180, y: rect.bottom + 4 });
+              }}
+            >
+              +
+            </Button>
+          </div>
         </div>
-      </div>
+      </ShellToolbarPortal>
 
       <div className="content-float flex min-w-0 flex-1 flex-col">
       {(toast || error) && (
