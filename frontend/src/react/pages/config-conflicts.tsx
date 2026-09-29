@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type main } from "@/api";
 import { CodeSurface } from "@/react/components/code-surface";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,8 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
+import { Select, type SelectOption } from "@/react/components/ui/select";
+import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { formatErr } from "@/utils/format";
 
 type Props = {
@@ -19,6 +20,18 @@ type Props = {
 };
 
 type Choice = "panel" | "external" | "manual";
+
+/** 冲突处理下拉的选项；只有带文件的冲突才能「手工合并」。配置中心 / SSH 预览共用。 */
+export function conflictChoiceOptions(hasFile: boolean): SelectOption<Choice>[] {
+  const options: SelectOption<Choice>[] = [
+    { value: "panel", label: "保留 Panel" },
+    { value: "external", label: "采用外部" },
+  ];
+  if (hasFile) {
+    options.push({ value: "manual", label: "手工合并" });
+  }
+  return options;
+}
 
 function diffKindLabel(kind: string) {
   if (kind === "added") return "新增";
@@ -37,11 +50,11 @@ function formatUnixTime(value?: number) {
   return new Date(value * (value < 1e12 ? 1000 : 1)).toLocaleString();
 }
 
-function kindClass(kind: string) {
-  if (kind === "added") return "border-success/40 bg-success-soft text-success";
-  if (kind === "removed") return "border-danger/40 bg-danger-soft text-danger";
-  if (kind === "changed") return "border-warn/40 bg-warn-soft text-warn";
-  return "border-line bg-raised text-muted";
+function kindTone(kind: string): TagTone {
+  if (kind === "added") return "ok";
+  if (kind === "removed") return "danger";
+  if (kind === "changed") return "warn";
+  return "neutral";
 }
 
 /**
@@ -198,20 +211,20 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
     (diff?.changedFiles || []).length > 0 || (diff?.hostDiff || []).length > 0;
 
   return (
-    <div className="gap-card flex flex-col">
+    <div className="flex flex-col gap-section p-4">
       {error ? (
-        <div className="rounded-control border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <div className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </div>
       ) : null}
       {message ? (
-        <div className="rounded-control border border-success/40 bg-success-soft px-3 py-2 text-sm text-success">
+        <div className="rounded-control bg-success-soft px-3 py-2 text-sm text-success-text">
           {message}
         </div>
       ) : null}
 
-      <Card>
-        <h2 className="text-lg font-medium">差异与冲突</h2>
+      <section>
+        <h2 className="text-sm font-semibold text-ink">差异与冲突</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {overview.data?.drift || overview.data?.needsReview ? (
             <Button disabled={busy} onClick={() => void previewExternalImport()}>
@@ -240,19 +253,15 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
             重新扫描
           </Button>
         </div>
-      </Card>
+      </section>
 
       {hasDiffList ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col">
           {(diff?.changedFiles || []).map((file) => (
-            <Card key={file.path}>
+            <div key={file.path} className="border-b border-line py-3 last:border-b-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span
-                    className={`rounded-control border px-2 py-0.5 text-[10px] font-semibold ${kindClass(file.kind)}`}
-                  >
-                    {diffKindLabel(file.kind)}
-                  </span>
+                  <Tag tone={kindTone(file.kind)}>{diffKindLabel(file.kind)}</Tag>
                   <strong className="truncate font-mono text-sm">{file.path}</strong>
                 </div>
                 {onOpenSshFiles ? (
@@ -261,7 +270,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                   </Button>
                 ) : null}
               </div>
-              <div className="mt-2 grid gap-2 font-mono text-[11px] text-muted md:grid-cols-3">
+              <div className="mt-2 grid gap-2 font-mono text-xs text-muted md:grid-cols-3">
                 <div>Panel {shortHash(file.panelSha256)}</div>
                 <div>磁盘 {shortHash(file.externalSha256)}</div>
                 <div>生成 {shortHash(file.generatedSha256)}</div>
@@ -273,38 +282,34 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                   <DiffPane title="待生成结果" text={file.generatedContent || ""} />
                 </div>
               ) : null}
-            </Card>
+            </div>
           ))}
           {(diff?.hostDiff || []).map((host) => (
-            <Card key={host.alias}>
+            <div key={host.alias} className="border-b border-line py-3 last:border-b-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-control border px-2 py-0.5 text-[10px] font-semibold ${kindClass(host.kind)}`}
-                >
-                  {diffKindLabel(host.kind)}
-                </span>
+                <Tag tone={kindTone(host.kind)}>{diffKindLabel(host.kind)}</Tag>
                 <strong>{host.alias}</strong>
                 <span className="text-sm text-muted">
                   {(host.fields || []).join(" · ") || "结构变化"}
                 </span>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       ) : (
-        <Card>
+        <section>
           <div className="py-10 text-center text-muted">
-            <h3 className="text-base font-medium text-ink">配置树一致</h3>
+            <h3 className="text-sm font-semibold text-ink">配置树一致</h3>
             <p className="mt-1 text-sm">当前没有检测到磁盘与 Panel 快照之间的变化。</p>
           </div>
-        </Card>
+        </section>
       )}
 
       {preview && !previewOpen ? (
-        <Card>
+        <section className="rounded-control bg-accent-soft px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="font-medium">最近预览</div>
+              <div className="font-semibold">最近预览</div>
               <div className="text-sm text-muted">
                 文件 {(preview.fileDiff || []).length} · 主机 {(preview.hostDiff || []).length} ·{" "}
                 {(preview.conflicts || []).length} 冲突 ·{" "}
@@ -315,7 +320,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
               打开预览
             </Button>
           </div>
-        </Card>
+        </section>
       ) : null}
 
       <Dialog
@@ -337,13 +342,13 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
             {preview ? (
               <>
                 <div
-                  className={`mb-3 rounded-control border px-3 py-2 ${
+                  className={`mb-3 rounded-control px-3 py-2 ${
                     preview.valid
-                      ? "border-success/40 bg-success-soft text-success"
-                      : "border-danger/40 bg-danger-soft text-danger"
+                      ? "bg-success-soft text-success-text"
+                      : "bg-danger-soft text-danger"
                   }`}
                 >
-                  <div className="font-medium">
+                  <div className="font-semibold">
                     {preview.valid ? "可以提交" : "需要处理后才能提交"}
                   </div>
                   {preview.error ? <div className="mt-1 text-sm">{preview.error}</div> : null}
@@ -351,32 +356,26 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
 
                 <section className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-medium">连接测试</h3>
+                    <h3 className="text-sm font-semibold">连接测试</h3>
                     <span className="text-xs text-muted">
                       {(preview.affectedHosts || []).length} 台受影响主机
                     </span>
                   </div>
                   {(preview.connectionTests || []).length ? (
-                    <div className="space-y-1">
+                    <div>
                       {(preview.connectionTests || []).map((test) => (
                         <div
                           key={test.alias}
-                          className="flex flex-wrap items-center gap-2 rounded-control border border-line px-2 py-1.5 text-sm"
+                          className="flex flex-wrap items-center gap-2 border-b border-line px-2 py-1.5 text-sm last:border-b-0"
                         >
-                          <span
-                            className={`rounded-control px-1.5 py-0.5 text-xs ${
-                              test.success
-                                ? "bg-success-soft text-success"
-                                : "bg-danger-soft text-danger"
-                            }`}
-                          >
+                          <Tag tone={test.success ? "ok" : "danger"}>
                             {test.success ? "通过" : "失败"}
-                          </span>
+                          </Tag>
                           <strong>{test.alias}</strong>
                           <span className="text-muted">
                             {test.success ? test.message || "" : test.error || ""}
                           </span>
-                          <span className="ml-auto text-xs text-muted">{test.durationMs} ms</span>
+                          <span className="ml-auto font-mono text-xs text-muted">{test.durationMs} ms</span>
                         </div>
                       ))}
                     </div>
@@ -390,7 +389,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                 {(preview.conflicts || []).length > 0 ? (
                   <section className="mb-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-sm font-medium">逐项解决冲突</h3>
+                      <h3 className="text-sm font-semibold">逐项解决冲突</h3>
                       <span className="text-xs text-muted">全部解决后才可提交</span>
                     </div>
                     <div className="space-y-3">
@@ -399,35 +398,30 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                         return (
                           <div
                             key={conflict.id}
-                            className="rounded-control border border-danger/40 bg-danger-soft px-3 py-3"
+                            className="rounded-control bg-danger-soft px-3 py-3"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="font-medium text-ink">
+                                <div className="font-semibold text-ink">
                                   {conflict.alias || conflict.file || "配置项"}
                                 </div>
                                 <div className="mt-0.5 text-sm text-danger">
                                   {conflict.summary}
                                 </div>
                               </div>
-                              <select
-                                className="rounded-control border border-line bg-surface px-2 py-1.5 text-sm"
+                              <Select<Choice>
+                                aria-label="冲突处理方式"
+                                className="shrink-0"
                                 value={choice}
-                                onChange={(event) => {
-                                  const value = event.target.value as Choice;
+                                onChange={(value) => {
                                   setChoices((prev) => ({ ...prev, [conflict.id]: value }));
                                 }}
-                              >
-                                <option value="panel">保留 Panel</option>
-                                <option value="external">采用外部</option>
-                                {conflict.file ? (
-                                  <option value="manual">手工合并</option>
-                                ) : null}
-                              </select>
+                                options={conflictChoiceOptions(Boolean(conflict.file))}
+                              />
                             </div>
                             {choice === "manual" && conflict.file ? (
                               <textarea
-                                className="mt-2 w-full rounded-control border border-line bg-surface px-2 py-2 font-mono text-xs"
+                                className="motion-field mt-2 w-full rounded-control px-2 py-2 font-mono text-xs"
                                 rows={6}
                                 placeholder="输入最终文件内容"
                                 value={manualTexts[conflict.id] || ""}
@@ -454,7 +448,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
 
                 <section>
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-medium">文件与主机影响</h3>
+                    <h3 className="text-sm font-semibold">文件与主机影响</h3>
                     <span className="text-xs text-muted">
                       {(preview.fileDiff || []).length} 个文件 ·{" "}
                       {(preview.hostDiff || []).length} 台主机
@@ -465,10 +459,10 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                       <button
                         key={file.path}
                         type="button"
-                        className={`rounded-control border px-2 py-1 text-xs ${
+                        className={`rounded-control px-2 py-1 text-xs ${
                           previewFile?.path === file.path
-                            ? "border-accent bg-accent-soft font-semibold text-accent"
-                            : "border-line"
+                            ? "bg-accent-soft font-semibold text-accent"
+                            : "bg-raised hover:bg-line"
                         }`}
                         onClick={() => setPreviewFilePath(file.path)}
                       >
@@ -478,8 +472,8 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                   </div>
                   {previewFile ? (
                     <div className="mb-3 grid max-h-64 gap-2 overflow-auto md:grid-cols-3">
-                      <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-                        <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
+                      <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden">
+                        <div className="pb-1.5 text-xs text-muted">
                           Panel 快照
                         </div>
                         <div className="min-h-0 flex-1 overflow-hidden">
@@ -490,8 +484,8 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                           />
                         </div>
                       </div>
-                      <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-                        <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
+                      <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden">
+                        <div className="pb-1.5 text-xs text-muted">
                           当前磁盘
                         </div>
                         <div className="min-h-0 flex-1 overflow-hidden">
@@ -502,8 +496,8 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                           />
                         </div>
                       </div>
-                      <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-                        <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
+                      <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden">
+                        <div className="pb-1.5 text-xs text-muted">
                           待生成结果
                         </div>
                         <div className="min-h-0 flex-1 overflow-hidden">
@@ -521,11 +515,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
                       key={host.alias}
                       className="mt-1 flex flex-wrap items-center gap-2 border-t border-line py-2 text-sm"
                     >
-                      <span
-                        className={`rounded-control border px-2 py-0.5 text-[10px] font-semibold ${kindClass(host.kind)}`}
-                      >
-                        {diffKindLabel(host.kind)}
-                      </span>
+                      <Tag tone={kindTone(host.kind)}>{diffKindLabel(host.kind)}</Tag>
                       <strong>{host.alias}</strong>
                       <span className="text-muted">
                         {(host.fields || []).join(" · ") || "结构变化"}
@@ -555,9 +545,9 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
 
 function DiffPane({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-control border border-line bg-raised p-2">
+    <div className="rounded-control bg-raised p-2">
       <div className="mb-1 text-xs text-muted">{title}</div>
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-ink">
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-ink">
         {text || "（空）"}
       </pre>
     </div>

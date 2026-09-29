@@ -24,8 +24,11 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
-import { Notice } from "@/react/components/page";
+import { FlashNotices } from "@/react/components/page";
 import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
+import { isPrimaryModifier, shortcutLabel } from "@/react/lib/platform";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
+import { readSettings, updateSettings, useSettings } from "@/react/state/settings";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
@@ -63,6 +66,72 @@ type InsertMark = {
   after: boolean;
 };
 
+/**
+ * 分组拖拽落点：
+ * - block：插到某分组块之前 / 之后
+ * - newRow：新建一排放入被拖分组；beforeRow 为新排插在第几排之前，等于排数表示追加到最后
+ */
+type GroupDropMark =
+  | { kind: "block"; target: string; after: boolean }
+  | { kind: "newRow"; beforeRow: number };
+
+/** 分组拖拽：位移超过该值才算拖动，否则按点击处理 */
+const GROUP_DRAG_THRESHOLD = 4;
+/** 拖拽（分组 / 主机）贴近主内容区上下边缘多少像素时自动纵向滚动 */
+const DRAG_SCROLL_EDGE = 48;
+/** 自动纵向滚动每帧像素 */
+const DRAG_SCROLL_STEP = 12;
+
+/**
+ * 布局对账：丢弃已不存在的分组 id 与重复 id；不在布局里的分组按 order 追加到最后一排末尾；
+ * 去掉空排。没有保存过布局时，全部分组按 order 放在一排。
+ */
+function reconcileHostRows(saved: string[][], orderedIds: string[]): string[][] {
+  const known = new Set(orderedIds);
+  const placed = new Set<string>();
+  const rows: string[][] = [];
+  for (const savedRow of saved) {
+    const row: string[] = [];
+    for (const id of savedRow) {
+      if (!known.has(id)) continue;
+      if (placed.has(id)) continue;
+      placed.add(id);
+      row.push(id);
+    }
+    if (row.length > 0) rows.push(row);
+  }
+  const rest = orderedIds.filter((id) => !placed.has(id));
+  if (rest.length > 0) {
+    if (rows.length === 0) {
+      rows.push(rest);
+    } else {
+      rows[rows.length - 1]!.push(...rest);
+    }
+  }
+  return rows;
+}
+
+/** 按落点移动分组，返回新布局（拖空的排自动去掉） */
+function moveGroupInRows(rows: string[][], dragged: string, mark: GroupDropMark): string[][] {
+  const next = rows.map((row) => row.filter((id) => id !== dragged));
+  if (mark.kind === "block") {
+    if (mark.target === dragged) return rows;
+    for (const row of next) {
+      const index = row.indexOf(mark.target);
+      if (index < 0) continue;
+      if (mark.after) {
+        row.splice(index + 1, 0, dragged);
+      } else {
+        row.splice(index, 0, dragged);
+      }
+      break;
+    }
+  } else {
+    next.splice(mark.beforeRow, 0, [dragged]);
+  }
+  return next.filter((row) => row.length > 0);
+}
+
 type Section = {
   id: string;
   name: string;
@@ -70,18 +139,13 @@ type Section = {
   hosts: sshconfig.HostConfig[];
 };
 
-function isMacPlatform() {
-  return /Mac|iPhone|iPad/.test(navigator.platform);
-}
-
 function isAdditiveSelect(event: {
   metaKey: boolean;
   ctrlKey: boolean;
   shiftKey: boolean;
 }) {
   if (event.shiftKey) return false;
-  if (isMacPlatform()) return event.metaKey && !event.ctrlKey;
-  return event.ctrlKey && !event.metaKey;
+  return isPrimaryModifier(event);
 }
 
 function readCollapsedIds(): string[] {
@@ -131,7 +195,7 @@ function MenuItem({
       onClick={onClick}
     >
       <span>{label}</span>
-      {kbd ? <span className="text-[11px] text-muted">{kbd}</span> : null}
+      {kbd ? <span className="text-xs text-muted">{kbd}</span> : null}
     </button>
   );
 }
@@ -142,11 +206,14 @@ function MenuDivider() {
 
 export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps = {}) {
   const session = useSession();
-  const isMac = isMacPlatform();
+  const settings = useSettings();
   const searchRef = useRef<HTMLInputElement>(null);
   const suppressClick = useRef(false);
   const insertMarkRef = useRef<InsertMark | null>(null);
   const dropTargetRef = useRef<string | null>(null);
+  const rackRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const groupInsertRef = useRef<GroupDropMark | null>(null);
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -156,6 +223,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [insertMark, setInsertMark] = useState<InsertMark | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
+  const [groupInsert, setGroupInsert] = useState<GroupDropMark | null>(null);
 
   const [hostMenu, setHostMenu] = useState<HostMenuState | null>(null);
   const [groupMenu, setGroupMenu] = useState<GroupMenuState | null>(null);
@@ -180,8 +249,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [checkHost, setCheckHost] = useState("");
   const [checkText, setCheckText] = useState("");
   const [checkBusy, setCheckBusy] = useState(false);
-  const [toast, setToast] = useState("");
-  const [error, setError] = useState("");
+  const flash = useFlashMessage();
+  const { showToast, showError } = flash;
 
   const keyword = query.trim().toLowerCase();
 
@@ -207,9 +276,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       },
     ];
     if (!keyword) {
-      return list.filter((section) =>
-        section.id === PINNED_SECTION ? section.hosts.length > 0 : true,
-      );
+      return list.filter((section) => {
+        if (section.hosts.length > 0) return true;
+        if (section.id === PINNED_SECTION) return false;
+        // 空的「未分组」只在拖拽中作为移出分组的落点出现
+        if (section.id === UNGROUPED_ID) return dragging;
+        return true;
+      });
     }
     return list
       .map((section) => ({
@@ -218,22 +291,35 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           `${host.name} ${host.hostName} ${host.user}`.toLowerCase().includes(keyword),
         ),
       }))
-      .filter((section) => section.hosts.length > 0);
-  }, [keyword, session]);
+      .filter((section) => {
+        if (section.hosts.length > 0) return true;
+        return section.id === UNGROUPED_ID && dragging;
+      });
+  }, [keyword, session, dragging]);
 
   const migrateGroups = useMemo(
     () => [...session.groups].sort((a, b) => a.order - b.order),
     [session.groups],
   );
 
-  function showToast(text: string) {
-    setToast(text);
-    setError("");
-  }
+  // 用户自定义的分组排布（每排一组 group id），与当前分组对账后使用
+  const groupRows = useMemo(
+    () =>
+      reconcileHostRows(
+        settings.hostHomeRows,
+        migrateGroups.map((group) => group.id),
+      ),
+    [settings.hostHomeRows, migrateGroups],
+  );
 
-  function showError(text: string) {
-    setError(text);
-    setToast("");
+  // 概况条：直接从已有 hosts / groups 算；筛选时只报匹配数（置顶区是重复项，不计）
+  let summaryText = `${session.hosts.length} 台主机 · ${session.groups.length} 个分组`;
+  if (keyword) {
+    let matched = 0;
+    for (const section of sections) {
+      if (section.id !== PINNED_SECTION) matched += section.hosts.length;
+    }
+    summaryText = `匹配 ${matched} 台主机`;
   }
 
   function sectionCollapsed(id: string) {
@@ -384,6 +470,35 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     showToast(`已置顶 ${host}`);
   }
 
+  /**
+   * 拖拽贴近主内容区上下边缘时纵向自动滚动（分组拖拽、主机拖拽共用）。
+   * getY 返回最新指针纵坐标；真正滚动后调用 onScrolled 重算落点。返回停止函数。
+   */
+  function startEdgeAutoScroll(getY: () => number, onScrolled: () => void) {
+    const scroller = scrollRef.current;
+    let frame = 0;
+    function tick() {
+      if (scroller) {
+        const rect = scroller.getBoundingClientRect();
+        const y = getY();
+        let delta = 0;
+        if (y < rect.top + DRAG_SCROLL_EDGE) {
+          delta = -DRAG_SCROLL_STEP;
+        } else if (y > rect.bottom - DRAG_SCROLL_EDGE) {
+          delta = DRAG_SCROLL_STEP;
+        }
+        if (delta !== 0) {
+          const before = scroller.scrollTop;
+          scroller.scrollTop += delta;
+          if (scroller.scrollTop !== before) onScrolled();
+        }
+      }
+      frame = requestAnimationFrame(tick);
+    }
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }
+
   function onHostPointerDown(
     event: ReactPointerEvent<HTMLDivElement>,
     sectionId: string,
@@ -394,12 +509,17 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     const startX = event.clientX;
     const startY = event.clientY;
     let active = false;
+    let lastX = startX;
+    let lastY = startY;
+    let stopAutoScroll: (() => void) | null = null;
     const pointerId = event.pointerId;
     const targetEl = event.currentTarget as HTMLElement;
     targetEl.setPointerCapture(pointerId);
 
     function onMove(moveEvent: PointerEvent) {
       if (moveEvent.pointerId !== pointerId) return;
+      lastX = moveEvent.clientX;
+      lastY = moveEvent.clientY;
       if (!active) {
         if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 6) {
           return;
@@ -409,11 +529,18 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         setDragging(true);
         document.body.style.userSelect = "none";
         document.body.style.cursor = "grabbing";
+        stopAutoScroll = startEdgeAutoScroll(
+          () => lastY,
+          () => updateHostTarget(lastX, lastY),
+        );
       }
+      updateHostTarget(moveEvent.clientX, moveEvent.clientY);
+    }
 
+    function updateHostTarget(clientX: number, clientY: number) {
       // 同组排序线
       const sortNode = document
-        .elementFromPoint(moveEvent.clientX, moveEvent.clientY)
+        .elementFromPoint(clientX, clientY)
         ?.closest("[data-host-sort]") as HTMLElement | null;
       if (sortNode) {
         const groupId = sortNode.dataset.hostGroup || "";
@@ -422,7 +549,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           // 未分组不支持组内排序
           if (groupId !== UNGROUPED_ID) {
             const rect = sortNode.getBoundingClientRect();
-            const after = moveEvent.clientY > rect.top + rect.height / 2;
+            const after = clientY > rect.top + rect.height / 2;
             const next = { sectionId: groupId, target, after };
             insertMarkRef.current = next;
             setInsertMark(next);
@@ -438,7 +565,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
       // 跨组 / 置顶投放
       const dropNode = document
-        .elementFromPoint(moveEvent.clientX, moveEvent.clientY)
+        .elementFromPoint(clientX, clientY)
         ?.closest("[data-drop-group]") as HTMLElement | null;
       const dropId = dropNode?.dataset.dropGroup || null;
       if (dropId && dropId !== sectionId) {
@@ -455,6 +582,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       targetEl.releasePointerCapture(pointerId);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      if (stopAutoScroll) stopAutoScroll();
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       setDragging(false);
@@ -478,6 +606,162 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       } catch (err) {
         console.error(err);
         showError(formatErr(err));
+      }
+      setTimeout(() => {
+        suppressClick.current = false;
+      }, 0);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function isSortableGroup(section: Section) {
+    if (section.id === PINNED_SECTION) return false;
+    if (section.id === UNGROUPED_ID) return false;
+    return true;
+  }
+
+  async function moveGroupTo(dragged: string, mark: GroupDropMark) {
+    const nextRows = moveGroupInRows(groupRows, dragged, mark);
+    if (JSON.stringify(nextRows) === JSON.stringify(groupRows)) return;
+    updateSettings({ hostHomeRows: nextRows });
+    // 布局按「从上到下、从左到右」展开同步到分组 order，下拉框等处顺序与首页一致
+    const flat = nextRows.flat();
+    const current = migrateGroups.map((group) => group.id);
+    const same = flat.length === current.length && flat.every((id, i) => id === current[i]);
+    if (same) return;
+    // 分组不允许嵌套（groups.MaxDepth=1），全部是顶层，父级传空
+    await api.reorderGroups("", flat);
+    await session.refresh();
+  }
+
+  function onGroupHeadPointerDown(
+    event: ReactPointerEvent<HTMLDivElement>,
+    section: Section,
+  ) {
+    if (event.button !== 0) return;
+    if (!isSortableGroup(section)) return;
+    // 筛选时只看到部分分组，禁止排序
+    if (keyword) return;
+    if ((event.target as HTMLElement).closest("[data-collapse-toggle]")) return;
+    const rack = rackRef.current;
+    if (!rack) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const pointerId = event.pointerId;
+    const headEl = event.currentTarget as HTMLElement;
+    const draggedId = section.id;
+    let active = false;
+    let lastX = startX;
+    let lastY = startY;
+    let stopAutoScroll: (() => void) | null = null;
+
+    function setMark(next: GroupDropMark | null) {
+      groupInsertRef.current = next;
+      setGroupInsert(next);
+    }
+
+    // 落点判定：
+    // 1. 指针在「新建一排」落区内或其下方 → 追加新排
+    // 2. 否则找指针所在的排：最后一个顶部在指针上方的排（排下方空白到下一排之前都算该排）
+    // 3. 指针在该排底部与下一排顶部之间的间隙 → 在两排之间插入新排
+    // 4. 否则在该排内：先按块顶部分子行（排内折行），再按 x 与块中线比较求插入点
+    function updateInsert(clientX: number, clientY: number) {
+      const rowEls = Array.from(rack!.querySelectorAll<HTMLElement>("[data-rack-row]"));
+      const newRowEl = rack!.querySelector<HTMLElement>("[data-rack-new-row]");
+      if (newRowEl && clientY >= newRowEl.getBoundingClientRect().top) {
+        setMark({ kind: "newRow", beforeRow: rowEls.length });
+        return;
+      }
+      if (rowEls.length === 0) {
+        setMark(null);
+        return;
+      }
+
+      let rowIndex = 0;
+      for (let i = 0; i < rowEls.length; i++) {
+        if (clientY >= rowEls[i]!.getBoundingClientRect().top) rowIndex = i;
+      }
+      const rowEl = rowEls[rowIndex]!;
+      const rowRect = rowEl.getBoundingClientRect();
+      const hasNextRow = rowIndex < rowEls.length - 1;
+      if (clientY > rowRect.bottom && hasNextRow) {
+        setMark({ kind: "newRow", beforeRow: rowIndex + 1 });
+        return;
+      }
+
+      const lines: { top: number; blocks: { el: HTMLElement; rect: DOMRect }[] }[] = [];
+      for (const el of Array.from(rowEl.querySelectorAll<HTMLElement>("[data-group-sortable]"))) {
+        const rect = el.getBoundingClientRect();
+        const top = Math.round(rect.top);
+        let line = lines.find((item) => item.top === top);
+        if (!line) {
+          line = { top, blocks: [] };
+          lines.push(line);
+        }
+        line.blocks.push({ el, rect });
+      }
+      lines.sort((a, b) => a.top - b.top);
+      let targetLine = lines[0];
+      for (const line of lines) {
+        if (clientY >= line.top) targetLine = line;
+      }
+      if (!targetLine) {
+        setMark(null);
+        return;
+      }
+      for (const block of targetLine.blocks) {
+        if (clientX < block.rect.left + block.rect.width / 2) {
+          setMark({ kind: "block", target: block.el.dataset.groupSortable || "", after: false });
+          return;
+        }
+      }
+      const last = targetLine.blocks[targetLine.blocks.length - 1]!;
+      setMark({ kind: "block", target: last.el.dataset.groupSortable || "", after: true });
+    }
+
+    function onMove(moveEvent: PointerEvent) {
+      if (moveEvent.pointerId !== pointerId) return;
+      lastX = moveEvent.clientX;
+      lastY = moveEvent.clientY;
+      if (!active) {
+        const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+        if (distance <= GROUP_DRAG_THRESHOLD) return;
+        active = true;
+        // 开始拖动后才捕获指针：未超阈值时组名按钮的 click 仍落在按钮上
+        headEl.setPointerCapture(pointerId);
+        suppressClick.current = true;
+        setDraggingGroupId(draggedId);
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "grabbing";
+        stopAutoScroll = startEdgeAutoScroll(
+          () => lastY,
+          () => updateInsert(lastX, lastY),
+        );
+      }
+      updateInsert(moveEvent.clientX, moveEvent.clientY);
+    }
+
+    async function onUp(upEvent: PointerEvent) {
+      if (upEvent.pointerId !== pointerId) return;
+      if (headEl.hasPointerCapture(pointerId)) {
+        headEl.releasePointerCapture(pointerId);
+      }
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (stopAutoScroll) stopAutoScroll();
+      const mark = groupInsertRef.current;
+      setMark(null);
+      setDraggingGroupId(null);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      if (!active) return;
+      active = false;
+      try {
+        if (mark) await moveGroupTo(draggedId, mark);
+      } catch (err) {
+        showError(`调整分组顺序失败: ${formatErr(err)}`);
       }
       setTimeout(() => {
         suppressClick.current = false;
@@ -521,6 +805,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       let effectiveID = id;
       if (!g || g.name !== nextName) {
         effectiveID = await api.renameGroup(id, nextName);
+      }
+      // 改名会换 id：首页排布里同步替换，分组留在原位
+      if (effectiveID !== id) {
+        const rows = readSettings().hostHomeRows.map((row) =>
+          row.map((item) => (item === id ? effectiveID : item)),
+        );
+        updateSettings({ hostHomeRows: rows });
       }
       const nextBoard = groupSettings.boardTitle.trim();
       const curBoard = (g?.boardTitle || "").trim();
@@ -614,6 +905,233 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 置顶单独占最上一排、未分组单独占最下一排；中间按用户排布，筛选后空排不显示
+  const sectionById = new Map(sections.map((section) => [section.id, section]));
+  const pinnedSection = sectionById.get(PINNED_SECTION);
+  const ungroupedSection = sectionById.get(UNGROUPED_ID);
+  const visibleRows: { index: number; sections: Section[] }[] = [];
+  groupRows.forEach((ids, index) => {
+    const rowSections: Section[] = [];
+    for (const id of ids) {
+      const section = sectionById.get(id);
+      if (section) rowSections.push(section);
+    }
+    if (rowSections.length > 0) visibleRows.push({ index, sections: rowSections });
+  });
+
+  function renderSection(section: Section) {
+    const collapsed = sectionCollapsed(section.id);
+    const isDrop = dropTargetId === section.id;
+    const sortable = !keyword && isSortableGroup(section);
+    let insertSide: string | null = null;
+    if (groupInsert && groupInsert.kind === "block" && groupInsert.target === section.id) {
+      if (groupInsert.after) {
+        insertSide = "after";
+      } else {
+        insertSide = "before";
+      }
+    }
+    return (
+      <section
+        key={section.id}
+        className={`host-rack-block ${draggingGroupId === section.id ? "opacity-50" : ""}`}
+        data-drop-group={section.id}
+        data-drop-active={isDrop ? "true" : undefined}
+        data-group-sortable={sortable ? section.id : undefined}
+      >
+        {insertSide ? (
+          <div className="host-rack-insert" data-side={insertSide} />
+        ) : null}
+        <div
+          data-group-head
+          className={`flex h-9 w-full items-center gap-1 pr-2 ${sortable ? "cursor-grab" : ""}`}
+          onPointerDown={(event) => onGroupHeadPointerDown(event, section)}
+          onContextMenu={(event) => {
+            if (section.isPinned) return;
+            event.preventDefault();
+            event.stopPropagation();
+            closeAllMenus();
+            const next = clampMenuPos(event.clientX, event.clientY, 180, 220);
+            setGroupMenu({
+              id: section.id,
+              name: section.name,
+              x: next.x,
+              y: next.y,
+            });
+          }}
+        >
+          <button
+            type="button"
+            aria-label="折叠或展开分组"
+            aria-expanded={!collapsed}
+            data-collapse-toggle
+            className="ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:text-ink"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleCollapsed(section.id);
+            }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              aria-hidden="true"
+              className="motion-transform"
+              style={{
+                transform: collapsed ? "rotate(-90deg)" : undefined,
+              }}
+            >
+              <path
+                d="M2.5 4.5 6 8l3.5-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className={`flex h-full min-w-0 flex-1 items-center gap-2 px-1 text-left hover:text-accent ${sortable ? "cursor-grab" : ""}`}
+            onClick={() => {
+              if (suppressClick.current) return;
+              if (section.isPinned) return;
+              setPreferredGroupId(
+                section.id === UNGROUPED_ID ? "" : section.id,
+              );
+              setSelected([]);
+              setSelectionSection(null);
+            }}
+          >
+            <span className="truncate text-sm font-semibold text-ink">
+              {section.name}
+            </span>
+            <span className="text-xs tabular-nums text-muted">
+              {section.hosts.length}
+            </span>
+          </button>
+        </div>
+
+        {!collapsed ? (
+          <div className="flex flex-col gap-0.5">
+            {section.hosts.length === 0 && !keyword ? (
+              <p className="m-0 flex h-10 items-center px-2 text-muted">
+                没有主机
+              </p>
+            ) : null}
+            {section.hosts.map((host) => {
+              const selectedRow = selected.includes(host.name);
+              const mark =
+                insertMark?.sectionId === section.id &&
+                insertMark.target === host.name
+                  ? insertMark.after
+                    ? "after"
+                    : "before"
+                  : null;
+              return (
+                <div
+                  key={`${section.id}-${host.name}`}
+                  data-host-row
+                  data-host-sort={host.name}
+                  data-host-group={section.id}
+                  data-pin-host={section.isPinned ? host.name : undefined}
+                  data-host-axis="y"
+                  tabIndex={0}
+                  className={`host-rack-row motion-colors relative flex h-10 cursor-grab items-center gap-2.5 rounded-control px-2 outline-none focus-visible:outline-2 focus-visible:outline-accent-focus active:cursor-grabbing ${
+                    selectedRow ? "bg-accent-soft" : "hover:bg-surface"
+                  }`}
+                  onPointerDown={(event) =>
+                    onHostPointerDown(event, section.id, host.name)
+                  }
+                  onClick={(event) => {
+                    if (suppressClick.current) return;
+                    selectHost(section.id, host.name, event);
+                  }}
+                  onDoubleClick={() => {
+                    if (suppressClick.current) return;
+                    session.openHost(host.name, "overview");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter") {
+                      session.openHost(host.name, "overview");
+                    }
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const hosts = selected.includes(host.name)
+                      ? selected.slice()
+                      : [host.name];
+                    if (!selected.includes(host.name)) {
+                      setSelected([host.name]);
+                      setSelectionSection(section.id);
+                    }
+                    closeAllMenus();
+                    const next = clampMenuPos(
+                      event.clientX,
+                      event.clientY,
+                      200,
+                      hosts.length > 1 ? 260 : 520,
+                    );
+                    setHostMenu({
+                      host: host.name,
+                      hosts,
+                      x: next.x,
+                      y: next.y,
+                    });
+                  }}
+                >
+                  {mark === "before" ? (
+                    <div className="absolute inset-x-2 top-0 h-0.5 bg-accent" />
+                  ) : null}
+                  {mark === "after" ? (
+                    <div className="absolute inset-x-2 bottom-0 h-0.5 bg-accent" />
+                  ) : null}
+                  <DistroBadge boxSize={22} osRelease={session.osRelease[host.name]} />
+                  <span
+                    data-tip={host.name} data-tip-overflow=""
+                    className={`min-w-0 flex-1 truncate ${
+                      selectedRow ? "text-accent" : "text-ink"
+                    }`}
+                  >
+                    {host.name}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="编辑主机"
+                    className="host-rack-edit inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-control text-muted hover:bg-line hover:text-ink"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      session.setEditingHost(host.name);
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <div
       className={`flex h-full min-h-0 flex-col ${dragging ? "select-none" : ""}`}
@@ -645,11 +1163,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 (event.target as HTMLInputElement).blur();
               }
             }}
-            placeholder={isMac ? "筛选主机 (⌘F)" : "筛选主机 (Ctrl+F)"}
+            placeholder={`筛选主机 (${shortcutLabel("F")})`}
             className="motion-field box-border h-8 w-[min(24rem,40vw)] rounded-control px-3 leading-none"
           />
           <div className="relative flex h-full items-center justify-self-end">
             <Button
+              variant="ghost"
+              size="sm"
               aria-label="新建"
               onClick={(event) => {
                 event.stopPropagation();
@@ -667,218 +1187,59 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       </ShellToolbarPortal>
 
       <div className="content-float flex min-w-0 flex-1 flex-col">
-      {(toast || error) && (
-        <div className="px-4 pt-2 md:px-6">
-          {error ? <Notice text={error} /> : null}
-          {toast && !error ? <Notice text={toast} tone="warn" /> : null}
+      {/* 提示条在机柜上方占位（不随机柜滚走）；与机柜的间距即下方滚动区的 16px 安全边距 */}
+      {flash.toast || flash.error || flash.warn ? (
+        <div className="shrink-0 px-4 pt-4">
+          <FlashNotices flash={flash} />
         </div>
-      )}
+      ) : null}
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 pb-6">
+      {/* 内容区四周 16px 安全边距；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9） */}
+      <div
+        ref={scrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-card overflow-auto p-4"
+      >
+        <p className="m-0 text-xs text-muted">{summaryText}</p>
         {keyword && sections.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">无匹配主机</p>
+          <p className="m-0 text-sm text-muted">无匹配主机</p>
         ) : null}
         {!keyword && sections.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">暂无主机</p>
+          <p className="m-0 text-sm text-muted">暂无主机</p>
         ) : null}
 
-        {sections.map((section) => {
-          const collapsed = sectionCollapsed(section.id);
-          const isDrop = dropTargetId === section.id;
-          return (
-            <section
-              key={section.id}
-              className={`mt-5 first:mt-0 ${isDrop ? "rounded-control outline outline-dashed outline-accent" : ""}`}
-              data-drop-group={section.id}
-            >
-              <div
-                data-group-head
-                className="flex h-10 w-full items-center gap-1"
-                onContextMenu={(event) => {
-                  if (section.isPinned) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  closeAllMenus();
-                  const next = clampMenuPos(event.clientX, event.clientY, 180, 220);
-                  setGroupMenu({
-                    id: section.id,
-                    name: section.name,
-                    x: next.x,
-                    y: next.y,
-                  });
-                }}
-              >
-                <button
-                  type="button"
-                  aria-label="折叠或展开分组"
-                  aria-expanded={!collapsed}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:text-ink"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleCollapsed(section.id);
-                  }}
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 12 12"
-                    aria-hidden="true"
-                    className="motion-transform"
-                    style={{
-                      transform: collapsed ? "rotate(-90deg)" : undefined,
-                    }}
-                  >
-                    <path
-                      d="M2.5 4.5 6 8l3.5-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="flex h-8 min-w-0 flex-1 items-center gap-2 px-1 text-left hover:text-accent"
-                  onClick={() => {
-                    if (suppressClick.current) return;
-                    if (section.isPinned) return;
-                    setPreferredGroupId(
-                      section.id === UNGROUPED_ID ? "" : section.id,
-                    );
-                    setSelected([]);
-                    setSelectionSection(null);
-                  }}
-                >
-                  <span className="truncate font-semibold text-ink">
-                    {section.name}
-                  </span>
-                  <span className="text-xs font-semibold text-muted">
-                    {section.hosts.length}
-                  </span>
-                </button>
+        <div ref={rackRef} className="flex flex-col gap-section">
+          {pinnedSection ? (
+            <div className="host-rack-lane">{renderSection(pinnedSection)}</div>
+          ) : null}
+          {visibleRows.map((row) => {
+            const showGapLine =
+              groupInsert?.kind === "newRow" &&
+              groupInsert.beforeRow === row.index &&
+              row.index > 0;
+            return (
+              <div key={row.index} className="host-rack-lane" data-rack-row={row.index}>
+                {showGapLine ? <div className="host-rack-lane-insert" /> : null}
+                {row.sections.map((section) => renderSection(section))}
               </div>
-
-              {!collapsed ? (
-                <div className="flex flex-col">
-                  {section.hosts.length === 0 && !keyword ? (
-                    <p className="px-8 py-4 text-sm text-muted">没有主机</p>
-                  ) : null}
-                  {section.hosts.map((host) => {
-                    const selectedRow = selected.includes(host.name);
-                    const mark =
-                      insertMark?.sectionId === section.id &&
-                      insertMark.target === host.name
-                        ? insertMark.after
-                          ? "after"
-                          : "before"
-                        : null;
-                    return (
-                      <div
-                        key={`${section.id}-${host.name}`}
-                        data-host-row
-                        data-host-sort={host.name}
-                        data-host-group={section.id}
-                        data-pin-host={section.isPinned ? host.name : undefined}
-                        data-host-axis="y"
-                        className={`group relative flex h-[60px] cursor-grab items-center gap-[14px] px-[18px] active:cursor-grabbing ${
-                          selectedRow
-                            ? "bg-accent-soft font-semibold text-accent"
-                            : "hover:bg-raised"
-                        }`}
-                        onPointerDown={(event) =>
-                          onHostPointerDown(event, section.id, host.name)
-                        }
-                        onClick={(event) => {
-                          if (suppressClick.current) return;
-                          selectHost(section.id, host.name, event);
-                        }}
-                        onDoubleClick={() => {
-                          if (suppressClick.current) return;
-                          session.openHost(host.name, "overview");
-                        }}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          const hosts = selected.includes(host.name)
-                            ? selected.slice()
-                            : [host.name];
-                          if (!selected.includes(host.name)) {
-                            setSelected([host.name]);
-                            setSelectionSection(section.id);
-                          }
-                          closeAllMenus();
-                          const next = clampMenuPos(
-                            event.clientX,
-                            event.clientY,
-                            200,
-                            hosts.length > 1 ? 260 : 520,
-                          );
-                          setHostMenu({
-                            host: host.name,
-                            hosts,
-                            x: next.x,
-                            y: next.y,
-                          });
-                        }}
-                      >
-                        {mark === "before" ? (
-                          <div className="absolute inset-x-[18px] top-0 h-0.5 bg-accent" />
-                        ) : null}
-                        {mark === "after" ? (
-                          <div className="absolute inset-x-[18px] bottom-0 h-0.5 bg-accent" />
-                        ) : null}
-                        <DistroBadge osRelease={session.osRelease[host.name]} />
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className={`truncate font-semibold ${
-                              selectedRow ? "text-accent" : "text-ink"
-                            }`}
-                          >
-                            {host.name}
-                          </div>
-                          <div className="truncate text-[12px] leading-tight text-muted">
-                            ssh, {host.user || "root"}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          aria-label="编辑主机"
-                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised ${
-                            selectedRow
-                              ? "opacity-100"
-                              : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                          }`}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            session.setEditingHost(host.name);
-                          }}
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                          </svg>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </section>
-          );
-        })}
+            );
+          })}
+          {draggingGroupId ? (
+            <div
+              className="host-rack-new-row"
+              data-rack-new-row
+              data-active={
+                groupInsert?.kind === "newRow" && groupInsert.beforeRow === groupRows.length
+                  ? "true"
+                  : undefined
+              }
+            >
+              拖到这里新建一排
+            </div>
+          ) : null}
+          {ungroupedSection ? (
+            <div className="host-rack-lane">{renderSection(ungroupedSection)}</div>
+          ) : null}
+        </div>
 
       </div>
       </div>
@@ -1097,7 +1458,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   <span className="text-muted">›</span>
                 </button>
                 {moveSubOpen ? (
-                  <div className="absolute left-full top-0 z-[62] ml-1 max-h-[280px] min-w-[148px] overflow-y-auto rounded-surface border border-line bg-surface py-1 shadow-lg">
+                  <div className="absolute left-full top-0 z-[62] ml-1 max-h-[280px] min-w-[148px] overflow-y-auto rounded-panel border border-line bg-surface py-1">
                     <button
                       type="button"
                       className={`flex w-full px-3 py-2 text-left hover:bg-raised ${
@@ -1210,7 +1571,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           <DialogTitle>分组设置</DialogTitle>
           <label className="mt-3 block text-sm text-muted">分组名称</label>
           <input
-            className="mt-1 h-9 w-full rounded-control border border-line px-3"
+            className="motion-field mt-1 h-9 w-full rounded-control px-3"
             value={groupSettings?.name || ""}
             onChange={(event) =>
               setGroupSettings((prev) =>
@@ -1220,7 +1581,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           />
           <label className="mt-3 block text-sm text-muted">看板标题</label>
           <input
-            className="mt-1 h-9 w-full rounded-control border border-line px-3"
+            className="motion-field mt-1 h-9 w-full rounded-control px-3"
             value={groupSettings?.boardTitle || ""}
             placeholder="看板正中标题，可空"
             onChange={(event) =>
@@ -1332,7 +1693,7 @@ function CtxPortal({
       />
       <div
         ref={elRef}
-        className={`fixed z-[61] rounded-surface border border-line bg-surface py-1 text-sm text-ink shadow-lg ${
+        className={`fixed z-[61] rounded-panel border border-line bg-surface py-1 text-sm text-ink ${
           wide ? "min-w-[200px]" : "min-w-[180px]"
         }`}
         style={{ left: x, top: y }}

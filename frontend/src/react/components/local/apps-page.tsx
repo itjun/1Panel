@@ -7,6 +7,7 @@ import {
   type LocalAppMenuTarget,
 } from "@/react/components/local-app-context-menu";
 import { Button } from "@/react/components/ui/button";
+import { Checkbox } from "@/react/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
+import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import {
   formatBytes,
@@ -149,9 +151,9 @@ function SortableHeader({
     >
       <button
         type="button"
-        className={`flex w-full items-center gap-1 rounded-sm text-left hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${align === "right" ? "justify-end text-right" : "justify-start"} ${active ? "text-accent" : "text-ink"}`}
+        className={`flex w-full items-center gap-1 rounded-control text-left hover:text-accent focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent ${align === "right" ? "justify-end text-right" : "justify-start"} ${active ? "text-accent" : "text-muted"}`}
         onClick={() => onSort(sortKey)}
-        title={`${label}：点击排序，再次点击切换升降序`}
+        data-tip={`${label}：点击排序，再次点击切换升降序`}
       >
         <span>{label}</span>
         <span aria-hidden="true" className="text-xs text-muted">
@@ -498,21 +500,19 @@ export function LocalAppsPage() {
 
   const detailIsService = shownDetail?.kind === "service";
   const detailKindLabel = detailIsService ? "服务候选" : "开发运行时";
-  const detailKindClass = detailIsService
-    ? "bg-warn text-white"
-    : "bg-accent text-white";
+  const detailKindTone: TagTone = detailIsService ? "warn" : "accent";
   const detailConfidenceLabel =
     shownDetail?.confidence === "high"
       ? "高置信"
       : shownDetail?.confidence === "medium"
         ? "中置信"
         : "置信度未知";
-  const detailConfidenceClass =
-    shownDetail?.confidence === "high"
-      ? "border border-success/30 bg-success-soft text-success"
-      : shownDetail?.confidence === "medium"
-        ? "border border-warn/30 bg-warn-soft text-warn"
-        : "border border-line bg-raised text-muted";
+  let detailConfidenceTone: TagTone = "neutral";
+  if (shownDetail?.confidence === "high") {
+    detailConfidenceTone = "ok";
+  } else if (shownDetail?.confidence === "medium") {
+    detailConfidenceTone = "warn";
+  }
 
   function renderFlatRow(row: TreeRow, depth: number) {
     const isApp = row.kind === "app";
@@ -524,8 +524,8 @@ export function LocalAppsPage() {
         key={row.id}
         className={
           selected
-            ? "h-12 cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
-            : "h-12 cursor-pointer border-t border-line hover:bg-raised"
+            ? "h-table-row cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
+            : "h-table-row cursor-pointer border-t border-line hover:bg-raised"
         }
         onClick={() => setSelectedId(row.id)}
         onDoubleClick={() => {
@@ -553,7 +553,7 @@ export function LocalAppsPage() {
             {hasChildren ? (
               <button
                 type="button"
-                className="h-5 w-5 shrink-0 rounded border border-line text-xs"
+                className="h-5 w-5 shrink-0 rounded-control bg-raised text-xs hover:bg-line"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleExpand(row.id);
@@ -564,7 +564,7 @@ export function LocalAppsPage() {
             ) : (
               <span className="inline-block w-5" />
             )}
-            <span className="truncate font-medium">{row.name}</span>
+            <span className="truncate">{row.name}</span>
           </div>
         </td>
         <td className="px-2 text-sm text-muted">
@@ -574,7 +574,7 @@ export function LocalAppsPage() {
               {(row.evidence || []).length ? (
                 <div
                   className="max-w-56 truncate text-xs"
-                  title={(row.evidence || []).join("；")}
+                  data-tip={(row.evidence || []).join("；")} data-tip-overflow=""
                 >
                   {(row.evidence || []).join("；")}
                 </div>
@@ -626,6 +626,7 @@ export function LocalAppsPage() {
             return (
               <Button
                 key={item.value}
+                size="sm"
                 variant={runtime === item.value ? "primary" : "secondary"}
                 onClick={() => setRuntime(item.value)}
               >
@@ -637,12 +638,13 @@ export function LocalAppsPage() {
             );
           })}
           <input
-            className="h-8 w-56 rounded-control border border-line px-3"
+            className="motion-field h-7 w-56 rounded-control px-3 text-sm text-ink"
             value={keyword}
             placeholder="搜索名称 / 命令 / 路径 / 端口"
             onChange={(event) => setKeyword(event.target.value)}
           />
           <Button
+            size="sm"
             disabled={!canKillSelected}
             onClick={() => openKill(selectedRow?.killTargets || [])}
           >
@@ -658,10 +660,11 @@ export function LocalAppsPage() {
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="min-h-48 flex-1 overflow-auto">
+        {/* 表格直接铺在内容平面上，吸顶表头用 surface 底遮挡滚动内容 */}
+        <div className="surface-float min-h-48 flex-1 overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="h-10 bg-raised">
+              <tr className="h-table-head border-b border-line bg-surface text-xs font-normal text-muted">
                 <th className="w-12 px-2 text-center">序</th>
                 <SortableHeader
                   label="名称"
@@ -736,7 +739,7 @@ export function LocalAppsPage() {
             </thead>
             <tbody>
               {flatRows.length === 0 ? (
-                <tr className="h-12 border-t border-line">
+                <tr className="h-table-row border-t border-line">
                   <td className="px-3 text-muted" colSpan={10}>
                     {keyword.trim() || runtime !== "all"
                       ? "无匹配应用"
@@ -758,12 +761,12 @@ export function LocalAppsPage() {
       >
         <DialogPrimitive.Portal container={document.body}>
           <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-4">
-          <DialogPrimitive.Overlay className="motion-dialog-overlay pointer-events-auto absolute inset-0 bg-black/60" />
+          <DialogPrimitive.Overlay className="motion-dialog-overlay pointer-events-auto absolute inset-0 bg-scrim" />
           {shownDetail ? (
             <DialogPrimitive.Content
-              className={`motion-dialog-content pointer-events-auto relative z-10 flex max-h-[calc(100vh-48px)] w-[min(1280px,calc(100vw-64px))] flex-col overflow-hidden rounded-surface border border-line border-t-4 bg-surface text-ink shadow-[0_8px_10px_-5px_rgba(0,0,0,0.08),0_16px_24px_2px_rgba(0,0,0,0.04)] focus:outline-none ${detailIsService ? "border-t-warn" : "border-t-accent"}`}
+              className={`motion-dialog-content pointer-events-auto relative z-10 flex max-h-[calc(100vh-48px)] w-[min(1280px,calc(100vw-64px))] flex-col overflow-hidden rounded-panel border border-line border-t-4 bg-surface text-ink focus:outline-none ${detailIsService ? "border-t-warn" : "border-t-accent"}`}
             >
-              <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-raised px-4">
+              <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-4">
                 <div className="min-w-0 flex-1">
                   <DialogPrimitive.Title className="truncate text-base font-semibold text-ink">
                     {baseName(shownDetail.exe) || `PID ${shownDetail.pid}`}
@@ -779,39 +782,35 @@ export function LocalAppsPage() {
 
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <section
-                  className={`border-b border-line px-4 py-4 ${detailIsService ? "bg-warn-soft/55" : "bg-accent-soft"}`}
+                  className={`border-b border-line px-4 py-4 ${detailIsService ? "bg-warn-soft" : "bg-accent-soft"}`}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex rounded-control px-2.5 py-1 text-xs font-semibold ${detailKindClass}`}>
-                      {detailKindLabel}
-                    </span>
-                    <span className={`inline-flex rounded-control px-2.5 py-1 text-xs font-semibold ${detailConfidenceClass}`}>
-                      {detailConfidenceLabel}
-                    </span>
+                    <Tag tone={detailKindTone}>{detailKindLabel}</Tag>
+                    <Tag tone={detailConfidenceTone}>{detailConfidenceLabel}</Tag>
                   </div>
                   <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
                     <div>
                       <dt className="text-xs text-muted">用户</dt>
-                      <dd className="mt-0.5 font-medium">{shownDetail.user || "—"}</dd>
+                      <dd className="mt-0.5 font-semibold">{shownDetail.user || "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted">父进程</dt>
-                      <dd className="mt-0.5 font-mono font-medium">{shownDetail.ppid || "—"}</dd>
+                      <dd className="mt-0.5 font-mono font-semibold">{shownDetail.ppid || "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted">线程</dt>
-                      <dd className="mt-0.5 font-mono font-medium">{shownDetail.threadCount ?? "—"}</dd>
+                      <dd className="mt-0.5 font-mono font-semibold">{shownDetail.threadCount ?? "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted">监听端口</dt>
-                      <dd className="mt-0.5 font-mono font-medium text-accent">
+                      <dd className="mt-0.5 font-mono font-semibold text-accent">
                         {(shownDetail.ports || []).join("、") || "—"}
                       </dd>
                     </div>
                   </dl>
                 </section>
 
-                <div className="space-y-4 p-4">
+                <div className="space-y-section p-4">
                   <section>
                     <h3 className="text-sm font-semibold text-ink">监听地址</h3>
                     {(shownDetail.listenAddresses || []).length ? (
@@ -819,7 +818,7 @@ export function LocalAppsPage() {
                         {(shownDetail.listenAddresses || []).map((address) => (
                           <code
                             key={address}
-                            className="break-all rounded-control border border-accent/25 bg-accent-soft px-2 py-1 text-xs font-medium text-accent"
+                            className="break-all rounded-tag bg-accent-soft px-2 py-1 font-mono text-xs text-accent"
                           >
                             {address}
                           </code>
@@ -843,15 +842,15 @@ export function LocalAppsPage() {
 
                   <section className="grid gap-3 border-y border-line py-3 text-sm">
                     <div className="min-w-0">
-                      <div className="text-xs font-medium text-muted">可执行文件</div>
+                      <div className="text-xs text-muted">可执行文件</div>
                       <div className="mt-0.5 break-all font-mono text-xs">{shownDetail.exe || "—"}</div>
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-medium text-muted">工作目录</div>
+                      <div className="text-xs text-muted">工作目录</div>
                       <div className="mt-0.5 break-all font-mono text-xs">{shownDetail.cwd || "—"}</div>
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-medium text-muted">命令</div>
+                      <div className="text-xs text-muted">命令</div>
                       <div className="mt-0.5 break-all font-mono text-xs">{shownDetail.cmd || "—"}</div>
                     </div>
                   </section>
@@ -866,10 +865,10 @@ export function LocalAppsPage() {
                     />
                   ) : null}
 
-                  <section className="overflow-hidden border border-line">
-                    <div className="flex items-center justify-between gap-3 bg-raised px-3 py-2 text-sm">
-                      <h3 className="font-semibold text-ink">打开的文件与 socket</h3>
-                      <span className="shrink-0 font-mono text-xs font-medium text-accent">
+                  <section>
+                    <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                      <h3 className="text-sm font-semibold text-ink">打开的文件与 socket</h3>
+                      <span className="shrink-0 font-mono text-xs text-accent">
                         {resourcesQuery.isFetching
                           ? "读取中…"
                           : `${resourcesQuery.data?.resources?.length || 0} 项`}
@@ -878,8 +877,9 @@ export function LocalAppsPage() {
                     <div className="max-h-[min(46vh,560px)] overflow-auto">
                       {(resourcesQuery.data?.resources || []).length ? (
                         <table className="w-full min-w-[560px] text-left text-xs">
-                          <thead className="sticky top-0 z-10 bg-raised">
-                            <tr className="h-8">
+                          {/* 详情弹窗内的资源 / 线程子表：数据量大且嵌在弹窗里，按 DESIGN.md §9 超高密特例用 32px 行 */}
+                          <thead className="sticky top-0 z-10 bg-surface font-normal text-muted">
+                            <tr className="h-8 border-b border-line">
                               <th className="w-10 px-2 text-center">序</th>
                               <th className="px-2">FD</th>
                               <th className="px-2">类型</th>
@@ -924,12 +924,12 @@ export function LocalAppsPage() {
                   </section>
 
                   {(shownDetail.threads || []).length ? (
-                    <section className="overflow-hidden border border-line">
-                      <h3 className="bg-raised px-3 py-2 text-sm font-semibold text-ink">线程</h3>
+                    <section>
+                      <h3 className="mb-2 text-sm font-semibold text-ink">线程</h3>
                       <div className="max-h-40 overflow-auto">
                         <table className="w-full text-left text-xs">
-                          <thead className="sticky top-0 bg-raised">
-                            <tr className="h-8">
+                          <thead className="sticky top-0 bg-surface font-normal text-muted">
+                            <tr className="h-8 border-b border-line">
                               <th className="w-10 px-2 text-center">序</th>
                               <th className="px-2">TID</th>
                               <th className="px-2">名称</th>
@@ -999,14 +999,9 @@ export function LocalAppsPage() {
                   .map((t) => String(t.pid))
                   .join("、")}${killTargets.length > 3 ? "…" : ""}）？`}
           </DialogDescription>
-          <label className="opt-check mt-3">
-            <input
-              type="checkbox"
-              checked={forceKill}
-              onChange={(event) => setForceKill(event.target.checked)}
-            />
+          <Checkbox className="mt-3" checked={forceKill} onChange={setForceKill}>
             强制结束（SIGKILL；默认发送 SIGTERM）
-          </label>
+          </Checkbox>
           {killError ? <Notice text={killError} /> : null}
           <DialogFooter>
             <Button onClick={() => setKillTargets([])}>取消</Button>

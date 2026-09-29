@@ -1,47 +1,95 @@
 @import "tailwindcss";
 
-@theme {
-  /* 中性色：TDesign Gray1 / White / Gray3 */
-  --color-canvas: #f3f3f3;
+/* static：Tailwind 4 默认只输出被工具类引用到的变量，这里的 token 还会被
+   JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
+@theme static {
+  /* 机柜面板规范 DESIGN.md §2.1 亮色：带蓝的浅灰外框，品牌蓝是主角；绿色只用于成功状态 */
+  --color-canvas: #eef2f8;
   --color-surface: #ffffff;
-  --color-raised: #f3f3f3;
-  --color-ink: rgba(0, 0, 0, 0.9);
-  --color-muted: rgba(0, 0, 0, 0.6);
-  /* 发丝线：只做轻微分隔，不抢视觉 */
-  --color-line: #e8e8e8;
-  /* 品牌：Blue7 / hover Blue6 / active Blue8 / 选中浅底 Blue1 */
+  --color-raised: #f3f6fb;
+  --color-ink: #1b2433;
+  --color-muted: #5c6b80;
+  /* 分隔 / 描边：只做轻微分隔，不抢视觉 */
+  --color-line: #dce3ee;
+  /* 控件描边：ink 与 line 之间的中间灰（替代 color-mix，Linux 旧版 WebKitGTK 不支持） */
+  --color-line-strong: #a9b4c4;
+  /* 主色「品牌蓝」：hover / active / 选中浅底 */
   --color-accent: #0052d9;
   --color-accent-hover: #366ef4;
   --color-accent-active: #003cab;
-  --color-accent-soft: #f2f3ff;
-  /* TDesign brand-color-focus：输入框聚焦时的 2px 外环 */
-  --color-accent-focus: #d9e1ff;
+  --color-accent-soft: #e8efff;
+  /* 比 accent-soft 更浅一档的蓝底：勾选未悬停格 */
+  --color-accent-tint: #f2f6ff;
+  /* 输入框聚焦时的 2px 外环 */
+  --color-accent-focus: #c5d6ff;
+  /* 文本选区底色：accent 28% 叠在 surface 上的固定值 */
+  --color-selection: #c9daff;
   --color-graphite: #191c21;
   --color-graphite-text: #e5e7eb;
-  /* 功能色小字：同色相加深，保证 Gray1 上 ≥4.5 */
-  --color-success: #006c45;
-  --color-danger: #ad352f;
-  --color-warn: #954500;
-  --color-info: #366ef4;
-  /* 功能色浅底：Red1 / Orange1 / Green1 */
+  /* 对话框 / 抽屉遮罩：一律用 bg-scrim，禁止黑色加透明度修饰符（会生成 color-mix） */
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  /* 文字提示（Tooltip，DESIGN.md §8.2）：亮色下深底浅字，暗色下反过来 */
+  --color-tooltip: #2b3445;
+  --color-tooltip-text: #ffffff;
+  /* 功能色：danger / warn / info 为可作正文的加深档，surface 上 ≥4.5；
+     success 按 TDesign 用绿，只作图标 / 圆点 / 条线，文字一律用 success-text */
+  --color-success: #2ba471;
+  /* 成功文字：success-soft 上 4.52、surface 上 5.0 */
+  --color-success-text: #1a7f52;
+  --color-danger: #d54941;
+  --color-warn: #d35a00;
+  --color-info: #0a6fe0;
+  /* 功能色浅底 */
   --color-success-soft: #e3f9e9;
-  --color-danger-soft: #fff0ed;
-  --color-warn-soft: #fff1e9;
-  /* 行业约定：读/下行/接收 = 绿；写/上行/发送 = 橙；单线指标 = 蓝 */
+  --color-danger-soft: #ffecea;
+  --color-warn-soft: #fff0e3;
+  --color-info-soft: #e3f1ff;
+  /* 读/下行/接收 = 亮蓝；写/上行/发送 = 橙；单线指标 = 品牌蓝 */
   --color-chart-1: #0052d9;
-  --color-io-read: #2ba471;
-  --color-io-write: #e37318;
-  --color-chart-2: #2ba471;
-  --color-chart-3: #e37318;
+  --color-io-read: #1d8cf8;
+  --color-io-write: #f08a24;
+  --color-chart-2: #1d8cf8;
+  --color-chart-3: #f08a24;
+  /* LED 分段条（DESIGN.md §4.7）：正常 / ≥60% / ≥85% / 未亮格 */
+  --meter-ok: #0680a8;
+  --meter-warn: #f08a24;
+  --meter-danger: #d54941;
+  --meter-off: #dce3ee;
+  /* 圆角四档（DESIGN.md §4.3）：浮层 6 / 表面 0（扁平化）/ 控件 4 / 标签 3 */
+  --radius-panel: 6px;
+  --radius-surface: 0;
   --radius-control: 4px;
-  /* 卡片 / 表格 / 弹窗 / 提示条等表面统一直角 */
-  --radius-surface: 0px;
-  --gap-card: 5px;
-  --font-sans: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", Arial, sans-serif;
-  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco,
-    Consolas, "Segoe UI Mono", monospace;
-  /* TDesign Motion · 桌面端固定时值与缓动 */
+  --radius-tag: 3px;
+  /* 网格内同类单元之间（监控图表、巡检格、左右分栏） */
+  --gap-card: 8px;
+  /* 首页主机列表机柜式分组的最小列宽（DESIGN.md §9） */
+  --host-rack-column: 280px;
+  /* 区块与区块之间（DESIGN.md §4.1）：Tailwind gap-section / space-y-section */
+  --spacing-section: 24px;
+  --gap-section: 24px;
+  /* 表格行高 / 表头高（DESIGN.md §4.4）：h-table-row / h-table-head，
+     业务里的虚拟表常量须与此同源 */
+  --spacing-table-row: 40px;
+  --spacing-table-head: 36px;
+  /* 系统字体栈（DESIGN.md §3.1）：Mac 排最前，英文 / 数字走 SF、中文落到苹方；
+     Windows 走 Segoe UI + 微软雅黑，Linux 走 Noto Sans CJK / 文泉驿。三端字形不同是有意为之。 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", "WenQuanYi Micro Hei",
+    "Helvetica Neue", Arial, system-ui, sans-serif;
+  /* 等宽：用户在设置里选了等宽字体时由 state/settings.tsx 写入 --app-font-mono，
+     没选就回落到系统等宽栈。board.css / local.css / code-surface.tsx 直接引用 var(--font-mono) 会一起跟着变。 */
+  --font-mono: var(
+    --app-font-mono,
+    ui-monospace,
+    "SF Mono",
+    Menlo,
+    "Cascadia Mono",
+    Consolas,
+    "DejaVu Sans Mono",
+    "Noto Sans Mono CJK SC",
+    monospace
+  );
+  /* 动效（DESIGN.md §5）· 桌面端固定时值与缓动 */
   --duration-base: 200ms;
   --duration-moderate: 240ms;
   --duration-slow: 280ms;
@@ -50,33 +98,52 @@
   --ease-in: cubic-bezier(0.82, 0, 1, 0.9);
 }
 
-/* TDesign 深色：https://tdesign.tencent.com/design/dark */
+/* 零阴影（DESIGN.md §2.5）：清空 Tailwind 阴影命名空间，shadow-sm / shadow-lg 等类不再生成 */
+@theme {
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+}
+
+/* 机柜面板规范 DESIGN.md §2.2 暗色：同一块面板关灯后的样子，层级与亮色一致 */
 html.dark {
-  --color-canvas: #181818;
-  --color-surface: #242424;
-  --color-raised: #2c2c2c;
-  --color-ink: rgba(255, 255, 255, 0.9);
-  --color-muted: rgba(255, 255, 255, 0.55);
-  --color-line: #393939;
-  --color-accent: #4582e6;
-  --color-accent-hover: #2667d4;
-  --color-accent-active: #699ef5;
-  --color-accent-soft: #1b2f51;
-  --color-accent-focus: #173463;
+  --color-canvas: #12161f;
+  --color-surface: #1a1f2b;
+  --color-raised: #232a38;
+  --color-ink: #e6ebf3;
+  --color-muted: #94a1b5;
+  --color-line: #2c3445;
+  --color-line-strong: #5a6478;
+  --color-accent: #4c8dff;
+  --color-accent-hover: #6fa3ff;
+  --color-accent-active: #3a78e8;
+  --color-accent-soft: #1a2c52;
+  --color-accent-tint: #172440;
+  --color-accent-focus: #22407a;
+  --color-selection: #274a8c;
   --color-graphite: #181818;
   --color-graphite-text: rgba(255, 255, 255, 0.9);
-  --color-success: #059465;
-  --color-danger: #c64751;
-  --color-warn: #cf6e2d;
-  --color-info: #4582e6;
-  --color-success-soft: #193a2a;
-  --color-danger-soft: #472324;
-  --color-warn-soft: #4f2a1d;
-  --color-chart-1: #4582e6;
-  --color-io-read: #2ba471;
-  --color-io-write: #e37318;
-  --color-chart-2: #2ba471;
-  --color-chart-3: #e37318;
+  --color-scrim: rgba(0, 0, 0, 0.7);
+  --color-tooltip: #dfe5ee;
+  --color-tooltip-text: #1b2433;
+  --color-success: #56c08d;
+  --color-success-text: #56c08d;
+  --color-danger: #f06c63;
+  --color-warn: #f29a4a;
+  --color-info: #4fb0ff;
+  --color-info-soft: #15304a;
+  --color-success-soft: #1a3a2b;
+  --color-danger-soft: #43201e;
+  --color-warn-soft: #40280f;
+  --color-chart-1: #4c8dff;
+  --color-io-read: #4fb0ff;
+  --color-io-write: #f29a4a;
+  --color-chart-2: #4fb0ff;
+  --color-chart-3: #f29a4a;
+  --meter-ok: #38bde0;
+  --meter-warn: #f29a4a;
+  --meter-danger: #f06c63;
+  --meter-off: #2c3445;
 }
 
 @layer base {
@@ -93,27 +160,78 @@ html.dark {
     overflow: hidden;
     color: var(--color-ink);
     color-scheme: light;
+    accent-color: var(--color-accent);
     font-family: var(--app-font-family, var(--font-sans));
     font-size: var(--app-font-size, 14px);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  html.dark .react-root {
+  /* 挂在 body 上的下拉浮层（components/ui/popup.tsx）不在 .react-root 里，
+     字体、字号、色彩方案要自己接上，否则用户设置的字体 / 字号对它不生效。 */
+  .react-popup {
+    color: var(--color-ink);
+    color-scheme: light;
+    font-family: var(--app-font-family, var(--font-sans));
+    font-size: var(--app-font-size, 14px);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html.dark .react-root,
+  html.dark .react-popup {
     color-scheme: dark;
   }
 
-  .react-root ::selection {
-    background: color-mix(in srgb, var(--color-accent) 28%, var(--color-surface));
+  .react-root ::selection,
+  .react-popup ::selection {
+    background: var(--color-selection);
     color: var(--color-ink);
   }
 
-  .react-root * {
-    scrollbar-width: none;
+  /* 三端统一 8px 细滚动条（DESIGN.md §4.5）：轨道透明、滑块 line、hover 加深到 muted。
+     xterm 有自己的滚动条实现，整棵子树排除。 */
+  :is(.react-root, .react-popup) *:not(.xterm):not(.xterm *) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line) transparent;
   }
 
-  .react-root *::-webkit-scrollbar {
-    width: 0;
-    height: 0;
+  :is(.react-root, .react-popup) *:not(.xterm):not(.xterm *)::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
   }
+
+  :is(.react-root, .react-popup) *:not(.xterm):not(.xterm *)::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  :is(.react-root, .react-popup) *:not(.xterm):not(.xterm *)::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 4px;
+  }
+
+  :is(.react-root, .react-popup) *:not(.xterm):not(.xterm *)::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted);
+  }
+
+  /* Linux frameless 无系统阴影，窗口外补 1px line 描边区分桌面（DESIGN.md §4.1）。
+     用 outline 而非 inset box-shadow：outline 画在子元素之上，顶栏 / 侧栏的实色底盖不住它。 */
+  .react-root[data-os="linux"] {
+    outline: 1px solid var(--color-line);
+    outline-offset: -1px;
+  }
+}
+
+/* 等宽区域禁用连字：用户选了 Maple Mono 这类带连字的字体时，-> != 等符号不会被拼成一个字形。
+   覆盖 Tailwind 的 font-mono 类、预检里走 --font-mono 的 code / kbd / samp / pre，以及 CodeMirror 编辑器。 */
+.font-mono,
+code,
+kbd,
+samp,
+pre,
+.cm-editor {
+  font-variant-ligatures: none;
 }
 
 /*
@@ -150,42 +268,58 @@ html.dark {
   -webkit-user-select: auto;
 }
 
-/* 壳 chrome：顶栏 + 侧栏实色 surface；主区 canvas。
-   类名暂留 glass-chrome*，语义为实色（暗色走 token）。
+/* 壳 chrome（DESIGN.md §4.1）：顶栏 + 侧栏是一整片 canvas 外框，内容区是一整块 surface 平面，
+   两者之间不画分隔线，只靠色块区分。类名暂留 glass-chrome*，语义为实色（暗色走 token）。
    用 background-color，不要用 background 简写。 */
 .glass-chrome,
 .shell-app-toolbar {
-  background-color: var(--color-surface);
-}
-
-.glass-chrome {
-  border-right: 1px solid var(--color-line);
-  position: relative;
-}
-
-.glass-chrome-main {
   background-color: var(--color-canvas);
 }
 
-/* Firefox 式侧栏分割条：平时细命中区，拖动时显出品牌色竖线 */
+.glass-chrome {
+  position: relative;
+}
+
+/* 内容平面左上 6px 圆角：白色平面嵌在灰框里，整套设计唯一的圆角装饰。
+   overflow 裁掉子元素（石墨面、抽屉）溢出圆角的部分。 */
+.glass-chrome-main {
+  background-color: var(--color-surface);
+  border-top-left-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+/* 顶栏是 canvas 底，raised 与它太接近：顶栏里的 secondary 按钮和输入框改用 surface 底 */
+.shell-app-toolbar [data-variant="secondary"],
+.shell-app-toolbar .motion-field:not(.motion-field-quiet) {
+  background-color: var(--color-surface);
+}
+
+.shell-app-toolbar [data-variant="secondary"]:hover {
+  background-color: var(--color-line);
+}
+
+.shell-app-toolbar [data-variant="ghost"]:hover {
+  background-color: var(--color-line);
+}
+
+/* Firefox 式侧栏分割条：平时细命中区，悬停显 accent-focus 竖线，拖动时换成 accent */
 .sidebar-splitter-line {
   background-color: transparent;
 }
 
-.sidebar-splitter:hover .sidebar-splitter-line,
-.sidebar-splitter.is-active .sidebar-splitter-line {
-  background-color: var(--color-accent);
+.sidebar-splitter:hover .sidebar-splitter-line {
+  background-color: var(--color-accent-focus);
   width: 2px;
   left: -1px;
 }
 
 .sidebar-splitter.is-active .sidebar-splitter-line {
+  background-color: var(--color-accent);
   width: 3px;
   left: -1.5px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-/* 顶栏以下的内容体：贴边可滚动，白卡片直接落在 canvas 主区上。 */
+/* 顶栏以下的内容体：贴边可滚动，直接落在 surface 内容平面上。 */
 .content-float {
   flex: 1 1 0%;
   min-width: 0;
@@ -193,22 +327,128 @@ html.dark {
   overflow: auto;
 }
 
-/* 悬浮表面：白底直角，落在 canvas 上（无阴影）。
+/* 区块表面（DESIGN.md §8.1）：扁平化后与内容平面同色，无描边、无圆角、无阴影，卡片自然消失。
    需要裁切内容时再加 overflow-hidden（表格/列表）。 */
 .surface-float {
   border-radius: var(--radius-surface);
   background-color: var(--color-surface);
-  border: 1px solid var(--color-line);
+}
+
+/* 数据卡片范围提示（DESIGN.md §8.2）：静止时 1px 透明边框占位，避免悬停时布局跳动；
+   悬停 / 聚焦显示 line-strong 边框标识范围。只改边框色，不加阴影、不改底色（不与卡片自身 hover 底色叠加）。 */
+.card-hover {
+  border: 1px solid transparent;
+  transition: border-color var(--duration-base) var(--ease-standard);
+}
+
+.card-hover:hover,
+.card-hover:focus-within {
+  border-color: var(--color-line-strong);
 }
 
 .gap-card {
   gap: var(--gap-card);
 }
 
-/* 侧栏导航项：选中铺满整宽；实色 accent-soft */
+/* 首页主机列表「机柜式分组」（DESIGN.md §9）：用户自定义的若干排纵向堆叠（排间 gap-section），
+   排内分组块定宽、从左到右、顶部对齐，过多时排内折行，绝不横向滚动 */
+.host-rack-lane {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--gap-card);
+}
+
+/* 两排之间「在此插入新排」：横向 2px 线，落在排间距中线 */
+.host-rack-lane-insert {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--gap-section) / -2 - 1px);
+  height: 2px;
+  background-color: var(--color-accent);
+}
+
+/* 拖拽分组时最后一排下方的「新建一排」落区 */
+.host-rack-new-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius-panel);
+  color: var(--color-muted);
+  transition:
+    color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard);
+}
+
+.host-rack-new-row[data-active="true"] {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.host-rack-block {
+  position: relative;
+  flex: 0 0 var(--host-rack-column);
+  width: var(--host-rack-column);
+  max-width: 100%;
+  padding: var(--gap-card);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-raised);
+}
+
+.host-rack-block[data-drop-active="true"] {
+  background-color: var(--color-accent-soft);
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* 分组拖拽插入线：落在目标块左侧（或排末块右侧）的间距中线，高度取该块高度；
+   排首 / 排末的线落在内容区 16px 安全边距内，不会被裁切 */
+.host-rack-insert {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--color-accent);
+}
+
+.host-rack-insert[data-side="before"] {
+  left: calc(var(--gap-card) / -2 - 1px);
+}
+
+.host-rack-insert[data-side="after"] {
+  right: calc(var(--gap-card) / -2 - 1px);
+}
+
+/* 行内编辑按钮：仅行悬停 / 行内键盘聚焦时出现，始终占位避免跳动 */
+.host-rack-edit {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    visibility var(--duration-base) var(--ease-standard),
+    color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard);
+}
+
+.host-rack-row:hover .host-rack-edit,
+.host-rack-row:focus-within .host-rack-edit {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 侧栏导航项：左右各留 8px、控件圆角；选中只用 accent-soft 纯色块，无左侧指示条 */
 .rail-item {
-  width: 100%;
-  border-radius: 0;
+  position: relative;
+  width: calc(100% - 16px);
+  margin-left: 8px;
+  margin-right: 8px;
+  border-radius: var(--radius-control);
 }
 
 .rail-item-active {
@@ -217,14 +457,13 @@ html.dark {
   font-weight: 600;
 }
 
+/* 编辑抽屉：贴内容区右边，只画左侧 1px line，无圆角无阴影 */
 .edit-dock {
   width: 380px;
   flex-shrink: 0;
-  margin: 12px 12px 12px 0;
   min-height: 0;
-  border-radius: var(--radius-surface);
   background-color: var(--color-surface);
-  border: 1px solid var(--color-line);
+  border-left: 1px solid var(--color-line);
   overflow: hidden;
 }
 
@@ -241,16 +480,6 @@ html.dark {
   padding-top: 0;
   padding-bottom: 0;
   flex-shrink: 0;
-}
-
-/* 通栏与内容区之间的分隔线。 */
-.shell-top {
-  border-bottom: 1px solid var(--color-line);
-}
-
-/* 文件页左右两栏标题，挂在整窗通栏槽里。 */
-.sftp-toolbar {
-  align-items: stretch;
 }
 
 /* Windows/Linux：Frameless 窗口无系统按钮，右上角由前端自绘
@@ -279,7 +508,7 @@ html.dark {
   -webkit-user-select: auto;
 }
 
-/* ---------- TDesign Motion 工具类 ---------- */
+/* ---------- 动效工具类（机柜面板规范 DESIGN.md §5） ---------- */
 
 @keyframes motion-fade-in {
   from {
@@ -465,6 +694,11 @@ html.dark {
   animation: motion-notice-in var(--duration-slow) var(--ease-out) both;
 }
 
+/* 成功提示条到点淡出；时长须与 useFlashMessage 里的 MOTION_MS.base 一致 */
+.motion-notice-out {
+  animation: motion-fade-out var(--duration-base) var(--ease-in) both;
+}
+
 .motion-colors {
   transition:
     color var(--duration-base) var(--ease-standard),
@@ -473,12 +707,12 @@ html.dark {
     opacity var(--duration-base) var(--ease-standard);
 }
 
-/* 输入框微观动效：通栏上统一透出磨砂底，平时留浅灰描边；
-   悬停/聚焦换成品牌色边，聚焦再加 2px 焦点环。 */
+/* 输入框（填充式，DESIGN.md §8.2）：平时 raised 底 + 透明边框；
+   悬停显 line 边，聚焦换主色边、铺 surface 底并加 2px 焦点环。 */
 .motion-field {
   position: relative;
-  border: 1px solid var(--color-line);
-  background-color: transparent;
+  border: 1px solid transparent;
+  background-color: var(--color-raised);
   box-shadow: 0 0 0 0 var(--color-accent-focus);
   outline: none;
   transition:
@@ -488,14 +722,14 @@ html.dark {
 }
 
 .motion-field:hover {
-  border-color: var(--color-accent);
+  border-color: var(--color-line);
 }
 
 .motion-field:focus,
 .motion-field:focus-within {
   z-index: 1;
   border-color: var(--color-accent);
-  background-color: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  background-color: var(--color-surface);
   box-shadow: 0 0 0 2px var(--color-accent-focus);
 }
 
@@ -508,6 +742,11 @@ html.dark {
 .motion-field.motion-field-quiet:not(.motion-field-active):hover {
   border-color: transparent;
   background-color: var(--color-raised);
+}
+
+/* 放在 raised 底上的输入框（如设置页字体列表面板）：平时铺 surface 底，否则与面板融在一起 */
+.motion-field.motion-field-on-raised {
+  background-color: var(--color-surface);
 }
 
 .motion-field.motion-field-active,
@@ -527,92 +766,9 @@ html.dark {
 }
 
 /*
-  表单勾选：自绘，覆盖全部原生 checkbox / radio。
-  弹层挂 document.body，不能只写 .react-root。
-  - 默认 input[type=checkbox|radio]
-  - .sub-check：订阅矩阵整格可点
-  - .opt-check：单选/多选整块可点
+  订阅矩阵整格可点（notify.tsx）：格子本身就是 <Checkbox className="sub-check">，
+  悬停 / 勾选 / 键盘聚焦时整格换底色。框本身的样式在 components/ui/checkbox.tsx。
 */
-input[type="checkbox"],
-input[type="radio"] {
-  appearance: none;
-  -webkit-appearance: none;
-  box-sizing: border-box;
-  width: 1.125rem;
-  height: 1.125rem;
-  margin: 0;
-  flex-shrink: 0;
-  border: 1.5px solid color-mix(in srgb, var(--color-ink) 28%, var(--color-line));
-  background-color: var(--color-surface);
-  background-position: center;
-  background-repeat: no-repeat;
-  cursor: pointer;
-  vertical-align: middle;
-  transition:
-    border-color var(--duration-base) var(--ease-standard),
-    background-color var(--duration-base) var(--ease-standard),
-    background-image var(--duration-base) var(--ease-standard),
-    box-shadow var(--duration-base) var(--ease-standard);
-}
-
-input[type="checkbox"] {
-  border-radius: var(--radius-control);
-  background-size: 0.75rem 0.75rem;
-}
-
-input[type="radio"] {
-  border-radius: 999px;
-}
-
-input[type="checkbox"]:hover,
-input[type="radio"]:hover {
-  border-color: var(--color-accent);
-}
-
-input[type="checkbox"]:checked {
-  border-color: var(--color-accent);
-  background-color: var(--color-accent);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.2 8.2l3.1 3.1 6.5-6.5'/%3E%3C/svg%3E");
-}
-
-input[type="radio"]:checked {
-  border-color: var(--color-accent);
-  background-image: radial-gradient(
-    circle,
-    var(--color-accent) 0 0.28rem,
-    transparent 0.3rem
-  );
-}
-
-input[type="checkbox"]:focus-visible,
-input[type="radio"]:focus-visible {
-  outline: 2px solid var(--color-accent-focus);
-  outline-offset: 1px;
-}
-
-input[type="checkbox"]:active,
-input[type="radio"]:active {
-  border-color: var(--color-accent-active);
-}
-
-input[type="checkbox"]:checked:active {
-  background-color: var(--color-accent-active);
-  border-color: var(--color-accent-active);
-}
-
-input[type="radio"]:checked:active {
-  border-color: var(--color-accent-active);
-  background-image: radial-gradient(
-    circle,
-    var(--color-accent-active) 0 0.28rem,
-    transparent 0.3rem
-  );
-}
-
-.sub-check:hover input[type="checkbox"] {
-  border-color: var(--color-accent);
-}
-
 .sub-check {
   display: flex;
   align-items: center;
@@ -628,58 +784,30 @@ input[type="radio"]:checked:active {
 }
 
 .sub-check:has(input:checked) {
-  background-color: color-mix(in srgb, var(--color-accent-soft) 55%, transparent);
+  background-color: var(--color-accent-tint);
 }
 
 .sub-check:has(input:focus-visible) {
   background-color: var(--color-accent-soft);
 }
 
-/* 单选 / 多选：整块可点，高度对齐按钮 */
-.opt-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface);
-  color: var(--color-ink);
-  cursor: pointer;
-  user-select: none;
+/* Switch 圆钮位移（components/ui/switch.tsx） */
+.motion-switch-knob {
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+/* 按钮式单选组的选中底块滑动（components/ui/radio-group.tsx） */
+.motion-segment {
   transition:
-    border-color var(--duration-base) var(--ease-standard),
-    background-color var(--duration-base) var(--ease-standard),
-    color var(--duration-base) var(--ease-standard);
-}
-
-.opt-check:hover {
-  border-color: var(--color-accent);
-  background-color: var(--color-accent-soft);
-}
-
-.opt-check:has(input:checked) {
-  border-color: var(--color-accent);
-  background-color: var(--color-accent-soft);
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.opt-check:has(input:focus-visible) {
-  box-shadow: 0 0 0 2px var(--color-accent-focus);
-}
-
-.opt-check input[type="checkbox"],
-.opt-check input[type="radio"] {
-  pointer-events: none;
+    left var(--duration-moderate) var(--ease-standard),
+    width var(--duration-moderate) var(--ease-standard);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  input[type="checkbox"],
-  input[type="radio"],
   .sub-check,
-  .opt-check {
+  .motion-switch-knob,
+  .motion-segment,
+  .card-hover {
     transition: none !important;
   }
 
@@ -687,6 +815,7 @@ input[type="radio"]:checked:active {
   .motion-axis-x-in,
   .motion-axis-y-in,
   .motion-notice-in,
+  .motion-notice-out,
   .motion-dialog-overlay[data-state="open"],
   .motion-dialog-overlay[data-state="closed"],
   .motion-dialog-content[data-state="open"],
@@ -715,5 +844,44 @@ input[type="radio"]:checked:active {
   .motion-menu-panel,
   .motion-drawer-panel {
     transform: none !important;
+  }
+}
+
+/* ---------- LED 分段条 Meter（DESIGN.md §4.7，组件 components/ui/meter.tsx） ----------
+   格 4px 高（--meter-cell-h）、间隔 2px、圆角 1px；颜色由组件按 --meter-* 内联写入。
+   不做逐格点亮 / 呼吸等动画，只允许亮格颜色在数值变化时用 --duration-base 过渡。 */
+.meter {
+  --meter-cell-h: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.meter-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 64px;
+  min-width: 0;
+}
+
+.meter-cell {
+  display: block;
+  flex: 1 1 0;
+  min-width: 6px;
+  height: var(--meter-cell-h);
+  border-radius: 1px;
+  transition: background-color var(--duration-base) var(--ease-standard);
+}
+
+.meter-value {
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-cell {
+    transition: none !important;
   }
 }

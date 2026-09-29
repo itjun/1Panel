@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
+import { Checkbox } from "@/react/components/ui/checkbox";
+import { Switch } from "@/react/components/ui/switch";
+import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import {
   updateSettings,
@@ -332,6 +335,7 @@ function MessagesPage({
             ? METRIC_KIND_FILTERS.map((item) => (
                 <Button
                   key={item.value}
+                  size="sm"
                   variant={kindFilter === item.value ? "primary" : "secondary"}
                   onClick={() => setKindFilter(item.value)}
                 >
@@ -342,6 +346,7 @@ function MessagesPage({
           {READ_FILTERS.map((item) => (
             <Button
               key={item.value}
+              size="sm"
               variant={readFilter === item.value ? "primary" : "secondary"}
               onClick={() => setReadFilter(item.value)}
             >
@@ -351,6 +356,7 @@ function MessagesPage({
           {STATE_FILTERS.map((item) => (
             <Button
               key={item.value}
+              size="sm"
               variant={stateFilter === item.value ? "primary" : "secondary"}
               onClick={() => setStateFilter(item.value)}
             >
@@ -358,6 +364,7 @@ function MessagesPage({
             </Button>
           ))}
           <Button
+            size="sm"
             variant="primary"
             disabled={unreadCount <= 0 || markAll.isPending}
             onClick={() => markAll.mutate()}
@@ -372,19 +379,19 @@ function MessagesPage({
       <Card className="overflow-hidden p-0">
         <div className="overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="h-10 bg-raised">
-                <th className="w-12 px-2 text-center">序</th>
-                <th className="px-3">时间</th>
-                <th className="px-3">主机</th>
-                <th className="px-3">类型</th>
-                <th className="px-3">状态</th>
-                <th className="px-3">摘要</th>
+            <thead className="text-xs font-normal text-muted">
+              <tr className="h-table-head">
+                <th className="w-12 px-2 text-center font-normal">序</th>
+                <th className="px-3 font-normal">时间</th>
+                <th className="px-3 font-normal">主机</th>
+                <th className="px-3 font-normal">类型</th>
+                <th className="px-3 font-normal">状态</th>
+                <th className="px-3 font-normal">摘要</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr className="h-12 border-t border-line">
+                <tr className="h-table-row border-t border-line">
                   <td className="px-3 text-muted" colSpan={6}>
                     暂无告警消息
                   </td>
@@ -398,10 +405,10 @@ function MessagesPage({
                     }}
                     className={
                       highlightId && event.id === highlightId
-                        ? "h-12 cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
+                        ? "h-table-row cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
                         : event.read
-                          ? "h-12 cursor-pointer border-t border-line hover:bg-raised"
-                          : "h-12 cursor-pointer border-t border-line bg-raised font-medium hover:bg-accent/5"
+                          ? "h-table-row cursor-pointer border-t border-line hover:bg-raised"
+                          : "h-table-row cursor-pointer border-t border-line bg-raised font-semibold hover:bg-accent-soft"
                     }
                     onClick={() => {
                       if (!event.id || event.read) return;
@@ -414,14 +421,10 @@ function MessagesPage({
                     <td className="whitespace-nowrap px-3">{formatEventTime(event.at)}</td>
                     <td className="whitespace-nowrap px-3">{event.host || "—"}</td>
                     <td className="whitespace-nowrap px-3">{alertKindLabel(event.kind)}</td>
-                    <td
-                      className={
-                        event.state === "up"
-                          ? "whitespace-nowrap px-3 text-success"
-                          : "whitespace-nowrap px-3 text-danger"
-                      }
-                    >
-                      {alertStateLabel(event.state, event.kind)}
+                    <td className="whitespace-nowrap px-3">
+                      <Tag tone={event.state === "up" ? "ok" : "danger"}>
+                        {alertStateLabel(event.state, event.kind)}
+                      </Tag>
                     </td>
                     <td className="max-w-[420px] truncate px-3">
                       {(event.title || event.detail || "").trim() || "—"}
@@ -495,6 +498,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
           {groupButtons.map((item) => (
             <Button
               key={item.value}
+              size="sm"
               variant={groupFilter === item.value ? "primary" : "secondary"}
               onClick={() => setGroupFilter(item.value)}
             >
@@ -507,22 +511,22 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
       <Card className="overflow-hidden p-0">
         <div className="overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="h-10 bg-raised">
-                <th className="w-12 px-2 text-center">序</th>
-                <th className="sticky left-0 z-10 bg-raised px-3">主机</th>
+            <thead className="text-xs font-normal text-muted">
+              <tr className="h-table-head">
+                <th className="w-12 px-2 text-center font-normal">序</th>
+                <th className="sticky left-0 z-10 bg-surface px-3 font-normal">主机</th>
                 {kind === "metricSubs" ? (
                   <>
                     {ALERT_RULES.map((rule) => (
-                      <th key={rule.kind} className="px-3 text-center">
+                      <th key={rule.kind} className="px-3 text-center font-normal">
                         {rule.name}
                       </th>
                     ))}
-                    <th className="px-3 text-center">证书</th>
+                    <th className="px-3 text-center font-normal">证书</th>
                   </>
                 ) : (
                   WATCH_SERVICE_ORDER.map((svc) => (
-                    <th key={svc} className="px-3 text-center">
+                    <th key={svc} className="px-3 text-center font-normal">
                       {serviceLabel(svc)}
                     </th>
                   ))
@@ -531,14 +535,14 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             </thead>
             <tbody>
               {hosts.length === 0 ? (
-                <tr className="h-12 border-t border-line">
+                <tr className="h-table-row border-t border-line">
                   <td className="px-3 text-muted" colSpan={kind === "metricSubs" ? 7 : 10}>
                     没有匹配的主机
                   </td>
                 </tr>
               ) : (
                 hosts.map((host, index) => (
-                  <tr key={host} className="h-12 border-t border-line">
+                  <tr key={host} className="h-table-row border-t border-line">
                     <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
                       {index + 1}
                     </td>
@@ -547,58 +551,55 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                       <>
                         {ALERT_RULES.map((rule) => (
                           <td key={rule.kind} className="p-0">
-                            <label className="sub-check">
-                              <input
-                                type="checkbox"
-                                checked={(settings.hostResourceNotifySubs[host] || []).includes(
+                            <Checkbox
+                              className="sub-check"
+                              aria-label={`${host} ${rule.kind}`}
+                              checked={(settings.hostResourceNotifySubs[host] || []).includes(
+                                rule.kind,
+                              )}
+                              onChange={(checked) =>
+                                toggleResource(
+                                  host,
                                   rule.kind,
-                                )}
-                                onChange={(event) =>
-                                  toggleResource(
-                                    host,
-                                    rule.kind,
-                                    event.target.checked,
-                                    settings.hostResourceNotifySubs,
-                                  )
-                                }
-                              />
-                            </label>
+                                  checked,
+                                  settings.hostResourceNotifySubs,
+                                )
+                              }
+                            />
                           </td>
                         ))}
                         <td className="p-0">
-                          <label className="sub-check">
-                            <input
-                              type="checkbox"
-                              checked={!!settings.hostCertNotifySubs[host]}
-                              onChange={(event) =>
-                                updateSettings({
-                                  hostCertNotifySubs: {
-                                    ...settings.hostCertNotifySubs,
-                                    [host]: event.target.checked,
-                                  },
-                                })
-                              }
-                            />
-                          </label>
+                          <Checkbox
+                            className="sub-check"
+                            aria-label={`${host} 证书`}
+                            checked={!!settings.hostCertNotifySubs[host]}
+                            onChange={(checked) =>
+                              updateSettings({
+                                hostCertNotifySubs: {
+                                  ...settings.hostCertNotifySubs,
+                                  [host]: checked,
+                                },
+                              })
+                            }
+                          />
                         </td>
                       </>
                     ) : (
                       WATCH_SERVICE_ORDER.map((svc) => (
                         <td key={svc} className="p-0">
-                          <label className="sub-check">
-                            <input
-                              type="checkbox"
-                              checked={(settings.hostAppNotifySubs[host] || []).includes(svc)}
-                              onChange={(event) =>
-                                toggleAppService(
-                                  host,
-                                  svc,
-                                  event.target.checked,
-                                  settings.hostAppNotifySubs,
-                                )
-                              }
-                            />
-                          </label>
+                          <Checkbox
+                            className="sub-check"
+                            aria-label={`${host} ${svc}`}
+                            checked={(settings.hostAppNotifySubs[host] || []).includes(svc)}
+                            onChange={(checked) =>
+                              toggleAppService(
+                                host,
+                                svc,
+                                checked,
+                                settings.hostAppNotifySubs,
+                              )
+                            }
+                          />
                         </td>
                       ))
                     )}
@@ -658,47 +659,35 @@ function SetupPage() {
 
   return (
     <Page title="通知设置">
-      <div className="gap-card mx-auto flex max-w-3xl flex-col">
-        <Card>
-          <div className="mb-3 font-medium">送到哪里</div>
-          <div className="flex flex-wrap gap-2 text-sm">
-            <label className="opt-check">
-              <input
-                type="checkbox"
-                checked={settings.systemNotifyEnabled}
-                onChange={(event) =>
-                  updateSettings({ systemNotifyEnabled: event.target.checked })
-                }
-              />
+      <div className="gap-section mx-auto flex max-w-3xl flex-col">
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-ink">送到哪里</h2>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <Switch
+              checked={settings.systemNotifyEnabled}
+              onChange={(checked) => updateSettings({ systemNotifyEnabled: checked })}
+            >
               系统通知
-            </label>
-            <label className="opt-check">
-              <input
-                type="checkbox"
-                checked={settings.inAppNotifyEnabled}
-                onChange={(event) =>
-                  updateSettings({ inAppNotifyEnabled: event.target.checked })
-                }
-              />
+            </Switch>
+            <Switch
+              checked={settings.inAppNotifyEnabled}
+              onChange={(checked) => updateSettings({ inAppNotifyEnabled: checked })}
+            >
               应用内
-            </label>
-            <label className="opt-check">
-              <input
-                type="checkbox"
-                checked={settings.notifyEnabled}
-                onChange={(event) =>
-                  updateSettings({ notifyEnabled: event.target.checked })
-                }
-              />
+            </Switch>
+            <Switch
+              checked={settings.notifyEnabled}
+              onChange={(checked) => updateSettings({ notifyEnabled: checked })}
+            >
               企业微信
-            </label>
+            </Switch>
           </div>
-        </Card>
+        </section>
 
-        <Card>
-          <div className="mb-2 font-medium">企业微信地址</div>
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-ink">企业微信地址</h2>
           <input
-            className="h-8 w-full rounded-control border border-line px-3 disabled:opacity-50"
+            className="motion-field h-8 w-full rounded-control px-3 disabled:opacity-50"
             value={webhookDraft}
             disabled={!settings.notifyEnabled}
             placeholder="粘贴完整 Webhook，或只填 key"
@@ -771,63 +760,57 @@ function SetupPage() {
             </Button>
           </div>
           {hint ? <p className="mt-2 text-sm text-muted">{hint}</p> : null}
-        </Card>
+        </section>
 
-        <Card>
-          <div className="mb-3 font-medium">通知什么</div>
-          <div className="flex flex-wrap gap-2 text-sm">
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-ink">通知什么</h2>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             {(["cpu", "mem", "disk", "load", "app", "cert"] as AlertContentKind[]).map(
               (kind) => (
-                <label key={kind} className="opt-check">
-                  <input
-                    type="checkbox"
-                    checked={settings.alertContentKinds.includes(kind)}
-                    onChange={(event) => {
-                      const next = event.target.checked
-                        ? [...settings.alertContentKinds, kind]
-                        : settings.alertContentKinds.filter((item) => item !== kind);
-                      updateSettings({ alertContentKinds: next });
-                    }}
-                  />
+                <Checkbox
+                  key={kind}
+                  checked={settings.alertContentKinds.includes(kind)}
+                  onChange={(checked) => {
+                    const next = checked
+                      ? [...settings.alertContentKinds, kind]
+                      : settings.alertContentKinds.filter((item) => item !== kind);
+                    updateSettings({ alertContentKinds: next });
+                  }}
+                >
                   {CONTENT_LABEL[kind]}
-                </label>
+                </Checkbox>
               ),
             )}
-            <label className="opt-check">
-              <input
-                type="checkbox"
-                checked={settings.notifyRecoverEnabled}
-                onChange={(event) =>
-                  updateSettings({ notifyRecoverEnabled: event.target.checked })
-                }
-              />
+            <Checkbox
+              checked={settings.notifyRecoverEnabled}
+              onChange={(checked) => updateSettings({ notifyRecoverEnabled: checked })}
+            >
               恢复
-            </label>
+            </Checkbox>
           </div>
-        </Card>
+        </section>
 
-        <Card>
-          <div className="mb-3 font-medium">正文带上</div>
-          <div className="flex flex-wrap gap-2 text-sm">
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-ink">正文带上</h2>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             {(["hostName", "metric", "threshold", "value", "service"] as NotifyContentField[]).map(
               (field) => (
-                <label key={field} className="opt-check">
-                  <input
-                    type="checkbox"
-                    checked={settings.notifyContentFields.includes(field)}
-                    onChange={(event) => {
-                      const next = event.target.checked
-                        ? [...settings.notifyContentFields, field]
-                        : settings.notifyContentFields.filter((item) => item !== field);
-                      updateSettings({ notifyContentFields: next });
-                    }}
-                  />
+                <Checkbox
+                  key={field}
+                  checked={settings.notifyContentFields.includes(field)}
+                  onChange={(checked) => {
+                    const next = checked
+                      ? [...settings.notifyContentFields, field]
+                      : settings.notifyContentFields.filter((item) => item !== field);
+                    updateSettings({ notifyContentFields: next });
+                  }}
+                >
                   {FIELD_LABEL[field]}
-                </label>
+                </Checkbox>
               ),
             )}
           </div>
-        </Card>
+        </section>
       </div>
     </Page>
   );

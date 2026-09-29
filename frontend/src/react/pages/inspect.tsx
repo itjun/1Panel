@@ -19,6 +19,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
+import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
@@ -71,6 +72,23 @@ function applyMenuResult(
       : item,
   );
 }
+
+type CheckStatus = "checking" | "idle" | "ok" | "bad";
+
+/** 卡片右上状态标签：只让状态有颜色（DESIGN.md §1） */
+const STATUS_LABEL: Record<CheckStatus, string> = {
+  checking: "检查中…",
+  idle: "未检查",
+  ok: "正常",
+  bad: "异常",
+};
+
+const STATUS_TONE: Record<CheckStatus, TagTone> = {
+  checking: "info",
+  idle: "neutral",
+  ok: "ok",
+  bad: "danger",
+};
 
 function formatCheckedAt(ms: number): string {
   if (!ms) return "";
@@ -231,6 +249,7 @@ export function InspectPage() {
         <>
           <span className="text-sm text-muted">{summary}</span>
           <Button
+            size="sm"
             variant="primary"
             disabled={checkingAll}
             onClick={() => void checkAll()}
@@ -249,7 +268,7 @@ export function InspectPage() {
           </p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="gap-card grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {localRows.map((item) => {
             const checked = item.checkedAt > 0;
             const isBusy = busyId === item.id;
@@ -261,12 +280,12 @@ export function InspectPage() {
                   ? "ok"
                   : "bad";
             return (
-              <Card
+              <div
                 key={item.id}
                 className={
                   isBusy
-                    ? "cursor-wait opacity-80"
-                    : "cursor-pointer hover:border-accent/40"
+                    ? "cursor-wait rounded-control bg-raised p-5 text-ink opacity-80"
+                    : "cursor-pointer rounded-control bg-raised p-5 text-ink hover:bg-line"
                 }
                 onClick={() => {
                   if (isBusy || checkingAll) return;
@@ -274,29 +293,12 @@ export function InspectPage() {
                 }}
               >
                 <div className="mb-3 flex items-center gap-2">
-                  <span
-                    className={
-                      status === "ok"
-                        ? "h-2.5 w-2.5 rounded-full bg-success"
-                        : status === "bad"
-                          ? "h-2.5 w-2.5 rounded-full bg-danger"
-                          : status === "checking"
-                            ? "h-2.5 w-2.5 animate-pulse rounded-full bg-accent"
-                            : "h-2.5 w-2.5 rounded-full bg-line"
-                    }
-                  />
-                  <span className="min-w-0 flex-1 truncate font-medium">
+                  <span className="min-w-0 flex-1 truncate font-semibold">
                     {item.title || item.label || item.id}
                   </span>
-                  <span className="shrink-0 text-xs text-muted">
-                    {status === "checking"
-                      ? "检查中…"
-                      : status === "ok"
-                        ? "正常"
-                        : status === "bad"
-                          ? "异常"
-                          : "未检查"}
-                  </span>
+                  <Tag tone={STATUS_TONE[status]} className="shrink-0">
+                    {STATUS_LABEL[status]}
+                  </Tag>
                 </div>
                 <div className="grid gap-2 text-sm">
                   <div className="flex gap-3">
@@ -304,7 +306,7 @@ export function InspectPage() {
                     <span
                       className={
                         item.ok
-                          ? "text-success"
+                          ? "text-success-text"
                           : checked
                             ? "text-danger"
                             : "text-muted"
@@ -318,7 +320,7 @@ export function InspectPage() {
                     <span
                       className={
                         item.hasData
-                          ? "text-success"
+                          ? "text-success-text"
                           : checked
                             ? "text-danger"
                             : "text-muted"
@@ -337,7 +339,7 @@ export function InspectPage() {
                 <div className="mt-3 text-right text-xs text-muted">
                   {isBusy ? "检查中…" : "点击检查"}
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
@@ -362,24 +364,24 @@ export function InspectPage() {
               <div
                 className={
                   resultDialog.menuOk
-                    ? "flex items-start gap-2 text-base text-success"
+                    ? "flex items-start gap-2 text-base text-success-text"
                     : "flex items-start gap-2 text-base text-danger"
                 }
               >
-                <span className="shrink-0 font-bold">
-                  {resultDialog.menuOk ? "✓" : "❌"}
+                <span className="shrink-0 font-semibold">
+                  {resultDialog.menuOk ? "✓" : "✕"}
                 </span>
                 <span className="min-w-0 break-words">{resultDialog.menuText}</span>
               </div>
               <div
                 className={
                   resultDialog.dataOk
-                    ? "flex items-start gap-2 text-base text-success"
+                    ? "flex items-start gap-2 text-base text-success-text"
                     : "flex items-start gap-2 text-base text-danger"
                 }
               >
-                <span className="shrink-0 font-bold">
-                  {resultDialog.dataOk ? "✓" : "❌"}
+                <span className="shrink-0 font-semibold">
+                  {resultDialog.dataOk ? "✓" : "✕"}
                 </span>
                 <span className="min-w-0 break-words">{resultDialog.dataText}</span>
               </div>
@@ -389,7 +391,7 @@ export function InspectPage() {
                   <div className="mb-2 text-xs text-muted">检查地址</div>
                   <div
                     className="truncate text-sm select-all"
-                    title={resultDialog.url}
+                    data-tip={resultDialog.url} data-tip-overflow=""
                   >
                     {resultDialog.url}
                   </div>

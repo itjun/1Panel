@@ -23,7 +23,7 @@ export function seriesColorByName(name: string, index = 0): string {
     key === "接收" ||
     /^(read|rx|download|in)$/i.test(key)
   ) {
-    return readThemeColor("--color-io-read", "#15803d");
+    return readThemeColor("--color-io-read", "#1d8cf8");
   }
   if (
     key === "写" ||
@@ -31,13 +31,13 @@ export function seriesColorByName(name: string, index = 0): string {
     key === "发送" ||
     /^(write|tx|upload|out)$/i.test(key)
   ) {
-    return readThemeColor("--color-io-write", "#ea580c");
+    return readThemeColor("--color-io-write", "#f08a24");
   }
   const fallbacks = [
-    readThemeColor("--color-chart-1", "#005eeb"),
-    readThemeColor("--color-io-read", "#15803d"),
-    readThemeColor("--color-io-write", "#ea580c"),
-    readThemeColor("--color-chart-3", "#ea580c"),
+    readThemeColor("--color-chart-1", "#0052d9"),
+    readThemeColor("--color-io-read", "#1d8cf8"),
+    readThemeColor("--color-io-write", "#f08a24"),
+    readThemeColor("--color-chart-3", "#f08a24"),
   ];
   return fallbacks[index % fallbacks.length];
 }
@@ -55,6 +55,7 @@ export function applySavedFont() {
     const parsed = JSON.parse(raw) as {
       appearance?: unknown;
       fontFamily?: unknown;
+      monoFontFamily?: unknown;
       fontSize?: unknown;
     };
     const appearance =
@@ -76,6 +77,9 @@ export function applySavedFont() {
     root.style.background = "var(--color-canvas)";
     if (typeof parsed.fontFamily === "string" && parsed.fontFamily) {
       root.style.setProperty("--app-font-family", parsed.fontFamily);
+    }
+    if (typeof parsed.monoFontFamily === "string" && parsed.monoFontFamily) {
+      root.style.setProperty("--app-font-mono", parsed.monoFontFamily);
     }
     if (typeof parsed.fontSize === "number" && Number.isFinite(parsed.fontSize)) {
       root.style.setProperty("--app-font-size", `${parsed.fontSize}px`);

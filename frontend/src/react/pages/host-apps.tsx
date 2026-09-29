@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
 import type { agentapi, agentcli } from "@/api";
 import { Button } from "@/react/components/ui/button";
+import { Checkbox } from "@/react/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,9 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
-import { Notice, Page } from "@/react/components/page";
+import { FlashNotices, Notice, Page } from "@/react/components/page";
+import { Tag } from "@/react/components/ui/tag";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
 import {
@@ -49,7 +52,7 @@ function canShutdown(row: InstRow) {
 }
 
 function shortJarPath(p: string | undefined): string {
-  if (!p) return "—";
+  if (!p) return "";
   const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts[parts.length - 1] || p;
 }
@@ -73,7 +76,7 @@ function elapsedSinceStart(startTime: string): number | null {
 }
 
 function formatStartTimeCell(startTime: string | undefined): string {
-  if (!startTime) return "—";
+  if (!startTime) return "";
   const elapsed = elapsedSinceStart(startTime);
   if (elapsed == null || elapsed <= 0) return startTime;
   const dur = formatDurationLong(elapsed);
@@ -261,8 +264,8 @@ function lineOption(opts: {
   dualBytesOnRight?: boolean;
 }): echarts.EChartsOption {
   const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#e8e8e8");
-  const danger = readThemeColor("--color-danger", "#ad352f");
+  const line = readThemeColor("--color-line", "#dce3ee");
+  const danger = readThemeColor("--color-danger", "#d54941");
   const markLineData = (opts.markLines || []).map((m) => ({
     name: m.name,
     xAxis: m.x,
@@ -275,12 +278,12 @@ function lineOption(opts: {
     {
       type: "value",
       axisLabel: {
-        fontSize: 10,
+        fontSize: 12,
         color: muted,
         formatter: bytesFmt ? (v: number) => bytesFmt.formatter(v) : undefined,
       },
       name: bytesFmt?.name,
-      nameTextStyle: { fontSize: 10, color: muted },
+      nameTextStyle: { fontSize: 12, color: muted },
       splitLine: { lineStyle: { color: line } },
     },
   ];
@@ -291,7 +294,7 @@ function lineOption(opts: {
     yAxes.push({
       type: "value",
       axisLabel: {
-        fontSize: 10,
+        fontSize: 12,
         color: muted,
         // 单位跟在刻度后，避免轴名「GB」和图例「主机 内存」挤在右上角
         formatter: (v: number) => {
@@ -306,13 +309,15 @@ function lineOption(opts: {
 
   return {
     color: seriesColorList(opts.series.map((s) => s.name)),
-    grid: { left: 52, right: opts.dualBytesOnRight ? 68 : 16, top: 28, bottom: 28 },
+    grid: { left: 8, right: 16, top: 28, bottom: 28, containLabel: true },
     tooltip: {
       trigger: "axis",
       formatter: (params) => {
         const items = Array.isArray(params) ? params : [params];
         if (!items.length) return "";
-        const head = String(items[0].axisValueLabel ?? items[0].name ?? "");
+        // echarts 类型里 axis 触发时才有 axisValueLabel，CallbackDataParams 未声明，这里补上
+        const first = items[0] as (typeof items)[number] & { axisValueLabel?: string };
+        const head = String(first.axisValueLabel ?? first.name ?? "");
         const lines = items.map((p) => {
           const name = String(p.seriesName ?? "");
           const raw = typeof p.value === "number" ? p.value : Number(p.value);
@@ -338,11 +343,12 @@ function lineOption(opts: {
         return [head, ...lines].join("<br/>");
       },
     },
-    legend: { top: 0, right: 0, textStyle: { fontSize: 11 } },
+    // 图表文字同样遵守桌面端最小 12px（DESIGN.md §3.2）
+    legend: { top: 0, right: 0, textStyle: { fontSize: 12, color: muted } },
     xAxis: {
       type: "category",
       data: opts.xData,
-      axisLabel: { fontSize: 10, color: muted },
+      axisLabel: { fontSize: 12, color: muted },
       axisLine: { lineStyle: { color: line } },
     },
     yAxis: yAxes,
@@ -368,7 +374,49 @@ function lineOption(opts: {
   };
 }
 
-const SERVICE_HUES = [212, 162, 32, 272, 346, 188, 92, 18, 236, 312, 54, 128];
+type ColAlign = "left" | "right" | "center";
+
+/**
+ * 三张表共用的列定义：table-layout fixed + 同一 colgroup，保证列在卡片间垂直对齐。
+ * width 为空的列平分剩余宽度；路径列 span 2，占两份剩余宽度（启动时间只占一份）。
+ */
+const APP_COLUMNS: {
+  key: string;
+  label: string;
+  width?: number;
+  span?: number;
+  align: ColAlign;
+}[] = [
+  { key: "idx", label: "序", width: 40, align: "left" },
+  { key: "service", label: "标识", width: 160, align: "left" },
+  { key: "port", label: "端口", width: 72, align: "right" },
+  { key: "deployVer", label: "部署版本", width: 200, align: "left" },
+  { key: "startTime", label: "启动时间", align: "left" },
+  { key: "screen", label: "会话", width: 140, align: "left" },
+  { key: "jarPath", label: "路径", span: 2, align: "left" },
+  { key: "status", label: "状态", width: 72, align: "left" },
+  { key: "subscribe", label: "订阅", width: 56, align: "center" },
+  { key: "action", label: "操作", width: 64, align: "right" },
+];
+
+/** 端口 ~ 路径 共 6 个物理列（路径占 2），未运行时合并成一格 */
+const IDLE_SPAN_COLS = 6;
+
+function alignClass(align: ColAlign) {
+  if (align === "right") return "text-right";
+  if (align === "center") return "text-center";
+  return "text-left";
+}
+
+/** 首列左内边距 16px 与标题行对齐，末列右内边距 16px 与卡片边对齐 */
+function cellPadClass(index: number) {
+  if (index === 0) return "pl-4 pr-2";
+  if (index === APP_COLUMNS.length - 1) return "pl-2 pr-4";
+  return "px-3";
+}
+
+/* 服务名识别色（DESIGN.md §6 / §9）：色相跳过 70–170 绿色段 */
+const SERVICE_HUES = [212, 18, 272, 346, 196, 32, 236, 312, 54, 290, 0, 250];
 
 function serviceNameColors(rows: { service: string }[]): Map<string, string> {
   const names = [...new Set(rows.map((row) => row.service).filter(Boolean))].sort((a, b) =>
@@ -404,30 +452,44 @@ function AppsTable({
 }) {
   const onlineCount = rows.filter((r) => isOnline(r)).length;
 
+  // 全部在线 ok，部分在线 warn，无在线 neutral
+  let countTone: "ok" | "warn" | "neutral" = "neutral";
+  if (onlineCount > 0 && onlineCount === rows.length) {
+    countTone = "ok";
+  } else if (onlineCount > 0) {
+    countTone = "warn";
+  }
+
   return (
-    <section className="overflow-hidden border border-line bg-surface">
-      <div className="flex items-baseline justify-between gap-3 border-b border-line px-3.5 py-2.5">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
-          <span className="font-mono text-[11px] tabular-nums text-muted">
-            {onlineCount}/{rows.length} 在线
-          </span>
-        </div>
+    <section className="surface-float overflow-hidden">
+      <div className="flex h-10 items-center justify-between gap-3 px-4">
+        <h2 className="truncate text-sm font-semibold text-ink">{title}</h2>
+        <Tag tone={countTone} className="tabular-nums">
+          {onlineCount}/{rows.length} 在线
+        </Tag>
       </div>
       <div className="overflow-auto">
-        <table className="w-full border-collapse text-left text-sm">
+        <table className="w-full table-fixed border-collapse text-left text-sm">
+          <colgroup>
+            {APP_COLUMNS.map((col) => (
+              <col
+                key={col.key}
+                span={col.span}
+                style={col.width ? { width: col.width } : undefined}
+              />
+            ))}
+          </colgroup>
           <thead>
-            <tr className="h-10 border-b border-line bg-raised/80 text-xs text-muted">
-              <th className="w-10 px-2.5 text-center font-medium">序</th>
-              <th className="px-3 font-medium whitespace-nowrap">标识</th>
-              <th className="w-[72px] px-2 text-center font-medium">端口</th>
-              <th className="px-3 font-medium whitespace-nowrap">部署版本</th>
-              <th className="px-3 font-medium whitespace-nowrap">启动时间</th>
-              <th className="px-3 font-medium whitespace-nowrap">screen</th>
-              <th className="px-3 font-medium whitespace-nowrap">路径</th>
-              <th className="w-16 px-2 text-center font-medium">状态</th>
-              <th className="w-12 px-2 text-center font-medium">订阅</th>
-              <th className="w-14 px-2 text-center font-medium">操作</th>
+            <tr className="h-table-head border-b border-line text-xs font-normal text-muted">
+              {APP_COLUMNS.map((col, i) => (
+                <th
+                  key={col.key}
+                  colSpan={col.span}
+                  className={`${cellPadClass(i)} ${alignClass(col.align)} font-normal whitespace-nowrap`}
+                >
+                  {col.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -436,123 +498,125 @@ function AppsTable({
               const latestHit = isLatestDeploy(row.deployVer || "", latest);
               const clickable = canOpenCharts(row);
               const online = isOnline(row);
+              const started = isAppStarted(row);
               const nameColor = nameColors.get(row.service) || "var(--color-ink)";
               return (
                 <tr
                   key={`${row.service}-${row.pid}-${row.port}-${idx}`}
                   className={
                     clickable
-                      ? "group h-12 border-b border-line/80 last:border-b-0 hover:bg-accent-soft/50"
-                      : "h-12 border-b border-line/80 text-muted last:border-b-0"
+                      ? "group h-table-row border-b border-line last:border-b-0 hover:bg-raised"
+                      : "h-table-row border-b border-line text-muted last:border-b-0"
                   }
                   style={clickable ? { cursor: "pointer" } : undefined}
                   onClick={() => {
                     if (clickable) onRowClick(row);
                   }}
                 >
-                  <td className="px-2.5 text-center align-middle font-mono text-xs tabular-nums text-muted">
+                  <td className="pl-4 pr-2 text-left align-middle font-mono text-xs tabular-nums text-muted">
                     {idx + 1}
                   </td>
-                  <td className="px-3 align-middle font-mono text-sm font-semibold">
-                    <span className="inline-flex items-center gap-1.5">
+                  <td
+                    className={
+                      online
+                        ? "px-3 align-middle font-mono text-sm font-semibold text-ink"
+                        : "px-3 align-middle font-mono text-sm font-semibold text-muted"
+                    }
+                  >
+                    <span className="inline-flex max-w-full items-center gap-1.5">
                       <span
                         className="inline-block h-2 w-2 shrink-0 rounded-full"
                         style={{ background: online ? nameColor : "var(--color-line)" }}
                         aria-hidden
                       />
-                      <span style={{ color: online ? nameColor : undefined }}>
-                        {row.service || "—"}
+                      <span className="truncate" style={{ color: online ? nameColor : undefined }}>
+                        {row.service}
                       </span>
-                      {row.runtime === "bun" ? (
-                        <span className="rounded-control border border-line px-1 text-[11px] font-normal text-muted">
-                          Bun
-                        </span>
-                      ) : null}
+                      {row.runtime === "bun" ? <Tag>Bun</Tag> : null}
                     </span>
                   </td>
-                  <td
-                    className={
-                      latestHit && row.port
-                        ? "px-2 text-center align-middle font-mono text-sm font-bold tabular-nums text-success"
-                        : "px-2 text-center align-middle font-mono text-sm tabular-nums"
-                    }
-                  >
-                    {row.port || "—"}
-                  </td>
-                  <td className="px-3 align-middle">
-                    {row.deployVer ? (
-                      <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                        <span
-                          className={
-                            latestHit
-                              ? "font-mono text-sm font-bold tabular-nums text-success"
-                              : "font-mono text-sm font-medium tabular-nums"
-                          }
-                        >
-                          {row.deployVer}
-                        </span>
-                        {latestHit ? (
-                          <span className="rounded-control bg-success px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
-                            最新
+                  {started ? (
+                    <>
+                      <td
+                        className={
+                          latestHit && row.port
+                            ? "px-3 text-right align-middle font-mono text-sm font-semibold tabular-nums text-success-text"
+                            : "px-3 text-right align-middle font-mono text-sm tabular-nums"
+                        }
+                      >
+                        {row.port || ""}
+                      </td>
+                      <td className="px-3 align-middle">
+                        {row.deployVer ? (
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <span
+                              className={
+                                latestHit
+                                  ? "font-mono text-sm font-semibold tabular-nums text-success-text"
+                                  : "font-mono text-sm tabular-nums"
+                              }
+                            >
+                              {row.deployVer}
+                            </span>
+                            {latestHit ? <Tag tone="ok">最新</Tag> : null}
                           </span>
                         ) : null}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-3 align-middle font-mono text-sm tabular-nums whitespace-nowrap">
-                    {formatStartTimeCell(row.startTime)}
-                  </td>
-                  <td className="px-3 align-middle font-mono text-sm whitespace-nowrap">
-                    {row.screen || "—"}
+                      </td>
+                      <td
+                        className="truncate px-3 align-middle font-mono text-sm tabular-nums"
+                        data-tip={formatStartTimeCell(row.startTime)} data-tip-overflow=""
+                      >
+                        {formatStartTimeCell(row.startTime)}
+                      </td>
+                      <td
+                        className="truncate px-3 align-middle font-mono text-sm"
+                        data-tip={row.screen || ""} data-tip-overflow=""
+                      >
+                        {row.screen || ""}
+                      </td>
+                      <td
+                        colSpan={2}
+                        className="truncate px-3 align-middle font-mono text-sm text-muted"
+                        data-tip={row.jarPath || ""} data-tip-overflow=""
+                      >
+                        {shortJarPath(row.jarPath)}
+                      </td>
+                    </>
+                  ) : (
+                    // 未运行：端口 ~ 路径合并成一格，不逐格填破折号
+                    <td colSpan={IDLE_SPAN_COLS} className="px-3 align-middle text-xs text-muted">
+                      未运行
+                    </td>
+                  )}
+                  <td className="px-3 align-middle">
+                    {online ? <Tag tone="ok">在线</Tag> : <Tag tone="neutral">离线</Tag>}
                   </td>
                   <td
-                    className="max-w-[200px] truncate px-3 align-middle font-mono text-sm text-muted"
-                    title={row.jarPath || ""}
-                  >
-                    {shortJarPath(row.jarPath)}
-                  </td>
-                  <td className="px-2 text-center align-middle">
-                    <span
-                      className={
-                        online
-                          ? "inline-block rounded-control bg-success-soft px-2 py-0.5 text-xs font-semibold leading-none text-success"
-                          : "inline-block rounded-control bg-raised px-2 py-0.5 text-xs font-semibold leading-none text-muted"
-                      }
-                    >
-                      {online ? "在线" : "离线"}
-                    </span>
-                  </td>
-                  <td
-                    className="px-2 text-center align-middle"
+                    className="px-3 text-center align-middle"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canSubscribeNotify(row.service) ? (
-                      <input
-                        type="checkbox"
+                      <Checkbox
+                        aria-label="通知订阅"
+                        data-tip="写入通知订阅设置"
                         checked={subscribed(row.service)}
-                        title="写入通知订阅设置"
-                        onChange={(event) =>
-                          onToggleSubscribe(row.service, event.target.checked)
-                        }
+                        onChange={(checked) => onToggleSubscribe(row.service, checked)}
                       />
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
+                    ) : null}
                   </td>
                   <td
-                    className="px-2 text-center align-middle"
+                    className="pl-2 pr-4 text-right align-middle"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canShutdown(row) ? (
-                      <button
-                        type="button"
-                        className="text-sm font-semibold text-danger hover:opacity-80"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-danger"
                         onClick={() => onShutdown(row)}
                       >
                         下架
-                      </button>
+                      </Button>
                     ) : null}
                   </td>
                 </tr>
@@ -567,7 +631,7 @@ function AppsTable({
 
 export function AppsPage({ host }: { host: string }) {
   const settings = useSettings();
-  const [msg, setMsg] = useState("");
+  const flash = useFlashMessage();
   const [cfgOpen, setCfgOpen] = useState(false);
   const [yamlText, setYamlText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -745,7 +809,7 @@ export function AppsPage({ host }: { host: string }) {
       setHostPts(hr.points || []);
       setEvents(ev || []);
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setDetailBusy(false);
     }
@@ -760,18 +824,19 @@ export function AppsPage({ host }: { host: string }) {
   }
 
   async function refreshAll() {
-    setMsg("");
+    // 只清错误：保存 / 下架后会调这里刷新，成功提示要留着自己淡出
+    flash.clearError();
     await Promise.all([instances.refetch(), status.refetch()]);
   }
 
   async function openCfg() {
-    setMsg("");
+    flash.clear();
     try {
       const w = await api.agentGetWatch(host);
       setYamlText(w.yaml || "");
       setCfgOpen(true);
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     }
   }
 
@@ -784,10 +849,10 @@ export function AppsPage({ host }: { host: string }) {
       setYamlText(merged);
       await api.agentPutWatch(host, merged);
       setCfgOpen(false);
-      setMsg("监视配置已下发");
+      flash.showToast("监视配置已下发");
       await refreshAll();
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setSaving(false);
     }
@@ -804,13 +869,14 @@ export function AppsPage({ host }: { host: string }) {
         screen: shutdownTarget.screen,
       };
       const r = await api.agentAppShutdown(host, req);
-      setMsg(r.msg || (r.ok ? "已发起下架" : "下架失败"));
+      if (r.ok) flash.showToast(r.msg || "已发起下架");
+      else flash.showError(r.msg || "下架失败");
       setShutdownTarget(null);
       setTimeout(() => {
         void refreshAll();
       }, 1500);
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setShutdownBusy(false);
     }
@@ -842,30 +908,32 @@ export function AppsPage({ host }: { host: string }) {
       title="应用"
       onRefresh={() => void refreshAll()}
       actions={
-        <Button onClick={() => void openCfg()}>监视配置</Button>
+        <Button variant="ghost" size="sm" onClick={() => void openCfg()}>
+          监视配置
+        </Button>
       }
     >
       {instances.error ? <Notice text={formatErr(instances.error)} /> : null}
       {status.error ? <Notice text={formatErr(status.error)} /> : null}
-      {msg ? <Notice text={msg} tone="warn" /> : null}
+      <FlashNotices flash={flash} />
 
       {sections.length === 0 && !instances.isLoading ? (
         <div className="py-8 text-center text-sm text-muted">暂无监视实例</div>
       ) : (
-        <div className="flex min-h-0 flex-col gap-2">
-          {sections.map((sec) => (
-            <AppsTable
-              key={sec.key}
-              title={sec.title}
-              rows={sec.rows}
-              latestByService={latestByService}
-              nameColors={nameColors}
-              subscribed={isSubscribed}
-              onToggleSubscribe={toggleSubscribe}
-              onRowClick={openCharts}
-              onShutdown={setShutdownTarget}
-            />
-          ))}
+        <div className="flex flex-col gap-section">
+        {sections.map((sec) => (
+          <AppsTable
+            key={sec.key}
+            title={sec.title}
+            rows={sec.rows}
+            latestByService={latestByService}
+            nameColors={nameColors}
+            subscribed={isSubscribed}
+            onToggleSubscribe={toggleSubscribe}
+            onRowClick={openCharts}
+            onShutdown={setShutdownTarget}
+          />
+        ))}
         </div>
       )}
 
@@ -898,19 +966,19 @@ export function AppsPage({ host }: { host: string }) {
               <ChartHost option={hostOption} className="h-full flex-1" />
             </div>
             {events.length ? (
-              <div className="max-h-[22%] shrink-0 overflow-auto border border-line bg-surface">
+              <div className="surface-float max-h-[22%] shrink-0 overflow-auto">
                 <table className="w-full border-collapse text-left text-sm">
-                  <thead className="sticky top-0 z-[1] bg-raised">
-                    <tr className="h-10">
-                      <th className="px-3 font-medium">序</th>
-                      <th className="px-3 font-medium">层</th>
-                      <th className="px-3 font-medium">类型</th>
-                      <th className="px-3 font-medium">说明</th>
+                  <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+                    <tr className="h-table-head border-b border-line">
+                      <th className="px-3 font-normal">序</th>
+                      <th className="px-3 font-normal">层</th>
+                      <th className="px-3 font-normal">类型</th>
+                      <th className="px-3 font-normal">说明</th>
                     </tr>
                   </thead>
                   <tbody>
                     {events.map((e, i) => (
-                      <tr key={`${e.ts}-${i}`} className="h-10 border-t border-line">
+                      <tr key={`${e.ts}-${i}`} className="h-table-row border-t border-line">
                         <td className="px-3 text-center">{i + 1}</td>
                         <td className="px-3">{e.layer || "—"}</td>
                         <td className="px-3">{e.kind || "—"}</td>
@@ -929,7 +997,7 @@ export function AppsPage({ host }: { host: string }) {
         <DialogContent className="w-[min(720px,calc(100%-32px))]">
           <DialogTitle>下发 watch.yml</DialogTitle>
           <textarea
-            className="mt-3 h-64 w-full rounded-control border border-line bg-canvas p-3 font-mono text-xs"
+            className="motion-field mt-3 h-64 w-full rounded-control p-3 font-mono text-xs text-ink"
             value={yamlText}
             onChange={(e) => setYamlText(e.target.value)}
           />

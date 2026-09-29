@@ -10,6 +10,7 @@ import { LocalPackagesPage } from "@/react/components/local/packages-page";
 import { LocalStoragePage } from "@/react/components/local/storage-page";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
+import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { useSession, type LocalSection } from "@/react/state/session";
 import { formatErr } from "@/utils/format";
@@ -89,7 +90,12 @@ export function InspectPage() {
       actions={
         <>
           <span className="text-sm text-muted">{summary}</span>
-          <Button variant="primary" disabled={checkingAll} onClick={() => void checkAll()}>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={checkingAll}
+            onClick={() => void checkAll()}
+          >
             {checkingAll ? "检查中…" : "全部检查"}
           </Button>
         </>
@@ -101,7 +107,7 @@ export function InspectPage() {
           <p className="text-sm text-muted">暂无巡检项（后端未返回任何菜单检查配置）</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="gap-card grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {localRows.map((item) => {
             const checked = item.checkedAt > 0;
             const status =
@@ -112,13 +118,26 @@ export function InspectPage() {
                   : item.ok && item.hasData
                     ? "ok"
                     : "bad";
+            let statusTone: TagTone = "neutral";
+            let statusText = "未检查";
+            if (status === "checking") {
+              statusTone = "info";
+              statusText = "检查中…";
+            } else if (status === "ok") {
+              statusTone = "ok";
+              statusText = "正常";
+            } else if (status === "bad") {
+              statusTone = "danger";
+              statusText = "异常";
+            }
             return (
               <Card
                 key={item.id}
-                className="cursor-pointer hover:border-accent/40"
+                className="cursor-pointer bg-raised p-4 hover:bg-line"
                 onClick={() => void checkOne(item.id)}
               >
                 <div className="mb-3 flex items-center gap-2">
+                  {/* 状态指示灯：唯一允许的圆点 */}
                   <span
                     className={
                       status === "ok"
@@ -126,32 +145,30 @@ export function InspectPage() {
                         : status === "bad"
                           ? "h-2.5 w-2.5 rounded-full bg-danger"
                           : status === "checking"
-                            ? "h-2.5 w-2.5 animate-pulse rounded-full bg-accent"
-                            : "h-2.5 w-2.5 rounded-full bg-line"
+                            ? "h-2.5 w-2.5 rounded-full bg-accent"
+                            : "h-2.5 w-2.5 rounded-full bg-muted"
                     }
                   />
-                  <span className="font-medium">{item.title || item.label || item.id}</span>
-                  <span className="ml-auto text-xs text-muted">
-                    {status === "checking"
-                      ? "检查中…"
-                      : status === "ok"
-                        ? "正常"
-                        : status === "bad"
-                          ? "异常"
-                          : "未检查"}
-                  </span>
+                  <span className="font-semibold">{item.title || item.label || item.id}</span>
+                  {/* 单元是 raised 色块，neutral 标签换 surface 底才看得见 */}
+                  <Tag
+                    tone={statusTone}
+                    className={statusTone === "neutral" ? "ml-auto bg-surface" : "ml-auto"}
+                  >
+                    {statusText}
+                  </Tag>
                 </div>
                 <div className="grid gap-2 text-sm">
                   <div className="flex gap-3">
                     <span className="w-10 shrink-0 text-muted">菜单</span>
-                    <span className={item.ok ? "text-success" : checked ? "text-danger" : ""}>
+                    <span className={item.ok ? "text-success-text" : checked ? "text-danger" : ""}>
                       {item.menuText || "—"}
                     </span>
                   </div>
                   <div className="flex gap-3">
                     <span className="w-10 shrink-0 text-muted">数据</span>
                     <span
-                      className={item.hasData ? "text-success" : checked ? "text-danger" : ""}
+                      className={item.hasData ? "text-success-text" : checked ? "text-danger" : ""}
                     >
                       {item.dataText || "—"}
                     </span>

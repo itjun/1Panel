@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
 import { Button } from "@/react/components/ui/button";
+import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
 
@@ -63,6 +64,7 @@ export function LocalPackagesPage() {
             return (
               <Button
                 key={item.value}
+                size="sm"
                 variant={source === item.value ? "primary" : "secondary"}
                 onClick={() => setSource(item.value)}
               >
@@ -72,7 +74,7 @@ export function LocalPackagesPage() {
             );
           })}
           <input
-            className="h-8 rounded-control border border-line px-3"
+            className="motion-field h-7 rounded-control px-3 text-sm text-ink"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             placeholder="搜索名称 / 路径…"
@@ -82,10 +84,11 @@ export function LocalPackagesPage() {
       onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      <div className="min-h-48 flex-1 overflow-auto">
+      {/* 表格直接铺在内容平面上，吸顶表头用 surface 底遮挡滚动内容 */}
+      <div className="surface-float min-h-48 flex-1 overflow-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-[1]">
-              <tr className="h-10 bg-raised">
+              <tr className="h-table-head border-b border-line bg-surface text-xs font-normal text-muted">
                 <th className="w-14 px-3 text-center">序</th>
                 <th className="px-3">名称</th>
                 <th className="px-3">版本</th>
@@ -95,7 +98,7 @@ export function LocalPackagesPage() {
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr className="h-12 border-t border-line">
+                <tr className="h-table-row border-t border-line">
                   <td className="px-3 text-muted" colSpan={5}>
                     未找到已安装软件
                   </td>
@@ -104,14 +107,16 @@ export function LocalPackagesPage() {
                 rows.map((item, idx) => (
                   <tr
                     key={`${item.source}-${item.name}-${item.path}`}
-                    className="h-12 border-t border-line"
+                    className="h-table-row border-t border-line"
                   >
                     <td className="px-3 text-center font-mono text-muted">
                       {idx + 1}
                     </td>
                     <td className="px-3">{item.name}</td>
                     <td className="px-3 font-mono">{item.version || "—"}</td>
-                    <td className="px-3">{sourceLabel(item.source)}</td>
+                    <td className="px-3">
+                      <Tag>{sourceLabel(item.source)}</Tag>
+                    </td>
                     <td className="max-w-[360px] truncate px-3 font-mono text-muted">
                       {item.path || "—"}
                     </td>

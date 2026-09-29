@@ -20,10 +20,10 @@ export function DialogContent({
   return (
     <DialogPrimitive.Portal container={document.body}>
       <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
-        <DialogPrimitive.Overlay className="motion-dialog-overlay pointer-events-auto absolute inset-0 bg-black/60" />
+        <DialogPrimitive.Overlay className="motion-dialog-overlay pointer-events-auto absolute inset-0 bg-scrim" />
         <DialogPrimitive.Content
           className={cn(
-            "motion-dialog-content pointer-events-auto relative z-10 max-h-[calc(100vh-64px)] w-[min(480px,calc(100vw-32px))] overflow-auto rounded-surface border border-line bg-surface px-8 py-6 text-ink shadow-[0_8px_10px_-5px_rgba(0,0,0,0.08),0_16px_24px_2px_rgba(0,0,0,0.04)] focus:outline-none",
+            "motion-dialog-content pointer-events-auto relative z-10 max-h-[calc(100vh-64px)] w-[min(480px,calc(100vw-32px))] overflow-auto rounded-panel border border-line bg-surface px-8 py-6 text-ink focus:outline-none",
             className,
           )}
           {...props}

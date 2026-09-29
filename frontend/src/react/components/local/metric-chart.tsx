@@ -51,12 +51,18 @@ function formatScaledBytes(v: number, divisor: number) {
   return (v / divisor).toFixed(divisor >= 1024 ** 2 ? 1 : 0);
 }
 
+/* ECharts 画在 canvas 上读不到 CSS 变量，只能经 readThemeColor 取值；
+   兜底值与 globals.css 亮色 token 同值，仅在 document 不可用时生效 */
 function chartChrome() {
-  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#e8e8e8");
-  const ink = readThemeColor("--color-ink", "rgba(0, 0, 0, 0.9)");
-  return { muted, line, ink };
+  const muted = readThemeColor("--color-muted", "#5c6b80");
+  const line = readThemeColor("--color-line", "#dce3ee");
+  const ink = readThemeColor("--color-ink", "#1b2433");
+  const surface = readThemeColor("--color-surface", "#ffffff");
+  return { muted, line, ink, surface };
 }
+
+/* 桌面端最小字号 12px（DESIGN.md §3.2），坐标轴 / 图例文字统一用它 */
+const CHART_FONT_SIZE = 12;
 
 /** 本机概览折线：CPU % / 内存 bytes / 磁盘 IO KB/s */
 export function buildLocalLineOption(opts: {
@@ -77,7 +83,7 @@ export function buildLocalLineOption(opts: {
       type: "value",
       max: opts.yMax,
       axisLabel: {
-        fontSize: 10,
+        fontSize: CHART_FONT_SIZE,
         color: chrome.muted,
         formatter:
           opts.unit === "bytes" && bytesScale
@@ -94,7 +100,7 @@ export function buildLocalLineOption(opts: {
             : opts.unit === "percent"
               ? "%"
               : undefined,
-      nameTextStyle: { fontSize: 10, color: chrome.muted },
+      nameTextStyle: { fontSize: CHART_FONT_SIZE, color: chrome.muted },
       splitLine: { lineStyle: { color: chrome.line } },
     },
   ];
@@ -105,21 +111,24 @@ export function buildLocalLineOption(opts: {
     yAxes.push({
       type: "value",
       axisLabel: {
-        fontSize: 10,
+        fontSize: CHART_FONT_SIZE,
         color: chrome.muted,
         formatter: (v: number) => formatScaledBytes(v, rightScale.divisor),
       },
       name: rightScale.unit,
-      nameTextStyle: { fontSize: 10, color: chrome.muted },
+      nameTextStyle: { fontSize: CHART_FONT_SIZE, color: chrome.muted },
       splitLine: { show: false },
     });
   }
 
   return {
     color: seriesColorList(opts.series.map((s) => s.name)),
-    grid: { left: 52, right: dual ? 52 : 16, top: 28, bottom: 28 },
+    grid: { left: 8, right: 16, top: 28, bottom: 28, containLabel: true },
     tooltip: {
       trigger: "axis",
+      backgroundColor: chrome.surface,
+      borderColor: chrome.line,
+      textStyle: { color: chrome.ink, fontSize: CHART_FONT_SIZE },
       valueFormatter: (v) => {
         if (typeof v !== "number") return String(v ?? "");
         if (opts.unit === "bytes") return formatBytes(v);
@@ -131,12 +140,12 @@ export function buildLocalLineOption(opts: {
     legend: {
       top: 0,
       right: 0,
-      textStyle: { fontSize: 11, color: chrome.ink },
+      textStyle: { fontSize: CHART_FONT_SIZE, color: chrome.ink },
     },
     xAxis: {
       type: "category",
       data: opts.xData,
-      axisLabel: { fontSize: 10, color: chrome.muted },
+      axisLabel: { fontSize: CHART_FONT_SIZE, color: chrome.muted },
       axisLine: { lineStyle: { color: chrome.line } },
     },
     yAxis: yAxes,
@@ -158,7 +167,7 @@ export function buildLocalLineOption(opts: {
               data: [{ yAxis: opts.markLine.value, name: opts.markLine.name }],
               label: {
                 formatter: opts.markLine.name,
-                fontSize: 10,
+                fontSize: CHART_FONT_SIZE,
                 color: chrome.muted,
               },
             }

@@ -14,6 +14,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as monitor$0 from "./internal/monitor/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as sysfonts$0 from "./internal/sysfonts/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -77,6 +80,13 @@ export function ListBoardURLs(groupName: string): $CancellablePromise<string[] |
  */
 export function ListMenuChecks(): $CancellablePromise<$models.MenuCheckResult[] | null> {
     return $Call.ByID(1424624473);
+}
+
+/**
+ * ListSystemFonts 本机已安装的字体家族（设置页「自定义字体」列表用）；进程内只读一次。
+ */
+export function ListSystemFonts(): $CancellablePromise<sysfonts$0.SystemFont[] | null> {
+    return $Call.ByID(3424802380);
 }
 
 /**

@@ -3,10 +3,14 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { api, type localsys } from "@/api";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
+import { Meter } from "@/react/components/ui/meter";
+import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatBytesSI, formatErr } from "@/utils/format";
-import { internalDiskBarColor } from "./disk-utils";
 import "./local.css";
+
+/* 表头统一：36px、12px 次文字、无底色 + 下方 1px line（DESIGN.md §4.4） */
+const THEAD_ROW_CLASS = "h-table-head border-b border-line text-xs font-normal text-muted";
 
 type TabId = "apps" | "tree" | "large";
 
@@ -143,12 +147,13 @@ export function LocalStoragePage() {
         <>
           <Button
             variant="primary"
+            size="sm"
             disabled={status?.state === "running"}
             onClick={() => void startScan()}
           >
             {scanButtonLabel}
           </Button>
-          <Button onClick={() => void api.localSysStorageOpenPrivacy()}>
+          <Button size="sm" onClick={() => void api.localSysStorageOpenPrivacy()}>
             打开完全磁盘访问
           </Button>
         </>
@@ -158,9 +163,9 @@ export function LocalStoragePage() {
       {statusQuery.error ? <Notice text={formatErr(statusQuery.error)} /> : null}
       {status?.error ? <Notice text={status.error} /> : null}
 
-      <div className="flex flex-col gap-4">
-        <Card>
-          <div className="text-lg font-medium font-mono">
+      <div className="gap-section flex flex-col">
+        <Card className="p-0">
+          <div className="text-xl font-semibold font-mono">
             {formatBytesSI(status?.containerUsed || 0)} /{" "}
             {formatBytesSI(status?.containerTotal || 0)}
           </div>
@@ -218,7 +223,7 @@ export function LocalStoragePage() {
         </Card>
 
         {idleNoRecord ? (
-          <Card>
+          <Card className="p-0">
             <Button variant="primary" onClick={() => void startScan()}>
               开始扫描
             </Button>
@@ -243,7 +248,7 @@ export function LocalStoragePage() {
               ))}
               {(tab === "apps" || tab === "large") && (
                 <input
-                  className="ml-auto h-8 w-56 rounded-control border border-line px-3"
+                  className="motion-field ml-auto h-8 w-56 rounded-control px-3 text-sm text-ink"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
                   placeholder="搜索名称 / 路径…"
@@ -255,7 +260,7 @@ export function LocalStoragePage() {
               <Card className="overflow-hidden p-0">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="h-10 bg-raised">
+                    <tr className={THEAD_ROW_CLASS}>
                       <th className="w-10 px-2" />
                       <th className="w-12 px-2 text-center">序</th>
                       <th className="px-3">应用</th>
@@ -268,7 +273,7 @@ export function LocalStoragePage() {
                   </thead>
                   <tbody>
                     {filteredApps.length === 0 ? (
-                      <tr className="h-12 border-t border-line">
+                      <tr className="h-table-row border-t border-line">
                         <td className="px-3 text-muted" colSpan={8}>
                           暂无应用占用数据
                         </td>
@@ -279,11 +284,11 @@ export function LocalStoragePage() {
                         const parts = app.parts || [];
                         return (
                           <Fragment key={app.path}>
-                            <tr className="h-12 border-t border-line">
+                            <tr className="h-table-row border-t border-line">
                               <td className="px-2 text-center">
                                 <button
                                   type="button"
-                                  className="h-5 w-5 rounded border border-line text-xs"
+                                  className="h-5 w-5 rounded-control bg-raised text-xs hover:bg-line"
                                   onClick={() => toggleApp(app.path)}
                                 >
                                   {open ? "−" : "+"}
@@ -394,7 +399,7 @@ export function LocalStoragePage() {
                 ) : null}
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="h-10 bg-raised">
+                    <tr className={THEAD_ROW_CLASS}>
                       <th className="w-12 px-2 text-center">序</th>
                       <th className="px-3">名称</th>
                       <th className="px-3 text-right">大小</th>
@@ -404,7 +409,7 @@ export function LocalStoragePage() {
                   </thead>
                   <tbody>
                     {treeChildren.length === 0 ? (
-                      <tr className="h-12 border-t border-line">
+                      <tr className="h-table-row border-t border-line">
                         <td className="px-3 text-muted" colSpan={5}>
                           {treeQuery.isLoading ? "加载中…" : "无目录数据"}
                         </td>
@@ -415,7 +420,7 @@ export function LocalStoragePage() {
                         return (
                           <tr
                             key={row.path}
-                            className="h-12 cursor-pointer border-t border-line hover:bg-raised"
+                            className="h-table-row cursor-pointer border-t border-line hover:bg-raised"
                             onClick={() => {
                               if (row.isDir) setTreePath(row.path);
                             }}
@@ -426,28 +431,20 @@ export function LocalStoragePage() {
                             <td className="px-3">
                               {row.name}
                               {row.isDir ? (
-                                <span className="ml-1 text-xs text-muted">
-                                  文件夹
-                                </span>
+                                <Tag className="ml-1">文件夹</Tag>
                               ) : null}
                             </td>
                             <td className="px-3 text-right font-mono">
                               {formatBytesSI(row.size || 0)}
                             </td>
                             <td className="px-3">
-                              <div className="flex items-center gap-2">
-                                <div className="local-disk-bar flex-1">
-                                  <i
-                                    style={{
-                                      width: `${pct}%`,
-                                      background: internalDiskBarColor(),
-                                    }}
-                                  />
-                                </div>
-                                <span className="w-10 text-right text-xs text-muted">
-                                  {pct}%
-                                </span>
-                              </div>
+                              {/* 目录占父目录的比例，不是资源水位：固定 ok 档，不按阈值变色 */}
+                              <Meter
+                                value={pct}
+                                valueText={`${pct}%`}
+                                tone="ok"
+                                className="w-full"
+                              />
                             </td>
                             <td className="px-2 text-center">
                               <button
@@ -474,7 +471,7 @@ export function LocalStoragePage() {
               <Card className="overflow-hidden p-0">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="h-10 bg-raised">
+                    <tr className={THEAD_ROW_CLASS}>
                       <th className="w-12 px-2 text-center">序</th>
                       <th className="px-3">路径</th>
                       <th className="px-3 text-right">大小</th>
@@ -484,14 +481,14 @@ export function LocalStoragePage() {
                   </thead>
                   <tbody>
                     {filteredLarge.length === 0 ? (
-                      <tr className="h-12 border-t border-line">
+                      <tr className="h-table-row border-t border-line">
                         <td className="px-3 text-muted" colSpan={5}>
                           暂无大文件
                         </td>
                       </tr>
                     ) : (
                       filteredLarge.map((file, idx) => (
-                        <tr key={file.path} className="h-12 border-t border-line">
+                        <tr key={file.path} className="h-table-row border-t border-line">
                           <td className="px-2 text-center font-mono text-muted">
                             {idx + 1}
                           </td>

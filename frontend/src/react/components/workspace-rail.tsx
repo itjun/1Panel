@@ -14,15 +14,15 @@ import {
 } from "react";
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
+import { alertDialog } from "@/react/components/ui/confirm-dialog";
+import { Tag } from "@/react/components/ui/tag";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { cn } from "@/react/lib/utils";
 import {
-  HOST_TOOLS,
   useSession,
   type ConfigSection,
   type NotifySection,
   type SettingsSection,
-  type Tool,
   type Workspace,
 } from "@/react/state/session";
 import { useSidebar } from "@/react/state/sidebar";
@@ -59,17 +59,10 @@ const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "shortcuts", label: "快捷键" },
 ];
 
-const BATCH_OPEN_TOOLS: { id: Tool; label: string }[] = [
-  { id: "overview", label: "概览" },
-  { id: "files", label: "文件" },
-  { id: "monitor", label: "监控" },
-];
-
 type RailEntry =
   | { kind: "host"; key: string; name: string }
   | { kind: "group"; key: string };
 
-type HostBatchMenu = { ids: string[]; x: number; y: number };
 type GroupMenu = { id: string; x: number; y: number };
 
 function loadStringList(key: string): string[] {
@@ -109,7 +102,6 @@ export function WorkspaceRail() {
   const suppressHostClickRef = useRef(false);
 
   const [hostMenu, setHostMenu] = useState<HostContextMenuState | null>(null);
-  const [hostBatchMenu, setHostBatchMenu] = useState<HostBatchMenu | null>(null);
   const [groupMenu, setGroupMenu] = useState<GroupMenu | null>(null);
 
   const [railDragKey, setRailDragKey] = useState("");
@@ -251,6 +243,22 @@ export function WorkspaceRail() {
     // 主机顺序同步进 session（分组顺序只存在本组件）
     const hostNames = keys.filter((k) => session.openedHosts.some((h) => h.name === k));
     if (hostNames.length > 0) session.reorderOpenedHosts(hostNames);
+  }
+
+  /** 右键主机行：只弹主机操作菜单，不切换主机、不改多选。行在多选里就作用于整个多选。 */
+  function openHostMenu(name: string, x: number, y: number) {
+    let hosts = [name];
+    if (selectedHostNames.length >= 2 && selectedHostNames.includes(name)) {
+      hosts = session.openedHosts
+        .map((h) => h.name)
+        .filter((n) => selectedHostNames.includes(n));
+    }
+    setHostMenu({ host: name, hosts, x, y });
+  }
+
+  function clearHostSelection() {
+    setSelectedHostNames([]);
+    hostAnchorRef.current = "";
   }
 
   const listKind = session.settingsOpen
@@ -454,23 +462,7 @@ export function WorkspaceRail() {
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    let ids = selectedHostNames;
-                    if (!ids.includes(entry.name)) {
-                      ids = [entry.name];
-                      setSelectedHostNames(ids);
-                    }
-                    session.openHost(entry.name);
-                    if (ids.length < 2) {
-                      setHostMenu({
-                        host: entry.name,
-                        hosts: [entry.name],
-                        x: e.clientX,
-                        y: e.clientY,
-                      });
-                      return;
-                    }
-                    const pos = clampContextMenuPos(e.clientX, e.clientY, 210, 340);
-                    setHostBatchMenu({ ids, x: pos.x, y: pos.y });
+                    openHostMenu(entry.name, e.clientX, e.clientY);
                   }}
                   onDragStart={(e) => {
                     suppressHostClickRef.current = true;
@@ -506,19 +498,6 @@ export function WorkspaceRail() {
               );
             })}
           </>
-        ) : null}
-
-        {listKind === "hosts" && session.activeHost ? (
-          <div className="mt-1 flex shrink-0 flex-col gap-1 border-t border-line pt-2">
-            {HOST_TOOLS.map((item) => (
-              <RailNavButton
-                key={item.id}
-                label={item.label}
-                active={session.activeTool === item.id}
-                onClick={() => session.setTool(item.id)}
-              />
-            ))}
-          </div>
         ) : null}
       </div>
 
@@ -564,71 +543,24 @@ export function WorkspaceRail() {
       <HostContextMenu
         menu={hostMenu}
         pinned={session.pinned}
-        showDelete={false}
         onClose={() => setHostMenu(null)}
-        onOpen={(hosts) => {
-          for (const name of hosts) session.openHost(name, "overview");
-        }}
         onOpenInTerminal={(hosts) => {
-          setSelectedHostNames([]);
-          hostAnchorRef.current = "";
+          clearHostSelection();
           void api.openHostsInTerminal(hosts).catch((err) => {
-            window.alert(`终端打开失败: ${err instanceof Error ? err.message : String(err)}`);
+            void alertDialog({
+              theme: "danger",
+              title: "终端打开失败",
+              body: err instanceof Error ? err.message : String(err),
+            });
           });
         }}
         onTogglePin={(host) => session.togglePin(host)}
         onEdit={(name) => session.setEditingHost(name)}
-        onDisconnect={(name) => session.closeHost(name)}
+        onDisconnect={(hosts) => {
+          for (const name of hosts) session.closeHost(name);
+          clearHostSelection();
+        }}
       />
-
-      {hostBatchMenu ? (
-        <CtxMenu
-          x={hostBatchMenu.x}
-          y={hostBatchMenu.y}
-          onClose={() => setHostBatchMenu(null)}
-        >
-          <div className="px-3 py-1.5 text-xs text-muted">
-            已选 {hostBatchMenu.ids.length} 台主机
-          </div>
-          {BATCH_OPEN_TOOLS.map((tab) => (
-            <CtxItem
-              key={tab.id}
-              label={`打开${tab.label}`}
-              onClick={() => {
-                const names = hostBatchMenu.ids;
-                setHostBatchMenu(null);
-                for (const name of names) session.openHost(name, tab.id);
-                setSelectedHostNames([]);
-                hostAnchorRef.current = "";
-              }}
-            />
-          ))}
-          <CtxItem
-            label="终端打开"
-            onClick={() => {
-              const names = hostBatchMenu.ids.slice();
-              setHostBatchMenu(null);
-              setSelectedHostNames([]);
-              hostAnchorRef.current = "";
-              void api.openHostsInTerminal(names).catch((err) => {
-                window.alert(`终端打开失败: ${err instanceof Error ? err.message : String(err)}`);
-              });
-            }}
-          />
-          <CtxDivider />
-          <CtxItem
-            label="断开连接"
-            danger
-            onClick={() => {
-              const names = hostBatchMenu.ids;
-              setHostBatchMenu(null);
-              for (const name of names) session.closeHost(name);
-              setSelectedHostNames([]);
-              hostAnchorRef.current = "";
-            }}
-          />
-        </CtxMenu>
-      ) : null}
 
       {groupMenu ? (
         <CtxMenu x={groupMenu.x} y={groupMenu.y} onClose={() => setGroupMenu(null)}>
@@ -714,19 +646,19 @@ function UtilityNav({
           "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
           activeLabel
             ? "rail-item-active"
-            : "text-muted hover:bg-raised hover:text-ink",
+            : "text-muted hover:bg-line hover:text-ink",
         )}
-        title="切换模块"
+        data-tip="切换模块"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={onToggle}
       >
-        <span className="mr-1.5 w-3 shrink-0 text-center text-[10px]">{open ? "▾" : "▸"}</span>
+        <span className="mr-1.5 w-3 shrink-0 text-center text-xs">{open ? "▾" : "▸"}</span>
         <span className="truncate">{activeLabel || "更多"}</span>
         {badge ? (
-          <span className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
+          <Tag tone="accent" className="ml-auto font-mono tabular-nums">
             {badge}
-          </span>
+          </Tag>
         ) : null}
         {!badge && configNeedsAttention ? (
           <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
@@ -744,7 +676,7 @@ function UtilityNav({
           />
           <div
             role="menu"
-            className="absolute bottom-0 left-full z-50 ml-1.5 w-[200px] rounded-surface border border-line bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+            className="absolute bottom-0 left-full z-50 ml-1.5 w-[200px] rounded-panel border border-line bg-surface py-1.5"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex flex-col gap-0.5">
@@ -787,16 +719,16 @@ function RailNavButton({
       type="button"
       className={cn(
         "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
-        active ? "rail-item-active" : "text-muted hover:bg-raised hover:text-ink",
+        active ? "rail-item-active" : "text-muted hover:bg-line hover:text-ink",
       )}
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
       <span className="truncate">{label}</span>
       {badge ? (
-        <span className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
+        <Tag tone="accent" className="ml-auto font-mono tabular-nums">
           {badge}
-        </span>
+        </Tag>
       ) : null}
       {statusDot ? (
         <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
@@ -832,15 +764,22 @@ function RailSessionRow({
   onDrop: (event: DragEvent<HTMLButtonElement>) => void;
   onDragEnd: () => void;
 }) {
+  // 侧栏是 canvas 底，raised 对比不够，hover / 多选浅底统一用 line
+  let stateClass = "text-muted hover:bg-line hover:text-ink";
+  if (active) {
+    stateClass = "rail-item-active";
+  } else if (selected) {
+    // 多选中的其他主机：浅底区分，不与当前主机的选中样式混淆
+    stateClass = "bg-line text-ink";
+  }
+
   return (
     <button
       type="button"
       draggable
       className={cn(
-        "rail-item relative flex h-10 shrink-0 cursor-grab items-center gap-1.5 truncate px-3 text-left active:cursor-grabbing",
-        active || selected
-          ? "rail-item-active"
-          : "text-muted hover:bg-raised hover:text-ink",
+        "rail-item relative flex h-10 shrink-0 cursor-grab select-none items-center gap-1.5 truncate px-3 text-left active:cursor-grabbing",
+        stateClass,
         dragging && "opacity-40",
       )}
       onPointerDown={onPointerDown}
@@ -853,7 +792,7 @@ function RailSessionRow({
       {dropEdge === "before" ? (
         <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-accent" />
       ) : null}
-      {prefix ? <span className="shrink-0 text-[12px] opacity-70">{prefix}</span> : null}
+      {prefix ? <span className="shrink-0 text-xs opacity-70">{prefix}</span> : null}
       <span className="truncate">{label}</span>
       {dropEdge === "after" ? (
         <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-accent" />
@@ -894,7 +833,7 @@ function CtxMenu({
       />
       <div
         ref={ref}
-        className="motion-menu-panel fixed z-[61] min-w-[180px] rounded-surface border border-line bg-surface py-1 text-sm text-ink shadow-sm"
+        className="motion-menu-panel fixed z-[61] min-w-[180px] rounded-panel border border-line bg-surface py-1 text-sm text-ink"
         data-open="true"
         style={{ left: x, top: y }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -926,8 +865,4 @@ function CtxItem({
       {label}
     </button>
   );
-}
-
-function CtxDivider() {
-  return <div className="my-1 border-t border-line" />;
 }

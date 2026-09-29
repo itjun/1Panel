@@ -54,9 +54,8 @@ export function BoardSparkline({
   const line = points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
   const first = points[0];
   const area = `${first.x.toFixed(2)},${vbH} ${line} ${last.x.toFixed(2)},${vbH}`;
-  const color = alert
-    ? "var(--board-critical, #fb6e77)"
-    : "var(--board-accent, #2174ff)";
+  // 单线主指标走图表主线色，告警走错误色；具体色值由 board.css 的暗色 token 决定
+  const color = alert ? "var(--color-danger)" : "var(--color-chart-1)";
 
   return (
     <svg

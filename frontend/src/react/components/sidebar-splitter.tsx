@@ -60,7 +60,7 @@ export function SidebarSplitter() {
       aria-valuemin={sidebar.widthMin}
       aria-valuemax={sidebar.widthMax}
       aria-label="调整侧栏宽度"
-      title="拖动调整宽度 · 双击恢复默认"
+      data-tip="拖动调整宽度 · 双击恢复默认"
       className={`sidebar-splitter relative z-20 w-0 shrink-0 ${active ? "is-active" : ""}`}
       onPointerDown={onPointerDown}
       onDoubleClick={(event) => {
@@ -69,6 +69,7 @@ export function SidebarSplitter() {
       }}
     >
       <div className="sidebar-splitter-hit absolute inset-y-0 -left-1 w-2 cursor-col-resize" />
+      {/* hover / is-active 的竖线颜色由 globals.css 控制 */}
       <div className="sidebar-splitter-line pointer-events-none absolute inset-y-0 -left-px w-0.5" />
     </div>
   );

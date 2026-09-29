@@ -1,36 +1,53 @@
-/* 看板独立窗口皮肤；不作用于主窗口
-   TDesign Dark：页面 Gray14 / 容器 Gray13 / 次级 Gray12 / 描边 Gray11 / 边框 Gray9
-   文字白 90%/60%/40%；功能色深色色板第 6 档；内容优先，无装饰网格与强发光 */
+/* 看板独立窗口皮肤；不作用于主窗口（机柜面板规范 DESIGN.md §8.1 / §9）
+   看板深色专用面：投到大屏，亮色主题下也保持深色，所以在根元素上本地覆写一组
+   --color-* 为 §2.2 暗色值（与 globals.css html.dark 同值），内部一律只引用变量。
+   内容优先，品牌蓝与状态色负责活力，无装饰网格与发光。 */
+
+html.board-http,
+.board-mode {
+  /* 看板深色专用面，值同 DESIGN.md §2.2 */
+  --color-canvas: #12161f;
+  --color-surface: #1a1f2b;
+  --color-raised: #232a38;
+  --color-line: #2c3445;
+  --color-line-strong: #5a6478;
+  --color-ink: #e6ebf3;
+  --color-muted: #94a1b5;
+  --color-accent: #4c8dff;
+  --color-accent-hover: #6fa3ff;
+  --color-accent-active: #3a78e8;
+  --color-accent-soft: #1a2c52;
+  --color-accent-focus: #22407a;
+  --color-success: #56c08d;
+  --color-success-text: #56c08d;
+  --color-danger: #f06c63;
+  --color-warn: #f29a4a;
+  --color-info: #4fb0ff;
+  --color-success-soft: #1a3a2b;
+  --color-danger-soft: #43201e;
+  --color-warn-soft: #40280f;
+  --color-info-soft: #15304a;
+  --color-chart-1: #4c8dff;
+  --color-io-read: #4fb0ff;
+  --color-io-write: #f29a4a;
+  --color-chart-2: #4fb0ff;
+  --color-chart-3: #f29a4a;
+  --meter-ok: #38bde0;
+  --meter-warn: #f29a4a;
+  --meter-danger: #f06c63;
+  --meter-off: #2c3445;
+}
 
 html.board-http,
 html.board-http body,
 html.board-http #app {
   height: 100%;
   margin: 0;
-  background: #181818 !important;
+  background: var(--color-canvas) !important;
   color-scheme: dark;
 }
 
 .board-mode {
-  --board-canvas: #181818;
-  --board-surface: #242424;
-  --board-raised: #2c2c2c;
-  --board-component: #393939;
-  --board-border: #5e5e5e;
-  --board-text: rgba(255, 255, 255, 0.9);
-  --board-muted: rgba(255, 255, 255, 0.6);
-  --board-placeholder: rgba(255, 255, 255, 0.4);
-  --board-disabled: rgba(255, 255, 255, 0.26);
-  --board-line: #393939;
-  --board-accent: #2174ff;
-  --board-healthy: #07a872;
-  --board-attention: #ed8139;
-  --board-critical: #fb6e77;
-  --board-critical-soft: #730524;
-  --board-healthy-soft: #034116;
-  --board-hairline: var(--board-line);
-  --board-hairline-strong: var(--board-border);
-
   position: fixed;
   inset: 0;
   display: flex;
@@ -39,9 +56,9 @@ html.board-http #app {
   padding: 16px 20px 20px;
   box-sizing: border-box;
   overflow: hidden;
-  background: var(--board-canvas);
-  color: var(--board-text);
-  font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -53,7 +70,7 @@ html.board-http #app {
   align-items: center;
   gap: 20px;
   min-height: 54px;
-  border-bottom: 1px solid var(--board-line);
+  border-bottom: 1px solid var(--color-line);
 }
 
 /* 独立看板窗口没有侧栏。外层已有 20px 内边距，再补到红绿灯右侧。 */
@@ -77,7 +94,7 @@ html.board-http #app {
   flex: 0 0 auto;
   width: 9px;
   height: 30px;
-  background: var(--board-accent);
+  background: var(--color-accent);
 }
 
 .board-mode__titles {
@@ -97,21 +114,21 @@ html.board-http #app {
 }
 
 .board-mode__group {
-  color: var(--board-text);
+  color: var(--color-ink);
   font-size: 21px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
 .board-mode__count,
 .board-mode__mode,
 .board-mode__last-update {
-  color: var(--board-muted);
-  font-size: 11px;
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 .board-mode__count {
-  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -128,16 +145,16 @@ html.board-http #app {
 
 .board-mode__board-title {
   display: block;
-  color: var(--board-text);
+  color: var(--color-ink);
   font-size: clamp(18px, 1.25vw, 26px);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.1em;
 }
 
 .board-mode__board-title--fallback {
-  color: var(--board-placeholder);
+  color: var(--color-muted);
   font-size: clamp(15px, 1vw, 20px);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .board-mode__right {
@@ -157,32 +174,31 @@ html.board-http #app {
   flex-shrink: 0;
   min-height: 28px;
   padding: 0 9px;
-  border: 1px solid var(--board-border);
+  border: 0;
   border-radius: var(--radius-control, 4px);
-  background: var(--board-raised);
-  color: var(--board-muted);
-  font: 500 12px/1 "SF Pro Display", "PingFang SC", sans-serif;
+  background: var(--color-raised);
+  color: var(--color-muted);
+  font: 600 12px/1 var(--font-sans);
   cursor: pointer;
 }
 
 .board-mode__fs-btn:hover {
-  border-color: var(--board-accent);
-  color: var(--board-text);
-  background: var(--board-component);
+  color: var(--color-ink);
+  background: var(--color-line);
 }
 
 .board-mode__fs-btn:focus-visible {
-  outline: 2px solid var(--board-accent);
+  outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }
 
 .board-mode__clock {
   flex-shrink: 0;
-  color: var(--board-muted);
+  color: var(--color-muted);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
-  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 
 .board-mode__grid {
@@ -199,7 +215,7 @@ html.board-http #app {
   align-content: stretch;
   overflow: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--board-component) transparent;
+  scrollbar-color: var(--color-line) transparent;
 }
 
 .board-mode__empty {
@@ -210,16 +226,16 @@ html.board-http #app {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--board-muted);
+  color: var(--color-muted);
 }
 
 .board-mode__empty-mark {
-  color: var(--board-accent);
-  font: 700 28px/1 "SF Mono", ui-monospace, monospace;
+  color: var(--color-accent);
+  font: 600 28px/1 var(--font-mono);
 }
 
 .board-mode__empty strong {
-  color: var(--board-text);
+  color: var(--color-ink);
   font-size: 18px;
 }
 
@@ -227,7 +243,7 @@ html.board-http #app {
   font-size: 12px;
 }
 
-/* —— 摘要条：容器 Gray13 + 描边 Gray11 —— */
+/* —— 摘要条：深色页底上的 surface 纯色块，无描边 —— */
 
 .board-summary {
   flex-shrink: 0;
@@ -235,9 +251,8 @@ html.board-http #app {
   align-items: stretch;
   min-width: 0;
   min-height: 78px;
-  border: 1px solid var(--board-line);
   border-radius: var(--radius-control, 4px);
-  background: var(--board-surface);
+  background: var(--color-surface);
 }
 
 .board-summary__lead {
@@ -246,14 +261,14 @@ html.board-http #app {
   align-items: center;
   gap: 10px;
   padding: 0 18px;
-  border-right: 1px solid var(--board-line);
+  border-right: 1px solid var(--color-line);
 }
 
 .board-summary__live-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--board-healthy);
+  background: var(--color-success);
 }
 
 .board-summary__eyebrow,
@@ -266,16 +281,16 @@ html.board-http #app {
 }
 
 .board-summary__eyebrow {
-  color: var(--board-placeholder);
-  font-size: 11px;
+  color: var(--color-muted);
+  font-size: 12px;
   letter-spacing: 0.12em;
 }
 
 .board-summary__live {
   display: block;
   margin-top: 3px;
-  color: var(--board-text);
-  font: 700 18px/1 "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  color: var(--color-ink);
+  font: 600 18px/1 var(--font-mono);
   letter-spacing: 0.08em;
 }
 
@@ -294,7 +309,7 @@ html.board-http #app {
   align-content: center;
   column-gap: 10px;
   padding: 0 16px;
-  border-right: 1px solid var(--board-line);
+  border-right: 1px solid var(--color-line);
 }
 
 .board-summary__item:last-child {
@@ -304,15 +319,15 @@ html.board-http #app {
 .board-summary__label {
   grid-column: 1 / -1;
   margin-bottom: 4px;
-  color: var(--board-placeholder);
-  font-size: 11px;
+  color: var(--color-muted);
+  font-size: 12px;
   letter-spacing: 0.08em;
 }
 
 .board-summary__value {
   min-width: 0;
-  color: var(--board-text);
-  font: 700 24px/1 "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  color: var(--color-ink);
+  font: 600 24px/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -320,38 +335,38 @@ html.board-http #app {
   align-self: end;
   min-width: 0;
   padding-bottom: 2px;
-  color: var(--board-muted);
-  font-size: 11px;
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 .board-summary__item.is-healthy .board-summary__value {
-  color: var(--board-healthy);
+  color: var(--color-success);
 }
 
 .board-summary__item.is-attention .board-summary__value {
-  color: var(--board-attention);
+  color: var(--color-warn);
 }
 
 .board-summary__item.is-critical .board-summary__value {
-  color: var(--board-critical);
+  color: var(--color-danger);
 }
 
 .board-summary__item.is-unknown .board-summary__value {
-  color: var(--board-muted);
+  color: var(--color-muted);
 }
 
-/* 交互色（品牌 Blue6）与语义色分离：曲线/进度条/hover 用 accent；
-   仅「正常 / LIVE / 应用 OK」等状态文案与色点用 healthy */
+/* 交互色与语义色分离：曲线 / hover / 焦点用 accent；
+   仅「正常 / LIVE / 应用 OK」等状态文案与色点用 success。
+   字号按 DESIGN.md §3.2 最小 12px；密度档只放大展示数字。 */
 
 .host-board-card {
   --card-pad: 13px 15px 11px;
   --card-gap: 10px;
   --value-size: 23px;
-  --label-size: 11px;
-  --sub-size: 10px;
-  --app-size: 11px;
-  --bar-h: 7px;
-  --health-color: var(--board-healthy);
+  --label-size: 12px;
+  --sub-size: 12px;
+  --app-size: 12px;
+  --health-color: var(--color-success);
 
   container-type: inline-size;
   box-sizing: border-box;
@@ -363,86 +378,75 @@ html.board-http #app {
   gap: var(--card-gap);
   padding: var(--card-pad);
   overflow: hidden;
-  border: 1px solid var(--board-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-control, 4px);
-  background: var(--board-surface);
-  color: var(--board-text);
+  background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
   outline: none;
   user-select: none;
-  transition: border-color var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1)),
-    background-color var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1));
+  transition:
+    background-color var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1)),
+    border-color var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1));
 }
 
 .host-board-card:hover,
 .host-board-card:focus-visible {
-  background: var(--board-raised);
-  border-color: var(--board-accent);
+  background: var(--color-raised);
+}
+
+/* 悬停 / 聚焦显示 1px 边框标识卡片范围（DESIGN.md §8.2） */
+.host-board-card:hover,
+.host-board-card:focus-within {
+  border-color: var(--color-line-strong);
 }
 
 .host-board-card:focus-visible {
-  outline: 2px solid var(--board-accent);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 .host-board-card.health-attention {
-  --health-color: var(--board-attention);
+  --health-color: var(--color-warn);
 }
 
+/* 告警卡片：danger-soft 纯色块表达，不描边、不发光；hover 不洗掉告警底色 */
 .host-board-card.health-critical {
-  --health-color: var(--board-critical);
-  background: var(--board-critical-soft);
-  border-color: var(--board-critical);
+  --health-color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
 
 .host-board-card.health-critical:hover,
 .host-board-card.health-critical:focus-visible {
-  background: color-mix(in srgb, var(--board-critical-soft) 80%, var(--board-raised));
-  border-color: var(--board-accent);
+  background: var(--color-danger-soft);
 }
 
 .host-board-card.health-unknown {
-  --health-color: var(--board-muted);
+  --health-color: var(--color-muted);
 }
 
 .host-board-card.density-lg {
   --card-pad: 17px 19px 14px;
   --card-gap: 13px;
   --value-size: 31px;
-  --label-size: 12px;
-  --sub-size: 11px;
-  --app-size: 12px;
-  --bar-h: 8px;
 }
 
 .host-board-card.density-sm {
   --card-pad: 10px 12px 9px;
   --card-gap: 8px;
   --value-size: 19px;
-  --label-size: 10px;
-  --sub-size: 9px;
-  --app-size: 10px;
-  --bar-h: 6px;
 }
 
 .host-board-card.density-xs {
   --card-pad: 8px 10px 7px;
   --card-gap: 6px;
   --value-size: 17px;
-  --label-size: 9px;
-  --sub-size: 8px;
-  --app-size: 9px;
-  --bar-h: 5px;
 }
 
 .host-board-card.density-xxs {
   --card-pad: 7px 8px 6px;
   --card-gap: 5px;
   --value-size: 15px;
-  --label-size: 8px;
-  --sub-size: 8px;
-  --app-size: 8px;
-  --bar-h: 5px;
 }
 
 .host-board-card__head {
@@ -453,7 +457,7 @@ html.board-http #app {
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--board-line);
+  border-bottom: 1px solid var(--color-line);
 }
 
 .host-board-card__identity {
@@ -488,9 +492,9 @@ html.board-http #app {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--board-text);
+  color: var(--color-ink);
   font-size: clamp(14px, 1.2cqw, 22px);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -503,7 +507,7 @@ html.board-http #app {
 
 .host-board-card__addr,
 .host-board-card__updated {
-  color: var(--board-placeholder);
+  color: var(--color-muted);
   font-size: var(--sub-size);
   font-variant-numeric: tabular-nums;
 }
@@ -514,7 +518,7 @@ html.board-http #app {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 
 .host-board-card__updated {
@@ -531,7 +535,7 @@ html.board-http #app {
   justify-content: center;
   gap: 7px;
   text-align: center;
-  color: var(--board-muted);
+  color: var(--color-muted);
   font-size: var(--sub-size);
 }
 
@@ -542,7 +546,7 @@ html.board-http #app {
 
 .host-board-card__state--error span {
   max-width: 90%;
-  color: var(--board-critical);
+  color: var(--color-danger);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -563,9 +567,8 @@ html.board-http #app {
   display: flex;
   flex-direction: column;
   padding: 9px 10px 8px;
-  border: 1px solid var(--board-line);
   border-radius: var(--radius-control, 4px);
-  background: var(--board-raised);
+  background: var(--color-raised);
 }
 
 .metric-tile__top {
@@ -577,13 +580,13 @@ html.board-http #app {
 }
 
 .metric-tile__label {
-  color: var(--board-placeholder);
+  color: var(--color-muted);
   font-size: var(--label-size);
   letter-spacing: 0.1em;
 }
 
 .metric-tile__label.is-alert {
-  color: var(--board-critical);
+  color: var(--color-danger);
 }
 
 .metric-tile__value {
@@ -591,13 +594,13 @@ html.board-http #app {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--board-text);
-  font: 700 var(--value-size) / 1 "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  color: var(--color-ink);
+  font: 600 var(--value-size) / 1 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .metric-tile__value.is-alert {
-  color: var(--board-critical);
+  color: var(--color-danger);
 }
 
 .metric-tile__sub {
@@ -606,7 +609,7 @@ html.board-http #app {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--board-placeholder);
+  color: var(--color-muted);
   font-size: var(--sub-size);
   font-variant-numeric: tabular-nums;
 }
@@ -617,26 +620,13 @@ html.board-http #app {
   margin-top: 10px;
 }
 
-.metric-tile__bar {
+/* 负载 / 磁盘占比：共享 LED 分段条 Meter（DESIGN.md §4.7），贴格底部撑满 */
+.metric-tile .metric-tile__meter {
+  display: flex;
   width: 100%;
   min-width: 0;
   margin-top: auto;
   padding-top: 10px;
-  height: var(--bar-h);
-  border-radius: var(--radius-control, 4px);
-  background: var(--board-component);
-  overflow: hidden;
-}
-
-.metric-tile__bar-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--board-accent);
-  transition: width var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1));
-}
-
-.metric-tile__bar.is-alert .metric-tile__bar-fill {
-  background: var(--board-critical);
 }
 
 .host-board-card__apps {
@@ -646,13 +636,13 @@ html.board-http #app {
   align-items: flex-start;
   gap: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--board-line);
+  border-top: 1px solid var(--color-line);
 }
 
 .host-board-card__apps-label {
   flex: 0 0 auto;
   padding-top: 2px;
-  color: var(--board-placeholder);
+  color: var(--color-muted);
   font-size: var(--app-size);
   letter-spacing: 0.08em;
 }
@@ -672,25 +662,25 @@ html.board-http #app {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  color: var(--board-muted);
-  font: 600 var(--app-size) / 1.25 "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  color: var(--color-muted);
+  font: 600 var(--app-size) / 1.25 var(--font-mono);
   white-space: nowrap;
 }
 
 .app-sub-pill b {
-  color: var(--board-healthy);
-  font-weight: 700;
+  color: var(--color-success);
+  font-weight: 600;
 }
 
 .app-sub-pill.is-critical,
 .app-sub-pill.is-critical b {
-  color: var(--board-critical);
+  color: var(--color-danger);
 }
 
 .app-sub-pill.is-unknown,
 .app-sub-pill.is-unknown b,
 .app-sub-empty {
-  color: var(--board-muted);
+  color: var(--color-muted);
 }
 
 .board-sparkline {
@@ -752,7 +742,7 @@ html.board-http #app {
   .board-summary__lead {
     height: 48px;
     border-right: 0;
-    border-bottom: 1px solid var(--board-line);
+    border-bottom: 1px solid var(--color-line);
   }
 
   .board-summary__items {
@@ -776,13 +766,12 @@ html.board-http #app {
   }
 
   .board-mode__clock {
-    font-size: 11px;
+    font-size: 12px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .host-board-card,
-  .metric-tile__bar-fill {
+  .host-board-card {
     transition: none;
   }
 }

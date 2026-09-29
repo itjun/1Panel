@@ -22,6 +22,9 @@ import {
 
 const features = tableFeatures({});
 
+/* 表格行高 40 / 表头 36：与 globals.css 同源（--spacing-table-row / --spacing-table-head），
+   只通过 h-table-row / h-table-head 使用，不要在这里写死像素。 */
+
 export function createAppColumnHelper<T extends Record<string, unknown>>() {
   return createColumnHelper<typeof features, T>();
 }
@@ -41,11 +44,12 @@ export function DataTable<T extends Record<string, unknown>>({
   return (
     <div className="surface-float overflow-hidden">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="bg-raised text-ink">
+        {/* 表头无底色，只留下方 1px line（DESIGN.md §4.4） */}
+        <thead className="text-xs font-normal text-muted">
           {table.getHeaderGroups().map((group) => (
-            <tr key={group.id} className="h-10">
+            <tr key={group.id} className="h-table-head border-b border-line">
               {group.headers.map((header) => (
-                <th key={header.id} className="px-3 font-medium">
+                <th key={header.id} className="px-3 font-normal">
                   {header.isPlaceholder ? null : (
                     <table.FlexRender header={header} />
                   )}
@@ -56,7 +60,7 @@ export function DataTable<T extends Record<string, unknown>>({
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr className="h-12">
+            <tr className="h-table-row">
               <td
                 colSpan={table.getAllColumns().length || 1}
                 className="px-3 text-muted"
@@ -66,7 +70,7 @@ export function DataTable<T extends Record<string, unknown>>({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.id} className="h-12 border-t border-line/70">
+              <tr key={row.id} className="h-table-row border-b border-line hover:bg-raised">
                 {row.getAllCells().map((cell) => (
                   <td key={cell.id} className={cn("px-3 text-ink")}>
                     <table.FlexRender cell={cell} />
@@ -262,10 +266,12 @@ export function InteractiveDataTable<T>({
   }, [draggingKey, measureBoxes]);
 
   return (
-    <div className="surface-float mx-[var(--gap-card)] mb-[var(--gap-card)] min-h-48 flex-1 overflow-auto">
+    // 外边距由页面负责（内容区安全边距），这里只管表格本身
+    <div className="surface-float min-h-48 flex-1 overflow-auto">
       <table className="w-full border-collapse text-left text-sm" style={{ tableLayout: "fixed" }}>
-        <thead className="sticky top-0 z-[1] bg-raised text-ink">
-          <tr ref={headerRef} className="h-10">
+        {/* 吸顶表头用 surface 底遮住滚动内容；底线画在 th::after 上，collapse 模式下的边框吸顶时会滚走 */}
+        <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+          <tr ref={headerRef} className="h-table-head">
             {ordered.map((column) => {
               const width = columnWidths[column.key] ?? column.width;
               const sorted = sortKey === column.key ? sortOrder : null;
@@ -274,10 +280,11 @@ export function InteractiveDataTable<T>({
                   key={column.key}
                   data-col-key={column.key}
                   className={cn(
-                    "relative select-none px-3 font-medium",
+                    "relative select-none px-3 font-normal",
+                    "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-line",
                     column.align === "center" && "text-center",
                     column.align === "right" && "text-right",
-                    draggingKey === column.key && "shadow-[inset_0_-2px_0_0_var(--color-accent)]",
+                    draggingKey === column.key && "after:h-0.5 after:bg-accent",
                     column.sortable !== false && "cursor-pointer",
                   )}
                   style={{ width, minWidth: column.minWidth ?? 48 }}
@@ -296,7 +303,7 @@ export function InteractiveDataTable<T>({
         </thead>
         <tbody>
           {data.length === 0 ? (
-            <tr className="h-12">
+            <tr className="h-table-row">
               <td colSpan={ordered.length || 1} className="px-3 text-muted">
                 {empty}
               </td>
@@ -305,7 +312,7 @@ export function InteractiveDataTable<T>({
             data.map((row, index) => (
               <tr
                 key={getRowId?.(row, index) ?? String(index)}
-                className="h-12 border-t border-line/70 hover:bg-raised"
+                className="h-table-row border-b border-line hover:bg-raised"
                 onDoubleClick={() => onRowDoubleClick?.(row)}
               >
                 {ordered.map((column) => (

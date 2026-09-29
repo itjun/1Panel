@@ -15,6 +15,7 @@ import { RingMeter } from "@/react/components/local/ring-meter";
 import { MonitorGrid, type MonitorGridHandle } from "@/react/components/monitor-grid";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
+import { DateRangePicker } from "@/react/components/ui/date-range-picker";
 import {
   Dialog,
   DialogContent,
@@ -22,8 +23,12 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
-import { Meter, Notice, Page } from "@/react/components/page";
+import { FlashNotices, Notice, Page } from "@/react/components/page";
+import { Meter } from "@/react/components/ui/meter";
+import { Select } from "@/react/components/ui/select";
+import { Tag } from "@/react/components/ui/tag";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { AppsPage } from "@/react/pages/host-apps";
 import { NetworkPage } from "@/react/pages/host-network";
@@ -85,7 +90,7 @@ function ContextMenu({ menu, onClose }: { menu: CtxMenu | null; onClose: () => v
   if (!mounted || !active) return null;
   return (
     <div
-      className="motion-menu-panel fixed z-50 min-w-[160px] rounded-surface border border-line bg-surface py-1 text-sm shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+      className="motion-menu-panel fixed z-50 min-w-[160px] rounded-panel border border-line bg-surface py-1 text-sm"
       data-open={visible ? "true" : "false"}
       style={{ left: active.x, top: active.y }}
       onClick={(e) => e.stopPropagation()}
@@ -168,13 +173,13 @@ function SimpleRows({
 }) {
   const colCount = headers.length + 1;
   return (
-    <div className="min-h-48 flex-1 overflow-auto bg-surface">
+    <div className="surface-float min-h-48 flex-1 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-raised">
-          <tr className="h-10">
-            <th className="w-12 px-2 text-center font-medium">序</th>
+        <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+          <tr className="h-table-head border-b border-line">
+            <th className="w-12 px-2 text-center font-normal">序</th>
             {headers.map((header) => (
-              <th key={header.key} className="px-3 font-medium">
+              <th key={header.key} className="px-3 font-normal">
                 {header.label}
               </th>
             ))}
@@ -182,7 +187,7 @@ function SimpleRows({
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr className="h-12">
+            <tr className="h-table-row">
               <td className="px-3 text-muted" colSpan={colCount}>
                 暂无数据
               </td>
@@ -193,8 +198,8 @@ function SimpleRows({
                 key={row.id}
                 className={
                   row.id === selectedId
-                    ? "h-12 cursor-pointer border-t border-line/70 bg-accent-soft font-semibold text-accent"
-                    : "h-12 cursor-pointer border-t border-line/70 hover:bg-raised"
+                    ? "h-table-row cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
+                    : "h-table-row cursor-pointer border-t border-line hover:bg-raised"
                 }
                 onClick={(e) => onRowClick?.(row.id, e)}
                 onContextMenu={(e) => {
@@ -231,16 +236,21 @@ function DetailPanel({
   actions?: ReactNode;
 }) {
   return (
-    <Card className="mt-4 max-w-xl">
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="font-medium">{title}</h3>
-        <Button size="sm" variant="ghost" className="ml-auto" onClick={onClose}>
-          关闭
-        </Button>
-      </div>
-      <div className="space-y-2 text-sm">{children}</div>
-      {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
-    </Card>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent aria-describedby={undefined} className="w-[min(640px,calc(100vw-32px))]">
+        <DialogTitle>{title}</DialogTitle>
+        <div className="mt-4 space-y-2 text-sm">{children}</div>
+        <DialogFooter>
+          {actions}
+          <Button onClick={onClose}>关闭</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -248,7 +258,7 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex gap-4">
       <span className="w-24 shrink-0 text-muted">{label}</span>
-      <span className="min-w-0 break-all font-mono text-[13px]">{value ?? "—"}</span>
+      <span className="min-w-0 break-all font-mono text-sm">{value ?? "—"}</span>
     </div>
   );
 }
@@ -333,7 +343,7 @@ function OverviewPage({ host }: { host: string }) {
   const [checkBusy, setCheckBusy] = useState(false);
   const [installBusy, setInstallBusy] = useState(false);
   const [installConfirm, setInstallConfirm] = useState(false);
-  const [actionMsg, setActionMsg] = useState("");
+  const flash = useFlashMessage();
 
   const hostConfig: sshconfig.HostConfig | null =
     (hosts.data || []).find((item) => item.name === host) || null;
@@ -376,11 +386,11 @@ function OverviewPage({ host }: { host: string }) {
 
   async function runCheck() {
     setCheckBusy(true);
-    setActionMsg("");
+    flash.clear();
     try {
       setCheckReport(await api.checkAgent(host));
     } catch (e) {
-      setActionMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setCheckBusy(false);
     }
@@ -388,14 +398,14 @@ function OverviewPage({ host }: { host: string }) {
 
   async function runInstall() {
     setInstallBusy(true);
-    setActionMsg("");
+    flash.clear();
     try {
       await api.installAgent(host);
       setInstallConfirm(false);
       await agentStatus.refetch();
-      setActionMsg("Agent 安装/更新已完成");
+      flash.showToast("Agent 安装/更新已完成");
     } catch (e) {
-      setActionMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setInstallBusy(false);
     }
@@ -429,7 +439,7 @@ function OverviewPage({ host }: { host: string }) {
       }
     >
       {agentErr ? <Notice text={agentErr} /> : null}
-      {actionMsg ? <Notice text={actionMsg} tone="warn" /> : null}
+      <FlashNotices flash={flash} />
 
       <div className="flex min-h-0 flex-1 flex-col">
           <MonitorGrid
@@ -452,19 +462,19 @@ function OverviewPage({ host }: { host: string }) {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <div className="text-muted">账号</div>
-                        <div className="font-medium">{hostConfig?.user || "—"}</div>
+                        <div className="font-semibold">{hostConfig?.user || "—"}</div>
                       </div>
                       <div>
                         <div className="text-muted">地址</div>
-                        <div className="font-medium">{hostConfig?.hostName || data?.ipAddress || "—"}</div>
+                        <div className="font-semibold">{hostConfig?.hostName || data?.ipAddress || "—"}</div>
                       </div>
                       <div>
                         <div className="text-muted">端口</div>
-                        <div className="font-medium">{hostConfig?.port || "22"}</div>
+                        <div className="font-semibold">{hostConfig?.port || "22"}</div>
                       </div>
                       <div>
                         <div className="text-muted">Agent</div>
-                        <div className="font-medium">{agentSummary}</div>
+                        <div className="font-semibold">{agentSummary}</div>
                       </div>
                     </div>
                   </div>
@@ -654,15 +664,17 @@ function OverviewPage({ host }: { host: string }) {
                 title: "Swap",
                 span: 1,
                 children: (
-                  <Meter
-                    label=""
-                    value={data.swapPercent || 0}
-                    text={
-                      data.swapTotal > 0
-                        ? `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)}`
-                        : "无 Swap"
-                    }
-                  />
+                  <div className="flex h-full items-center">
+                    <Meter
+                      value={data.swapTotal > 0 ? data.swapPercent || 0 : undefined}
+                      valueText={
+                        data.swapTotal > 0
+                          ? `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)}`
+                          : "无 Swap"
+                      }
+                      className="w-full"
+                    />
+                  </div>
                 ),
               },
               {
@@ -674,43 +686,43 @@ function OverviewPage({ host }: { host: string }) {
                     <div className="flex flex-wrap gap-6">
                       <div>
                         <div className="text-muted">主机名</div>
-                        <div className="font-medium">{data.hostname || host}</div>
+                        <div className="font-semibold">{data.hostname || host}</div>
                       </div>
                       <div>
                         <div className="text-muted">IP</div>
-                        <div className="font-medium">{data.ipAddress || "—"}</div>
+                        <div className="font-semibold">{data.ipAddress || "—"}</div>
                       </div>
                       <div>
                         <div className="text-muted">系统</div>
-                        <div className="font-medium">{data.osRelease || "—"}</div>
+                        <div className="font-semibold">{data.osRelease || "—"}</div>
                       </div>
                       <div>
                         <div className="text-muted">内核</div>
-                        <div className="font-medium">{data.kernel || "—"}</div>
+                        <div className="font-semibold">{data.kernel || "—"}</div>
                       </div>
                       <div>
                         <div className="text-muted">运行时间</div>
-                        <div className="font-medium">{formatDurationLong(data.uptime)}</div>
+                        <div className="font-semibold">{formatDurationLong(data.uptime)}</div>
                       </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-control bg-raised px-3 py-2">
+                      <div>
                         <div className="text-muted">CPU 核心</div>
-                        <div className="text-lg font-medium">{data.cpuCount}</div>
+                        <div className="text-lg font-semibold">{data.cpuCount}</div>
                       </div>
-                      <div className="rounded-control bg-raised px-3 py-2">
+                      <div>
                         <div className="text-muted">磁盘分区</div>
-                        <div className="text-lg font-medium">{mounts.length}</div>
+                        <div className="text-lg font-semibold">{mounts.length}</div>
                       </div>
-                      <div className="rounded-control bg-raised px-3 py-2">
+                      <div>
                         <div className="text-muted">Docker 容器</div>
-                        <div className="text-lg font-medium">
+                        <div className="text-lg font-semibold">
                           {docker.data?.containers?.length ?? 0}
                         </div>
                       </div>
-                      <div className="rounded-control bg-raised px-3 py-2">
+                      <div>
                         <div className="text-muted">运行中容器</div>
-                        <div className="text-lg font-medium">{runningDocker}</div>
+                        <div className="text-lg font-semibold">{runningDocker}</div>
                       </div>
                     </div>
                   </div>
@@ -735,7 +747,7 @@ function OverviewPage({ host }: { host: string }) {
                           d.mount || "—",
                           d.filesystem || "—",
                           `${formatBytes(d.used)} / ${formatBytes(d.total)}`,
-                          `${(d.percent || 0).toFixed(1)}%`,
+                          <Meter key="pct" value={d.percent || 0} className="w-full whitespace-nowrap" />,
                         ],
                       }))}
                     />
@@ -922,10 +934,10 @@ function lineOption(
   opts?: { yMax?: number; yFormatter?: (v: number) => string },
 ): echarts.EChartsOption {
   const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#e8e8e8");
+  const line = readThemeColor("--color-line", "#dce3ee");
   return {
     color: seriesColorList(series.map((s) => s.name)),
-    grid: { left: 48, right: 16, top: 28, bottom: 28 },
+    grid: { left: 8, right: 16, top: 28, bottom: 28, containLabel: true },
     tooltip: {
       trigger: "axis",
       valueFormatter: (v) => {
@@ -935,7 +947,8 @@ function lineOption(
         return n.toFixed(2);
       },
     },
-    legend: { top: 0, right: 0, textStyle: { fontSize: 11 } },
+    // 图表文字同样遵守桌面端最小 12px（DESIGN.md §3.2）
+    legend: { top: 0, right: 0, textStyle: { fontSize: 12, color: muted } },
     // 滚轮缩放、拖动平移（与 Vue VChartLine zoomable 一致）
     dataZoom: [
       {
@@ -949,14 +962,14 @@ function lineOption(
     xAxis: {
       type: "category",
       data: xData,
-      axisLabel: { fontSize: 10, color: muted },
+      axisLabel: { fontSize: 12, color: muted },
       axisLine: { lineStyle: { color: line } },
     },
     yAxis: {
       type: "value",
       max: opts?.yMax,
       axisLabel: {
-        fontSize: 10,
+        fontSize: 12,
         color: muted,
         formatter: opts?.yFormatter ? (v: number) => opts.yFormatter!(v) : undefined,
       },
@@ -1318,19 +1331,20 @@ function MonitorPage({ host }: { host: string }) {
           ))}
           <label className="inline-flex items-center gap-1 text-sm text-muted">
             粒度
-            <select
-              className="h-8 rounded-control border border-line bg-canvas px-2 text-ink"
+            <Select<GrainMode>
+              aria-label="粒度"
               value={grain}
-              onChange={(e) => setGrain(e.target.value as GrainMode)}
-            >
-              <option value="auto">自动</option>
-              <option value="5s">5秒</option>
-              <option value="10s">10秒</option>
-              <option value="15s">15秒</option>
-              <option value="1m">1分</option>
-              <option value="5m">5分</option>
-              <option value="10m">10分</option>
-            </select>
+              onChange={setGrain}
+              options={[
+                { value: "auto", label: "自动" },
+                { value: "5s", label: "5秒" },
+                { value: "10s", label: "10秒" },
+                { value: "15s", label: "15秒" },
+                { value: "1m", label: "1分" },
+                { value: "5m", label: "5分" },
+                { value: "10m", label: "10分" },
+              ]}
+            />
           </label>
           {grainHint ? <span className="text-xs text-muted">{grainHint}</span> : null}
           <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
@@ -1342,20 +1356,13 @@ function MonitorPage({ host }: { host: string }) {
     >
       {overview.error ? <Notice text={formatErr(overview.error)} /> : null}
       {range === "custom" ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-          <label className="text-muted">从</label>
-          <input
-            type="datetime-local"
-            className="h-8 rounded-control border border-line px-2"
-            value={customFrom}
-            onChange={(e) => setCustomFrom(e.target.value)}
-          />
-          <label className="text-muted">至</label>
-          <input
-            type="datetime-local"
-            className="h-8 rounded-control border border-line px-2"
-            value={customTo}
-            onChange={(e) => setCustomTo(e.target.value)}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <DateRangePicker
+            value={[customFrom, customTo]}
+            onChange={([from, to]) => {
+              setCustomFrom(from);
+              setCustomTo(to);
+            }}
           />
         </div>
       ) : null}
@@ -1441,7 +1448,7 @@ function ProcessesPage({ host }: { host: string }) {
     null,
   );
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
+  const flash = useFlashMessage();
 
   const procs = useQuery({
     queryKey: ["procs", host],
@@ -1524,11 +1531,11 @@ function ProcessesPage({ host }: { host: string }) {
     try {
       await api.killProcess(host, killTarget.pid, killTarget.force);
       setKillTarget(null);
-      setMsg("已发送信号");
+      flash.showToast("已发送信号");
       await qc.invalidateQueries({ queryKey: ["procs", host] });
       await qc.invalidateQueries({ queryKey: ["runtime", host] });
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setBusy(false);
     }
@@ -1536,12 +1543,12 @@ function ProcessesPage({ host }: { host: string }) {
 
   async function dockerAct(name: string, action: "start" | "stop" | "restart") {
     setBusy(true);
-    setMsg("");
+    flash.clear();
     try {
       await api.dockerAction(host, action, name);
       await docker.refetch();
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setBusy(false);
     }
@@ -1572,7 +1579,7 @@ function ProcessesPage({ host }: { host: string }) {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="搜索"
-            className="h-8 rounded-control border border-line px-3"
+            className="motion-field h-8 rounded-control px-3 text-ink"
           />
           {view !== "docker" ? (
             <>
@@ -1612,9 +1619,9 @@ function ProcessesPage({ host }: { host: string }) {
             : runtime.refetch())
       }
     >
-      {msg ? <Notice text={msg} tone="warn" /> : null}
+      <FlashNotices flash={flash} />
       {view === "docker" ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-card">
           {(docker.data?.containers || [])
             .filter((item) =>
               `${item.name} ${item.image} ${item.state}`.toLowerCase().includes(keyword),
@@ -1623,8 +1630,12 @@ function ProcessesPage({ host }: { host: string }) {
               const st = (docker.data?.stats || []).find((s) => s.name === item.name);
               return (
                 <Card key={item.id}>
-                  <div className="font-medium">{item.name}</div>
-                  <div className="text-sm text-muted">{item.state}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 truncate font-semibold">{item.name}</div>
+                    <Tag tone={(item.state || "").toLowerCase() === "running" ? "ok" : "neutral"}>
+                      {item.state || "—"}
+                    </Tag>
+                  </div>
                   <div className="mt-1 truncate text-xs text-muted">{item.image}</div>
                   {st ? (
                     <div className="mt-2 text-xs text-muted">
@@ -1800,7 +1811,7 @@ function ProcessesPage({ host }: { host: string }) {
 
 function CertsPage({ host }: { host: string }) {
   const [selected, setSelected] = useState<monitor.CertInfo | null>(null);
-  const [msg, setMsg] = useState("");
+  const flash = useFlashMessage();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [certPath, setCertPath] = useState("");
   const [keyPath, setKeyPath] = useState("");
@@ -1817,13 +1828,13 @@ function CertsPage({ host }: { host: string }) {
 
   async function checkPair() {
     setBusy(true);
-    setMsg("");
+    flash.clear();
     try {
       const r = await api.checkCertPair([certPath, keyPath].filter(Boolean));
       setPair(r);
-      if (!r.certPath || !r.keyPath) setMsg("未能识别证书与私钥路径");
+      if (!r.certPath || !r.keyPath) flash.showError("未能识别证书与私钥路径");
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
       setPair(null);
     } finally {
       setBusy(false);
@@ -1836,10 +1847,10 @@ function CertsPage({ host }: { host: string }) {
     try {
       await api.uploadCertPair(host, pair.certPath, pair.keyPath);
       setUploadOpen(false);
-      setMsg("证书已上传");
+      flash.showToast("证书已上传");
       await query.refetch();
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setBusy(false);
     }
@@ -1856,19 +1867,19 @@ function CertsPage({ host }: { host: string }) {
       await api.deletePaths(host, paths);
       setRemoveTarget(null);
       setSelected(null);
-      setMsg("已删除");
+      flash.showToast("已删除");
       await query.refetch();
     } catch (e) {
-      setMsg(formatErr(e));
+      flash.showError(formatErr(e));
     } finally {
       setBusy(false);
     }
   }
 
-  function statusOf(cert: monitor.CertInfo) {
-    if (cert.daysLeft < 0) return { text: "已过期", warn: true };
-    if (cert.daysLeft <= 30) return { text: "即将到期", warn: true };
-    return { text: "正常", warn: false };
+  function statusOf(cert: monitor.CertInfo): { text: string; tone: "ok" | "warn" | "danger" } {
+    if (cert.daysLeft < 0) return { text: "已过期", tone: "danger" };
+    if (cert.daysLeft <= 30) return { text: "即将到期", tone: "warn" };
+    return { text: "正常", tone: "ok" };
   }
 
   return (
@@ -1882,7 +1893,7 @@ function CertsPage({ host }: { host: string }) {
       onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      {msg ? <Notice text={msg} tone="warn" /> : null}
+      <FlashNotices flash={flash} />
       {query.data && !query.data.installed ? (
         <Notice text="远程 /etc/nginx/cert 目录不存在" tone="warn" />
       ) : null}
@@ -1909,9 +1920,9 @@ function CertsPage({ host }: { host: string }) {
               cert.issuer || "—",
               formatUnix(cert.notAfter),
               String(cert.daysLeft),
-              <span key="s" className={st.warn ? "text-danger" : undefined}>
+              <Tag key="s" tone={st.tone}>
                 {st.text}
-              </span>,
+              </Tag>,
             ],
           };
         })}
@@ -1950,13 +1961,13 @@ function CertsPage({ host }: { host: string }) {
           </DialogDescription>
           <div className="mt-3 space-y-2">
             <input
-              className="h-8 w-full rounded-control border border-line px-3 text-sm"
+              className="motion-field h-8 w-full rounded-control px-3 text-sm text-ink"
               placeholder="证书路径 .crt / .pem"
               value={certPath}
               onChange={(e) => setCertPath(e.target.value)}
             />
             <input
-              className="h-8 w-full rounded-control border border-line px-3 text-sm"
+              className="motion-field h-8 w-full rounded-control px-3 text-sm text-ink"
               placeholder="私钥路径 .key"
               value={keyPath}
               onChange={(e) => setKeyPath(e.target.value)}
@@ -1999,6 +2010,14 @@ function CertsPage({ host }: { host: string }) {
 
 /* ---------- 服务 ---------- */
 
+/** systemd ActiveState → 状态标签色：active 绿、failed 红、其余中性 */
+function serviceActiveTone(active: string | undefined): "ok" | "danger" | "neutral" {
+  const state = (active || "").toLowerCase();
+  if (state === "active") return "ok";
+  if (state === "failed") return "danger";
+  return "neutral";
+}
+
 function ServicesPage({ host }: { host: string }) {
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -2026,7 +2045,7 @@ function ServicesPage({ host }: { host: string }) {
       title="服务"
       actions={
         <input
-          className="h-8 rounded-control border border-line px-3"
+          className="motion-field h-8 rounded-control px-3 text-ink"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="搜索服务名"
@@ -2045,7 +2064,14 @@ function ServicesPage({ host }: { host: string }) {
         selectedId={selected}
         rows={rows.map((item) => ({
           id: item.name,
-          cells: [item.name, item.active || "—", item.sub || "—", item.description || "—"],
+          cells: [
+            item.name,
+            <Tag key="active" tone={serviceActiveTone(item.active)}>
+              {item.active || "—"}
+            </Tag>,
+            item.sub || "—",
+            item.description || "—",
+          ],
         }))}
         onRowClick={(id) => void openDetail(id)}
       />
@@ -2069,7 +2095,7 @@ function ServicesPage({ host }: { host: string }) {
 
 function CronPage({ host }: { host: string }) {
   const [menu, setMenu] = useState<CtxMenu | null>(null);
-  const [msg, setMsg] = useState("");
+  const flash = useFlashMessage();
   const query = useQuery({
     queryKey: ["cron", host],
     queryFn: () => api.collectCrons(host),
@@ -2104,7 +2130,7 @@ function CronPage({ host }: { host: string }) {
       onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      {msg ? <Notice text={msg} tone="warn" /> : null}
+      <FlashNotices flash={flash} />
       <SimpleRows
         headers={[
           { key: "source", label: "来源" },
@@ -2132,14 +2158,14 @@ function CronPage({ host }: { host: string }) {
                 label: "复制计划+命令",
                 onClick: () => {
                   void copyText([row.schedule, row.cmd].filter(Boolean).join(" ")).then(() =>
-                    setMsg("已复制"),
+                    flash.showToast("已复制"),
                   );
                 },
               },
               {
                 label: "复制整行",
                 onClick: () => {
-                  void copyText(row.line || "").then(() => setMsg("已复制"));
+                  void copyText(row.line || "").then(() => flash.showToast("已复制"));
                 },
               },
             ],
@@ -2195,19 +2221,17 @@ function LogsPage({ host }: { host: string }) {
               {item.label}
             </Button>
           ))}
-          <select
-            className="h-8 rounded-control border border-line bg-surface px-2 text-ink"
+          <Select<number>
+            aria-label="行数"
             value={lines}
-            onChange={(e) => setLines(Number(e.target.value))}
-          >
-            {[100, 500, 1000, 2000].map((count) => (
-              <option key={count} value={count}>
-                {count} 行
-              </option>
-            ))}
-          </select>
+            onChange={setLines}
+            options={[100, 500, 1000, 2000].map((count) => ({
+              value: count,
+              label: `${count} 行`,
+            }))}
+          />
           <input
-            className="h-8 rounded-control border border-line bg-surface px-3 text-ink"
+            className="motion-field h-8 rounded-control px-3 text-ink"
             value={search}
             placeholder="搜索过滤"
             onChange={(e) => setSearch(e.target.value)}
@@ -2218,9 +2242,10 @@ function LogsPage({ host }: { host: string }) {
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       {query.data?.source ? (
-        <p className="mb-2 text-xs text-muted">来源 {query.data.source}</p>
+        <p className="m-0 text-xs text-muted">来源 {query.data.source}</p>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      {/* 日志本体保持独立石墨面（DESIGN.md §8.1） */}
+      <div className="surface-float min-h-0 flex-1 overflow-hidden !bg-graphite">
         <HighlightPane html={html} text={text} pinBottom wrap />
       </div>
     </Page>

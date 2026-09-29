@@ -41,7 +41,7 @@ export function HighlightPane({
           type="button"
           className={copied ? "local-code-copy is-copied" : "local-code-copy"}
           onClick={() => void onCopy()}
-          title={copied ? "已复制" : "复制"}
+          data-tip={copied ? "已复制" : "复制"} aria-label={copied ? "已复制" : "复制"}
         >
           {copied ? "✓" : "⧉"}
         </button>

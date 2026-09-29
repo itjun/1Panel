@@ -7,6 +7,9 @@ export const MOTION_MS = {
   slow: 280,
 } as const;
 
+/** 操作成功提示条停留时长（毫秒），到点后用 MOTION_MS.base 淡出（DESIGN.md §5.2）。 */
+export const TOAST_DISMISS_MS = 3000;
+
 /**
  * 开合时保留挂载，好跑入场/离场动画。
  * 打开：先挂载（visible=false），下一帧再 visible=true。

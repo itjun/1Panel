@@ -1,5 +1,8 @@
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useIsHostWorkspace } from "@/react/components/host-tool-tabs";
 import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
+import type { FlashMessage } from "@/react/lib/use-flash-message";
 import { cn } from "@/react/lib/utils";
 import { useRegisterPageRefresh } from "@/react/state/page-refresh";
 
@@ -23,69 +26,162 @@ export function Page({
   refreshing?: boolean;
 }) {
   useRegisterPageRefresh(onRefresh, refreshing);
+  // 主机页：通栏被功能标签占用，标题由标签高亮代替，操作下沉为内容区顶部的工具行（DESIGN.md §4.6）
+  const hostWorkspace = useIsHostWorkspace();
+  const padded = !flush && !dark;
+
+  let inlineToolbar: ReactNode = null;
+  if (hostWorkspace && actions) {
+    inlineToolbar = (
+      <div
+        className={cn(
+          "flex min-h-8 shrink-0 flex-wrap items-center gap-2",
+          !padded && "px-[var(--gap-card)] pt-[var(--gap-card)]",
+        )}
+      >
+        {actions}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col text-ink">
-      <ShellToolbarPortal>
-        <div className="flex h-full w-full items-center gap-3 px-[var(--gap-card)]">
-          {title ? <h1 className="text-base font-semibold leading-none">{title}</h1> : null}
-          <div className="ml-auto flex items-center gap-2">{actions}</div>
-        </div>
-      </ShellToolbarPortal>
+      {hostWorkspace ? null : (
+        <ShellToolbarPortal>
+          <div className="flex h-full w-full items-center gap-3 px-[var(--gap-card)]">
+            {title ? <h1 className="text-sm font-semibold leading-none text-ink">{title}</h1> : null}
+            {/* 右侧操作区：按钮间距 8px；各页面的操作按钮用 size="sm"（28px） */}
+            <div className="ml-auto flex items-center gap-2">{actions}</div>
+          </div>
+        </ShellToolbarPortal>
+      )}
+      {padded ? null : inlineToolbar}
       <div
         className={cn(
           "content-float flex min-w-0 flex-1 flex-col",
           dark && "bg-graphite text-graphite-text",
-          !flush && !dark && "gap-card p-[var(--gap-card)]",
+          /* 默认内容区四周 16px 安全边距，子元素间隙走 --gap-card；区块分段由页面用 gap-section（DESIGN.md §4.1 / §4.2） */
+          padded && "gap-card p-4",
         )}
       >
+        {padded ? inlineToolbar : null}
         {children}
       </div>
     </div>
   );
 }
 
-export function Meter({
-  label,
-  value,
-  text,
-}: {
-  label: string;
-  value: number;
-  text?: string;
-}) {
-  const width = Math.max(0, Math.min(100, value || 0));
+/** TDesign Alert 的四种 theme；warn 是 warning 的旧名 */
+type NoticeTone = "success" | "info" | "warning" | "warn" | "error";
+
+/** 底色 = 功能色浅底；text-* 只给状态图标着色，正文另用 ink */
+const NOTICE_TONE_CLASS: Record<NoticeTone, string> = {
+  success: "bg-success-soft text-success",
+  info: "bg-info-soft text-info",
+  warning: "bg-warn-soft text-warn",
+  warn: "bg-warn-soft text-warn",
+  error: "bg-danger-soft text-danger",
+};
+
+/** 实心圆状态图标：圆面 = 主题色（currentColor），符号用 surface 色，亮 / 暗主题都有足够对比 */
+function NoticeIcon({ tone }: { tone: NoticeTone }) {
+  let symbol: ReactNode;
+  if (tone === "success") {
+    symbol = <path d="M7.5 12.5l3 3 6-6" fill="none" strokeWidth={2} />;
+  } else if (tone === "info") {
+    symbol = (
+      <>
+        <circle cx={12} cy={7.5} r={1.25} className="fill-surface" stroke="none" />
+        <path d="M12 11v6" fill="none" strokeWidth={2} />
+      </>
+    );
+  } else {
+    symbol = (
+      <>
+        <path d="M12 7v6" fill="none" strokeWidth={2} />
+        <circle cx={12} cy={16.5} r={1.25} className="fill-surface" stroke="none" />
+      </>
+    );
+  }
   return (
-    <div className="min-w-[140px] flex-1">
-      <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className="text-sm text-muted">{label}</span>
-        <span className="text-sm font-medium">{text || `${width.toFixed(1)}%`}</span>
-      </div>
-      <div className="h-1 overflow-hidden rounded-full bg-line">
-        <div
-          className="motion-width h-full bg-accent"
-          style={{ width: `${width}%` }}
-        />
-      </div>
+    <svg
+      viewBox="0 0 24 24"
+      className="mt-1 size-4 shrink-0 stroke-surface"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx={12} cy={12} r={11} fill="currentColor" stroke="none" />
+      {symbol}
+    </svg>
+  );
+}
+
+/** 页面提示条，视觉按 TDesign Alert（DESIGN.md §8.2）。
+ *  warning 只用于常驻的状态说明（如「未检测到…」）或需用户处理的事项；操作结果用 FlashNotices。 */
+export function Notice({
+  text,
+  tone = "error",
+  onClose,
+  leaving = false,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  text: string;
+  tone?: NoticeTone;
+  /** 传了才显示右侧关闭按钮 */
+  onClose?: () => void;
+  /** true 时播放淡出 */
+  leaving?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        /* 行高 24 + 上下 8 = 最小 40px；图标 / 关闭按钮与首行对齐，长文字换行 */
+        "flex min-h-10 shrink-0 items-start gap-2 rounded-panel px-4 py-2 text-sm leading-6",
+        leaving ? "motion-notice-out" : "motion-notice-in",
+        NOTICE_TONE_CLASS[tone],
+      )}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <NoticeIcon tone={tone} />
+      <p className="min-w-0 flex-1 break-words text-ink">{text}</p>
+      {onClose ? (
+        <button
+          type="button"
+          aria-label="关闭提示"
+          onClick={onClose}
+          className="motion-colors -mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-control text-muted hover:text-ink focus-visible:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        >
+          <X size={16} strokeWidth={1.5} aria-hidden />
+        </button>
+      ) : null}
     </div>
   );
 }
 
-export function Notice({
-  text,
-  tone = "error",
-}: {
-  text: string;
-  tone?: "error" | "warn";
-}) {
-  return (
-    <p
-      className={
-        tone === "warn"
-          ? "motion-notice-in shrink-0 rounded-surface bg-warn-soft px-4 py-2 text-sm text-warn"
-          : "motion-notice-in shrink-0 rounded-surface bg-danger-soft px-4 py-2 text-sm text-danger"
-      }
-    >
-      {text}
-    </p>
-  );
+/** 渲染 useFlashMessage 的错误 / 待处理 / 成功提示条；三者互斥，同一时刻最多一条 */
+export function FlashNotices({ flash }: { flash: FlashMessage }) {
+  if (flash.error) {
+    return <Notice text={flash.error} onClose={flash.clearError} />;
+  }
+  if (flash.warn) {
+    return <Notice text={flash.warn} tone="warning" onClose={flash.clearWarn} />;
+  }
+  if (flash.toast) {
+    return (
+      <Notice
+        text={flash.toast}
+        tone="success"
+        leaving={flash.toastLeaving}
+        onClose={flash.clearToast}
+        onMouseEnter={flash.pauseToast}
+        onMouseLeave={flash.resumeToast}
+      />
+    );
+  }
+  return null;
 }

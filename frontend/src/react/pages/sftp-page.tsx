@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type monitor } from "@/api";
 import { FilePreviewDrawer } from "@/react/components/file-preview-drawer";
 import { SftpPane, type SftpDeleteItem } from "@/react/components/sftp-pane";
-import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
 import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
@@ -28,8 +27,6 @@ export function SftpPage({ host }: { host: string }) {
   const gate = useRef({ asking: false, busy: false, pending: false, conflict: false });
 
   const [tick, setTick] = useState(0);
-  const [localHeaderHost, setLocalHeaderHost] = useState<HTMLDivElement | null>(null);
-  const [remoteHeaderHost, setRemoteHeaderHost] = useState<HTMLDivElement | null>(null);
   const [localEntries, setLocalEntries] = useState<monitor.FileEntry[]>([]);
   const [remoteEntries, setRemoteEntries] = useState<monitor.FileEntry[]>([]);
   const [localErr, setLocalErr] = useState("");
@@ -464,12 +461,6 @@ export function SftpPage({ host }: { host: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ShellToolbarPortal>
-        <div className="sftp-toolbar relative z-20 grid h-full w-full grid-cols-2">
-          <div ref={setLocalHeaderHost} className="sftp-toolbar-local min-w-0" />
-          <div ref={setRemoteHeaderHost} className="min-w-0" />
-        </div>
-      </ShellToolbarPortal>
       <div className="content-float gap-card relative grid min-w-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] p-[var(--gap-card)]">
       <div className="surface-float h-full min-h-0 overflow-hidden">
         <SftpPane
@@ -497,7 +488,6 @@ export function SftpPage({ host }: { host: string }) {
           onDragBegin={(paths) => onDragBegin("local", paths)}
           onDragEnd={onDragEnd}
           onOpenFile={(entry) => setPreviewFile({ path: entry.path, name: entry.name, source: "local" })}
-          headerHost={localHeaderHost}
         />
       </div>
       <div className="surface-float h-full min-h-0 overflow-hidden">
@@ -532,7 +522,6 @@ export function SftpPage({ host }: { host: string }) {
             setRemoteHover(dir);
           }}
           onOpenFile={(entry) => setPreviewFile({ path: entry.path, name: entry.name, source: "remote" })}
-          headerHost={remoteHeaderHost}
         />
       </div>
 
@@ -544,7 +533,7 @@ export function SftpPage({ host }: { host: string }) {
       />
 
       {xfer ? (
-        <div className={`absolute bottom-4 left-1/2 z-[6] -translate-x-1/2 rounded-full px-3.5 py-2 text-[13px] font-semibold shadow-[0_8px_24px_rgba(0,0,0,0.18)] ${xferBad ? "bg-danger text-white" : "bg-raised text-ink"}`}>
+        <div className={`absolute bottom-4 left-1/2 z-[6] -translate-x-1/2 rounded-panel border px-3.5 py-2 text-sm font-semibold ${xferBad ? "border-danger bg-danger text-white" : "border-line bg-surface text-ink"}`}>
           {xfer}
         </div>
       ) : null}
@@ -596,7 +585,7 @@ export function SftpPage({ host }: { host: string }) {
           <input
             autoFocus
             value={createName}
-            className="h-8 w-full rounded-control border border-line px-2 text-sm"
+            className="motion-field h-8 w-full rounded-control px-2 text-sm text-ink"
             onChange={(event) => setCreateName(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") void submitCreate();

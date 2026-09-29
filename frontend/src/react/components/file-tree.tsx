@@ -81,7 +81,7 @@ function TreeNodeRow({
       >
         {entry.isDir ? (
           <span
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-xs text-muted hover:bg-ink/10"
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-control text-xs text-muted hover:bg-line"
             onClick={(event) => {
               event.stopPropagation();
               onToggle(entry.path);
@@ -92,7 +92,7 @@ function TreeNodeRow({
         ) : (
           <span className="inline-block h-5 w-5 shrink-0" />
         )}
-        <span className="min-w-0 truncate font-mono text-[13px]">
+        <span className="min-w-0 truncate font-mono text-sm">
           {entry.isDir ? `${entry.name}/` : entry.name}
         </span>
       </button>

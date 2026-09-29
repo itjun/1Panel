@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import type { localsys } from "@/api";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
+import { Meter } from "@/react/components/ui/meter";
+import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { useSession } from "@/react/state/session";
 import {
@@ -11,9 +13,6 @@ import {
   formatMemCapacity,
 } from "@/utils/format";
 import {
-  dangerDiskBarColor,
-  externalDiskBarColor,
-  internalDiskBarColor,
   buildDiskGroups,
   buildDiskSummaryItems,
   diskExternalRowLabel,
@@ -46,8 +45,8 @@ function CoreMiniGrid({ cores }: { cores: localsys.CPUCoreStat[] | null }) {
       {list.map((c) => (
         <div
           key={c.index}
-          className="rounded border border-line px-1 py-0.5 text-center font-mono text-[10px]"
-          title={`${c.kind || "核"} #${c.index}`}
+          className="rounded-tag bg-raised px-1 py-0.5 text-center font-mono text-xs"
+          data-tip={`${c.kind || "核"} #${c.index}`}
         >
           {(c.percent || 0).toFixed(0)}%
         </div>
@@ -159,11 +158,11 @@ export function LocalOverviewPage() {
       {!data ? (
         <p className="text-sm text-muted">加载中…</p>
       ) : (
-        <div className="gap-card flex flex-col">
-          {/* 状态环图 */}
-          <Card>
-            <div className="mb-3 font-medium">状态</div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="gap-section flex flex-col">
+          {/* 状态环图：网格单元为 raised 色块（local.css .local-ring） */}
+          <Card className="p-0">
+            <div className="mb-3 text-sm font-semibold text-ink">状态</div>
+            <div className="gap-card grid grid-cols-2 md:grid-cols-5">
               <RingMeter
                 title="负载"
                 percent={loadPct}
@@ -257,7 +256,7 @@ export function LocalOverviewPage() {
               >
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <div className="mb-1 font-medium">物理内存</div>
+                    <div className="mb-1 font-semibold">物理内存</div>
                     <div className="local-pop-row">
                       <span>总量</span>
                       <span className="num">{formatMemCapacity(data.memTotal || 0)}</span>
@@ -279,7 +278,7 @@ export function LocalOverviewPage() {
                   </div>
                   {(data.swapTotal || 0) > 0 ? (
                     <div>
-                      <div className="mb-1 font-medium">交换内存</div>
+                      <div className="mb-1 font-semibold">交换内存</div>
                       <div className="local-pop-row">
                         <span>总量</span>
                         <span className="num">{formatBytes(data.swapTotal || 0)}</span>
@@ -307,22 +306,13 @@ export function LocalOverviewPage() {
                   <div className="grid max-w-[420px] gap-2 sm:grid-cols-2">
                     {diskItems.map((item) => (
                       <div key={item.key}>
-                        <div className="mb-1 flex justify-between gap-2">
-                          <span className="max-w-[140px] truncate">{item.label}</span>
-                          <span className="num">{item.percent.toFixed(0)}%</span>
-                        </div>
-                        <div className="local-disk-bar">
-                          <i
-                            style={{
-                              width: `${Math.min(100, Math.max(0, item.percent))}%`,
-                              background:
-                                item.percent > 90
-                                  ? dangerDiskBarColor()
-                                  : internalDiskBarColor(),
-                            }}
-                          />
-                        </div>
-                        <div className="mt-1 flex justify-between text-[10px] text-muted">
+                        <div className="mb-1 truncate">{item.label}</div>
+                        <Meter
+                          value={item.percent}
+                          valueText={`${item.percent.toFixed(0)}%`}
+                          className="w-full"
+                        />
+                        <div className="mt-1 flex justify-between text-xs text-muted">
                           <span>{formatBytesSI(item.used)} 已用</span>
                           <span>{formatBytesSI(item.avail)} 可用</span>
                         </div>
@@ -363,9 +353,9 @@ export function LocalOverviewPage() {
           </Card>
 
           {/* 磁盘分区：本机 / 外置 */}
-          <Card>
+          <Card className="p-0">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="font-medium">磁盘分区</span>
+              <span className="text-sm font-semibold text-ink">磁盘分区</span>
               {diskGroups.overflow > 0 ? (
                 <span className="text-xs text-muted">
                   外置另有 {diskGroups.overflow} 块未显示
@@ -394,7 +384,7 @@ export function LocalOverviewPage() {
                           return (
                             <div key={d.mount || d.device}>
                               <div className="mb-1 flex justify-between gap-2 text-sm">
-                                <span className="truncate" title={d.mount}>
+                                <span className="truncate" data-tip={d.mount}>
                                   {diskMountLabel(d)}
                                 </span>
                                 <span className="shrink-0 font-mono text-muted">
@@ -402,17 +392,7 @@ export function LocalOverviewPage() {
                                   {formatBytesSI(d.total || 0)}
                                 </span>
                               </div>
-                              <div className="local-disk-bar">
-                                <i
-                                  style={{
-                                    width: `${pct}%`,
-                                    background:
-                                      pct > 90
-                                        ? dangerDiskBarColor()
-                                        : internalDiskBarColor(),
-                                  }}
-                                />
-                              </div>
+                              <Meter value={pct} valueText={`${pct}%`} className="w-full" />
                             </div>
                           );
                         }),
@@ -429,7 +409,7 @@ export function LocalOverviewPage() {
                         return (
                           <div key={d.mount || d.device}>
                             <div className="mb-1 flex justify-between gap-2 text-sm">
-                              <span className="truncate" title={d.mount}>
+                              <span className="truncate" data-tip={d.mount}>
                                 {diskExternalRowLabel(d)}
                               </span>
                               <span className="shrink-0 font-mono text-muted">
@@ -437,17 +417,7 @@ export function LocalOverviewPage() {
                                 {formatBytesSI(d.total || 0)}
                               </span>
                             </div>
-                            <div className="local-disk-bar">
-                              <i
-                                style={{
-                                  width: `${pct}%`,
-                                  background:
-                                    pct > 90
-                                      ? dangerDiskBarColor()
-                                      : externalDiskBarColor(),
-                                }}
-                              />
-                            </div>
+                            <Meter value={pct} valueText={`${pct}%`} className="w-full" />
                           </div>
                         );
                       })}
@@ -460,51 +430,42 @@ export function LocalOverviewPage() {
 
           {/* CPU / 内存曲线 */}
           <div className="gap-card grid md:grid-cols-2">
-            <Card>
+            <Card className="p-0">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="font-medium">CPU</span>
-                <span className="rounded border border-line px-1.5 py-0.5 text-xs">
-                  全核心 {(data.cpuPercent || 0).toFixed(1)}%
-                </span>
+                <span className="text-sm font-semibold text-ink">CPU</span>
+                <Tag>全核心 {(data.cpuPercent || 0).toFixed(1)}%</Tag>
                 {hasCpuClusters ? (
                   <>
-                    <span className="rounded border border-line px-1.5 py-0.5 text-xs">
-                      性能 {(data.perfCpuPercent || 0).toFixed(1)}%
-                    </span>
-                    <span className="rounded border border-line px-1.5 py-0.5 text-xs">
-                      能效 {(data.effCpuPercent || 0).toFixed(1)}%
-                    </span>
+                    <Tag>性能 {(data.perfCpuPercent || 0).toFixed(1)}%</Tag>
+                    <Tag>能效 {(data.effCpuPercent || 0).toFixed(1)}%</Tag>
                   </>
                 ) : null}
               </div>
               <MetricChart option={cpuOption} height={220} />
             </Card>
-            <Card>
+            <Card className="p-0">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="font-medium">内存</span>
-                <span className="rounded border border-line px-1.5 py-0.5 text-xs">
+                <span className="text-sm font-semibold text-ink">内存</span>
+                <Tag>
                   物理 {formatBytes(data.memUsed || 0)} /{" "}
                   {formatMemCapacity(data.memTotal || 0)}
-                </span>
-                <span className="rounded border border-line px-1.5 py-0.5 text-xs">
+                </Tag>
+                <Tag>
                   {(data.swapTotal || 0) > 0
                     ? `交换 ${formatBytes(data.swapUsed || 0)} / ${formatBytes(data.swapTotal || 0)}`
                     : "交换 未启用"}
-                </span>
+                </Tag>
               </div>
               <MetricChart option={memOption} height={220} />
             </Card>
           </div>
 
-          <Card>
+          <Card className="p-0">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="font-medium">磁盘 IO</span>
-              <span className="rounded border border-io-read/30 bg-io-read/10 px-1.5 py-0.5 text-xs text-io-read">
-                读 {formatBytes(ioRates.readBps)}/s
-              </span>
-              <span className="rounded border border-io-write/30 bg-io-write/10 px-1.5 py-0.5 text-xs text-io-write">
-                写 {formatBytes(ioRates.writeBps)}/s
-              </span>
+              <span className="text-sm font-semibold text-ink">磁盘 IO</span>
+              {/* 图例标签沿用读绿写橙（DESIGN.md §2.4），底色走 *-soft */}
+              <Tag tone="ok">读 {formatBytes(ioRates.readBps)}/s</Tag>
+              <Tag tone="warn">写 {formatBytes(ioRates.writeBps)}/s</Tag>
             </div>
             <MetricChart option={ioOption} height={220} />
           </Card>

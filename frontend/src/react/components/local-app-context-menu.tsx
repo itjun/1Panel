@@ -129,7 +129,7 @@ export function LocalAppContextMenu({
       />
       <div
         ref={elRef}
-        className="motion-menu-panel fixed z-50 min-w-[180px] rounded-surface border border-line bg-surface py-1 shadow-lg"
+        className="motion-menu-panel fixed z-50 min-w-[180px] rounded-panel border border-line bg-surface py-1"
         data-open={visible ? "true" : "false"}
         style={{ left: current.x, top: current.y }}
         onMouseDown={(event) => event.stopPropagation()}

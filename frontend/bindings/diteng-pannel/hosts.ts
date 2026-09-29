@@ -106,8 +106,10 @@ export function TestConnection(input: $models.AddHostInput): $CancellablePromise
 }
 
 /**
- * UpdateHost 编辑主机：密码测试连通性 → 推送本机公钥 → 更新 ~/.ssh/config 中的 HostName/User
- * 别名不变；验证失败不写 config
+ * UpdateHost 编辑主机 → 更新 Panel JSON（再生成 config）中的 HostName/User/备注
+ * 别名不变；验证失败不写 config。
+ *   - 填了密码：密码测连 → 推送本机公钥 → 保存新密码
+ *   - 未填密码：主机添加时已验证过，用已有密钥/已存密码测连，不推公钥、不清空已存密码
  */
 export function UpdateHost(input: $models.UpdateHostInput): $CancellablePromise<void> {
     return $Call.ByID(2265726266, input);

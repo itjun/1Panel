@@ -10,7 +10,8 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
-import { Notice, Page } from "@/react/components/page";
+import { FlashNotices, Notice, Page } from "@/react/components/page";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
 
@@ -26,13 +27,13 @@ function SimpleRows({
 }) {
   const colCount = headers.length + 1;
   return (
-    <div className="min-h-48 flex-1 overflow-auto bg-surface">
+    <div className="surface-float min-h-48 flex-1 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-raised">
-          <tr className="h-10">
-            <th className="w-12 px-2 text-center font-medium">序</th>
+        <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+          <tr className="h-table-head border-b border-line">
+            <th className="w-12 px-2 text-center font-normal">序</th>
             {headers.map((header) => (
-              <th key={header.key} className="px-3 font-medium">
+              <th key={header.key} className="px-3 font-normal">
                 {header.label}
               </th>
             ))}
@@ -40,14 +41,14 @@ function SimpleRows({
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr className="h-12">
+            <tr className="h-table-row">
               <td className="px-3 text-muted" colSpan={colCount}>
                 暂无数据
               </td>
             </tr>
           ) : (
             rows.map((row, rowIndex) => (
-              <tr key={row.id} className="h-12 border-t border-line hover:bg-raised">
+              <tr key={row.id} className="h-table-row border-t border-line hover:bg-raised">
                 <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
                   {rowIndex + 1}
                 </td>
@@ -105,7 +106,7 @@ export function PackagesPage({ host }: { host: string }) {
   const [filter, setFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [copyHint, setCopyHint] = useState("");
+  const copyFlash = useFlashMessage();
 
   const [depOpen, setDepOpen] = useState(false);
   const [depLoading, setDepLoading] = useState(false);
@@ -183,7 +184,7 @@ export function PackagesPage({ host }: { host: string }) {
   async function openDepDialog(pkg: AptPackage) {
     setDepPkg(pkg);
     setDepError("");
-    setCopyHint("");
+    copyFlash.clear();
     setDeps(pkg.depList?.length ? [...pkg.depList] : []);
     setRdeps(pkgRDeps(pkg, reverse));
     setDepOpen(true);
@@ -208,9 +209,9 @@ export function PackagesPage({ host }: { host: string }) {
     if (!items.length) return;
     try {
       await copyText(items.join("\n"));
-      setCopyHint(`已复制${label}`);
+      copyFlash.showToast(`已复制${label}`);
     } catch {
-      setCopyHint(`复制${label}失败`);
+      copyFlash.showError(`复制${label}失败`);
     }
   }
 
@@ -223,7 +224,7 @@ export function PackagesPage({ host }: { host: string }) {
       actions={
         <>
           <input
-            className="h-8 rounded-control border border-line px-3"
+            className="motion-field h-8 rounded-control px-3 text-ink"
             value={filter}
             placeholder="搜索包名/版本..."
             onChange={(e) => setFilter(e.target.value)}
@@ -246,7 +247,7 @@ export function PackagesPage({ host }: { host: string }) {
       refreshing={query.isFetching}
     >
       {stats ? (
-        <p className="mb-3 text-sm text-muted">
+        <p className="m-0 text-xs text-muted">
           共 {stats.total} 个 · 平均依赖 {stats.avgDeps} · 最多 {stats.maxDeps} 依赖
         </p>
       ) : null}
@@ -265,16 +266,16 @@ export function PackagesPage({ host }: { host: string }) {
             return {
               id: item.name,
               cells: [
-                <span key="n" className="font-medium">
-                  {item.name}
+                item.name,
+                <span key="v" className="font-mono text-muted">
+                  {item.version || "—"}
                 </span>,
-                item.version || "—",
                 depN > 0 ? (
                   <button
                     key="d"
                     type="button"
                     className="text-accent underline-offset-2 hover:underline"
-                    title="查看依赖的包"
+                    data-tip="查看依赖的包"
                     onClick={() => void openDepDialog(item)}
                   >
                     {depN}
@@ -287,7 +288,7 @@ export function PackagesPage({ host }: { host: string }) {
                     key="r"
                     type="button"
                     className="text-accent underline-offset-2 hover:underline"
-                    title="查看被哪些包依赖"
+                    data-tip="查看被哪些包依赖"
                     onClick={() => void openDepDialog(item)}
                   >
                     {rdepN}
@@ -311,14 +312,14 @@ export function PackagesPage({ host }: { host: string }) {
             {rDepCountShown}
           </DialogDescription>
           {depError ? <Notice text={depError} /> : null}
-          {copyHint ? <Notice text={copyHint} tone="warn" /> : null}
+          <FlashNotices flash={copyFlash} />
           {depLoading ? (
             <p className="mt-3 text-sm text-muted">加载依赖中…</p>
           ) : (
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">这个包装了谁</span>
+                  <span className="text-sm font-semibold">这个包装了谁</span>
                   {deps.length ? (
                     <Button
                       size="sm"
@@ -328,7 +329,7 @@ export function PackagesPage({ host }: { host: string }) {
                     </Button>
                   ) : null}
                 </div>
-                <div className="max-h-56 overflow-auto rounded-control border border-line p-2 font-mono text-xs">
+                <div className="max-h-56 overflow-auto rounded-control bg-raised p-2 font-mono text-xs">
                   {deps.length
                     ? deps.map((d) => <div key={`d-${d}`}>{d}</div>)
                     : "无"}
@@ -336,7 +337,7 @@ export function PackagesPage({ host }: { host: string }) {
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">谁装了这个包</span>
+                  <span className="text-sm font-semibold">谁装了这个包</span>
                   {rdeps.length ? (
                     <Button
                       size="sm"
@@ -347,7 +348,7 @@ export function PackagesPage({ host }: { host: string }) {
                     </Button>
                   ) : null}
                 </div>
-                <div className="max-h-56 overflow-auto rounded-control border border-line p-2 font-mono text-xs">
+                <div className="max-h-56 overflow-auto rounded-control bg-raised p-2 font-mono text-xs">
                   {rdeps.length
                     ? rdeps.map((d) => <div key={`r-${d}`}>{d}</div>)
                     : "无"}

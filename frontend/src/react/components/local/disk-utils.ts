@@ -1,23 +1,7 @@
 import type { localsys } from "@/api";
-import { readThemeColor } from "@/react/lib/utils";
 
 /** 外置硬盘最多展示数量 */
 export const MAX_EXTERNAL_DISKS = 16;
-
-/** 本机进度条色（跟随主题 accent） */
-export function internalDiskBarColor(): string {
-  return readThemeColor("--color-accent", "#005eeb");
-}
-
-/** 外置进度条色（跟随主题 info） */
-export function externalDiskBarColor(): string {
-  return readThemeColor("--color-info", "#5b8def");
-}
-
-/** 危险占比色（跟随主题 danger） */
-export function dangerDiskBarColor(): string {
-  return readThemeColor("--color-danger", "#d64545");
-}
 
 export type DiskSummaryItem = {
   key: string;

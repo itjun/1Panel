@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import type { monitor } from "@/api";
 import { cn } from "@/react/lib/utils";
 import { formatBytes } from "@/utils/format";
@@ -44,8 +43,6 @@ type Props = {
   onCreate?: (kind: "dir" | "file") => void;
   onHoverTarget?: (dir: string) => void;
   onOpenFile?: (entry: monitor.FileEntry) => void;
-  /** 标题（本机 / 主机名、筛选、操作）挂到页面通栏，不留在内容卡片里 */
-  headerHost?: HTMLElement | null;
 };
 
 export function SftpPane(props: Props) {
@@ -277,8 +274,9 @@ export function SftpPane(props: Props) {
     emptyText = "隐藏文件已收起，可在「操作」里打开";
   }
 
+  // 通栏被主机功能标签占用，标题条（本机 / 主机名、筛选、操作）留在各自栏顶部
   const titleBar = (
-    <header className="flex h-full min-w-0 items-center gap-2 px-3">
+    <header className="flex h-10 min-w-0 shrink-0 items-center gap-2 px-3">
       <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-ink">
         {props.side === "local" ? <LocalIcon /> : null}
         <span className="truncate">{props.title}</span>
@@ -288,7 +286,7 @@ export function SftpPane(props: Props) {
         <input
           value={filter}
           placeholder="筛选"
-          className="w-full bg-transparent text-[13px] text-ink outline-none"
+          className="w-full bg-transparent text-sm text-ink outline-none"
           onChange={(event) => setFilter(event.target.value)}
           onKeyDown={(event) => event.stopPropagation()}
         />
@@ -296,7 +294,7 @@ export function SftpPane(props: Props) {
       <div className="relative">
         <button
           type="button"
-          className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-raised"
+          className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-line"
           onClick={(event) => {
             event.stopPropagation();
             setMenuOpen((value) => !value);
@@ -308,7 +306,7 @@ export function SftpPane(props: Props) {
         {menuOpen ? (
           <>
             <div className="fixed inset-0 z-40" onMouseDown={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-[calc(100%+4px)] z-[41] min-w-[176px] rounded-control bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="absolute right-0 top-[calc(100%+4px)] z-[41] min-w-[176px] rounded-panel border border-line bg-surface p-1" onMouseDown={(event) => event.stopPropagation()}>
               <MenuActions
                 canCreate={props.canCreate}
                 canRemove={props.canRemove}
@@ -327,9 +325,9 @@ export function SftpPane(props: Props) {
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col outline-none" tabIndex={0} onKeyDown={onKey}>
-      {props.headerHost ? createPortal(titleBar, props.headerHost) : null}
+      {titleBar}
 
-      <div className="glass-chrome-main flex shrink-0 items-center gap-0.5 border-b border-line px-2 pb-2 pt-0.5">
+      <div className="flex shrink-0 items-center gap-0.5 border-b border-line px-2 pb-2 pt-0.5">
         <IconButton label="后退" disabled={!props.canBack} onClick={props.onBack}>
           <path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </IconButton>
@@ -352,7 +350,7 @@ export function SftpPane(props: Props) {
               ref={pathInput}
               value={draft}
               spellCheck={false}
-              className="w-full bg-transparent px-0.5 py-1 text-[13px] outline-none"
+              className="w-full bg-transparent px-0.5 py-1 text-sm outline-none"
               onClick={(event) => event.stopPropagation()}
               onMouseDown={(event) => event.stopPropagation()}
               onChange={(event) => setDraft(event.target.value)}
@@ -371,7 +369,7 @@ export function SftpPane(props: Props) {
             />
           ) : (
             <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-auto">
-              <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
+              <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded-control px-1.5 py-1 text-sm text-ink hover:bg-raised hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
                 <FolderIcon />
                 根目录
               </button>
@@ -381,7 +379,7 @@ export function SftpPane(props: Props) {
                   <button
                     type="button"
                     className={cn(
-                      "inline-flex max-w-[200px] items-center gap-1 truncate rounded px-1.5 py-1 text-[13px] text-ink hover:bg-raised hover:text-accent",
+                      "inline-flex max-w-[200px] items-center gap-1 truncate rounded-control px-1.5 py-1 text-sm text-ink hover:bg-raised hover:text-accent",
                       index === segments.length - 1 && "font-semibold",
                     )}
                     onMouseDown={(event) => {
@@ -439,7 +437,7 @@ export function SftpPane(props: Props) {
         }}
       >
         {props.loading ? <div className="absolute inset-x-0 top-0 z-[3] h-0.5 animate-pulse bg-accent" /> : null}
-        <div className="grid h-10 shrink-0 grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line bg-raised px-3 text-xs text-muted">
+        <div className="grid h-table-head shrink-0 grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-xs text-muted">
           <SortButton label="名称" active={sortKey === "name"} asc={sortAsc} onClick={() => toggleSort("name")} />
           <SortButton label="修改时间" active={sortKey === "time"} asc={sortAsc} onClick={() => toggleSort("time")} />
           <SortButton label="大小" active={sortKey === "size"} asc={sortAsc} align="right" onClick={() => toggleSort("size")} />
@@ -466,13 +464,13 @@ export function SftpPane(props: Props) {
               data-path={entry.path}
               draggable={!props.locked}
               className={cn(
-                "grid h-12 cursor-grab grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-sm",
+                "grid h-table-row cursor-grab grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-sm",
                 selected.includes(entry.path)
                   ? "bg-accent-soft font-semibold text-accent"
                   : "hover:bg-raised",
                 hoverDir === entry.path &&
                   !selected.includes(entry.path) &&
-                  "bg-accent/15 ring-1 ring-accent/40",
+                  "bg-accent-soft outline-1 -outline-offset-1 outline-accent",
                 dragging.includes(entry.path) && "opacity-45",
               )}
               onClick={(event) => {
@@ -548,7 +546,7 @@ export function SftpPane(props: Props) {
                 <div className="min-w-0">
                   <div className={cn("truncate", entry.name.startsWith(".") && !selected.includes(entry.path) && "text-muted")}>{entry.name}</div>
                   {entry.mode ? (
-                    <div className="truncate font-mono text-[11px] text-muted">{entry.mode}</div>
+                    <div className="truncate font-mono text-xs leading-none text-muted">{entry.mode}</div>
                   ) : null}
                 </div>
               </div>
@@ -559,7 +557,7 @@ export function SftpPane(props: Props) {
             </div>
           ))}
         </div>
-        <div className={cn("pointer-events-none absolute inset-2.5 z-[4] grid place-items-center rounded-surface bg-surface/80", hot ? "visible opacity-100" : "invisible opacity-0")}>
+        <div className={cn("pointer-events-none absolute inset-2.5 z-[4] grid place-items-center rounded-surface border border-accent bg-accent-soft", hot ? "visible opacity-100" : "invisible opacity-0")}>
           <div className="text-center text-ink">
             <p className="text-base font-semibold">{hint}</p>
           </div>
@@ -579,7 +577,7 @@ export function SftpPane(props: Props) {
           />
           <div
             ref={ctxEl}
-            className="fixed z-[41] min-w-[176px] rounded-control bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+            className="fixed z-[41] min-w-[176px] rounded-panel border border-line bg-surface p-1"
             style={{ left: ctx.x, top: ctx.y }}
             onMouseDown={(event) => event.stopPropagation()}
           >
@@ -652,7 +650,7 @@ function MenuButton({
       type="button"
       disabled={disabled}
       className={cn(
-        "flex w-full rounded-md px-2.5 py-1.5 text-left text-sm",
+        "flex w-full rounded-control px-2.5 py-1.5 text-left text-sm",
         danger ? "text-danger" : "text-ink",
         disabled ? "cursor-default opacity-35" : "hover:bg-raised",
       )}
@@ -698,7 +696,7 @@ function IconButton({
   return (
     <button
       type="button"
-      title={label}
+      data-tip={label}
       aria-label={label}
       disabled={disabled}
       className="grid h-8 w-8 shrink-0 place-items-center rounded-control text-ink hover:bg-raised disabled:cursor-default disabled:opacity-30"

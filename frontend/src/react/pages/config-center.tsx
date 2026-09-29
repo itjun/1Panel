@@ -12,6 +12,7 @@ import { api, type main } from "@/api";
 import { CodeSurface } from "@/react/components/code-surface";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
+import { confirmDialog } from "@/react/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -19,8 +20,11 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
-import { Notice, Page } from "@/react/components/page";
-import { ConfigConflictsPanel } from "@/react/pages/config-conflicts";
+import { Select } from "@/react/components/ui/select";
+import { Tag } from "@/react/components/ui/tag";
+import { FlashNotices, Page } from "@/react/components/page";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
+import { ConfigConflictsPanel, conflictChoiceOptions } from "@/react/pages/config-conflicts";
 import { ConfigSshFilesPanel } from "@/react/pages/config-ssh";
 import { useSession } from "@/react/state/session";
 import { formatBytes, formatErr } from "@/utils/format";
@@ -73,8 +77,7 @@ export function ConfigCenterPage() {
   const session = useSession();
   const section = session.configSection;
 
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const flash = useFlashMessage();
   const [busy, setBusy] = useState(false);
 
   // Panel JSON 草稿
@@ -180,7 +183,7 @@ export function ConfigCenterPage() {
     void api
       .getPanelBackup(id)
       .then(setBackupDetail)
-      .catch((err) => setError(formatErr(err)));
+      .catch((err) => flash.showError(formatErr(err)));
   }, [backups.data, section, selectedBackupId]);
 
   // 预览冲突默认选项
@@ -208,7 +211,7 @@ export function ConfigCenterPage() {
   useEffect(() => {
     const offImported = Events.On("panel-config-imported", () => {
       if (jsonDirty) {
-        setError("检测到外部配置变化；当前草稿已暂停自动覆盖，请先处理差异。");
+        flash.showWarn("检测到外部配置变化；当前草稿已暂停自动覆盖，请先处理差异。");
         return;
       }
       void refreshAll();
@@ -228,7 +231,7 @@ export function ConfigCenterPage() {
   }, [jsonDirty]);
 
   async function refreshAll() {
-    setError("");
+    flash.clearError();
     await Promise.all([
       overview.refetch(),
       files.refetch(),
@@ -244,7 +247,7 @@ export function ConfigCenterPage() {
 
   async function loadJson(reveal: boolean) {
     setBusy(true);
-    setError("");
+    flash.clearError();
     try {
       const state = reveal
         ? await api.getEditablePanelStateSensitive()
@@ -256,7 +259,7 @@ export function ConfigCenterPage() {
       // 下一帧再允许标记脏，避免设置文本本身触发 onChange
       requestAnimationFrame(() => setHydratingJson(false));
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setBusy(false);
     }
@@ -265,15 +268,13 @@ export function ConfigCenterPage() {
   async function togglePasswords() {
     if (passwordVisible) {
       if (jsonDirty) {
-        const answer = await Dialogs.Question({
-          Title: "重新加载脱敏 JSON",
-          Message: "隐藏敏感字段会重新加载当前 JSON 草稿，未提交的编辑会丢失。",
-          Buttons: [
-            { Label: "取消", IsCancel: true },
-            { Label: "重新加载", IsDefault: true },
-          ],
+        const ok = await confirmDialog({
+          theme: "warning",
+          title: "重新加载脱敏 JSON",
+          body: "隐藏敏感字段会重新加载当前 JSON 草稿，未提交的编辑会丢失。",
+          confirmText: "重新加载",
         });
-        if (answer !== "重新加载") return;
+        if (!ok) return;
       }
       await loadJson(false);
       return;
@@ -290,8 +291,8 @@ export function ConfigCenterPage() {
   /** 工具栏「导入差异」：打开完整预览窗，不只出一句提示 */
   async function previewExternalImport() {
     setBusy(true);
-    setError("");
-    setMessage("");
+    flash.clearError();
+    flash.clearToast();
     try {
       const tree = await api.getPanelConfigTree();
       const draftFiles = tree
@@ -304,13 +305,10 @@ export function ConfigCenterPage() {
         }));
       const next = await api.previewConfigDraft({ files: draftFiles });
       showPreview(next);
-      setMessage(
-        next.valid
-          ? "已生成差异预览，确认后可提交。"
-          : "预览存在冲突，请逐项选择处理方式后再提交。",
-      );
+      if (next.valid) flash.showToast("已生成差异预览，确认后可提交。");
+      else flash.showWarn("预览存在冲突，请逐项选择处理方式后再提交。");
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setBusy(false);
     }
@@ -318,8 +316,8 @@ export function ConfigCenterPage() {
 
   async function previewJson() {
     setBusy(true);
-    setError("");
-    setMessage("");
+    flash.clearError();
+    flash.clearToast();
     try {
       const parsed = JSON.parse(jsonText) as main.PanelStateDraft;
       if (!parsed || !Array.isArray(parsed.hosts) || !Array.isArray(parsed.groups)) {
@@ -327,13 +325,10 @@ export function ConfigCenterPage() {
       }
       const next = await api.previewPanelState(parsed);
       showPreview(next);
-      setMessage(
-        next.valid
-          ? "Panel JSON 预览已生成。"
-          : "预览存在冲突或无效，请处理后提交。",
-      );
+      if (next.valid) flash.showToast("Panel JSON 预览已生成。");
+      else flash.showWarn("预览存在冲突或无效，请处理后提交。");
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setBusy(false);
     }
@@ -344,7 +339,7 @@ export function ConfigCenterPage() {
     const conflicts = preview.conflicts || [];
     if (!conflicts.length) return;
     setBusy(true);
-    setError("");
+    flash.clearError();
     try {
       const resolutions: main.PanelConfigResolution[] = conflicts.map((conflict) => ({
         id: conflict.id,
@@ -353,11 +348,10 @@ export function ConfigCenterPage() {
       }));
       const next = await api.resolveConfigConflicts(preview.previewId, resolutions);
       showPreview(next);
-      setMessage(
-        next.valid ? "冲突已应用，预览可提交。" : "已重新预览，若仍有冲突请继续处理。",
-      );
+      if (next.valid) flash.showToast("冲突已应用，预览可提交。");
+      else flash.showWarn("已重新预览，若仍有冲突请继续处理。");
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setBusy(false);
     }
@@ -366,7 +360,7 @@ export function ConfigCenterPage() {
   async function commitPreview() {
     if (!preview?.valid || !preview.previewId) return;
     setBusy(true);
-    setError("");
+    flash.clearError();
     try {
       await api.commitPanelPreview(preview.previewId);
       setPreviewOpen(false);
@@ -374,11 +368,11 @@ export function ConfigCenterPage() {
       setChoices({});
       setManualTexts({});
       setJsonDirty(false);
-      setMessage("已备份并提交 Panel JSON 与 SSH 配置。");
+      flash.showToast("已备份并提交 Panel JSON 与 SSH 配置。");
       await refreshAll();
       await session.refresh();
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
       await refreshAll();
     } finally {
       setBusy(false);
@@ -388,16 +382,16 @@ export function ConfigCenterPage() {
   async function restoreSelected() {
     if (!backupDetail) return;
     setBusy(true);
-    setError("");
+    flash.clearError();
     try {
       await api.restorePanelBackup(backupDetail.summary.id);
       setRestoreOpen(false);
-      setMessage("配置快照已恢复。");
+      flash.showToast("配置快照已恢复。");
       await refreshAll();
       await backups.refetch();
       await session.refresh();
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setBusy(false);
     }
@@ -405,7 +399,7 @@ export function ConfigCenterPage() {
 
   /** 概览与备份共用：先选路径，再要口令 */
   async function beginEncryptedExport() {
-    setError("");
+    flash.clearError();
     try {
       const path = await Dialogs.SaveFile({
         Title: "导出加密 Panel 备份",
@@ -419,25 +413,25 @@ export function ConfigCenterPage() {
       setExportPassphrase("");
       setExportOpen(true);
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     }
   }
 
   async function confirmEncryptedExport() {
     if (!exportPath || !exportPassphrase) {
-      setError("请输入导出口令。");
+      flash.showError("请输入导出口令。");
       return;
     }
     setBusy(true);
-    setError("");
+    flash.clearError();
     try {
       await api.exportEncryptedPanelBackup(exportPath, exportPassphrase);
       setExportOpen(false);
       setExportPassphrase("");
       setExportPath("");
-      setMessage("已生成 age 加密备份（含密码）。");
+      flash.showToast("已生成 age 加密备份（含密码）。");
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setBusy(false);
     }
@@ -452,7 +446,7 @@ export function ConfigCenterPage() {
       setSystemEditors(await api.listSystemEditors());
     } catch (err) {
       setEditorOpen(false);
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setEditorLoading(false);
     }
@@ -470,7 +464,7 @@ export function ConfigCenterPage() {
         // 忽略本地存储失败
       }
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     } finally {
       setLaunchingEditorId("");
     }
@@ -481,7 +475,7 @@ export function ConfigCenterPage() {
     try {
       await api.revealPanelPath(path);
     } catch (err) {
-      setError(formatErr(err));
+      flash.showError(formatErr(err));
     }
   }
 
@@ -493,7 +487,7 @@ export function ConfigCenterPage() {
         <>
           <span className="text-sm text-muted">{statusLabel(overview.data)}</span>
           {overview.data?.drift || overview.data?.needsReview ? (
-            <Button disabled={busy} onClick={() => void previewExternalImport()}>
+            <Button size="sm" disabled={busy} onClick={() => void previewExternalImport()}>
               导入差异
             </Button>
           ) : null}
@@ -502,12 +496,11 @@ export function ConfigCenterPage() {
       onRefresh={() => void refreshAll()}
       refreshing={busy}
     >
-      {error ? <Notice text={error} /> : null}
-      {message ? <Notice text={message} tone="warn" /> : null}
+      <FlashNotices flash={flash} />
 
       {section === "overview" ? (
-        <div className="gap-card flex flex-col">
-          <Card>
+        <div className="flex flex-col gap-section">
+          <div>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" onClick={() => session.setConfigSection("json")}>
                 编辑 Panel JSON
@@ -516,45 +509,45 @@ export function ConfigCenterPage() {
               <Button onClick={() => session.setConfigSection("diff")}>差异与冲突</Button>
               <Button onClick={() => session.setConfigSection("backups")}>备份与恢复</Button>
             </div>
-          </Card>
+          </div>
 
           <div className="gap-card grid md:grid-cols-2 xl:grid-cols-4">
-            <Card>
+            <div className="rounded-control bg-raised p-5">
               <div className="text-sm text-muted">Panel 主机</div>
               <div className="text-2xl">{overview.data?.hostCount ?? 0}</div>
               <div className="text-xs text-muted">Revision {overview.data?.revision ?? 0}</div>
-            </Card>
-            <Card>
+            </div>
+            <div className="rounded-control bg-raised p-5">
               <div className="text-sm text-muted">分组</div>
               <div className="text-2xl">{overview.data?.groupCount ?? 0}</div>
-            </Card>
-            <Card>
+            </div>
+            <div className="rounded-control bg-raised p-5">
               <div className="text-sm text-muted">SSH 文件</div>
               <div className="text-2xl">{overview.data?.configFileCount ?? 0}</div>
               <div className="text-xs text-muted">
                 {overview.data?.includeCount ?? 0} 个 Include 文件
               </div>
-            </Card>
-            <Card
+            </div>
+            <div
               className={
                 overview.data?.configStale || overview.data?.drift
-                  ? "border-danger/40 bg-danger-soft"
-                  : undefined
+                  ? "rounded-control bg-danger-soft p-5"
+                  : "rounded-control bg-raised p-5"
               }
             >
               <div className="text-sm text-muted">配置状态</div>
-              <div className="text-lg">{statusLabel(overview.data)}</div>
+              <div className="text-base">{statusLabel(overview.data)}</div>
               <div className="text-xs text-muted">
                 上次生成 {formatUnixTime(overview.data?.lastGenerated)}
               </div>
-            </Card>
+            </div>
           </div>
 
-          <div className="gap-card grid md:grid-cols-2">
-            <Card>
+          <div className="grid gap-section md:grid-cols-2">
+            <section>
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <div className="font-medium">配置位置</div>
+                  <h2 className="text-sm font-semibold text-ink">配置位置</h2>
                 </div>
                 <Button
                   size="sm"
@@ -565,7 +558,7 @@ export function ConfigCenterPage() {
               </div>
               <div className="grid grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 border-b border-line py-2 text-sm">
                 <span className="text-muted">Panel JSON</span>
-                <code className="truncate font-mono text-xs" title={overview.data?.panelPath}>
+                <code className="truncate font-mono text-xs" data-tip={overview.data?.panelPath} data-tip-overflow="">
                   {compactPath(overview.data?.panelPath)}
                 </code>
                 <Button size="sm" variant="ghost" onClick={() => session.setConfigSection("json")}>
@@ -574,7 +567,7 @@ export function ConfigCenterPage() {
               </div>
               <div className="grid grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 border-b border-line py-2 text-sm">
                 <span className="text-muted">SSH config</span>
-                <code className="truncate font-mono text-xs" title={overview.data?.sshConfigPath}>
+                <code className="truncate font-mono text-xs" data-tip={overview.data?.sshConfigPath} data-tip-overflow="">
                   {compactPath(overview.data?.sshConfigPath)}
                 </code>
                 <Button size="sm" variant="ghost" onClick={() => session.setConfigSection("files")}>
@@ -590,12 +583,12 @@ export function ConfigCenterPage() {
                   定位
                 </Button>
               </div>
-            </Card>
+            </section>
 
-            <Card>
+            <section>
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <div className="font-medium">影响摘要</div>
+                  <h2 className="text-sm font-semibold text-ink">影响摘要</h2>
                 </div>
                 <Button size="sm" onClick={() => session.setConfigSection("diff")}>
                   查看全部
@@ -619,13 +612,13 @@ export function ConfigCenterPage() {
               ) : (
                 <p className="text-sm text-muted">当前没有待处理差异</p>
               )}
-            </Card>
+            </section>
           </div>
 
-          <Card>
+          <section>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="font-medium">最近备份</div>
+                <h2 className="text-sm font-semibold text-ink">最近备份</h2>
                 {overview.data?.lastBackup ? (
                   <p className="mt-1 text-sm text-muted">
                     {formatUnixTime(overview.data.lastBackup.createdAt)} ·{" "}
@@ -643,7 +636,7 @@ export function ConfigCenterPage() {
                 </Button>
               </div>
             </div>
-          </Card>
+          </section>
         </div>
       ) : null}
 
@@ -651,7 +644,7 @@ export function ConfigCenterPage() {
         <div className="surface-float m-[var(--gap-card)] flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
             <div>
-              <h2 className="text-lg font-medium">Panel 状态草稿</h2>
+              <h2 className="text-sm font-semibold text-ink">Panel 状态草稿</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy} onClick={() => void togglePasswords()}>
@@ -725,7 +718,7 @@ export function ConfigCenterPage() {
 
       {section === "diff" ? (
         <div className="m-[var(--gap-card)] min-h-0 flex-1">
-          <div className="surface-float flex h-full min-h-0 flex-col overflow-hidden">
+          <div className="surface-float flex h-full min-h-0 flex-col overflow-auto">
             <ConfigConflictsPanel
               onOpenSshFiles={() => session.setConfigSection("files")}
               onCommitted={async () => {
@@ -743,7 +736,7 @@ export function ConfigCenterPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-medium">备份与恢复</h2>
+              <h2 className="text-sm font-semibold text-ink">备份与恢复</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy} onClick={() => void beginEncryptedExport()}>
@@ -771,7 +764,7 @@ export function ConfigCenterPage() {
                   onClick={() => setSelectedBackupId(backup.id)}
                 >
                   <div className="text-sm">{formatUnixTime(backup.createdAt)}</div>
-                  <div className="font-medium">Revision {backup.revision}</div>
+                  <div className="font-semibold">Revision {backup.revision}</div>
                   <div className="text-xs text-muted">
                     {backup.hostCount} 台 · {backup.fileCount} 文件 · {formatBytes(backup.size)}
                   </div>
@@ -787,7 +780,7 @@ export function ConfigCenterPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-xs text-muted">SNAPSHOT</div>
-                      <h3 className="text-lg font-medium">
+                      <h3 className="text-base font-semibold">
                         {formatUnixTime(backupDetail.summary.createdAt)}
                       </h3>
                       <div className="mt-1 text-sm text-muted">
@@ -806,7 +799,7 @@ export function ConfigCenterPage() {
                       恢复此快照
                     </Button>
                   </div>
-                  <div className="mt-4 max-h-[48vh] overflow-auto border border-line">
+                  <div className="mt-4 max-h-[48vh] overflow-auto border-t border-line">
                     {(backupDetail.files || []).map((file) => (
                       <div
                         key={file.path}
@@ -853,13 +846,13 @@ export function ConfigCenterPage() {
             {preview ? (
               <>
                 <div
-                  className={`mb-3 rounded-control border px-3 py-2 ${
+                  className={`mb-3 rounded-control px-3 py-2 ${
                     preview.valid
-                      ? "border-success/40 bg-success-soft text-success"
-                      : "border-danger/40 bg-danger-soft text-danger"
+                      ? "bg-success-soft text-success-text"
+                      : "bg-danger-soft text-danger"
                   }`}
                 >
-                  <div className="font-medium">
+                  <div className="font-semibold">
                     {preview.valid ? "可以提交" : "需要处理后才能提交"}
                   </div>
                   {preview.error ? <div className="mt-1 text-sm">{preview.error}</div> : null}
@@ -867,32 +860,26 @@ export function ConfigCenterPage() {
 
                 <section className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-medium">连接测试</h3>
+                    <h3 className="text-sm font-semibold">连接测试</h3>
                     <span className="text-xs text-muted">
                       {(preview.affectedHosts || []).length} 台受影响主机
                     </span>
                   </div>
                   {(preview.connectionTests || []).length ? (
-                    <div className="space-y-1">
+                    <div>
                       {(preview.connectionTests || []).map((test) => (
                         <div
                           key={test.alias}
-                          className="flex flex-wrap items-center gap-2 rounded-control border border-line px-2 py-1.5 text-sm"
+                          className="flex flex-wrap items-center gap-2 border-b border-line px-2 py-1.5 text-sm last:border-b-0"
                         >
-                          <span
-                            className={`rounded-control px-1.5 py-0.5 text-xs ${
-                              test.success
-                                ? "bg-success-soft text-success"
-                                : "bg-danger-soft text-danger"
-                            }`}
-                          >
+                          <Tag tone={test.success ? "ok" : "danger"}>
                             {test.success ? "通过" : "失败"}
-                          </span>
+                          </Tag>
                           <strong>{test.alias}</strong>
                           <span className="text-muted">
                             {test.success ? test.message || "" : test.error || ""}
                           </span>
-                          <span className="ml-auto text-xs text-muted">
+                          <span className="ml-auto font-mono text-xs text-muted">
                             {test.durationMs} ms
                           </span>
                         </div>
@@ -908,7 +895,7 @@ export function ConfigCenterPage() {
                 {(preview.conflicts || []).length > 0 ? (
                   <section className="mb-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-sm font-medium">逐项解决冲突</h3>
+                      <h3 className="text-sm font-semibold">逐项解决冲突</h3>
                       <span className="text-xs text-muted">全部解决后才可提交</span>
                     </div>
                     <div className="space-y-3">
@@ -917,35 +904,30 @@ export function ConfigCenterPage() {
                         return (
                           <div
                             key={conflict.id}
-                            className="rounded-control border border-danger/40 bg-danger-soft px-3 py-3"
+                            className="rounded-control bg-danger-soft px-3 py-3"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="font-medium text-ink">
+                                <div className="font-semibold text-ink">
                                   {conflict.alias || conflict.file || "配置项"}
                                 </div>
                                 <div className="mt-0.5 text-sm text-danger">
                                   {conflict.summary}
                                 </div>
                               </div>
-                              <select
-                                className="rounded-control border border-line bg-surface px-2 py-1.5 text-sm"
+                              <Select<ConflictChoice>
+                                aria-label="冲突处理方式"
+                                className="shrink-0"
                                 value={choice}
-                                onChange={(event) => {
-                                  const value = event.target.value as ConflictChoice;
+                                onChange={(value) => {
                                   setChoices((prev) => ({ ...prev, [conflict.id]: value }));
                                 }}
-                              >
-                                <option value="panel">保留 Panel</option>
-                                <option value="external">采用外部</option>
-                                {conflict.file ? (
-                                  <option value="manual">手工合并</option>
-                                ) : null}
-                              </select>
+                                options={conflictChoiceOptions(Boolean(conflict.file))}
+                              />
                             </div>
                             {choice === "manual" && conflict.file ? (
                               <textarea
-                                className="mt-2 w-full rounded-control border border-line bg-surface px-2 py-2 font-mono text-xs"
+                                className="motion-field mt-2 w-full rounded-control px-2 py-2 font-mono text-xs"
                                 rows={6}
                                 placeholder="输入最终文件内容"
                                 value={manualTexts[conflict.id] || ""}
@@ -972,7 +954,7 @@ export function ConfigCenterPage() {
 
                 <section>
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-medium">文件与主机影响</h3>
+                    <h3 className="text-sm font-semibold">文件与主机影响</h3>
                     <span className="text-xs text-muted">
                       {(preview.fileDiff || []).length} 个文件 ·{" "}
                       {(preview.hostDiff || []).length} 台主机
@@ -983,10 +965,10 @@ export function ConfigCenterPage() {
                       <button
                         key={file.path}
                         type="button"
-                        className={`rounded-control border px-2 py-1 text-xs ${
+                        className={`rounded-control px-2 py-1 text-xs ${
                           previewFile?.path === file.path
-                            ? "border-accent bg-accent-soft font-semibold text-accent"
-                            : "border-line"
+                            ? "bg-accent-soft font-semibold text-accent"
+                            : "bg-raised hover:bg-line"
                         }`}
                         onClick={() => setPreviewFilePath(file.path)}
                       >
@@ -1006,9 +988,7 @@ export function ConfigCenterPage() {
                       key={host.alias}
                       className="mt-1 flex flex-wrap items-center gap-2 border-t border-line py-2 text-sm"
                     >
-                      <span className="rounded-control border border-line px-1.5 py-0.5 text-xs">
-                        {diffKindLabel(host.kind)}
-                      </span>
+                      <Tag tone="neutral">{diffKindLabel(host.kind)}</Tag>
                       <strong>{host.alias}</strong>
                       <span className="text-muted">
                         {(host.fields || []).join(" · ") || "结构变化"}
@@ -1064,12 +1044,12 @@ export function ConfigCenterPage() {
           <DialogDescription>
             完整导出包含 Panel JSON 中的密码，请设置一个不会被 Panel 保存的口令。
           </DialogDescription>
-          <p className="mt-2 truncate font-mono text-xs text-muted" title={exportPath}>
+          <p className="mt-2 truncate font-mono text-xs text-muted" data-tip={exportPath} data-tip-overflow="">
             {exportPath || "—"}
           </p>
           <input
             type="password"
-            className="mt-3 w-full rounded-control border border-line bg-surface px-3 py-2 text-sm"
+            className="motion-field mt-3 w-full rounded-control px-3 py-2 text-sm"
             placeholder="导出口令"
             value={exportPassphrase}
             onChange={(event) => setExportPassphrase(event.target.value)}
@@ -1094,7 +1074,7 @@ export function ConfigCenterPage() {
           <DialogDescription>
             选择一个已安装的应用打开当前配置文件。
           </DialogDescription>
-          <p className="mt-1 truncate font-mono text-xs text-muted" title={editorTargetPath}>
+          <p className="mt-1 truncate font-mono text-xs text-muted" data-tip={editorTargetPath} data-tip-overflow="">
             {compactPath(editorTargetPath)}
           </p>
           <div className="mt-3 max-h-72 space-y-2 overflow-auto">
@@ -1106,19 +1086,19 @@ export function ConfigCenterPage() {
                   key={editor.id}
                   type="button"
                   disabled={!!launchingEditorId}
-                  className={`flex w-full items-center gap-3 rounded-control border px-3 py-2 text-left hover:bg-raised ${
-                    editor.systemDefault ? "border-dashed border-accent/40" : "border-line"
-                  }`}
+                  className="flex w-full items-center gap-3 rounded-control bg-raised px-3 py-2 text-left hover:bg-line"
                   onClick={() => void launchEditor(editor)}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium">
+                    <div className="font-semibold">
                       {editor.name}
                       {editor.systemDefault ? (
-                        <span className="ml-2 text-xs text-muted">默认</span>
+                        <Tag tone="neutral" className="ml-2">
+                          默认
+                        </Tag>
                       ) : null}
                     </div>
-                    <div className="truncate font-mono text-[11px] text-muted">
+                    <div className="truncate font-mono text-xs text-muted">
                       {editor.path}
                     </div>
                   </div>
@@ -1142,8 +1122,8 @@ export function ConfigCenterPage() {
 
 function DiffPane({ title, text }: { title: string; text: string }) {
   return (
-    <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-control border border-line">
-      <div className="border-b border-line bg-raised px-2 py-1.5 text-[10px] font-semibold text-muted">
+    <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden">
+      <div className="pb-1.5 text-xs text-muted">
         {title}
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">

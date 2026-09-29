@@ -26,20 +26,21 @@ export function LocalHostsPage() {
       title="本机 Hosts"
       flush
       actions={
-        <span className="font-mono text-sm text-muted" title={pathLabel}>
+        <span className="font-mono text-sm text-muted">
           {pathLabel}
         </span>
       }
       onRefresh={() => void query.refetch()}
     >
       {query.error ? (
-        <div className="px-3 pt-3">
+        <div className="px-4 pt-4">
           <Notice text={formatErr(query.error)} />
         </div>
       ) : null}
-      <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+      {/* 内容区四周 16px 安全边距，两栏间隙 gap-card */}
+      <div className="gap-card m-4 grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
         <div className="surface-float min-h-0 overflow-auto">
-          <div className="flex h-12 items-center justify-between bg-accent-soft px-3 font-semibold text-accent">
+          <div className="flex h-table-row items-center justify-between bg-accent-soft px-3 font-semibold text-accent">
             <span className="font-mono text-sm">hosts</span>
             <span className="text-xs text-muted">{formatSize(raw.length)}</span>
           </div>

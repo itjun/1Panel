@@ -4,15 +4,16 @@
  * INTEGRATION:
  * - entry 里的创建/编辑改用本文件导出
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type sshconfig } from "@/api";
 import { DistroBadge } from "@/react/components/distro-badge";
 import { Notice } from "@/react/components/page";
+import { Select } from "@/react/components/ui/select";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
 import { formatErr } from "@/utils/format";
 
 const EDIT_INPUT =
-  "h-9 w-full rounded-[4px] border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-accent disabled:bg-raised disabled:text-muted";
+  "motion-field h-9 w-full rounded-control px-3 text-sm text-ink disabled:text-muted";
 
 const GROUP_NAME_RE = /^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
@@ -21,7 +22,7 @@ function DockCloseButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       aria-label="关闭"
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] text-muted hover:bg-raised"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised"
       onClick={onClick}
     >
       <svg
@@ -83,19 +84,18 @@ function GroupSelect({
   const groups = [...session.groups].sort((a, b) => a.order - b.order);
 
   return (
-    <select
+    <Select
+      aria-label="分组"
+      size="lg"
       className={className}
       value={value}
       disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">未分组</option>
-      {groups.map((group) => (
-        <option key={group.id} value={group.id}>
-          {group.name}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={[
+        { value: "", label: "未分组" },
+        ...groups.map((group) => ({ value: group.id, label: group.name })),
+      ]}
+    />
   );
 }
 
@@ -214,7 +214,7 @@ export function HostCreateForm({
           <div className="min-w-0 flex-1">
             <div className="text-lg font-semibold leading-tight text-ink">{title}</div>
             {kind === "group" ? (
-              <div className="mt-0.5 text-[12px] text-muted">如 04-new-group</div>
+              <div className="mt-0.5 text-xs text-muted">如 04-new-group</div>
             ) : null}
           </div>
           <DockCloseButton onClick={onClose} />
@@ -228,7 +228,7 @@ export function HostCreateForm({
 
         {kind === "group" ? (
           <section className="mb-5">
-            <div className="mb-2 text-[12px] text-muted">分组名</div>
+            <div className="mb-2 text-xs text-muted">分组名</div>
             <input
               className={EDIT_INPUT}
               placeholder="如 04-new-group"
@@ -244,7 +244,7 @@ export function HostCreateForm({
         ) : (
           <>
             <section className="mb-5">
-              <div className="mb-2 text-[12px] text-muted">地址</div>
+              <div className="mb-2 text-xs text-muted">地址</div>
               <input
                 className={EDIT_INPUT}
                 placeholder="IP / 域名"
@@ -256,7 +256,7 @@ export function HostCreateForm({
             </section>
 
             <section className="mb-5">
-              <div className="mb-2 text-[12px] text-muted">常规</div>
+              <div className="mb-2 text-xs text-muted">常规</div>
               <div className="flex flex-col gap-2">
                 <input
                   className={EDIT_INPUT}
@@ -275,7 +275,7 @@ export function HostCreateForm({
             </section>
 
             <section className="mb-5">
-              <div className="mb-2 text-[12px] text-muted">登录</div>
+              <div className="mb-2 text-xs text-muted">登录</div>
               <div className="flex flex-col gap-2">
                 <input
                   className={EDIT_INPUT}
@@ -296,9 +296,9 @@ export function HostCreateForm({
             </section>
 
             <section className="mb-2">
-              <div className="mb-2 text-[12px] text-muted">备注</div>
+              <div className="mb-2 text-xs text-muted">备注</div>
               <textarea
-                className="min-h-[88px] w-full resize-y rounded-[4px] border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent disabled:bg-raised"
+                className="motion-field min-h-[88px] w-full resize-y rounded-control px-3 py-2 text-sm text-ink"
                 placeholder="备注（可选）"
                 value={note}
                 disabled={busy}
@@ -313,7 +313,7 @@ export function HostCreateForm({
         <button
           type="button"
           disabled={busy || !canSave}
-          className="h-10 w-full rounded-[4px] bg-accent text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 w-full rounded-control bg-accent text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void handleSave()}
         >
           {saveLabel}
@@ -324,8 +324,9 @@ export function HostCreateForm({
 }
 
 /**
- * 侧栏编辑主机：别名 / 分组 / 端口 / 地址 / 用户 / 密码 / 备注均可改。
- * 「测试并保存」走 updateHost（测连 + 推公钥）；别名用 renameHost，分组用 assignHost，
+ * 侧栏编辑主机：别名 / 分组 / 端口 / 地址 / 用户 / 密码 / 备注均可改，密码可留空。
+ * 按变更项分别保存：别名用 renameHost；地址/用户/密码有变才走 updateHost 测连
+ * （留空密码时后端用已有密钥测连）；仅备注变化用 setHostNote；分组用 assignHost；
  * 端口用 getPanelState + savePanelState 补写（updateHost 不带 Port）。
  */
 export function HostEditForm({
@@ -342,13 +343,17 @@ export function HostEditForm({
   const [hostName, setHostName] = useState(host.hostName);
   const [user, setUser] = useState(host.user);
   const [password, setPassword] = useState("");
+  const [savedPassword, setSavedPassword] = useState("");
   const [note, setNote] = useState(host.note || "");
   const [port, setPort] = useState(normalizePort(host.port || ""));
   const [groupId, setGroupId] = useState(() => session.groupIdOf(host.name));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // 改名成功但后续步骤失败时，重试要以已生效的新别名为准
+  const currentNameRef = useRef(host.name);
 
   useEffect(() => {
+    currentNameRef.current = host.name;
     setAlias(host.name);
     setHostName(host.hostName);
     setUser(host.user);
@@ -356,44 +361,59 @@ export function HostEditForm({
     setPort(normalizePort(host.port || ""));
     setGroupId(session.groupIdOf(host.name));
     setPassword("");
+    setSavedPassword("");
     setError("");
     void api
       .getHostPassword(host.name)
-      .then((pwd) => setPassword(pwd || ""))
+      .then((pwd) => {
+        setPassword(pwd || "");
+        setSavedPassword(pwd || "");
+      })
       .catch(() => {
         /* 预填失败不影响编辑，用户可手动输入 */
       });
   }, [host, session.groupIdOf]);
 
+  const credentialsChanged =
+    hostName.trim() !== host.hostName ||
+    user.trim() !== host.user ||
+    password !== savedPassword;
+
   async function handleSave() {
     const nextAlias = alias.trim();
     const addr = hostName.trim();
     const login = user.trim();
-    if (!nextAlias || !addr || !login || !password) {
-      setError("别名、地址、用户、密码不能为空");
+    if (!nextAlias || !addr || !login) {
+      setError("别名、地址、用户不能为空");
       return;
     }
 
     // 在任何 rename/update 之前记下原分组，避免 rename 后用旧别名查不到
     const prevGroup = session.groupIdOf(host.name);
     const nextGroup = groupId.trim();
+    const nextNote = note.trim();
 
     setBusy(true);
     setError("");
     try {
       // 1) 别名变更：先 rename，后续接口都用新别名
-      if (nextAlias !== host.name) {
-        await api.renameHost(host.name, nextAlias);
+      if (nextAlias !== currentNameRef.current) {
+        await api.renameHost(currentNameRef.current, nextAlias);
+        currentNameRef.current = nextAlias;
       }
 
-      // 2) 测连 + 更新地址/用户/密码/备注
-      await api.updateHost({
-        name: nextAlias,
-        hostName: addr,
-        user: login,
-        password,
-        note: note.trim(),
-      });
+      // 2) 地址/用户/密码有变才测连；密码留空由后端用已有密钥测连
+      if (credentialsChanged) {
+        await api.updateHost({
+          name: nextAlias,
+          hostName: addr,
+          user: login,
+          password,
+          note: nextNote,
+        });
+      } else if (nextNote !== (host.note || "").trim()) {
+        await api.setHostNote(nextAlias, nextNote);
+      }
 
       // 3) 分组：空字符串 = 未分组
       if (nextGroup !== prevGroup) {
@@ -403,12 +423,20 @@ export function HostEditForm({
       // 4) 端口：Panel JSON 单独补写
       await applyHostPort(nextAlias, port);
 
+      session.renameHostRefs(host.name, nextAlias);
       await onDone();
     } catch (err) {
       setError(formatErr(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  let editSaveLabel = "保存";
+  if (busy) {
+    editSaveLabel = credentialsChanged ? "验证并保存…" : "保存中…";
+  } else if (credentialsChanged) {
+    editSaveLabel = "测试并保存";
   }
 
   return (
@@ -418,7 +446,7 @@ export function HostEditForm({
           <DistroBadge osRelease={session.osRelease[host.name]} />
           <div className="min-w-0 flex-1">
             <div className="text-lg font-semibold leading-tight text-ink">编辑主机</div>
-            <div className="mt-0.5 truncate text-[12px] text-muted">{host.name}</div>
+            <div className="mt-0.5 truncate text-xs text-muted">{host.name}</div>
           </div>
           <DockCloseButton onClick={onClose} />
         </div>
@@ -430,7 +458,7 @@ export function HostEditForm({
         ) : null}
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-muted">地址</div>
+          <div className="mb-2 text-xs text-muted">地址</div>
           <input
             className={EDIT_INPUT}
             placeholder="IP / 域名"
@@ -441,7 +469,7 @@ export function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-muted">常规</div>
+          <div className="mb-2 text-xs text-muted">常规</div>
           <div className="flex flex-col gap-2">
             <input
               className={EDIT_INPUT}
@@ -460,11 +488,11 @@ export function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-muted">SSH</div>
+          <div className="mb-2 text-xs text-muted">SSH</div>
           <div className="flex items-center gap-2 text-sm text-ink">
             <span>端口</span>
             <input
-              className="h-9 w-16 rounded-[4px] border border-line bg-surface px-2 text-center text-sm text-ink outline-none focus:border-accent disabled:bg-raised disabled:text-muted"
+              className="motion-field h-9 w-16 rounded-control px-2 text-center text-sm text-ink disabled:text-muted"
               value={port}
               disabled={busy}
               onChange={(event) => setPort(event.target.value)}
@@ -473,7 +501,7 @@ export function HostEditForm({
         </section>
 
         <section className="mb-5">
-          <div className="mb-2 text-[12px] text-muted">登录</div>
+          <div className="mb-2 text-xs text-muted">登录</div>
           <div className="flex flex-col gap-2">
             <input
               className={EDIT_INPUT}
@@ -484,7 +512,7 @@ export function HostEditForm({
             />
             <input
               className={EDIT_INPUT}
-              placeholder="密码"
+              placeholder="密码（留空沿用密钥登录）"
               type="password"
               value={password}
               disabled={busy}
@@ -494,9 +522,9 @@ export function HostEditForm({
         </section>
 
         <section className="mb-2">
-          <div className="mb-2 text-[12px] text-muted">备注</div>
+          <div className="mb-2 text-xs text-muted">备注</div>
           <textarea
-            className="min-h-[88px] w-full resize-y rounded-[4px] border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent disabled:bg-raised"
+            className="motion-field min-h-[88px] w-full resize-y rounded-control px-3 py-2 text-sm text-ink"
             placeholder="备注"
             value={note}
             disabled={busy}
@@ -508,11 +536,11 @@ export function HostEditForm({
       <div className="shrink-0 border-t border-line p-4">
         <button
           type="button"
-          disabled={busy || !alias.trim() || !hostName.trim() || !user.trim() || !password}
-          className="h-10 w-full rounded-[4px] bg-accent text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={busy || !alias.trim() || !hostName.trim() || !user.trim()}
+          className="h-10 w-full rounded-control bg-accent text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void handleSave()}
         >
-          {busy ? "验证并保存…" : "测试并保存"}
+          {editSaveLabel}
         </button>
       </div>
     </div>

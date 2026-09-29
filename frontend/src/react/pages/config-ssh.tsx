@@ -11,6 +11,9 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
+import { Select } from "@/react/components/ui/select";
+import { Tag } from "@/react/components/ui/tag";
+import { conflictChoiceOptions } from "@/react/pages/config-conflicts";
 import { formatBytes, formatErr } from "@/utils/format";
 
 type Props = {
@@ -245,12 +248,12 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {error ? (
-        <div className="rounded-control border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <div className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </div>
       ) : null}
       {message ? (
-        <div className="rounded-control border border-success/40 bg-success-soft px-3 py-2 text-sm text-success">
+        <div className="rounded-control bg-success-soft px-3 py-2 text-sm text-success-text">
           {message}
         </div>
       ) : null}
@@ -259,7 +262,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
         <aside className="flex min-h-0 flex-col overflow-hidden border-r border-line bg-surface">
           <div className="flex items-center justify-between border-b border-line px-3 py-2">
             <div>
-              <div className="text-sm font-medium">文件树</div>
+              <div className="text-sm font-semibold">文件树</div>
             </div>
             <Button size="sm" disabled={filesQuery.isFetching} onClick={() => void refreshTree()}>
               刷新
@@ -275,18 +278,20 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                   type="button"
                   className={`flex w-full items-center gap-2 truncate px-3 py-2 text-left text-sm hover:bg-raised ${
                     active ? "bg-accent-soft font-semibold text-accent" : ""
-                  } ${dirty && !active ? "font-medium" : ""}`}
+                  } ${dirty && !active ? "font-semibold" : ""}`}
                   onClick={() => selectFile(file.path)}
                 >
                   <span className="min-w-0 flex-1 truncate">
                     {file.panelJson ? "Panel JSON" : file.path}
                   </span>
                   {dirty ? (
-                    <span className="shrink-0 text-accent" title="本地已修改">
+                    <span className="shrink-0 text-accent" data-tip="本地已修改">
                       ●
                     </span>
                   ) : file.externalChanged ? (
-                    <span className="shrink-0 text-[11px] text-danger">外部</span>
+                    <Tag tone="danger" className="shrink-0">
+                      外部
+                    </Tag>
                   ) : null}
                 </button>
               );
@@ -311,21 +316,17 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
         <div className="flex min-h-0 flex-col overflow-hidden bg-surface">
           <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line px-3 py-2">
             <div className="min-w-0">
-              <div className="truncate font-medium">{selectedFile?.path || "config"}</div>
-              <code className="block truncate text-[11px] text-muted" title={selectedFile?.absolutePath}>
+              <div className="truncate font-semibold">{selectedFile?.path || "config"}</div>
+              <code className="block truncate text-xs text-muted" data-tip={selectedFile?.absolutePath} data-tip-overflow="">
                 {compactPath(selectedFile?.absolutePath)}
               </code>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {selectedFile?.generated ? (
-                <span className="rounded-control border border-line px-2 py-0.5 text-xs text-muted">
-                  Panel 生成
-                </span>
+                <Tag tone="neutral">Panel 生成</Tag>
               ) : null}
               {selectedFile?.externalChanged ? (
-                <span className="rounded-control border border-danger/40 bg-danger-soft px-2 py-0.5 text-xs text-danger">
-                  磁盘已变化
-                </span>
+                <Tag tone="danger">磁盘已变化</Tag>
               ) : null}
               <Button
                 size="sm"
@@ -408,13 +409,13 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
             {preview ? (
               <>
                 <div
-                  className={`mb-3 rounded-control border px-3 py-2 ${
+                  className={`mb-3 rounded-control px-3 py-2 ${
                     preview.valid
-                      ? "border-success/40 bg-success-soft text-success"
-                      : "border-danger/40 bg-danger-soft text-danger"
+                      ? "bg-success-soft text-success-text"
+                      : "bg-danger-soft text-danger"
                   }`}
                 >
-                  <div className="font-medium">
+                  <div className="font-semibold">
                     {preview.valid ? "可以提交" : "需要处理后才能提交"}
                   </div>
                   {preview.error ? <div className="mt-1 text-sm">{preview.error}</div> : null}
@@ -422,32 +423,26 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
 
                 <section className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-medium">连接测试</h3>
+                    <h3 className="text-sm font-semibold">连接测试</h3>
                     <span className="text-xs text-muted">
                       {(preview.affectedHosts || []).length} 台受影响主机
                     </span>
                   </div>
                   {(preview.connectionTests || []).length ? (
-                    <div className="space-y-1">
+                    <div>
                       {(preview.connectionTests || []).map((test) => (
                         <div
                           key={test.alias}
-                          className="flex flex-wrap items-center gap-2 rounded-control border border-line px-2 py-1.5 text-sm"
+                          className="flex flex-wrap items-center gap-2 border-b border-line px-2 py-1.5 text-sm last:border-b-0"
                         >
-                          <span
-                            className={`rounded-control px-1.5 py-0.5 text-xs ${
-                              test.success
-                                ? "bg-success-soft text-success"
-                                : "bg-danger-soft text-danger"
-                            }`}
-                          >
+                          <Tag tone={test.success ? "ok" : "danger"}>
                             {test.success ? "通过" : "失败"}
-                          </span>
+                          </Tag>
                           <strong>{test.alias}</strong>
                           <span className="text-muted">
                             {test.success ? test.message || "" : test.error || ""}
                           </span>
-                          <span className="ml-auto text-xs text-muted">{test.durationMs} ms</span>
+                          <span className="ml-auto font-mono text-xs text-muted">{test.durationMs} ms</span>
                         </div>
                       ))}
                     </div>
@@ -461,7 +456,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                 {(preview.conflicts || []).length > 0 ? (
                   <section className="mb-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-sm font-medium">逐项解决冲突</h3>
+                      <h3 className="text-sm font-semibold">逐项解决冲突</h3>
                       <span className="text-xs text-muted">全部解决后才可提交</span>
                     </div>
                     <div className="space-y-3">
@@ -470,35 +465,30 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                         return (
                           <div
                             key={conflict.id}
-                            className="rounded-control border border-danger/40 bg-danger-soft px-3 py-3"
+                            className="rounded-control bg-danger-soft px-3 py-3"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="font-medium text-ink">
+                                <div className="font-semibold text-ink">
                                   {conflict.alias || conflict.file || "配置项"}
                                 </div>
                                 <div className="mt-0.5 text-sm text-danger">
                                   {conflict.summary}
                                 </div>
                               </div>
-                              <select
-                                className="rounded-control border border-line bg-surface px-2 py-1.5 text-sm"
+                              <Select<ConflictChoice>
+                                aria-label="冲突处理方式"
+                                className="shrink-0"
                                 value={choice}
-                                onChange={(event) => {
-                                  const value = event.target.value as ConflictChoice;
+                                onChange={(value) => {
                                   setChoices((prev) => ({ ...prev, [conflict.id]: value }));
                                 }}
-                              >
-                                <option value="panel">保留 Panel</option>
-                                <option value="external">采用外部</option>
-                                {conflict.file ? (
-                                  <option value="manual">手工合并</option>
-                                ) : null}
-                              </select>
+                                options={conflictChoiceOptions(Boolean(conflict.file))}
+                              />
                             </div>
                             {choice === "manual" && conflict.file ? (
                               <textarea
-                                className="mt-2 w-full rounded-control border border-line bg-surface px-2 py-2 font-mono text-xs"
+                                className="motion-field mt-2 w-full rounded-control px-2 py-2 font-mono text-xs"
                                 rows={6}
                                 placeholder="输入最终文件内容"
                                 value={manualTexts[conflict.id] || ""}
@@ -525,7 +515,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
 
                 <section>
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-medium">文件与主机影响</h3>
+                    <h3 className="text-sm font-semibold">文件与主机影响</h3>
                     <span className="text-xs text-muted">
                       {(preview.fileDiff || []).length} 个文件 ·{" "}
                       {(preview.hostDiff || []).length} 台主机
@@ -536,10 +526,10 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                       <button
                         key={file.path}
                         type="button"
-                        className={`rounded-control border px-2 py-1 text-xs ${
+                        className={`rounded-control px-2 py-1 text-xs ${
                           previewFile?.path === file.path
-                            ? "border-accent bg-accent-soft font-semibold text-accent"
-                            : "border-line"
+                            ? "bg-accent-soft font-semibold text-accent"
+                            : "bg-raised hover:bg-line"
                         }`}
                         onClick={() => setPreviewFilePath(file.path)}
                       >
@@ -559,9 +549,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
                       key={host.alias}
                       className="mt-2 flex flex-wrap items-center gap-2 text-sm"
                     >
-                      <span className="rounded-control border border-line px-1.5 py-0.5 text-xs">
-                        {diffKindLabel(host.kind)}
-                      </span>
+                      <Tag tone="neutral">{diffKindLabel(host.kind)}</Tag>
                       <strong>{host.alias}</strong>
                       <span className="text-muted">
                         {(host.fields || []).join(" · ") || "结构变化"}
@@ -593,9 +581,9 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
 
 function DiffPane({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-control border border-line bg-raised p-2">
+    <div className="rounded-control bg-raised p-2">
       <div className="mb-1 text-xs text-muted">{title}</div>
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-ink">
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-ink">
         {text || "（空）"}
       </pre>
     </div>

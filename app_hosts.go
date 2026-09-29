@@ -237,32 +237,81 @@ func (s *Hosts) RenameHost(oldName, newName string) error {
 	return nil
 }
 
-// UpdateHost 编辑主机：密码测试连通性 → 推送本机公钥 → 更新 ~/.ssh/config 中的 HostName/User
-// 别名不变；验证失败不写 config
+// UpdateHost 编辑主机 → 更新 Panel JSON（再生成 config）中的 HostName/User/备注
+// 别名不变；验证失败不写 config。
+//   - 填了密码：密码测连 → 推送本机公钥 → 保存新密码
+//   - 未填密码：主机添加时已验证过，用已有密钥/已存密码测连，不推公钥、不清空已存密码
 func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 	input.Name = strings.TrimSpace(input.Name)
 	input.HostName = strings.TrimSpace(input.HostName)
 	input.User = strings.TrimSpace(input.User)
-	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
-		return fmt.Errorf("别名、IP、用户、密码均不能为空")
+	if input.Name == "" || input.HostName == "" || input.User == "" {
+		return fmt.Errorf("别名、IP、用户均不能为空")
 	}
 
 	hosts, err := s.ListHostsAll()
 	if err != nil {
 		return fmt.Errorf("读取 Panel 主机失败: %w", err)
 	}
-	found := false
-	for _, h := range hosts {
-		if h.Name == input.Name {
-			found = true
+	var current *sshconfig.HostConfig
+	for i := range hosts {
+		if hosts[i].Name == input.Name {
+			current = &hosts[i]
 			break
 		}
 	}
-	if !found {
+	if current == nil {
 		return fmt.Errorf("未找到主机别名: %s", input.Name)
 	}
 
-	// 1) 密码验证连通性（不污染正式连接池）
+	if input.Password != "" {
+		if err := s.verifyWithPassword(input); err != nil {
+			return err
+		}
+	} else if err := s.verifyWithExistingLogin(input, *current); err != nil {
+		return err
+	}
+
+	// 先更新 JSON，再由 JSON 生成 config；IdentityFile、分组和高级选项
+	// 都从原 PanelHost 保留，不再对 config 做局部原地改写。
+	if a := (*App)(s); a.panelStore != nil {
+		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
+			for i := range state.Hosts {
+				if state.Hosts[i].Alias == input.Name {
+					state.Hosts[i].HostName = input.HostName
+					state.Hosts[i].User = input.User
+					if input.Password != "" {
+						state.Hosts[i].Password = input.Password
+					}
+					state.Hosts[i].Note = input.Note
+					return nil
+				}
+			}
+			return fmt.Errorf("未找到 Panel 主机: %s", input.Name)
+		}); err != nil {
+			return err
+		}
+	} else if err := sshconfig.UpdateHostFields(input.Name, input.HostName, input.User); err != nil {
+		return err
+	}
+
+	// 关闭旧连接，下次用新参数重连
+	s.sshMgr.Close(input.Name)
+	if (*App)(s).panelStore == nil && s.hostMeta != nil {
+		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
+			application.Get().Logger.Warn("保存主机备注失败", "error", err)
+		}
+		if input.Password != "" {
+			if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
+				application.Get().Logger.Warn("保存主机密码失败", "error", err)
+			}
+		}
+	}
+	return nil
+}
+
+// verifyWithPassword 用新密码测连（不污染正式连接池），再推送本机公钥，保证新 IP/用户下后续可免密
+func (s *Hosts) verifyWithPassword(input UpdateHostInput) error {
 	if _, err := s.TestConnection(AddHostInput{
 		Name:     input.Name,
 		HostName: input.HostName,
@@ -272,7 +321,6 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 		return err
 	}
 
-	// 2) 推送公钥，保证新 IP/用户下后续可免密
 	pub, err := readPublicKey("~/.ssh/id_ed25519.pub")
 	if err != nil {
 		return err
@@ -292,37 +340,41 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 	if _, err := s.sshMgr.Run(opt.Host, opt, script); err != nil {
 		return fmt.Errorf("安装公钥失败: %w", err)
 	}
+	return nil
+}
 
-	// 3) 先更新 JSON，再由 JSON 生成 config；IdentityFile、分组和高级选项
-	// 都从原 PanelHost 保留，不再对 config 做局部原地改写。
-	if a := (*App)(s); a.panelStore != nil {
-		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
-			for i := range state.Hosts {
-				if state.Hosts[i].Alias == input.Name {
-					state.Hosts[i].HostName = input.HostName
-					state.Hosts[i].User = input.User
-					state.Hosts[i].Password = input.Password
-					state.Hosts[i].Note = input.Note
-					return nil
-				}
-			}
+// verifyWithExistingLogin 未填密码时，沿用主机原有的密钥/已存密码/代理配置，
+// 只把地址和用户换成新值后测连
+func (s *Hosts) verifyWithExistingLogin(input UpdateHostInput, current sshconfig.HostConfig) error {
+	a := (*App)(s)
+	var host panelstore.PanelHost
+	if a.panelStore != nil {
+		stored, ok := a.panelStore.GetHost(input.Name)
+		if !ok {
 			return fmt.Errorf("未找到 Panel 主机: %s", input.Name)
-		}); err != nil {
-			return err
 		}
-	} else if err := sshconfig.UpdateHostFields(input.Name, input.HostName, input.User); err != nil {
-		return err
+		host = stored
+	} else {
+		host = panelstore.PanelHost{
+			Alias:         current.Name,
+			Port:          current.Port,
+			ProxyJump:     current.ProxyJump,
+			ProxyCommand:  current.ProxyCommand,
+			IdentityAgent: current.IdentityAgent,
+			ForwardAgent:  current.ForwardAgent,
+			HostKeyAlgos:  current.HostKeyAlgos,
+		}
+		if current.IdentityFile != "" {
+			host.IdentityFiles = []string{current.IdentityFile}
+		}
+		if s.hostMeta != nil {
+			host.Password = s.hostMeta.GetPassword(input.Name)
+		}
 	}
-
-	// 关闭旧连接，下次用新参数重连
-	s.sshMgr.Close(input.Name)
-	if (*App)(s).panelStore == nil && s.hostMeta != nil {
-		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
-			application.Get().Logger.Warn("保存主机备注失败", "error", err)
-		}
-		if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
-			application.Get().Logger.Warn("保存主机密码失败", "error", err)
-		}
+	host.HostName = input.HostName
+	host.User = input.User
+	if _, err := a.testPanelHost(host); err != nil {
+		return err
 	}
 	return nil
 }

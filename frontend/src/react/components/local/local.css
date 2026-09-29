@@ -1,10 +1,13 @@
-/* 本机页共享样式：环图、高亮代码、分区条 */
+/* 本机页共享样式：环图、高亮代码。分区占比一律走共享 <Meter>，不再有细线进度条 */
 
+/* 概览网格单元：白色平面上用 raised 纯色块区分，无描边 / 圆角 / 阴影（DESIGN.md §2.5） */
 .local-ring {
   display: flex;
   flex-direction: column;
   align-items: center;
   min-width: 0;
+  padding: 16px 8px;
+  background: var(--color-raised);
 }
 
 .local-ring__wrap {
@@ -48,20 +51,7 @@
 
 .local-pop-row .num {
   font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, Menlo, monospace;
-}
-
-.local-disk-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--color-line);
-  overflow: hidden;
-}
-
-.local-disk-bar > i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
+  font-family: var(--font-mono);
 }
 
 .local-code-pane {
@@ -85,9 +75,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--color-graphite-text) 25%, transparent);
-  border-radius: var(--radius-surface);
-  background: color-mix(in srgb, var(--color-graphite-text) 8%, transparent);
+  /* 石墨面上的实色描边 / 底：muted 在深底上正好是中灰，不用 color-mix（Linux 旧 WebKitGTK 不支持） */
+  border: 1px solid var(--color-muted);
+  border-radius: var(--radius-control);
+  background: var(--color-graphite);
   color: var(--color-graphite-text);
   opacity: 0.6;
   cursor: pointer;
@@ -95,13 +86,13 @@
 
 .local-code-copy:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--color-graphite-text) 18%, transparent);
+  background: var(--color-muted);
 }
 
 .local-code-copy.is-copied {
   opacity: 1;
-  color: #a6e22e;
-  border-color: rgba(166, 226, 46, 0.45);
+  color: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .local-code-pre {
@@ -112,7 +103,7 @@
   padding: 16px 20px;
   overflow: auto;
   box-sizing: border-box;
-  font-family: var(--font-mono, "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco, monospace);
+  font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.55;
   color: var(--color-graphite-text);
@@ -124,7 +115,7 @@
 }
 
 .local-code-pre.muted {
-  color: color-mix(in srgb, var(--color-graphite-text) 55%, transparent);
+  color: var(--color-muted);
 }
 
 .local-code-pre.is-wrap {
@@ -133,7 +124,7 @@
 }
 
 .local-code-pre .log-warn {
-  color: #fd971f;
+  color: var(--color-warn);
 }
 
 .local-code-pre .ng-line {
@@ -150,11 +141,12 @@
   left: 0;
   width: 2.6em;
   text-align: right;
-  color: color-mix(in srgb, var(--color-graphite-text) 45%, transparent);
+  color: var(--color-muted);
   user-select: none;
 }
 
-/* Monokai 语法高亮：固定深底配色，不随浅色主题切换 */
+/* Monokai 语法高亮：固定深底配色，不随浅色主题切换。
+   属 DESIGN.md §2.5 / §8.1 允许的「编辑器主题」例外，色值不走 token */
 .local-code-pre .hljs-comment,
 .local-code-pre .hljs-quote {
   color: #75715e;

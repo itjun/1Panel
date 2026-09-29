@@ -15,6 +15,7 @@ import (
 	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/prochide"
+	"diteng-pannel/internal/sysfonts"
 	"diteng-pannel/internal/wecom"
 	"diteng-pannel/internal/winui"
 
@@ -65,6 +66,11 @@ func (s *System) SetThemeAppearance(mode string) {
 		s.themeAppearance = macui.AppearanceLight
 	}
 	s.applyAppearanceOnWindow(s.mainWindow)
+}
+
+// ListSystemFonts 本机已安装的字体家族（设置页「自定义字体」列表用）；进程内只读一次。
+func (s *System) ListSystemFonts() ([]sysfonts.SystemFont, error) {
+	return sysfonts.List()
 }
 
 func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {

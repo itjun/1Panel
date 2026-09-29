@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
+import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
 import { highlightFileHtml } from "@/utils/codeHighlight";
@@ -43,25 +44,34 @@ export function LocalNginxPage() {
       title="本机 Nginx"
       flush
       actions={
-        <span className="max-w-[420px] truncate text-sm text-muted" title={info.data?.confPath}>
-          {info.data?.running ? "运行中" : "未运行"}
-          {info.data?.version ? ` · v${info.data.version}` : ""}
-          {info.data?.confPath ? ` · ${info.data.confPath}` : ""}
+        <span
+          className="flex max-w-[420px] items-center gap-2 text-sm text-muted"
+          data-tip={info.data?.confPath}
+        >
+          <Tag tone={info.data?.running ? "ok" : "neutral"}>
+            {info.data?.running ? "运行中" : "未运行"}
+          </Tag>
+          <span className="truncate">
+            {info.data?.version ? `v${info.data.version}` : ""}
+            {info.data?.version && info.data?.confPath ? " · " : ""}
+            {info.data?.confPath || ""}
+          </span>
         </span>
       }
       onRefresh={() => void info.refetch()}
     >
       {info.error ? (
-        <div className="px-3 pt-3">
+        <div className="px-4 pt-4">
           <Notice text={formatErr(info.error)} />
         </div>
       ) : null}
       {info.data && !info.data.installed ? (
-        <div className="px-3 pt-3">
+        <div className="px-4 pt-4">
           <Notice tone="warn" text="未检测到 nginx 可执行文件" />
         </div>
       ) : null}
-      <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+      {/* 内容区四周 16px 安全边距，两栏间隙 gap-card */}
+      <div className="gap-card m-4 grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
         <div className="surface-float min-h-0 overflow-auto">
           {(info.data?.files || []).map((file) => (
             <button
@@ -69,8 +79,8 @@ export function LocalNginxPage() {
               type="button"
               className={
                 chosen === file.path
-                  ? "flex h-12 w-full items-center justify-between bg-accent-soft px-3 text-left font-semibold text-accent"
-                  : "flex h-12 w-full items-center justify-between px-3 text-left hover:bg-raised"
+                  ? "flex h-table-row w-full items-center justify-between bg-accent-soft px-3 text-left font-semibold text-accent"
+                  : "flex h-table-row w-full items-center justify-between px-3 text-left hover:bg-raised"
               }
               onClick={() => setPath(file.path)}
             >

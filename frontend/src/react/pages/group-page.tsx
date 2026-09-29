@@ -17,6 +17,8 @@ import {
   type InteractiveSortOrder,
 } from "@/react/components/data-table";
 import { Button } from "@/react/components/ui/button";
+import { Meter } from "@/react/components/ui/meter";
+import { Tag } from "@/react/components/ui/tag";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +26,8 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
-import { Notice, Page } from "@/react/components/page";
+import { FlashNotices, Notice, Page } from "@/react/components/page";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
 import {
   isCpuAlert,
@@ -81,9 +84,10 @@ const GROUP_DEFAULT_W: Record<GroupColumnKey, number> = {
   user: 64,
   version: 108,
   spec: 80,
-  load: 100,
-  cpu: 100,
-  mem: 100,
+  /* Meter 列：8 格轨道最窄 62px + 8px 间隙 + 等宽数字，再加单元格左右 24px 内边距 */
+  load: 136,
+  cpu: 120,
+  mem: 120,
   disk: 160,
 };
 
@@ -95,9 +99,9 @@ const GROUP_MIN_W: Record<GroupColumnKey, number> = {
   user: 96,
   version: 108,
   spec: 96,
-  load: 96,
-  cpu: 100,
-  mem: 100,
+  load: 128,
+  cpu: 112,
+  mem: 112,
   disk: 160,
 };
 
@@ -134,9 +138,6 @@ type GroupRow = {
   disk: number | null;
   load: number | null;
   loadText: string;
-  cpuText: string;
-  memText: string;
-  diskText: string;
   loadPercent: number | null;
   cpuAlert: boolean;
   memAlert: boolean;
@@ -205,38 +206,6 @@ function readTableSort(): { key: GroupColumnKey | null; order: InteractiveSortOr
   return { key: null, order: null };
 }
 
-function MetricBar({
-  percent,
-  text,
-  alert,
-}: {
-  percent: number | null;
-  text: string;
-  alert: boolean;
-}) {
-  if (percent == null || text === "—") return text;
-  const width = Math.max(0, Math.min(100, percent));
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
-        <div
-          className={alert ? "h-full rounded-full bg-danger" : "h-full rounded-full bg-accent"}
-          style={{ width: `${width}%` }}
-        />
-      </div>
-      <span
-        className={
-          alert
-            ? "truncate text-xs font-semibold tabular-nums text-danger"
-            : "truncate text-xs font-semibold tabular-nums"
-        }
-      >
-        {text}
-      </span>
-    </div>
-  );
-}
-
 function osVersion(osRelease: string): string {
   const text = (osRelease || "").trim();
   if (!text) return "";
@@ -280,8 +249,11 @@ function groupRowSortValue(row: GroupRow, key: GroupColumnKey): GroupSortValue {
   return null;
 }
 
+/** 表格里的 Meter：撑满单元格，右侧数字不换行（td 为 wrap 列） */
+const METER_CELL_CLASS = "w-full whitespace-nowrap";
+
 const INPUT_CLASS =
-  "h-9 w-full rounded-[4px] border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-accent";
+  "motion-field h-9 w-full rounded-control px-3 text-sm text-ink";
 
 export function GroupPage({
   onCreateHost,
@@ -309,7 +281,7 @@ export function GroupPage({
   const [sort, setSort] = useState(readTableSort);
   const [refreshing, setRefreshing] = useState(false);
   const [boardBusy, setBoardBusy] = useState(false);
-  const [boardMsg, setBoardMsg] = useState("");
+  const boardFlash = useFlashMessage();
 
   const [agentStatuses, setAgentStatuses] = useState<Record<string, agentcli.Status>>({});
   const [latestAgentVersion, setLatestAgentVersion] = useState("");
@@ -408,9 +380,6 @@ export function GroupPage({
           disk: diskSum ? diskSum.percent : null,
           load: ov ? ov.load1 : null,
           loadText: ov ? `${(ov.load1 || 0).toFixed(2)} / ${ov.cpuCount || 0}` : "—",
-          cpuText: ov ? `${ov.cpuPercent.toFixed(1)}%` : "—",
-          memText: ov ? `${ov.memPercent.toFixed(1)}%` : "—",
-          diskText: diskSum ? `${diskSum.percent.toFixed(1)}%` : "—",
           loadPercent: ov && ov.cpuCount > 0 ? ((ov.load1 || 0) / ov.cpuCount) * 100 : ov ? 0 : null,
           cpuAlert: isCpuAlert(ov),
           memAlert: isMemAlert(ov),
@@ -442,11 +411,14 @@ export function GroupPage({
         width: GROUP_DEFAULT_W[key],
         minWidth: GROUP_MIN_W[key],
         sortable: key !== "index",
+        align: key === "index" ? "right" : "left",
         wrap: key === "agent" || key === "load" || key === "cpu" || key === "mem" || key === "disk",
         render: (row: GroupRow, index: number) => {
-          if (key === "index") return index + 1;
+          if (key === "index") return <span className="tabular-nums text-muted">{index + 1}</span>;
           if (key === "host") return row.name;
-          if (key === "addr") return row.hostName || "—";
+          if (key === "addr") {
+            return <span className="font-mono text-muted">{row.hostName || "—"}</span>;
+          }
           if (key === "agent") {
             const progress = batchRowMap.get(row.name);
             if (showBatchInTable && progress) {
@@ -464,38 +436,70 @@ export function GroupPage({
                     {batchRowLabel(progress)}
                   </span>
                   {progress.state === "running" && progress.percent >= 0 ? (
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
-                      <div
-                        className="motion-width h-full bg-accent"
-                        style={{ width: `${Math.min(100, progress.percent)}%` }}
-                      />
-                    </div>
+                    <Meter
+                      value={progress.percent}
+                      showValue={false}
+                      tone="ok"
+                      className="w-full"
+                    />
                   ) : null}
                 </div>
               );
             }
+            // 异常：Agent 探测出错且未在线（row.agent 已按此算好）
+            if (row.agent === "异常") {
+              return <Tag tone="danger">异常</Tag>;
+            }
             const tag = agentTagOf(agentStatuses[row.name], latestAgentVersion);
-            let chip =
-              "inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium";
-            if (tag.tone === "ok") chip += " bg-raised text-success";
-            else if (tag.tone === "warn") chip += " bg-raised text-warn";
-            else chip += " bg-raised text-muted";
-            return <span className={chip}>{tag.text}</span>;
+            if (tag.tone === "ok") {
+              return <Tag tone="ok">{tag.text}</Tag>;
+            }
+            if (tag.tone === "warn") {
+              return <Tag tone="warn">{tag.text}</Tag>;
+            }
+            return <Tag tone="neutral">{tag.text}</Tag>;
           }
           if (key === "user") return row.user || "—";
-          if (key === "version") return row.version;
+          if (key === "version") {
+            return <span className="font-mono text-muted">{row.version}</span>;
+          }
           if (key === "spec") return row.spec;
           if (key === "load") {
-            return <MetricBar percent={row.loadPercent} text={row.loadText} alert={row.loadAlert} />;
+            return (
+              <Meter
+                value={row.loadPercent ?? undefined}
+                valueText={row.loadText}
+                tone={row.loadAlert ? "danger" : "auto"}
+                className={METER_CELL_CLASS}
+              />
+            );
           }
           if (key === "cpu") {
-            return <MetricBar percent={row.cpu} text={row.cpuText} alert={row.cpuAlert} />;
+            return (
+              <Meter
+                value={row.cpu ?? undefined}
+                tone={row.cpuAlert ? "danger" : "auto"}
+                className={METER_CELL_CLASS}
+              />
+            );
           }
           if (key === "mem") {
-            return <MetricBar percent={row.mem} text={row.memText} alert={row.memAlert} />;
+            return (
+              <Meter
+                value={row.mem ?? undefined}
+                tone={row.memAlert ? "danger" : "auto"}
+                className={METER_CELL_CLASS}
+              />
+            );
           }
           if (key === "disk") {
-            return <MetricBar percent={row.disk} text={row.diskText} alert={row.diskAlert} />;
+            return (
+              <Meter
+                value={row.disk ?? undefined}
+                tone={row.diskAlert ? "danger" : "auto"}
+                className={METER_CELL_CLASS}
+              />
+            );
           }
           return "—";
         },
@@ -553,15 +557,15 @@ export function GroupPage({
   async function copyBoardLink() {
     if (!canEditGroup) return;
     setBoardBusy(true);
-    setBoardMsg("");
+    boardFlash.clear();
     try {
       const urls = await api.listBoardURLs(groupId);
       const url = (urls || [])[0];
       if (!url) throw new Error("无可用内网地址");
       await copyText(url);
-      setBoardMsg("看板链接已复制");
+      boardFlash.showToast("看板链接已复制");
     } catch (err) {
-      setBoardMsg(`复制失败: ${formatErr(err)}`);
+      boardFlash.showError(`复制失败: ${formatErr(err)}`);
     } finally {
       setBoardBusy(false);
     }
@@ -570,11 +574,11 @@ export function GroupPage({
   async function openBoardBrowser() {
     if (!canEditGroup) return;
     setBoardBusy(true);
-    setBoardMsg("");
+    boardFlash.clear();
     try {
       await api.openBoardInBrowser(groupId);
     } catch (err) {
-      setBoardMsg(`打开失败: ${formatErr(err)}`);
+      boardFlash.showError(`打开失败: ${formatErr(err)}`);
     } finally {
       setBoardBusy(false);
     }
@@ -752,32 +756,66 @@ export function GroupPage({
   ).length;
   const alreadyOkCount = hosts.length - needInstallCount;
 
+  // 概况条：直接从 hosts + Agent 状态算，不走新接口
+  const installedCount = hosts.filter(
+    (h) => agentTagOf(agentStatuses[h.name], latestAgentVersion).tone !== "off",
+  ).length;
+  const updatableCount = hosts.filter(
+    (h) => agentTagOf(agentStatuses[h.name], latestAgentVersion).tone === "warn",
+  ).length;
+  let summaryText = `${hosts.length} 台主机 · ${installedCount} 台已装 Agent`;
+  if (updatableCount > 0) {
+    summaryText += ` · ${updatableCount} 台可更新`;
+  }
+
+  // 有未装 / 可更新的主机时「安装 Agent」是主操作，其余一律 ghost
+  let installVariant: "primary" | "ghost" = "ghost";
+  if (needInstallCount > 0) {
+    installVariant = "primary";
+  }
+
   return (
     <Page
       title={groupLabel}
-      flush={hosts.length > 0}
+      flush
       actions={
         <>
           {canEditGroup ? (
             <>
-              <Button disabled={boardBusy} onClick={() => void copyBoardLink()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={boardBusy}
+                onClick={() => void copyBoardLink()}
+              >
                 复制看板链接
               </Button>
-              <Button disabled={boardBusy} onClick={() => void openBoardBrowser()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={boardBusy}
+                onClick={() => void openBoardBrowser()}
+              >
                 浏览器打开
               </Button>
             </>
           ) : null}
           <Button
+            variant={installVariant}
+            size="sm"
             disabled={!hosts.length || batchBusy}
             onClick={() => setBatchConfirmOpen(true)}
-            title="为本组全部主机安装 Agent"
+            data-tip="为本组全部主机安装 Agent"
           >
             {batchBusy ? "安装中…" : "安装 Agent"}
           </Button>
-          {hasCustomLayout ? <Button onClick={resetLayout}>恢复默认列</Button> : null}
+          {hasCustomLayout ? (
+            <Button variant="ghost" size="sm" onClick={resetLayout}>
+              恢复默认列
+            </Button>
+          ) : null}
           {canEditGroup ? (
-            <Button onClick={openGroupSettings} title="分组设置">
+            <Button variant="ghost" size="sm" onClick={openGroupSettings}>
               分组设置
             </Button>
           ) : null}
@@ -786,32 +824,34 @@ export function GroupPage({
       onRefresh={() => void refreshAll()}
       refreshing={refreshing}
     >
-      {boardMsg ? (
-        <div className="px-4 pt-3">
-          <Notice text={boardMsg} />
-        </div>
-      ) : null}
-      {!hosts.length ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-          <Button variant="primary" onClick={openAddHost}>
-            添加主机
-          </Button>
-        </div>
-      ) : (
-        <InteractiveDataTable
-          columns={columns}
-          data={sortedRows}
-          columnOrder={columnOrder}
-          columnWidths={columnWidths}
-          sortKey={sort.key}
-          sortOrder={sort.order}
-          onColumnOrderChange={persistOrder}
-          onColumnWidthsChange={persistWidths}
-          onSortChange={persistSort}
-          onRowDoubleClick={(row) => session.openHost(row.name, "overview")}
-          getRowId={(row) => row.name}
-        />
-      )}
+      {/* 内容区四周 16px 安全边距：白色平面上直接放扁平表格 */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
+        <FlashNotices flash={boardFlash} />
+        {!hosts.length ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+            <Button variant="primary" onClick={openAddHost}>
+              添加主机
+            </Button>
+          </div>
+        ) : (
+          <>
+            <p className="m-0 text-xs text-muted">{summaryText}</p>
+            <InteractiveDataTable
+              columns={columns}
+              data={sortedRows}
+              columnOrder={columnOrder}
+              columnWidths={columnWidths}
+              sortKey={sort.key}
+              sortOrder={sort.order}
+              onColumnOrderChange={persistOrder}
+              onColumnWidthsChange={persistWidths}
+              onSortChange={persistSort}
+              onRowDoubleClick={(row) => session.openHost(row.name, "overview")}
+              getRowId={(row) => row.name}
+            />
+          </>
+        )}
+      </div>
 
       <Dialog open={batchConfirmOpen} onOpenChange={setBatchConfirmOpen}>
         <DialogContent className="w-[min(480px,calc(100%-32px))]">
@@ -849,22 +889,22 @@ export function GroupPage({
         >
           <DialogTitle>安装 Agent</DialogTitle>
           {batchRows.length ? (
-            <p className="mt-3 rounded-control bg-raised px-3.5 py-2.5 text-sm text-muted">
+            <p className="mt-3 text-sm text-muted">
               {batchSummaryText}
             </p>
           ) : null}
-          <div className="mt-3 flex max-h-[min(52vh,420px)] flex-col gap-2 overflow-auto pr-0.5">
+          <div className="mt-3 flex max-h-[min(52vh,420px)] flex-col overflow-auto pr-0.5">
             {batchRows.map((r) => (
               <div
                 key={r.host}
-                className="flex items-start gap-4 rounded-control bg-raised px-3.5 py-3"
+                className="flex items-start gap-4 border-b border-line py-3"
               >
                 <div className="mt-0.5 w-5 shrink-0 text-center text-sm" aria-hidden="true">
                   {r.state === "running" ? "…" : r.state === "done" ? "✓" : r.state === "error" ? "✕" : "·"}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex min-w-0 items-start justify-between gap-4">
-                    <span className="min-w-0 truncate font-medium text-ink">{r.host}</span>
+                    <span className="min-w-0 truncate font-semibold text-ink">{r.host}</span>
                     <span
                       className={
                         r.state === "error"
@@ -878,12 +918,7 @@ export function GroupPage({
                     </span>
                   </div>
                   {r.state === "running" && r.percent >= 0 ? (
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-raised">
-                      <div
-                        className="motion-width h-full bg-accent"
-                        style={{ width: `${Math.min(100, r.percent)}%` }}
-                      />
-                    </div>
+                    <Meter value={r.percent} showValue={false} tone="ok" className="w-full" />
                   ) : null}
                 </div>
               </div>

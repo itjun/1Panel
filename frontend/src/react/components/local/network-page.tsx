@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api, type localsys } from "@/api";
 import { Card } from "@/react/components/ui/card";
+import { Switch } from "@/react/components/ui/switch";
+import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatBytes, formatErr } from "@/utils/format";
 
@@ -120,9 +122,9 @@ export function LocalNetworkPage() {
       onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      <div className="flex flex-col gap-4">
-        <Card>
-          <div className="text-lg font-medium font-mono">
+      <div className="gap-section flex flex-col">
+        <Card className="p-0">
+          <div className="text-xl font-semibold font-mono">
             {snap?.primaryIP || "—"}
           </div>
           <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
@@ -147,14 +149,9 @@ export function LocalNetworkPage() {
         </Card>
 
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <label className="opt-check">
-            <input
-              type="checkbox"
-              checked={showAll}
-              onChange={(e) => setShowAll(e.target.checked)}
-            />
-            {showAll ? "全部" : "已连"}
-          </label>
+          <Switch checked={showAll} onChange={setShowAll}>
+            显示全部
+          </Switch>
           <span className="text-muted">
             {showAll
               ? "显示全部网卡"
@@ -165,7 +162,7 @@ export function LocalNetworkPage() {
         </div>
 
         {visibleGroups.length === 0 ? (
-          <Card>
+          <Card className="p-0">
             <p className="text-sm text-muted">
               {showAll ? "未发现网卡" : "没有已连接的网卡"}
             </p>
@@ -173,7 +170,7 @@ export function LocalNetworkPage() {
         ) : (
           visibleGroups.map((group) => (
             <Card key={group.kind} className="overflow-hidden p-0">
-              <div className="border-b border-line px-5 py-3 font-medium">
+              <div className="mb-2 text-sm font-semibold text-ink">
                 {group.label}
                 <span className="ml-2 text-sm font-normal text-muted">
                   {group.items.length}
@@ -181,7 +178,7 @@ export function LocalNetworkPage() {
               </div>
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="h-10 bg-raised">
+                  <tr className="h-table-head border-b border-line text-xs font-normal text-muted">
                     <th className="w-12 px-3 text-center">序</th>
                     <th className="px-3">名称</th>
                     <th className="px-3">状态</th>
@@ -196,10 +193,10 @@ export function LocalNetworkPage() {
                       key={ifc.name}
                       className={
                         ifc.state !== "up"
-                          ? "h-12 border-t border-line opacity-60"
+                          ? "h-table-row border-t border-line opacity-60"
                           : isVpnDim(ifc)
-                            ? "h-12 border-t border-line opacity-50"
-                            : "h-12 border-t border-line"
+                            ? "h-table-row border-t border-line opacity-50"
+                            : "h-table-row border-t border-line"
                       }
                     >
                       <td className="px-3 text-center font-mono text-muted">
@@ -209,7 +206,7 @@ export function LocalNetworkPage() {
                         <div>
                           {displayName(ifc)}
                           {isEgress(ifc) ? (
-                            <span className="ml-2 text-xs text-accent">出口</span>
+                            <Tag tone="accent" className="ml-2">出口</Tag>
                           ) : null}
                         </div>
                         <div className="font-mono text-xs text-muted">
@@ -217,7 +214,11 @@ export function LocalNetworkPage() {
                         </div>
                       </td>
                       <td className="px-3">
-                        {ifc.state === "up" ? "已连接" : "未连接"}
+                        {ifc.state === "up" ? (
+                          <Tag tone="ok">已连接</Tag>
+                        ) : (
+                          <Tag>未连接</Tag>
+                        )}
                       </td>
                       <td className="px-3 font-mono">{ifc.ipv4 || "—"}</td>
                       <td className="px-3 font-mono">{ifc.mac || "—"}</td>

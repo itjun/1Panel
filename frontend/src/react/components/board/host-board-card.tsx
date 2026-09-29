@@ -14,6 +14,7 @@ import {
   type BoardHealth,
 } from "@/utils/boardModel";
 import { BoardSparkline } from "@/react/components/board/board-sparkline";
+import { Meter } from "@/react/components/ui/meter";
 
 export type BoardCardDensity = "lg" | "md" | "sm" | "xs" | "xxs";
 
@@ -86,6 +87,8 @@ export function HostBoardCard({
   const diskSummary = summarizeDisks(disks);
   const diskPct = diskSummary?.percent ?? 0;
   const sparkHeight = sparkHeightOf(density);
+  // 大屏卡片用 12 格 LED，其余沿用规范默认 8 格（DESIGN.md §4.7）
+  const meterSegments = density === "lg" ? 12 : 8;
 
   let memUsageText = "—";
   if (overview) {
@@ -141,7 +144,7 @@ export function HostBoardCard({
           <span className="host-board-card__state-dot" aria-hidden="true" />
           <div className="host-board-card__title">
             <div className="host-board-card__name-line">
-              <span className="host-board-card__name" title={name}>
+              <span className="host-board-card__name" data-tip={name} data-tip-overflow="">
                 {name}
               </span>
               <span className="host-board-card__health">{healthLabel}</span>
@@ -216,12 +219,13 @@ export function HostBoardCard({
               </strong>
             </div>
             <span className="metric-tile__sub">{loadRatioText}</span>
-            <div className={`metric-tile__bar${loadAlert ? " is-alert" : ""}`}>
-              <div
-                className="metric-tile__bar-fill"
-                style={{ width: `${loadBarPct}%` }}
-              />
-            </div>
+            <Meter
+              value={loadBarPct}
+              segments={meterSegments}
+              showValue={false}
+              tone={loadAlert ? "danger" : "auto"}
+              className="metric-tile__meter"
+            />
           </section>
 
           <section className="metric-tile">
@@ -234,12 +238,13 @@ export function HostBoardCard({
               </strong>
             </div>
             <span className="metric-tile__sub">{diskUsageText}</span>
-            <div className={`metric-tile__bar${diskAlert ? " is-alert" : ""}`}>
-              <div
-                className="metric-tile__bar-fill"
-                style={{ width: `${clampPct(diskPct)}%` }}
-              />
-            </div>
+            <Meter
+              value={clampPct(diskPct)}
+              segments={meterSegments}
+              showValue={false}
+              tone={diskAlert ? "danger" : "auto"}
+              className="metric-tile__meter"
+            />
           </section>
         </div>
       )}

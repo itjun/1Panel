@@ -254,6 +254,44 @@ func TestGenerateRemovesRenamedManagedHostFromGeneratedTail(t *testing.T) {
 	}
 }
 
+func TestGenerateRenamedGroupedHostReplacesOldAliasInGroupFile(t *testing.T) {
+	groupFile := "config.d/01-cdcp-main.conf"
+	state := panelstore.State{
+		Version: panelstore.CurrentVersion,
+		Groups:  []panelstore.PanelGroup{{ID: "01-cdcp-main", Name: "01-cdcp-main"}},
+		Hosts: []panelstore.PanelHost{
+			{Alias: "cdcp-gray", HostName: "198.51.100.70", User: "root", GroupID: "01-cdcp-main", IdentityFiles: []string{"~/.ssh/id_ed25519"}},
+			{Alias: "cdcp-main", HostName: "10.0.0.1", User: "root", GroupID: "01-cdcp-main"},
+		},
+		ConfigLayout: panelstore.ConfigLayout{
+			ManagedHosts: []string{"cdcp-beta", "cdcp-main"},
+			Files: []panelstore.ConfigFile{
+				{Path: "config", Content: "Include ~/.ssh/config.d/*\n"},
+				{Path: groupFile, Content: "Host cdcp-beta\n    HostName 198.51.100.70\n# 1PANNEL-GENERATED\nHost cdcp-beta\n    HostName 198.51.100.70\nHost cdcp-main\n    HostName 10.0.0.1\n"},
+			},
+		},
+	}
+	generation, err := Generate(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var content string
+	for _, file := range generation.Files {
+		if file.Path == groupFile {
+			content = file.Content
+		}
+	}
+	if content == "" {
+		t.Fatalf("group file %s not generated", groupFile)
+	}
+	if strings.Contains(content, "Host cdcp-beta") {
+		t.Fatalf("old alias still present: %q", content)
+	}
+	if strings.Count(content, "Host cdcp-gray") != 1 || strings.Count(content, "Host cdcp-main") != 1 {
+		t.Fatalf("unexpected host blocks: %q", content)
+	}
+}
+
 func TestGenerateIsIdempotentAndDoesNotAccumulateBlankLines(t *testing.T) {
 	state := panelstore.State{
 		Version: panelstore.CurrentVersion,

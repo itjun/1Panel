@@ -1,12 +1,25 @@
 // INTEGRATION: entry 改为使用本文件的 SettingsPage。
 import { Dialogs, Events } from "@wailsio/runtime";
 import { useQuery } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/api";
+import { DistroBadge } from "@/react/components/distro-badge";
 import { Button } from "@/react/components/ui/button";
-import { Notice, Page } from "@/react/components/page";
+import { InputNumber } from "@/react/components/ui/input-number";
+import { RadioGroup } from "@/react/components/ui/radio-group";
+import { Select } from "@/react/components/ui/select";
+import { Slider } from "@/react/components/ui/slider";
+import { Switch } from "@/react/components/ui/switch";
+import { FlashNotices, Page } from "@/react/components/page";
+import { FontListPanel } from "@/react/components/font-picker";
 import {
-  FONT_OPTIONS,
+  customFontName,
+  fontOptions,
+  isPresetFont,
+  type FontKind,
+} from "@/react/lib/fonts";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
+import {
   SETTINGS_DEFAULTS,
   resetSettings,
   updateSettings,
@@ -19,7 +32,7 @@ export function SettingsPage() {
   const session = useSession();
   const settings = useSettings();
   const [ask, setAsk] = useState(true);
-  const [message, setMessage] = useState("");
+  const flash = useFlashMessage();
   const [boardEnabled, setBoardEnabled] = useState(true);
   const [boardPort, setBoardPort] = useState(8888);
   const egress = useQuery({
@@ -59,6 +72,7 @@ export function SettingsPage() {
   const changed =
     settings.appearance !== SETTINGS_DEFAULTS.appearance ||
     settings.fontFamily !== SETTINGS_DEFAULTS.fontFamily ||
+    settings.monoFontFamily !== SETTINGS_DEFAULTS.monoFontFamily ||
     settings.fontSize !== SETTINGS_DEFAULTS.fontSize ||
     settings.startupPage !== SETTINGS_DEFAULTS.startupPage ||
     !ask;
@@ -71,6 +85,7 @@ export function SettingsPage() {
       actions={
         section === "look" || section === "session" ? (
           <Button
+            size="sm"
             disabled={!changed}
             onClick={() => {
               resetSettings();
@@ -82,128 +97,119 @@ export function SettingsPage() {
         ) : undefined
       }
     >
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-6 py-5">
-        {message ? <Notice text={message} /> : null}
+      {/* 外层 Page 已给 16px 安全边距，这里只负责居中与分区间距（8 点网格） */}
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-section">
+        <FlashNotices flash={flash} />
 
         {section === "look" ? (
-          <section className="gap-card flex flex-col">
-            <h2 className="text-xs font-semibold tracking-wide text-muted">外观</h2>
+          <section className="flex flex-col">
+            <h2 className="mb-2 text-sm font-semibold text-ink">外观</h2>
             <SettingRow label="主题" hint="改完立刻生效">
-              <label className="opt-check">
-                <input
-                  type="radio"
-                  checked={settings.appearance === "light"}
-                  onChange={() => updateSettings({ appearance: "light" })}
-                />
-                白色
-              </label>
-              <label className="opt-check">
-                <input
-                  type="radio"
-                  checked={settings.appearance === "dark"}
-                  onChange={() => updateSettings({ appearance: "dark" })}
-                />
-                黑色
-              </label>
-              <label className="opt-check">
-                <input
-                  type="radio"
-                  checked={settings.appearance === "system"}
-                  onChange={() => updateSettings({ appearance: "system" })}
-                />
-                跟随系统
-              </label>
+              <RadioGroup
+                aria-label="主题"
+                value={settings.appearance}
+                onChange={(appearance) => updateSettings({ appearance })}
+                options={[
+                  { value: "light", label: "白色" },
+                  { value: "dark", label: "黑色" },
+                  { value: "system", label: "跟随系统" },
+                ]}
+              />
             </SettingRow>
-            <SettingRow label="界面字体" hint="改完立刻生效">
-              <select
-                className="h-8 rounded-control border border-line bg-surface px-2 text-sm"
-                value={settings.fontFamily}
-                onChange={(event) => updateSettings({ fontFamily: event.target.value })}
-              >
-                {FONT_OPTIONS.map((font) => (
-                  <option key={font.label} value={font.value}>
-                    {font.label}
-                  </option>
-                ))}
-              </select>
-            </SettingRow>
-            <SettingRow label="界面字号" hint={`${settings.fontSize} px`}>
-              <input
-                type="range"
+          </section>
+        ) : null}
+
+        {section === "look" ? (
+          <section className="flex flex-col">
+            <h2 className="mb-1 text-sm font-semibold text-ink">字体</h2>
+            <p className="m-0 mb-2 text-xs text-muted">
+              默认使用系统字体（Mac 为 SF + 苹方）；选择只保存在本机，不同电脑可以各自设置。改完立刻生效。
+            </p>
+            <FontSettingRow
+              label="界面字体"
+              hint="用在菜单和侧栏、按钮、主机名和分组名、表格里的普通文字、提示条、弹窗"
+              kind="sans"
+              value={settings.fontFamily}
+              onChange={(value) => updateSettings({ fontFamily: value })}
+              preview={<SansFontPreview />}
+            />
+            <FontSettingRow
+              label="等宽字体"
+              hint="用在 IP 地址和端口、版本号、CPU / 内存等数值、文件路径和大小、日志、配置编辑器（SSH 配置、JSON）"
+              kind="mono"
+              value={settings.monoFontFamily}
+              onChange={(value) => updateSettings({ monoFontFamily: value })}
+              preview={<MonoFontPreview />}
+            />
+            <SettingRow
+              label="界面字号"
+              hint={`${settings.fontSize} px · 界面上的所有文字；配置编辑器固定 14px`}
+            >
+              <Slider
+                aria-label="界面字号"
                 min={11}
                 max={20}
                 value={settings.fontSize}
-                onChange={(event) => updateSettings({ fontSize: Number(event.target.value) })}
+                formatTip={(size) => `${size} px`}
+                onChange={(fontSize) => updateSettings({ fontSize })}
               />
             </SettingRow>
           </section>
         ) : null}
 
         {section === "session" ? (
-          <section className="gap-card flex flex-col">
-            <h2 className="text-xs font-semibold tracking-wide text-muted">会话</h2>
+          <section className="flex flex-col">
+            <h2 className="mb-2 text-sm font-semibold text-ink">会话</h2>
             <SettingRow label="启动时打开">
-              <label className="opt-check">
-                <input
-                  type="radio"
-                  checked={settings.startupPage === "home"}
-                  onChange={() => updateSettings({ startupPage: "home" })}
-                />
-                应用首页
-              </label>
-              <label className="opt-check">
-                <input
-                  type="radio"
-                  checked={settings.startupPage === "resume"}
-                  onChange={() => updateSettings({ startupPage: "resume" })}
-                />
-                离开画面
-              </label>
+              <RadioGroup
+                aria-label="启动时打开"
+                value={settings.startupPage}
+                onChange={(startupPage) => updateSettings({ startupPage })}
+                options={[
+                  { value: "home", label: "应用首页" },
+                  { value: "resume", label: "离开画面" },
+                ]}
+              />
             </SettingRow>
           </section>
         ) : null}
 
         {section === "board" ? (
-          <section className="gap-card flex flex-col">
-            <h2 className="text-xs font-semibold tracking-wide text-muted">看板</h2>
+          <section className="flex flex-col">
+            <h2 className="mb-2 text-sm font-semibold text-ink">看板</h2>
             <SettingRow
               label="内网看板"
               hint="仅私网 IPv4 可访问；浏览器打开 http://内网IP:端口/分组名"
             >
-              <label className="opt-check mr-3">
-                <input
-                  type="checkbox"
-                  checked={boardEnabled}
-                  onChange={(event) => {
-                    const enabled = event.target.checked;
-                    setBoardEnabled(enabled);
-                    void api
-                      .setBoardHTTPConfig({ enabled, port: boardPort })
-                      .then(() => setMessage(enabled ? "看板已开启" : "看板已关闭"))
-                      .catch((error) => setMessage(formatErr(error)));
-                  }}
-                />
-                开启
-              </label>
+              <Switch
+                className="mr-3"
+                aria-label="内网看板"
+                checked={boardEnabled}
+                onChange={(enabled) => {
+                  setBoardEnabled(enabled);
+                  void api
+                    .setBoardHTTPConfig({ enabled, port: boardPort })
+                    .then(() => flash.showToast(enabled ? "看板已开启" : "看板已关闭"))
+                    .catch((error) => flash.showError(formatErr(error)));
+                }}
+              />
               <label className="inline-flex items-center gap-2 text-sm">
                 端口
-                <input
-                  type="number"
+                <InputNumber
+                  aria-label="看板端口"
                   min={1}
                   max={65535}
-                  className="h-8 w-24 rounded-control border border-line bg-surface px-2 text-sm"
                   value={boardPort}
-                  onChange={(event) => setBoardPort(Number(event.target.value) || 8888)}
-                  onBlur={() => {
-                    const port = boardPort > 0 && boardPort <= 65535 ? boardPort : 8888;
+                  onCommit={(port) => {
+                    if (port === boardPort) return;
                     setBoardPort(port);
                     void api
                       .setBoardHTTPConfig({ enabled: boardEnabled, port })
                       .then(() => {
-                        setMessage(`看板端口已设为 ${port}`);
+                        flash.showToast(`看板端口已设为 ${port}`);
                         void boardUrls.refetch();
                       })
-                      .catch((error) => setMessage(formatErr(error)));
+                      .catch((error) => flash.showError(formatErr(error)));
                   }}
                 />
               </label>
@@ -230,8 +236,8 @@ export function SettingsPage() {
         ) : null}
 
         {section === "app" ? (
-          <section className="gap-card flex flex-col">
-            <h2 className="text-xs font-semibold tracking-wide text-muted">应用</h2>
+          <section className="flex flex-col">
+            <h2 className="mb-2 text-sm font-semibold text-ink">应用</h2>
             <SettingRow label="本机出口" hint="公网 IP，来自 myip.ipip.net">
               <span>{egress.data?.ip || (egress.isLoading ? "检测中…" : "未知")}</span>
               {egress.data?.location ? (
@@ -253,9 +259,9 @@ export function SettingsPage() {
                       return api.exportBackup(dir);
                     })
                     .then((msg) => {
-                      if (msg) setMessage(msg);
+                      if (msg) flash.showToast(msg);
                     })
-                    .catch((error) => setMessage(formatErr(error)));
+                    .catch((error) => flash.showError(formatErr(error)));
                 }}
               >
                 导出…
@@ -269,42 +275,38 @@ export function SettingsPage() {
               <Button onClick={() => session.setConfigSection("overview")}>打开配置中心</Button>
             </SettingRow>
             <SettingRow label="退出前询问">
-              <label className="opt-check">
-                <input
-                  type="checkbox"
-                  checked={ask}
-                  onChange={(event) => {
-                    const next = event.target.checked;
-                    setAsk(next);
-                    void api.setAskBeforeQuit(next);
-                  }}
-                />
-                开启
-              </label>
+              <Switch
+                aria-label="退出前询问"
+                checked={ask}
+                onChange={(next) => {
+                  setAsk(next);
+                  void api.setAskBeforeQuit(next);
+                }}
+              />
             </SettingRow>
           </section>
         ) : null}
 
         {section === "shortcuts" ? (
-          <section className="gap-card flex flex-col">
-            <h2 className="text-xs font-semibold tracking-wide text-muted">快捷键</h2>
-            <div className="surface-float overflow-hidden">
+          <section className="flex flex-col">
+            <h2 className="mb-2 text-sm font-semibold text-ink">快捷键</h2>
+            <div className="overflow-hidden">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-line bg-raised text-xs text-muted">
-                    <th className="px-5 py-3 font-medium">功能</th>
-                    <th className="px-5 py-3 font-medium">Windows</th>
-                    <th className="px-5 py-3 font-medium">Mac</th>
+                  <tr className="h-table-head border-b border-line text-xs text-muted">
+                    <th className="px-3 font-normal">功能</th>
+                    <th className="px-3 font-normal">Windows</th>
+                    <th className="px-3 font-normal">Mac</th>
                   </tr>
                 </thead>
                 <tbody>
                   {SHORTCUT_ROWS.map((row) => (
-                    <tr key={row.label} className="border-b border-line last:border-b-0">
-                      <td className="px-5 py-3.5 font-medium text-ink">{row.label}</td>
-                      <td className="px-5 py-3.5">
+                    <tr key={row.label} className="h-table-row border-b border-line last:border-b-0">
+                      <td className="px-3 text-ink">{row.label}</td>
+                      <td className="px-3">
                         <ShortcutKeys keys={row.win} />
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-3">
                         <ShortcutKeys keys={row.mac} />
                       </td>
                     </tr>
@@ -342,18 +344,197 @@ function SettingRow({
   label,
   hint,
   children,
+  below,
 }: {
   label: string;
   hint?: string;
   children: ReactNode;
+  /** 整行下方的预览 / 补充内容，独占一行 */
+  below?: ReactNode;
 }) {
   return (
-    <div className="surface-float flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+    <div className="flex min-h-14 flex-wrap items-center justify-between gap-4 border-b border-line py-3 last:border-b-0">
       <div className="min-w-0">
-        <div className="text-sm font-medium text-ink">{label}</div>
+        <div className="text-sm text-ink">{label}</div>
         {hint ? <div className="mt-0.5 text-xs text-muted">{hint}</div> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
+      {below ? <div className="basis-full">{below}</div> : null}
+    </div>
+  );
+}
+
+/** 下拉里「自定义…」这一项的占位值；真正存的是本机字体名 + 系统后备栈 */
+const CUSTOM_FONT_OPTION = "__custom__";
+
+/**
+ * 一行字体设置：按当前系统列出预设，最后一项「自定义…」在行下方展开本机字体列表，点一项即生效。
+ * 存储值不在当前系统的预设里（比如换了电脑）时，也显示为自定义。
+ */
+function FontSettingRow({
+  label,
+  hint,
+  kind,
+  value,
+  onChange,
+  preview,
+}: {
+  label: string;
+  hint: string;
+  kind: FontKind;
+  value: string;
+  onChange: (value: string) => void;
+  preview: ReactNode;
+}) {
+  const options = fontOptions(kind);
+  const [customMode, setCustomMode] = useState(() => !isPresetFont(value, kind));
+  const [panelOpen, setPanelOpen] = useState(false);
+  /** 最近一次在列表里点选的值；它恰好等于某个预设（如 Menlo）时也保持自定义状态 */
+  const [pickedValue, setPickedValue] = useState<string | null>(null);
+
+  // 外部把值改掉（例如「恢复默认值」）时同步下拉；列表里自己点出来的值不打断面板
+  useEffect(() => {
+    if (value === pickedValue) {
+      return;
+    }
+    const preset = isPresetFont(value, kind);
+    setCustomMode(!preset);
+    if (preset) {
+      setPanelOpen(false);
+    }
+  }, [kind, value, pickedValue]);
+
+  let selectValue = value;
+  if (customMode) {
+    selectValue = CUSTOM_FONT_OPTION;
+  }
+
+  // 切到「自定义…」但还没点字体时，存储值仍是原来的预设，不显示「已选」
+  let selectedName = "";
+  if (customMode && value !== "") {
+    if (!isPresetFont(value, kind) || value === pickedValue) {
+      selectedName = customFontName(value, kind);
+    }
+  }
+
+  function pickFont(next: string) {
+    setPickedValue(next);
+    onChange(next);
+  }
+
+  return (
+    <SettingRow
+      label={label}
+      hint={hint}
+      below={
+        <>
+          {customMode && panelOpen ? (
+            <div className="motion-axis-y-in">
+              <FontListPanel
+                kind={kind}
+                value={value}
+                onPick={pickFont}
+                onClose={() => setPanelOpen(false)}
+              />
+            </div>
+          ) : null}
+          {preview}
+        </>
+      }
+    >
+      <Select
+        aria-label={label}
+        className="min-w-40"
+        value={selectValue}
+        options={[
+          ...options.map((font) => ({ value: font.value, label: font.label })),
+          { value: CUSTOM_FONT_OPTION, label: "自定义…" },
+        ]}
+        onChange={(next) => {
+          if (next === CUSTOM_FONT_OPTION) {
+            // 先只展开列表，等用户点了字体再改存储值
+            setCustomMode(true);
+            setPanelOpen(true);
+            return;
+          }
+          setCustomMode(false);
+          setPanelOpen(false);
+          setPickedValue(null);
+          onChange(next);
+        }}
+      />
+      {customMode ? (
+        <>
+          {selectedName ? (
+            <span className="max-w-56 truncate text-sm text-ink" data-tip={selectedName} data-tip-overflow="">
+              已选：{selectedName}
+            </span>
+          ) : (
+            <span className="text-sm text-muted">未选择字体</span>
+          )}
+          <button
+            type="button"
+            className="motion-colors rounded-control text-sm text-accent outline-none hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            onClick={() => setPanelOpen(!panelOpen)}
+          >
+            {panelOpen ? "收起" : "更换"}
+          </button>
+        </>
+      ) : null}
+    </SettingRow>
+  );
+}
+
+/**
+ * 界面字体场景预览：一个迷你侧栏项 + 一个机柜分组的主机行。
+ * 纯展示，不可点、不参与 Tab 聚焦；直接继承页面当前字体，选什么就显示什么。
+ */
+function SansFontPreview() {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-4 rounded-control bg-raised p-3 select-none"
+      aria-hidden="true"
+    >
+      <div className="rail-item-active flex h-10 w-32 items-center rounded-control px-3 text-sm">
+        主机
+      </div>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex h-9 items-center gap-2 px-1">
+          <span className="text-sm font-semibold text-ink">01-cdcp-main</span>
+          <span className="text-xs tabular-nums text-muted">7</span>
+        </div>
+        <div className="flex h-10 items-center gap-2.5 rounded-control bg-surface px-2">
+          <DistroBadge boxSize={22} osRelease="Ubuntu 22.04.5 LTS" />
+          <span className="text-ink">cdcp-main</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 等宽字体场景预览：两行迷你表格（IP:端口 / 版本 / CPU / 路径）看数字是否对齐，
+ * 外加两行配置片段看路径与符号是否清楚。走 font-mono，跟随 --app-font-mono。
+ */
+function MonoFontPreview() {
+  return (
+    <div
+      className="flex flex-col gap-3 rounded-control bg-raised p-3 select-none"
+      aria-hidden="true"
+    >
+      <div className="grid grid-cols-[auto_auto_auto_1fr] gap-x-4 gap-y-1 font-mono text-sm text-ink tabular-nums">
+        <span>192.168.10.34:22</span>
+        <span>22.04.5 LTS</span>
+        <span className="text-right">CPU 12.5%</span>
+        <span className="truncate text-muted">/etc/nginx/nginx.conf</span>
+        <span>10.0.80.17:2222</span>
+        <span>12.9</span>
+        <span className="text-right">CPU 3.8%</span>
+        <span className="truncate text-muted">/var/log/nginx/access.log</span>
+      </div>
+      <pre className="m-0 rounded-control bg-graphite p-2 font-mono text-sm text-graphite-text">
+        {"Host cdcp-main\n  HostName 192.168.10.34"}
+      </pre>
     </div>
   );
 }
@@ -364,7 +545,7 @@ function ShortcutKeys({ keys }: { keys: string[] }) {
       {keys.map((key, index) => (
         <span key={key} className="inline-flex items-center gap-1.5">
           {index > 0 ? <span className="text-xs text-muted">或</span> : null}
-          <kbd className="rounded-control border border-line bg-raised px-2 py-0.5 font-mono text-xs text-ink">
+          <kbd className="rounded-control bg-raised px-2 py-0.5 font-mono text-xs text-ink">
             {key}
           </kbd>
         </span>

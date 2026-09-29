@@ -3,12 +3,11 @@ import {
   ShellToolbarProvider,
   useShellToolbarSlot,
 } from "@/react/components/shell-toolbar";
-import {
-  detectAppOs,
-  WindowChrome,
-  WindowControls,
-} from "@/react/components/window-chrome";
+import { HostToolTabs, useIsHostWorkspace } from "@/react/components/host-tool-tabs";
+import { WindowChrome, WindowControls } from "@/react/components/window-chrome";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
+import { DialogHost } from "@/react/components/ui/confirm-dialog";
+import { detectAppOs } from "@/react/lib/platform";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { ConfigCenterPage } from "@/react/pages/config-center";
 import { GroupPage } from "@/react/pages/group-page";
@@ -27,6 +26,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Events } from "@wailsio/runtime";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/api";
+import appMenuLogoUrl from "@/assets/1panel-menu-logo.svg";
 import { startAppWatchAlertPoll, stopAppWatchAlertPoll } from "@/utils/appWatchAlerts";
 import { startCertAlertPoll, stopCertAlertPoll } from "@/utils/certAlerts";
 import { startHostResourceAlertPoll, stopHostResourceAlertPoll } from "@/utils/hostResourceAlerts";
@@ -60,6 +60,7 @@ function Shell() {
   const appOs = detectAppOs();
   const isMac = appOs === "mac";
   const { setSlot } = useShellToolbarSlot();
+  const hostWorkspace = useIsHostWorkspace();
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
   const createOpen = !session.settingsOpen && !!creating;
@@ -147,15 +148,29 @@ function Shell() {
       data-os={appOs}
       data-edit={dockMounted ? "open" : undefined}
     >
-      {/* Firefox 式整窗通栏：红绿灯旁放导航，标题/操作挂到右侧槽 */}
-      <header className="shell-app-toolbar shell-top shell-toolbar drag-region relative z-30 flex shrink-0 items-center">
-        <div
-          className={`pointer-events-auto flex h-full shrink-0 items-center ${
-            isMac ? "pl-[72px]" : "pl-0.5"
-          }`}
-        >
+      {/* Firefox 式整窗通栏：左上 72px 三端统一预留（Mac 放系统红绿灯，Win/Linux 放应用图标），
+          导航钮从 72px 之后开始，标题/操作挂到右侧槽 */}
+      <header className="shell-app-toolbar shell-toolbar drag-region relative z-30 flex shrink-0 items-center">
+        <div className="pointer-events-auto relative flex h-full shrink-0 items-center pl-[72px]">
+          {isMac ? null : (
+            <div
+              className="absolute inset-y-0 left-0 flex w-[72px] items-center justify-center"
+              aria-hidden="true"
+            >
+              {/* 纯装饰，属于拖动区；禁掉原生图片拖拽以免拖出幽灵图 */}
+              <img
+                src={appMenuLogoUrl}
+                alt=""
+                width={18}
+                height={18}
+                draggable={false}
+                className="size-[18px] select-none"
+              />
+            </div>
+          )}
           <WindowChrome />
         </div>
+        {hostWorkspace ? <HostToolTabs /> : null}
         <div
           ref={setSlot}
           className="shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"
@@ -218,6 +233,7 @@ function Shell() {
           ) : null}
         </main>
       </div>
+      <DialogHost />
     </div>
   );
 }

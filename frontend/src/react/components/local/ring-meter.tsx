@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
-import { readThemeColor } from "@/react/lib/utils";
 import "./local.css";
 
-/** SVG 环形占比图，悬停显示明细 */
+/** 环色档位与 Meter 同阈值（DESIGN.md §4.7）：<60 ok，60–85 warn，≥85 danger；danger 入参强制危险档 */
+function ringTone(pct: number, danger: boolean): "ok" | "warn" | "danger" {
+  if (danger) return "danger";
+  if (pct >= 85) return "danger";
+  if (pct >= 60) return "warn";
+  return "ok";
+}
+
+/** SVG 环形占比图，悬停显示明细。概览大卡片专用；列表 / 表格内的占比一律用 <Meter> */
 export function RingMeter({
   title,
   percent,
@@ -26,13 +33,11 @@ export function RingMeter({
   const r = 42;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - pct / 100);
-  const stroke = danger
-    ? readThemeColor("--color-danger", "#ad352f")
-    : readThemeColor("--color-accent", "#0052d9");
-  const track = readThemeColor("--color-line", "#e8e8e8");
-  const centerFill = danger
-    ? readThemeColor("--color-danger", "#ad352f")
-    : readThemeColor("--color-ink", "rgba(0, 0, 0, 0.9)");
+  const tone = ringTone(pct, danger);
+  /* SVG 用 style 而非 stroke/fill 属性读 CSS 变量：presentation attribute 里的 var() 三端支持不一致 */
+  const stroke = `var(--meter-${tone})`;
+  const track = "var(--meter-off)";
+  const centerFill = tone === "danger" ? "var(--color-danger)" : "var(--color-ink)";
   const centerText = center ?? `${pct.toFixed(0)}%`;
 
   return (
@@ -44,7 +49,7 @@ export function RingMeter({
             cy="60"
             r={r}
             fill="none"
-            stroke={track}
+            style={{ stroke: track }}
             strokeWidth="10"
           />
           <circle
@@ -52,13 +57,13 @@ export function RingMeter({
             cy="60"
             r={r}
             fill="none"
-            stroke={stroke}
             strokeWidth="10"
             strokeLinecap="round"
             strokeDasharray={c}
             strokeDashoffset={offset}
             transform="rotate(-90 60 60)"
             style={{
+              stroke,
               transition:
                 "stroke-dashoffset var(--duration-base, 200ms) var(--ease-standard, cubic-bezier(0.38, 0, 0.24, 1))",
             }}
@@ -79,14 +84,14 @@ export function RingMeter({
             y={showTitle ? 76 : 66}
             textAnchor="middle"
             className="local-ring__pct"
-            fill={centerFill}
+            style={{ fill: centerFill }}
           >
             {centerText}
           </text>
         </svg>
         {children ? (
           <div className="local-ring__pop pointer-events-none absolute left-1/2 top-full z-20 hidden w-max -translate-x-1/2 pt-2 group-hover:block">
-            <div className="pointer-events-auto rounded-surface border border-line bg-surface px-3 py-2 text-left text-xs shadow-md">
+            <div className="pointer-events-auto rounded-panel border border-line bg-surface px-3 py-2 text-left text-xs">
               {children}
             </div>
           </div>

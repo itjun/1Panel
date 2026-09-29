@@ -4,7 +4,10 @@ import { api } from "@/api";
 import type { monitor } from "@/api";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
-import { Notice, Page } from "@/react/components/page";
+import { Checkbox } from "@/react/components/ui/checkbox";
+import { Tag, type TagTone } from "@/react/components/ui/tag";
+import { FlashNotices, Notice, Page } from "@/react/components/page";
+import { useFlashMessage, type FlashMessage } from "@/react/lib/use-flash-message";
 import { copyText } from "@/utils/clipboard";
 import { formatBytes, formatErr } from "@/utils/format";
 
@@ -33,30 +36,24 @@ function uniqIps(list: string[] | undefined | null): string[] {
 
 function ConnState({ state }: { state: string }) {
   const s = (state || "").toUpperCase();
-  let tone = "bg-raised text-muted";
+  let tone: TagTone = "neutral";
   if (s === "ESTABLISHED" || s === "ESTAB") {
-    tone = "bg-io-read/15 text-io-read";
+    tone = "ok";
   } else if (s === "LISTEN" || s === "LISTENING") {
-    tone = "bg-accent-soft text-accent";
+    tone = "info";
   } else if (s.includes("WAIT") || s === "CLOSE" || s === "CLOSED") {
-    tone = "bg-warn-soft text-warn";
+    tone = "warn";
   }
   return (
-    <span
-      className={`inline-block rounded-control px-1.5 py-0.5 font-mono text-xs font-medium ${tone}`}
-    >
+    <Tag tone={tone} className="font-mono">
       {state || "—"}
-    </span>
+    </Tag>
   );
 }
 
 function IfaceState({ state }: { state: string }) {
   const up = (state || "").toUpperCase() === "UP";
-  return (
-    <span className={up ? "font-medium text-io-read" : "text-muted"}>
-      {state || "—"}
-    </span>
-  );
+  return <Tag tone={up ? "ok" : "neutral"}>{state || "—"}</Tag>;
 }
 
 function kindLabel(k: string) {
@@ -86,15 +83,15 @@ function SimpleRows({
 }) {
   const colCount = headers.length + (showIndex ? 1 : 0);
   return (
-    <div className="min-h-48 flex-1 overflow-auto bg-surface">
+    <div className="surface-float min-h-48 flex-1 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-raised">
-          <tr className="h-10">
+        <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+          <tr className="h-table-head border-b border-line">
             {showIndex ? (
-              <th className="w-12 px-2 text-center font-medium">序</th>
+              <th className="w-12 px-2 text-center font-normal">序</th>
             ) : null}
             {headers.map((header) => (
-              <th key={header.key} className="px-3 font-medium">
+              <th key={header.key} className="px-3 font-normal">
                 {header.label}
               </th>
             ))}
@@ -102,7 +99,7 @@ function SimpleRows({
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr className="h-12">
+            <tr className="h-table-row">
               <td className="px-3 text-muted" colSpan={colCount || 1}>
                 暂无数据
               </td>
@@ -111,7 +108,7 @@ function SimpleRows({
             rows.map((row, rowIndex) => (
               <tr
                 key={row.id}
-                className={row.className || "h-12 border-t border-line/70 hover:bg-raised"}
+                className={row.className || "h-table-row border-t border-line hover:bg-raised"}
               >
                 {showIndex ? (
                   <td className="px-2 text-center align-middle font-mono text-xs tabular-nums text-muted">
@@ -136,33 +133,35 @@ function IpCopyButton({
   ip,
   loc,
   tag,
-  onCopied,
+  flash,
 }: {
   ip: string;
   loc?: string;
   tag?: string;
-  onCopied: (msg: string) => void;
+  flash: FlashMessage;
 }) {
   return (
     <button
       type="button"
-      title={`点击复制 ${ip}`}
+      data-tip={`点击复制 ${ip}`}
       className="mt-1 flex w-full items-center gap-2 rounded-control bg-raised px-3 py-2 text-left hover:bg-line"
       onClick={() => {
         void copyText(ip)
-          .then(() => onCopied(`已复制 ${ip}`))
-          .catch((e) => onCopied(`复制失败: ${formatErr(e)}`));
+          .then(() => flash.showToast(`已复制 ${ip}`))
+          .catch((e) => flash.showError(`复制失败: ${formatErr(e)}`));
       }}
     >
       <span
         className={
           tag
             ? "min-w-0 flex-1 truncate font-mono text-sm font-semibold text-accent"
-            : "min-w-0 flex-1 truncate font-mono text-sm font-medium"
+            : "min-w-0 flex-1 truncate font-mono text-sm"
         }
       >
         {tag ? (
-          <span className="mr-2 rounded-control bg-accent px-1.5 py-0.5 text-[10px] text-white">{tag}</span>
+          <Tag tone="accent" className="mr-2 align-middle">
+            {tag}
+          </Tag>
         ) : null}
         {ip}
         {loc ? <span className="ml-2 text-xs font-normal text-muted">{loc}</span> : null}
@@ -179,7 +178,7 @@ function IpCard({
   expanded,
   onToggle,
   leading,
-  onCopied,
+  flash,
 }: {
   title: string;
   emptyText: string;
@@ -187,7 +186,7 @@ function IpCard({
   expanded: boolean;
   onToggle: () => void;
   leading?: ReactNode;
-  onCopied: (msg: string) => void;
+  flash: FlashMessage;
 }) {
   const visible =
     expanded || ips.length <= IP_COLLAPSE_LIMIT ? ips : ips.slice(0, IP_COLLAPSE_LIMIT);
@@ -195,13 +194,13 @@ function IpCard({
 
   return (
     <Card>
-      <div className="text-sm font-medium text-muted">{title}</div>
+      <div className="text-sm text-muted">{title}</div>
       {!leading && !ips.length ? (
         <div className="mt-2 text-sm text-muted">{emptyText}</div>
       ) : null}
       {leading}
       {visible.map((ip) => (
-        <IpCopyButton key={ip} ip={ip} onCopied={onCopied} />
+        <IpCopyButton key={ip} ip={ip} flash={flash} />
       ))}
       {hasMore ? (
         <button
@@ -221,7 +220,7 @@ export function NetworkPage({ host }: { host: string }) {
   const [onlyEstab, setOnlyEstab] = useState(false);
   const [onlySlow, setOnlySlow] = useState(false);
   const [page, setPage] = useState(1);
-  const [msg, setMsg] = useState("");
+  const flash = useFlashMessage();
   const [ipExpanded, setIpExpanded] = useState<Record<IpGroupKey, boolean>>({
     private: false,
     public: false,
@@ -293,9 +292,7 @@ export function NetworkPage({ host }: { host: string }) {
             {snap?.connListen ?? 0} · TIME_WAIT {snap?.connTimeWait ?? 0}
           </span>
           {slowList.length ? (
-            <span className="rounded-control bg-danger px-2 py-0.5 text-xs text-white">
-              卡顿连接 {slowList.length}
-            </span>
+            <Tag tone="danger">卡顿连接 {slowList.length}</Tag>
           ) : null}
         </>
       }
@@ -303,12 +300,12 @@ export function NetworkPage({ host }: { host: string }) {
       refreshing={query.isFetching}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      {msg ? <Notice tone="warn" text={msg} /> : null}
+      <FlashNotices flash={flash} />
 
       {!snap && query.isLoading ? <p className="text-sm text-muted">加载中…</p> : null}
 
       {snap ? (
-        <div className="gap-card flex flex-col">
+        <div className="gap-section flex flex-col">
           <div className="gap-card grid md:grid-cols-2 xl:grid-cols-4">
             <IpCard
               title="内网 IP"
@@ -316,7 +313,7 @@ export function NetworkPage({ host }: { host: string }) {
               ips={privateIPs}
               expanded={ipExpanded.private}
               onToggle={() => toggleIp("private")}
-              onCopied={setMsg}
+              flash={flash}
             />
             <IpCard
               title="公网 / 外网 IP"
@@ -324,14 +321,14 @@ export function NetworkPage({ host }: { host: string }) {
               ips={publicIPs}
               expanded={ipExpanded.public}
               onToggle={() => toggleIp("public")}
-              onCopied={setMsg}
+              flash={flash}
               leading={
                 egressIp ? (
                   <IpCopyButton
                     ip={egressIp}
                     tag="出口"
                     loc={snap.egressPublicLoc || undefined}
-                    onCopied={setMsg}
+                    flash={flash}
                   />
                 ) : null
               }
@@ -342,12 +339,12 @@ export function NetworkPage({ host }: { host: string }) {
               ips={dockerIPs}
               expanded={ipExpanded.docker}
               onToggle={() => toggleIp("docker")}
-              onCopied={setMsg}
+              flash={flash}
             />
             <Card>
-              <div className="text-sm font-medium text-muted">默认网关</div>
+              <div className="text-sm text-muted">默认网关</div>
               {gatewayIp ? (
-                <IpCopyButton ip={gatewayIp} onCopied={setMsg} />
+                <IpCopyButton ip={gatewayIp} flash={flash} />
               ) : (
                 <div className="mt-2 text-sm text-muted">未获取到</div>
               )}
@@ -355,7 +352,7 @@ export function NetworkPage({ host }: { host: string }) {
           </div>
 
           <Card>
-            <h3 className="mb-3 font-medium">网卡</h3>
+            <h3 className="mb-3 text-sm font-semibold text-ink">网卡</h3>
             <SimpleRows
               headers={[
                 { key: "name", label: "接口" },
@@ -393,7 +390,7 @@ export function NetworkPage({ host }: { host: string }) {
 
           {slowList.length ? (
             <Card>
-              <h3 className="mb-3 font-medium text-danger">疑似网络卡顿连接</h3>
+              <h3 className="mb-3 text-sm font-semibold text-danger">疑似网络卡顿连接</h3>
               <SimpleRows
                 headers={[
                   { key: "process", label: "进程" },
@@ -407,7 +404,7 @@ export function NetworkPage({ host }: { host: string }) {
                 ]}
                 rows={slowList.map((conn, index) => ({
                   id: `slow-${index}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
-                  className: "h-12 border-t border-line/70 bg-danger-soft",
+                  className: "h-table-row border-t border-line bg-danger-soft",
                   cells: [
                     conn.process || "—",
                     conn.pid || "—",
@@ -425,29 +422,19 @@ export function NetworkPage({ host }: { host: string }) {
 
           <Card>
             <div className="mb-3 flex flex-wrap items-center gap-4">
-              <h3 className="font-medium">TCP 连接</h3>
+              <h3 className="text-sm font-semibold text-ink">TCP 连接</h3>
               <input
-                className="h-8 w-[220px] rounded-control bg-raised px-3 outline-none ring-0 focus:bg-surface focus:ring-1 focus:ring-accent/30"
+                className="motion-field h-8 w-[220px] rounded-control px-3 text-ink"
                 placeholder="过滤 进程/地址/状态..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
-              <label className="opt-check">
-                <input
-                  type="checkbox"
-                  checked={onlyEstab}
-                  onChange={(e) => setOnlyEstab(e.target.checked)}
-                />
+              <Checkbox checked={onlyEstab} onChange={setOnlyEstab}>
                 只看已建立
-              </label>
-              <label className="opt-check">
-                <input
-                  type="checkbox"
-                  checked={onlySlow}
-                  onChange={(e) => setOnlySlow(e.target.checked)}
-                />
+              </Checkbox>
+              <Checkbox checked={onlySlow} onChange={setOnlySlow}>
                 只看卡顿
-              </label>
+              </Checkbox>
               <span className="text-sm text-muted">共 {filteredConns.length} 条</span>
             </div>
             <SimpleRows
@@ -468,8 +455,8 @@ export function NetworkPage({ host }: { host: string }) {
                 return {
                   id: `conn-${seq}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
                   className: conn.slow
-                    ? "h-12 border-t border-line/70 bg-danger-soft"
-                    : "h-12 border-t border-line/70 hover:bg-raised",
+                    ? "h-table-row border-t border-line bg-danger-soft"
+                    : "h-table-row border-t border-line hover:bg-raised",
                   cells: [
                     <ConnState key="state" state={conn.state || ""} />,
                     conn.process || "—",
@@ -479,13 +466,7 @@ export function NetworkPage({ host }: { host: string }) {
                     conn.recvQ ?? 0,
                     conn.sendQ ?? 0,
                     conn.rttMs ? `${conn.rttMs.toFixed(1)}ms` : "—",
-                    conn.slow ? (
-                      <span className="rounded-control bg-danger px-1.5 py-0.5 text-xs text-white">
-                        卡顿
-                      </span>
-                    ) : (
-                      ""
-                    ),
+                    conn.slow ? <Tag tone="danger">卡顿</Tag> : "",
                   ],
                 };
               })}

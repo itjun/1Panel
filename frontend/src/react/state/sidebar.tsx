@@ -14,19 +14,9 @@ import {
 const SIDEBAR_OPEN_KEY = "1pannel-sidebar-open";
 const SIDEBAR_WIDTH_KEY = "1pannel-sidebar-width";
 
-/** 与 WindowChrome 按钮一致：28px 按钮 + 两侧各 2px outer padding。 */
-const CHROME_NAV_BTN = 28;
-const CHROME_NAV_OUTER = 2;
-const CHROME_NAV_COUNT = 5;
-
-function isMacPlatform() {
-  return /Mac|iPhone|iPad/.test(navigator.platform || "");
-}
-
-/** 默认宽度 = 红绿灯留白 + 五个导航钮（对齐主页图标右缘）。 */
-export function defaultSidebarWidth(isMac = isMacPlatform()): number {
-  const nav = CHROME_NAV_COUNT * (CHROME_NAV_BTN + CHROME_NAV_OUTER * 2);
-  return (isMac ? 72 : 2) + nav;
+/** 默认宽度：三端统一 232px（DESIGN.md §4.1 / §9），= 左上 72px 预留 + 五个 32px 导航钮。 */
+export function defaultSidebarWidth(): number {
+  return 232;
 }
 
 export const SIDEBAR_WIDTH_MIN = 160;

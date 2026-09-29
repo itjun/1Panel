@@ -11,6 +11,7 @@ import { boardHttpApi } from "@/api/board-http";
 import { BoardSummaryStrip } from "@/react/components/board/board-summary-strip";
 import { HostBoardCard } from "@/react/components/board/host-board-card";
 import "@/react/components/board/board.css";
+import { isMacPlatform } from "@/react/lib/platform";
 import {
   boardDensityOf,
   buildBoardAppSubItems,
@@ -441,11 +442,7 @@ export function BoardPage({ groupId }: { groupId: string }) {
 
   return (
     <div
-      className={
-        /Mac|iPhone|iPad/.test(navigator.platform)
-          ? "board-mode is-macos"
-          : "board-mode"
-      }
+      className={isMacPlatform() ? "board-mode is-macos" : "board-mode"}
       role="main"
       aria-label="看板模式"
     >

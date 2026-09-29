@@ -10,22 +10,23 @@ import {
 } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 
+/* 代码区走独立石墨面（DESIGN.md §8.1），底色 / 文字读 graphite token；
+   行号、当前行等编辑器主题色按规范例外保留硬编码。 */
 const theme = EditorView.theme(
   {
     "&": {
       height: "100%",
-      backgroundColor: "#191c21",
-      color: "#e5e7eb",
+      backgroundColor: "var(--color-graphite)",
+      color: "var(--color-graphite-text)",
       fontSize: "14px",
     },
     ".cm-scroller": {
       overflow: "auto",
-      fontFamily:
-        '"SF Mono", "JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, monospace',
+      fontFamily: "var(--font-mono)",
       fontSize: "14px",
       lineHeight: "1.55",
     },
-    ".cm-gutters": { backgroundColor: "#191c21", color: "#8b98a8", border: "none" },
+    ".cm-gutters": { backgroundColor: "var(--color-graphite)", color: "#8b98a8", border: "none" },
     ".cm-activeLine": { backgroundColor: "#232830" },
   },
   { dark: true },

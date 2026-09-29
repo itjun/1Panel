@@ -11,6 +11,7 @@ import {
   type Ref,
 } from "react";
 import { Button } from "@/react/components/ui/button";
+import { Tag } from "@/react/components/ui/tag";
 import { cn } from "@/react/lib/utils";
 import {
   clearBoard,
@@ -33,7 +34,8 @@ export type MonitorGridItem = {
 };
 
 const COLS = 4;
-const GAP = 12;
+/* 与网格的 .gap-card（--gap-card: 8px）同源，拖宽时按列距换算 */
+const GAP = 8;
 
 function MaximizeIcon() {
   return (
@@ -307,7 +309,7 @@ export function MonitorGrid({
             <Button
               variant="ghost"
               aria-label="还原"
-              title="还原"
+              data-tip="还原"
               onClick={() => toggleMaximize(maximizedId)}
             >
               <RestoreIcon />
@@ -345,10 +347,10 @@ export function MonitorGrid({
               data-monitor-card={id}
               style={style}
               className={cn(
-                "surface-float relative flex flex-col",
+                "surface-float card-hover relative flex flex-col",
                 isHidden && "invisible pointer-events-none",
                 draggingId === id && "opacity-60",
-                dropTargetId === id && "ring-2 ring-accent",
+                dropTargetId === id && "outline-2 -outline-offset-2 outline-accent",
                 isMax && "min-h-0 h-full",
               )}
             >
@@ -357,61 +359,55 @@ export function MonitorGrid({
                   <button
                     type="button"
                     aria-label="拖动左缘"
-                    title="拖动左缘调整宽度"
+                    data-tip="拖动左缘调整宽度"
                     className={cn(
                       "absolute bottom-[18px] top-[18px] -left-0.5 z-10 w-3 cursor-ew-resize border-0 bg-transparent p-0 opacity-0 hover:opacity-100",
                       resizingCard === id && resizeEdgeName === "left" && "opacity-100",
                     )}
                     onPointerDown={(e) => onResizeDown(e, id, "left")}
                   >
-                    <span className="absolute inset-y-0 left-1 w-[3px] rounded-full bg-accent" />
+                    <span className="absolute inset-y-0 left-1 w-[3px] rounded-tag bg-accent" />
                   </button>
                   <button
                     type="button"
                     aria-label="拖动右缘"
-                    title="拖动右缘调整宽度"
+                    data-tip="拖动右缘调整宽度"
                     className={cn(
                       "absolute bottom-[18px] top-[18px] -right-0.5 z-10 w-3 cursor-ew-resize border-0 bg-transparent p-0 opacity-0 hover:opacity-100",
                       resizingCard === id && resizeEdgeName === "right" && "opacity-100",
                     )}
                     onPointerDown={(e) => onResizeDown(e, id, "right")}
                   >
-                    <span className="absolute inset-y-0 right-1 w-[3px] rounded-full bg-accent" />
+                    <span className="absolute inset-y-0 right-1 w-[3px] rounded-tag bg-accent" />
                   </button>
                 </>
               ) : null}
               {resizingCard === id ? (
-                <div className="pointer-events-none absolute right-4 top-2 z-10 rounded-full bg-accent px-2 py-0.5 text-xs text-white">
+                <Tag tone="accent" className="pointer-events-none absolute right-4 top-2 z-10">
                   {span} / {COLS} 列
-                </div>
+                </Tag>
               ) : null}
               <div
-                className="flex h-10 shrink-0 cursor-grab items-center gap-2 border-b border-line/70 px-3 pl-7 active:cursor-grabbing"
+                className="flex h-10 shrink-0 cursor-grab items-center gap-2 border-b border-line px-3 pl-7 active:cursor-grabbing"
                 onDoubleClick={() => toggleMaximize(id)}
                 onPointerDown={(e) => onGripPointerDown(e, id)}
               >
                 <span className="px-1 text-muted" aria-hidden>
                   ⋮⋮
                 </span>
-                <span className="text-sm font-medium">{item.title}</span>
+                <span className="text-sm font-semibold">{item.title}</span>
                 <div className="ml-2 flex min-w-0 flex-1 flex-wrap gap-1">
                   {(item.tags || []).map((tag) => (
-                    <span
-                      key={tag.text}
-                      className={cn(
-                        "rounded-control bg-raised px-1.5 text-xs text-muted",
-                        tag.warn && "bg-danger-soft text-danger",
-                      )}
-                    >
+                    <Tag key={tag.text} tone={tag.warn ? "danger" : "neutral"}>
                       {tag.text}
-                    </span>
+                    </Tag>
                   ))}
                 </div>
                 <button
                   type="button"
                   className="grid h-6 w-6 shrink-0 place-items-center rounded-control text-muted hover:bg-raised hover:text-ink"
                   aria-label={isMax ? "还原" : "最大化"}
-                  title={isMax ? "还原" : "最大化"}
+                  data-tip={isMax ? "还原" : "最大化"}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => toggleMaximize(id)}
                 >

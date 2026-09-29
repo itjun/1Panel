@@ -8,24 +8,7 @@ import { Window } from "@wailsio/runtime";
 import { usePageRefresh } from "@/react/state/page-refresh";
 import { useNavHistory, useSession } from "@/react/state/session";
 import { useSidebar } from "@/react/state/sidebar";
-
-/** 真实运行平台：mac / win / linux（窗控与配色各自按此判断）。 */
-export type AppOs = "mac" | "win" | "linux";
-
-export function detectAppOs(): AppOs {
-  const platform = navigator.platform || "";
-  const ua = navigator.userAgent || "";
-  if (/Mac|iPhone|iPad/.test(platform)) return "mac";
-  if (/Win/.test(platform) || /Windows/.test(ua)) return "win";
-  // Linux / Android / ChromeOS 等非 Windows 桌面，统一标 linux
-  if (/Linux/.test(platform) || /Linux|Android|CrOS/.test(ua)) return "linux";
-  // 未知非 mac 平台：按 frameless 处理，走 linux 分支（自绘窗控）
-  return "linux";
-}
-
-export function isMacPlatform() {
-  return detectAppOs() === "mac";
-}
+import { isMacPlatform } from "@/react/lib/platform";
 
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -52,12 +35,12 @@ function ChromeButton({
   return (
     <button
       type="button"
-      title={label}
+      data-tip={label}
       aria-label={label}
       aria-pressed={pressed}
       disabled={disabled}
-      className={`no-drag mx-0.5 flex size-7 shrink-0 items-center justify-center rounded-[4px] leading-none text-ink hover:bg-black/[0.08] disabled:cursor-default disabled:opacity-40 dark:hover:bg-white/10 ${
-        pressed ? "bg-black/[0.1] dark:bg-white/12" : ""
+      className={`no-drag mx-0.5 flex size-7 shrink-0 items-center justify-center rounded-control leading-none disabled:cursor-default disabled:opacity-40 ${
+        pressed ? "bg-accent-soft text-accent" : "text-ink hover:bg-line"
       }`}
       onClick={onClick}
     >
@@ -178,12 +161,12 @@ function CaptionButton({
   return (
     <button
       type="button"
-      title={label}
+      data-tip={label}
       aria-label={label}
       className={`no-drag grid h-7 w-[38px] shrink-0 place-items-center rounded-control leading-none text-ink ${
         danger
           ? "hover:bg-danger hover:text-white"
-          : "hover:bg-raised"
+          : "hover:bg-line"
       }`}
       onClick={onClick}
     >
@@ -220,7 +203,7 @@ export function WindowControls() {
   return (
     <div className="flex h-full items-center gap-0.5">
       <CaptionButton label="最小化" onClick={() => void Window.Minimise()}>
-        <path d="M5 12h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M5 12h14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </CaptionButton>
       <CaptionButton
         label={maximised ? "还原" : "最大化"}
@@ -229,14 +212,14 @@ export function WindowControls() {
         {maximised ? (
           <>
             <rect x="8" y="4" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.45" />
-            <rect x="4" y="8" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <rect x="4" y="8" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </>
         ) : (
-          <rect x="5" y="5" width="14" height="14" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <rect x="5" y="5" width="14" height="14" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
         )}
       </CaptionButton>
       <CaptionButton label="关闭" danger onClick={() => void Window.Close()}>
-        <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </CaptionButton>
     </div>
   );

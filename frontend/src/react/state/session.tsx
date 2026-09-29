@@ -307,6 +307,8 @@ type SessionValue = Nav & {
   groupIdOf: (hostName: string) => string;
   editingHost: string;
   setEditingHost: (name: string) => void;
+  /** 主机改名后，把导航里按主机名记录的引用（当前主机、已打开、置顶）换成新名。 */
+  renameHostRefs: (oldName: string, newName: string) => void;
 };
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -456,7 +458,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (!hostName) return;
         setNav((prev) => {
           const existing = prev.openedHosts.find((item) => item.name === hostName);
-          const nextTool = tool || existing?.tool || prev.activeTool || "overview";
+          // 功能维度全局：切主机沿用当前功能，不回跳到该主机上次的功能（DESIGN.md §4.6）
+          const nextTool = tool || prev.activeTool || "overview";
           let openedHosts: OpenedHost[];
           if (existing) {
             openedHosts = prev.openedHosts.map((item) =>
@@ -547,6 +550,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       groupIdOf,
       editingHost,
       setEditingHost: (name) => setEditingHostState(name.trim()),
+      renameHostRefs: (oldName, newName) => {
+        if (!oldName || !newName || oldName === newName) return;
+        setEditingHostState((current) => (current === oldName ? newName : current));
+        setNav((prev) => {
+          let activeHost = prev.activeHost;
+          if (activeHost === oldName) {
+            activeHost = newName;
+          }
+          const openedHosts = prev.openedHosts.map((item) =>
+            item.name === oldName ? { ...item, name: newName } : item,
+          );
+          const pinned = prev.pinned.map((name) => (name === oldName ? newName : name));
+          const next = { ...prev, activeHost, openedHosts, pinned };
+          writeMainFromNav(next);
+          return next;
+        });
+      },
     }),
     [
       groupIdOf,

@@ -35,6 +35,7 @@ export * as localapps from "../../bindings/diteng-pannel/internal/localapps/mode
 export * as localsys from "../../bindings/diteng-pannel/internal/localsys/models";
 export * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
 export * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
+export * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 export * as main from "../../bindings/diteng-pannel/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
@@ -52,6 +53,7 @@ import type * as monitor from "../../bindings/diteng-pannel/internal/monitor/mod
 import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 import type * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
 import type * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
+import type * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 import { noteBackendCall } from "@/utils/uxPerf";
 
 // 保留原有类型导出名，视图层零改动
@@ -91,6 +93,9 @@ const apiImpl = {
   },
   deleteHost: async (name: string): Promise<void> => {
     await Hosts.DeleteHost(name);
+  },
+  setHostNote: async (name: string, note: string): Promise<void> => {
+    await Hosts.SetHostNote(name, note);
   },
   getHostPassword: (name: string): Promise<string> =>
     str(Hosts.GetHostPassword(name)),
@@ -552,6 +557,8 @@ const apiImpl = {
   setThemeAppearance: async (mode: string): Promise<void> => {
     await System.SetThemeAppearance(mode);
   },
+  /** 本机已安装的字体家族（设置页「自定义字体」列表） */
+  listSystemFonts: (): Promise<sysfonts.SystemFont[]> => arr(System.ListSystemFonts()),
   /** 看板 HTTP 配置 */
   getBoardHTTPConfig: (): Promise<main.BoardHTTPConfig> =>
     must(System.GetBoardHTTPConfig()),

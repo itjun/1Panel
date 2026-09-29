@@ -4,30 +4,14 @@ import { ALL_ALERT_KINDS, type ResourceAlertKind } from "@/utils/alerts";
 
 const STORAGE_KEY = "ipannel.settings.v1";
 
-export const FONT_OPTIONS: { label: string; value: string }[] = [
-  {
-    label: "1Panel 默认",
-    value:
-      '"Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif',
-  },
-  {
-    label: "系统默认（SF Pro）",
-    value:
-      '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif',
-  },
-  {
-    label: "中文：苹方",
-    value: '"PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif',
-  },
-  {
-    label: "中文：微软雅黑",
-    value: '"Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif',
-  },
-  {
-    label: "等宽：Menlo",
-    value: 'Menlo, Monaco, "SF Mono", "Courier New", monospace',
-  },
-];
+/**
+ * 字体值的约定见 lib/fonts.ts：空串 = 系统默认（不写覆盖变量，globals.css 回落到 --font-sans / --font-mono）。
+ * 下面两串是历史版本的「默认」选项值，读取旧配置时视为「从未改过字体」，迁到空串。
+ */
+const LEGACY_DEFAULT_FONT =
+  '"Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif';
+const LEGACY_SYSTEM_FONT =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif';
 
 export type AppearancePref = "light" | "dark" | "system";
 export type ResolvedAppearance = "light" | "dark";
@@ -42,7 +26,10 @@ export type NotifyContentField =
 
 export type AppSettings = {
   appearance: AppearancePref;
+  /** 界面字体：菜单、侧栏、按钮、主机名、表格普通文字等；空串 = 系统默认 */
   fontFamily: string;
+  /** 等宽字体：IP、版本号、数值、路径、日志、配置编辑器；空串 = 系统默认 */
+  monoFontFamily: string;
   fontSize: number;
   startupPage: "home" | "resume";
   notifyEnabled: boolean;
@@ -55,11 +42,14 @@ export type AppSettings = {
   hostResourceNotifySubs: Record<string, ResourceAlertKind[]>;
   hostAppNotifySubs: Record<string, string[]>;
   hostCertNotifySubs: Record<string, boolean>;
+  /** 首页主机列表的分组排布：每排一组 group id，从上到下、从左到右 */
+  hostHomeRows: string[][];
 };
 
 export const SETTINGS_DEFAULTS: AppSettings = {
   appearance: "light",
-  fontFamily: FONT_OPTIONS[0].value,
+  fontFamily: "",
+  monoFontFamily: "",
   fontSize: 14,
   startupPage: "home",
   notifyEnabled: false,
@@ -72,6 +62,7 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
   hostCertNotifySubs: {},
+  hostHomeRows: [],
 };
 
 let current = loadSettings();
@@ -86,14 +77,39 @@ function parseAppearance(value: unknown): AppearancePref {
   return SETTINGS_DEFAULTS.appearance;
 }
 
+function parseHostHomeRows(value: unknown): string[][] {
+  if (!Array.isArray(value)) return [];
+  const rows: string[][] = [];
+  for (const row of value) {
+    if (!Array.isArray(row)) continue;
+    rows.push(row.filter((id): id is string => typeof id === "string"));
+  }
+  return rows;
+}
+
 function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...SETTINGS_DEFAULTS };
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    let fontFamily = SETTINGS_DEFAULTS.fontFamily;
+    if (
+      typeof parsed.fontFamily === "string" &&
+      parsed.fontFamily !== LEGACY_DEFAULT_FONT &&
+      parsed.fontFamily !== LEGACY_SYSTEM_FONT
+    ) {
+      // 用户自己选过的字体照旧尊重；不在当前系统列表里时设置页显示为「自定义」
+      fontFamily = parsed.fontFamily;
+    }
+    let monoFontFamily = SETTINGS_DEFAULTS.monoFontFamily;
+    if (typeof parsed.monoFontFamily === "string") {
+      monoFontFamily = parsed.monoFontFamily;
+    }
     return {
       ...SETTINGS_DEFAULTS,
       ...parsed,
+      fontFamily,
+      monoFontFamily,
       appearance: parseAppearance(parsed.appearance),
       alertContentKinds:
         parsed.alertContentKinds || SETTINGS_DEFAULTS.alertContentKinds,
@@ -102,6 +118,7 @@ function loadSettings(): AppSettings {
       hostResourceNotifySubs: parsed.hostResourceNotifySubs || {},
       hostAppNotifySubs: parsed.hostAppNotifySubs || {},
       hostCertNotifySubs: parsed.hostCertNotifySubs || {},
+      hostHomeRows: parseHostHomeRows(parsed.hostHomeRows),
     };
   } catch {
     return { ...SETTINGS_DEFAULTS };
@@ -132,6 +149,7 @@ export function applyAppearanceToDocument(
   appearance: AppearancePref,
   fontFamily?: string,
   fontSize?: number,
+  monoFontFamily?: string,
 ) {
   const root = document.documentElement;
   const resolved = resolveAppearance(appearance);
@@ -139,9 +157,23 @@ export function applyAppearanceToDocument(
   root.classList.add(resolved);
   root.style.colorScheme = resolved;
   root.style.background = "var(--color-canvas)";
-  if (typeof fontFamily === "string" && fontFamily) {
-    root.style.setProperty("--app-font-family", fontFamily);
-    document.body.style.fontFamily = fontFamily;
+  if (typeof fontFamily === "string") {
+    if (fontFamily) {
+      root.style.setProperty("--app-font-family", fontFamily);
+      document.body.style.fontFamily = fontFamily;
+    } else {
+      // 系统默认：清掉覆盖，让 .react-root 回落到 var(--font-sans)
+      root.style.removeProperty("--app-font-family");
+      document.body.style.fontFamily = "";
+    }
+  }
+  if (typeof monoFontFamily === "string") {
+    if (monoFontFamily) {
+      root.style.setProperty("--app-font-mono", monoFontFamily);
+    } else {
+      // 系统默认：清掉覆盖，--font-mono 回落到系统等宽栈
+      root.style.removeProperty("--app-font-mono");
+    }
   }
   if (typeof fontSize === "number" && Number.isFinite(fontSize)) {
     root.style.setProperty("--app-font-size", `${fontSize}px`);
@@ -168,6 +200,7 @@ function syncSystemAppearanceWatch(pref: AppearancePref) {
       current.appearance,
       current.fontFamily,
       current.fontSize,
+      current.monoFontFamily,
     );
   };
   mediaQuery.addEventListener("change", mediaListener);
@@ -178,6 +211,7 @@ function applySettings(settings: AppSettings) {
     settings.appearance,
     settings.fontFamily,
     settings.fontSize,
+    settings.monoFontFamily,
   );
   syncSystemAppearanceWatch(settings.appearance);
 }
@@ -216,7 +250,10 @@ export function updateSettings(patch: Partial<AppSettings>) {
 }
 
 export function resetSettings() {
+  // 首页分组排布属于用户整理的布局，不随「恢复默认」清空
+  const hostHomeRows = current.hostHomeRows;
   current = { ...SETTINGS_DEFAULTS };
+  current.hostHomeRows = hostHomeRows;
   emit();
 }
 

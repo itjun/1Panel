@@ -122,15 +122,23 @@ function matchDistro(osRelease?: string): DistroMeta {
 export function DistroBadge({
   osRelease,
   size = 20,
+  boxSize,
   title,
 }: {
   osRelease?: string;
   /** 内部 SVG 边长，徽标外框为 size + 18 */
   size?: number;
+  /** 直接指定徽标外框边长（紧凑列表用）；设置后忽略 size，内部 SVG 按外框约 70% 缩放 */
+  boxSize?: number;
   title?: string;
 }) {
   const meta = matchDistro(osRelease);
-  const side = size + 18;
+  let side = size + 18;
+  let iconSize = size;
+  if (boxSize) {
+    side = boxSize;
+    iconSize = Math.round(boxSize * 0.7);
+  }
   const radius = Math.round(side * 0.26);
   const label = title || meta.name;
 
@@ -145,9 +153,9 @@ export function DistroBadge({
       }}
       role="img"
       aria-label={label}
-      title={label}
+      data-tip={label}
     >
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+      <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
         <path d={meta.path} />
       </svg>
     </span>
