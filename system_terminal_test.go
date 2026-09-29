@@ -9,11 +9,11 @@ func TestOneAgentOpenURL(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{name: "single", hosts: []string{"alpha"}, want: "oneagent://open?host=alpha"},
-		{name: "batch and space", hosts: []string{"alpha", "beta box"}, want: "oneagent://open?host=alpha&host=beta%20box"},
-		{name: "skip blank", hosts: []string{"  ", "gamma"}, want: "oneagent://open?host=gamma"},
-		{name: "skip newline", hosts: []string{"bad\nhost", "gamma"}, want: "oneagent://open?host=gamma"},
-		{name: "plus stays escaped", hosts: []string{"a+b"}, want: "oneagent://open?host=a%2Bb"},
+		{name: "single", hosts: []string{"alpha"}, want: "oneagent://open?host=alpha&reuse=1"},
+		{name: "batch and space", hosts: []string{"alpha", "beta box"}, want: "oneagent://open?host=alpha&host=beta%20box&reuse=1"},
+		{name: "skip blank", hosts: []string{"  ", "gamma"}, want: "oneagent://open?host=gamma&reuse=1"},
+		{name: "skip newline", hosts: []string{"bad\nhost", "gamma"}, want: "oneagent://open?host=gamma&reuse=1"},
+		{name: "plus stays escaped", hosts: []string{"a+b"}, want: "oneagent://open?host=a%2Bb&reuse=1"},
 		{name: "empty", hosts: []string{"", "  "}, wantErr: true},
 	}
 	for _, c := range cases {

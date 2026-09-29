@@ -32,6 +32,7 @@ export type Tool =
   | "overview"
   | "files"
   | "monitor"
+  | "disk"
   | "apps"
   | "certs"
   | "nginx"
@@ -51,6 +52,7 @@ export type LocalSection =
   | "network"
   | "packages"
   | "procs"
+  | "monitor"
   | "overview";
 
 export type NotifySection =
@@ -73,6 +75,7 @@ export type OpenedHost = {
 export const HOST_TOOLS: { id: Tool; label: string }[] = [
   { id: "overview", label: "概览" },
   { id: "monitor", label: "监控" },
+  { id: "disk", label: "磁盘" },
   { id: "files", label: "文件" },
   { id: "apps", label: "应用" },
   { id: "nginx", label: "Nginx" },

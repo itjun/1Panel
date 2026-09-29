@@ -8,6 +8,8 @@ import {
 } from "@/react/components/local-app-context-menu";
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
+import { RadioGroup } from "@/react/components/ui/radio-group";
+import { Select } from "@/react/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -484,6 +486,18 @@ export function LocalAppsPage() {
   const killButtonLabel =
     selectedRow?.kind === "app" ? "结束应用" : "结束进程";
 
+  // 选项超过 5 个时单选组只留「全部 / 服务候选」，语言收进下拉
+  const filterOptions = filters.map((item) => ({
+    value: item.value,
+    label: item.count > 0 ? `${item.label} (${item.count})` : item.label,
+  }));
+  let radioOptions = filterOptions;
+  let languageOptions: typeof filterOptions = [];
+  if (filterOptions.length > 5) {
+    radioOptions = filterOptions.slice(0, 2);
+    languageOptions = filterOptions.slice(2);
+  }
+
   /** 展开后的扁平行，便于表格 key 稳定 */
   const flatRows = useMemo(() => {
     const out: { row: TreeRow; depth: number }[] = [];
@@ -509,7 +523,7 @@ export function LocalAppsPage() {
         : "置信度未知";
   let detailConfidenceTone: TagTone = "neutral";
   if (shownDetail?.confidence === "high") {
-    detailConfidenceTone = "ok";
+    detailConfidenceTone = "info";
   } else if (shownDetail?.confidence === "medium") {
     detailConfidenceTone = "warn";
   }
@@ -584,28 +598,28 @@ export function LocalAppsPage() {
             row.typeLabel
           )}
         </td>
-        <td className="px-2 font-mono text-sm">{row.pidLabel}</td>
+        <td className="px-2 text-right font-mono text-sm tabular-nums">{row.pidLabel}</td>
         <td className="px-2 font-mono text-sm">
           {row.ports.length ? row.ports.join("、") : "—"}
         </td>
         <td
           className={
             row.cpu > 80
-              ? "px-2 text-right font-mono text-sm text-danger"
+              ? "px-2 text-right font-mono text-sm tabular-nums text-danger"
               : row.cpu > 30
-                ? "px-2 text-right font-mono text-sm text-warn"
-                : "px-2 text-right font-mono text-sm"
+                ? "px-2 text-right font-mono text-sm tabular-nums text-warn"
+                : "px-2 text-right font-mono text-sm tabular-nums"
           }
         >
           {Number(row.cpu || 0).toFixed(1)}
         </td>
-        <td className="px-2 text-right font-mono text-sm">
+        <td className="px-2 text-right font-mono text-sm tabular-nums">
           {formatBytes(row.rss || 0)}
         </td>
-        <td className="px-2 text-right font-mono text-xs">
+        <td className="px-2 text-right font-mono text-sm tabular-nums">
           {formatIoPair(row, "disk")}
         </td>
-        <td className="px-2 text-right font-mono text-xs">
+        <td className="px-2 text-right font-mono text-sm tabular-nums">
           {formatIoPair(row, "net")}
         </td>
         <td className="px-2 text-sm">
@@ -622,27 +636,30 @@ export function LocalAppsPage() {
       title="应用进程"
       actions={
         <>
-          {filters.map((item) => {
-            return (
-              <Button
-                key={item.value}
-                size="sm"
-                variant={runtime === item.value ? "primary" : "secondary"}
-                onClick={() => setRuntime(item.value)}
-              >
-                {item.label}
-                {item.count > 0 ? (
-                  <span className="opacity-70">({item.count})</span>
-                ) : null}
-              </Button>
-            );
-          })}
+          <RadioGroup
+            aria-label="应用类型"
+            value={runtime}
+            onChange={setRuntime}
+            options={radioOptions}
+          />
+          {languageOptions.length ? (
+            <Select
+              aria-label="开发语言"
+              size="sm"
+              className="w-36"
+              placeholder="按语言筛选"
+              value={runtime}
+              onChange={setRuntime}
+              options={languageOptions}
+            />
+          ) : null}
           <input
             className="motion-field h-7 w-56 rounded-control px-3 text-sm text-ink"
             value={keyword}
             placeholder="搜索名称 / 命令 / 路径 / 端口"
             onChange={(event) => setKeyword(event.target.value)}
           />
+          <span aria-hidden className="mx-2 h-5 w-px bg-line" />
           <Button
             size="sm"
             disabled={!canKillSelected}
@@ -688,7 +705,8 @@ export function LocalAppsPage() {
                   activeKey={sortKey}
                   direction={sortDirection}
                   onSort={changeSort}
-                  className="w-28 px-2"
+                  className="w-28 px-2 text-right"
+                  align="right"
                 />
                 <SortableHeader
                   label="端口"

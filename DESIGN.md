@@ -224,7 +224,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 侧栏（Sider） | 整站导航；位于顶栏**下方**；默认宽度 **232px**（三端一致，不再分平台）；可拖拽改宽（160–480px），双击分割条复位；底色 `--color-canvas`，无右边线；分割条平时不可见，hover / 拖动时才显示 |
 | 内容区 | `main` 底色 `--color-surface`，**左上角 6px 圆角**（白色平面嵌在灰框里；整套设计唯一的圆角装饰，侧栏收起时也保持）；内部贴边 `.content-float`；区块不再套卡片 |
 | 区块间距 | `--spacing-section` / `--gap-section: 24px`：内容区里区块与区块之间（Tailwind `gap-section` / `space-y-section`） |
-| 网格间隙 | `--gap-card: 8px`：网格内同类单元之间（监控图表、巡检格、概览格、左右分栏） |
+| 网格间隙 | `--gap-card: 8px`：网格内同类单元之间（巡检格、概览格、左右分栏）；监控页例外：整页一块固定面板，图表网格 `gap-px` 铺在 `bg-line` 上形成 1px 发丝分隔，单个图表不另描边 |
 | Linux frameless | 无系统阴影，窗口外补 **1px `--color-line`** 描边以区分桌面 |
 
 ### 4.2 网格与间距原则
@@ -394,7 +394,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 焦点：可见 `focus-visible`，输入类用 `--color-accent-focus` 外环。
 - 表格：行高 40 / 表头 36 与虚拟表常量一致（见 §4.4、§9）；表头无底色；hover 用 raised，不加阴影。
 - 区块：内容区不再用卡片；`Card` / `.surface-float` 只是无描边、无圆角的普通区块，区块之间 24px（`gap-section`），区块标题 `text-sm font-semibold text-ink`。
-- 数据卡片悬停 / 聚焦：`Card`、监控网格卡片、看板主机卡统一走 `.card-hover`（看板在 `board.css` 同规则）—— 静止 1px 透明边框占位，`:hover` / `:focus-within` 显示 1px `--color-line-strong` 边框标识范围，过渡 `--duration-base` + `--ease-standard`；不加阴影，不另改底色；表格行等已有 hover 底色的元素不再叠加。
+- 数据卡片悬停 / 聚焦：`Card` 及内容区数据块（含监控图表）**不显示悬停 / 聚焦边框**，保持扁平，区块读作一个整体；悬停边框只保留给看板主机卡（`board.css` 的 `.host-board-card`，与 `.card-hover` 同规则）—— 静止 1px 透明边框占位，`:hover` / `:focus-within` 显示 1px `--color-line-strong` 边框标识范围，过渡 `--duration-base` + `--ease-standard`；不加阴影，不另改底色；表格行等已有 hover 底色的元素不再叠加。
 - 侧栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；当前主机只加粗、当前工具色块、工具列表缩进 12px；侧栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；主机列表与工具列表之间用 8px 留白分隔。
 - 页面提示条（`Notice` / `FlashNotices` + `useFlashMessage`），视觉按 TDesign Alert：
   - 四种 theme：success（`--color-success` / `success-soft`，绿，同 TDesign）、info（`info` / `info-soft`）、warning（`warn` / `warn-soft`，组件里旧名 `warn` 等价）、error（`danger` / `danger-soft`）。
@@ -432,7 +432,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 顶栏内控件 | secondary 按钮与 `.motion-field` 在顶栏里改用 `--color-surface` 底 | canvas 与 raised 太接近，按钮会“消失” |
 | 控件圆角 | `--radius-control: 4px` | 按钮、输入等 |
 | 区块间距 | `--spacing-section` / `--gap-section: 24px` | 取代卡片描边做分段 |
-| 数据卡片悬停边框 | `.card-hover`：静止透明 1px 边框，悬停 / 聚焦 1px `--color-line-strong` | 扁平化后卡片无边界，悬停 / 聚焦时显示 1px 边框标识范围；仅交互态，静止仍无描边 |
+| 数据卡片悬停边框 | 仅看板主机卡：静止透明 1px 边框，悬停 / 聚焦 1px `--color-line-strong`（`.card-hover` 同规则）；`Card` 与内容区数据块无悬停边框 | 看板主机卡是可点选的独立对象，需要标识范围；内容区区块扁平读作整体，悬停描边只会打碎版面 |
 | 网格间隙 | `--gap-card: 8px` | 网格内同类单元之间；回归 8 点网格 |
 | 允许的“阴影” | 输入类 focus 外环（2px `--color-accent-focus`）；Linux frameless 1px 外描边（outline） | 这两处表达焦点 / 窗口边界，不表达层级；Tailwind `--shadow-*` / `--inset-shadow-*` / `--drop-shadow-*` 命名空间已清空 |
 | 顶栏高度 | 40px | 对齐桌面窗口控件带；整窗贯通，侧栏在其下 |

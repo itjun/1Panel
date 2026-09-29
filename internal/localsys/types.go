@@ -67,8 +67,10 @@ type DiskInfo struct {
 	Free       uint64  `json:"free"`
 	Avail      uint64  `json:"avail"`
 	Percent    float64 `json:"percent"`
-	Kind       string  `json:"kind"`   // disk=物理容器；mount=挂载卷
-	Parent     string  `json:"parent"` // 物理盘键：如 disk3；外置可与 mount 同键
+	Kind       string  `json:"kind"`     // disk=物理盘；mount=挂载卷
+	Parent     string  `json:"parent"`   // 物理盘键：如 disk0（APFS 卷按 Physical Store 归到物理盘）
+	Name       string  `json:"name"`     // 展示名：如 Macintosh HD；外置盘取卷名
+	External   bool    `json:"external"` // 外置物理盘（USB / 雷雳）上的盘或卷
 }
 
 // Runtime 已安装的运行时版本。

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -196,11 +197,177 @@ func parseSwapUsage(o *Overview) {
 }
 
 func listDisks() []DiskInfo {
-	var disks []DiskInfo
-	// 先放物理 APFS 容器（环图汇总用，避免多卷重复累计）
-	disks = append(disks, listAPFSContainers()...)
-	disks = append(disks, listMountDisks()...)
-	return disks
+	containers := listAPFSContainers()
+	mounts := listMountDisks()
+	var need []string
+	for _, c := range containers {
+		need = append(need, c.Parent)
+	}
+	for _, m := range mounts {
+		need = append(need, m.Parent)
+	}
+	kinds := cachedWholeDiskKinds(need)
+	return BuildLocalDisks(containers, mounts, kinds)
+}
+
+// BuildLocalDisks 把 APFS 容器与 df 挂载归并为「物理盘(kind=disk) + 用户可见分区(kind=mount)」（供单测）。
+// containers 的 Parent 须已是物理整盘（Physical Store 所在盘）；mounts 的 Parent 为设备所在盘（可能是 APFS 容器）。
+// kinds 为 diskutil list 的整盘描述；为空（diskutil 失败）时一律按物理盘处理。
+func BuildLocalDisks(containers, mounts []DiskInfo, kinds map[string]string) []DiskInfo {
+	containerByRef := map[string]DiskInfo{}
+	for _, c := range containers {
+		containerByRef[c.Device] = c
+	}
+
+	var physicals []DiskInfo
+	physIndex := map[string]int{}
+	addToPhysical := func(key, fsType string, src DiskInfo) {
+		i, ok := physIndex[key]
+		if !ok {
+			physicals = append(physicals, DiskInfo{
+				Device:     key,
+				Filesystem: key,
+				FSType:     fsType,
+				Kind:       "disk",
+				Parent:     key,
+				External:   isExternalWholeDisk(kinds, key),
+			})
+			i = len(physicals) - 1
+			physIndex[key] = i
+		}
+		p := &physicals[i]
+		p.Total += src.Total
+		p.Used += src.Used
+		p.Free += src.Free
+		p.Avail += src.Avail
+	}
+	for _, c := range containers {
+		if !isPhysicalWholeDisk(kinds, c.Parent) {
+			continue
+		}
+		addToPhysical(c.Parent, "apfs", c)
+	}
+
+	var partitions []DiskInfo
+	for _, m := range mounts {
+		ref := m.Parent
+		phys := ref
+		c, inContainer := containerByRef[ref]
+		if inContainer {
+			phys = c.Parent
+		}
+		m.Parent = phys
+		m.External = isExternalWholeDisk(kinds, phys)
+
+		if m.Mount == "/" {
+			// 根分区是只读系统快照（约 13GB）；按容器合并系统 + 数据，与访达「Macintosh HD」一致
+			if inContainer {
+				m.Device = "/dev/" + ref
+				m.Filesystem = m.Device
+				m.Total = c.Total
+				m.Used = c.Used
+				m.Free = c.Avail
+				m.Avail = c.Avail
+				m.Name = c.Name
+			}
+			if m.Name == "" {
+				m.Name = "Macintosh HD"
+			}
+			m.Percent = usedPercent(m.Used, m.Total)
+			partitions = append(partitions, m)
+			continue
+		}
+
+		// 其余只保留 /Volumes/名称；/System/Volumes/*、模拟器、cryptex 等系统挂载不展示
+		if !isExternalVolumeMount(m.Mount) {
+			continue
+		}
+		m.Name = strings.TrimPrefix(m.Mount, "/Volumes/")
+		if isPhysicalWholeDisk(kinds, phys) {
+			// 非 APFS 外置盘（ExFAT 等）没有容器，按卷累加到物理盘
+			if !inContainer {
+				addToPhysical(phys, m.FSType, m)
+			}
+			if i, ok := physIndex[phys]; ok && physicals[i].Name == "" {
+				physicals[i].Name = m.Name
+			}
+		} else {
+			// 用户手动挂载的 dmg 等磁盘映像：列在分区里，但不算物理盘
+			m.FSType = "磁盘映像"
+		}
+		partitions = append(partitions, m)
+	}
+
+	for i := range physicals {
+		physicals[i].Percent = usedPercent(physicals[i].Used, physicals[i].Total)
+	}
+	return append(physicals, partitions...)
+}
+
+func usedPercent(used, total uint64) float64 {
+	if total == 0 {
+		return 0
+	}
+	return float64(used) / float64(total) * 100
+}
+
+func isPhysicalWholeDisk(kinds map[string]string, disk string) bool {
+	if len(kinds) == 0 {
+		return true
+	}
+	return strings.Contains(kinds[disk], "physical")
+}
+
+func isExternalWholeDisk(kinds map[string]string, disk string) bool {
+	return strings.Contains(kinds[disk], "external")
+}
+
+const wholeDiskKindsTTL = time.Minute
+
+var (
+	wholeDiskMu     sync.Mutex
+	wholeDiskKinds  map[string]string
+	wholeDiskExpire time.Time
+)
+
+// cachedWholeDiskKinds 缓存 diskutil list 的整盘类型（盘少变动，避免每次轮询多跑一次）；
+// need 里出现未知盘号（刚插入 U 盘 / 刚挂载 dmg）时立即刷新。
+func cachedWholeDiskKinds(need []string) map[string]string {
+	wholeDiskMu.Lock()
+	defer wholeDiskMu.Unlock()
+	stale := time.Now().After(wholeDiskExpire)
+	if !stale {
+		for _, k := range need {
+			if _, ok := wholeDiskKinds[k]; !ok {
+				stale = true
+				break
+			}
+		}
+	}
+	if stale {
+		out, err := exec.Command("diskutil", "list").Output()
+		if err == nil {
+			wholeDiskKinds = ParseDiskutilListKinds(string(out))
+			wholeDiskExpire = time.Now().Add(wholeDiskKindsTTL)
+		}
+	}
+	return wholeDiskKinds
+}
+
+var diskutilListHeaderRe = regexp.MustCompile(`^/dev/(disk\d+)\s+\(([^)]*)\):`)
+
+// ParseDiskutilListKinds 解析 diskutil list 的整盘标题行（供单测）。
+// "/dev/disk0 (internal, physical):" → disk0: "internal, physical"；
+// 其他取值如 "external, physical"、"disk image"、"synthesized"。
+func ParseDiskutilListKinds(raw string) map[string]string {
+	kinds := map[string]string{}
+	for _, line := range strings.Split(raw, "\n") {
+		m := diskutilListHeaderRe.FindStringSubmatch(strings.TrimSpace(line))
+		if len(m) == 3 {
+			kinds[m[1]] = m[2]
+		}
+	}
+	return kinds
 }
 
 func listMountDisks() []DiskInfo {
@@ -259,15 +426,6 @@ func listMountDisks() []DiskInfo {
 			Parent:     DiskParentKey(device, mount),
 		}
 		disks = append(disks, item)
-		// /Volumes/* 外置卷（ExFAT/HFS 等）不在 apfs list 里，
-		// 额外记一条 kind=disk，供顶部环图与内置 APFS 容器一并汇总
-		if isExternalVolumeMount(mount) {
-			ext := item
-			ext.Kind = "disk"
-			ext.Filesystem = mount // 去重键：避免和 APFS diskN 撞车
-			// Parent 与 mount 条目一致，便于按物理盘分组
-			disks = append(disks, ext)
-		}
 	}
 	return disks
 }
@@ -340,10 +498,13 @@ func listAPFSContainers() []DiskInfo {
 // ParseAPFSContainers 解析 diskutil apfs list 文本（供单测）。
 // 注意：非末尾容器的行带 "|" 树形前缀，必须剥掉才能匹配字段。
 // 模拟器 / disk image 容器不进入 kind=disk（避免顶部环图被 18GB 临时盘带歪）。
+// Parent 取 Physical Store 所在整盘（disk3 → disk0）；Name 取 System 角色卷名（如 Macintosh HD）。
 func ParseAPFSContainers(raw string) []DiskInfo {
 	var disks []DiskInfo
 	var cur *DiskInfo
 	skip := false
+	storeSeen := false
+	systemVolume := false
 	flush := func() {
 		if cur != nil && cur.Total > 0 && !skip {
 			if cur.Percent == 0 && cur.Total > 0 {
@@ -353,6 +514,8 @@ func ParseAPFSContainers(raw string) []DiskInfo {
 		}
 		cur = nil
 		skip = false
+		storeSeen = false
+		systemVolume = false
 	}
 	sc := bufio.NewScanner(strings.NewReader(raw))
 	for sc.Scan() {
@@ -383,7 +546,21 @@ func ParseAPFSContainers(raw string) []DiskInfo {
 		if v, ok := cutAfter(line, "APFS Container Reference:"); ok {
 			cur.Device = v
 			cur.Filesystem = v
-			cur.Parent = v
+			if !storeSeen {
+				cur.Parent = v
+			}
+			continue
+		}
+		// Fusion 等多 Physical Store 时取第一个
+		if v, ok := cutAfter(line, "APFS Physical Store Disk:"); ok {
+			if !storeSeen {
+				cur.Parent = DiskParentKey(v, "")
+				storeSeen = true
+			}
+			continue
+		}
+		if v, ok := cutAfter(line, "APFS Volume Disk (Role):"); ok {
+			systemVolume = strings.HasSuffix(v, "(System)")
 			continue
 		}
 		if v, ok := cutAfter(line, "Size (Capacity Ceiling):"); ok {
@@ -408,6 +585,10 @@ func ParseAPFSContainers(raw string) []DiskInfo {
 			if strings.Contains(name, "Simulator") {
 				skip = true
 			}
+			if systemVolume && cur.Name == "" {
+				cur.Name = name
+			}
+			systemVolume = false
 		}
 	}
 	flush()

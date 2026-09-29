@@ -57,6 +57,7 @@ APFS Containers (1 found)
 	if got[0].Device != "disk3" || got[0].Kind != "disk" {
 		t.Fatalf("容器元数据: %+v", got[0])
 	}
+	// 无 Physical Store 行时回退为容器自身
 	if got[0].Parent != "disk3" {
 		t.Fatalf("Parent=%q want disk3", got[0].Parent)
 	}

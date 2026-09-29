@@ -26,14 +26,24 @@ export interface DiskInfo {
     "percent": number;
 
     /**
-     * disk=物理容器；mount=挂载卷
+     * disk=物理盘；mount=挂载卷
      */
     "kind": string;
 
     /**
-     * 物理盘键：如 disk3；外置可与 mount 同键
+     * 物理盘键：如 disk0（APFS 卷按 Physical Store 归到物理盘）
      */
     "parent": string;
+
+    /**
+     * 展示名：如 Macintosh HD；外置盘取卷名
+     */
+    "name": string;
+
+    /**
+     * 外置物理盘（USB / 雷雳）上的盘或卷
+     */
+    "external": boolean;
 }
 
 /**

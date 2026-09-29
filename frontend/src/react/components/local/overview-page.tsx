@@ -1,173 +1,200 @@
-import { useMemo } from "react";
-import type { localsys } from "@/api";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { api, type localsys, type monitor } from "@/api";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import { Meter } from "@/react/components/ui/meter";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
+import {
+  OverviewFact,
+  OverviewTable,
+  PhysicalDiskRows,
+} from "@/react/components/overview/overview-parts";
 import { useSession } from "@/react/state/session";
 import {
   formatBytes,
-  formatBytesSI,
+  formatDurationLong,
   formatErr,
   formatMemCapacity,
 } from "@/utils/format";
 import {
   buildDiskGroups,
   buildDiskSummaryItems,
-  diskExternalRowLabel,
-  diskMountLabel,
   diskMountPercent,
   flattenExternalRows,
   summarizeDiskItems,
 } from "./disk-utils";
-import { MetricChart, buildLocalLineOption } from "./metric-chart";
 import { RingMeter } from "./ring-meter";
-import { useLocalMetrics } from "./use-local-metrics";
+import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
 
-function formatTemp(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(Number(v))) return "—";
-  return `${Number(v).toFixed(0)} °C`;
-}
+const VIRTUAL_IFACE_FOLD = 3;
 
-function loadLabel(pct: number): string {
+const IFACE_KIND_LABEL: Record<string, string> = {
+  wifi: "无线",
+  ethernet: "有线",
+  thunderbolt: "雷雳 / 网桥",
+  vpn: "VPN",
+  other: "其它",
+};
+
+function loadWord(pct: number): string {
   if (pct < 30) return "运行流畅";
   if (pct < 70) return "运行正常";
   if (pct < 80) return "运行缓慢";
   return "运行堵塞";
 }
 
-function CoreMiniGrid({ cores }: { cores: localsys.CPUCoreStat[] | null }) {
-  const list = cores || [];
-  if (!list.length) return null;
-  return (
-    <div className="mt-2 grid max-h-40 grid-cols-4 gap-1 overflow-auto">
-      {list.map((c) => (
-        <div
-          key={c.index}
-          className="rounded-tag bg-raised px-1 py-0.5 text-center font-mono text-xs"
-          data-tip={`${c.kind || "核"} #${c.index}`}
-        >
-          {(c.percent || 0).toFixed(0)}%
-        </div>
-      ))}
-    </div>
-  );
+function formatTemp(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(Number(v))) return "—";
+  return `${Number(v).toFixed(0)} °C`;
+}
+
+function isVirtualIface(iface: localsys.NetInterface): boolean {
+  return iface.kind !== "wifi" && iface.kind !== "ethernet" && iface.kind !== "thunderbolt";
 }
 
 export function LocalOverviewPage() {
   const session = useSession();
-  const {
-    overview,
-    error,
-    cpuSeries,
-    memSeries,
-    ioSeries,
-    ioRates,
-    memTotalBytes,
-    hasCpuClusters,
-  } = useLocalMetrics(true);
+  const [showAllIfaces, setShowAllIfaces] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const { overview: data, error } = useLocalMetrics();
+  // 与网络页共用缓存键，切页不重复请求
+  const network = useQuery({
+    queryKey: ["local-net"],
+    queryFn: () => api.localSysNetwork(),
+    refetchInterval: 20000,
+  });
 
-  const data = overview;
-  const loadPct =
-    data && data.cpuCount > 0
-      ? Math.min(100, ((data.load1 || 0) / data.cpuCount) * 100)
-      : 0;
-
-  const diskItems = useMemo(
-    () => buildDiskSummaryItems(data?.disks || []),
-    [data?.disks],
-  );
+  const diskItems = useMemo(() => buildDiskSummaryItems(data?.disks || []), [data?.disks]);
   const diskSummary = useMemo(() => summarizeDiskItems(diskItems), [diskItems]);
-  const diskGroups = useMemo(
-    () => buildDiskGroups(data?.disks || []),
-    [data?.disks],
-  );
-  const externalRows = useMemo(
-    () => flattenExternalRows(diskGroups.external),
-    [diskGroups.external],
-  );
+  const diskGroups = useMemo(() => buildDiskGroups(data?.disks || []), [data?.disks]);
 
-  const diskPercent = diskSummary?.percent || 0;
-  const diskUsed = diskSummary?.used || 0;
-  const diskTotal = diskSummary?.total || 0;
+  const physDisks: monitor.DiskInfo[] = diskItems.map((item) => ({
+    filesystem: item.key,
+    mount: item.label,
+    fsType: "",
+    total: item.total,
+    used: item.used,
+    avail: item.avail,
+    percent: item.percent,
+    kind: "disk",
+  }));
+  const partitions: localsys.DiskInfo[] = [
+    ...diskGroups.internal.flatMap((g) => g.partitions),
+    ...flattenExternalRows(diskGroups.external),
+  ];
 
-  const tempC =
-    data?.tempC != null && Number.isFinite(Number(data.tempC))
-      ? Number(data.tempC)
-      : null;
-  const tempRing = tempC == null ? 0 : Math.max(0, Math.min(100, tempC));
-  const tempDanger = (tempC ?? 0) > 90;
-  const tempLabel = tempC == null ? "—" : `${tempC.toFixed(0)} °C`;
+  const allIfaces = network.data?.interfaces || [];
+  const mainIfaces = allIfaces.filter((iface) => !isVirtualIface(iface));
+  const virtualIfaces = allIfaces.filter((iface) => isVirtualIface(iface));
+  let shownIfaces = [...mainIfaces, ...virtualIfaces];
+  let hiddenIfaceCount = 0;
+  if (virtualIfaces.length > VIRTUAL_IFACE_FOLD && !showAllIfaces) {
+    shownIfaces = mainIfaces;
+    hiddenIfaceCount = virtualIfaces.length;
+  }
 
-  const cpuOption = useMemo(() => {
-    const series = [
-      { name: "全核心", data: cpuSeries.map((p) => p.total) },
-    ];
-    if (hasCpuClusters) {
-      series.push({ name: "性能核", data: cpuSeries.map((p) => p.perf) });
-      series.push({ name: "能效核", data: cpuSeries.map((p) => p.eff) });
+  let privateIpText = "—";
+  if (network.data?.privateIPs?.length) {
+    privateIpText = network.data.privateIPs.join(", ");
+  } else if (data?.ipAddress) {
+    privateIpText = data.ipAddress;
+  }
+
+  let loadPercent = 0;
+  if (data && data.cpuCount > 0) {
+    loadPercent = Math.min(100, ((data.load1 || 0) / data.cpuCount) * 100);
+  }
+
+  let swapText = "未启用";
+  if (data && (data.swapTotal || 0) > 0) {
+    swapText = `${formatBytes(data.swapUsed || 0)} / ${formatBytes(data.swapTotal || 0)}`;
+  }
+
+  let coresText = "—";
+  if (data) {
+    coresText = `${data.cpuCount} 核`;
+    if ((data.perfCores || 0) > 0 || (data.effCores || 0) > 0) {
+      coresText = `${data.cpuCount} 核（性能 ${data.perfCores || 0} · 能效 ${data.effCores || 0}）`;
     }
-    return buildLocalLineOption({
-      xData: cpuSeries.map((p) => p.time),
-      series,
-      unit: "percent",
-      yMax: 100,
-    });
-  }, [cpuSeries, hasCpuClusters]);
+  }
 
-  const memOption = useMemo(
-    () =>
-      buildLocalLineOption({
-        xData: memSeries.map((p) => p.time),
-        series: [
-          { name: "物理内存", data: memSeries.map((p) => p.phys) },
-          {
-            name: "交换内存",
-            data: memSeries.map((p) => p.swap),
-            yAxisIndex: 1,
-          },
-        ],
-        unit: "bytes",
-        markLine: memTotalBytes
-          ? {
-              name: `物理总量 ${formatBytes(memTotalBytes)}`,
-              value: memTotalBytes,
-            }
-          : undefined,
-      }),
-    [memSeries, memTotalBytes],
-  );
+  let osText = "未知系统";
+  if (data?.productVer) {
+    osText = `${data.productName || "macOS"} ${data.productVer}`;
+  } else if (data?.osRelease) {
+    osText = data.osRelease;
+  }
 
-  const ioOption = useMemo(
-    () =>
-      buildLocalLineOption({
-        xData: ioSeries.map((p) => p.time),
-        series: [
-          { name: "读", data: ioSeries.map((p) => p.read) },
-          { name: "写", data: ioSeries.map((p) => p.write) },
-        ],
-        unit: "kbps",
-      }),
-    [ioSeries],
-  );
+  let diskScopeText = "";
+  if (diskSummary) {
+    if (diskItems[0]?.scope === "disk") {
+      diskScopeText = `${diskSummary.count} 块物理硬盘`;
+    } else {
+      diskScopeText = `${diskSummary.count} 个分区`;
+    }
+  }
+
+  async function refreshAll() {
+    setRefreshing(true);
+    try {
+      await Promise.all([refreshLocalMetrics(), network.refetch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   return (
-    <Page title="系统概览">
+    <Page title="概览" onRefresh={() => refreshAll()} refreshing={refreshing}>
       {error && !data ? <Notice text={formatErr(error)} /> : null}
-      {!data ? (
-        <p className="text-sm text-muted">加载中…</p>
-      ) : (
-        <div className="gap-section flex flex-col">
-          {/* 状态环图：网格单元为 raised 色块（local.css .local-ring） */}
-          <Card className="p-0">
-            <div className="mb-3 text-sm font-semibold text-ink">状态</div>
-            <div className="gap-card grid grid-cols-2 md:grid-cols-5">
+
+      <div className="flex flex-col gap-section">
+        {data ? (
+          <section>
+            <div className="mb-3 text-sm font-semibold text-ink">系统</div>
+            <div className="min-w-0">
+              <div className="truncate text-base font-semibold text-ink">
+                {data.hostname || "本机"}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+                <span>{osText}</span>
+                <span>
+                  内核 <span className="font-mono">{data.kernel || "—"}</span>
+                </span>
+                {data.arch ? <span className="font-mono">{data.arch}</span> : null}
+                <span>已运行 {formatDurationLong(data.uptime)}</span>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+              <OverviewFact label="CPU 型号" className="col-span-2">
+                {data.cpuModel || "—"}
+              </OverviewFact>
+              <OverviewFact label="CPU 核心" mono>{coresText}</OverviewFact>
+              <OverviewFact label="内存" mono>{formatMemCapacity(data.memTotal || 0)}</OverviewFact>
+              <OverviewFact label="Swap" mono>{swapText}</OverviewFact>
+              <OverviewFact label="温度" mono>{formatTemp(data.tempC)}</OverviewFact>
+              <OverviewFact label="机型" mono>{data.modelName || "—"}</OverviewFact>
+            </div>
+          </section>
+        ) : null}
+
+        {data ? (
+          <section>
+            <div className="mb-3 text-sm font-semibold text-ink">资源</div>
+            <div className="grid grid-cols-2 gap-card md:grid-cols-4">
               <RingMeter
                 title="负载"
-                percent={loadPct}
-                danger={loadPct > 80}
-                caption={loadLabel(loadPct)}
+                percent={loadPercent}
+                danger={loadPercent > 80}
+                center={(data.load1 || 0).toFixed(2)}
+                caption={
+                  <>
+                    <div className="font-mono tabular-nums">
+                      {(data.load1 || 0).toFixed(2)} / {data.cpuCount} 核
+                    </div>
+                    <div>{loadWord(loadPercent)}</div>
+                  </>
+                }
               >
                 <div className="local-pop-row">
                   <span>1 分钟</span>
@@ -187,290 +214,244 @@ export function LocalOverviewPage() {
                 title="CPU"
                 percent={data.cpuPercent || 0}
                 danger={(data.cpuPercent || 0) > 85}
+                center={`${(data.cpuPercent || 0).toFixed(1)}%`}
                 caption={
-                  (data.perfCores || 0) > 0 || (data.effCores || 0) > 0 ? (
-                    <>
-                      <div>
-                        性能 {data.perfCores || 0} · 能效 {data.effCores || 0} · 共{" "}
-                        {data.cpuCount} 核
-                      </div>
-                      <div>
-                        全核心 {(data.cpuPercent || 0).toFixed(1)}% · 性能{" "}
-                        {(data.perfCpuPercent || 0).toFixed(1)}% · 能效{" "}
-                        {(data.effCpuPercent || 0).toFixed(1)}%
-                      </div>
-                    </>
-                  ) : (
-                    `${(data.cpuPercent || 0).toFixed(1)}% / ${data.cpuCount} 核`
-                  )
+                  <>
+                    <div className="font-mono tabular-nums">
+                      {(data.cpuPercent || 0).toFixed(1)}% / {data.cpuCount} 核
+                    </div>
+                    <div className="max-w-[200px] truncate">{data.cpuModel || "—"}</div>
+                  </>
                 }
               >
                 <div className="local-pop-row">
                   <span>型号</span>
-                  <span className="max-w-[240px] truncate">{data.cpuModel || "—"}</span>
+                  <span className="max-w-[200px] truncate">{data.cpuModel || "—"}</span>
                 </div>
                 <div className="local-pop-row">
-                  <span>总核心</span>
-                  <span className="num">{data.cpuCount} 核</span>
+                  <span>核心数</span>
+                  <span className="num">{coresText}</span>
                 </div>
                 <div className="local-pop-row">
                   <span>使用率</span>
                   <span className="num">{(data.cpuPercent || 0).toFixed(2)}%</span>
                 </div>
-                {(data.perfCores || 0) > 0 || (data.effCores || 0) > 0 ? (
-                  <>
-                    <div className="local-pop-row">
-                      <span>性能核</span>
-                      <span className="num">
-                        {(data.perfCpuPercent || 0).toFixed(1)}% · {data.perfCores} 核
-                      </span>
-                    </div>
-                    <div className="local-pop-row">
-                      <span>能效核</span>
-                      <span className="num">
-                        {(data.effCpuPercent || 0).toFixed(1)}% · {data.effCores} 核
-                      </span>
-                    </div>
-                  </>
+                {(data.perfCores || 0) > 0 ? (
+                  <div className="local-pop-row">
+                    <span>性能核</span>
+                    <span className="num">{(data.perfCpuPercent || 0).toFixed(1)}%</span>
+                  </div>
                 ) : null}
-                <CoreMiniGrid cores={data.cpuCores} />
+                {(data.effCores || 0) > 0 ? (
+                  <div className="local-pop-row">
+                    <span>能效核</span>
+                    <span className="num">{(data.effCpuPercent || 0).toFixed(1)}%</span>
+                  </div>
+                ) : null}
               </RingMeter>
 
               <RingMeter
                 title="内存"
                 percent={data.memPercent || 0}
                 danger={(data.memPercent || 0) > 90}
+                center={`${(data.memPercent || 0).toFixed(1)}%`}
                 caption={
                   <>
-                    <div>
-                      物理 {formatBytes(data.memUsed || 0)} /{" "}
-                      {formatMemCapacity(data.memTotal || 0)}
+                    <div className="font-mono tabular-nums">
+                      {formatBytes(data.memUsed || 0)} / {formatMemCapacity(data.memTotal || 0)}
                     </div>
-                    <div>
-                      {(data.swapTotal || 0) > 0
-                        ? `交换 ${formatBytes(data.swapUsed || 0)} / ${formatBytes(data.swapTotal || 0)} · ${(data.swapPercent || 0).toFixed(0)}%`
-                        : "交换 未启用"}
-                    </div>
+                    <div>Swap {swapText}</div>
                   </>
                 }
               >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <div className="mb-1 font-semibold">物理内存</div>
-                    <div className="local-pop-row">
-                      <span>总量</span>
-                      <span className="num">{formatMemCapacity(data.memTotal || 0)}</span>
-                    </div>
-                    <div className="local-pop-row">
-                      <span>已用</span>
-                      <span className="num">{formatBytes(data.memUsed || 0)}</span>
-                    </div>
-                    <div className="local-pop-row">
-                      <span>可用</span>
-                      <span className="num">
-                        {formatBytes((data.memTotal || 0) - (data.memUsed || 0))}
-                      </span>
-                    </div>
-                    <div className="local-pop-row">
-                      <span>使用率</span>
-                      <span className="num">{(data.memPercent || 0).toFixed(2)}%</span>
-                    </div>
-                  </div>
-                  {(data.swapTotal || 0) > 0 ? (
-                    <div>
-                      <div className="mb-1 font-semibold">交换内存</div>
-                      <div className="local-pop-row">
-                        <span>总量</span>
-                        <span className="num">{formatBytes(data.swapTotal || 0)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>已用</span>
-                        <span className="num">{formatBytes(data.swapUsed || 0)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>使用率</span>
-                        <span className="num">{(data.swapPercent || 0).toFixed(2)}%</span>
-                      </div>
-                    </div>
-                  ) : null}
+                <div className="local-pop-row">
+                  <span>总量</span>
+                  <span className="num">{formatMemCapacity(data.memTotal || 0)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>已用</span>
+                  <span className="num">{formatBytes(data.memUsed || 0)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>可用</span>
+                  <span className="num">
+                    {formatBytes(Math.max(0, (data.memTotal || 0) - (data.memUsed || 0)))}
+                  </span>
+                </div>
+                <div className="local-pop-row">
+                  <span>使用率</span>
+                  <span className="num">{(data.memPercent || 0).toFixed(2)}%</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>Swap</span>
+                  <span className="num">
+                    {(data.swapTotal || 0) > 0
+                      ? `${swapText} · ${(data.swapPercent || 0).toFixed(1)}%`
+                      : "未启用"}
+                  </span>
                 </div>
               </RingMeter>
 
               <RingMeter
                 title="磁盘"
-                percent={diskPercent}
-                danger={diskPercent > 90}
-                caption={`${formatBytesSI(diskUsed)} / ${formatBytesSI(diskTotal)}`}
-              >
-                {diskItems.length ? (
-                  <div className="grid max-w-[420px] gap-2 sm:grid-cols-2">
-                    {diskItems.map((item) => (
-                      <div key={item.key}>
-                        <div className="mb-1 truncate">{item.label}</div>
-                        <Meter
-                          value={item.percent}
-                          valueText={`${item.percent.toFixed(0)}%`}
-                          className="w-full"
-                        />
-                        <div className="mt-1 flex justify-between text-xs text-muted">
-                          <span>{formatBytesSI(item.used)} 已用</span>
-                          <span>{formatBytesSI(item.avail)} 可用</span>
-                        </div>
+                percent={diskSummary?.percent || 0}
+                danger={(diskSummary?.percent || 0) > 90}
+                center={diskSummary ? `${diskSummary.percent.toFixed(1)}%` : "—"}
+                caption={
+                  diskSummary ? (
+                    <>
+                      <div className="font-mono tabular-nums">
+                        {formatBytes(diskSummary.used)} / {formatBytes(diskSummary.total)}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-muted">无磁盘数据</span>
-                )}
-                {diskItems.length > 1 ? (
-                  <div className="mt-2 border-t border-line pt-2 text-muted">
-                    {diskItems.length} 块合计 {formatBytesSI(diskUsed)} /{" "}
-                    {formatBytesSI(diskTotal)} · {diskPercent.toFixed(1)}%
-                  </div>
-                ) : null}
-              </RingMeter>
-
-              <RingMeter
-                title="温度"
-                percent={tempRing}
-                danger={tempDanger}
-                caption={tempLabel}
+                      <div>{diskScopeText}</div>
+                    </>
+                  ) : (
+                    "暂无磁盘数据"
+                  )
+                }
               >
                 <div className="local-pop-row">
-                  <span>综合</span>
-                  <span className="num">{tempLabel}</span>
+                  <span>范围</span>
+                  <span className="num">{diskScopeText || "—"}</span>
                 </div>
                 <div className="local-pop-row">
-                  <span>CPU</span>
-                  <span className="num">{formatTemp(data.cpuTempC)}</span>
+                  <span>总量</span>
+                  <span className="num">{formatBytes(diskSummary?.total || 0)}</span>
                 </div>
                 <div className="local-pop-row">
-                  <span>GPU</span>
-                  <span className="num">{formatTemp(data.gpuTempC)}</span>
+                  <span>已用</span>
+                  <span className="num">{formatBytes(diskSummary?.used || 0)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>可用</span>
+                  <span className="num">{formatBytes(diskSummary?.avail || 0)}</span>
                 </div>
               </RingMeter>
             </div>
-          </Card>
+          </section>
+        ) : null}
 
-          {/* 磁盘分区：本机 / 外置 */}
-          <Card className="p-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-ink">磁盘分区</span>
-              {diskGroups.overflow > 0 ? (
-                <span className="text-xs text-muted">
-                  外置另有 {diskGroups.overflow} 块未显示
-                </span>
-              ) : null}
-              <Button
-                className="ml-auto"
-                size="sm"
-                variant="ghost"
-                onClick={() => session.setLocalSection("storage")}
-              >
+        {data ? (
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-sm font-semibold text-ink">磁盘</span>
+              <Button size="sm" variant="ghost" onClick={() => session.setLocalSection("storage")}>
                 查看占用
               </Button>
             </div>
-            {!diskGroups.internal.length && !externalRows.length ? (
-              <p className="text-sm text-muted">无磁盘数据</p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {diskGroups.internal.length ? (
-                  <div>
-                    <div className="mb-2 text-sm text-muted">本机磁盘</div>
-                    <div className="flex flex-col gap-3">
-                      {diskGroups.internal.map((g) =>
-                        g.partitions.map((d) => {
-                          const pct = diskMountPercent(d);
-                          return (
-                            <div key={d.mount || d.device}>
-                              <div className="mb-1 flex justify-between gap-2 text-sm">
-                                <span className="truncate" data-tip={d.mount}>
-                                  {diskMountLabel(d)}
-                                </span>
-                                <span className="shrink-0 font-mono text-muted">
-                                  {formatBytesSI(d.used || 0)} /{" "}
-                                  {formatBytesSI(d.total || 0)}
-                                </span>
-                              </div>
-                              <Meter value={pct} valueText={`${pct}%`} className="w-full" />
-                            </div>
-                          );
-                        }),
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-                {externalRows.length ? (
-                  <div>
-                    <div className="mb-2 text-sm text-muted">外置磁盘</div>
-                    <div className="flex flex-col gap-3">
-                      {externalRows.map((d) => {
-                        const pct = diskMountPercent(d);
-                        return (
-                          <div key={d.mount || d.device}>
-                            <div className="mb-1 flex justify-between gap-2 text-sm">
-                              <span className="truncate" data-tip={d.mount}>
-                                {diskExternalRowLabel(d)}
-                              </span>
-                              <span className="shrink-0 font-mono text-muted">
-                                {formatBytesSI(d.used || 0)} /{" "}
-                                {formatBytesSI(d.total || 0)}
-                              </span>
-                            </div>
-                            <Meter value={pct} valueText={`${pct}%`} className="w-full" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+            {!physDisks.length && !partitions.length ? (
+              <p className="text-sm text-muted">暂无磁盘数据</p>
+            ) : null}
+            {physDisks.length ? (
+              <div className="mb-4">
+                <div className="mb-1 text-xs text-muted">物理磁盘</div>
+                <PhysicalDiskRows disks={physDisks} />
+              </div>
+            ) : null}
+            {partitions.length ? (
+              <div>
+                <div className="mb-1 text-xs text-muted">分区</div>
+                <OverviewTable
+                  columns={[
+                    { key: "mount", label: "挂载点" },
+                    { key: "fs", label: "设备" },
+                    { key: "type", label: "类型" },
+                    { key: "used", label: "已用 / 总量", align: "right" },
+                    { key: "pct", label: "使用率" },
+                  ]}
+                  rows={partitions.map((d) => ({
+                    id: `${d.mount}-${d.device || d.filesystem}`,
+                    cells: [
+                      <span key="mount" className="font-mono">
+                        {d.name ? (
+                          <>
+                            {d.name} <span className="text-muted">{d.mount}</span>
+                          </>
+                        ) : (
+                          d.mount || "—"
+                        )}
+                      </span>,
+                      <span key="fs" className="font-mono">{d.device || d.filesystem || "—"}</span>,
+                      d.fsType || "—",
+                      `${formatBytes(d.used || 0)} / ${formatBytes(d.total || 0)}`,
+                      <Meter key="pct" value={diskMountPercent(d)} className="w-full whitespace-nowrap" />,
+                    ],
+                  }))}
+                />
+                {diskGroups.overflow > 0 ? (
+                  <p className="mt-2 text-xs text-muted">
+                    外置另有 {diskGroups.overflow} 块未显示
+                  </p>
                 ) : null}
               </div>
-            )}
-          </Card>
+            ) : null}
+          </section>
+        ) : null}
 
-          {/* CPU / 内存曲线 */}
-          <div className="gap-card grid md:grid-cols-2">
-            <Card className="p-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-ink">CPU</span>
-                <Tag>全核心 {(data.cpuPercent || 0).toFixed(1)}%</Tag>
-                {hasCpuClusters ? (
-                  <>
-                    <Tag>性能 {(data.perfCpuPercent || 0).toFixed(1)}%</Tag>
-                    <Tag>能效 {(data.effCpuPercent || 0).toFixed(1)}%</Tag>
-                  </>
-                ) : null}
+        <section>
+          <div className="mb-3 text-sm font-semibold text-ink">网络</div>
+          {network.data ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <OverviewFact label="内网 IP" mono>{privateIpText}</OverviewFact>
+                <OverviewFact label="出口公网" mono>{data?.publicIP || "—"}</OverviewFact>
+                <OverviewFact label="默认网关" mono>
+                  {network.data.defaultGateway || "—"}
+                </OverviewFact>
+                <OverviewFact label="主网卡" mono>{network.data.primaryIface || "—"}</OverviewFact>
               </div>
-              <MetricChart option={cpuOption} height={220} />
-            </Card>
-            <Card className="p-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-ink">内存</span>
-                <Tag>
-                  物理 {formatBytes(data.memUsed || 0)} /{" "}
-                  {formatMemCapacity(data.memTotal || 0)}
-                </Tag>
-                <Tag>
-                  {(data.swapTotal || 0) > 0
-                    ? `交换 ${formatBytes(data.swapUsed || 0)} / ${formatBytes(data.swapTotal || 0)}`
-                    : "交换 未启用"}
-                </Tag>
-              </div>
-              <MetricChart option={memOption} height={220} />
-            </Card>
-          </div>
+              {shownIfaces.length ? (
+                <div className="mt-4">
+                  <div className="mb-1 text-xs text-muted">网卡</div>
+                  <OverviewTable
+                    columns={[
+                      { key: "name", label: "名称" },
+                      { key: "kind", label: "类型" },
+                      { key: "state", label: "状态" },
+                      { key: "ipv4", label: "IPv4" },
+                      { key: "mac", label: "MAC" },
+                      { key: "rx", label: "接收", align: "right" },
+                      { key: "tx", label: "发送", align: "right" },
+                    ]}
+                    rows={shownIfaces.map((iface) => ({
+                      id: iface.name,
+                      cells: [
+                        <span key="name" className="font-mono">{iface.name}</span>,
+                        IFACE_KIND_LABEL[iface.kind || "other"] || iface.kind || "—",
+                        <Tag key="state" tone={iface.state === "up" ? "ok" : "neutral"}>
+                          {iface.state || "—"}
+                        </Tag>,
+                        <span key="ipv4" className="font-mono">{iface.ipv4 || "—"}</span>,
+                        <span key="mac" className="font-mono">{iface.mac || "—"}</span>,
+                        formatBytes(iface.rxBytes),
+                        formatBytes(iface.txBytes),
+                      ],
+                    }))}
+                  />
+                </div>
+              ) : null}
+              {virtualIfaces.length > VIRTUAL_IFACE_FOLD ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-2"
+                  onClick={() => setShowAllIfaces((prev) => !prev)}
+                >
+                  {hiddenIfaceCount > 0
+                    ? `显示另外 ${hiddenIfaceCount} 个虚拟网卡`
+                    : "收起虚拟网卡"}
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted">
+              {network.isLoading ? "加载中…" : "暂无网络数据"}
+            </p>
+          )}
+        </section>
+      </div>
 
-          <Card className="p-0">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-ink">磁盘 IO</span>
-              {/* 图例标签沿用读绿写橙（DESIGN.md §2.4），底色走 *-soft */}
-              <Tag tone="ok">读 {formatBytes(ioRates.readBps)}/s</Tag>
-              <Tag tone="warn">写 {formatBytes(ioRates.writeBps)}/s</Tag>
-            </div>
-            <MetricChart option={ioOption} height={220} />
-          </Card>
-        </div>
-      )}
+      {!data && !error ? <p className="text-sm text-muted">加载中…</p> : null}
     </Page>
   );
 }

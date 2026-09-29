@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as echarts from "echarts";
+import type * as echarts from "echarts";
 import {
   useCallback,
   useEffect,
@@ -12,7 +12,14 @@ import { api } from "@/api";
 import type { agentapi, agentcli, monitor, sshconfig } from "@/api";
 import type { CertPairCheck } from "@/api";
 import { RingMeter } from "@/react/components/local/ring-meter";
-import { MonitorGrid, type MonitorGridHandle } from "@/react/components/monitor-grid";
+import {
+  binaryAxis,
+  ChartHost,
+  lineOption,
+  MonitorPanel,
+  type MonitorReadout,
+} from "@/react/components/monitor/charts";
+import { OverviewFact, OverviewTable } from "@/react/components/overview/overview-parts";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
 import { DateRangePicker } from "@/react/components/ui/date-range-picker";
@@ -25,21 +32,25 @@ import {
 } from "@/react/components/ui/dialog";
 import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { Meter } from "@/react/components/ui/meter";
+import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Select } from "@/react/components/ui/select";
-import { Tag } from "@/react/components/ui/tag";
+import { Tag, type TagTone } from "@/react/components/ui/tag";
+import { DistroBadge } from "@/react/components/distro-badge";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
-import { readThemeColor, seriesColorList } from "@/react/lib/utils";
+import { useThemeMode } from "@/react/lib/use-theme-mode";
 import { AppsPage } from "@/react/pages/host-apps";
+import { DiskPage } from "@/react/pages/host-disk";
 import { NetworkPage } from "@/react/pages/host-network";
 import { PackagesPage } from "@/react/pages/host-packages";
-import type { Tool } from "@/react/state/session";
+import { useSession, type Tool } from "@/react/state/session";
 import {
   isCpuAlert,
   isDiskLow,
   isLoadAlert,
   isMemAlert,
   mountDisks,
+  physicalDisks,
   summarizeDisks,
 } from "@/utils/alerts";
 import {
@@ -57,6 +68,7 @@ import { HighlightPane } from "@/react/components/local/highlight-pane";
 export function HostToolPage({ host, tool }: { host: string; tool: Tool }) {
   if (tool === "overview") return <OverviewPage host={host} />;
   if (tool === "monitor") return <MonitorPage host={host} />;
+  if (tool === "disk") return <DiskPage host={host} />;
   if (tool === "apps") return <AppsPage host={host} />;
   if (tool === "certs") return <CertsPage host={host} />;
   if (tool === "processes") return <ProcessesPage host={host} />;
@@ -289,24 +301,11 @@ function historyTimeLabel(ts: number): string {
 
 /* ---------- 概览 ---------- */
 
-/** 概览指标卡默认布局（对齐 Vue CardBoard host-info） */
-const OVERVIEW_DEFAULTS = [
-  { id: "ssh", span: 2 },
-  { id: "agent", span: 2 },
-  { id: "load", span: 1 },
-  { id: "cpu", span: 1 },
-  { id: "mem", span: 1 },
-  { id: "disk", span: 1 },
-  { id: "swap", span: 1 },
-  { id: "system", span: 3 },
-  { id: "volumes", span: 4 },
-  { id: "network", span: 4 },
-];
+const VIRTUAL_IFACE_FOLD = 3;
 
 function OverviewPage({ host }: { host: string }) {
-  const gridRef = useRef<MonitorGridHandle>(null);
-  const [layoutDirty, setLayoutDirty] = useState(false);
-  const onLayoutDirty = useCallback((dirty: boolean) => setLayoutDirty(dirty), []);
+  const session = useSession();
+  const [showAllIfaces, setShowAllIfaces] = useState(false);
   const overview = useQuery({
     queryKey: ["overview", host],
     queryFn: () => api.collectOverview(host),
@@ -350,25 +349,76 @@ function OverviewPage({ host }: { host: string }) {
   const data = overview.data;
   const diskSummary = summarizeDisks(disks.data);
   const mounts = mountDisks(disks.data);
+  const physDisks = physicalDisks(disks.data);
   const agent = agentStatus.data;
-
-  const sshTone = !agent
-    ? "检测中"
-    : agent.ok || agent.notInstalled
-      ? "SSH 通"
-      : "连接异常";
-  const agentSummary = !agent
-    ? "检测中"
-    : agent.ok
-      ? agent.version
-        ? `在线 · ${agent.version}`
-        : "在线"
-      : agent.notInstalled
-        ? "未安装"
-        : "不可用";
   const agentMissing = !!agent && !agent.ok && !!agent.notInstalled;
   const agentUpdatable =
     !!agent?.ok && !!latestVer.data && agent.version !== latestVer.data;
+
+  let sshText = "SSH 检测中";
+  let sshTagTone: TagTone = "neutral";
+  if (agent) {
+    if (agent.ok || agent.notInstalled) {
+      sshText = "SSH 已连通";
+      sshTagTone = "ok";
+    } else {
+      sshText = "SSH 连接异常";
+      sshTagTone = "danger";
+    }
+  }
+
+  let agentText = "Agent 检测中";
+  let agentTagTone: TagTone = "neutral";
+  if (agent) {
+    if (agent.ok) {
+      agentText = agent.version ? `Agent 在线 ${agent.version}` : "Agent 在线";
+      agentTagTone = "ok";
+      if (agentUpdatable) {
+        agentText = `Agent ${agent.version || "未知版本"}，可更新到 ${latestVer.data}`;
+        agentTagTone = "info";
+      }
+    } else if (agent.notInstalled) {
+      agentText = "Agent 未安装";
+      agentTagTone = "warn";
+    } else {
+      agentText = "Agent 不可用";
+      agentTagTone = "danger";
+    }
+  }
+
+  const sshUser = hostConfig?.user || "—";
+  const sshAddr = hostConfig?.hostName || data?.ipAddress || "—";
+  const sshPort = hostConfig?.port || "22";
+
+  const allIfaces = (network.data?.interfaces || []).filter(
+    (iface) => iface.kind !== "loopback",
+  );
+  const mainIfaces = allIfaces
+    .filter((iface) => iface.kind !== "docker" && iface.kind !== "virtual")
+    .sort((a, b) => {
+      if (a.kind === b.kind) return 0;
+      if (a.kind === "physical") return -1;
+      if (b.kind === "physical") return 1;
+      return 0;
+    });
+  const virtualIfaces = allIfaces.filter(
+    (iface) => iface.kind === "docker" || iface.kind === "virtual",
+  );
+  let shownIfaces = [...mainIfaces, ...virtualIfaces];
+  let hiddenIfaceCount = 0;
+  if (virtualIfaces.length > VIRTUAL_IFACE_FOLD && !showAllIfaces) {
+    shownIfaces = mainIfaces;
+    hiddenIfaceCount = virtualIfaces.length;
+  }
+
+  let egressText = "—";
+  if (network.data) {
+    egressText =
+      network.data.egressPublicIP || (network.data.publicIPs || []).join(", ") || "—";
+    if (network.data.egressPublicLoc) {
+      egressText = `${egressText}（${network.data.egressPublicLoc}）`;
+    }
+  }
 
   const loadPercent = data?.cpuCount ? (data.load1 / data.cpuCount) * 100 : 0;
   const loadWord =
@@ -428,374 +478,394 @@ function OverviewPage({ host }: { host: string }) {
         ? formatErr(overview.error)
         : "";
 
+  let dockerText = "—";
+  if (docker.data) {
+    if (docker.data.available) {
+      dockerText = `运行 ${runningDocker} / 共 ${docker.data.containers?.length ?? 0}`;
+    } else {
+      dockerText = "未安装";
+    }
+  }
+
+  let swapText = "未启用";
+  if (data && data.swapTotal > 0) {
+    swapText = `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)}`;
+  }
+
+  let diskScopeText = "";
+  if (diskSummary) {
+    if (diskSummary.scope === "disk") {
+      diskScopeText = `${diskSummary.count} 块物理盘`;
+    } else {
+      diskScopeText = `${diskSummary.count} 个分区`;
+    }
+  }
+
+  const ifaceKindLabel: Record<string, string> = {
+    physical: "物理",
+    docker: "Docker",
+    virtual: "虚拟",
+    other: "其他",
+  };
+
   return (
     <Page
       title="概览"
       onRefresh={() => void refreshAll()}
       actions={
-        <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
-          恢复默认
-        </Button>
+        <>
+          <span className="font-mono text-sm tabular-nums text-ink">
+            {sshUser}@{sshAddr}:{sshPort}
+          </span>
+          <Tag tone={sshTagTone}>{sshText}</Tag>
+          <Tag tone={agentTagTone}>{agentText}</Tag>
+          <Button size="sm" disabled={checkBusy} onClick={() => void runCheck()}>
+            {checkBusy ? "检查中…" : "检查 Agent"}
+          </Button>
+          {agentMissing || agentUpdatable ? (
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={installBusy}
+              onClick={() => setInstallConfirm(true)}
+            >
+              {agentMissing ? "安装 Agent" : `更新到 ${latestVer.data}`}
+            </Button>
+          ) : null}
+        </>
       }
     >
       {agentErr ? <Notice text={agentErr} /> : null}
       <FlashNotices flash={flash} />
 
-      <div className="flex min-h-0 flex-1 flex-col">
-          <MonitorGrid
-            ref={gridRef}
-            boardId={`host-info-${host}`}
-            defaults={OVERVIEW_DEFAULTS}
-            showReset={false}
-            onDirtyChange={onLayoutDirty}
-            items={[
-              {
-                id: "ssh",
-                title: "SSH 通道",
-                span: 2,
-                tags: [{ text: sshTone }],
-                children: (
-                  <div>
-                    <p className="mb-3 text-sm text-muted">
-                      {hostConfig?.user || "—"}@{hostConfig?.hostName || data?.ipAddress || "—"}
-                    </p>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <div className="text-muted">账号</div>
-                        <div className="font-semibold">{hostConfig?.user || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">地址</div>
-                        <div className="font-semibold">{hostConfig?.hostName || data?.ipAddress || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">端口</div>
-                        <div className="font-semibold">{hostConfig?.port || "22"}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">Agent</div>
-                        <div className="font-semibold">{agentSummary}</div>
-                      </div>
+      <div className="flex flex-col gap-section">
+        {data ? (
+          <section>
+            <div className="mb-3 text-sm font-semibold text-ink">系统</div>
+            <div className="flex min-w-0 items-center gap-3">
+              <DistroBadge boxSize={40} osRelease={data.osRelease} />
+              <div className="min-w-0">
+                <div className="truncate text-base font-semibold text-ink">
+                  {data.hostname || host}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+                  <span>{data.osRelease || "未知系统"}</span>
+                  <span>
+                    内核 <span className="font-mono">{data.kernel || "—"}</span>
+                  </span>
+                  {data.arch ? <span className="font-mono">{data.arch}</span> : null}
+                  <span>已运行 {formatDurationLong(data.uptime)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+              <OverviewFact label="CPU 型号" className="col-span-2">
+                {data.cpuModel || "—"}
+              </OverviewFact>
+              <OverviewFact label="CPU 核心" mono>{`${data.cpuCount} 核`}</OverviewFact>
+              <OverviewFact label="内存" mono>{formatMemCapacity(data.memTotal)}</OverviewFact>
+              <OverviewFact label="Swap" mono>{swapText}</OverviewFact>
+              <OverviewFact label="Docker 容器" mono>{dockerText}</OverviewFact>
+            </div>
+          </section>
+        ) : null}
+
+        {data ? (
+          <section>
+            <div className="mb-3 text-sm font-semibold text-ink">资源</div>
+            <div className="grid grid-cols-2 gap-card md:grid-cols-4">
+              <RingMeter
+                title="负载"
+                percent={Math.min(100, loadPercent)}
+                danger={isLoadAlert(data)}
+                center={data.load1.toFixed(2)}
+                caption={
+                  <>
+                    <div className="font-mono tabular-nums">
+                      {data.load1.toFixed(2)} / {data.cpuCount} 核
                     </div>
-                  </div>
-                ),
-              },
-              {
-                id: "agent",
-                title: "Agent",
-                span: 2,
-                tags: [
-                  {
-                    text: `主机 ${agent?.ok ? agent.version || "未知" : agent?.notInstalled ? "未安装" : "—"} · 面板 ${latestVer.data || "—"}`,
-                  },
-                ],
-                children: (
-                  <div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button disabled={checkBusy} onClick={() => void runCheck()}>
-                        {checkBusy ? "检查中…" : "一键检查"}
-                      </Button>
-                      {agentMissing || agentUpdatable ? (
-                        <Button variant="primary" disabled={installBusy} onClick={() => setInstallConfirm(true)}>
-                          {agentMissing ? "安装 Agent" : `更新到 ${latestVer.data}`}
-                        </Button>
-                      ) : null}
+                    <div>{loadWord}</div>
+                  </>
+                }
+              >
+                <div className="local-pop-row">
+                  <span>1 分钟</span>
+                  <span className="num">{data.load1.toFixed(2)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>5 分钟</span>
+                  <span className="num">{(data.load5 || 0).toFixed(2)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>15 分钟</span>
+                  <span className="num">{(data.load15 || 0).toFixed(2)}</span>
+                </div>
+              </RingMeter>
+
+              <RingMeter
+                title="CPU"
+                percent={data.cpuPercent || 0}
+                danger={isCpuAlert(data)}
+                center={`${(data.cpuPercent || 0).toFixed(1)}%`}
+                caption={
+                  <>
+                    <div className="font-mono tabular-nums">
+                      {(data.cpuPercent || 0).toFixed(1)}% / {data.cpuCount} 核
                     </div>
-                    {checkReport ? (
-                      <ul className="mt-3 space-y-1 text-sm">
-                        <li className="text-muted">{checkReport.summary}</li>
-                        {(checkReport.items || []).map((item) => (
-                          <li key={item.key} className={item.ok ? "text-ink" : "text-danger"}>
-                            {item.ok ? "✓" : "✗"} {item.name}
-                            {item.detail ? ` · ${item.detail}` : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                ),
-              },
-              ...(data
-                ? [
-              {
-                id: "load",
-                title: "负载",
-                span: 1,
-                children: (
-                  <div className="flex h-full items-center justify-center">
-                    <RingMeter
-                      title="负载"
-                      showTitle={false}
-                      percent={Math.min(100, loadPercent)}
-                      danger={isLoadAlert(data)}
-                      center={data.load1.toFixed(2)}
-                      caption={`${data.load1.toFixed(2)} / ${data.cpuCount} 核 · ${loadWord}`}
-                    >
-                      <div className="local-pop-row">
-                        <span>1 分钟</span>
-                        <span className="num">{data.load1.toFixed(2)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>5 分钟</span>
-                        <span className="num">{(data.load5 || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>15 分钟</span>
-                        <span className="num">{(data.load15 || 0).toFixed(2)}</span>
-                      </div>
-                    </RingMeter>
-                  </div>
-                ),
-              },
-              {
-                id: "cpu",
-                title: "CPU",
-                span: 1,
-                children: (
-                  <div className="flex h-full items-center justify-center">
-                    <RingMeter
-                      title="CPU"
-                      showTitle={false}
-                      percent={data.cpuPercent || 0}
-                      danger={isCpuAlert(data)}
-                      center={`${(data.cpuPercent || 0).toFixed(1)}%`}
-                      caption={`${(data.cpuPercent || 0).toFixed(1)}% · ${data.cpuCount} 核`}
-                    >
-                      <div className="local-pop-row">
-                        <span>型号</span>
-                        <span className="max-w-[200px] truncate">{data.cpuModel || "—"}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>核心数</span>
-                        <span className="num">{data.cpuCount} 核</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>使用率</span>
-                        <span className="num">{(data.cpuPercent || 0).toFixed(2)}%</span>
-                      </div>
-                    </RingMeter>
-                  </div>
-                ),
-              },
-              {
-                id: "mem",
-                title: "内存",
-                span: 1,
-                children: (
-                  <div className="flex h-full items-center justify-center">
-                    <RingMeter
-                      title="内存"
-                      showTitle={false}
-                      percent={data.memPercent || 0}
-                      danger={isMemAlert(data)}
-                      center={`${(data.memPercent || 0).toFixed(1)}%`}
-                      caption={`${formatBytes(data.memUsed)} / ${formatMemCapacity(data.memTotal)}`}
-                    >
-                      <div className="local-pop-row">
-                        <span>总量</span>
-                        <span className="num">{formatMemCapacity(data.memTotal)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>已用</span>
-                        <span className="num">{formatBytes(data.memUsed)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>可用</span>
-                        <span className="num">
-                          {formatBytes(Math.max(0, (data.memTotal || 0) - (data.memUsed || 0)))}
-                        </span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>使用率</span>
-                        <span className="num">{(data.memPercent || 0).toFixed(2)}%</span>
-                      </div>
-                    </RingMeter>
-                  </div>
-                ),
-              },
-              {
-                id: "disk",
-                title: "磁盘",
-                span: 1,
-                children: (
-                  <div className="flex h-full items-center justify-center">
-                    <RingMeter
-                      title="磁盘"
-                      showTitle={false}
-                      percent={diskSummary?.percent || 0}
-                      danger={isDiskLow(disks.data)}
-                      center={diskSummary ? `${diskSummary.percent.toFixed(1)}%` : "—"}
-                      caption={
-                        diskSummary
-                          ? `${formatBytes(diskSummary.used)} / ${formatBytes(diskSummary.total)}`
-                          : "暂无磁盘数据"
-                      }
-                    >
-                      <div className="local-pop-row">
-                        <span>范围</span>
-                        <span className="num">
-                          {diskSummary
-                            ? `全部 ${diskSummary.count} ${diskSummary.scope === "disk" ? "块磁盘" : "分区"}`
-                            : "—"}
-                        </span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>总量</span>
-                        <span className="num">{formatBytes(diskSummary?.total || 0)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>已用</span>
-                        <span className="num">{formatBytes(diskSummary?.used || 0)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>可用</span>
-                        <span className="num">{formatBytes(diskSummary?.avail || 0)}</span>
-                      </div>
-                      <div className="local-pop-row">
-                        <span>使用率</span>
-                        <span className="num">{(diskSummary?.percent || 0).toFixed(2)}%</span>
-                      </div>
-                    </RingMeter>
-                  </div>
-                ),
-              },
-              {
-                id: "swap",
-                title: "Swap",
-                span: 1,
-                children: (
-                  <div className="flex h-full items-center">
-                    <Meter
-                      value={data.swapTotal > 0 ? data.swapPercent || 0 : undefined}
-                      valueText={
-                        data.swapTotal > 0
-                          ? `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)}`
-                          : "无 Swap"
-                      }
-                      className="w-full"
-                    />
-                  </div>
-                ),
-              },
-              {
-                id: "system",
-                title: "系统",
-                span: 3,
-                children: (
-                  <div className="space-y-3 text-sm">
-                    <div className="flex flex-wrap gap-6">
-                      <div>
-                        <div className="text-muted">主机名</div>
-                        <div className="font-semibold">{data.hostname || host}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">IP</div>
-                        <div className="font-semibold">{data.ipAddress || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">系统</div>
-                        <div className="font-semibold">{data.osRelease || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">内核</div>
-                        <div className="font-semibold">{data.kernel || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">运行时间</div>
-                        <div className="font-semibold">{formatDurationLong(data.uptime)}</div>
-                      </div>
+                    <div className="max-w-[200px] truncate">{data.cpuModel || "—"}</div>
+                  </>
+                }
+              >
+                <div className="local-pop-row">
+                  <span>型号</span>
+                  <span className="max-w-[200px] truncate">{data.cpuModel || "—"}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>核心数</span>
+                  <span className="num">{data.cpuCount} 核</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>使用率</span>
+                  <span className="num">{(data.cpuPercent || 0).toFixed(2)}%</span>
+                </div>
+              </RingMeter>
+
+              <RingMeter
+                title="内存"
+                percent={data.memPercent || 0}
+                danger={isMemAlert(data)}
+                center={`${(data.memPercent || 0).toFixed(1)}%`}
+                caption={
+                  <>
+                    <div className="font-mono tabular-nums">
+                      {formatBytes(data.memUsed)} / {formatMemCapacity(data.memTotal)}
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      <div>
-                        <div className="text-muted">CPU 核心</div>
-                        <div className="text-lg font-semibold">{data.cpuCount}</div>
+                    <div>Swap {swapText}</div>
+                  </>
+                }
+              >
+                <div className="local-pop-row">
+                  <span>总量</span>
+                  <span className="num">{formatMemCapacity(data.memTotal)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>已用</span>
+                  <span className="num">{formatBytes(data.memUsed)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>可用</span>
+                  <span className="num">
+                    {formatBytes(Math.max(0, (data.memTotal || 0) - (data.memUsed || 0)))}
+                  </span>
+                </div>
+                <div className="local-pop-row">
+                  <span>使用率</span>
+                  <span className="num">{(data.memPercent || 0).toFixed(2)}%</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>Swap</span>
+                  <span className="num">
+                    {data.swapTotal > 0
+                      ? `${swapText} · ${(data.swapPercent || 0).toFixed(1)}%`
+                      : "未启用"}
+                  </span>
+                </div>
+              </RingMeter>
+
+              <RingMeter
+                title="磁盘"
+                percent={diskSummary?.percent || 0}
+                danger={isDiskLow(disks.data)}
+                center={diskSummary ? `${diskSummary.percent.toFixed(1)}%` : "—"}
+                caption={
+                  diskSummary ? (
+                    <>
+                      <div className="font-mono tabular-nums">
+                        {formatBytes(diskSummary.used)} / {formatBytes(diskSummary.total)}
                       </div>
-                      <div>
-                        <div className="text-muted">磁盘分区</div>
-                        <div className="text-lg font-semibold">{mounts.length}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted">Docker 容器</div>
-                        <div className="text-lg font-semibold">
-                          {docker.data?.containers?.length ?? 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted">运行中容器</div>
-                        <div className="text-lg font-semibold">{runningDocker}</div>
-                      </div>
-                    </div>
+                      <div>{diskScopeText}</div>
+                    </>
+                  ) : (
+                    "暂无磁盘数据"
+                  )
+                }
+              >
+                <div className="local-pop-row">
+                  <span>范围</span>
+                  <span className="num">{diskScopeText || "—"}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>总量</span>
+                  <span className="num">{formatBytes(diskSummary?.total || 0)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>已用</span>
+                  <span className="num">{formatBytes(diskSummary?.used || 0)}</span>
+                </div>
+                <div className="local-pop-row">
+                  <span>可用</span>
+                  <span className="num">{formatBytes(diskSummary?.avail || 0)}</span>
+                </div>
+              </RingMeter>
+            </div>
+          </section>
+        ) : null}
+
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-sm font-semibold text-ink">磁盘</span>
+            <Button size="sm" variant="ghost" onClick={() => session.setTool("disk")}>
+              分析大文件
+            </Button>
+          </div>
+          {isDiskLow(disks.data) ? (
+            <div className="mb-3">
+              <Notice text="存在分区可用空间偏低（≤ 10 GB）" tone="warning" />
+            </div>
+          ) : null}
+          {!physDisks.length && !mounts.length ? (
+            <p className="text-sm text-muted">
+              {disks.isLoading ? "加载中…" : "暂无磁盘数据"}
+            </p>
+          ) : null}
+          {physDisks.length ? (
+            <div className="mb-4">
+              <div className="mb-1 text-xs text-muted">物理磁盘</div>
+              <div className="flex flex-col">
+                {physDisks.map((d) => (
+                  <div
+                    key={d.filesystem || d.mount}
+                    className="grid h-table-row grid-cols-[minmax(96px,160px)_96px_200px_minmax(0,1fr)] items-center gap-4 border-b border-line px-3 text-sm"
+                  >
+                    <span className="truncate font-mono" data-tip={d.filesystem}>
+                      {d.mount || d.filesystem}
+                    </span>
+                    <span className="text-right font-mono tabular-nums">
+                      {formatBytes(d.total)}
+                    </span>
+                    <Meter value={d.percent || 0} className="w-full" />
+                    <span className="truncate font-mono text-xs tabular-nums text-muted">
+                      已用 {formatBytes(d.used)}，可用 {formatBytes(d.avail)}
+                    </span>
                   </div>
-                ),
-              },
-              {
-                id: "volumes",
-                title: "分区",
-                span: 4,
-                children: mounts.length ? (
-                  <div>
-                    <SimpleRows
-                      headers={[
-                        { key: "mount", label: "挂载点" },
-                        { key: "fs", label: "文件系统" },
-                        { key: "used", label: "已用" },
-                        { key: "pct", label: "使用率" },
-                      ]}
-                      rows={mounts.map((d) => ({
-                        id: d.mount || d.filesystem,
-                        cells: [
-                          d.mount || "—",
-                          d.filesystem || "—",
-                          `${formatBytes(d.used)} / ${formatBytes(d.total)}`,
-                          <Meter key="pct" value={d.percent || 0} className="w-full whitespace-nowrap" />,
-                        ],
-                      }))}
-                    />
-                    {isDiskLow(disks.data) ? (
-                      <p className="mt-2 text-sm text-danger">
-                        存在分区可用空间偏低（≤ 10 GB）
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted">暂无分区数据</p>
-                ),
-              },
-              {
-                id: "network",
-                title: "网络摘要",
-                span: 4,
-                children: network.data ? (
-                  <div className="grid gap-4 text-sm md:grid-cols-3">
-                    <div>
-                      <div className="text-muted">内网</div>
-                      <div>{(network.data.privateIPs || []).join(", ") || "—"}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted">出口公网</div>
-                      <div>
-                        {network.data.egressPublicIP ||
-                          (network.data.publicIPs || []).join(", ") ||
-                          "—"}
-                        {network.data.egressPublicLoc
-                          ? `（${network.data.egressPublicLoc}）`
-                          : ""}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted">网关</div>
-                      <div>{network.data.defaultGateway || "—"}</div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted">暂无网络数据</p>
-                ),
-              },
-            ]
-                : []),
-            ]}
-          />
-        </div>
+                ))}
+              </div>
+              {physDisks.length > 1 && physDisks[0]!.fsType === "disk" ? (
+                <p className="mt-2 text-xs text-muted">多块盘时已用量按容量比例估算</p>
+              ) : null}
+            </div>
+          ) : null}
+          {mounts.length ? (
+            <div>
+              <div className="mb-1 text-xs text-muted">分区</div>
+              <OverviewTable
+                columns={[
+                  { key: "mount", label: "挂载点" },
+                  { key: "fs", label: "文件系统" },
+                  { key: "type", label: "类型" },
+                  { key: "used", label: "已用 / 总量", align: "right" },
+                  { key: "pct", label: "使用率" },
+                ]}
+                rows={mounts.map((d) => ({
+                  id: `${d.mount}-${d.filesystem}`,
+                  cells: [
+                    <span key="mount" className="font-mono">{d.mount || "—"}</span>,
+                    <span key="fs" className="font-mono">{d.filesystem || "—"}</span>,
+                    d.fsType || "—",
+                    `${formatBytes(d.used)} / ${formatBytes(d.total)}`,
+                    <Meter key="pct" value={d.percent || 0} className="w-full whitespace-nowrap" />,
+                  ],
+                }))}
+              />
+            </div>
+          ) : null}
+        </section>
+
+        <section>
+          <div className="mb-3 text-sm font-semibold text-ink">网络</div>
+          {network.data ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <OverviewFact label="内网 IP" mono>
+                  {(network.data.privateIPs || []).join(", ") || "—"}
+                </OverviewFact>
+                <OverviewFact label="出口公网">{egressText}</OverviewFact>
+                <OverviewFact label="默认网关" mono>
+                  {network.data.defaultGateway || "—"}
+                </OverviewFact>
+                <OverviewFact label="Docker 网桥" mono>
+                  {(network.data.dockerIPs || []).join(", ") || "—"}
+                </OverviewFact>
+              </div>
+              {shownIfaces.length ? (
+                <div className="mt-4">
+                  <div className="mb-1 text-xs text-muted">网卡</div>
+                  <OverviewTable
+                    columns={[
+                      { key: "name", label: "名称" },
+                      { key: "kind", label: "类型" },
+                      { key: "state", label: "状态" },
+                      { key: "ipv4", label: "IPv4" },
+                      { key: "mac", label: "MAC" },
+                      { key: "rx", label: "接收", align: "right" },
+                      { key: "tx", label: "发送", align: "right" },
+                    ]}
+                    rows={shownIfaces.map((iface) => ({
+                      id: iface.name,
+                      cells: [
+                        <span key="name" className="font-mono">{iface.name}</span>,
+                        ifaceKindLabel[iface.kind] || iface.kind || "—",
+                        <Tag
+                          key="state"
+                          tone={(iface.state || "").toUpperCase() === "UP" ? "ok" : "neutral"}
+                        >
+                          {iface.state || "—"}
+                        </Tag>,
+                        <span key="ipv4" className="font-mono">
+                          {(iface.ipv4 || []).join(", ") || "—"}
+                        </span>,
+                        <span key="mac" className="font-mono">{iface.mac || "—"}</span>,
+                        formatBytes(iface.rxBytes),
+                        formatBytes(iface.txBytes),
+                      ],
+                    }))}
+                  />
+                </div>
+              ) : null}
+              {virtualIfaces.length > VIRTUAL_IFACE_FOLD ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-2"
+                  onClick={() => setShowAllIfaces((prev) => !prev)}
+                >
+                  {hiddenIfaceCount > 0
+                    ? `显示另外 ${hiddenIfaceCount} 个虚拟网卡`
+                    : "收起虚拟网卡"}
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted">
+              {network.isLoading ? "加载中…" : "暂无网络数据"}
+            </p>
+          )}
+        </section>
+      </div>
+
+      {checkReport ? (
+        <DetailPanel title="Agent 检查" onClose={() => setCheckReport(null)}>
+          <p className="text-muted">{checkReport.summary}</p>
+          <ul className="space-y-1">
+            {(checkReport.items || []).map((item) => (
+              <li key={item.key} className={item.ok ? "text-ink" : "text-danger"}>
+                {item.ok ? "✓" : "✗"} {item.name}
+                {item.detail ? `：${item.detail}` : ""}
+              </li>
+            ))}
+          </ul>
+        </DetailPanel>
+      ) : null}
       {!data && overview.isLoading ? (
         <p className="text-sm text-muted">加载中…</p>
       ) : null}
@@ -839,14 +909,6 @@ const GRAIN_SEC: Record<Exclude<GrainMode, "auto">, number> = {
 };
 const MAX_CHART_POINTS = 2500;
 
-const MONITOR_DEFAULTS = [
-  { id: "CPU", span: 2 },
-  { id: "负载", span: 2 },
-  { id: "内存", span: 2 },
-  { id: "流量", span: 2 },
-  { id: "磁盘 IO", span: 4 },
-];
-
 type SeriesPt = { time: string; value: number };
 type DualPt = { time: string; a: number; b: number };
 
@@ -887,110 +949,7 @@ function downsampleBySec(
   return out;
 }
 
-function ChartHost({
-  option,
-  connectGroup,
-}: {
-  option: echarts.EChartsOption;
-  connectGroup?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.EChartsType | null>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const chart = echarts.init(ref.current);
-    chartRef.current = chart;
-    if (connectGroup) {
-      chart.group = connectGroup;
-      echarts.connect(connectGroup);
-    }
-    const onResize = () => chart.resize();
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      chart.dispose();
-      chartRef.current = null;
-    };
-  }, [connectGroup]);
-
-  useEffect(() => {
-    chartRef.current?.setOption(
-      {
-        animationDuration: 240,
-        animationEasing: "cubicOut",
-        ...option,
-      },
-      { notMerge: true },
-    );
-  }, [option]);
-
-  return <div ref={ref} className="h-full min-h-[180px] w-full" />;
-}
-
-function lineOption(
-  xData: string[],
-  series: { name: string; data: number[] }[],
-  opts?: { yMax?: number; yFormatter?: (v: number) => string },
-): echarts.EChartsOption {
-  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#dce3ee");
-  return {
-    color: seriesColorList(series.map((s) => s.name)),
-    grid: { left: 8, right: 16, top: 28, bottom: 28, containLabel: true },
-    tooltip: {
-      trigger: "axis",
-      valueFormatter: (v) => {
-        const n = typeof v === "number" ? v : Number(v);
-        if (!Number.isFinite(n)) return String(v ?? "");
-        if (opts?.yFormatter) return opts.yFormatter(n);
-        return n.toFixed(2);
-      },
-    },
-    // 图表文字同样遵守桌面端最小 12px（DESIGN.md §3.2）
-    legend: { top: 0, right: 0, textStyle: { fontSize: 12, color: muted } },
-    // 滚轮缩放、拖动平移（与 Vue VChartLine zoomable 一致）
-    dataZoom: [
-      {
-        type: "inside",
-        xAxisIndex: 0,
-        zoomOnMouseWheel: true,
-        moveOnMouseWheel: false,
-        moveOnMouseMove: true,
-      },
-    ],
-    xAxis: {
-      type: "category",
-      data: xData,
-      axisLabel: { fontSize: 12, color: muted },
-      axisLine: { lineStyle: { color: line } },
-    },
-    yAxis: {
-      type: "value",
-      max: opts?.yMax,
-      axisLabel: {
-        fontSize: 12,
-        color: muted,
-        formatter: opts?.yFormatter ? (v: number) => opts.yFormatter!(v) : undefined,
-      },
-      splitLine: { lineStyle: { color: line } },
-    },
-    series: series.map((s, idx) => ({
-      name: s.name,
-      type: "line" as const,
-      showSymbol: false,
-      smooth: true,
-      data: s.data,
-      lineStyle: { width: 1.75 },
-      areaStyle: series.length === 1 && idx === 0 ? { opacity: 0.08 } : undefined,
-    })),
-  };
-}
-
 function MonitorPage({ host }: { host: string }) {
-  const gridRef = useRef<MonitorGridHandle>(null);
-  const [layoutDirty, setLayoutDirty] = useState(false);
-  const onLayoutDirty = useCallback((dirty: boolean) => setLayoutDirty(dirty), []);
   const [range, setRange] = useState<RangeMode>("live");
   const [grain, setGrain] = useState<GrainMode>("auto");
   const [customFrom, setCustomFrom] = useState("");
@@ -1206,6 +1165,20 @@ function MonitorPage({ host }: { host: string }) {
   const loadWord =
     loadPct < 30 ? "运行流畅" : loadPct < 70 ? "运行正常" : loadPct < 80 ? "运行缓慢" : "运行堵塞";
 
+  const themeMode = useThemeMode();
+  const memAxis = useMemo(() => {
+    if (isLive) return binaryAxis(memSeries.map((p) => p.value), 0);
+    return binaryAxis(history.map((p) => p.memUsed), 0);
+  }, [isLive, memSeries, history]);
+  const netAxis = useMemo(() => {
+    if (isLive) return binaryAxis(traffic.flatMap((p) => [p.a, p.b]), -1);
+    return binaryAxis(history.flatMap((p) => [p.netRxKBps, p.netTxKBps]), -1);
+  }, [isLive, traffic, history]);
+  const ioAxis = useMemo(() => {
+    if (isLive) return binaryAxis(ioTraffic.flatMap((p) => [p.a, p.b]), -1);
+    return binaryAxis(history.flatMap((p) => [p.diskReadKBps, p.diskWriteKBps]), -1);
+  }, [isLive, ioTraffic, history]);
+
   const cpuOpt = useMemo(
     () =>
       lineOption(
@@ -1218,7 +1191,7 @@ function MonitorPage({ host }: { host: string }) {
         ],
         { yMax: 100, yFormatter: (v) => `${v.toFixed(2)}%` },
       ),
-    [isLive, cpuSeries, history],
+    [isLive, cpuSeries, history, themeMode],
   );
   const loadOpt = useMemo(
     () =>
@@ -1232,7 +1205,7 @@ function MonitorPage({ host }: { host: string }) {
         ],
         { yFormatter: (v) => v.toFixed(2) },
       ),
-    [isLive, loadSeries, history],
+    [isLive, loadSeries, history, themeMode],
   );
   const memOpt = useMemo(
     () =>
@@ -1244,9 +1217,13 @@ function MonitorPage({ host }: { host: string }) {
             data: isLive ? memSeries.map((p) => p.value) : history.map((p) => p.memUsed),
           },
         ],
-        { yFormatter: (v) => formatBytes(v, 2) },
+        {
+          yFormatter: (v) => formatBytes(v, 2),
+          yMax: memAxis?.max,
+          yInterval: memAxis?.interval,
+        },
       ),
-    [isLive, memSeries, history],
+    [isLive, memSeries, history, themeMode, memAxis],
   );
   const netOpt = useMemo(
     () =>
@@ -1262,9 +1239,14 @@ function MonitorPage({ host }: { host: string }) {
             data: isLive ? traffic.map((p) => p.a) : history.map((p) => p.netTxKBps),
           },
         ],
-        { yFormatter: (v) => formatRateKBps(v) },
+        {
+          yFormatter: (v) => formatRateKBps(v),
+          axisFormatter: (v) => formatRateKBps(v).replace(".00 ", " "),
+          yMax: netAxis?.max,
+          yInterval: netAxis?.interval,
+        },
       ),
-    [isLive, traffic, history],
+    [isLive, traffic, history, themeMode, netAxis],
   );
   const ioOpt = useMemo(
     () =>
@@ -1280,9 +1262,14 @@ function MonitorPage({ host }: { host: string }) {
             data: isLive ? ioTraffic.map((p) => p.b) : history.map((p) => p.diskWriteKBps),
           },
         ],
-        { yFormatter: (v) => formatRateKBps(v) },
+        {
+          yFormatter: (v) => formatRateKBps(v),
+          axisFormatter: (v) => formatRateKBps(v).replace(".00 ", " "),
+          yMax: ioAxis?.max,
+          yInterval: ioAxis?.interval,
+        },
       ),
-    [isLive, ioTraffic, history],
+    [isLive, ioTraffic, history, themeMode, ioAxis],
   );
 
   const chartBody = (opt: echarts.EChartsOption) =>
@@ -1292,44 +1279,76 @@ function MonitorPage({ host }: { host: string }) {
       <ChartHost option={opt} connectGroup={connectGroup} />
     );
 
+  // 实时看最新一点，历史区间看峰值
+  function readout(values: number[], format: (v: number) => string): string {
+    if (!values.length) return "—";
+    if (isLive) return format(values[values.length - 1]!);
+    return format(Math.max(...values));
+  }
+  let peakWord = "";
+  if (!isLive) peakWord = "峰值";
+
+  const cpuValues = isLive ? cpuSeries.map((p) => p.value) : history.map((p) => p.cpuPercent);
+  const loadValues = isLive ? loadSeries.map((p) => p.value) : history.map((p) => p.load1);
+  const memValues = isLive ? memSeries.map((p) => p.value) : history.map((p) => p.memUsed);
+  const rxValues = isLive ? traffic.map((p) => p.b) : history.map((p) => p.netRxKBps);
+  const txValues = isLive ? traffic.map((p) => p.a) : history.map((p) => p.netTxKBps);
+  const readValues = isLive ? ioTraffic.map((p) => p.a) : history.map((p) => p.diskReadKBps);
+  const writeValues = isLive ? ioTraffic.map((p) => p.b) : history.map((p) => p.diskWriteKBps);
+
+  let loadReadouts: MonitorReadout[] = [
+    { label: `1 分钟${peakWord}`, value: readout(loadValues, (v) => v.toFixed(2)) },
+  ];
+  if (isLive && data) {
+    loadReadouts = [
+      { label: "1 分钟", value: data.load1.toFixed(2) },
+      { label: "5 分钟", value: data.load5.toFixed(2) },
+      { label: "15 分钟", value: data.load15.toFixed(2) },
+    ];
+  }
+
   return (
     <Page
       title="监控"
       actions={
         <>
-          {(
-            [
-              ["live", "实时"],
-              ["30m", "30分"],
-              ["1h", "1时"],
-              ["6h", "6时"],
-              ["12h", "12时"],
-              ["24h", "24时"],
-              ["7d", "7天"],
-              ["custom", "自定义"],
-            ] as const
-          ).map(([key, label]) => (
-            <Button
-              key={key}
-              variant={range === key ? "primary" : "secondary"}
-              onClick={() => {
-                if (key === "custom" && !customFrom) {
-                  const to = new Date();
-                  const from = new Date(to.getTime() - 24 * 3600 * 1000);
-                  const fmt = (d: Date) => {
-                    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-                    return local.toISOString().slice(0, 16);
-                  };
-                  setCustomFrom(fmt(from));
-                  setCustomTo(fmt(to));
-                }
-                setRange(key);
+          <RadioGroup<RangeMode>
+            aria-label="时间范围"
+            value={range}
+            onChange={(key) => {
+              if (key === "custom" && !customFrom) {
+                const to = new Date();
+                const from = new Date(to.getTime() - 24 * 3600 * 1000);
+                const fmt = (d: Date) => {
+                  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+                  return local.toISOString().slice(0, 16);
+                };
+                setCustomFrom(fmt(from));
+                setCustomTo(fmt(to));
+              }
+              setRange(key);
+            }}
+            options={[
+              { value: "live", label: "实时" },
+              { value: "30m", label: "30 分" },
+              { value: "1h", label: "1 时" },
+              { value: "6h", label: "6 时" },
+              { value: "12h", label: "12 时" },
+              { value: "24h", label: "24 时" },
+              { value: "7d", label: "7 天" },
+              { value: "custom", label: "自定义" },
+            ]}
+          />
+          {range === "custom" ? (
+            <DateRangePicker
+              value={[customFrom, customTo]}
+              onChange={([from, to]) => {
+                setCustomFrom(from);
+                setCustomTo(to);
               }}
-            >
-              {label}
-            </Button>
-          ))}
-          <label className="inline-flex items-center gap-1 text-sm text-muted">
+            />
+          ) : null}
+          <label className="ml-2 inline-flex items-center gap-2 text-sm text-muted">
             粒度
             <Select<GrainMode>
               aria-label="粒度"
@@ -1347,85 +1366,82 @@ function MonitorPage({ host }: { host: string }) {
             />
           </label>
           {grainHint ? <span className="text-xs text-muted">{grainHint}</span> : null}
-          <Button disabled={!layoutDirty} onClick={() => gridRef.current?.reset()}>
-            恢复默认
-          </Button>
         </>
       }
       onRefresh={refreshMonitor}
     >
       {overview.error ? <Notice text={formatErr(overview.error)} /> : null}
-      {range === "custom" ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <DateRangePicker
-            value={[customFrom, customTo]}
-            onChange={([from, to]) => {
-              setCustomFrom(from);
-              setCustomTo(to);
-            }}
-          />
-        </div>
-      ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <MonitorGrid
-          ref={gridRef}
-          boardId={`host-monitor-${host}`}
-          defaults={MONITOR_DEFAULTS}
-          showReset={false}
-          onDirtyChange={onLayoutDirty}
-          rowMinPx={300}
-          fill
-          items={[
+      {/* 固定布局：单元之间 1px 细线分隔（容器 line 底 + 1px 间隙），无外框、无悬停边框；
+          宽屏时最后一行（磁盘 IO）吃掉剩余高度，窄屏单列按内容高度堆叠 */}
+      <div className="grid grid-cols-1 gap-px bg-line lg:flex-1 lg:grid-cols-2 lg:grid-rows-[auto_auto_1fr]">
+        <MonitorPanel
+          title="CPU"
+          note={data ? `${data.cpuCount} 核` : undefined}
+          readouts={[
             {
-              id: "CPU",
-              title: "CPU",
-              span: 2,
-              tags: data
-                ? [
-                    { text: `${data.cpuPercent.toFixed(2)}%` },
-                    { text: `${data.cpuCount} 核` },
-                  ]
-                : [],
-              children: chartBody(cpuOpt),
-            },
-            {
-              id: "负载",
-              title: "负载",
-              span: 2,
-              tags: data
-                ? [
-                    { text: `1m ${data.load1.toFixed(2)}` },
-                    { text: `5m ${data.load5.toFixed(2)}` },
-                    { text: `15m ${data.load15.toFixed(2)}` },
-                    { text: loadWord },
-                  ]
-                : [],
-              children: chartBody(loadOpt),
-            },
-            {
-              id: "内存",
-              title: "内存",
-              span: 2,
-              tags: data
-                ? [{ text: `${formatBytes(data.memUsed)} / ${formatBytes(data.memTotal)}` }]
-                : [],
-              children: chartBody(memOpt),
-            },
-            {
-              id: "流量",
-              title: "流量",
-              span: 2,
-              children: chartBody(netOpt),
-            },
-            {
-              id: "磁盘 IO",
-              title: "磁盘 IO",
-              span: 4,
-              children: chartBody(ioOpt),
+              label: isLive ? "当前" : "峰值",
+              value: readout(cpuValues, (v) => `${v.toFixed(1)}%`),
             },
           ]}
-        />
+        >
+          {chartBody(cpuOpt)}
+        </MonitorPanel>
+        <MonitorPanel
+          title="负载"
+          note={isLive && data ? loadWord : undefined}
+          readouts={loadReadouts}
+        >
+          {chartBody(loadOpt)}
+        </MonitorPanel>
+        <MonitorPanel
+          title="内存"
+          note={data ? `总量 ${formatMemCapacity(data.memTotal)}` : undefined}
+          readouts={[
+            {
+              label: isLive ? "已用" : "已用峰值",
+              value: readout(memValues, (v) => formatBytes(v)),
+            },
+          ]}
+        >
+          {chartBody(memOpt)}
+        </MonitorPanel>
+        <MonitorPanel
+          title="流量"
+          readouts={[
+            {
+              label: `下行${peakWord}`,
+              swatch: "read",
+              value: readout(rxValues, (v) => formatRateKBps(v)),
+            },
+            {
+              label: `上行${peakWord}`,
+              swatch: "write",
+              value: readout(txValues, (v) => formatRateKBps(v)),
+            },
+          ]}
+        >
+          {chartBody(netOpt)}
+        </MonitorPanel>
+        <MonitorPanel
+          title="磁盘 IO"
+          className="lg:col-span-2"
+          grow
+          readouts={[
+            {
+              label: `读${peakWord}`,
+              swatch: "read",
+              value: readout(readValues, (v) => formatRateKBps(v)),
+            },
+            {
+              label: `写${peakWord}`,
+              swatch: "write",
+              value: readout(writeValues, (v) => formatRateKBps(v)),
+            },
+          ]}
+        >
+          {chartBody(ioOpt)}
+        </MonitorPanel>
       </div>
     </Page>
   );

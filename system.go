@@ -340,6 +340,7 @@ func (s *System) TestWecomWebhook(webhook string) error {
 
 // oneAgentOpenURL 拼出 1Agent 认的地址。空格必须写成 %20。
 // Go 的 QueryEscape 会把空格写成 +，1Agent 会把加号留在主机名里。
+// 带 reuse=1：已经打开的主机只聚焦，不再多开一个会话；多台一起打开时并成一个工作区。
 func oneAgentOpenURL(hosts []string) (string, error) {
 	parts := make([]string, 0, len(hosts))
 	for _, host := range hosts {
@@ -353,6 +354,7 @@ func oneAgentOpenURL(hosts []string) (string, error) {
 	if len(parts) == 0 {
 		return "", fmt.Errorf("没有主机")
 	}
+	parts = append(parts, "reuse=1")
 	return "oneagent://open?" + strings.Join(parts, "&"), nil
 }
 

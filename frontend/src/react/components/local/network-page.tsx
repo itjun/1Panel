@@ -1,20 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api, type localsys } from "@/api";
-import { Card } from "@/react/components/ui/card";
-import { Switch } from "@/react/components/ui/switch";
+import { Button } from "@/react/components/ui/button";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
+import {
+  OverviewFact,
+  OverviewTable,
+  type OverviewColumn,
+} from "@/react/components/overview/overview-parts";
 import { formatBytes, formatErr } from "@/utils/format";
 
-const KIND_ORDER = ["wifi", "ethernet", "thunderbolt", "vpn", "other"] as const;
 const KIND_LABEL: Record<string, string> = {
-  wifi: "无线网",
-  ethernet: "有线网",
+  wifi: "无线",
+  ethernet: "有线",
   thunderbolt: "雷雳 / 网桥",
   vpn: "VPN",
   other: "其它",
 };
+
+const IFACE_COLUMNS: OverviewColumn[] = [
+  { key: "name", label: "名称" },
+  { key: "kind", label: "类型" },
+  { key: "state", label: "状态" },
+  { key: "ipv4", label: "IPv4" },
+  { key: "mac", label: "MAC" },
+  { key: "rx", label: "接收", align: "right" },
+  { key: "tx", label: "发送", align: "right" },
+];
 
 function displayName(ifc: localsys.NetInterface): string {
   const display = (ifc.display || "").trim();
@@ -22,223 +35,140 @@ function displayName(ifc: localsys.NetInterface): string {
   return ifc.name;
 }
 
+function isUp(ifc: localsys.NetInterface): boolean {
+  return ifc.state === "up";
+}
+
 export function LocalNetworkPage() {
-  const [showAll, setShowAll] = useState(false);
+  const [showDown, setShowDown] = useState(false);
   const query = useQuery({
     queryKey: ["local-net"],
     queryFn: () => api.localSysNetwork(),
     refetchInterval: 8000,
   });
   const snap = query.data;
+  const primaryName = snap?.primaryIface || "";
 
-  const upCount = useMemo(
-    () => (snap?.interfaces || []).filter((ifc) => ifc.state === "up").length,
-    [snap],
-  );
-  const downCount = useMemo(
-    () => (snap?.interfaces || []).filter((ifc) => ifc.state !== "up").length,
-    [snap],
-  );
-
-  function isEgress(ifc: localsys.NetInterface): boolean {
-    const primary = snap?.primaryIface || "";
-    return !!primary && ifc.name === primary;
-  }
-
-  function isVpnDim(ifc: localsys.NetInterface): boolean {
-    if ((ifc.kind || "") !== "vpn") return false;
-    if (isEgress(ifc)) return false;
-    return !(ifc.ipv4 || "").trim();
-  }
-
-  function sortIfaces(items: localsys.NetInterface[]): localsys.NetInterface[] {
-    return [...items].sort((a, b) => {
-      const ae = isEgress(a) ? 0 : 1;
-      const be = isEgress(b) ? 0 : 1;
+  // 出口网卡排最前，其次有 IPv4 的，最后按名称
+  const sortedIfaces = useMemo(() => {
+    const list = [...(snap?.interfaces || [])];
+    list.sort((a, b) => {
+      const ae = a.name === primaryName ? 0 : 1;
+      const be = b.name === primaryName ? 0 : 1;
       if (ae !== be) return ae - be;
-      const au = a.state === "up" ? 0 : 1;
-      const bu = b.state === "up" ? 0 : 1;
-      if (au !== bu) return au - bu;
-      const ad = isVpnDim(a) ? 1 : 0;
-      const bd = isVpnDim(b) ? 1 : 0;
-      if (ad !== bd) return ad - bd;
       const ai = (a.ipv4 || "").trim() ? 0 : 1;
       const bi = (b.ipv4 || "").trim() ? 0 : 1;
       if (ai !== bi) return ai - bi;
       return a.name.localeCompare(b.name);
     });
+    return list;
+  }, [snap, primaryName]);
+
+  const upIfaces = sortedIfaces.filter(isUp);
+  const downIfaces = sortedIfaces.filter((ifc) => !isUp(ifc));
+  let shownIfaces = upIfaces;
+  if (showDown) {
+    shownIfaces = [...upIfaces, ...downIfaces];
   }
 
-  const primaryIfaceText = useMemo(() => {
-    const name = snap?.primaryIface || "";
-    if (!name) return "—";
-    const hit = (snap?.interfaces || []).find((ifc) => ifc.name === name);
-    if (!hit) return name;
-    const label = displayName(hit);
-    if (label === name) return name;
-    return `${label}（${name}）`;
+  const privateIPText = useMemo(() => {
+    const ips = snap?.privateIPs || [];
+    if (ips.length) return ips.join(", ");
+    return snap?.primaryIP || "—";
   }, [snap]);
 
-  const visibleGroups = useMemo(() => {
-    const list = (snap?.interfaces || []).filter((ifc) => {
-      if (showAll) return true;
-      return ifc.state === "up";
-    });
-    const map = new Map<string, localsys.NetInterface[]>();
-    for (const ifc of list) {
-      const kind = ifc.kind || "other";
-      if (!map.has(kind)) map.set(kind, []);
-      map.get(kind)!.push(ifc);
-    }
-    const out: { kind: string; label: string; items: localsys.NetInterface[] }[] =
-      [];
-    for (const kind of KIND_ORDER) {
-      const items = map.get(kind);
-      if (items?.length) {
-        out.push({
-          kind,
-          label: KIND_LABEL[kind] || kind,
-          items: sortIfaces(items),
-        });
-      }
-    }
-    for (const [kind, items] of map) {
-      if (!(KIND_ORDER as readonly string[]).includes(kind) && items.length) {
-        out.push({
-          kind,
-          label: KIND_LABEL[kind] || kind,
-          items: sortIfaces(items),
-        });
-      }
-    }
-    return out;
-    // sortIfaces 依赖 snap，已在闭包内
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAll, snap]);
+  const primaryIfaceText = useMemo(() => {
+    if (!primaryName) return "—";
+    const hit = (snap?.interfaces || []).find((ifc) => ifc.name === primaryName);
+    if (!hit) return primaryName;
+    const label = displayName(hit);
+    if (label === primaryName) return primaryName;
+    return `${label}（${primaryName}）`;
+  }, [snap, primaryName]);
 
   return (
-    <Page
-      title="网络信息"
-      onRefresh={() => void query.refetch()}
-    >
+    <Page title="网络信息" onRefresh={() => void query.refetch()}>
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      <div className="gap-section flex flex-col">
-        <Card className="p-0">
-          <div className="text-xl font-semibold font-mono">
-            {snap?.primaryIP || "—"}
-          </div>
-          <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
-            <div>
-              <span className="text-muted">出口网卡 </span>
-              {primaryIfaceText}
+      {snap ? (
+        <div className="gap-section flex flex-col">
+          <section>
+            <div className="mb-3 text-sm font-semibold text-ink">概况</div>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <OverviewFact label="内网 IP" mono>
+                {privateIPText}
+              </OverviewFact>
+              <OverviewFact label="出口网卡">{primaryIfaceText}</OverviewFact>
+              <OverviewFact label="默认网关" mono>
+                {snap.defaultGateway || "—"}
+              </OverviewFact>
+              <OverviewFact label="已连接数" mono>
+                {`${upIfaces.length} / ${sortedIfaces.length}`}
+              </OverviewFact>
             </div>
-            <div>
-              <span className="text-muted">网关 </span>
-              <span className="font-mono">{snap?.defaultGateway || "无"}</span>
-            </div>
-            <div>
-              <span className="text-muted">已连接 </span>
-              {upCount} 张
-            </div>
-          </div>
-          {(snap?.privateIPs || []).length ? (
-            <p className="mt-2 text-sm text-muted">
-              内网 IP：{(snap?.privateIPs || []).join("、")}
-            </p>
-          ) : null}
-        </Card>
+          </section>
 
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Switch checked={showAll} onChange={setShowAll}>
-            显示全部
-          </Switch>
-          <span className="text-muted">
-            {showAll
-              ? "显示全部网卡"
-              : downCount > 0
-                ? `已隐藏 ${downCount} 张未连接`
-                : "当前全部已连接"}
-          </span>
-        </div>
-
-        {visibleGroups.length === 0 ? (
-          <Card className="p-0">
-            <p className="text-sm text-muted">
-              {showAll ? "未发现网卡" : "没有已连接的网卡"}
-            </p>
-          </Card>
-        ) : (
-          visibleGroups.map((group) => (
-            <Card key={group.kind} className="overflow-hidden p-0">
-              <div className="mb-2 text-sm font-semibold text-ink">
-                {group.label}
-                <span className="ml-2 text-sm font-normal text-muted">
-                  {group.items.length}
-                </span>
-              </div>
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="h-table-head border-b border-line text-xs font-normal text-muted">
-                    <th className="w-12 px-3 text-center">序</th>
-                    <th className="px-3">名称</th>
-                    <th className="px-3">状态</th>
-                    <th className="px-3">IPv4</th>
-                    <th className="px-3">MAC</th>
-                    <th className="px-3">收 / 发</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.items.map((ifc, idx) => (
-                    <tr
-                      key={ifc.name}
-                      className={
-                        ifc.state !== "up"
-                          ? "h-table-row border-t border-line opacity-60"
-                          : isVpnDim(ifc)
-                            ? "h-table-row border-t border-line opacity-50"
-                            : "h-table-row border-t border-line"
-                      }
-                    >
-                      <td className="px-3 text-center font-mono text-muted">
-                        {idx + 1}
-                      </td>
-                      <td className="px-3">
-                        <div>
-                          {displayName(ifc)}
-                          {isEgress(ifc) ? (
-                            <Tag tone="accent" className="ml-2">出口</Tag>
-                          ) : null}
-                        </div>
-                        <div className="font-mono text-xs text-muted">
+          <section>
+            <div className="mb-3 text-sm font-semibold text-ink">网卡</div>
+            {shownIfaces.length ? (
+              <OverviewTable
+                columns={IFACE_COLUMNS}
+                rows={shownIfaces.map((ifc) => ({
+                  id: ifc.name,
+                  cells: [
+                    <span key="name">
+                      {displayName(ifc)}
+                      {displayName(ifc) !== ifc.name ? (
+                        <span className="ml-2 font-mono text-xs text-muted">
                           {ifc.name}
-                        </div>
-                      </td>
-                      <td className="px-3">
-                        {ifc.state === "up" ? (
-                          <Tag tone="ok">已连接</Tag>
-                        ) : (
-                          <Tag>未连接</Tag>
-                        )}
-                      </td>
-                      <td className="px-3 font-mono">{ifc.ipv4 || "—"}</td>
-                      <td className="px-3 font-mono">{ifc.mac || "—"}</td>
-                      <td className="px-3 font-mono tabular-nums">
-                        <span className="text-io-read">
-                          {formatBytes(ifc.rxBytes || 0)}
                         </span>
-                        {" / "}
-                        <span className="text-io-write">
-                          {formatBytes(ifc.txBytes || 0)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          ))
-        )}
-      </div>
+                      ) : null}
+                      {ifc.name === primaryName ? (
+                        <Tag tone="accent" className="ml-2">
+                          出口
+                        </Tag>
+                      ) : null}
+                    </span>,
+                    KIND_LABEL[ifc.kind || "other"] || ifc.kind || "—",
+                    isUp(ifc) ? (
+                      <Tag key="state" tone="ok">
+                        已连接
+                      </Tag>
+                    ) : (
+                      <Tag key="state" tone="neutral">
+                        未连接
+                      </Tag>
+                    ),
+                    <span key="ipv4" className="font-mono">
+                      {ifc.ipv4 || "—"}
+                    </span>,
+                    <span key="mac" className="font-mono">
+                      {ifc.mac || "—"}
+                    </span>,
+                    formatBytes(ifc.rxBytes || 0),
+                    formatBytes(ifc.txBytes || 0),
+                  ],
+                }))}
+              />
+            ) : (
+              <p className="text-sm text-muted">没有已连接的网卡</p>
+            )}
+            {downIfaces.length > 0 ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-2"
+                onClick={() => setShowDown((prev) => !prev)}
+              >
+                {showDown ? "收起" : `展开 ${downIfaces.length} 个未连接网卡`}
+              </Button>
+            ) : null}
+          </section>
+        </div>
+      ) : (
+        <p className="text-sm text-muted">
+          {query.isLoading ? "加载中…" : "暂无网络数据"}
+        </p>
+      )}
     </Page>
   );
 }

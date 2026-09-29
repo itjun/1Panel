@@ -21,6 +21,7 @@ export function seriesColorByName(name: string, index = 0): string {
     key === "读" ||
     key === "下行" ||
     key === "接收" ||
+    key === "已用" ||
     /^(read|rx|download|in)$/i.test(key)
   ) {
     return readThemeColor("--color-io-read", "#1d8cf8");
@@ -29,6 +30,7 @@ export function seriesColorByName(name: string, index = 0): string {
     key === "写" ||
     key === "上行" ||
     key === "发送" ||
+    key === "交换" ||
     /^(write|tx|upload|out)$/i.test(key)
   ) {
     return readThemeColor("--color-io-write", "#f08a24");

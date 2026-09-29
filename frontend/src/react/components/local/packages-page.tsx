@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
-import { Button } from "@/react/components/ui/button";
+import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
@@ -59,20 +59,18 @@ export function LocalPackagesPage() {
       title="软件列表"
       actions={
         <>
-          {SOURCE_OPTS.map((item) => {
-            const count = counts[item.value];
-            return (
-              <Button
-                key={item.value}
-                size="sm"
-                variant={source === item.value ? "primary" : "secondary"}
-                onClick={() => setSource(item.value)}
-              >
-                {item.label}
-                {count > 0 ? <span className="opacity-70">({count})</span> : null}
-              </Button>
-            );
-          })}
+          <RadioGroup
+            aria-label="来源"
+            value={source}
+            onChange={setSource}
+            options={SOURCE_OPTS.map((item) => {
+              const count = counts[item.value];
+              return {
+                value: item.value,
+                label: count > 0 ? `${item.label} (${count})` : item.label,
+              };
+            })}
+          />
           <input
             className="motion-field h-7 rounded-control px-3 text-sm text-ink"
             value={keyword}
@@ -82,6 +80,7 @@ export function LocalPackagesPage() {
         </>
       }
       onRefresh={() => void query.refetch()}
+      refreshing={query.isFetching}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       {/* 表格直接铺在内容平面上，吸顶表头用 surface 底遮挡滚动内容 */}
@@ -117,7 +116,11 @@ export function LocalPackagesPage() {
                     <td className="px-3">
                       <Tag>{sourceLabel(item.source)}</Tag>
                     </td>
-                    <td className="max-w-[360px] truncate px-3 font-mono text-muted">
+                    <td
+                      className="max-w-[360px] truncate px-3 font-mono text-muted"
+                      data-tip={item.path || ""}
+                      data-tip-overflow=""
+                    >
                       {item.path || "—"}
                     </td>
                   </tr>

@@ -12,6 +12,7 @@ export type PersistTool =
   | "file-manager"
   | "sftp"
   | "monitor"
+  | "disk"
   | "certs"
   | "nginx"
   | "processes"

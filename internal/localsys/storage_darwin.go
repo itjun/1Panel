@@ -493,7 +493,17 @@ func defaultStorageRoots() []string {
 }
 
 func apfsContainerSummary() (total, used, avail uint64) {
-	for _, d := range listAPFSContainers() {
+	containers := listAPFSContainers()
+	var need []string
+	for _, d := range containers {
+		need = append(need, d.Parent)
+	}
+	kinds := cachedWholeDiskKinds(need)
+	for _, d := range containers {
+		// 只算本机内置物理盘：磁盘映像（cryptex / 模拟器）与外置盘不计入
+		if !isPhysicalWholeDisk(kinds, d.Parent) || isExternalWholeDisk(kinds, d.Parent) {
+			continue
+		}
 		total += d.Total
 		used += d.Used
 		avail += d.Avail

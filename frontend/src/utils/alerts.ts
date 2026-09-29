@@ -56,6 +56,14 @@ export function mountDisks(
   return disks.filter((d) => !isPhysicalDisk(d));
 }
 
+/** 物理盘 / zpool 条目（lsblk 真实块设备或存储池） */
+export function physicalDisks(
+  disks?: monitor.DiskInfo[] | null
+): monitor.DiskInfo[] {
+  if (!disks?.length) return [];
+  return disks.filter(isPhysicalDisk);
+}
+
 function sumUniqueByFilesystem(list: monitor.DiskInfo[]): DiskSummary | null {
   const byFs = new Map<string, monitor.DiskInfo>();
   for (const d of list) {

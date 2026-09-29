@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { api, type localsys } from "@/api";
+import { api, type localsys, type monitor } from "@/api";
+import { PhysicalDiskRows } from "@/react/components/overview/overview-parts";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import { Meter } from "@/react/components/ui/meter";
+import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatBytesSI, formatErr } from "@/utils/format";
@@ -13,6 +14,12 @@ import "./local.css";
 const THEAD_ROW_CLASS = "h-table-head border-b border-line text-xs font-normal text-muted";
 
 type TabId = "apps" | "tree" | "large";
+
+const TAB_OPTIONS: { value: TabId; label: string }[] = [
+  { value: "apps", label: "应用占用" },
+  { value: "tree", label: "目录" },
+  { value: "large", label: "大文件" },
+];
 
 function formatScanTime(sec: number) {
   if (!sec) return "";
@@ -140,6 +147,22 @@ export function LocalStoragePage() {
 
   const idleNoRecord = status?.state === "idle" && !hasRecord;
 
+  const containerTotal = status?.containerTotal || 0;
+  const containerUsed = status?.containerUsed || 0;
+  const containerDisks: monitor.DiskInfo[] = [];
+  if (containerTotal > 0) {
+    containerDisks.push({
+      filesystem: "系统容器",
+      fsType: "",
+      mount: "/",
+      total: containerTotal,
+      used: containerUsed,
+      avail: status?.containerAvail || 0,
+      percent: Math.min(100, Math.round((containerUsed / containerTotal) * 100)),
+      kind: "disk",
+    });
+  }
+
   return (
     <Page
       title="磁盘空间"
@@ -164,20 +187,16 @@ export function LocalStoragePage() {
       {status?.error ? <Notice text={status.error} /> : null}
 
       <div className="gap-section flex flex-col">
-        <Card className="p-0">
-          <div className="text-xl font-semibold font-mono">
-            {formatBytesSI(status?.containerUsed || 0)} /{" "}
-            {formatBytesSI(status?.containerTotal || 0)}
-          </div>
-          <p className="mt-2 text-sm text-muted">
-            <span>容器</span>
-            {status?.containerAvail ? (
-              <>
-                <span> · </span>
-                <span>可用 {formatBytesSI(status.containerAvail)}</span>
-              </>
-            ) : null}
-            <span> · </span>
+        <section>
+          <div className="mb-3 text-sm font-semibold text-ink">容量</div>
+          {containerDisks.length ? (
+            <PhysicalDiskRows disks={containerDisks} />
+          ) : (
+            <p className="text-sm text-muted">
+              {statusQuery.isLoading ? "加载中…" : "未获取到容器容量"}
+            </p>
+          )}
+          <p className="mt-2 text-xs text-muted">
             {status?.state === "idle" && !status?.finishedAt ? (
               <span>尚未扫描</span>
             ) : (
@@ -220,45 +239,34 @@ export function LocalStoragePage() {
               </button>
             </p>
           ) : null}
-        </Card>
+        </section>
+
+        <section>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-ink">占用明细</span>
+            <RadioGroup
+              value={tab}
+              onChange={setTab}
+              options={TAB_OPTIONS}
+              disabled={idleNoRecord}
+              aria-label="占用视图"
+            />
+            {!idleNoRecord && (tab === "apps" || tab === "large") ? (
+              <input
+                className="motion-field ml-auto h-8 w-56 rounded-control px-3 text-sm text-ink"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜索名称 / 路径…"
+              />
+            ) : null}
+          </div>
 
         {idleNoRecord ? (
-          <Card className="p-0">
-            <Button variant="primary" onClick={() => void startScan()}>
-              开始扫描
-            </Button>
-          </Card>
+          <p className="text-sm text-muted">还没扫描，点上方「开始扫描」开始</p>
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-2">
-              {(
-                [
-                  { id: "apps" as const, label: "应用占用" },
-                  { id: "tree" as const, label: "目录" },
-                  { id: "large" as const, label: "大文件" },
-                ] as const
-              ).map((t) => (
-                <Button
-                  key={t.id}
-                  variant={tab === t.id ? "primary" : "secondary"}
-                  onClick={() => setTab(t.id)}
-                >
-                  {t.label}
-                </Button>
-              ))}
-              {(tab === "apps" || tab === "large") && (
-                <input
-                  className="motion-field ml-auto h-8 w-56 rounded-control px-3 text-sm text-ink"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="搜索名称 / 路径…"
-                />
-              )}
-            </div>
-
             {tab === "apps" ? (
-              <Card className="overflow-hidden p-0">
-                <table className="w-full text-left text-sm">
+                <table className="w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className={THEAD_ROW_CLASS}>
                       <th className="w-10 px-2" />
@@ -365,12 +373,11 @@ export function LocalStoragePage() {
                     )}
                   </tbody>
                 </table>
-              </Card>
             ) : null}
 
             {tab === "tree" ? (
-              <Card className="overflow-hidden p-0">
-                <div className="flex flex-wrap items-center gap-1 border-b border-line px-3 py-2 text-sm">
+              <>
+                <div className="mb-2 flex flex-wrap items-center gap-1 px-3 text-sm">
                   <button
                     type="button"
                     className="text-accent"
@@ -393,11 +400,11 @@ export function LocalStoragePage() {
                   ))}
                 </div>
                 {treeQuery.error ? (
-                  <div className="p-3">
+                  <div className="mb-3">
                     <Notice text={formatErr(treeQuery.error)} />
                   </div>
                 ) : null}
-                <table className="w-full text-left text-sm">
+                <table className="w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className={THEAD_ROW_CLASS}>
                       <th className="w-12 px-2 text-center">序</th>
@@ -438,11 +445,9 @@ export function LocalStoragePage() {
                               {formatBytesSI(row.size || 0)}
                             </td>
                             <td className="px-3">
-                              {/* 目录占父目录的比例，不是资源水位：固定 ok 档，不按阈值变色 */}
                               <Meter
                                 value={pct}
                                 valueText={`${pct}%`}
-                                tone="ok"
                                 className="w-full"
                               />
                             </td>
@@ -464,12 +469,11 @@ export function LocalStoragePage() {
                     )}
                   </tbody>
                 </table>
-              </Card>
+              </>
             ) : null}
 
             {tab === "large" ? (
-              <Card className="overflow-hidden p-0">
-                <table className="w-full text-left text-sm">
+                <table className="w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className={THEAD_ROW_CLASS}>
                       <th className="w-12 px-2 text-center">序</th>
@@ -515,10 +519,10 @@ export function LocalStoragePage() {
                     )}
                   </tbody>
                 </table>
-              </Card>
             ) : null}
           </>
         )}
+        </section>
       </div>
     </Page>
   );

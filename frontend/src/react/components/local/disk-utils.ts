@@ -49,6 +49,9 @@ export function diskExternalRowLabel(d: localsys.DiskInfo): string {
 }
 
 export function diskPhysicalLabel(d: localsys.DiskInfo): string {
+  if (d.kind === "disk" && d.external) {
+    return `${d.name || d.device || d.filesystem || "外置磁盘"}（外置）`;
+  }
   const m = (d.mount || "").trim();
   if (isExternalMountPath(m)) {
     const name = m.slice("/Volumes/".length);
@@ -118,7 +121,7 @@ export function buildDiskSummaryItems(disks: localsys.DiskInfo[]): DiskSummaryIt
       percent: (used / total) * 100,
       scope: d.kind === "disk" ? "disk" : "mount",
     };
-    if (isExternalMountPath(d.mount) || item.label.includes("外置")) {
+    if (d.external) {
       external.push(item);
     } else {
       internal.push(item);
@@ -177,7 +180,7 @@ export function buildDiskGroups(disks: localsys.DiskInfo[]): {
 
   for (const d of physicals) {
     const parent = diskParentOf(d);
-    const external = isExternalMountPath(d.mount) || isExternalMountPath(d.filesystem);
+    const external = !!d.external;
     const g = ensure(parent, external);
     g.external = g.external || external;
     g.physical = d;
@@ -192,7 +195,7 @@ export function buildDiskGroups(disks: localsys.DiskInfo[]): {
 
   for (const d of mounts) {
     const parent = diskParentOf(d);
-    const external = isExternalMountPath(d.mount);
+    const external = !!d.external;
     const g = ensure(parent, external);
     g.external = g.external || external;
     g.partitions.push(d);
@@ -234,9 +237,7 @@ export function buildDiskGroups(disks: localsys.DiskInfo[]): {
 
   const parents = new Set<string>();
   for (const d of all) {
-    if (d.kind === "disk" && isExternalMountPath(d.mount || d.filesystem)) {
-      parents.add(diskParentOf(d));
-    } else if (d.kind !== "disk" && isExternalMountPath(d.mount)) {
+    if (d.external) {
       parents.add(diskParentOf(d));
     }
   }
