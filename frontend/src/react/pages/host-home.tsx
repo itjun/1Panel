@@ -35,7 +35,7 @@ import { formatErr } from "@/utils/format";
 
 const PINNED_SECTION = "pinned";
 const COLLAPSE_KEY = "1pannel-host-group-collapsed";
-const GROUP_NAME_RE = /^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+const GROUP_NAME_RE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 export type HostHomePageProps = {
   /** 打开新建主机表单；groupId 空字符串表示未分组 / 不预选。 */
@@ -796,7 +796,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       return;
     }
     if (!GROUP_NAME_RE.test(nextName)) {
-      showError("只允许英文字母、数字和短横线，例如 01-cdcp-main");
+      showError("只允许英文字母、数字和短横线，例如 cdcp-main 或 01-cdcp-main");
       return;
     }
     setGroupSettingsBusy(true);

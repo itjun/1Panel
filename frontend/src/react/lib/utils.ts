@@ -20,6 +20,7 @@ export function seriesColorByName(name: string, index = 0): string {
   if (
     key === "读" ||
     key === "下行" ||
+    key === "流入" ||
     key === "接收" ||
     key === "已用" ||
     /^(read|rx|download|in)$/i.test(key)
@@ -29,6 +30,7 @@ export function seriesColorByName(name: string, index = 0): string {
   if (
     key === "写" ||
     key === "上行" ||
+    key === "流出" ||
     key === "发送" ||
     key === "交换" ||
     /^(write|tx|upload|out)$/i.test(key)

@@ -334,18 +334,6 @@ pre,
   background-color: var(--color-surface);
 }
 
-/* 数据卡片范围提示（DESIGN.md §8.2）：静止时 1px 透明边框占位，避免悬停时布局跳动；
-   悬停 / 聚焦显示 line-strong 边框标识范围。只改边框色，不加阴影、不改底色（不与卡片自身 hover 底色叠加）。 */
-.card-hover {
-  border: 1px solid transparent;
-  transition: border-color var(--duration-base) var(--ease-standard);
-}
-
-.card-hover:hover,
-.card-hover:focus-within {
-  border-color: var(--color-line-strong);
-}
-
 .gap-card {
   gap: var(--gap-card);
 }
@@ -806,8 +794,7 @@ pre,
 @media (prefers-reduced-motion: reduce) {
   .sub-check,
   .motion-switch-knob,
-  .motion-segment,
-  .card-hover {
+  .motion-segment {
     transition: none !important;
   }
 

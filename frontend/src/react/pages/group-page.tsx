@@ -44,7 +44,7 @@ const COL_WIDTHS_KEY = "1pannel-group-col-widths-v4";
 const COL_ORDER_KEY = "1pannel-group-col-order-v1";
 const TABLE_SORT_KEY = "1pannel-group-table-sort-v1";
 
-const GROUP_NAME_RE = /^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+const GROUP_NAME_RE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 const GROUP_COL_KEYS = [
   "index",
@@ -600,7 +600,7 @@ export function GroupPage({
       return;
     }
     if (!GROUP_NAME_RE.test(nextName)) {
-      setSettingsError("只允许英文字母、数字和短横线，例如 01-cdcp-main");
+      setSettingsError("只允许英文字母、数字和短横线，例如 cdcp-main 或 01-cdcp-main");
       return;
     }
     setSettingsSaving(true);

@@ -1,13 +1,12 @@
 /* 本机页共享样式：环图、高亮代码。分区占比一律走共享 <Meter>，不再有细线进度条 */
 
-/* 概览网格单元：白色平面上用 raised 纯色块区分，无描边 / 圆角 / 阴影（DESIGN.md §2.5） */
+/* 环图直接落在内容平面上，不再垫 raised 色块：远程概览里它本身就在卡片中，再垫一层就成了卡片套卡片（DESIGN.md §2.5） */
 .local-ring {
   display: flex;
   flex-direction: column;
   align-items: center;
   min-width: 0;
-  padding: 16px 8px;
-  background: var(--color-raised);
+  padding: 8px;
 }
 
 .local-ring__wrap {

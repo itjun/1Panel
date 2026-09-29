@@ -54,9 +54,9 @@ export const boardHttpApi = {
     ),
 };
 
-/** 路径段是否像合法分组名（两位数字前缀 + ASCII）。 */
+/** 路径段是否像合法分组名（字母、数字、短横线）。 */
 export function looksLikeGroupPath(segment: string): boolean {
-  return /^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(segment);
+  return /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(segment);
 }
 
 /** 从 pathname 解析看板分组名；非看板路径返回空。 */

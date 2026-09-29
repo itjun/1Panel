@@ -21,7 +21,6 @@ import {
 } from "@/react/components/monitor/charts";
 import { OverviewFact, OverviewTable } from "@/react/components/overview/overview-parts";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import { DateRangePicker } from "@/react/components/ui/date-range-picker";
 import {
   Dialog,
@@ -1231,11 +1230,11 @@ function MonitorPage({ host }: { host: string }) {
         isLive ? traffic.map((p) => p.time) : history.map((p) => historyTimeLabel(p.ts)),
         [
           {
-            name: "下行",
+            name: "流入",
             data: isLive ? traffic.map((p) => p.b) : history.map((p) => p.netRxKBps),
           },
           {
-            name: "上行",
+            name: "流出",
             data: isLive ? traffic.map((p) => p.a) : history.map((p) => p.netTxKBps),
           },
         ],
@@ -1644,11 +1643,13 @@ function ProcessesPage({ host }: { host: string }) {
             )
             .map((item) => {
               const st = (docker.data?.stats || []).find((s) => s.name === item.name);
+              const running = (item.state || "").toLowerCase() === "running";
+              // 同类单元平铺成网格：raised 色块区分；块内 secondary 按钮与 neutral 标签换 surface 底才看得见
               return (
-                <Card key={item.id}>
+                <div key={item.id} className="bg-raised p-4 text-ink">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 truncate font-semibold">{item.name}</div>
-                    <Tag tone={(item.state || "").toLowerCase() === "running" ? "ok" : "neutral"}>
+                    <Tag tone={running ? "ok" : "neutral"} className={running ? "" : "bg-surface"}>
                       {item.state || "—"}
                     </Tag>
                   </div>
@@ -1659,17 +1660,29 @@ function ProcessesPage({ host }: { host: string }) {
                     </div>
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button disabled={busy} onClick={() => void dockerAct(item.name, "start")}>
+                    <Button
+                      className="bg-surface hover:bg-line"
+                      disabled={busy}
+                      onClick={() => void dockerAct(item.name, "start")}
+                    >
                       启动
                     </Button>
-                    <Button disabled={busy} onClick={() => void dockerAct(item.name, "stop")}>
+                    <Button
+                      className="bg-surface hover:bg-line"
+                      disabled={busy}
+                      onClick={() => void dockerAct(item.name, "stop")}
+                    >
                       停止
                     </Button>
-                    <Button disabled={busy} onClick={() => void dockerAct(item.name, "restart")}>
+                    <Button
+                      className="bg-surface hover:bg-line"
+                      disabled={busy}
+                      onClick={() => void dockerAct(item.name, "restart")}
+                    >
                       重启
                     </Button>
                   </div>
-                </Card>
+                </div>
               );
             })}
           {docker.data && !docker.data.available ? (

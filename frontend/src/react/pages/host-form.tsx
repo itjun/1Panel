@@ -15,7 +15,7 @@ import { formatErr } from "@/utils/format";
 const EDIT_INPUT =
   "motion-field h-9 w-full rounded-control px-3 text-sm text-ink disabled:text-muted";
 
-const GROUP_NAME_RE = /^[0-9]{2}-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+const GROUP_NAME_RE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 function DockCloseButton({ onClick }: { onClick: () => void }) {
   return (
@@ -140,7 +140,7 @@ export function HostCreateForm({
         return;
       }
       if (!GROUP_NAME_RE.test(groupName)) {
-        setError("只允许英文字母、数字和短横线，例如 01-cdcp-main");
+        setError("只允许英文字母、数字和短横线，例如 cdcp-main 或 01-cdcp-main");
         return;
       }
       setBusy(true);

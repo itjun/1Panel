@@ -133,9 +133,9 @@ export function InspectPage() {
               statusText = "异常";
             }
             return (
-              <Card
+              <div
                 key={item.id}
-                className="cursor-pointer bg-raised p-4 hover:bg-line"
+                className="motion-colors cursor-pointer bg-raised p-4 text-ink hover:bg-line"
                 onClick={() => void checkOne(item.id)}
               >
                 <div className="mb-3 flex items-center gap-2">
@@ -187,7 +187,7 @@ export function InspectPage() {
                 <div className="mt-3 text-xs text-muted">
                   {busyId === item.id ? "检查中…" : "点击检查"}
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>

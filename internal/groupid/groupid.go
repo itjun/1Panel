@@ -7,20 +7,16 @@ import (
 	"strings"
 )
 
-// Validate requires a group ID to be the same user-facing name and to start
-// with exactly two ASCII digits followed by a hyphen, for example
-// "01-cdcp-main". The remainder is made of ASCII letters, numbers and single
-// hyphen separators only, so the value is safe and predictable as a filename.
+// Validate requires a group ID to be the same user-facing name, made of ASCII
+// letters, numbers and single hyphen separators only, for example "cdcp-main"
+// or "01-cdcp-main". A numeric prefix is optional (only used for sorting); the
+// value stays safe and predictable as a filename.
 func Validate(value string) error {
 	value = strings.TrimSpace(value)
-	if len(value) < 4 || value[2] != '-' || value[0] < '0' || value[0] > '9' || value[1] < '0' || value[1] > '9' {
-		return invalidFormatError()
-	}
-	suffix := value[3:]
 	previousHyphen := false
 	hasWord := false
-	for i := 0; i < len(suffix); i++ {
-		ch := suffix[i]
+	for i := 0; i < len(value); i++ {
+		ch := value[i]
 		switch {
 		case isASCIILetter(ch) || isASCIIDigit(ch):
 			hasWord = true
@@ -38,7 +34,7 @@ func Validate(value string) error {
 }
 
 func invalidFormatError() error {
-	return fmt.Errorf("分组名称只能使用两位数字前缀、英文字母、数字和短横线，例如 01-cdcp-main")
+	return fmt.Errorf("分组名称只能使用英文字母、数字和短横线，例如 cdcp-main 或 01-cdcp-main")
 }
 
 func isASCIILetter(ch byte) bool {
