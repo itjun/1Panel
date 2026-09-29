@@ -46,6 +46,13 @@ export function FocusMainWindow(): $CancellablePromise<void> {
 }
 
 /**
+ * GetAppInfo 返回应用与运行环境信息（设置页「关于」）。
+ */
+export function GetAppInfo(): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(1787014404);
+}
+
+/**
  * GetAskBeforeQuit ⌘Q / 应用菜单退出前是否先确认（挂后台或彻底退出）。
  */
 export function GetAskBeforeQuit(): $CancellablePromise<boolean> {
@@ -120,11 +127,19 @@ export function OpenBoardInBrowser(groupName: string): $CancellablePromise<void>
 }
 
 /**
- * OpenHostsInTerminal 把 SSH Host 别名交给 1Agent 打开终端。
- * 单台与批量都走 oneagent://open?host=…，由终端自己建会话。
+ * OpenExternalURL 用系统默认浏览器打开 http(s) 链接（「关于」页链接按钮）。
  */
-export function OpenHostsInTerminal(hosts: string[] | null): $CancellablePromise<void> {
-    return $Call.ByID(328655905, hosts);
+export function OpenExternalURL(target: string): $CancellablePromise<void> {
+    return $Call.ByID(2165817217, target);
+}
+
+/**
+ * OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
+ * macOS 走 1Agent（oneagent://open?host=…）；Windows 走 Windows Terminal + 系统
+ * OpenSSH（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口），见 terminal_windows.go。
+ */
+export function OpenHostsInTerminal(hosts: string[] | null, mode: string): $CancellablePromise<void> {
+    return $Call.ByID(328655905, hosts, mode);
 }
 
 /**

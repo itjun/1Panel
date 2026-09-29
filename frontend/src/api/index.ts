@@ -576,10 +576,20 @@ const apiImpl = {
   focusMainWindow: async (): Promise<void> => {
     await System.FocusMainWindow();
   },
-  /** 把 SSH Host 别名交给 1Agent 打开（支持多台） */
-  openHostsInTerminal: async (hosts: string[]): Promise<void> => {
-    await System.OpenHostsInTerminal(hosts);
+  /** 把 SSH Host 别名交给系统终端打开（支持多台）。
+   *  macOS 走 1Agent；Windows 走 Windows Terminal + OpenSSH，
+   *  mode="tab" 在最近使用的 Terminal 窗口新建标签页（默认），"window" 打开新窗口。 */
+  openHostsInTerminal: async (
+    hosts: string[],
+    mode?: "tab" | "window",
+  ): Promise<void> => {
+    await System.OpenHostsInTerminal(hosts, mode || "tab");
   },
+  /** 应用与运行环境信息（设置页「关于」） */
+  getAppInfo: (): Promise<main.AppInfo> => must(System.GetAppInfo()),
+  /** 用系统默认浏览器打开 http(s) 链接 */
+  openExternalURL: (target: string): Promise<void> =>
+    must(System.OpenExternalURL(target).then(() => undefined)),
 
   // ============ 备份与恢复（主机配置） ============
   /** 导出到 dir 下的日期文件夹，返回摘要文案 */

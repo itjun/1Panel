@@ -25,6 +25,8 @@ export function LocalNginxPage() {
     queryKey: ["local-nginx-file", chosen],
     queryFn: () => api.localSysNginxRead(chosen),
     enabled: !!chosen,
+    // 读取被拒/文件缺失是确定性失败，重试只会让「加载中…」假象更久
+    retry: false,
   });
 
   const html = useMemo(() => {

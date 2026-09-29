@@ -158,15 +158,18 @@ func (s *System) OpenBoardInBrowser(groupName string) error {
 }
 
 func openSystemURL(target string) error {
-	var cmd *exec.Cmd
 	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", target)
 	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", "", target)
+		// ShellExecute 直调，避免 cmd /c start 的 shell 拼接面
+		return openURLWindows(target)
+	case "darwin":
+		return runURLOpenner(exec.Command("open", target))
 	default:
-		cmd = exec.Command("xdg-open", target)
+		return runURLOpenner(exec.Command("xdg-open", target))
 	}
+}
+
+func runURLOpenner(cmd *exec.Cmd) error {
 	prochide.Hide(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -358,11 +361,15 @@ func oneAgentOpenURL(hosts []string) (string, error) {
 	return "oneagent://open?" + strings.Join(parts, "&"), nil
 }
 
-// OpenHostsInTerminal 把 SSH Host 别名交给 1Agent 打开终端。
-// 单台与批量都走 oneagent://open?host=…，由终端自己建会话。
-func (s *System) OpenHostsInTerminal(hosts []string) error {
+// OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
+// macOS 走 1Agent（oneagent://open?host=…）；Windows 走 Windows Terminal + 系统
+// OpenSSH（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口），见 terminal_windows.go。
+func (s *System) OpenHostsInTerminal(hosts []string, mode string) error {
+	if runtime.GOOS == "windows" {
+		return openHostsInTerminalWindows(hosts, mode)
+	}
 	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("仅支持在 macOS 上打开 1Agent")
+		return fmt.Errorf("仅支持在 macOS / Windows 上打开终端")
 	}
 	target, err := oneAgentOpenURL(hosts)
 	if err != nil {

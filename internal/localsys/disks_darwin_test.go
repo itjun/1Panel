@@ -151,6 +151,6 @@ func TestLiveListDisks(t *testing.T) {
 			d.Kind, d.Parent, d.Name, d.Mount, d.Device, d.FSType,
 			float64(d.Total)/(1<<30), float64(d.Used)/(1<<30), float64(d.Avail)/(1<<30), d.Percent, d.External)
 	}
-	total, used, avail := apfsContainerSummary()
+	total, used, avail := storageContainerSummary()
 	t.Logf("磁盘空间页容器: total=%.1fGiB used=%.1fGiB avail=%.1fGiB", float64(total)/(1<<30), float64(used)/(1<<30), float64(avail)/(1<<30))
 }

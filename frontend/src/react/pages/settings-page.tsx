@@ -3,6 +3,8 @@ import { Dialogs, Events } from "@wailsio/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/api";
+import appIcon from "@/react/assets/appicon.png";
+import { isWindowsPlatform } from "@/react/lib/platform";
 import { DistroBadge } from "@/react/components/distro-badge";
 import { Button } from "@/react/components/ui/button";
 import { InputNumber } from "@/react/components/ui/input-number";
@@ -274,6 +276,22 @@ export function SettingsPage() {
               <span>{statusLabel(status.data)}</span>
               <Button onClick={() => session.setConfigSection("overview")}>打开配置中心</Button>
             </SettingRow>
+            {isWindowsPlatform() ? (
+              <SettingRow
+                label="终端打开方式"
+                hint="「终端打开」主机时的窗口行为；连接由系统 OpenSSH 按本机 SSH 配置建立"
+              >
+                <RadioGroup
+                  aria-label="终端打开方式"
+                  value={settings.terminalOpenMode}
+                  onChange={(mode) => updateSettings({ terminalOpenMode: mode })}
+                  options={[
+                    { value: "tab", label: "最近窗口新标签页" },
+                    { value: "window", label: "新窗口" },
+                  ]}
+                />
+              </SettingRow>
+            ) : null}
             <SettingRow label="退出前询问">
               <Switch
                 aria-label="退出前询问"
@@ -286,6 +304,8 @@ export function SettingsPage() {
             </SettingRow>
           </section>
         ) : null}
+
+        {section === "about" ? <AboutSection /> : null}
 
         {section === "shortcuts" ? (
           <section className="flex flex-col">
@@ -318,6 +338,53 @@ export function SettingsPage() {
         ) : null}
       </div>
     </Page>
+  );
+}
+
+/** 「关于」分区：应用名、版本与提交、运行环境、内置 Agent 与仓库链接。 */
+function AboutSection() {
+  const query = useQuery({
+    queryKey: ["app-info"],
+    queryFn: () => api.getAppInfo(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const info = query.data;
+  const row = (label: string, value?: string) => (
+    <SettingRow label={label}>
+      <span className="font-mono text-sm text-ink">{value || (query.isLoading ? "…" : "—")}</span>
+    </SettingRow>
+  );
+  return (
+    <section className="flex flex-col">
+      <h2 className="mb-2 text-sm font-semibold text-ink">关于</h2>
+      <SettingRow label="应用" hint={info?.description}>
+        <img
+          src={appIcon}
+          alt="1Panel"
+          className="rounded-control"
+          width={40}
+          height={40}
+        />
+        <span className="text-sm font-semibold text-ink">{info?.appName || "1Panel"}</span>
+      </SettingRow>
+      {row("版权", info?.copyright)}
+      {row("版本", info?.version)}
+      {row("构建提交", info?.commit ? `${info.commit}${info.commitTime ? ` · ${info.commitTime}` : ""}` : undefined)}
+      {row("运行环境", info ? `${info.os} / ${info.arch}` : undefined)}
+      {row("编译工具链", info?.goVersion)}
+      {row("内置 Agent", info?.agentVer ? `v${info.agentVer}` : undefined)}
+      <SettingRow label="链接" hint="用系统浏览器打开">
+        <Button size="sm" onClick={() => void api.openExternalURL(info?.repoUrl || "")}>
+          源码仓库
+        </Button>
+        <Button size="sm" onClick={() => void api.openExternalURL(info?.releasesUrl || "")}>
+          检查更新
+        </Button>
+        <Button size="sm" onClick={() => void api.openExternalURL(info?.issuesUrl || "")}>
+          问题反馈
+        </Button>
+      </SettingRow>
+    </section>
   );
 }
 

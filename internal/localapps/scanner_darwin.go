@@ -4,7 +4,6 @@ package localapps
 
 import (
 	"bufio"
-	"debug/buildinfo"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,34 +16,11 @@ import (
 	"time"
 )
 
-const (
-	goPathCacheTTL = 15 * time.Second
-	nettopIdleStop = 60 * time.Second
-)
-
-type rateSample struct {
-	at             time.Time
-	diskRead       uint64
-	diskWrite      uint64
-	netIn          uint64
-	netOut         uint64
-	diskReadKnown  bool
-	diskWriteKnown bool
-	netKnown       bool
-}
-
-type goCacheEntry struct {
-	at        time.Time
-	isGo      bool
-	module    string
-	goVersion string
-}
+const nettopIdleStop = 60 * time.Second
 
 var (
 	scanMu      sync.Mutex
 	lastScanAt  time.Time
-	rateHistory = map[int]rateSample{}
-	goPathCache = map[string]goCacheEntry{}
 
 	netMu        sync.Mutex
 	netBytes     = map[int]struct{ in, out uint64 }{}
@@ -475,69 +451,6 @@ func parseElapsedToSeconds(s string) uint64 {
 		total = total*60 + v
 	}
 	return days*86400 + total
-}
-
-// ---------- 速率 ----------
-
-func applyRates(rp *RawProc, now time.Time) {
-	prev, ok := rateHistory[rp.PID]
-	sample := rateSample{
-		at:             now,
-		diskRead:       rp.DiskRead,
-		diskWrite:      rp.DiskWrite,
-		netIn:          rp.NetIn,
-		netOut:         rp.NetOut,
-		diskReadKnown:  true,
-		diskWriteKnown: true,
-		netKnown:       true,
-	}
-	rateHistory[rp.PID] = sample
-
-	if !ok || prev.at.IsZero() {
-		rp.RateKnown = false
-		return
-	}
-	dt := now.Sub(prev.at).Seconds()
-	if dt <= 0 {
-		rp.RateKnown = false
-		return
-	}
-	rp.RateKnown = true
-	rp.DiskReadRate = ratePerSec(rp.DiskRead, prev.diskRead, dt)
-	rp.DiskWriteRate = ratePerSec(rp.DiskWrite, prev.diskWrite, dt)
-	rp.NetInRate = ratePerSec(rp.NetIn, prev.netIn, dt)
-	rp.NetOutRate = ratePerSec(rp.NetOut, prev.netOut, dt)
-}
-
-func ratePerSec(cur, prev uint64, dt float64) uint64 {
-	if cur < prev {
-		// 进程重启或计数器回绕，本轮记 0
-		return 0
-	}
-	return uint64(float64(cur-prev) / dt)
-}
-
-// ---------- Go buildinfo 缓存 ----------
-
-func lookupGoInfo(exe string) goCacheEntry {
-	if exe == "" {
-		return goCacheEntry{}
-	}
-	if e, ok := goPathCache[exe]; ok && time.Since(e.at) < goPathCacheTTL {
-		return e
-	}
-	e := goCacheEntry{at: time.Now()}
-	bi, err := buildinfo.ReadFile(exe)
-	if err == nil && bi != nil {
-		e.isGo = true
-		e.goVersion = bi.GoVersion
-		e.module = bi.Path
-		if bi.Main.Path != "" {
-			e.module = bi.Main.Path
-		}
-	}
-	goPathCache[exe] = e
-	return e
 }
 
 // ---------- 线程：ps -M 退化 ----------

@@ -39,6 +39,7 @@ export {
 export type {
     AddHostInput,
     AgentBatchResult,
+    AppInfo,
     BackupData,
     BoardHTTPConfig,
     CertPairCheck,

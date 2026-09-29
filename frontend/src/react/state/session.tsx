@@ -64,7 +64,7 @@ export type NotifySection =
 
 export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";
 export type InspectSection = "menuCheck";
-export type SettingsSection = "look" | "session" | "board" | "app" | "shortcuts";
+export type SettingsSection = "look" | "session" | "board" | "app" | "shortcuts" | "about";
 export type HomeView = "home" | "group";
 
 export type OpenedHost = {
@@ -197,7 +197,7 @@ function loadNav(): Nav {
     if (merged.homeView !== "home" && merged.homeView !== "group") {
       merged.homeView = "home";
     }
-    const settingsSections = new Set(["look", "session", "board", "app", "shortcuts"]);
+    const settingsSections = new Set(["look", "session", "board", "app", "shortcuts", "about"]);
     if (!settingsSections.has(merged.settingsSection as string)) {
       merged.settingsSection = "look";
     }

@@ -2,12 +2,30 @@ package localsys
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
 
-// CollectHosts 读取并解析 /etc/hosts。
+// hostsFilePath 返回本机 hosts 文件路径：Unix 为 /etc/hosts，
+// Windows 为 %SystemRoot%\System32\drivers\etc\hosts。
+func hostsFilePath() string {
+	if runtime.GOOS == "windows" {
+		root := os.Getenv("SystemRoot")
+		if root == "" {
+			root = os.Getenv("WINDIR")
+		}
+		if root == "" {
+			root = `C:\Windows`
+		}
+		return filepath.Join(root, "System32", "drivers", "etc", "hosts")
+	}
+	return "/etc/hosts"
+}
+
+// CollectHosts 读取并解析系统 hosts 文件。
 func CollectHosts() (*HostsInfo, error) {
-	b, err := os.ReadFile("/etc/hosts")
+	b, err := os.ReadFile(hostsFilePath())
 	if err != nil {
 		return nil, err
 	}

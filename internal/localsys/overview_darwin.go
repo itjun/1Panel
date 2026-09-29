@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"regexp"
@@ -652,74 +651,5 @@ func primaryIPv4() string {
 	return firstNonLoopbackIPv4()
 }
 
-func firstNonLoopbackIPv4() string {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return ""
-	}
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		addrs, _ := iface.Addrs()
-		for _, a := range addrs {
-			ipNet, ok := a.(*net.IPNet)
-			if !ok || ipNet.IP.To4() == nil {
-				continue
-			}
-			return ipNet.IP.String()
-		}
-	}
-	return ""
-}
-
-func detectRuntimes() []Runtime {
-	names := []string{"java", "go", "python3", "node", "bun"}
-	var out []Runtime
-	for _, name := range names {
-		path, err := exec.LookPath(name)
-		if err != nil {
-			if name == "python3" {
-				path, err = exec.LookPath("python")
-				if err != nil {
-					continue
-				}
-				name = "python"
-			} else {
-				continue
-			}
-		}
-		ver := runtimeVersion(name, path)
-		display := name
-		if display == "python3" {
-			display = "python"
-		}
-		out = append(out, Runtime{Name: display, Version: ver, Path: path})
-	}
-	return out
-}
-
-func runtimeVersion(name, path string) string {
-	var cmd *exec.Cmd
-	switch name {
-	case "java":
-		cmd = exec.Command(path, "-version")
-	case "go":
-		cmd = exec.Command(path, "version")
-	case "node", "bun":
-		cmd = exec.Command(path, "-v")
-	default:
-		cmd = exec.Command(path, "--version")
-	}
-	out, err := cmd.CombinedOutput()
-	if err != nil && len(out) == 0 {
-		return ""
-	}
-	line := strings.TrimSpace(strings.Split(string(out), "\n")[0])
-	re := regexp.MustCompile(`(\d+\.\d+(?:\.\d+)?)`)
-	m := re.FindStringSubmatch(line)
-	if len(m) >= 2 {
-		return m[1]
-	}
-	return line
-}
+// detectRuntimes / runtimeVersion / firstNonLoopbackIPv4 为跨平台实现，
+// 已移至 runtimes.go 供 macOS 与 Windows 共用。

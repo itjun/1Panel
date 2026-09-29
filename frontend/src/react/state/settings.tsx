@@ -44,6 +44,8 @@ export type AppSettings = {
   hostCertNotifySubs: Record<string, boolean>;
   /** 首页主机列表的分组排布：每排一组 group id，从上到下、从左到右 */
   hostHomeRows: string[][];
+  /** Windows 终端打开方式：tab=最近使用的 Terminal 窗口新标签页（默认），window=新窗口 */
+  terminalOpenMode: "tab" | "window";
 };
 
 export const SETTINGS_DEFAULTS: AppSettings = {
@@ -63,6 +65,7 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   hostAppNotifySubs: {},
   hostCertNotifySubs: {},
   hostHomeRows: [],
+  terminalOpenMode: "tab",
 };
 
 let current = loadSettings();
@@ -119,6 +122,8 @@ function loadSettings(): AppSettings {
       hostAppNotifySubs: parsed.hostAppNotifySubs || {},
       hostCertNotifySubs: parsed.hostCertNotifySubs || {},
       hostHomeRows: parseHostHomeRows(parsed.hostHomeRows),
+      terminalOpenMode:
+        parsed.terminalOpenMode === "window" ? "window" : "tab",
     };
   } catch {
     return { ...SETTINGS_DEFAULTS };

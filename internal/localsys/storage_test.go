@@ -68,7 +68,7 @@ func TestWalkDirAggregateAndHardlink(t *testing.T) {
 	stat := info.Sys().(*syscall.Stat_t)
 
 	total, nFiles, nDirs := walkDir(
-		root, filepath.Base(root), stat.Dev,
+		root, filepath.Base(root), uint64(stat.Dev),
 		&sync.Mutex{}, seen,
 		func(d *scanDir) { dirs[d.path] = d },
 		func(string) {},

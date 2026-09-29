@@ -62,6 +62,25 @@ export interface AgentBatchResult {
 }
 
 /**
+ * AppInfo 「关于」信息。
+ */
+export interface AppInfo {
+    "appName": string;
+    "version": string;
+    "commit": string;
+    "commitTime": string;
+    "goVersion": string;
+    "os": string;
+    "arch": string;
+    "agentVer": string;
+    "description": string;
+    "copyright": string;
+    "repoUrl": string;
+    "releasesUrl": string;
+    "issuesUrl": string;
+}
+
+/**
  * BackupData 备份文件内容：Panel JSON、原始 SSH 配置树、分组与主机图标。
  * 对外导出默认脱敏密码；应用内部自动快照由 panelsync 单独保存完整 JSON。
  */

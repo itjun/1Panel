@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { api, type localsys, type monitor } from "@/api";
 import { PhysicalDiskRows } from "@/react/components/overview/overview-parts";
+import { isMacPlatform } from "@/react/lib/platform";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
 import { RadioGroup } from "@/react/components/ui/radio-group";
@@ -176,9 +177,11 @@ export function LocalStoragePage() {
           >
             {scanButtonLabel}
           </Button>
-          <Button size="sm" onClick={() => void api.localSysStorageOpenPrivacy()}>
-            打开完全磁盘访问
-          </Button>
+          {isMacPlatform() ? (
+            <Button size="sm" onClick={() => void api.localSysStorageOpenPrivacy()}>
+              打开完全磁盘访问
+            </Button>
+          ) : null}
         </>
       }
       onRefresh={() => void statusQuery.refetch()}
@@ -230,13 +233,15 @@ export function LocalStoragePage() {
           {(status?.deniedDirs || 0) > 0 ? (
             <p className="mt-2 text-sm text-warn">
               {status?.deniedDirs} 个目录因权限跳过
-              <button
-                type="button"
-                className="ml-2 text-accent"
-                onClick={() => void api.localSysStorageOpenPrivacy()}
-              >
-                授予完全磁盘访问
-              </button>
+              {isMacPlatform() ? (
+                <button
+                  type="button"
+                  className="ml-2 text-accent"
+                  onClick={() => void api.localSysStorageOpenPrivacy()}
+                >
+                  授予完全磁盘访问
+                </button>
+              ) : null}
             </p>
           ) : null}
         </section>

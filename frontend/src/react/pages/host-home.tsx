@@ -1390,7 +1390,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               closeAllMenus();
               setSelected([]);
               void api
-                .openHostsInTerminal(hosts)
+                .openHostsInTerminal(hosts, settings.terminalOpenMode)
                 .catch((err) => showError(`终端打开失败: ${formatErr(err)}`));
             }}
           />

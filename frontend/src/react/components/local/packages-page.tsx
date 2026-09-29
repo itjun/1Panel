@@ -5,19 +5,33 @@ import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
+import { isWindowsPlatform } from "@/react/lib/platform";
 
-const SOURCE_OPTS = [
+const MAC_SOURCE_OPTS = [
   { value: "all", label: "全部" },
   { value: "app", label: "应用程序" },
   { value: "formula", label: "Formula" },
   { value: "cask", label: "Cask" },
 ] as const;
 
+const WIN_SOURCE_OPTS = [
+  { value: "all", label: "全部" },
+  { value: "system", label: "系统安装（64 位）" },
+  { value: "system32", label: "系统安装（32 位）" },
+  { value: "user", label: "当前用户" },
+] as const;
+
+const SOURCE_OPTS = isWindowsPlatform() ? WIN_SOURCE_OPTS : MAC_SOURCE_OPTS;
+
+/** 来源标签与筛选选项同源派生，避免双份维护 */
+const SOURCE_LABELS: Record<string, string> = Object.fromEntries(
+  [...MAC_SOURCE_OPTS, ...WIN_SOURCE_OPTS]
+    .filter((opt) => opt.value !== "all")
+    .map((opt) => [opt.value, opt.label]),
+);
+
 function sourceLabel(s: string) {
-  if (s === "app") return "应用程序";
-  if (s === "formula") return "Formula";
-  if (s === "cask") return "Cask";
-  return s || "—";
+  return SOURCE_LABELS[s] || s || "—";
 }
 
 export function LocalPackagesPage() {
@@ -36,7 +50,10 @@ export function LocalPackagesPage() {
       app: count("app"),
       formula: count("formula"),
       cask: count("cask"),
-    };
+      system: count("system"),
+      system32: count("system32"),
+      user: count("user"),
+    } as Record<string, number>;
   }, [query.data]);
 
   const rows = useMemo(() => {

@@ -1,8 +1,8 @@
 # 1Panel
 
-一个 macOS/Windows 原生的运维管理面板，基于 Wails v3（Go + Vue 3 + TypeScript）。
+一个 macOS/Windows 原生的运维管理面板，基于 Wails v3（Go + React 19 + TypeScript）。
 
-读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）。
+读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）；同时提供本机工作区（系统概览 / 应用进程 / 软件列表 / 磁盘空间 / 网络信息 / Hosts，macOS 另有 Nginx 页）。
 
 ## 功能
 
@@ -17,6 +17,13 @@
   - 软件包：已安装的 apt 包
   - 终端：内嵌 xterm.js + 系统 ssh，可直接敲 Linux 命令
 - **添加主机**：输入 IP/用户/密码后自动 `ssh-copy-id` 公钥并回写 `~/.ssh/config`
+- **本机工作区**（不经 SSH，直接读本机）：
+  - 系统概览：CPU（整机和每核）、内存、交换、磁盘、负载、运行时长、系统版本、网络/磁盘 IO 曲线
+  - 应用进程：按运行时（Java / Go / Node / Python…）归并的本机进程树，CPU/内存/IO 速率、监听端口、进程详情与结束
+  - 软件列表、磁盘空间（目录树 / 大文件 / 应用占用）、网络信息（网卡 / 网关）、Hosts
+- **终端打开**：
+  - macOS：经 1Agent（`oneagent://open`）打开
+  - Windows：默认用 Windows Terminal（`wt.exe`）在最近使用的窗口新建标签页（可设置为新窗口），由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；Windows Terminal 缺失时自动降级为 PowerShell 窗口，OpenSSH 缺失时给出安装指引
 
 ## 开发
 
@@ -64,6 +71,9 @@ task darwin:package
 2. **运行**：双击 `1Panel.exe`；首次运行 SmartScreen 会提示「Windows 已保护你的电脑」（未签名应用），点「更多信息」→「仍要运行」即可
 3. **配置 SSH**：与 macOS 相同，读取本机 `%USERPROFILE%\.ssh\config`，确保已有目标主机配置与密钥
 4. **解锁**：Windows 无系统认证面板，直接进入主界面
+5. **「终端打开」依赖**（可选，仅影响终端打开，不影响面板内监控）：
+   - **OpenSSH 客户端**（Win10 1809+ / Win11 一般已内置）：确认 `%SystemRoot%\System32\OpenSSH\ssh.exe` 存在；缺失时到 设置 → 应用 → 可选功能 → 添加功能 →「OpenSSH 客户端」
+   - **Windows Terminal**（推荐）：Microsoft Store 搜索「Windows Terminal」安装；未安装时面板会自动降级为在 PowerShell 窗口中连接
 
 ### 安全说明
 
@@ -74,14 +84,19 @@ task darwin:package
 ### 系统要求
 
 - macOS 12 Monterey 或更高（Apple Silicon / Intel 均可，通用包）
-- Windows 10/11 64 位
+- Windows 10/11 64 位（本机采集经系统 API（NtQuery / 注册表 / IP Helper）完成，不依赖 PowerShell 文本解析）
 - 目标主机需为 Debian/Ubuntu 系列（其他发行版部分监控字段可能解析失败）
 
 ## 技术栈
 
 - **后端**：Go 1.26+、Wails v3、`golang.org/x/crypto/ssh`
-- **前端**：Vue 3、TypeScript、Element Plus（1Panel 风格主题）、Pinia、xterm.js、ECharts
+- **前端**：React 19、TypeScript、Tailwind CSS 4（自研 TDesign 风格组件）、xterm.js、ECharts
+- **本机采集**：macOS 走 sysctl/libproc 等；Windows 走 `NtQuerySystemInformation`、注册表、IP Helper（`GetAdaptersAddresses` / `GetExtendedTcpTable`）等系统 API
 - **目标主机**：通过系统 `ssh` 二进制建立长连接，运行只读采集命令（`/proc/*`、`free`、`df`、`ps`、`systemctl`、`crontab -l`、`docker ps/stats` 等）
+
+## 关于与版本信息
+
+设置页最后一项「关于」展示应用图标、应用名、版权、当前版本（构建时经 `git describe` 注入：tag 优先，无 tag 用提交短 SHA）、构建提交（本地 `go build` 默认写入 VCS 信息）、系统与架构、内置 spanel-agent 版本，并提供源码仓库 / 发布页（检查更新）/ 问题反馈链接（系统浏览器打开）。
 
 ## 项目结构
 
@@ -96,26 +111,29 @@ task darwin:package
 │   ├── sshconfig/                # ~/.ssh/config 解析与回写
 │   ├── groups/                   # 分组本地存储（~/Library/Application Support/ServerPanel/groups.json）
 │   ├── sshd/                     # SSH 长连接管理
-│   ├── monitor/                  # 监控采集（overview/disks/processes/docker/services）
-│   └── terminal/                 # 终端会话管理（SSH PTY + WS/Events 双通道）
+│   ├── monitor/                  # 远程主机监控采集（overview/disks/processes/docker/services）
+│   ├── localsys/                 # 本机系统采集（darwin + windows 实现，Linux 返回未支持）
+│   └── localapps/                # 本机应用进程扫描与归并（darwin + windows 实现）
 ├── frontend/
 │   └── src/
-│       ├── stores/               # Pinia：app.ts（主机/分组/会话）、settings.ts（主题/字体）
+│       ├── react/                # React 前端（pages / components / state / lib）
 │       ├── api/index.ts          # Wails v3 绑定统一封装（bindings/ 自动生成）
-│       ├── layout/               # SidebarHost（侧栏树）、MainArea（多会话 Tab）
-│       ├── views/                # 概览/进程/网络/Docker/文件/服务/证书/定时/软件包/日志/终端
-│       ├── components/           # DistroLogo、图表封装等公共组件
-│       ├── composables/          # usePolling 等组合式函数
 │       └── utils/                # 格式化、剪贴板、echarts 按需注册
 └── build/bin/                    # 构建产物
 ```
 
 ## 限制
 
-- 仅 macOS（Apple Silicon）
+- 桌面端支持 macOS（通用包）与 Windows 10/11 x64；Linux 未适配
 - 仅 Debian/Ubuntu 目标机（其他发行版的 `systemctl`、`dpkg-query` 等命令可能不可用）
 - 监控采集全部为只读命令，不做任何写操作
-- 终端通过系统 `ssh` 二进制启动，依赖本机 PATH 中存在 `ssh`
+- 终端通过系统 `ssh` 二进制启动，依赖本机存在 `ssh`（Windows 为系统 OpenSSH）
+- Windows 本机工作区的已知边界：
+  - CPU / GPU 温度无统一系统接口，显示为「—」
+  - 进程网络收发速率无免管理员接口，应用进程页网络速率列为 0（附提示）；磁盘 IO 速率正常
+  - 负载用「处理器队列长度」近似 Unix loadavg（仅 1 分钟值）
+  - 磁盘空间扫描不做 NTFS 硬链接去重（稀疏极少见，避免逐文件打开句柄拖慢扫描）
+  - Nginx 页在 Windows 上依赖手动安装的 nginx.exe（PATH / 常见目录探测），未安装时提示「未检测到」
 
 ## 初始化脚本
 

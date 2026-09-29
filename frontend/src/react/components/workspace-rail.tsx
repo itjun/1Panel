@@ -25,6 +25,7 @@ import {
   type SettingsSection,
   type Workspace,
 } from "@/react/state/session";
+import { readSettings } from "@/react/state/settings";
 import { useSidebar } from "@/react/state/sidebar";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 
@@ -57,6 +58,7 @@ const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "board", label: "看板" },
   { id: "app", label: "应用" },
   { id: "shortcuts", label: "快捷键" },
+  { id: "about", label: "关于" },
 ];
 
 type RailEntry =
@@ -546,13 +548,15 @@ export function WorkspaceRail() {
         onClose={() => setHostMenu(null)}
         onOpenInTerminal={(hosts) => {
           clearHostSelection();
-          void api.openHostsInTerminal(hosts).catch((err) => {
-            void alertDialog({
-              theme: "danger",
-              title: "终端打开失败",
-              body: err instanceof Error ? err.message : String(err),
+          void api
+            .openHostsInTerminal(hosts, readSettings().terminalOpenMode)
+            .catch((err) => {
+              void alertDialog({
+                theme: "danger",
+                title: "终端打开失败",
+                body: err instanceof Error ? err.message : String(err),
+              });
             });
-          });
         }}
         onTogglePin={(host) => session.togglePin(host)}
         onEdit={(name) => session.setEditingHost(name)}
