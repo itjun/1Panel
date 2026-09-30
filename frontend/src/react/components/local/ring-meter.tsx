@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
+import { usageTone, type UsageTone } from "@/react/lib/usage-tone";
 import "./local.css";
 
-/** 环色档位与 Meter 同阈值（DESIGN.md §4.7）：<60 ok，60–85 warn，≥85 danger；danger 入参强制危险档 */
-function ringTone(pct: number, danger: boolean): "ok" | "warn" | "danger" {
+/** 环色档位与 Meter 同阈值（DESIGN.md §4.7）；danger 入参强制危险档 */
+function ringTone(pct: number, danger: boolean): UsageTone {
   if (danger) return "danger";
-  if (pct >= 85) return "danger";
-  if (pct >= 60) return "warn";
-  return "ok";
+  return usageTone(pct);
 }
 
 /** SVG 环形占比图，悬停显示明细。概览大卡片专用；列表 / 表格内的占比一律用 <Meter> */

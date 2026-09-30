@@ -1,3 +1,4 @@
+import { usageTone, type UsageTone } from "@/react/lib/usage-tone";
 import { cn } from "@/react/lib/utils";
 
 /**
@@ -23,11 +24,9 @@ export type MeterProps = {
   title?: string;
 };
 
-function resolveTone(value: number, tone: MeterTone): "ok" | "warn" | "danger" {
+function resolveTone(value: number, tone: MeterTone): UsageTone {
   if (tone !== "auto") return tone;
-  if (value >= 85) return "danger";
-  if (value >= 60) return "warn";
-  return "ok";
+  return usageTone(value);
 }
 
 function litCount(value: number, segments: number): number {
