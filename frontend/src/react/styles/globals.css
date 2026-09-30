@@ -156,6 +156,13 @@ html.dark {
     background-color: var(--color-canvas);
   }
 
+  /* 壳是固定整窗，文档本身永不滚动；否则 macOS WKWebView 在内层滚到底时会把手势交给根文档做橡皮筋回弹，整窗（通栏 + 侧栏）跟着位移 */
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   .react-root {
     height: 100%;
     margin: 0;
@@ -327,6 +334,7 @@ pre,
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 /* 区块表面（DESIGN.md §8.1）：扁平化后与内容平面同色，无描边、无圆角、无阴影，卡片自然消失。
