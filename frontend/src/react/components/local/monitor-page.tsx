@@ -5,15 +5,18 @@ import {
   ChartHost,
   lineOption,
   MonitorPanel,
+  readoutTone,
   RX_TIP,
   TX_TIP,
   type MonitorReadout,
 } from "@/react/components/monitor/charts";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { usageBands } from "@/react/lib/usage-tone";
 import { formatBytes, formatErr, formatMemCapacity, formatRateKBps } from "@/utils/format";
 import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
 
 const CONNECT_GROUP = "monitor-local";
+const CPU_BANDS = usageBands(100);
 
 function lastValue(values: number[], format: (v: number) => string): string {
   if (!values.length) return "—";
@@ -54,11 +57,15 @@ export function LocalMonitorPage() {
     [ioSeries],
   );
 
+  const cpuBands = CPU_BANDS;
+  const loadBands = useMemo(() => usageBands(data?.cpuCount), [data?.cpuCount]);
+  const memBands = useMemo(() => usageBands(data?.memTotal), [data?.memTotal]);
+
   const cpuOpt = useMemo(
     () =>
       lineOption(
         cpuSeries.map((p) => p.time),
-        [{ name: "CPU 使用率", data: cpuSeries.map((p) => p.value) }],
+        [{ name: "CPU 使用率", data: cpuSeries.map((p) => p.value), bands: cpuBands }],
         { yMax: 100, yFormatter: (v) => `${v.toFixed(2)}%` },
       ),
     // themeMode 变化时重读 CSS 变量里的曲线色
@@ -68,18 +75,18 @@ export function LocalMonitorPage() {
     () =>
       lineOption(
         loadSeries.map((p) => p.time),
-        [{ name: "1 分钟负载", data: loadSeries.map((p) => p.value) }],
+        [{ name: "1 分钟负载", data: loadSeries.map((p) => p.value), bands: loadBands }],
         { yFormatter: (v) => v.toFixed(2) },
       ),
-    [loadSeries, themeMode],
+    [loadSeries, loadBands, themeMode],
   );
   const memOpt = useMemo(
     () =>
       lineOption(
         memSeries.map((p) => p.time),
         [
-          { name: "已用", data: memSeries.map((p) => p.used) },
-          { name: "交换", data: memSeries.map((p) => p.swap) },
+          { name: "已用", data: memSeries.map((p) => p.used), bands: memBands },
+          { name: "交换", data: memSeries.map((p) => p.swap), muted: true },
         ],
         {
           yFormatter: (v) => formatBytes(v, 2),
@@ -87,8 +94,12 @@ export function LocalMonitorPage() {
           yInterval: memAxis?.interval,
         },
       ),
-    [memSeries, memAxis, themeMode],
+    [memSeries, memAxis, memBands, themeMode],
   );
+
+  const cpuTone = readoutTone(cpuValues[cpuValues.length - 1], cpuBands);
+  const loadTone = readoutTone(data ? data.load1 : loadValues[loadValues.length - 1], loadBands);
+  const memTone = readoutTone(memValues[memValues.length - 1], memBands);
   const netOpt = useMemo(
     () =>
       lineOption(
@@ -143,13 +154,13 @@ export function LocalMonitorPage() {
   }
 
   let loadReadouts: MonitorReadout[] = [
-    { label: "1 分钟", value: lastValue(loadValues, (v) => v.toFixed(2)) },
+    { label: "1 分钟", value: lastValue(loadValues, (v) => v.toFixed(2)), tone: loadTone },
   ];
   if (data) {
     loadReadouts = [
-      { label: "1 分钟", value: data.load1.toFixed(2) },
-      { label: "5 分钟", value: data.load5.toFixed(2) },
-      { label: "15 分钟", value: data.load15.toFixed(2) },
+      { label: "1 分钟", value: data.load1.toFixed(2), tone: loadTone },
+      { label: "5 分钟", value: data.load5.toFixed(2), tone: readoutTone(data.load5, loadBands) },
+      { label: "15 分钟", value: data.load15.toFixed(2), tone: readoutTone(data.load15, loadBands) },
     ];
   }
 
@@ -170,7 +181,13 @@ export function LocalMonitorPage() {
         <MonitorPanel
           title="CPU"
           note={cpuNote}
-          readouts={[{ label: "当前", value: lastValue(cpuValues, (v) => `${v.toFixed(1)}%`) }]}
+          readouts={[
+            {
+              label: "当前",
+              value: lastValue(cpuValues, (v) => `${v.toFixed(1)}%`),
+              tone: cpuTone,
+            },
+          ]}
         >
           <ChartHost option={cpuOpt} connectGroup={CONNECT_GROUP} />
         </MonitorPanel>
@@ -183,12 +200,13 @@ export function LocalMonitorPage() {
           readouts={[
             {
               label: "已用",
-              swatch: "read",
+              swatch: memTone ?? "read",
               value: lastValue(memValues, (v) => formatBytes(v)),
+              tone: memTone,
             },
             {
               label: "交换",
-              swatch: "write",
+              swatch: "muted",
               value: lastValue(swapValues, (v) => formatBytes(v)),
             },
           ]}

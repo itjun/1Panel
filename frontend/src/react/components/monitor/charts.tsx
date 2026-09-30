@@ -1,5 +1,6 @@
 import * as echarts from "echarts";
 import { useEffect, useRef, type ReactNode } from "react";
+import { bandTone, type UsageBands, type UsageTone } from "@/react/lib/usage-tone";
 import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
 
 export function ChartHost({
@@ -71,7 +72,20 @@ export function binaryAxis(values: number[], minExp: number): { max: number; int
   return { max: Math.ceil(peak / interval) * interval, interval };
 }
 
-export type LineSeries = { name: string; data: number[] };
+export type LineSeries = {
+  name: string;
+  data: number[];
+  /** 占用类指标按 §4.7 三档分段着色（--meter-ok / warn / danger），不传则按系列名取色 */
+  bands?: UsageBands;
+  /** 陪衬曲线（如交换）：muted 细虚线，不与分段色抢语义 */
+  muted?: boolean;
+};
+
+/** 读数的档位：有分档时取值所在档，无分档返回 undefined */
+export function readoutTone(value: number | undefined, bands: UsageBands | undefined): UsageTone | undefined {
+  if (!bands || typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return bandTone(value, bands);
+}
 
 export type LineOptionOpts = {
   yMax?: number;
@@ -91,8 +105,32 @@ export function lineOption(
   const line = readThemeColor("--color-line", "#e5e7eb");
   const surface = readThemeColor("--color-surface", "#ffffff");
   const ink = readThemeColor("--color-ink", "#1f2937");
+  const meterOk = readThemeColor("--meter-ok", "#0680a8");
+  const meterWarn = readThemeColor("--meter-warn", "#f08a24");
+  const meterDanger = readThemeColor("--meter-danger", "#d54941");
+  const colors = seriesColorList(series.map((s) => s.name)).map((c, idx) => {
+    if (series[idx]?.muted) return muted;
+    if (series[idx]?.bands) return meterOk;
+    return c;
+  });
+  const visualMap: echarts.VisualMapComponentOption[] = [];
+  series.forEach((s, idx) => {
+    if (!s.bands) return;
+    visualMap.push({
+      type: "piecewise",
+      show: false,
+      seriesIndex: idx,
+      dimension: 1,
+      pieces: [
+        { lt: s.bands.warn, color: meterOk },
+        { gte: s.bands.warn, lt: s.bands.danger, color: meterWarn },
+        { gte: s.bands.danger, color: meterDanger },
+      ],
+    });
+  });
   return {
-    color: seriesColorList(series.map((s) => s.name)),
+    color: colors,
+    visualMap: visualMap.length ? visualMap : undefined,
     grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
     // 扁平浮层：surface 底 + 1px line 描边，无阴影（DESIGN.md §8.1）
     tooltip: {
@@ -145,7 +183,7 @@ export function lineOption(
       showSymbol: false,
       smooth: true,
       data: s.data,
-      lineStyle: { width: 1.75 },
+      lineStyle: s.muted ? { width: 1.25, type: "dashed" as const } : { width: 1.75 },
       areaStyle: series.length === 1 && idx === 0 ? { opacity: 0.08 } : undefined,
     })),
   };
@@ -160,11 +198,28 @@ export const TX_TIP =
 export type MonitorReadout = {
   label: string;
   value: string;
-  /** 与曲线同色的短横线，兼作图例 */
-  swatch?: "read" | "write";
+  /** 与曲线同色的短横线，兼作图例；ok / warn / danger 对应分段曲线当前档 */
+  swatch?: "read" | "write" | "muted" | UsageTone;
   /** 标签悬停说明（流入 / 流出的方向解释等） */
   tip?: string;
+  /** 数值档位：危险档数值走 danger 文字色，与圆环中心一致；ok / warn 不改文字色 */
+  tone?: UsageTone;
 };
+
+function ReadoutSwatch({ swatch }: { swatch: NonNullable<MonitorReadout["swatch"]> }) {
+  if (swatch === "read") return <span className="h-0.5 w-3 self-center bg-io-read" aria-hidden />;
+  if (swatch === "write") return <span className="h-0.5 w-3 self-center bg-io-write" aria-hidden />;
+  if (swatch === "muted") {
+    return <span className="w-3 self-center border-t border-dashed border-muted" aria-hidden />;
+  }
+  return (
+    <span
+      className="h-0.5 w-3 self-center"
+      style={{ backgroundColor: `var(--meter-${swatch})` }}
+      aria-hidden
+    />
+  );
+}
 
 /** 监控面板单元：标题行即图例 + 读数，下方固定高度曲线 */
 export function MonitorPanel({
@@ -191,12 +246,7 @@ export function MonitorPanel({
         <span className="text-sm font-semibold text-ink">{title}</span>
         {readouts.map((item) => (
           <span key={item.label} className="inline-flex items-baseline gap-2">
-            {item.swatch === "read" ? (
-              <span className="h-0.5 w-3 self-center bg-io-read" aria-hidden />
-            ) : null}
-            {item.swatch === "write" ? (
-              <span className="h-0.5 w-3 self-center bg-io-write" aria-hidden />
-            ) : null}
+            {item.swatch ? <ReadoutSwatch swatch={item.swatch} /> : null}
             <span
               data-tip={item.tip}
               className={cn(
@@ -206,7 +256,12 @@ export function MonitorPanel({
             >
               {item.label}
             </span>
-            <span className="font-mono text-xl font-semibold tabular-nums text-ink">
+            <span
+              className={cn(
+                "font-mono text-xl font-semibold tabular-nums",
+                item.tone === "danger" ? "text-danger" : "text-ink",
+              )}
+            >
               {item.value}
             </span>
           </span>

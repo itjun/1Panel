@@ -17,6 +17,7 @@ import {
   ChartHost,
   lineOption,
   MonitorPanel,
+  readoutTone,
   RX_TIP,
   TX_TIP,
   type MonitorReadout,
@@ -40,6 +41,7 @@ import { DistroBadge } from "@/react/components/distro-badge";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { usageBands } from "@/react/lib/usage-tone";
 import { AppsPage } from "@/react/pages/host-apps";
 import { DiskPage } from "@/react/pages/host-disk";
 import { NetworkPage } from "@/react/pages/host-network";
@@ -889,6 +891,8 @@ function OverviewPage({ host }: { host: string }) {
 type RangeMode = "live" | "30m" | "1h" | "6h" | "12h" | "24h" | "7d" | "custom";
 type GrainMode = "auto" | "5s" | "10s" | "15s" | "1m" | "5m" | "10m";
 
+const CPU_BANDS = usageBands(100);
+
 const RANGE_SPAN: Record<string, number> = {
   "30m": 30 * 60,
   "1h": 3600,
@@ -1180,6 +1184,9 @@ function MonitorPage({ host }: { host: string }) {
     return binaryAxis(history.flatMap((p) => [p.diskReadKBps, p.diskWriteKBps]), -1);
   }, [isLive, ioTraffic, history]);
 
+  const loadBands = useMemo(() => usageBands(data?.cpuCount), [data?.cpuCount]);
+  const memBands = useMemo(() => usageBands(data?.memTotal), [data?.memTotal]);
+
   const cpuOpt = useMemo(
     () =>
       lineOption(
@@ -1188,6 +1195,7 @@ function MonitorPage({ host }: { host: string }) {
           {
             name: "CPU 使用率",
             data: isLive ? cpuSeries.map((p) => p.value) : history.map((p) => p.cpuPercent),
+            bands: CPU_BANDS,
           },
         ],
         { yMax: 100, yFormatter: (v) => `${v.toFixed(2)}%` },
@@ -1202,11 +1210,12 @@ function MonitorPage({ host }: { host: string }) {
           {
             name: "1 分钟负载",
             data: isLive ? loadSeries.map((p) => p.value) : history.map((p) => p.load1),
+            bands: loadBands,
           },
         ],
         { yFormatter: (v) => v.toFixed(2) },
       ),
-    [isLive, loadSeries, history, themeMode],
+    [isLive, loadSeries, history, loadBands, themeMode],
   );
   const memOpt = useMemo(
     () =>
@@ -1216,6 +1225,7 @@ function MonitorPage({ host }: { host: string }) {
           {
             name: "已用内存",
             data: isLive ? memSeries.map((p) => p.value) : history.map((p) => p.memUsed),
+            bands: memBands,
           },
         ],
         {
@@ -1224,7 +1234,7 @@ function MonitorPage({ host }: { host: string }) {
           yInterval: memAxis?.interval,
         },
       ),
-    [isLive, memSeries, history, themeMode, memAxis],
+    [isLive, memSeries, history, memBands, themeMode, memAxis],
   );
   const netOpt = useMemo(
     () =>
@@ -1281,10 +1291,15 @@ function MonitorPage({ host }: { host: string }) {
     );
 
   // 实时看最新一点，历史区间看峰值
+  function pick(values: number[]): number | undefined {
+    if (!values.length) return undefined;
+    if (isLive) return values[values.length - 1]!;
+    return Math.max(...values);
+  }
   function readout(values: number[], format: (v: number) => string): string {
-    if (!values.length) return "—";
-    if (isLive) return format(values[values.length - 1]!);
-    return format(Math.max(...values));
+    const v = pick(values);
+    if (v === undefined) return "—";
+    return format(v);
   }
   let peakWord = "";
   if (!isLive) peakWord = "峰值";
@@ -1297,14 +1312,21 @@ function MonitorPage({ host }: { host: string }) {
   const readValues = isLive ? ioTraffic.map((p) => p.a) : history.map((p) => p.diskReadKBps);
   const writeValues = isLive ? ioTraffic.map((p) => p.b) : history.map((p) => p.diskWriteKBps);
 
+  const cpuTone = readoutTone(pick(cpuValues), CPU_BANDS);
+  const memTone = readoutTone(pick(memValues), memBands);
+
   let loadReadouts: MonitorReadout[] = [
-    { label: `1 分钟${peakWord}`, value: readout(loadValues, (v) => v.toFixed(2)) },
+    {
+      label: `1 分钟${peakWord}`,
+      value: readout(loadValues, (v) => v.toFixed(2)),
+      tone: readoutTone(pick(loadValues), loadBands),
+    },
   ];
   if (isLive && data) {
     loadReadouts = [
-      { label: "1 分钟", value: data.load1.toFixed(2) },
-      { label: "5 分钟", value: data.load5.toFixed(2) },
-      { label: "15 分钟", value: data.load15.toFixed(2) },
+      { label: "1 分钟", value: data.load1.toFixed(2), tone: readoutTone(data.load1, loadBands) },
+      { label: "5 分钟", value: data.load5.toFixed(2), tone: readoutTone(data.load5, loadBands) },
+      { label: "15 分钟", value: data.load15.toFixed(2), tone: readoutTone(data.load15, loadBands) },
     ];
   }
 
@@ -1383,6 +1405,7 @@ function MonitorPage({ host }: { host: string }) {
             {
               label: isLive ? "当前" : "峰值",
               value: readout(cpuValues, (v) => `${v.toFixed(1)}%`),
+              tone: cpuTone,
             },
           ]}
         >
@@ -1402,6 +1425,7 @@ function MonitorPage({ host }: { host: string }) {
             {
               label: isLive ? "已用" : "已用峰值",
               value: readout(memValues, (v) => formatBytes(v)),
+              tone: memTone,
             },
           ]}
         >
