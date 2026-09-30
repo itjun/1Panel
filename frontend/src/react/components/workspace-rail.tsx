@@ -107,6 +107,8 @@ export function WorkspaceRail() {
 
   const [railDragKey, setRailDragKey] = useState("");
   const [railDrop, setRailDrop] = useState<{ key: string; before: boolean } | null>(null);
+  // 会话行的悬停由 JS 记录单一行：WebKit 拖放结束后不刷新 :hover，拖过的行会残留高亮
+  const [hoverKey, setHoverKey] = useState("");
 
   // 打开过的分组记入侧栏（本组件本地持久化）
   useEffect(() => {
@@ -315,6 +317,7 @@ export function WorkspaceRail() {
 
       <div
         className="flex min-h-0 flex-1 flex-col overflow-auto"
+        onPointerLeave={() => setHoverKey("")}
         onContextMenu={(e) => {
           if (listKind !== "hosts") return;
           if ((e.target as HTMLElement).closest("button")) return;
@@ -391,6 +394,8 @@ export function WorkspaceRail() {
                     prefix="组"
                     active={active}
                     selected={false}
+                    hovered={hoverKey === entry.key}
+                    onHover={() => setHoverKey(entry.key)}
                     dragging={railDragKey === entry.key}
                     dropEdge={
                       railDrop?.key === entry.key
@@ -413,6 +418,7 @@ export function WorkspaceRail() {
                     }}
                     onDragStart={(e) => {
                       suppressHostClickRef.current = true;
+                      setHoverKey("");
                       setRailDragKey(entry.key);
                       e.dataTransfer.effectAllowed = "move";
                       e.dataTransfer.setData(RAIL_ENTRY_MIME, entry.key);
@@ -437,6 +443,7 @@ export function WorkspaceRail() {
                     onDragEnd={() => {
                       setRailDragKey("");
                       setRailDrop(null);
+                      setHoverKey("");
                       window.setTimeout(() => {
                         suppressHostClickRef.current = false;
                       }, 0);
@@ -455,6 +462,8 @@ export function WorkspaceRail() {
                   label={entry.name}
                   active={active}
                   selected={selected}
+                  hovered={hoverKey === entry.key}
+                  onHover={() => setHoverKey(entry.key)}
                   dragging={railDragKey === entry.key}
                   dropEdge={
                     railDrop?.key === entry.key
@@ -498,6 +507,7 @@ export function WorkspaceRail() {
                   }}
                   onDragStart={(e) => {
                     suppressHostClickRef.current = true;
+                    setHoverKey("");
                     setRailDragKey(entry.key);
                     e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData(RAIL_ENTRY_MIME, entry.key);
@@ -522,6 +532,7 @@ export function WorkspaceRail() {
                   onDragEnd={() => {
                     setRailDragKey("");
                     setRailDrop(null);
+                    setHoverKey("");
                     window.setTimeout(() => {
                       suppressHostClickRef.current = false;
                     }, 0);
@@ -702,6 +713,8 @@ function RailSessionRow({
   prefix,
   active,
   selected,
+  hovered,
+  onHover,
   dragging,
   dropEdge,
   onPointerDown,
@@ -715,6 +728,8 @@ function RailSessionRow({
   prefix?: string;
   active: boolean;
   selected: boolean;
+  hovered: boolean;
+  onHover: () => void;
   dragging: boolean;
   dropEdge: "before" | "after" | null;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -725,10 +740,10 @@ function RailSessionRow({
   onDragEnd: () => void;
 }) {
   // 侧栏是 canvas 底，raised 对比不够，hover / 多选浅底统一用 line
-  let stateClass = "text-muted hover:bg-line hover:text-ink";
+  let stateClass = "text-muted";
   if (active) {
     stateClass = "rail-item-active";
-  } else if (selected) {
+  } else if (selected || hovered) {
     // 多选中的其他主机：浅底区分，不与当前主机的选中样式混淆
     stateClass = "bg-line text-ink";
   }
@@ -742,6 +757,7 @@ function RailSessionRow({
         stateClass,
         dragging && "opacity-40",
       )}
+      onPointerMove={onHover}
       onPointerDown={onPointerDown}
       onContextMenu={onContextMenu}
       onDragStart={onDragStart}
