@@ -15,6 +15,10 @@ import {
 } from "@/utils/boardModel";
 import { BoardSparkline } from "@/react/components/board/board-sparkline";
 import { Meter } from "@/react/components/ui/meter";
+import { usageBands } from "@/react/lib/usage-tone";
+
+/** cpuTrend / memTrend 都是百分比 */
+const PERCENT_BANDS = usageBands(100);
 
 export type BoardCardDensity = "lg" | "md" | "sm" | "xs" | "xxs";
 
@@ -185,6 +189,7 @@ export function HostBoardCard({
               <BoardSparkline
                 values={cpuTrend || []}
                 alert={cpuAlert}
+                bands={PERCENT_BANDS}
                 height={sparkHeight}
               />
             </div>
@@ -204,6 +209,7 @@ export function HostBoardCard({
               <BoardSparkline
                 values={memTrend || []}
                 alert={memAlert}
+                bands={PERCENT_BANDS}
                 height={sparkHeight}
               />
             </div>
