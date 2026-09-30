@@ -341,8 +341,8 @@ func (s *System) TestWecomWebhook(webhook string) error {
 	return wecom.TestWebhook(webhook)
 }
 
-// oneAgentOpenURL 拼出 1Agent 认的地址。空格必须写成 %20。
-// Go 的 QueryEscape 会把空格写成 +，1Agent 会把加号留在主机名里。
+// oneAgentOpenURL 拼出 Ghostty 认的地址。空格必须写成 %20。
+// Go 的 QueryEscape 会把空格写成 +，Ghostty 会把加号留在主机名里。
 // 带 reuse=1：已经打开的主机只聚焦，不再多开一个会话；多台一起打开时并成一个工作区。
 func oneAgentOpenURL(hosts []string) (string, error) {
 	parts := make([]string, 0, len(hosts))
@@ -358,11 +358,11 @@ func oneAgentOpenURL(hosts []string) (string, error) {
 		return "", fmt.Errorf("没有主机")
 	}
 	parts = append(parts, "reuse=1")
-	return "oneagent://open?" + strings.Join(parts, "&"), nil
+	return "ghostty://open?" + strings.Join(parts, "&"), nil
 }
 
 // OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
-// macOS 走 1Agent（oneagent://open?host=…）；Windows 走 Windows Terminal + 系统
+// macOS 走 Ghostty（ghostty://open?host=…）；Windows 走 Windows Terminal + 系统
 // OpenSSH（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口），见 terminal_windows.go。
 func (s *System) OpenHostsInTerminal(hosts []string, mode string) error {
 	if runtime.GOOS == "windows" {
@@ -380,9 +380,9 @@ func (s *System) OpenHostsInTerminal(hosts []string, mode string) error {
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if msg == "" {
-			return fmt.Errorf("无法打开 1Agent: %w", err)
+			return fmt.Errorf("无法打开 Ghostty: %w", err)
 		}
-		return fmt.Errorf("无法打开 1Agent: %s", msg)
+		return fmt.Errorf("无法打开 Ghostty: %s", msg)
 	}
 	return nil
 }

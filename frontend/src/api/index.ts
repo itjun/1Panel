@@ -577,7 +577,7 @@ const apiImpl = {
     await System.FocusMainWindow();
   },
   /** 把 SSH Host 别名交给系统终端打开（支持多台）。
-   *  macOS 走 1Agent；Windows 走 Windows Terminal + OpenSSH，
+   *  macOS 走 Ghostty；Windows 走 Windows Terminal + OpenSSH，
    *  mode="tab" 在最近使用的 Terminal 窗口新建标签页（默认），"window" 打开新窗口。 */
   openHostsInTerminal: async (
     hosts: string[],

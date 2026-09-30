@@ -22,7 +22,7 @@
   - 应用进程：按运行时（Java / Go / Node / Python…）归并的本机进程树，CPU/内存/IO 速率、监听端口、进程详情与结束
   - 软件列表、磁盘空间（目录树 / 大文件 / 应用占用）、网络信息（网卡 / 网关）、Hosts
 - **终端打开**：
-  - macOS：经 1Agent（`oneagent://open`）打开
+  - macOS：经 Ghostty（`ghostty://open`）打开
   - Windows：默认用 Windows Terminal（`wt.exe`）在最近使用的窗口新建标签页（可设置为新窗口），由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；Windows Terminal 缺失时自动降级为 PowerShell 窗口，OpenSSH 缺失时给出安装指引
 
 ## 开发

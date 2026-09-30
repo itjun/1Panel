@@ -135,7 +135,7 @@ export function OpenExternalURL(target: string): $CancellablePromise<void> {
 
 /**
  * OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
- * macOS 走 1Agent（oneagent://open?host=…）；Windows 走 Windows Terminal + 系统
+ * macOS 走 Ghostty（ghostty://open?host=…）；Windows 走 Windows Terminal + 系统
  * OpenSSH（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口），见 terminal_windows.go。
  */
 export function OpenHostsInTerminal(hosts: string[] | null, mode: string): $CancellablePromise<void> {

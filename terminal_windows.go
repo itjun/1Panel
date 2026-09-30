@@ -13,7 +13,7 @@ import (
 
 )
 
-// Windows 终端打开流程（不经 1Agent）：
+// Windows 终端打开流程（不经 Ghostty）：
 //  1. 首选 Windows Terminal（wt.exe）：mode=tab 在最近使用的窗口新建标签页，
 //     mode=window 每次打开新窗口；多台主机在一个窗口里各占一个标签。
 //  2. 连接命令直接交给系统 OpenSSH（ssh.exe）并传 SSH 配置里的 Host 别名，
