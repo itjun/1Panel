@@ -2,7 +2,7 @@ package main
 
 import "testing"
 
-func TestOneAgentOpenURL(t *testing.T) {
+func TestGhosttyOpenURL(t *testing.T) {
 	cases := []struct {
 		name    string
 		hosts   []string
@@ -18,18 +18,18 @@ func TestOneAgentOpenURL(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := oneAgentOpenURL(c.hosts)
+			got, err := ghosttyOpenURL(c.hosts)
 			if c.wantErr {
 				if err == nil {
-					t.Fatalf("oneAgentOpenURL(%q) = %q, want error", c.hosts, got)
+					t.Fatalf("ghosttyOpenURL(%q) = %q, want error", c.hosts, got)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("oneAgentOpenURL(%q) error: %v", c.hosts, err)
+				t.Fatalf("ghosttyOpenURL(%q) error: %v", c.hosts, err)
 			}
 			if got != c.want {
-				t.Fatalf("oneAgentOpenURL(%q) = %q, want %q", c.hosts, got, c.want)
+				t.Fatalf("ghosttyOpenURL(%q) = %q, want %q", c.hosts, got, c.want)
 			}
 		})
 	}

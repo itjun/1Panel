@@ -341,10 +341,10 @@ func (s *System) TestWecomWebhook(webhook string) error {
 	return wecom.TestWebhook(webhook)
 }
 
-// oneAgentOpenURL 拼出 Ghostty 认的地址。空格必须写成 %20。
+// ghosttyOpenURL 拼出 Ghostty 认的地址。空格必须写成 %20。
 // Go 的 QueryEscape 会把空格写成 +，Ghostty 会把加号留在主机名里。
 // 带 reuse=1：已经打开的主机只聚焦，不再多开一个会话；多台一起打开时并成一个工作区。
-func oneAgentOpenURL(hosts []string) (string, error) {
+func ghosttyOpenURL(hosts []string) (string, error) {
 	parts := make([]string, 0, len(hosts))
 	for _, host := range hosts {
 		alias := strings.TrimSpace(host)
@@ -371,7 +371,7 @@ func (s *System) OpenHostsInTerminal(hosts []string, mode string) error {
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("仅支持在 macOS / Windows 上打开终端")
 	}
-	target, err := oneAgentOpenURL(hosts)
+	target, err := ghosttyOpenURL(hosts)
 	if err != nil {
 		return err
 	}
