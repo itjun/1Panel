@@ -25,6 +25,10 @@ const features = tableFeatures({});
 /* 表格行高 40 / 表头 36：与 globals.css 同源（--spacing-table-row / --spacing-table-head），
    只通过 h-table-row / h-table-head 使用，不要在这里写死像素。 */
 
+/** 吸顶表头的底线画在 th::after 上：collapse 表格的边框会随内容滚走；手写吸顶表格（如通知页）复用同一串 */
+export const TH_STICKY_LINE =
+  "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-line";
+
 export function createAppColumnHelper<T extends Record<string, unknown>>() {
   return createColumnHelper<typeof features, T>();
 }
@@ -281,7 +285,7 @@ export function InteractiveDataTable<T>({
                   data-col-key={column.key}
                   className={cn(
                     "relative select-none px-3 font-normal",
-                    "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-line",
+                    TH_STICKY_LINE,
                     column.align === "center" && "text-center",
                     column.align === "right" && "text-right",
                     draggingKey === column.key && "after:h-0.5 after:bg-accent",

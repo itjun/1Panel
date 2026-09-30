@@ -1,6 +1,6 @@
 import * as echarts from "echarts";
 import { useEffect, useRef, type ReactNode } from "react";
-import { readThemeColor, seriesColorList } from "@/react/lib/utils";
+import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
 
 export function ChartHost({
   option,
@@ -88,9 +88,9 @@ export function lineOption(
 ): echarts.EChartsOption {
   const axisFormatter = opts?.axisFormatter || opts?.yFormatter;
   const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#dce3ee");
+  const line = readThemeColor("--color-line", "#e5e7eb");
   const surface = readThemeColor("--color-surface", "#ffffff");
-  const ink = readThemeColor("--color-ink", "#1b2433");
+  const ink = readThemeColor("--color-ink", "#1f2937");
   return {
     color: seriesColorList(series.map((s) => s.name)),
     grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
@@ -151,11 +151,19 @@ export function lineOption(
   };
 }
 
+/** 流量方向说明，网络页表头 / 流量格与监控面板读数共用一份文案 */
+export const RX_TIP =
+  "流入：从外面进到这台机器的数据。比如用户访问时发来的请求、nginx 从后端服务拿回来的内容";
+export const TX_TIP =
+  "流出：从这台机器发出去的数据。比如把网页、接口结果返回给用户；云服务器按流量收费，一般收的就是流出";
+
 export type MonitorReadout = {
   label: string;
   value: string;
   /** 与曲线同色的短横线，兼作图例 */
   swatch?: "read" | "write";
+  /** 标签悬停说明（流入 / 流出的方向解释等） */
+  tip?: string;
 };
 
 /** 监控面板单元：标题行即图例 + 读数，下方固定高度曲线 */
@@ -178,7 +186,7 @@ export function MonitorPanel({
   let chartClass = "h-[200px]";
   if (grow) chartClass = "min-h-[200px] flex-1";
   return (
-    <section className={`flex min-w-0 flex-col bg-surface px-4 pb-2 pt-3 ${className}`}>
+    <section className={cn("flex min-w-0 flex-col bg-surface px-4 pb-2 pt-3", className)}>
       <div className="flex min-h-8 flex-wrap items-baseline gap-x-6 gap-y-1">
         <span className="text-sm font-semibold text-ink">{title}</span>
         {readouts.map((item) => (
@@ -189,7 +197,15 @@ export function MonitorPanel({
             {item.swatch === "write" ? (
               <span className="h-0.5 w-3 self-center bg-io-write" aria-hidden />
             ) : null}
-            <span className="text-xs text-muted">{item.label}</span>
+            <span
+              data-tip={item.tip}
+              className={cn(
+                "text-xs text-muted",
+                item.tip && "cursor-help underline decoration-dotted underline-offset-4",
+              )}
+            >
+              {item.label}
+            </span>
             <span className="font-mono text-xl font-semibold tabular-nums text-ink">
               {item.value}
             </span>

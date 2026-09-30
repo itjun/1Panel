@@ -86,8 +86,8 @@ const RetryInterval = 30 * time.Second
 // NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
 // 返回的 *application.App 由 main.go 调用 Run。
 func mainWindowBackgroundColour() application.RGBA {
-	// 三端统一不透明白底，不走系统磨砂/透明窗。
-	return application.NewRGB(255, 255, 255)
+	// 三端统一不透明壳底色（与亮色 --color-canvas #f9fafb 同值），不走系统磨砂/透明窗。
+	return application.NewRGB(249, 250, 251)
 }
 
 func NewApp() *application.App {

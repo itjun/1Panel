@@ -2,11 +2,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Events } from "@wailsio/runtime";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
+import { TH_STICKY_LINE } from "@/react/components/data-table";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
 import { Checkbox } from "@/react/components/ui/checkbox";
 import { Switch } from "@/react/components/ui/switch";
 import { Tag } from "@/react/components/ui/tag";
+import { cn } from "@/react/lib/utils";
 import { Notice, Page } from "@/react/components/page";
 import {
   updateSettings,
@@ -376,17 +378,24 @@ function MessagesPage({
       onRefresh={() => void query.refetch()}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      <Card className="overflow-hidden p-0">
-        <div className="overflow-auto">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="text-xs font-normal text-muted">
+            <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
               <tr className="h-table-head">
-                <th className="w-12 px-2 text-center font-normal">序</th>
-                <th className="px-3 font-normal">时间</th>
-                <th className="px-3 font-normal">主机</th>
-                <th className="px-3 font-normal">类型</th>
-                <th className="px-3 font-normal">状态</th>
-                <th className="px-3 font-normal">摘要</th>
+                <th
+                  className={cn(
+                    "relative w-12 px-2 text-center font-normal",
+                    TH_STICKY_LINE,
+                  )}
+                >
+                  序
+                </th>
+                <th className={cn("relative px-3 font-normal", TH_STICKY_LINE)}>时间</th>
+                <th className={cn("relative px-3 font-normal", TH_STICKY_LINE)}>主机</th>
+                <th className={cn("relative px-3 font-normal", TH_STICKY_LINE)}>类型</th>
+                <th className={cn("relative px-3 font-normal", TH_STICKY_LINE)}>状态</th>
+                <th className={cn("relative px-3 font-normal", TH_STICKY_LINE)}>摘要</th>
               </tr>
             </thead>
             <tbody>
@@ -508,25 +517,48 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
         </>
       }
     >
-      <Card className="overflow-hidden p-0">
-        <div className="overflow-auto">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="text-xs font-normal text-muted">
+            {/* z-20 压过主机列 body 单元格的 z-10，纵向滚动时表头盖住吸左列 */}
+            <thead className="sticky top-0 z-20 bg-surface text-xs font-normal text-muted">
               <tr className="h-table-head">
-                <th className="w-12 px-2 text-center font-normal">序</th>
-                <th className="sticky left-0 z-10 bg-surface px-3 font-normal">主机</th>
+                <th
+                  className={cn(
+                    "relative w-12 px-2 text-center font-normal",
+                    TH_STICKY_LINE,
+                  )}
+                >
+                  序
+                </th>
+                <th
+                  className={cn(
+                    "sticky left-0 z-10 bg-surface px-3 font-normal",
+                    TH_STICKY_LINE,
+                  )}
+                >
+                  主机
+                </th>
                 {kind === "metricSubs" ? (
                   <>
                     {ALERT_RULES.map((rule) => (
-                      <th key={rule.kind} className="px-3 text-center font-normal">
+                      <th
+                        key={rule.kind}
+                        className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}
+                      >
                         {rule.name}
                       </th>
                     ))}
-                    <th className="px-3 text-center font-normal">证书</th>
+                    <th className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}>
+                      证书
+                    </th>
                   </>
                 ) : (
                   WATCH_SERVICE_ORDER.map((svc) => (
-                    <th key={svc} className="px-3 text-center font-normal">
+                    <th
+                      key={svc}
+                      className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}
+                    >
                       {serviceLabel(svc)}
                     </th>
                   ))

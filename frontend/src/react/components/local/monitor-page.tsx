@@ -5,6 +5,8 @@ import {
   ChartHost,
   lineOption,
   MonitorPanel,
+  RX_TIP,
+  TX_TIP,
   type MonitorReadout,
 } from "@/react/components/monitor/charts";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
@@ -92,8 +94,8 @@ export function LocalMonitorPage() {
       lineOption(
         netSeries.map((p) => p.time),
         [
-          { name: "下行", data: netSeries.map((p) => p.rx) },
-          { name: "上行", data: netSeries.map((p) => p.tx) },
+          { name: "流入", data: netSeries.map((p) => p.rx) },
+          { name: "流出", data: netSeries.map((p) => p.tx) },
         ],
         {
           yFormatter: (v) => formatRateKBps(v),
@@ -197,13 +199,15 @@ export function LocalMonitorPage() {
           title="流量"
           readouts={[
             {
-              label: "下行",
+              label: "流入",
               swatch: "read",
+              tip: RX_TIP,
               value: lastValue(rxValues, (v) => formatRateKBps(v)),
             },
             {
-              label: "上行",
+              label: "流出",
               swatch: "write",
+              tip: TX_TIP,
               value: lastValue(txValues, (v) => formatRateKBps(v)),
             },
           ]}

@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "verify:shell": "bun scripts/verify-shell.mjs",
     "test:helpers": "bun scripts/test-helpers.mjs",
+    "test:host-rows": "bun scripts/test-host-rows.mjs",
     "test:group-table-state": "bun scripts/test-group-table-state.mjs",
     "test:sftp-location-state": "bun scripts/test-sftp-location-state.mjs",
     "build:dev": "vite build --minify false --mode development"

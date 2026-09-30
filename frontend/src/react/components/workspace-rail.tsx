@@ -92,7 +92,6 @@ function formatCount(n: number): string {
 export function WorkspaceRail() {
   const session = useSession();
   const { width: sidebarWidth } = useSidebar();
-  const [utilityOpen, setUtilityOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [configNeedsAttention, setConfigNeedsAttention] = useState(false);
   const [visitedGroupIds, setVisitedGroupIds] = useState(() =>
@@ -134,6 +133,18 @@ export function WorkspaceRail() {
     const names = new Set(session.openedHosts.map((h) => h.name));
     setSelectedHostNames((prev) => prev.filter((n) => names.has(n)));
   }, [session.openedHosts]);
+
+  // 从首页 / 分组页等侧栏以外的入口切换当前主机时，旧多选不含新主机，重置为只选当前主机，
+  // 否则上一台主机残留 selected 浅底，与新主机 active 叠出双高亮
+  useEffect(() => {
+    const host = session.activeHost;
+    if (!host) return;
+    setSelectedHostNames((prev) => {
+      if (prev.includes(host)) return prev;
+      hostAnchorRef.current = host;
+      return [host];
+    });
+  }, [session.activeHost]);
 
   // 进入分组页时清掉主机多选，避免与分组 active 叠出双高亮
   useEffect(() => {
@@ -283,6 +294,25 @@ export function WorkspaceRail() {
         style={{ width: sidebarWidth, minWidth: sidebarWidth }}
         aria-label="应用导航"
       >
+      <ModuleNav
+        unread={unread}
+        configNeedsAttention={configNeedsAttention}
+        hostActive={!session.settingsOpen && session.workspace === "remote"}
+        localActive={!session.settingsOpen && session.workspace === "local"}
+        inspectActive={!session.settingsOpen && session.workspace === "inspect"}
+        notifyActive={!session.settingsOpen && session.workspace === "notify"}
+        configActive={!session.settingsOpen && session.workspace === "config"}
+        settingsActive={session.settingsOpen}
+        onHost={() => session.goHome()}
+        onLocal={() => session.setWorkspace("local")}
+        onInspect={() => session.setWorkspace("inspect")}
+        onNotify={() => session.setWorkspace("notify")}
+        onConfig={() => session.setWorkspace("config")}
+        onSettings={() => session.openSettings(true)}
+      />
+
+      <div className="mx-2 my-2 h-px shrink-0 bg-line" role="separator" />
+
       <div
         className="flex min-h-0 flex-1 flex-col overflow-auto"
         onContextMenu={(e) => {
@@ -503,45 +533,6 @@ export function WorkspaceRail() {
         ) : null}
       </div>
 
-      <UtilityNav
-        open={utilityOpen}
-        unread={unread}
-        configNeedsAttention={configNeedsAttention}
-        activeLabel={utilityActiveLabel(session.settingsOpen, session.workspace)}
-        onToggle={() => setUtilityOpen((open) => !open)}
-        onClose={() => setUtilityOpen(false)}
-        onHost={() => {
-          session.goHome();
-          setUtilityOpen(false);
-        }}
-        hostActive={!session.settingsOpen && session.workspace === "remote"}
-        onLocal={() => {
-          session.setWorkspace("local");
-          setUtilityOpen(false);
-        }}
-        onInspect={() => {
-          session.setWorkspace("inspect");
-          setUtilityOpen(false);
-        }}
-        onNotify={() => {
-          session.setWorkspace("notify");
-          setUtilityOpen(false);
-        }}
-        onConfig={() => {
-          session.setWorkspace("config");
-          setUtilityOpen(false);
-        }}
-        onSettings={() => {
-          session.openSettings(true);
-          setUtilityOpen(false);
-        }}
-        localActive={!session.settingsOpen && session.workspace === "local"}
-        inspectActive={!session.settingsOpen && session.workspace === "inspect"}
-        notifyActive={!session.settingsOpen && session.workspace === "notify"}
-        configActive={!session.settingsOpen && session.workspace === "config"}
-        settingsActive={session.settingsOpen}
-      />
-
       <HostContextMenu
         menu={hostMenu}
         pinned={session.pinned}
@@ -582,124 +573,89 @@ export function WorkspaceRail() {
   );
 }
 
-function utilityActiveLabel(settingsOpen: boolean, workspace: Workspace): string {
-  if (settingsOpen) return "设置";
-  if (workspace === "remote") return HOST_MODULE.label;
-  if (workspace === "local") return "本机";
-  if (workspace === "inspect") return "巡检";
-  if (workspace === "notify") return "通知";
-  if (workspace === "config") return "配置";
-  return "";
-}
-
-function UtilityNav({
-  open,
+/** 侧栏顶部模块切换：平铺全部模块；当前模块只加粗，色块留给下方当前标签，避免两处同时高亮 */
+function ModuleNav({
   unread,
   configNeedsAttention,
-  activeLabel,
-  onToggle,
-  onClose,
-  onHost,
   hostActive,
-  onLocal,
-  onInspect,
-  onNotify,
-  onConfig,
-  onSettings,
   localActive,
   inspectActive,
   notifyActive,
   configActive,
   settingsActive,
+  onHost,
+  onLocal,
+  onInspect,
+  onNotify,
+  onConfig,
+  onSettings,
 }: {
-  open: boolean;
   unread: number;
   configNeedsAttention: boolean;
-  activeLabel: string;
-  onToggle: () => void;
-  onClose: () => void;
-  onHost: () => void;
   hostActive: boolean;
-  onLocal: () => void;
-  onInspect: () => void;
-  onNotify: () => void;
-  onConfig: () => void;
-  onSettings: () => void;
   localActive: boolean;
   inspectActive: boolean;
   notifyActive: boolean;
   configActive: boolean;
   settingsActive: boolean;
+  onHost: () => void;
+  onLocal: () => void;
+  onInspect: () => void;
+  onNotify: () => void;
+  onConfig: () => void;
+  onSettings: () => void;
 }) {
   const badge = unread > 0 ? formatCount(unread) : null;
-
-  useEffect(() => {
-    if (!open) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   return (
-    <div className="relative mt-1">
-      <button
-        type="button"
-        className={cn(
-          "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
-          activeLabel
-            ? "rail-item-active"
-            : "text-muted hover:bg-line hover:text-ink",
-        )}
-        data-tip="切换模块"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={onToggle}
-      >
-        <span className="mr-1.5 w-3 shrink-0 text-center text-xs">{open ? "▾" : "▸"}</span>
-        <span className="truncate">{activeLabel || "更多"}</span>
-        {badge ? (
-          <Tag tone="accent" className="ml-auto font-mono tabular-nums">
-            {badge}
-          </Tag>
-        ) : null}
-        {!badge && configNeedsAttention ? (
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
-        ) : null}
-      </button>
-      {open ? (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onMouseDown={onClose}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              onClose();
-            }}
-          />
-          <div
-            role="menu"
-            className="absolute bottom-0 left-full z-50 ml-1.5 w-[200px] rounded-panel border border-line bg-surface py-1.5"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="flex flex-col gap-0.5">
-              <RailNavButton active={hostActive} label={HOST_MODULE.label} onClick={onHost} />
-              <RailNavButton active={localActive} label="本机" onClick={onLocal} />
-              <RailNavButton active={inspectActive} label="巡检" onClick={onInspect} />
-              <RailNavButton active={notifyActive} label="通知" badge={badge} onClick={onNotify} />
-              <RailNavButton
-                active={configActive}
-                label="配置"
-                statusDot={configNeedsAttention}
-                onClick={onConfig}
-              />
-              <RailNavButton active={settingsActive} label="设置" onClick={onSettings} />
-            </div>
-          </div>
-        </>
+    <nav className="flex shrink-0 flex-col" aria-label="切换模块">
+      <ModuleButton active={hostActive} label={HOST_MODULE.label} onClick={onHost} />
+      <ModuleButton active={localActive} label="本机" onClick={onLocal} />
+      <ModuleButton active={inspectActive} label="巡检" onClick={onInspect} />
+      <ModuleButton active={notifyActive} label="通知" badge={badge} onClick={onNotify} />
+      <ModuleButton
+        active={configActive}
+        label="配置"
+        statusDot={configNeedsAttention}
+        onClick={onConfig}
+      />
+      <ModuleButton active={settingsActive} label="设置" onClick={onSettings} />
+    </nav>
+  );
+}
+
+function ModuleButton({
+  label,
+  active,
+  badge,
+  statusDot,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  badge?: string | null;
+  statusDot?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "rail-item relative flex h-10 shrink-0 items-center px-3 text-left hover:bg-line",
+        active ? "font-semibold text-ink" : "text-muted hover:text-ink",
+      )}
+      onClick={onClick}
+    >
+      <span className="truncate">{label}</span>
+      {badge ? (
+        <Tag tone="accent" className="ml-auto font-mono tabular-nums">
+          {badge}
+        </Tag>
       ) : null}
-    </div>
+      {statusDot ? (
+        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
+      ) : null}
+    </button>
   );
 }
 

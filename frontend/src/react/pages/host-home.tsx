@@ -15,6 +15,11 @@ import {
   type ReactNode,
 } from "react";
 import { api, type sshconfig } from "@/api";
+import {
+  moveGroupInRows,
+  reconcileHostRows,
+  type GroupDropMark,
+} from "@/utils/hostRows";
 import { DistroBadge } from "@/react/components/distro-badge";
 import { Button } from "@/react/components/ui/button";
 import {
@@ -66,71 +71,12 @@ type InsertMark = {
   after: boolean;
 };
 
-/**
- * 分组拖拽落点：
- * - block：插到某分组块之前 / 之后
- * - newRow：新建一排放入被拖分组；beforeRow 为新排插在第几排之前，等于排数表示追加到最后
- */
-type GroupDropMark =
-  | { kind: "block"; target: string; after: boolean }
-  | { kind: "newRow"; beforeRow: number };
-
 /** 分组拖拽：位移超过该值才算拖动，否则按点击处理 */
 const GROUP_DRAG_THRESHOLD = 4;
 /** 拖拽（分组 / 主机）贴近主内容区上下边缘多少像素时自动纵向滚动 */
 const DRAG_SCROLL_EDGE = 48;
 /** 自动纵向滚动每帧像素 */
 const DRAG_SCROLL_STEP = 12;
-
-/**
- * 布局对账：丢弃已不存在的分组 id 与重复 id；不在布局里的分组按 order 追加到最后一排末尾；
- * 去掉空排。没有保存过布局时，全部分组按 order 放在一排。
- */
-function reconcileHostRows(saved: string[][], orderedIds: string[]): string[][] {
-  const known = new Set(orderedIds);
-  const placed = new Set<string>();
-  const rows: string[][] = [];
-  for (const savedRow of saved) {
-    const row: string[] = [];
-    for (const id of savedRow) {
-      if (!known.has(id)) continue;
-      if (placed.has(id)) continue;
-      placed.add(id);
-      row.push(id);
-    }
-    if (row.length > 0) rows.push(row);
-  }
-  const rest = orderedIds.filter((id) => !placed.has(id));
-  if (rest.length > 0) {
-    if (rows.length === 0) {
-      rows.push(rest);
-    } else {
-      rows[rows.length - 1]!.push(...rest);
-    }
-  }
-  return rows;
-}
-
-/** 按落点移动分组，返回新布局（拖空的排自动去掉） */
-function moveGroupInRows(rows: string[][], dragged: string, mark: GroupDropMark): string[][] {
-  const next = rows.map((row) => row.filter((id) => id !== dragged));
-  if (mark.kind === "block") {
-    if (mark.target === dragged) return rows;
-    for (const row of next) {
-      const index = row.indexOf(mark.target);
-      if (index < 0) continue;
-      if (mark.after) {
-        row.splice(index + 1, 0, dragged);
-      } else {
-        row.splice(index, 0, dragged);
-      }
-      break;
-    }
-  } else {
-    next.splice(mark.beforeRow, 0, [dragged]);
-  }
-  return next.filter((row) => row.length > 0);
-}
 
 type Section = {
   id: string;
@@ -527,6 +473,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         active = true;
         suppressClick.current = true;
         setDragging(true);
+        window.getSelection()?.removeAllRanges();
         document.body.style.userSelect = "none";
         document.body.style.cursor = "grabbing";
         stopAutoScroll = startEdgeAutoScroll(
@@ -622,11 +569,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     return true;
   }
 
-  async function moveGroupTo(dragged: string, mark: GroupDropMark) {
-    const nextRows = moveGroupInRows(groupRows, dragged, mark);
-    if (JSON.stringify(nextRows) === JSON.stringify(groupRows)) return;
+  /** 布局落地：写 UI 偏好，并按「从上到下、从左到右」展开同步分组 order */
+  async function persistGroupRows(nextRows: string[][]) {
     updateSettings({ hostHomeRows: nextRows });
-    // 布局按「从上到下、从左到右」展开同步到分组 order，下拉框等处顺序与首页一致
     const flat = nextRows.flat();
     const current = migrateGroups.map((group) => group.id);
     const same = flat.length === current.length && flat.every((id, i) => id === current[i]);
@@ -634,6 +579,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     // 分组不允许嵌套（groups.MaxDepth=1），全部是顶层，父级传空
     await api.reorderGroups("", flat);
     await session.refresh();
+  }
+
+  async function moveGroupTo(dragged: string, mark: GroupDropMark) {
+    const nextRows = moveGroupInRows(groupRows, dragged, mark);
+    if (JSON.stringify(nextRows) === JSON.stringify(groupRows)) return;
+    await persistGroupRows(nextRows);
   }
 
   function onGroupHeadPointerDown(
@@ -664,18 +615,24 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
     // 落点判定：
     // 1. 指针在「新建一排」落区内或其下方 → 追加新排
-    // 2. 否则找指针所在的排：最后一个顶部在指针上方的排（排下方空白到下一排之前都算该排）
-    // 3. 指针在该排底部与下一排顶部之间的间隙 → 在两排之间插入新排
-    // 4. 否则在该排内：先按块顶部分子行（排内折行），再按 x 与块中线比较求插入点
+    // 2. 无置顶且指针在第一排顶部之上 → 在第一排前插入新排；有置顶时第一排即最高层，按排内处理
+    // 3. 否则找指针所在的排：最后一个顶部在指针上方的排（排下方空白到下一排之前都算该排）
+    // 4. 指针在该排底部与下一排顶部之间的间隙 → 在两排之间插入新排
+    // 5. 否则在该排内：先按块顶部分子行（排内折行），再按 x 与块中线比较求插入点
+    // 排号一律取 data-rack-row（groupRows 下标），空排不渲染，DOM 顺序与下标可能不一致
     function updateInsert(clientX: number, clientY: number) {
       const rowEls = Array.from(rack!.querySelectorAll<HTMLElement>("[data-rack-row]"));
       const newRowEl = rack!.querySelector<HTMLElement>("[data-rack-new-row]");
       if (newRowEl && clientY >= newRowEl.getBoundingClientRect().top) {
-        setMark({ kind: "newRow", beforeRow: rowEls.length });
+        setMark({ kind: "newRow", beforeRow: groupRows.length });
         return;
       }
       if (rowEls.length === 0) {
         setMark(null);
+        return;
+      }
+      if (!pinnedSection && clientY < rowEls[0]!.getBoundingClientRect().top) {
+        setMark({ kind: "newRow", beforeRow: Number(rowEls[0]!.dataset.rackRow) });
         return;
       }
 
@@ -687,7 +644,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       const rowRect = rowEl.getBoundingClientRect();
       const hasNextRow = rowIndex < rowEls.length - 1;
       if (clientY > rowRect.bottom && hasNextRow) {
-        setMark({ kind: "newRow", beforeRow: rowIndex + 1 });
+        setMark({ kind: "newRow", beforeRow: Number(rowEls[rowIndex + 1]!.dataset.rackRow) });
         return;
       }
 
@@ -733,6 +690,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         headEl.setPointerCapture(pointerId);
         suppressClick.current = true;
         setDraggingGroupId(draggedId);
+        window.getSelection()?.removeAllRanges();
         document.body.style.userSelect = "none";
         document.body.style.cursor = "grabbing";
         stopAutoScroll = startEdgeAutoScroll(
@@ -1050,12 +1008,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   }}
                   onDoubleClick={() => {
                     if (suppressClick.current) return;
-                    session.openHost(host.name, "overview");
+                    session.openHost(host.name);
                   }}
                   onKeyDown={(event) => {
                     if (event.target !== event.currentTarget) return;
                     if (event.key === "Enter") {
-                      session.openHost(host.name, "overview");
+                      session.openHost(host.name);
                     }
                   }}
                   onContextMenu={(event) => {
@@ -1186,18 +1144,21 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         </div>
       </ShellToolbarPortal>
 
-      <div className="content-float flex min-w-0 flex-1 flex-col">
-      {/* 提示条在机柜上方占位（不随机柜滚走）；与机柜的间距即下方滚动区的 16px 安全边距 */}
+      <div className="content-float relative flex min-w-0 flex-1 flex-col">
+      {/* 提示条浮在内容区顶部居中，不占位：拖拽移动主机 / 分组时机柜布局不被顶开（DESIGN.md §9） */}
       {flash.toast || flash.error || flash.warn ? (
-        <div className="shrink-0 px-4 pt-4">
-          <FlashNotices flash={flash} />
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-4 pt-4">
+          <div className="pointer-events-auto w-fit max-w-[min(560px,100%)]">
+            <FlashNotices flash={flash} />
+          </div>
         </div>
       ) : null}
 
-      {/* 内容区四周 16px 安全边距；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9） */}
+      {/* 内容区四周 16px 安全边距；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9）。
+          整块禁选：拖动超过阈值前浏览器已开始划选文字，事后再禁选清不掉选区 */}
       <div
         ref={scrollRef}
-        className="flex min-h-0 flex-1 flex-col gap-card overflow-auto p-4"
+        className="flex min-h-0 flex-1 select-none flex-col gap-card overflow-auto p-4"
       >
         <p className="m-0 text-xs text-muted">{summaryText}</p>
         {keyword && sections.length === 0 ? (
@@ -1208,17 +1169,17 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         ) : null}
 
         <div ref={rackRef} className="flex flex-col gap-section">
-          {pinnedSection ? (
+          {/* 置顶固定在第一排最前面，不可拖、无排序标记，排内插入点只会落在它之后；没有普通排时单独一排 */}
+          {pinnedSection && visibleRows.length === 0 ? (
             <div className="host-rack-lane">{renderSection(pinnedSection)}</div>
           ) : null}
-          {visibleRows.map((row) => {
+          {visibleRows.map((row, visibleIndex) => {
             const showGapLine =
-              groupInsert?.kind === "newRow" &&
-              groupInsert.beforeRow === row.index &&
-              row.index > 0;
+              groupInsert?.kind === "newRow" && groupInsert.beforeRow === row.index;
             return (
               <div key={row.index} className="host-rack-lane" data-rack-row={row.index}>
                 {showGapLine ? <div className="host-rack-lane-insert" /> : null}
+                {pinnedSection && visibleIndex === 0 ? renderSection(pinnedSection) : null}
                 {row.sections.map((section) => renderSection(section))}
               </div>
             );
@@ -1363,10 +1324,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             onClick={() => {
               const hosts = hostMenu.hosts.slice();
               closeAllMenus();
-              for (const name of hosts) session.openHost(name, "overview");
+              for (const name of hosts) session.openHost(name);
             }}
           />
-          {/* 「打开」即进概览；与 Vue「打开概览」同义，避免重复两项 */}
+          {/* 「打开」沿用当前横向标签（DESIGN.md §4.6 功能维度全局），文件 / 监控为指定标签的快捷入口 */}
           <MenuItem
             label="打开文件"
             onClick={() => {

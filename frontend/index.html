@@ -6,13 +6,13 @@
     <title>1Panel</title>
     <link rel="icon" type="image/svg+xml" href="/src/assets/1panel-favicon.svg" />
     <style>
-      /* boot 骨架：与壳契约对齐 — canvas 底 + surface chrome，无透明/磨砂 */
+      /* boot 骨架：与壳契约对齐 — canvas 底 + surface 内容平面，无透明/磨砂、无分隔线 */
       html,
       body,
       #app {
         margin: 0;
         height: 100%;
-        background-color: #f3f3f3 !important;
+        background-color: #f9fafb !important;
         color-scheme: light;
       }
       .boot-skel {
@@ -20,7 +20,7 @@
         height: 100%;
         grid-template-rows: 40px 1fr;
         grid-template-columns: var(--boot-sidebar, 320px) 1fr;
-        background: #f3f3f3;
+        background: #f9fafb;
       }
       html.boot-no-side .boot-skel {
         grid-template-columns: 1fr;
@@ -31,8 +31,7 @@
       }
       .boot-tb-l,
       .boot-tb-r {
-        background: #ffffff;
-        border-bottom: 1px solid #e8e8e8;
+        background: #f9fafb;
       }
       .boot-tb-r {
         display: flex;
@@ -47,8 +46,7 @@
       }
       .boot-side {
         padding: 12px 10px;
-        background: #ffffff;
-        border-right: 1px solid #e8e8e8;
+        background: #f9fafb;
       }
       .boot-line {
         height: 28px;
@@ -57,7 +55,7 @@
         background: rgba(31, 35, 41, 0.06);
       }
       .boot-main {
-        background: #f3f3f3;
+        background: #ffffff;
         overflow: hidden;
       }
       .boot-card {
@@ -65,7 +63,7 @@
         margin-bottom: 8px;
         border-radius: 0;
         background: #ffffff;
-        box-shadow: 0 0 0 1px #e8e8e8;
+        box-shadow: 0 0 0 1px #e5e7eb;
       }
       .boot-grid {
         display: grid;
@@ -76,7 +74,7 @@
         height: 72px;
         border-radius: 0;
         background: #ffffff;
-        box-shadow: 0 0 0 1px #e8e8e8;
+        box-shadow: 0 0 0 1px #e5e7eb;
       }
       .boot-pulse {
         animation: boot-pulse 1.1s ease-in-out infinite;

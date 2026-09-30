@@ -3,16 +3,17 @@
 /* static：Tailwind 4 默认只输出被工具类引用到的变量，这里的 token 还会被
    JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
 @theme static {
-  /* 机柜面板规范 DESIGN.md §2.1 亮色：带蓝的浅灰外框，品牌蓝是主角；绿色只用于成功状态 */
-  --color-canvas: #eef2f8;
+  /* 机柜面板规范 DESIGN.md §2.1 亮色：中性浅灰外框（DeepSeek Harness 同款），品牌蓝是主角；绿色只用于成功状态 */
+  --color-canvas: #f9fafb;
   --color-surface: #ffffff;
-  --color-raised: #f3f6fb;
-  --color-ink: #1b2433;
-  --color-muted: #5c6b80;
+  --color-raised: #f3f4f6;
+  --color-ink: #1f2937;
+  /* 次文字：surface 上 5.4、raised 上 4.9 */
+  --color-muted: #636a76;
   /* 分隔 / 描边：只做轻微分隔，不抢视觉 */
-  --color-line: #dce3ee;
+  --color-line: #e5e7eb;
   /* 控件描边：ink 与 line 之间的中间灰（替代 color-mix，Linux 旧版 WebKitGTK 不支持） */
-  --color-line-strong: #a9b4c4;
+  --color-line-strong: #9ca3af;
   /* 主色「品牌蓝」：hover / active / 选中浅底 */
   --color-accent: #0052d9;
   --color-accent-hover: #366ef4;
@@ -29,7 +30,7 @@
   /* 对话框 / 抽屉遮罩：一律用 bg-scrim，禁止黑色加透明度修饰符（会生成 color-mix） */
   --color-scrim: rgba(0, 0, 0, 0.6);
   /* 文字提示（Tooltip，DESIGN.md §8.2）：亮色下深底浅字，暗色下反过来 */
-  --color-tooltip: #2b3445;
+  --color-tooltip: #1f2937;
   --color-tooltip-text: #ffffff;
   /* 功能色：danger / warn / info 为可作正文的加深档，surface 上 ≥4.5；
      success 按 TDesign 用绿，只作图标 / 圆点 / 条线，文字一律用 success-text */
@@ -44,7 +45,7 @@
   --color-danger-soft: #ffecea;
   --color-warn-soft: #fff0e3;
   --color-info-soft: #e3f1ff;
-  /* 读/下行/接收 = 亮蓝；写/上行/发送 = 橙；单线指标 = 品牌蓝 */
+  /* 读/流入/接收 = 亮蓝；写/流出/发送 = 橙；单线指标 = 品牌蓝 */
   --color-chart-1: #0052d9;
   --color-io-read: #1d8cf8;
   --color-io-write: #f08a24;
@@ -54,7 +55,7 @@
   --meter-ok: #0680a8;
   --meter-warn: #f08a24;
   --meter-danger: #d54941;
-  --meter-off: #dce3ee;
+  --meter-off: #e5e7eb;
   /* 圆角四档（DESIGN.md §4.3）：浮层 6 / 表面 0（扁平化）/ 控件 4 / 标签 3 */
   --radius-panel: 6px;
   --radius-surface: 0;
@@ -105,7 +106,8 @@
   --drop-shadow-*: initial;
 }
 
-/* 机柜面板规范 DESIGN.md §2.2 暗色：同一块面板关灯后的样子，层级与亮色一致 */
+/* 机柜面板规范 DESIGN.md §2.2 暗色：同一块面板关灯后的样子，层级与亮色一致。
+   灰阶保留原有蓝黑调，不随亮色壳层中性化（2026-09-30 定案） */
 html.dark {
   --color-canvas: #12161f;
   --color-surface: #1a1f2b;
@@ -348,14 +350,15 @@ pre,
   gap: var(--gap-card);
 }
 
-/* 两排之间「在此插入新排」：横向 2px 线，落在排间距中线 */
+/* 两排之间「在此插入新排」：横向 3px 线落在排间距中线，外圈 accent-soft 柔光保证一眼可见 */
 .host-rack-lane-insert {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(var(--gap-section) / -2 - 1px);
-  height: 2px;
+  top: calc(var(--gap-section) / -2 - 1.5px);
+  height: 3px;
   background-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
 }
 
 /* 拖拽分组时最后一排下方的「新建一排」落区 */
@@ -396,21 +399,22 @@ pre,
 }
 
 /* 分组拖拽插入线：落在目标块左侧（或排末块右侧）的间距中线，高度取该块高度；
-   排首 / 排末的线落在内容区 16px 安全边距内，不会被裁切 */
+   3px accent 线 + accent-soft 柔光，排首 / 排末的线落在内容区 16px 安全边距内，不会被裁切 */
 .host-rack-insert {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 3px;
   background-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
 }
 
 .host-rack-insert[data-side="before"] {
-  left: calc(var(--gap-card) / -2 - 1px);
+  left: calc(var(--gap-card) / -2 - 1.5px);
 }
 
 .host-rack-insert[data-side="after"] {
-  right: calc(var(--gap-card) / -2 - 1px);
+  right: calc(var(--gap-card) / -2 - 1.5px);
 }
 
 /* 行内编辑按钮：仅行悬停 / 行内键盘聚焦时出现，始终占位避免跳动 */

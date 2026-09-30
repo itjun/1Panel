@@ -846,7 +846,7 @@ export function GroupPage({
               onColumnOrderChange={persistOrder}
               onColumnWidthsChange={persistWidths}
               onSortChange={persistSort}
-              onRowDoubleClick={(row) => session.openHost(row.name, "overview")}
+              onRowDoubleClick={(row) => session.openHost(row.name)}
               getRowId={(row) => row.name}
             />
           </>

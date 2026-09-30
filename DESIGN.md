@@ -2,7 +2,7 @@
 
 > **地位**：本文件是前端视觉与交互改动的**唯一强制设计准则**。
 > 任何 UI / CSS / 组件 / 动效 / 主题相关变更，必须以本规范为依据；与本规范冲突的写法视为不合格，不得合入。
-> **主题**：「机柜面板」—— 灵感来自服务器机柜前面板：带蓝的浅灰金属外框 + 白色面板，**品牌蓝 `#0052D9` 是主角，状态色与彩色图标负责活力**。本规范自成一体，不再依附任何第三方设计体系。
+> **主题**：「机柜面板」—— 灵感来自服务器机柜前面板：中性浅灰金属外框 + 白色面板，**品牌蓝 `#0052D9` 是主角，状态色与彩色图标负责活力**。本规范自成一体，不再依附任何第三方设计体系。
 > **绿色只表成功**：绿色只用于成功状态（success，按 TDesign 官方值）；品牌色、按钮、图表、装饰、Meter 正常段不用绿色（代码编辑器语法高亮除外）。
 > **扁平化**：两块纯色面（L 形灰色外框 + 白色内容平面）、无卡片、零阴影、色块表达选中。
 > **实现落点**：`frontend/src/react/styles/globals.css`（色彩 / 圆角 / 间距 / 字体 / 动效 token）、`frontend/src/react/lib/motion.ts`（动效时值）、`frontend/src/react/lib/platform.ts`（平台判断唯一出口）、`frontend/src/react/components/ui/*`（共享 UI 组件）。
@@ -27,7 +27,7 @@
 
 | 价值观 | 对本产品的强制含义 |
 |---|---|
-| **有序的活力** | 底色、容器、描边是带蓝的冷灰中性色；品牌蓝用于主操作、选中、链接；状态色表达成功（绿） / 告警 / 错误；Meter 正常段用蓝青（度量不是成功事件）；系统发行版、文件 / 文件夹、服务名色点允许彩色识别色（§6、§9）。禁止渐变、光晕、彩色大面积铺底，**绿色只用于成功状态**。 |
+| **有序的活力** | 亮色下底色、容器、描边、文字灰阶是不带蓝调的中性灰（暗色保留蓝黑调，§2.2）；品牌蓝用于主操作、选中、链接；状态色表达成功（绿） / 告警 / 错误；Meter 正常段用蓝青（度量不是成功事件）；系统发行版、文件 / 文件夹、服务名色点允许彩色识别色（§6、§9）。禁止渐变、光晕、彩色大面积铺底，**绿色只用于成功状态**。 |
 | **同一** | macOS / Windows / Linux 三端**布局、颜色、尺寸一致**：同一侧栏宽度、同一行高、同一色值、同一间距；字形跟随系统和用户选择（§3.1）。除字形外唯一允许的平台差异是窗口按钮位置（Mac 系统红绿灯左上，Win/Linux 自绘按钮右上）。 |
 | **密度** | 面向运维：高密度表格、终端、多主机切换优先；同一套 token 服务亮 / 暗与各模块，为终端 / 看板保留独立石墨面，但**不得另起一套互不兼容的色板**。 |
 | **连接** | 侧栏、主机、本机、看板、设置之间视觉与交互语言一致；共享按钮、表、浮层、Meter、动效类，禁止复制粘贴出分叉样式。 |
@@ -45,7 +45,7 @@
 
 ### 2.1 亮色（默认）
 
-外框为带一点蓝的浅灰，主色为「品牌蓝 `#0052D9`」。所有 token 定义于 `globals.css` `:root`。
+外框为**中性浅灰**（DeepSeek Harness 同款，不带蓝调），次级面、描边、文字、Tooltip 等整套灰阶同样取中性灰，主色为「品牌蓝 `#0052D9`」。所有 token 定义于 `globals.css` `:root`。
 
 **硬性规定**：绿色只用于成功状态（success：成功 / 正常 / 在线 / 最新），取 TDesign 官方值；品牌色、按钮、图表、装饰、Meter 正常段不用绿色（代码编辑器语法高亮除外）。读 IO 用亮蓝，写 IO 用橙。
 
@@ -53,13 +53,13 @@
 
 | 语义 | Token | 值 |
 |---|---|---|
-| 画布 | `--color-canvas` | `#EEF2F8` |
+| 画布 | `--color-canvas` | `#F9FAFB` |
 | 容器面 | `--color-surface` | `#FFFFFF` |
-| 次级面 / hover 底 | `--color-raised` | `#F3F6FB` |
-| 分隔 / 描边 | `--color-line` | `#DCE3EE` |
-| 控件描边 | `--color-line-strong` | `#A9B4C4` |
-| 主文字 | `--color-ink` | `#1B2433` |
-| 次文字 | `--color-muted` | `#5C6B80` |
+| 次级面 / hover 底 | `--color-raised` | `#F3F4F6` |
+| 分隔 / 描边 | `--color-line` | `#E5E7EB` |
+| 控件描边 | `--color-line-strong` | `#9CA3AF` |
+| 主文字 | `--color-ink` | `#1F2937` |
+| 次文字 | `--color-muted` | `#636A76`（surface 上 5.4:1、raised 上 4.9:1） |
 | 主色（品牌蓝） | `--color-accent` | `#0052D9` |
 | 主色 hover | `--color-accent-hover` | `#366EF4` |
 | 主色 active | `--color-accent-active` | `#003CAB` |
@@ -77,20 +77,20 @@
 | 告警浅底 | `--color-warn-soft` | `#FFF0E3` |
 | 信息浅底 | `--color-info-soft` | `#E3F1FF` |
 | 图表主线 | `--color-chart-1` | `#0052D9` |
-| 读 / 下行 | `--color-io-read` / `--color-chart-2` | `#1D8CF8` |
-| 写 / 上行 | `--color-io-write` / `--color-chart-3` | `#F08A24` |
+| 读 / 流入 | `--color-io-read` / `--color-chart-2` | `#1D8CF8` |
+| 写 / 流出 | `--color-io-write` / `--color-chart-3` | `#F08A24` |
 | LED 分段条 正常 | `--meter-ok` | `#0680A8`（蓝青，不随 success 变绿：资源占用是度量，不是成功事件；满格绿会误读为「越多越好」） |
 | LED 分段条 警告（≥60%） | `--meter-warn` | `#F08A24` |
 | LED 分段条 危险（≥85%） | `--meter-danger` | `#D54941` |
-| LED 分段条 未亮格 | `--meter-off` | `#DCE3EE` |
+| LED 分段条 未亮格 | `--meter-off` | `#E5E7EB` |
 | 浮层遮罩 | `--color-scrim` | `rgba(0, 0, 0, 0.6)` |
-| 文字提示底 / 字（Tooltip） | `--color-tooltip` / `--color-tooltip-text` | `#2B3445` / `#FFFFFF`（反色小气泡，对比约 12.6:1） |
+| 文字提示底 / 字（Tooltip） | `--color-tooltip` / `--color-tooltip-text` | `#1F2937` / `#FFFFFF`（反色小气泡，对比约 14.7:1） |
 
 功能色用于**状态语义**（成功 / 失败 / 告警 / 主操作）。success 为绿色（TDesign 官方值），是全站唯一允许的绿色；不得用蓝色冒充错误或告警，也不得用告警橙做装饰。
 
 ### 2.2 暗色（`html.dark`）
 
-原则：**内容优先 · 阅读舒适 · 信息层级与亮色一致**。暗色是同一块机柜面板在机房关灯后的样子，不是另一套主题。
+原则：**内容优先 · 阅读舒适 · 信息层级与亮色一致**。暗色是同一块机柜面板在机房关灯后的样子，不是另一套主题。灰阶**保留原有蓝黑调**，不随亮色壳层中性化（2026-09-30 定案）。
 
 | 语义 | Token | 值 |
 |---|---|---|
@@ -118,8 +118,8 @@
 | 告警浅底 | `--color-warn-soft` | `#40280F` |
 | 信息浅底 | `--color-info-soft` | `#15304A` |
 | 图表主线 | `--color-chart-1` | `#4C8DFF` |
-| 读 / 下行 | `--color-io-read` / `--color-chart-2` | `#4FB0FF` |
-| 写 / 上行 | `--color-io-write` / `--color-chart-3` | `#F29A4A` |
+| 读 / 流入 | `--color-io-read` / `--color-chart-2` | `#4FB0FF` |
+| 写 / 流出 | `--color-io-write` / `--color-chart-3` | `#F29A4A` |
 | LED 分段条 正常 | `--meter-ok` | `#38BDE0`（蓝青，理由同 §2.1） |
 | LED 分段条 警告 | `--meter-warn` | `#F29A4A` |
 | LED 分段条 危险 | `--meter-danger` | `#F06C63` |
@@ -140,8 +140,8 @@
 | 用途 | Token | 约定 |
 |---|---|---|
 | 单线主指标 | `--color-chart-1` | 品牌蓝 |
-| 读 / 下行 / 接收 | `--color-io-read` / `--color-chart-2` | 亮蓝 |
-| 写 / 上行 / 发送 | `--color-io-write` / `--color-chart-3` | 橙 |
+| 读 / 流入 / 接收 | `--color-io-read` / `--color-chart-2` | 亮蓝 |
+| 写 / 流出 / 发送 | `--color-io-write` / `--color-chart-3` | 橙 |
 
 图表色与状态色同源：读亮蓝、写橙的语义在全站固定。禁止在图表里引入未登记的彩虹色；确需第 4 序列以上时，先在 `globals.css` 登记 `--color-chart-N`（亮 / 暗双份）再用。
 
@@ -371,7 +371,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 
 ### 8.1 表面层级
 
-1. **外框** `--color-canvas`：顶栏 + 侧栏组成的 L 形冷灰底
+1. **外框** `--color-canvas`：顶栏 + 侧栏组成的 L 形中性浅灰底
 2. **内容平面** `--color-surface`：`main` 整块白底（左上 6px 圆角）；`.surface-float` 与内容平面同色、无描边 / 圆角 / 阴影，仅作为语义容器保留；`.content-float` 仅为可滚动内容区
 3. **浮层**（菜单 / 对话框 / 抽屉）：`--color-surface` + 1px `--color-line` 描边，**无阴影**；菜单与对话框圆角 `--radius-panel`（6px），贴边抽屉只画一侧描边；动画走 Motion token
 4. **石墨面**（终端 / 代码 / 日志）：独立深色，保留 ANSI / 编辑器主题，**亮色下也不洗成浅底**
@@ -398,11 +398,12 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 网格色块单元：同类单元平铺成网格（巡检项、Docker 容器等）用 `bg-raised p-4` 纯色块区分，块间距 `gap-card`，无描边 / 阴影；可点整块时 hover `bg-line`；块内 secondary 按钮与 neutral 标签改 `bg-surface`（hover `bg-line`），否则与色块同色。**不要在 `Card` 上写 `bg-*`**：`.surface-float` 不在 Tailwind 层内，会盖掉 `bg-*` 工具类，色块单元用普通 `div`。
 - 环图（`RingMeter`）直接落在内容平面上，不再垫 raised 色块（环图所在区块本身就是平面，再垫一层即卡片套卡片）。
 - 侧栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；当前主机只加粗、当前工具色块、工具列表缩进 12px；侧栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；主机列表与工具列表之间用 8px 留白分隔。
+- 侧栏结构：顶部固定平铺模块切换（主机 / 本机 / 巡检 / 通知 / 配置 / 设置，行高 40px，不随下方滚动；通知带未读数 Tag、配置待处理时右上红点），不做弹出菜单；当前模块只加粗（`font-semibold text-ink`，无色块），色块只给下方当前标签，同一时刻侧栏只有一处色块；模块区与下方标签列表之间画一根 1px `--color-line` 横线（左右与侧栏项边缘对齐、内缩 8px，上下各 8px 间距）区分一级 / 二级功能，标签列表（当前模块的分区 / 已打开主机与分组）独立滚动。
 - 页面提示条（`Notice` / `FlashNotices` + `useFlashMessage`），视觉按 TDesign Alert：
   - 四种 theme：success（`--color-success` / `success-soft`，绿，同 TDesign）、info（`info` / `info-soft`）、warning（`warn` / `warn-soft`，组件里旧名 `warn` 等价）、error（`danger` / `danger-soft`）。
   - 结构：左侧 16px 实心圆状态图标（圆面 = 主题色，符号用 `--color-surface`；success ✓、info i、warning / error !）+ 8px 间距 + 正文（`text-sm`、行高 24px、`--color-ink`，不用主题色）+ 右侧可选关闭 ×（16px、描边 1.5，`--color-muted`，hover / 聚焦变 `--color-ink`，`aria-label="关闭提示"`，可键盘聚焦）。
   - 尺寸：内边距 8px 16px，最小高 40px，圆角 `--radius-panel`（对应 TDesign medium），底色 = 主题 `*-soft`，无边框、无阴影；长文字换行，图标与关闭按钮对齐首行。
-  - 位置：一律在内容区顶部按文档流占位（首页放在机柜滚动区上方，不随机柜滚走，与机柜间距 16px），不做浮层遮挡内容；淡出结束后元素移除。
+  - 位置：在内容区顶部按文档流占位，不做浮层遮挡内容；淡出结束后元素移除。唯一例外是首页主机列表：提示条浮在内容区顶部居中、不占位（见 §9「首页提示条」行）。
   - 操作成功（已保存 / 已复制 / 已置顶…）：success，停留 `TOAST_DISMISS_MS`（3 秒）后淡出；鼠标悬停暂停计时、移开重新计时；连续触发重新计时；可点 × 立即关闭。
   - 需要用户处理的事项（如「预览存在冲突，请逐项处理」）：warning，常驻至手动关闭或被下一条提示替换。
   - 操作失败：error，常驻至手动关闭或被下一条提示替换，不自动消失。
@@ -436,11 +437,12 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 区块间距 | `--spacing-section` / `--gap-section: 24px` | 取代卡片描边做分段 |
 | 数据卡片悬停边框 | 仅看板主机卡：静止透明 1px 边框，悬停 / 聚焦 1px `--color-line-strong`（`board.css` `.host-board-card`）；`Card` 与内容区数据块无悬停边框 | 看板主机卡是可点选的独立对象，需要标识范围；内容区区块扁平读作整体，悬停描边只会打碎版面 |
 | 网格间隙 | `--gap-card: 8px` | 网格内同类单元之间；回归 8 点网格 |
-| 允许的“阴影” | 输入类 focus 外环（2px `--color-accent-focus`）；Linux frameless 1px 外描边（outline） | 这两处表达焦点 / 窗口边界，不表达层级；Tailwind `--shadow-*` / `--inset-shadow-*` / `--drop-shadow-*` 命名空间已清空 |
+| 允许的“阴影” | 输入类 focus 外环（2px `--color-accent-focus`）；Linux frameless 1px 外描边（outline）；首页分组拖拽插入线柔光环（`0 0 0 2px --color-accent-soft`，见「首页主机列表」行） | 这三处表达焦点 / 窗口边界 / 拖拽落点，不表达层级；Tailwind `--shadow-*` / `--inset-shadow-*` / `--drop-shadow-*` 命名空间已清空 |
 | 顶栏高度 | 40px | 对齐桌面窗口控件带；整窗贯通，侧栏在其下 |
 | 侧栏宽度 | 默认 232px（三端一致）；可拖 160–480px；双击分割条复位 | Firefox 式分割条 |
 | 表行 / 表头 | 40px / 36px | 运维密度；虚拟表常量与 CSS 必须同源 |
-| 首页主机列表 | 机柜式分组：每组一个 `.host-rack-block`（`--color-raised` 底、`--radius-panel` 圆角、内边距 `--gap-card`，无边框无阴影）；分排布局：首页由若干「排」纵向堆叠，排间距 `--gap-section`；每排（`.host-rack-lane`）内分组块定宽 `--host-rack-column: 280px`（不拉伸，窄于内容区时 `max-width: 100%`）、从左到右、块间距 `--gap-card`、顶部对齐、块高随内容，分组过多时排内 flex-wrap 折行（仍属同一排），绝不横向滚动；每排放哪些分组由用户拖拽决定，存为 UI 偏好 `hostHomeRows: string[][]`（`ipannel.settings.v1`，与其它设置同路径，仅存本机）；设置页「恢复默认」保留该布局不清空（分组折叠状态独立存于 `1pannel-host-group-collapsed`，本就不受影响）；对账：丢弃不存在的 id，未在布局中的分组按 `order` 追加到最后一排末尾，空排移除，首次无布局时全部分组按 `order` 放一排；分组改名换 id 时布局同步替换；每次拖完保存布局并按「从上到下、从左到右」展开调用 `ReorderGroups` 同步 `order`；「置顶」单独占最上一排（有置顶主机才显示），「未分组」单独占最下一排（有主机或拖主机中才显示），二者不可拖、不是分组拖拽落点，用户自建空分组照常显示；组标题行 36px：折叠箭头 + 组名（semibold）+ 台数（muted），整行为分组拖拽把手（`cursor: grab`，位移超 4px 才开始拖动，折叠箭头点击仍为折叠）；分组拖拽：被拖块 `opacity-50`；落点先定排（按排容器 rect，排下方空白到下一排之前都算该排），排内先按块顶部分子行再按指针 x 与块中线求插入点，排内末块右侧空白 = 插到该排末尾，2px `--color-accent` 竖向插入线画在目标块左侧（或末块右侧）间距中线、高度同该块；指针位于两排之间的间隙时显示横向 2px `--color-accent` 线（排间距中线），松手在此插入新排；拖拽中最后一个普通排下方出现「拖到这里新建一排」落区（高 56px、宽同内容区、`--radius-panel`、1px 虚线 `--color-line-strong` 边框、`--color-muted` 文字居中，指针进入变 `--color-accent-soft` 底 + `--color-accent` 边框 / 文字），松手在最后新增一排；拖空的排自动消失；分组 / 主机拖拽贴近主内容区上下边缘 48px 时纵向自动滚动；；置顶 / 未分组不可拖、不可越过，筛选生效时禁用分组拖拽；主机行 40px、行间 2px 间隙、`--radius-control` 圆角：22px 发行版图标（`DistroBadge boxSize={22}`，外框即 22px）+ 10px 间距 + 主机名（正文字号 `--app-font-size`，省略号、溢出时 Tooltip 显示全名），不显示协议 / 用户副信息；静止无底、hover `--color-surface`、选中 `--color-accent-soft` + `--color-accent` 文字、键盘焦点 2px `--color-accent-focus` 描边；编辑按钮仅行悬停 / 行内聚焦时显示（opacity + visibility，始终占位），悬停底 `--color-line`；拖拽投放目标块改 `--color-accent-soft` 底 + 2px `--color-accent` 内描边 | 列表是导航入口而非数据表；按组分列一眼看清分组结构，不套用 §4.4 行间线 |
+| 首页主机列表 | 机柜式分组：每组一个 `.host-rack-block`（`--color-raised` 底、`--radius-panel` 圆角、内边距 `--gap-card`，无边框无阴影）；分排布局：首页由若干「排」纵向堆叠，排间距 `--gap-section`；每排（`.host-rack-lane`）内分组块定宽 `--host-rack-column: 280px`（不拉伸，窄于内容区时 `max-width: 100%`）、从左到右、块间距 `--gap-card`、顶部对齐、块高随内容，分组过多时排内 flex-wrap 折行（仍属同一排），绝不横向滚动；每排放哪些分组由用户拖拽决定，存为 UI 偏好 `hostHomeRows: string[][]`（`ipannel.settings.v1`，与其它设置同路径，仅存本机）；设置页「恢复默认」保留该布局不清空（分组折叠状态独立存于 `1pannel-host-group-collapsed`，本就不受影响）；对账：丢弃不存在的 id，未在布局中的分组按 `order` 追加到最后一排末尾，空排移除，首次无布局时全部分组按 `order` 放一排；分组改名换 id 时布局同步替换；每次拖完保存布局并按「从上到下、从左到右」展开调用 `ReorderGroups` 同步 `order`；「置顶」固定在第一排最前面（有置顶主机才显示；同排其余位置照常放其他分组，没有普通排时单独一排），「未分组」单独占最下一排（有主机或拖主机中才显示），二者不可拖、不是分组拖拽落点（分组插不到置顶之前），用户自建空分组照常显示；组标题行 36px：折叠箭头 + 组名（semibold）+ 台数（muted），整行为分组拖拽把手（`cursor: grab`，位移超 4px 才开始拖动，折叠箭头点击仍为折叠）；不另设把手图标 / 右键移位等冗余入口，拖拽 + 落点预览即全部交互；分组拖拽：被拖块 `opacity-50`；落点先定排（按排容器 rect，排下方空白到下一排之前都算该排），排内先按块顶部分子行再按指针 x 与块中线求插入点，排内末块右侧空白 = 插到该排末尾，3px `--color-accent` 竖向插入线（外加 `0 0 0 2px --color-accent-soft` 柔光环；§10.4 阴影禁令特例——落点指示与 focus 外环同性质，不表达层级）画在目标块左侧（或末块右侧）间距中线、高度同该块；指针位于两排之间的间隙时显示横向 3px `--color-accent` 线 + 同款柔光（排间距中线），松手在此插入新排；没有置顶时，指针在第一排顶部之上则横线画在第一排上方，松手插入为新的第一排；有置顶时置顶所在排即最高层，其上方不出横线，指针在此按第一排排内落点处理；拖拽中最后一个普通排下方出现「拖到这里新建一排」落区（高 56px、宽同内容区、`--radius-panel`、1px 虚线 `--color-line-strong` 边框、`--color-muted` 文字居中，指针进入变 `--color-accent-soft` 底 + `--color-accent` 边框 / 文字），松手在最后新增一排；拖空的排自动消失；分组 / 主机拖拽贴近主内容区上下边缘 48px 时纵向自动滚动；置顶 / 未分组不可拖、不可越过，筛选生效时禁用分组拖拽；主机行 40px、行间 2px 间隙、`--radius-control` 圆角：22px 发行版图标（`DistroBadge boxSize={22}`，外框即 22px）+ 10px 间距 + 主机名（正文字号 `--app-font-size`，省略号、溢出时 Tooltip 显示全名），不显示协议 / 用户副信息；静止无底、hover `--color-surface`、选中 `--color-accent-soft` + `--color-accent` 文字、键盘焦点 2px `--color-accent-focus` 描边；编辑按钮仅行悬停 / 行内聚焦时显示（opacity + visibility，始终占位），悬停底 `--color-line`；拖拽投放目标块改 `--color-accent-soft` 底 + 2px `--color-accent` 内描边 | 列表是导航入口而非数据表；按组分列一眼看清分组结构，不套用 §4.4 行间线 |
+| 首页提示条 | 首页主机列表的 `FlashNotices` 不按文档流占位：绝对定位浮在内容区顶部（距顶 16px、水平居中，宽随内容、最大 560px），`z-30` 盖在机柜之上；外层 `pointer-events: none`，只有提示条本身可悬停 / 点关闭；视觉仍按 §8.2（`*-soft` 实底、无边框、无阴影），停留 / 淡出规则不变 | 首页高频拖拽移动主机 / 分组，每次成功都会出提示；占位会把整块机柜顶下去再弹回，打断拖拽和定位 |
 | 终端 / 代码 / 日志 | 独立深色石墨面 | 不随亮色主题变浅 |
 | 看板 | 深色专用表面 | 与石墨面共用中性色阶 |
 | 进程等超高密虚拟表 | 可低于 40px | 仅限已论证的数据密度场景，并在代码旁注释 |
@@ -484,7 +486,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 ### 10.4 组件与任务模式
 
 - [ ] 复用共享 Button / surface / table / dialog / Meter / motion 类，无分叉私货皮肤
-- [ ] 无任何 `box-shadow` / `shadow-*` / `ring-*` 生效（§9 列出的 focus 外环、Linux 外描边除外）
+- [ ] 无任何 `box-shadow` / `shadow-*` / `ring-*` 生效（§9 列出的 focus 外环、Linux 外描边、首页拖拽插入线柔光环除外）
 - [ ] 内容区不嵌套描边卡片（无 `border border-line rounded-*` 包区块）；区块间距用 `gap-section`
 - [ ] 表头无底色（不再 `bg-raised`），只有下方 1px line
 - [ ] 无渐变

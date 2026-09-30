@@ -17,6 +17,8 @@ import {
   ChartHost,
   lineOption,
   MonitorPanel,
+  RX_TIP,
+  TX_TIP,
   type MonitorReadout,
 } from "@/react/components/monitor/charts";
 import { OverviewFact, OverviewTable } from "@/react/components/overview/overview-parts";
@@ -1409,13 +1411,15 @@ function MonitorPage({ host }: { host: string }) {
           title="流量"
           readouts={[
             {
-              label: `下行${peakWord}`,
+              label: `流入${peakWord}`,
               swatch: "read",
+              tip: RX_TIP,
               value: readout(rxValues, (v) => formatRateKBps(v)),
             },
             {
-              label: `上行${peakWord}`,
+              label: `流出${peakWord}`,
               swatch: "write",
+              tip: TX_TIP,
               value: readout(txValues, (v) => formatRateKBps(v)),
             },
           ]}

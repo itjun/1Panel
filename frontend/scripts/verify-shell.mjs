@@ -136,8 +136,8 @@ if (entry.includes('dataset.platform') || entry.includes('data-platform')) {
 if (/background-color:\s*transparent\s*!important/.test(entry)) {
   fail("index.html boot must not use transparent root background");
 }
-if (!entry.includes("background-color: #f3f3f3")) {
-  fail("index.html boot root should use solid canvas #f3f3f3");
+if (!entry.includes("background-color: #f9fafb")) {
+  fail("index.html boot root should use solid canvas #f9fafb");
 }
 ok("index.html loads React with solid boot skeleton");
 

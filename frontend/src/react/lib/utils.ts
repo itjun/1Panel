@@ -14,7 +14,7 @@ export function readThemeColor(varName: string, fallback: string): string {
   return value || fallback;
 }
 
-/** 监控曲线按系列名取色：读/下行绿，写/上行橙，其余蓝 */
+/** 监控曲线按系列名取色：读/流入亮蓝，写/流出橙，其余蓝（下行/上行等旧名兼容） */
 export function seriesColorByName(name: string, index = 0): string {
   const key = name.trim();
   if (

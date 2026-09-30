@@ -9,7 +9,7 @@ import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { useFlashMessage, type FlashMessage } from "@/react/lib/use-flash-message";
 import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
-import { ChartHost } from "@/react/components/monitor/charts";
+import { ChartHost, RX_TIP, TX_TIP } from "@/react/components/monitor/charts";
 import type * as echarts from "echarts";
 import { copyText } from "@/utils/clipboard";
 import { bytesToKBps, formatBytes, formatErr, formatRateKBps } from "@/utils/format";
@@ -106,10 +106,6 @@ type ColumnHeader = {
   tip?: string;
 };
 
-const RX_TIP =
-  "流入：从外面进到这台机器的数据。比如用户访问时发来的请求、nginx 从后端服务拿回来的内容";
-const TX_TIP =
-  "流出：从这台机器发出去的数据。比如把网页、接口结果返回给用户；云服务器按流量收费，一般收的就是流出";
 const TRAFFIC_VERDICT_TIP =
   "判断方法：拿最近 3 天的流入 : 流出比例，和过去 30 天每天比例的中位数（平时水平）比。偏离 1.6 倍标橙，偏离 2.5 倍标红；比例正常时再看近 7 天总量比前 7 天涨跌超过一半没有";
 const TRAFFIC_USAGE_TIP =
@@ -691,9 +687,9 @@ function buildDailyTrafficOption(
     if (mark?.tone === "warn") return warn;
     return null;
   };
-  const muted = readThemeColor("--color-muted", "#5c6b80");
-  const line = readThemeColor("--color-line", "#dce3ee");
-  const ink = readThemeColor("--color-ink", "#1b2433");
+  const muted = readThemeColor("--color-muted", "#636a76");
+  const line = readThemeColor("--color-line", "#e5e7eb");
+  const ink = readThemeColor("--color-ink", "#1f2937");
   const surface = readThemeColor("--color-surface", "#ffffff");
   const [rxColor, txColor] = seriesColorList(["流入", "流出"]);
 

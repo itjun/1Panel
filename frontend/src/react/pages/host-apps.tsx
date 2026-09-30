@@ -264,7 +264,7 @@ function lineOption(opts: {
   dualBytesOnRight?: boolean;
 }): echarts.EChartsOption {
   const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#dce3ee");
+  const line = readThemeColor("--color-line", "#e5e7eb");
   const danger = readThemeColor("--color-danger", "#d54941");
   const markLineData = (opts.markLines || []).map((m) => ({
     name: m.name,
