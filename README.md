@@ -94,6 +94,10 @@ task darwin:package
 - **本机采集**：macOS 走 sysctl/libproc 等；Windows 走 `NtQuerySystemInformation`、注册表、IP Helper（`GetAdaptersAddresses` / `GetExtendedTcpTable`）等系统 API
 - **目标主机**：通过系统 `ssh` 二进制建立长连接，运行只读采集命令（`/proc/*`、`free`、`df`、`ps`、`systemctl`、`crontab -l`、`docker ps/stats` 等）
 
+## Agent 部署
+
+单机监控依赖目标主机上的 spanel-agent，由面板经 SSH 一键安装。安装时自动判断运行方式：有 systemd 的主机注册为 systemd 服务；容器、OpenRC 等无 systemd 的主机改用自带守护进程（SSH 断开后保持运行、退出自动重启）。普通用户登录时自动用 sudo 提权。两种方式的差异、资源限制、自启能力与排查方法见 [docs/agent-deployment.md](docs/agent-deployment.md)。
+
 ## 关于与版本信息
 
 设置页最后一项「关于」展示应用图标、应用名、版权、当前版本（构建时经 `git describe` 注入：tag 优先，无 tag 用提交短 SHA）、构建提交（本地 `go build` 默认写入 VCS 信息）、系统与架构、内置 spanel-agent 版本，并提供源码仓库 / 发布页（检查更新）/ 问题反馈链接（系统浏览器打开）。

@@ -37,8 +37,12 @@ _Avoid_: 全局通知、默认全开
 ### 监控（单机）
 
 **Agent 检查**:
-对一台主机探测 spanel-agent：systemd 服务、SSH 隧道 /health、版本与面板内置是否一致、是否已写入采样、磁盘水位、RSS。安装成功后自动跑一轮；概览无采样或右键「检查 Agent」可再跑。
+对一台主机探测 spanel-agent：服务状态（按 Agent 运行方式显示 systemd 或守护进程）、SSH 隧道 /health、版本与面板内置是否一致、是否已写入采样、磁盘水位、RSS。安装成功后自动跑一轮；概览无采样或右键「检查 Agent」可再跑。
 _Avoid_: 当成连接失败
+
+**Agent 运行方式**:
+安装时按目标主机自动选择：PID 1 为 systemd 时用 systemd 方式（unit + cgroup 硬限制）；否则用守护进程方式（`spanel-agent-ctl` 守护循环，SSH 断开不停、退出自动重启，无硬资源限制）。详见 `docs/agent-deployment.md`。
+_Avoid_: 「容器不支持」、nohup 模式（口语）
 
 **监控**:
 单台主机的时序指标子页（CPU / 负载 / 内存 / 流量 / 磁盘 IO）。
