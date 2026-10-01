@@ -527,7 +527,7 @@ pre,
   outline-offset: 0;
 }
 
-/* 未读 Tag 与配置红点：贴在图标右上角，随两种尺寸各自定位 */
+/* 未读 Tag 与配置红点：贴在图标右上角 */
 .module-rail-badge {
   top: 2px;
   left: 32px;
@@ -536,24 +536,7 @@ pre,
 .module-rail-dot {
   top: 6px;
   left: 36px;
-}
-
-/* 右键「隐藏名称」：只留图标，方块缩到 40×40；栏宽仍 72px，红绿灯与导航钮位置不变 */
-.module-rail[data-labels="off"] .module-rail-item {
-  width: 40px;
-  height: 40px;
-}
-
-.module-rail[data-labels="off"] .module-rail-badge {
-  top: -4px;
-  left: 24px;
-}
-
-.module-rail[data-labels="off"] .module-rail-dot {
-  top: 6px;
-  left: 28px;
-}
-/* 编辑抽屉：贴内容区右边，只画左侧 1px line，无圆角无阴影 */
+}/* 编辑抽屉：贴内容区右边，只画左侧 1px line，无圆角无阴影 */
 .edit-dock {
   width: 380px;
   flex-shrink: 0;
