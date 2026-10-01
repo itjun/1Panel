@@ -63,7 +63,11 @@ const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
 
 type RailEntry =
   | { kind: "host"; key: string; name: string }
-  | { kind: "group"; key: string };
+  | { kind: "group"; key: string; id: string };
+
+/** 分组 ID 可能与主机名相同，railOrder 里分组键加前缀区分 */
+const GROUP_KEY_PREFIX = "group:";
+const groupRailKey = (id: string) => GROUP_KEY_PREFIX + id;
 
 type GroupMenu = { id: string; x: number; y: number };
 
@@ -227,23 +231,30 @@ export function WorkspaceRail() {
     const groups = new Set(visitedGroupIds);
     const out: RailEntry[] = [];
     const seen = new Set<string>();
+    const pushGroup = (id: string) => {
+      const key = groupRailKey(id);
+      if (!groups.has(id) || seen.has(key)) return;
+      out.push({ kind: "group", key, id });
+      seen.add(key);
+    };
     for (const key of railOrder) {
+      if (key.startsWith(GROUP_KEY_PREFIX)) {
+        pushGroup(key.slice(GROUP_KEY_PREFIX.length));
+        continue;
+      }
       if (hostNames.has(key)) {
+        if (seen.has(key)) continue;
         out.push({ kind: "host", key, name: key });
         seen.add(key);
         continue;
       }
-      if (groups.has(key)) {
-        out.push({ kind: "group", key });
-        seen.add(key);
-      }
+      // 旧版 railOrder 分组键无前缀
+      pushGroup(key);
     }
     for (const h of hosts) {
       if (!seen.has(h.name)) out.push({ kind: "host", key: h.name, name: h.name });
     }
-    for (const gid of visitedGroupIds) {
-      if (!seen.has(gid)) out.push({ kind: "group", key: gid });
-    }
+    for (const gid of visitedGroupIds) pushGroup(gid);
     return out;
   }
 
@@ -389,11 +400,11 @@ export function WorkspaceRail() {
                   !session.settingsOpen &&
                   session.homeView === "group" &&
                   !session.activeHost &&
-                  session.activeGroupId === entry.key;
+                  session.activeGroupId === entry.id;
                 return (
                   <RailSessionRow
                     key={entry.key}
-                    label={session.groupName(entry.key) || entry.key}
+                    label={session.groupName(entry.id) || entry.id}
                     prefix="组"
                     active={active}
                     selected={false}
@@ -412,12 +423,12 @@ export function WorkspaceRail() {
                       // 切到分组时清掉主机多选，避免 selected 与分组 active 叠出双高亮
                       setSelectedHostNames([]);
                       hostAnchorRef.current = "";
-                      session.openGroup(entry.key);
+                      session.openGroup(entry.id);
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       const pos = clampContextMenuPos(e.clientX, e.clientY, 180, 96);
-                      setGroupMenu({ id: entry.key, x: pos.x, y: pos.y });
+                      setGroupMenu({ id: entry.id, x: pos.x, y: pos.y });
                     }}
                     onDragStart={(e) => {
                       suppressHostClickRef.current = true;
