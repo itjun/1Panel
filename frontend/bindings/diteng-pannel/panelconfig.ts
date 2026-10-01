@@ -40,15 +40,6 @@ export function ConfirmConfigImport(): $CancellablePromise<panelsync$0.ImportRes
     return $Call.ByID(1362058979);
 }
 
-/**
- * ExportEncryptedPanelBackup writes a portable age+scrypt archive. The
- * archive contains the full Panel JSON encrypted by the caller's passphrase,
- * raw OpenSSH config files, and no private-key file contents.
- */
-export function ExportEncryptedPanelBackup(path: string, passphrase: string): $CancellablePromise<string> {
-    return $Call.ByID(4094359554, path, passphrase);
-}
-
 export function GenerateConfig(): $CancellablePromise<panelsync$0.WriteResult> {
     return $Call.ByID(2941527997);
 }

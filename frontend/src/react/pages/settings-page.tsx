@@ -1,10 +1,15 @@
 // INTEGRATION: entry 改为使用本文件的 SettingsPage。
-import { Dialogs, Events } from "@wailsio/runtime";
+import { Events } from "@wailsio/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import appIcon from "@/react/assets/appicon.png";
 import { isWindowsPlatform } from "@/react/lib/platform";
+import {
+  HostBackupRestoreDialog,
+  exportHostBackup,
+  pickHostBackupFile,
+} from "@/react/components/backup/host-backup";
 import { DistroBadge } from "@/react/components/distro-badge";
 import { Button } from "@/react/components/ui/button";
 import { InputNumber } from "@/react/components/ui/input-number";
@@ -37,6 +42,7 @@ export function SettingsPage() {
   const flash = useFlashMessage();
   const [boardEnabled, setBoardEnabled] = useState(true);
   const [boardPort, setBoardPort] = useState(8888);
+  const [restorePath, setRestorePath] = useState<string | null>(null);
   const egress = useQuery({
     queryKey: ["egress"],
     queryFn: () => api.getMyEgress(),
@@ -102,6 +108,12 @@ export function SettingsPage() {
       {/* 外层 Page 已给 16px 安全边距，这里只负责居中与分区间距（8 点网格） */}
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-section">
         <FlashNotices flash={flash} />
+        <HostBackupRestoreDialog
+          path={restorePath}
+          onClose={() => setRestorePath(null)}
+          onRestored={(message) => flash.showToast(message)}
+          onError={(message) => flash.showError(message)}
+        />
 
         {section === "look" ? (
           <section className="flex flex-col">
@@ -247,19 +259,13 @@ export function SettingsPage() {
               ) : null}
               <Button onClick={() => void egress.refetch()}>刷新</Button>
             </SettingRow>
-            <SettingRow label="主机配置">
+            <SettingRow
+              label="主机配置"
+              hint="打包为 .zip（明文含密码与私钥），可在 macOS / Windows / Linux 间迁移"
+            >
               <Button
                 onClick={() => {
-                  void Dialogs.OpenFile({
-                    Title: "选择备份位置",
-                    CanChooseDirectories: true,
-                    CanChooseFiles: false,
-                    CanCreateDirectories: true,
-                  })
-                    .then((dir) => {
-                      if (!dir) return;
-                      return api.exportBackup(dir);
-                    })
+                  void exportHostBackup()
                     .then((msg) => {
                       if (msg) flash.showToast(msg);
                     })
@@ -268,6 +274,19 @@ export function SettingsPage() {
               >
                 导出…
               </Button>
+              <Button
+                onClick={() => {
+                  void pickHostBackupFile()
+                    .then((path) => {
+                      if (path) setRestorePath(path);
+                    })
+                    .catch((error) => flash.showError(formatErr(error)));
+                }}
+              >
+                导入…
+              </Button>
+            </SettingRow>
+            <SettingRow label="运行">
               <Button onClick={() => void Events.Emit("app-restart")}>重启应用</Button>
               {/* 与 Vue SettingsView 一致：发 app-quit-for-real，由后端 core.quitForReal 处理 */}
               <Button onClick={() => void Events.Emit("app-quit-for-real")}>退出应用</Button>

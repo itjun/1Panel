@@ -5,10 +5,15 @@
  *
  * 本页对照 Vue ConfigCenterView：概览 / Panel JSON / SSH / 差异 / 备份。
  */
-import { Dialogs, Events } from "@wailsio/runtime";
+import { Events } from "@wailsio/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { api, type main } from "@/api";
+import {
+  HostBackupRestoreDialog,
+  exportHostBackup,
+  pickHostBackupFile,
+} from "@/react/components/backup/host-backup";
 import { CodeSurface } from "@/react/components/code-surface";
 import { Button } from "@/react/components/ui/button";
 import { Card } from "@/react/components/ui/card";
@@ -98,10 +103,8 @@ export function ConfigCenterPage() {
   const [choices, setChoices] = useState<Record<string, ConflictChoice>>({});
   const [manualTexts, setManualTexts] = useState<Record<string, string>>({});
 
-  // 加密导出口令
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exportPassphrase, setExportPassphrase] = useState("");
-  const [exportPath, setExportPath] = useState("");
+  // 跨平台迁移包恢复
+  const [restorePath, setRestorePath] = useState<string | null>(null);
 
   // 系统编辑器选择
   const [editorOpen, setEditorOpen] = useState(false);
@@ -397,43 +400,27 @@ export function ConfigCenterPage() {
     }
   }
 
-  /** 概览与备份共用：先选路径，再要口令 */
-  async function beginEncryptedExport() {
+  /** 概览与备份共用：跨平台迁移包导出 / 导入 */
+  async function exportPortable() {
     flash.clearError();
-    try {
-      const path = await Dialogs.SaveFile({
-        Title: "导出加密 Panel 备份",
-        Filename: "1pannel-backup.age",
-        CanCreateDirectories: true,
-        CanChooseDirectories: false,
-        CanChooseFiles: true,
-      });
-      if (!path) return;
-      setExportPath(path);
-      setExportPassphrase("");
-      setExportOpen(true);
-    } catch (err) {
-      flash.showError(formatErr(err));
-    }
-  }
-
-  async function confirmEncryptedExport() {
-    if (!exportPath || !exportPassphrase) {
-      flash.showError("请输入导出口令。");
-      return;
-    }
     setBusy(true);
-    flash.clearError();
     try {
-      await api.exportEncryptedPanelBackup(exportPath, exportPassphrase);
-      setExportOpen(false);
-      setExportPassphrase("");
-      setExportPath("");
-      flash.showToast("已生成 age 加密备份（含密码）。");
+      const msg = await exportHostBackup();
+      if (msg) flash.showToast(msg);
     } catch (err) {
       flash.showError(formatErr(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function beginPortableRestore() {
+    flash.clearError();
+    try {
+      const path = await pickHostBackupFile();
+      if (path) setRestorePath(path);
+    } catch (err) {
+      flash.showError(formatErr(err));
     }
   }
 
@@ -631,8 +618,11 @@ export function ConfigCenterPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => session.setConfigSection("backups")}>备份与恢复</Button>
-                <Button disabled={busy} onClick={() => void beginEncryptedExport()}>
-                  加密导出
+                <Button disabled={busy} onClick={() => void exportPortable()}>
+                  导出迁移包
+                </Button>
+                <Button disabled={busy} onClick={() => void beginPortableRestore()}>
+                  导入迁移包
                 </Button>
               </div>
             </div>
@@ -739,8 +729,11 @@ export function ConfigCenterPage() {
               <h2 className="text-sm font-semibold text-ink">备份与恢复</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button disabled={busy} onClick={() => void beginEncryptedExport()}>
-                加密导出
+              <Button disabled={busy} onClick={() => void exportPortable()}>
+                导出迁移包
+              </Button>
+              <Button disabled={busy} onClick={() => void beginPortableRestore()}>
+                导入迁移包
               </Button>
               <Button
                 disabled={busy || backups.isFetching}
@@ -1029,44 +1022,16 @@ export function ConfigCenterPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={exportOpen}
-        onOpenChange={(open) => {
-          setExportOpen(open);
-          if (!open) {
-            setExportPassphrase("");
-            setExportPath("");
-          }
+      <HostBackupRestoreDialog
+        path={restorePath}
+        onClose={() => setRestorePath(null)}
+        onRestored={(message) => {
+          flash.showToast(message);
+          void refreshAll();
+          void backups.refetch();
         }}
-      >
-        <DialogContent>
-          <DialogTitle>加密导出</DialogTitle>
-          <DialogDescription>
-            完整导出包含 Panel JSON 中的密码，请设置一个不会被 Panel 保存的口令。
-          </DialogDescription>
-          <p className="mt-2 truncate font-mono text-xs text-muted" data-tip={exportPath} data-tip-overflow="">
-            {exportPath || "—"}
-          </p>
-          <input
-            type="password"
-            className="motion-field mt-3 w-full rounded-control px-3 py-2 text-sm"
-            placeholder="导出口令"
-            value={exportPassphrase}
-            onChange={(event) => setExportPassphrase(event.target.value)}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button onClick={() => setExportOpen(false)}>取消</Button>
-            <Button
-              variant="primary"
-              disabled={busy || !exportPassphrase}
-              onClick={() => void confirmEncryptedExport()}
-            >
-              导出
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onError={(message) => flash.showError(message)}
+      />
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent>

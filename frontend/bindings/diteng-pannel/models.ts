@@ -3,12 +3,6 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as groups$0 from "./internal/groups/models.js";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
-import * as hosticon$0 from "./internal/hosticon/models.js";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
 import * as monitor$0 from "./internal/monitor/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -16,9 +10,6 @@ import * as panelstore$0 from "./internal/panelstore/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as panelsync$0 from "./internal/panelsync/models.js";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
-import * as sshconfig$0 from "./internal/sshconfig/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as wecom$0 from "./internal/wecom/models.js";
@@ -84,18 +75,26 @@ export interface AppInfo {
 }
 
 /**
- * BackupData 备份文件内容：Panel JSON、原始 SSH 配置树、分组与主机图标。
- * 对外导出默认脱敏密码；应用内部自动快照由 panelsync 单独保存完整 JSON。
+ * BackupPreview 恢复前的预览信息
  */
-export interface BackupData {
+export interface BackupPreview {
+    /**
+     * zip / legacy-json
+     */
+    "format": string;
     "version": number;
-    "exportedAt": number;
-    "hosts": sshconfig$0.HostConfig[] | null;
-    "groups": groups$0.Group[] | null;
-    "icons": hosticon$0.Record[] | null;
-    "panelState"?: panelstore$0.State | null;
-    "configFiles"?: panelsync$0.ConfigFile[] | null;
-    "includesPasswords"?: boolean;
+    "sourceOS": string;
+    "createdAt": number;
+    "hosts": number;
+    "groups": number;
+    "keys": number;
+    "knownHosts": boolean;
+    "includesPasswords": boolean;
+    "newHosts": string[] | null;
+    "conflicts": string[] | null;
+    "droppedOptions": string[] | null;
+    "keyWrites": string[] | null;
+    "keyRenames": string[] | null;
 }
 
 /**
@@ -333,33 +332,17 @@ export interface HostOverviewSnapshot {
 }
 
 /**
- * ImportResult 导入结果统计
+ * ImportResult 恢复结果统计
  */
 export interface ImportResult {
-    /**
-     * 新增的主机别名
-     */
     "added": string[] | null;
-
-    /**
-     * 覆盖的主机别名
-     */
     "overwritten": string[] | null;
-
-    /**
-     * 跳过的已存在主机
-     */
     "skipped": string[] | null;
-
-    /**
-     * 导入/合并的分组数
-     */
     "groups": number;
-
-    /**
-     * 写入的图标记录数
-     */
     "icons": number;
+    "keys": number;
+    "knownHosts": number;
+    "droppedOptions": string[] | null;
 }
 
 /**

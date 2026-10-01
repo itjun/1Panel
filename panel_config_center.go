@@ -1,7 +1,6 @@
 package main
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -18,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"filippo.io/age"
 	"github.com/google/uuid"
 
 	"diteng-pannel/internal/panelstore"
@@ -829,123 +827,6 @@ func (s *PanelConfig) RevealPanelPath(path string) error {
 		return err
 	}
 	return openPanelPath(allowed, true)
-}
-
-// ExportEncryptedPanelBackup writes a portable age+scrypt archive. The
-// archive contains the full Panel JSON encrypted by the caller's passphrase,
-// raw OpenSSH config files, and no private-key file contents.
-func (s *PanelConfig) ExportEncryptedPanelBackup(path, passphrase string) (string, error) {
-	a := (*App)(s)
-	if a == nil || a.panelStore == nil {
-		return "", fmt.Errorf("Panel 主机存储未初始化")
-	}
-	if strings.TrimSpace(path) == "" {
-		return "", fmt.Errorf("导出路径不能为空")
-	}
-	if passphrase == "" {
-		return "", fmt.Errorf("加密口令不能为空")
-	}
-	a.panelConfigMu.Lock()
-	defer a.panelConfigMu.Unlock()
-	state := a.panelStore.Snapshot()
-	root, err := sshConfigPath()
-	if err != nil {
-		return "", err
-	}
-	files, err := panelsync.ReadTree(root)
-	if err != nil {
-		return "", err
-	}
-	stateJSON, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	var archive bytes.Buffer
-	zw := zip.NewWriter(&archive)
-	if err := writeZipEntry(zw, "panel.json", stateJSON); err != nil {
-		return "", err
-	}
-	manifest, _ := json.MarshalIndent(struct {
-		Version  int                    `json:"version"`
-		Created  int64                  `json:"createdAt"`
-		Revision uint64                 `json:"revision"`
-		Files    []panelsync.ConfigFile `json:"files"`
-	}{Version: 1, Created: time.Now().Unix(), Revision: state.Revision, Files: files}, "", "  ")
-	if err := writeZipEntry(zw, "manifest.json", manifest); err != nil {
-		return "", err
-	}
-	for _, file := range files {
-		if err := writeZipEntry(zw, filepath.ToSlash(filepath.Join("config", file.Path)), []byte(file.Content)); err != nil {
-			return "", err
-		}
-	}
-	if err := zw.Close(); err != nil {
-		return "", err
-	}
-	recipient, err := age.NewScryptRecipient(passphrase)
-	if err != nil {
-		return "", fmt.Errorf("创建加密口令失败: %w", err)
-	}
-	parent := filepath.Dir(filepath.Clean(path))
-	if err := os.MkdirAll(parent, 0700); err != nil {
-		return "", err
-	}
-	tmp, err := os.CreateTemp(parent, ".1pannel-export-*.age")
-	if err != nil {
-		return "", err
-	}
-	tmpName := tmp.Name()
-	clean := true
-	defer func() {
-		if clean {
-			_ = os.Remove(tmpName)
-		}
-	}()
-	if err := tmp.Chmod(0600); err != nil {
-		_ = tmp.Close()
-		return "", err
-	}
-	encrypted, err := age.Encrypt(tmp, recipient)
-	if err != nil {
-		_ = tmp.Close()
-		return "", err
-	}
-	if _, err := encrypted.Write(archive.Bytes()); err != nil {
-		_ = encrypted.Close()
-		_ = tmp.Close()
-		return "", err
-	}
-	if err := encrypted.Close(); err != nil {
-		_ = tmp.Close()
-		return "", err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return "", err
-	}
-	if err := tmp.Close(); err != nil {
-		return "", err
-	}
-	if info, statErr := os.Lstat(path); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
-		return "", fmt.Errorf("拒绝覆盖符号链接导出目标: %s", path)
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return "", err
-	}
-	clean = false
-	return path, nil
-}
-
-func writeZipEntry(zw *zip.Writer, name string, content []byte) error {
-	if strings.Contains(name, "../") || filepath.IsAbs(name) {
-		return fmt.Errorf("导出路径无效: %s", name)
-	}
-	w, err := zw.Create(name)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(content)
-	return err
 }
 
 func (a *App) panelBackupPath(id string) (string, error) {

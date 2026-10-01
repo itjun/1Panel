@@ -141,8 +141,6 @@ const apiImpl = {
   revealPanelPath: async (path: string): Promise<void> => {
     await PanelConfig.RevealPanelPath(path);
   },
-  exportEncryptedPanelBackup: (path: string, passphrase: string): Promise<string> =>
-    str(PanelConfig.ExportEncryptedPanelBackup(path, passphrase)),
   getConfigFiles: () => arr(PanelConfig.GetConfigFiles()),
   getConfigText: (): Promise<string> => str(PanelConfig.GetConfigText()),
   compareConfig: () => must(PanelConfig.CompareConfig()),
@@ -593,14 +591,14 @@ const apiImpl = {
   openExternalURL: (target: string): Promise<void> =>
     must(System.OpenExternalURL(target).then(() => undefined)),
 
-  // ============ 备份与恢复（主机配置） ============
-  /** 导出到 dir 下的日期文件夹，返回摘要文案 */
-  exportBackup: (dir: string): Promise<string> => str(Backup.ExportBackup(dir)),
-  /** 读取备份文件（导入预览用） */
-  readBackup: (path: string): Promise<main.BackupData> => must(Backup.ReadBackup(path)),
-  /** 从备份文件恢复；overwrite=true 时已存在主机以备份为准 */
-  importBackup: (path: string, overwrite: boolean): Promise<main.ImportResult> =>
-    must(Backup.ImportBackup(path, overwrite)),
+  // ============ 跨平台迁移（主机配置 .zip） ============
+  /** 导出迁移包到 path，返回摘要文案 */
+  exportBackup: (path: string): Promise<string> => str(Backup.ExportBackup(path)),
+  /** 读取迁移包，返回恢复预览 */
+  previewBackup: (path: string): Promise<main.BackupPreview> => must(Backup.PreviewBackup(path)),
+  /** 从迁移包恢复；overwrite=true 时同名主机以备份为准 */
+  restoreBackup: (path: string, overwrite: boolean): Promise<main.ImportResult> =>
+    must(Backup.RestoreBackup(path, overwrite)),
 };
 
 /** 包一层，只为数后台调用次数，不改变各方法的参数和返回值 */
