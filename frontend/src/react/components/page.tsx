@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useIsHostWorkspace } from "@/react/components/host-tool-tabs";
 import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
 import type { FlashMessage } from "@/react/lib/use-flash-message";
@@ -163,16 +164,39 @@ export function Notice({
   );
 }
 
-/** 渲染 useFlashMessage 的错误 / 待处理 / 成功提示条；三者互斥，同一时刻最多一条 */
+/** 顶栏底边（视口坐标）；提示条浮层贴在其下方 */
+function useToolbarBottom(): number {
+  const [bottom, setBottom] = useState(0);
+  useLayoutEffect(() => {
+    const toolbar = document.querySelector(".shell-app-toolbar");
+    if (!toolbar) return;
+    const measure = () => setBottom(toolbar.getBoundingClientRect().bottom);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  return bottom;
+}
+
+/**
+ * 渲染 useFlashMessage 的错误 / 待处理 / 成功提示条；三者互斥，同一时刻最多一条。
+ * 浮层不占位，层级压过对话框遮罩（DESIGN.md §9「操作提示条浮层」）。
+ */
 export function FlashNotices({ flash }: { flash: FlashMessage }) {
+  const top = useToolbarBottom();
+
+  let notice: ReactNode = null;
   if (flash.error) {
-    return <Notice text={flash.error} onClose={flash.clearError} />;
-  }
-  if (flash.warn) {
-    return <Notice text={flash.warn} tone="warning" onClose={flash.clearWarn} />;
-  }
-  if (flash.toast) {
-    return (
+    notice = <Notice text={flash.error} onClose={flash.clearError} />;
+  } else if (flash.warn) {
+    notice = <Notice text={flash.warn} tone="warning" onClose={flash.clearWarn} />;
+  } else if (flash.toast) {
+    notice = (
       <Notice
         text={flash.toast}
         tone="success"
@@ -183,5 +207,21 @@ export function FlashNotices({ flash }: { flash: FlashMessage }) {
       />
     );
   }
-  return null;
+  if (!notice) return null;
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed inset-x-0 z-[100] flex justify-center px-4 pt-4"
+      style={{ top }}
+    >
+      {/* 阻止冒泡：点提示条（如关闭）不被对话框当作外部点击而关掉 */}
+      <div
+        className="pointer-events-auto w-fit max-w-[min(560px,100%)]"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {notice}
+      </div>
+    </div>,
+    document.body,
+  );
 }

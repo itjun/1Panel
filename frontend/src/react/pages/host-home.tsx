@@ -1145,14 +1145,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       </ShellToolbarPortal>
 
       <div className="content-float relative flex min-w-0 flex-1 flex-col">
-      {/* 提示条浮在内容区顶部居中，不占位：拖拽移动主机 / 分组时机柜布局不被顶开（DESIGN.md §9） */}
-      {flash.toast || flash.error || flash.warn ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-4 pt-4">
-          <div className="pointer-events-auto w-fit max-w-[min(560px,100%)]">
-            <FlashNotices flash={flash} />
-          </div>
-        </div>
-      ) : null}
+      <FlashNotices flash={flash} />
 
       {/* 内容区四周 16px 安全边距；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9）。
           整块禁选：拖动超过阈值前浏览器已开始划选文字，事后再禁选清不掉选区 */}
