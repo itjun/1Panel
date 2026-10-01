@@ -86,8 +86,8 @@ const RetryInterval = 30 * time.Second
 // NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
 // 返回的 *application.App 由 main.go 调用 Run。
 func mainWindowBackgroundColour() application.RGBA {
-	// 三端统一不透明壳底色（与亮色 --color-canvas #f9fafb 同值），不走系统磨砂/透明窗。
-	return application.NewRGB(249, 250, 251)
+	// 三端统一不透明壳底色（与亮色 --color-canvas #f2f3f5 同值），不走系统磨砂/透明窗。
+	return application.NewRGB(242, 243, 245)
 }
 
 func NewApp() *application.App {
@@ -106,6 +106,8 @@ func NewApp() *application.App {
 	initAskBeforeQuit()
 
 	app := application.New(application.Options{
+		// 用户可见名称保持 1Panel。Wails 会把 Name 洗成 org.wails.1panel 当作 GTK
+		// application id，该 id 不合法；Linux 上在 gtk_app_id_linux.go 里替换。
 		Name:        "1Panel",
 		Description: "运维管理",
 		Services: []application.Service{
@@ -138,6 +140,8 @@ func NewApp() *application.App {
 		},
 		Linux: application.LinuxOptions{
 			DisableQuitOnLastWindowClosed: true,
+			// 窗口管理器显示名。不随 GTK application id 的合法化改动一起改掉。
+			ProgramName: "1Panel",
 		},
 		ShouldQuit: core.shouldQuit,
 		OnShutdown: core.shutdown,
@@ -312,6 +316,7 @@ func NewApp() *application.App {
 
 	// 必须显式设菜单：Wails 在 nil 时会装 DefaultApplicationMenu（含 View→Reload），
 	// 会抢走 ⌘R。macOS 留 App 菜单 + Edit（否则 ⌘C/⌘V 无法进 WebView 输入框）。
+	// Linux（GTK4）菜单为 nil 时窗口不挂菜单栏，installMinimalMenu 内直接跳过。
 	core.installMinimalMenu(app)
 
 	// 文件拖放：v2 的 OnFileDrop 回调 → v3 窗口事件 → 转发为前端自定义事件
@@ -495,7 +500,11 @@ func (a *App) fitWindowToPrimaryScreen() {
 
 // installMinimalMenu 避免 Wails 默认菜单（View→Reload 会抢走 ⌘R）。
 // 必须带 Edit：macOS 无 Edit 菜单时 WebView 收不到 ⌘C/⌘V/⌘A。
+// Linux 无边框窗口会把这份菜单画成顶上一条原生菜单栏（Edit），应用内已有标题栏，不装。
 func (a *App) installMinimalMenu(app *application.App) {
+	if goruntime.GOOS == "linux" {
+		return
+	}
 	m := app.Menu.New()
 	if goruntime.GOOS == "darwin" {
 		m.AddRole(application.AppMenu)

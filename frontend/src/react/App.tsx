@@ -4,7 +4,7 @@ import {
   useShellToolbarSlot,
 } from "@/react/components/shell-toolbar";
 import { HostToolTabs, useIsHostWorkspace } from "@/react/components/host-tool-tabs";
-import { WindowChrome, WindowControls } from "@/react/components/window-chrome";
+import { useToolbarDoubleClickMaximize, WindowChrome, WindowControls } from "@/react/components/window-chrome";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
 import { DialogHost } from "@/react/components/ui/confirm-dialog";
 import { detectAppOs } from "@/react/lib/platform";
@@ -61,6 +61,7 @@ function Shell() {
   const isMac = appOs === "mac";
   const { setSlot } = useShellToolbarSlot();
   const hostWorkspace = useIsHostWorkspace();
+  useToolbarDoubleClickMaximize(appOs === "linux");
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
   const createOpen = !session.settingsOpen && !!creating;

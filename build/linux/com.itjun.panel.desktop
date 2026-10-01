@@ -1,0 +1,13 @@
+[Desktop Entry]
+# 文件名须与 GTK application id（gtk_app_id_linux.go）一致：
+# GNOME Wayland 按 app_id、X11 按 _GTK_APPLICATION_ID 匹配本文件；
+# StartupWMClass 对应 X11 的 WM_CLASS（LinuxOptions.ProgramName），作兜底。
+Version=1.0
+Type=Application
+Name=1Panel
+Comment=运维管理
+Exec=1Panel
+Icon=1Panel
+Terminal=false
+Categories=Utility;
+StartupWMClass=1Panel

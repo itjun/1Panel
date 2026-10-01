@@ -3,8 +3,8 @@
 /* static：Tailwind 4 默认只输出被工具类引用到的变量，这里的 token 还会被
    JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
 @theme static {
-  /* 机柜面板规范 DESIGN.md §2.1 亮色：中性浅灰外框（DeepSeek Harness 同款），品牌蓝是主角；绿色只用于成功状态 */
-  --color-canvas: #f9fafb;
+  /* 机柜面板规范 DESIGN.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态 */
+  --color-canvas: #f2f3f5;
   --color-surface: #ffffff;
   --color-raised: #f3f4f6;
   --color-ink: #1f2937;

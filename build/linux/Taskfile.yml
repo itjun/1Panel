@@ -52,14 +52,13 @@ tasks:
           DEV:
             ref: .DEV
       - task: common:generate:icons
-      - task: generate:dotdesktop
     preconditions:
       - sh: '{{if eq .OBFUSCATED "true"}}command -v garble >/dev/null 2>&1{{else}}true{{end}}'
         msg: "garble is required for obfuscated builds. Install it with: go install mvdan.cc/garble@v0.16.0 (requires Go 1.24+). See https://github.com/burrowers/garble/releases for version/toolchain compatibility."
     cmds:
       - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o {{.OUTPUT}}'
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -X diteng-pannel/internal/agentres.AgentVersion={{.VERSION | default \"dev\"}}"{{end}}'
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -X diteng-pannel/internal/agentres.AgentVersion={{.VERSION | default "dev"}}"{{end}}'
       DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
       OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
     env:
@@ -76,7 +75,6 @@ tasks:
           OBFUSCATED:
             ref: .OBFUSCATED
       - task: common:generate:icons
-      - task: generate:dotdesktop
     preconditions:
       - sh: docker info > /dev/null 2>&1
         msg: "Docker is required for cross-compilation to Linux. Please install Docker."
@@ -114,7 +112,6 @@ tasks:
     dir: build/linux/appimage
     deps:
       - task: build
-      - task: generate:dotdesktop
     cmds:
       - cp "{{.APP_BINARY}}" "{{.APP_NAME}}"
       - cp ../../appicon.png "{{.APP_NAME}}.png"
@@ -123,7 +120,7 @@ tasks:
       APP_NAME: '{{.APP_NAME}}'
       APP_BINARY: '../../../bin/{{.APP_NAME}}'
       ICON: '{{.APP_NAME}}.png'
-      DESKTOP_FILE: '../{{.APP_NAME}}.desktop'
+      DESKTOP_FILE: '../com.itjun.panel.desktop'
       OUTPUT_DIR: '../../../bin'
 
   create:deb:
@@ -131,7 +128,6 @@ tasks:
     deps:
       - task: build
     cmds:
-      - task: generate:dotdesktop
       - task: generate:deb
 
   create:rpm:
@@ -139,7 +135,6 @@ tasks:
     deps:
       - task: build
     cmds:
-      - task: generate:dotdesktop
       - task: generate:rpm
 
   create:aur:
@@ -147,7 +142,6 @@ tasks:
     deps:
       - task: build
     cmds:
-      - task: generate:dotdesktop
       - task: generate:aur
 
   generate:deb:
@@ -165,22 +159,31 @@ tasks:
     cmds:
       - wails3 tool package -name "{{.APP_NAME}}" -format archlinux -config ./build/linux/nfpm/nfpm.yaml -out {{.ROOT_DIR}}/bin
 
-  generate:dotdesktop:
-    summary: Generates a `.desktop` file
-    dir: build
-    cmds:
-      - mkdir -p {{.ROOT_DIR}}/build/linux/appimage
-      - wails3 generate .desktop -name "{{.APP_NAME}}" -exec "{{.EXEC}}" -icon "{{.ICON}}" -outputfile "{{.ROOT_DIR}}/build/linux/{{.APP_NAME}}.desktop" -categories "{{.CATEGORIES}}"
-    vars:
-      APP_NAME: '{{.APP_NAME}}'
-      EXEC: '{{.APP_NAME}}'
-      ICON: '{{.APP_NAME}}'
-      CATEGORIES: 'Development;'
-      OUTPUTFILE: '{{.ROOT_DIR}}/build/linux/{{.APP_NAME}}.desktop'
-
   run:
     cmds:
       - '{{.BIN_DIR}}/{{.APP_NAME}}'
+
+  install:dev:
+    summary: 把 .desktop 与图标装到用户目录，dev 直跑的二进制在任务栏/概览也有图标
+    desc: |
+      GTK4 没有 gtk_window_set_icon，窗口图标只能靠桌面环境的 .desktop 匹配
+      （X11 走 _GTK_APPLICATION_ID / StartupWMClass）。deb 安装由 nfpm 装到
+      /usr/share；本任务装到 ~/.local/share 供未打包直跑 bin/ 的开发场景用，
+      Exec 指向当前仓库的 bin/{{.APP_NAME}}（挪走仓库后需重跑）。
+    deps:
+      - task: build
+    cmds:
+      - install -d ~/.local/share/applications ~/.local/share/icons/hicolor/128x128/apps
+      - sed 's|^Exec=.*|Exec={{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}|' build/linux/com.itjun.panel.desktop > ~/.local/share/applications/com.itjun.panel.desktop
+      - install -m 0644 build/appicon.png ~/.local/share/icons/hicolor/128x128/apps/{{.APP_NAME}}.png
+      - update-desktop-database ~/.local/share/applications 2>/dev/null || true
+      - gtk-update-icon-cache -q -t -f ~/.local/share/icons/hicolor 2>/dev/null || true
+
+  uninstall:dev:
+    summary: 移除 install:dev 装到用户目录的 .desktop 与图标
+    cmds:
+      - rm -f ~/.local/share/applications/com.itjun.panel.desktop ~/.local/share/icons/hicolor/128x128/apps/{{.APP_NAME}}.png
+      - update-desktop-database ~/.local/share/applications 2>/dev/null || true
 
   sign:deb:
     summary: Signs the DEB package

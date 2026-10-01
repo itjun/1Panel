@@ -45,7 +45,7 @@
 
 ### 2.1 亮色（默认）
 
-外框为**中性浅灰**（DeepSeek Harness 同款，不带蓝调），次级面、描边、文字、Tooltip 等整套灰阶同样取中性灰，主色为「品牌蓝 `#0052D9`」。所有 token 定义于 `globals.css` `:root`。
+外框为**中性浅灰**（对齐 TDesign `bg-color-page` `#F2F3F5`，不带蓝调；壳层与白色内容面之间不画分隔线、只靠色块区分，故外框灰度须足够可辨），次级面、描边、文字、Tooltip 等整套灰阶同样取中性灰，主色为「品牌蓝 `#0052D9`」。所有 token 定义于 `globals.css` `:root`。
 
 **硬性规定**：绿色只用于成功状态（success：成功 / 正常 / 在线 / 最新），取 TDesign 官方值；品牌色、按钮、图表、装饰、Meter 正常段不用绿色（代码编辑器语法高亮除外）。读 IO 用亮蓝，写 IO 用橙。
 
@@ -53,7 +53,7 @@
 
 | 语义 | Token | 值 |
 |---|---|---|
-| 画布 | `--color-canvas` | `#F9FAFB` |
+| 画布 | `--color-canvas` | `#F2F3F5`（TDesign bg-color-page，对白色 surface 1.11:1） |
 | 容器面 | `--color-surface` | `#FFFFFF` |
 | 次级面 / hover 底 | `--color-raised` | `#F3F4F6` |
 | 分隔 / 描边 | `--color-line` | `#E5E7EB` |

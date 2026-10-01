@@ -1,6 +1,9 @@
 package agentres
 
-import "testing"
+import (
+	"io/fs"
+	"testing"
+)
 
 func TestParseVersionFromLdflags(t *testing.T) {
 	got := parseVersionFromLdflags("-s -w -X main.version=0.2.22")
@@ -13,5 +16,15 @@ func TestParseVersionFromLdflags(t *testing.T) {
 	}
 	if parseVersionFromLdflags("-s -w") != "" {
 		t.Fatal("want empty")
+	}
+}
+
+func TestEmbedBinNotEmpty(t *testing.T) {
+	entries, err := fs.ReadDir(files, "bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("bin 为空：新克隆无法通过 go:embed all:bin 编译")
 	}
 }

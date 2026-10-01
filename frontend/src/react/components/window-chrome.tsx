@@ -18,6 +18,33 @@ function isTypingTarget(target: EventTarget | null) {
   return !!target.closest("input, textarea, select, [contenteditable='true'], .xterm, .cm-editor");
 }
 
+/** 顶栏里这些元素的双击交给自身（按钮/输入框/终端），不触最大化。 */
+const TOOLBAR_INTERACTIVE_SELECTOR =
+  "button, a, input, textarea, select, label, [role='button'], [role='tab'], .xterm, .cm-editor";
+
+/**
+ * Linux frameless：GTK 拖动区只认拖动，没有原生「双击标题栏最大化/还原」，补上。
+ * Win 走 NC 区命中（HTCAPTION）、mac 走系统标题栏双击偏好，都不装这个监听。
+ * 用 window 捕获阶段的原生监听而不是 header 上的 React onDoubleClick：顶栏
+ * 右侧槽位的内容经 portal 渲染，React 合成事件在这条路径上收不到（实测），
+ * 原生捕获监听稳定。
+ */
+export function useToolbarDoubleClickMaximize(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const onDoubleClick = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.closest(".shell-app-toolbar")) return;
+      if (target.closest(TOOLBAR_INTERACTIVE_SELECTOR)) return;
+      void Window.ToggleMaximise();
+    };
+    window.addEventListener("dblclick", onDoubleClick, { capture: true });
+    return () => window.removeEventListener("dblclick", onDoubleClick, { capture: true });
+  }, [enabled]);
+}
+
 function ChromeButton({
   label,
   disabled,
