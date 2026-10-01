@@ -22,7 +22,9 @@ import * as $models from "./models.js";
  * AddHost 添加新主机：先校验别名不重复 → 用密码连一次验证 → 推送本机公钥 → 回写 ~/.ssh/config
  * 用户只需提供别名/IP/用户/密码 4 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
  * 验证通过并推送公钥后，后续对该主机即可免密登录
- * 契约：四项必填；只有连通性+凭据验证成功才会写 config（由 CopySSHID 内部完成）
+ * 密码可留空：此时按 `ssh user@ip` 的方式用本机默认私钥 / ssh-agent 测连，
+ * 通过即保存，不推送公钥（用户已手动配好密钥对）。
+ * 契约：只有连通性+凭据验证成功才会写 config
  */
 export function AddHost(input: $models.AddHostInput): $CancellablePromise<void> {
     return $Call.ByID(2699445634, input);

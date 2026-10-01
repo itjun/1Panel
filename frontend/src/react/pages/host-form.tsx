@@ -165,15 +165,15 @@ export function HostCreateForm({
     const alias = name.trim();
     const addr = hostName.trim();
     const login = user.trim();
-    if (!alias || !addr || !login || !password) {
-      setError("别名、地址、用户、密码均不能为空");
+    if (!alias || !addr || !login) {
+      setError("别名、地址、用户不能为空");
       return;
     }
 
     setBusy(true);
     setError("");
     try {
-      // addHost 内部会测连并推公钥
+      // 填密码：测连并推公钥；留空：用本机密钥测连
       await api.addHost({
         name: alias,
         hostName: addr,
@@ -205,7 +205,7 @@ export function HostCreateForm({
   const canSave =
     kind === "group"
       ? !!name.trim()
-      : !!name.trim() && !!hostName.trim() && !!user.trim() && !!password;
+      : !!name.trim() && !!hostName.trim() && !!user.trim();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -286,7 +286,7 @@ export function HostCreateForm({
                 />
                 <input
                   className={EDIT_INPUT}
-                  placeholder="密码"
+                  placeholder="密码（已配公钥可留空）"
                   type="password"
                   value={password}
                   disabled={busy}

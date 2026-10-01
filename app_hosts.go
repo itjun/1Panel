@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"diteng-pannel/internal/panelstore"
@@ -87,14 +88,16 @@ func (s *Hosts) ListHostsAll() ([]sshconfig.HostConfig, error) {
 // AddHost 添加新主机：先校验别名不重复 → 用密码连一次验证 → 推送本机公钥 → 回写 ~/.ssh/config
 // 用户只需提供别名/IP/用户/密码 4 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
 // 验证通过并推送公钥后，后续对该主机即可免密登录
-// 契约：四项必填；只有连通性+凭据验证成功才会写 config（由 CopySSHID 内部完成）
+// 密码可留空：此时按 `ssh user@ip` 的方式用本机默认私钥 / ssh-agent 测连，
+// 通过即保存，不推送公钥（用户已手动配好密钥对）。
+// 契约：只有连通性+凭据验证成功才会写 config
 func (s *Hosts) AddHost(input AddHostInput) error {
 	input.Name = strings.TrimSpace(input.Name)
 	input.HostName = strings.TrimSpace(input.HostName)
 	input.User = strings.TrimSpace(input.User)
 	// 密码不 trim，保留用户输入原样
-	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
-		return fmt.Errorf("别名、IP、用户、密码均不能为空")
+	if input.Name == "" || input.HostName == "" || input.User == "" {
+		return fmt.Errorf("别名、IP、用户均不能为空")
 	}
 	if strings.ContainsAny(input.Name, " \t\r\n*") {
 		return fmt.Errorf("别名不能包含空格或通配符 *")
@@ -109,25 +112,37 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 			return fmt.Errorf("别名 %s 已存在，请换一个", input.Name)
 		}
 	}
-	// 密码连接本身就是一次验证；失败则不会修改 Panel JSON。
-	copyInput := CopyIDInput{
-		Name:          input.Name,
-		HostName:      input.HostName,
-		User:          input.User,
-		Port:          "22",
-		Password:      input.Password,
-		PublicKeyFile: "~/.ssh/id_ed25519.pub",
-		IdentityFile:  "~/.ssh/id_ed25519",
-	}
-	if err := s.installSSHID(copyInput); err != nil {
-		return err
+	identityFiles := []string{"~/.ssh/id_ed25519"}
+	if input.Password == "" {
+		identityFiles = defaultIdentityFiles()
+		probe := panelstore.PanelHost{
+			Alias: "__add__:" + input.Name, HostName: input.HostName, User: input.User,
+			Port: "22", IdentityFiles: identityFiles,
+		}
+		if _, err := (*App)(s).testPanelHost(probe); err != nil {
+			return fmt.Errorf("未填密码，使用本机密钥登录失败: %w", err)
+		}
+	} else {
+		// 密码连接本身就是一次验证；失败则不会修改 Panel JSON。
+		copyInput := CopyIDInput{
+			Name:          input.Name,
+			HostName:      input.HostName,
+			User:          input.User,
+			Port:          "22",
+			Password:      input.Password,
+			PublicKeyFile: "~/.ssh/id_ed25519.pub",
+			IdentityFile:  "~/.ssh/id_ed25519",
+		}
+		if err := s.installSSHID(copyInput); err != nil {
+			return err
+		}
 	}
 	if a := (*App)(s); a.panelStore != nil {
 		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
 			state.Hosts = append(state.Hosts, panelstore.PanelHost{
 				Alias: input.Name, HostName: input.HostName, User: input.User,
 				Port: "22", Password: input.Password, Note: input.Note,
-				IdentityFiles: []string{"~/.ssh/id_ed25519"},
+				IdentityFiles: identityFiles,
 			})
 			return nil
 		}); err != nil {
@@ -138,11 +153,27 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
 			application.Get().Logger.Warn("保存主机备注失败", "error", err)
 		}
-		if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
-			application.Get().Logger.Warn("保存主机密码失败", "error", err)
+		if input.Password != "" {
+			if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
+				application.Get().Logger.Warn("保存主机密码失败", "error", err)
+			}
 		}
 	}
 	return nil
+}
+
+// defaultIdentityFiles 返回本机存在的 OpenSSH 默认私钥（与 `ssh user@ip` 默认尝试的顺序一致）；
+// 都不存在时返回 nil，由连接器回退到 ssh-agent。
+func defaultIdentityFiles() []string {
+	names := []string{"id_rsa", "id_ecdsa", "id_ecdsa_sk", "id_ed25519", "id_ed25519_sk", "id_dsa"}
+	var out []string
+	for _, name := range names {
+		rel := "~/.ssh/" + name
+		if _, err := os.Stat(expandTilde(rel)); err == nil {
+			out = append(out, rel)
+		}
+	}
+	return out
 }
 
 // TestConnection 用密码尝试 SSH 登录（执行 hostname），仅验证连通性与凭据是否正确
