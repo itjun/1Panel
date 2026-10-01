@@ -2,6 +2,7 @@
  * INTEGRATION: entry 的 GroupPage 改从本文件引入。
  */
 import { Events } from "@wailsio/runtime";
+import { Copy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useCallback,
@@ -50,6 +51,7 @@ const GROUP_COL_KEYS = [
   "index",
   "host",
   "addr",
+  "lan",
   "agent",
   "user",
   "version",
@@ -65,7 +67,8 @@ type GroupColumnKey = (typeof GROUP_COL_KEYS)[number];
 const GROUP_COL_LABELS: Record<GroupColumnKey, string> = {
   index: "序",
   host: "主机",
-  addr: "地址",
+  addr: "外网 IP",
+  lan: "内网 IP",
   agent: "Agent",
   user: "用户",
   version: "版本",
@@ -79,7 +82,8 @@ const GROUP_COL_LABELS: Record<GroupColumnKey, string> = {
 const GROUP_DEFAULT_W: Record<GroupColumnKey, number> = {
   index: 64,
   host: 140,
-  addr: 150,
+  addr: 176,
+  lan: 176,
   agent: 100,
   user: 64,
   version: 108,
@@ -94,7 +98,8 @@ const GROUP_DEFAULT_W: Record<GroupColumnKey, number> = {
 const GROUP_MIN_W: Record<GroupColumnKey, number> = {
   index: 64,
   host: 132,
-  addr: 150,
+  addr: 176,
+  lan: 176,
   agent: 112,
   user: 96,
   version: 108,
@@ -129,9 +134,12 @@ type BatchRow = {
 type GroupRow = {
   name: string;
   hostName: string;
+  publicIP: string;
+  privateIP: string;
   user: string;
   agent: string;
   version: string;
+  osRelease: string;
   spec: string;
   cpu: number | null;
   mem: number | null;
@@ -163,9 +171,12 @@ function readColumnOrder(): GroupColumnKey[] {
         out.push(key);
       }
     }
-    for (const key of GROUP_COL_KEYS) {
-      if (!seen.has(key)) out.push(key);
-    }
+    GROUP_COL_KEYS.forEach((key, i) => {
+      if (seen.has(key)) return;
+      const prev = i > 0 ? out.indexOf(GROUP_COL_KEYS[i - 1]) : -1;
+      out.splice(prev + 1, 0, key);
+      seen.add(key);
+    });
     return out.length === GROUP_COL_KEYS.length ? out : [...GROUP_COL_KEYS];
   } catch {
     return [...GROUP_COL_KEYS];
@@ -180,7 +191,9 @@ function readColWidths(): Record<string, number> {
     const obj = JSON.parse(raw) as Record<string, unknown>;
     for (const key of GROUP_COL_KEYS) {
       const value = Number(obj[key]);
-      if (Number.isFinite(value) && value >= 32) out[key] = Math.round(value);
+      if (!Number.isFinite(value) || value < 32) continue;
+      // IP 列内容定宽，旧版存下的窄列宽会截断完整 IPv4
+      out[key] = key === "addr" || key === "lan" ? Math.max(Math.round(value), GROUP_MIN_W[key]) : Math.round(value);
     }
   } catch {
     /* ignore */
@@ -237,7 +250,8 @@ function agentTagOf(
 
 function groupRowSortValue(row: GroupRow, key: GroupColumnKey): GroupSortValue {
   if (key === "host") return row.name;
-  if (key === "addr") return row.hostName;
+  if (key === "addr") return row.publicIP || null;
+  if (key === "lan") return row.privateIP || null;
   if (key === "agent") return row.agent;
   if (key === "user") return row.user;
   if (key === "version") return row.version === "—" ? null : row.version;
@@ -251,6 +265,25 @@ function groupRowSortValue(row: GroupRow, key: GroupColumnKey): GroupSortValue {
 
 /** 表格里的 Meter：撑满单元格，右侧数字不换行（td 为 wrap 列） */
 const METER_CELL_CLASS = "w-full whitespace-nowrap";
+
+function IpCell({ ip, onCopy }: { ip: string; onCopy: (ip: string) => void }) {
+  if (!ip) return <span className="text-muted">—</span>;
+  return (
+    <span className="flex w-full min-w-0 items-center justify-between gap-0.5">
+      <span className="min-w-0 truncate font-mono text-muted">{ip}</span>
+      <button
+        type="button"
+        aria-label={`复制 ${ip}`}
+        data-tip="复制"
+        onClick={() => onCopy(ip)}
+        onDoubleClick={(e) => e.stopPropagation()}
+        className="motion-colors inline-flex size-5 shrink-0 items-center justify-center rounded-control text-muted hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
+      >
+        <Copy size={14} strokeWidth={1.5} aria-hidden />
+      </button>
+    </span>
+  );
+}
 
 const INPUT_CLASS =
   "motion-field h-9 w-full rounded-control px-3 text-sm text-ink";
@@ -371,9 +404,12 @@ export function GroupPage({
         return {
           name: host.name,
           hostName: host.hostName,
+          publicIP: snap?.publicIP || host.hostName,
+          privateIP: snap?.privateIP && snap.privateIP !== snap.publicIP ? snap.privateIP : "",
           user: host.user,
           agent,
           version: ov ? osVersion(ov.osRelease || "") || "—" : "—",
+          osRelease: (ov?.osRelease || "").trim(),
           spec: ov ? `${ov.cpuCount || 0}核${formatMemCapacity(ov.memTotal || 0)}` : "—",
           cpu: ov ? ov.cpuPercent : null,
           mem: ov ? ov.memPercent : null,
@@ -403,6 +439,14 @@ export function GroupPage({
 
   const showBatchInTable = batchBusy || (batchDialogOpen && !batchDone);
 
+  const boardFlashRef = useRef(boardFlash);
+  boardFlashRef.current = boardFlash;
+  const copyIp = useCallback((ip: string) => {
+    void copyText(ip)
+      .then(() => boardFlashRef.current.showToast(`已复制 ${ip}`))
+      .catch((err) => boardFlashRef.current.showError(`复制失败: ${formatErr(err)}`));
+  }, []);
+
   const columns: InteractiveColumn<GroupRow>[] = useMemo(
     () =>
       GROUP_COL_KEYS.map((key) => ({
@@ -417,8 +461,9 @@ export function GroupPage({
           if (key === "index") return <span className="tabular-nums text-muted">{index + 1}</span>;
           if (key === "host") return row.name;
           if (key === "addr") {
-            return <span className="font-mono text-muted">{row.hostName || "—"}</span>;
+            return <IpCell ip={row.publicIP} onCopy={copyIp} />;
           }
+          if (key === "lan") return <IpCell ip={row.privateIP} onCopy={copyIp} />;
           if (key === "agent") {
             const progress = batchRowMap.get(row.name);
             if (showBatchInTable && progress) {
@@ -461,7 +506,11 @@ export function GroupPage({
           }
           if (key === "user") return row.user || "—";
           if (key === "version") {
-            return <span className="font-mono text-muted">{row.version}</span>;
+            return (
+              <span className="font-mono text-muted" data-tip={row.osRelease || undefined}>
+                {row.version}
+              </span>
+            );
           }
           if (key === "spec") return row.spec;
           if (key === "load") {
@@ -504,7 +553,7 @@ export function GroupPage({
           return "—";
         },
       })),
-    [agentStatuses, batchRowMap, latestAgentVersion, showBatchInTable],
+    [agentStatuses, batchRowMap, copyIp, latestAgentVersion, showBatchInTable],
   );
 
   function persistOrder(next: string[]) {

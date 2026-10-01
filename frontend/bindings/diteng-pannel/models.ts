@@ -307,6 +307,16 @@ export interface HostOverviewSnapshot {
      * 实际 IP/域名
      */
     "hostName": string;
+
+    /**
+     * 外网 IP（SSH 地址为公网 IP 时即它，否则取网卡公网 IP / 出口 IP）
+     */
+    "publicIP"?: string;
+
+    /**
+     * 内网 IP（首个私网网卡地址）
+     */
+    "privateIP"?: string;
     "user": string;
     "overview": monitor$0.Overview;
 

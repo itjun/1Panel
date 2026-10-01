@@ -19,9 +19,11 @@ type Overview App
 
 // HostOverviewSnapshot 一台主机的概览快照
 type HostOverviewSnapshot struct {
-	Name     string             `json:"name"`     // Host 别名
-	HostName string             `json:"hostName"` // 实际 IP/域名
-	User     string             `json:"user"`
+	Name      string             `json:"name"`                // Host 别名
+	HostName  string             `json:"hostName"`            // 实际 IP/域名
+	PublicIP  string             `json:"publicIP,omitempty"`  // 外网 IP（SSH 地址为公网 IP 时即它，否则取网卡公网 IP / 出口 IP）
+	PrivateIP string             `json:"privateIP,omitempty"` // 内网 IP（首个私网网卡地址）
+	User      string             `json:"user"`
 	Overview monitor.Overview   `json:"overview"`
 	Disks    []monitor.DiskInfo `json:"disks"` // 物理盘/池(kind=disk) + 挂载分区(kind=mount)
 	Error    string             `json:"error,omitempty"`
@@ -356,6 +358,7 @@ func (s *Overview) collectHostSnapshots(hosts []sshconfig.HostConfig, limit int,
 			}
 			ov := overviewFromAgent(cur)
 			snap.Overview = ov
+			snap.PublicIP, snap.PrivateIP = cachedHostIPs(host.Name, host.HostName, cli)
 			if remember != nil && ov.OSRelease != "" {
 				remember(host.Name, ov.OSRelease)
 			}
