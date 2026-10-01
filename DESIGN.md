@@ -253,6 +253,10 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - **表头无底色**：只用 `text-xs text-muted font-normal` + 下方 1px `--color-line`；吸顶表头用 `--color-surface` 遮挡滚动内容。
 - 行与行之间 1px `--color-line`；表格外框无描边、无圆角。
 - hover 用 `--color-raised`，选中用 `--color-accent-soft`；不加阴影。
+- 可交互表格（`InteractiveDataTable`，分组页）：
+  - **列宽自适应**：默认按每列内容实测宽度（canvas 测字，跟随用户字体设置）与容器宽度分配；有富余时分给弹性列（主机、Meter 列），不够时先压弹性列、再压可截断文字列到下限，仍放不下才横向滚动。用户手动拖过的列宽固定并本地保存，双击列边界或「恢复默认列」回到自适应。
+  - **列宽拖拽标记**：表头每列右缘 8px 热区（`cursor: col-resize`），悬停 / 拖动时显示贯穿表头与全部行的 2px `--color-accent` 竖线（`.table-col-resize-guide`）。
+  - **列顺序拖拽**：位移超 4px 开始，松手才换位、Esc 取消；被拖列 `opacity-50`，落点显示与首页分组同款的 3px `--color-accent` 插入线 + `0 0 0 2px --color-accent-soft` 柔光（`.table-col-insert`），贯穿全表。
 - 例外：首页主机列表采用**机柜式分组**（见 §9），不套用本节行间分隔线与行高。
 
 ### 4.5 滚动条
@@ -445,7 +449,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 区块间距 | `--spacing-section` / `--gap-section: 24px` | 取代卡片描边做分段 |
 | 数据卡片悬停边框 | 仅看板主机卡：静止透明 1px 边框，悬停 / 聚焦 1px `--color-line-strong`（`board.css` `.host-board-card`）；`Card` 与内容区数据块无悬停边框 | 看板主机卡是可点选的独立对象，需要标识范围；内容区区块扁平读作整体，悬停描边只会打碎版面 |
 | 网格间隙 | `--gap-card: 8px` | 网格内同类单元之间；回归 8 点网格 |
-| 允许的“阴影” | 输入类 focus 外环（2px `--color-accent-focus`）；Linux frameless 1px 外描边（outline）；首页分组拖拽插入线柔光环（`0 0 0 2px --color-accent-soft`，见「首页主机列表」行） | 这三处表达焦点 / 窗口边界 / 拖拽落点，不表达层级；Tailwind `--shadow-*` / `--inset-shadow-*` / `--drop-shadow-*` 命名空间已清空 |
+| 允许的“阴影” | 输入类 focus 外环（2px `--color-accent-focus`）；Linux frameless 1px 外描边（outline）；拖拽插入线柔光环（`0 0 0 2px --color-accent-soft`：首页分组拖拽，见「首页主机列表」行；表格列顺序拖拽，见 §4.4） | 这三处表达焦点 / 窗口边界 / 拖拽落点，不表达层级；Tailwind `--shadow-*` / `--inset-shadow-*` / `--drop-shadow-*` 命名空间已清空 |
 | 顶栏高度 | 40px | 对齐桌面窗口控件带；整窗贯通，侧栏在其下 |
 | 侧栏宽度 | 默认 232px（三端一致）；可拖 160–480px；双击分割条复位 | Firefox 式分割条 |
 | 表行 / 表头 | 40px / 36px | 运维密度；虚拟表常量与 CSS 必须同源 |
@@ -494,7 +498,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 ### 10.4 组件与任务模式
 
 - [ ] 复用共享 Button / surface / table / dialog / Meter / motion 类，无分叉私货皮肤
-- [ ] 无任何 `box-shadow` / `shadow-*` / `ring-*` 生效（§9 列出的 focus 外环、Linux 外描边、首页拖拽插入线柔光环除外）
+- [ ] 无任何 `box-shadow` / `shadow-*` / `ring-*` 生效（§9 列出的 focus 外环、Linux 外描边、首页分组 / 表格列拖拽插入线柔光环除外）
 - [ ] 内容区不嵌套描边卡片（无 `border border-line rounded-*` 包区块）；区块间距用 `gap-section`
 - [ ] 表头无底色（不再 `bg-raised`），只有下方 1px line
 - [ ] 无装饰性渐变；用到的渐变都在表达信息（§2.5）

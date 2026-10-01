@@ -41,7 +41,7 @@ import { copyText } from "@/utils/clipboard";
 import { formatErr, formatMemCapacity } from "@/utils/format";
 import { sortRowsByGroupValue, type GroupSortValue } from "@/utils/groupTableState";
 
-const COL_WIDTHS_KEY = "1pannel-group-col-widths-v4";
+const COL_WIDTHS_KEY = "1pannel-group-col-widths-v5";
 const COL_ORDER_KEY = "1pannel-group-col-order-v1";
 const TABLE_SORT_KEY = "1pannel-group-table-sort-v1";
 
@@ -79,36 +79,52 @@ const GROUP_COL_LABELS: Record<GroupColumnKey, string> = {
   disk: "磁盘",
 };
 
-const GROUP_DEFAULT_W: Record<GroupColumnKey, number> = {
-  index: 64,
-  host: 140,
-  addr: 176,
-  lan: 176,
-  agent: 100,
-  user: 64,
-  version: 108,
-  spec: 80,
-  /* Meter 列：8 格轨道最窄 62px + 8px 间隙 + 等宽数字，再加单元格左右 24px 内边距 */
-  load: 136,
-  cpu: 120,
-  mem: 120,
-  disk: 160,
+/* Meter 列：8 格轨道最窄 62px + 8px 间隙，右侧等宽小号数字另测 */
+const METER_EXTRA = 70;
+/* IP 列：2px 间距 + 20px 复制按钮 */
+const IP_COPY_EXTRA = 22;
+/* Agent 列：Tag 左右内边距 */
+const TAG_EXTRA = 16;
+
+type GroupColumnFit = Pick<
+  InteractiveColumn<GroupRow>,
+  "width" | "minWidth" | "font" | "extra" | "flex" | "shrink"
+>;
+
+/** 列宽按内容自适应：width 只是测量前的初值；flex 列分富余空间，shrink 列不够时可截断到 minWidth */
+const GROUP_COL_FIT: Record<GroupColumnKey, GroupColumnFit> = {
+  index: { width: 56, minWidth: 48 },
+  host: { width: 140, minWidth: 96, flex: 1, shrink: true },
+  addr: { width: 176, minWidth: 96, font: "mono", extra: IP_COPY_EXTRA, shrink: true },
+  lan: { width: 176, minWidth: 96, font: "mono", extra: IP_COPY_EXTRA, shrink: true },
+  agent: { width: 100, minWidth: 72, extra: TAG_EXTRA },
+  user: { width: 64, minWidth: 56, shrink: true },
+  version: { width: 108, minWidth: 64, font: "mono", shrink: true },
+  spec: { width: 80, minWidth: 64 },
+  load: { width: 136, minWidth: 120, font: "mono-xs", extra: METER_EXTRA, flex: 2 },
+  cpu: { width: 120, minWidth: 112, font: "mono-xs", extra: METER_EXTRA, flex: 2 },
+  mem: { width: 120, minWidth: 112, font: "mono-xs", extra: METER_EXTRA, flex: 2 },
+  disk: { width: 120, minWidth: 112, font: "mono-xs", extra: METER_EXTRA, flex: 2 },
 };
 
-const GROUP_MIN_W: Record<GroupColumnKey, number> = {
-  index: 64,
-  host: 132,
-  addr: 176,
-  lan: 176,
-  agent: 112,
-  user: 96,
-  version: 108,
-  spec: 96,
-  load: 128,
-  cpu: 112,
-  mem: 112,
-  disk: 160,
-};
+function meterText(value: number | null): string {
+  return value == null ? "—" : `${value.toFixed(1)}%`;
+}
+
+function groupCellText(row: GroupRow, key: GroupColumnKey): string {
+  if (key === "host") return row.name;
+  if (key === "addr") return row.publicIP || "—";
+  if (key === "lan") return row.privateIP || "—";
+  if (key === "agent") return row.agent;
+  if (key === "user") return row.user || "—";
+  if (key === "version") return row.version;
+  if (key === "spec") return row.spec;
+  if (key === "load") return row.loadText;
+  if (key === "cpu") return meterText(row.cpu);
+  if (key === "mem") return meterText(row.mem);
+  if (key === "disk") return meterText(row.disk);
+  return "";
+}
 
 const BATCH_STEP_LABEL: Record<string, string> = {
   probe: "探测主机状态",
@@ -183,17 +199,17 @@ function readColumnOrder(): GroupColumnKey[] {
   }
 }
 
-function readColWidths(): Record<string, number> {
-  const out: Record<string, number> = { ...GROUP_DEFAULT_W };
+/** 只存用户手动拖过的列宽，其余列自适应 */
+function readManualWidths(): Record<string, number> {
+  const out: Record<string, number> = {};
   try {
     const raw = localStorage.getItem(COL_WIDTHS_KEY);
     if (!raw) return out;
     const obj = JSON.parse(raw) as Record<string, unknown>;
     for (const key of GROUP_COL_KEYS) {
       const value = Number(obj[key]);
-      if (!Number.isFinite(value) || value < 32) continue;
-      // IP 列内容定宽，旧版存下的窄列宽会截断完整 IPv4
-      out[key] = key === "addr" || key === "lan" ? Math.max(Math.round(value), GROUP_MIN_W[key]) : Math.round(value);
+      if (!Number.isFinite(value)) continue;
+      out[key] = Math.max(Math.round(value), GROUP_COL_FIT[key].minWidth ?? 48);
     }
   } catch {
     /* ignore */
@@ -310,7 +326,7 @@ export function GroupPage({
   }, [canEditGroup, groupId, session.groups]);
 
   const [columnOrder, setColumnOrder] = useState<GroupColumnKey[]>(readColumnOrder);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(readColWidths);
+  const [manualWidths, setManualWidths] = useState<Record<string, number>>(readManualWidths);
   const [sort, setSort] = useState(readTableSort);
   const [refreshing, setRefreshing] = useState(false);
   const [boardBusy, setBoardBusy] = useState(false);
@@ -452,8 +468,8 @@ export function GroupPage({
       GROUP_COL_KEYS.map((key) => ({
         key,
         label: GROUP_COL_LABELS[key],
-        width: GROUP_DEFAULT_W[key],
-        minWidth: GROUP_MIN_W[key],
+        ...GROUP_COL_FIT[key],
+        measure: key === "index" ? undefined : (row: GroupRow) => groupCellText(row, key),
         sortable: key !== "index",
         align: key === "index" ? "right" : "left",
         wrap: key === "agent" || key === "load" || key === "cpu" || key === "mem" || key === "disk",
@@ -563,13 +579,9 @@ export function GroupPage({
   }
 
   function persistWidths(next: Record<string, number>) {
-    setColumnWidths(next);
-    const custom: Record<string, number> = {};
-    for (const key of GROUP_COL_KEYS) {
-      if (next[key] != null && next[key] !== GROUP_DEFAULT_W[key]) custom[key] = next[key]!;
-    }
-    if (Object.keys(custom).length === 0) localStorage.removeItem(COL_WIDTHS_KEY);
-    else localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(custom));
+    setManualWidths(next);
+    if (Object.keys(next).length === 0) localStorage.removeItem(COL_WIDTHS_KEY);
+    else localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next));
   }
 
   function persistSort(key: string | null, order: InteractiveSortOrder) {
@@ -584,14 +596,14 @@ export function GroupPage({
 
   function resetLayout() {
     setColumnOrder([...GROUP_COL_KEYS]);
-    setColumnWidths({ ...GROUP_DEFAULT_W });
+    setManualWidths({});
     localStorage.removeItem(COL_ORDER_KEY);
     localStorage.removeItem(COL_WIDTHS_KEY);
   }
 
   const hasCustomLayout =
     columnOrder.some((key, index) => key !== GROUP_COL_KEYS[index]) ||
-    GROUP_COL_KEYS.some((key) => columnWidths[key] !== GROUP_DEFAULT_W[key]);
+    Object.keys(manualWidths).length > 0;
 
   async function refreshAll() {
     setRefreshing(true);
@@ -889,11 +901,11 @@ export function GroupPage({
               columns={columns}
               data={sortedRows}
               columnOrder={columnOrder}
-              columnWidths={columnWidths}
+              manualWidths={manualWidths}
               sortKey={sort.key}
               sortOrder={sort.order}
               onColumnOrderChange={persistOrder}
-              onColumnWidthsChange={persistWidths}
+              onManualWidthsChange={persistWidths}
               onSortChange={persistSort}
               onRowDoubleClick={(row) => session.openHost(row.name)}
               getRowId={(row) => row.name}

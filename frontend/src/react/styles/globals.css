@@ -425,6 +425,31 @@ pre,
   right: calc(var(--gap-card) / -2 - 1.5px);
 }
 
+/* 表格列宽拖拽标记：悬停列边界热区 / 拖动时出现，贯穿表头与全部行；left 为列边界 x */
+.table-col-resize-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 2px;
+  margin-left: -1px;
+  background-color: var(--color-accent);
+  pointer-events: none;
+}
+
+/* 表格列顺序拖拽插入线：与首页分组插入线同款（3px accent + accent-soft 柔光），left 为落点列边界 x */
+.table-col-insert {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 3px;
+  margin-left: -1.5px;
+  background-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+  pointer-events: none;
+}
+
 /* 行内编辑按钮：仅行悬停 / 行内键盘聚焦时出现，始终占位避免跳动 */
 .host-rack-edit {
   opacity: 0;
