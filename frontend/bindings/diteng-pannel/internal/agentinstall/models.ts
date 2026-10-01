@@ -15,6 +15,21 @@ export interface ProbeInfo {
      */
     "OS": string;
     "HasSystemd": boolean;
+
+    /**
+     * systemd：PID 1 是 systemd；supervisor：容器 / OpenRC / sysvinit 等，走自带守护循环
+     */
+    "InitMode": string;
+
+    /**
+     * 有 crontab，守护方式可挂 @reboot + 每分钟 ensure
+     */
+    "HasCron": boolean;
+
+    /**
+     * 有 rc-update，守护方式可挂 local.d 开机自启
+     */
+    "HasOpenRC": boolean;
     "HasBinary": boolean;
 
     /**

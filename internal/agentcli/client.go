@@ -86,6 +86,8 @@ type Pool struct {
 	clients map[string]*Client
 	// 状态缓存（避免列表页反复探测）
 	statuses map[string]Status
+	// 最近一次补拉起时间（节流）
+	healedAt map[string]time.Time
 }
 
 func NewPool(mgr *sshd.Manager, opts func(host string) (sshd.ConnectOption, error)) *Pool {
@@ -94,6 +96,7 @@ func NewPool(mgr *sshd.Manager, opts func(host string) (sshd.ConnectOption, erro
 		opts:     opts,
 		clients:  map[string]*Client{},
 		statuses: map[string]Status{},
+		healedAt: map[string]time.Time{},
 	}
 }
 
@@ -173,7 +176,13 @@ func (p *Pool) probe(host string) Status {
 	ctx, cancel := context.WithTimeout(context.Background(), fastTimeout)
 	defer cancel()
 	var h Health
-	if err := c.GetJSON(ctx, "/health", &h); err != nil {
+	err = c.GetJSON(ctx, "/health", &h)
+	if errors.Is(err, ErrAgentUnreachable) && p.tryHeal(host, c) {
+		rctx, rcancel := context.WithTimeout(context.Background(), fastTimeout)
+		err = c.GetJSON(rctx, "/health", &h)
+		rcancel()
+	}
+	if err != nil {
 		st := Status{Error: err.Error(), CheckedAt: time.Now()}
 		if errors.Is(err, ErrAgentUnreachable) || errors.Is(err, ErrNotInstalled) {
 			st.NotInstalled = true
@@ -182,6 +191,32 @@ func (p *Pool) probe(host string) Status {
 		return st
 	}
 	return Status{OK: true, Version: h.Version, RSSKB: h.RSSKB, CheckedAt: time.Now()}
+}
+
+// healInterval 同一主机补拉起的最小间隔，避免 agent 起不来时反复 SSH 提权
+const healInterval = 2 * time.Minute
+
+// healCmd 已装 ctl 时补拉起（未在跑才启动）；没有 ctl 输出 missing
+const healCmd = `if [ -x /usr/local/bin/spanel-agent-ctl ]; then /usr/local/bin/spanel-agent-ctl ensure; else echo missing; fi`
+
+// tryHeal agent 不可达时经 SSH 执行 ctl ensure（按主机节流）；真正拉起了才返回 true。
+// 覆盖无 systemd 主机容器重启、守护循环被杀等场景。
+func (p *Pool) tryHeal(host string, c *Client) bool {
+	p.mu.Lock()
+	if last, ok := p.healedAt[host]; ok && time.Since(last) < healInterval {
+		p.mu.Unlock()
+		return false
+	}
+	p.healedAt[host] = time.Now()
+	p.mu.Unlock()
+
+	out, err := p.mgr.RunAsRoot(host, c.opt, healCmd, sshd.RunOptions{Timeout: 20 * time.Second})
+	if err != nil || lastLine(string(out)) != "started" {
+		return false
+	}
+	c.ResetToken()
+	time.Sleep(2 * time.Second)
+	return true
 }
 
 // ============ Client ============
@@ -265,7 +300,8 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	}
 	ch := make(chan result, 1)
 	go func() {
-		out, err := c.mgr.Run(c.host, c.opt, "cat /var/lib/spanel-agent/token 2>/dev/null")
+		// 数据目录为 root 700，普通用户需经 sudo 读取
+		out, err := c.mgr.RunAsRoot(c.host, c.opt, "cat /var/lib/spanel-agent/token 2>/dev/null")
 		ch <- result{out, err}
 	}()
 	var r result
@@ -274,7 +310,10 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
-	tok := strings.TrimSpace(string(r.out))
+	if errors.Is(r.err, sshd.ErrNoRoot) {
+		return "", r.err
+	}
+	tok := lastLine(string(r.out))
 	if r.err != nil || tok == "" {
 		return "", ErrNotInstalled
 	}
@@ -282,6 +321,17 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	c.token = tok
 	c.mu.Unlock()
 	return tok, nil
+}
+
+// lastLine 取最后一个非空行：sudo 首次使用可能先输出提示语，token 总在末尾
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(lines[i]); line != "" {
+			return line
+		}
+	}
+	return ""
 }
 
 // ResetToken 安装/更换 agent 后调用：清 token，并丢掉可能连着旧进程的空闲连接。

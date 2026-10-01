@@ -51,10 +51,10 @@ func TestBlockDiskBelowWatermark(t *testing.T) {
 	}
 }
 
-func TestBlockNoSystemdAndNotLinux(t *testing.T) {
-	p := ProbeInfo{OS: "Linux", HasSystemd: false, WritableBin: true, WritableTmp: true}
-	if !strings.Contains(p.InstallBlockReason(), "无 systemd") {
-		t.Fatalf("got %q", p.InstallBlockReason())
+func TestNoSystemdAllowedButNotLinuxBlocked(t *testing.T) {
+	p := ProbeInfo{OS: "Linux", HasSystemd: false, WritableBin: false, WritableTmp: true}
+	if got := p.InstallBlockReason(); got != "" {
+		t.Fatalf("无 systemd / bin 不可写应允许安装，got %q", got)
 	}
 	p = ProbeInfo{OS: "Darwin", HasSystemd: true, WritableBin: true, WritableTmp: true}
 	if !strings.Contains(p.InstallBlockReason(), "仅支持 Linux") {
@@ -72,6 +72,21 @@ func TestBlockTmpAndMem(t *testing.T) {
 	p.MemAvailKB = 32 * 1024
 	if !strings.Contains(p.InstallBlockReason(), "内存") {
 		t.Fatalf("mem: %q", p.InstallBlockReason())
+	}
+}
+
+func TestParseInitMode(t *testing.T) {
+	p := parseProbe("=OS=Linux\n=INIT=systemd\n")
+	if p.InitMode != InitSystemd || p.HasCron || p.HasOpenRC {
+		t.Fatalf("systemd: %+v", p)
+	}
+	p = parseProbe("=OS=Linux\n=INIT=supervisor\n=CRON=1\n=OPENRC=1\n=SVC=inactive\n")
+	if p.InitMode != InitSupervisor || !p.HasCron || !p.HasOpenRC || p.ServiceState != "inactive" {
+		t.Fatalf("supervisor: %+v", p)
+	}
+	// 老探测输出没有 INIT 行时按守护方式处理
+	if p = parseProbe("=OS=Linux\n"); p.InitMode != InitSupervisor {
+		t.Fatalf("default: %+v", p)
 	}
 }
 

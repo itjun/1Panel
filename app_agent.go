@@ -211,6 +211,7 @@ func (s *Agent) CheckAgent(host string) (agentcli.CheckReport, error) {
 		in.ProbeErr = perr
 		in.HasBinary = info.HasBinary
 		in.ServiceState = info.ServiceState
+		in.InitMode = info.InitMode
 	}
 
 	cli, err := s.agentPool.GetWithOpt(host, opt)

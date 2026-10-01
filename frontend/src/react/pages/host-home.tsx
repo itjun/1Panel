@@ -1582,7 +1582,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         <DialogContent>
           <DialogTitle>安装 Agent</DialogTitle>
           <DialogDescription>
-            将向 {installConfirm} 部署 spanel-agent（systemd 服务，约 10MB）。已安装时更新到面板内置版本，历史数据保留。
+            将向 {installConfirm} 部署 spanel-agent（约 10MB，自动选择 systemd 或守护进程，断开后保持运行）。已安装时更新到面板内置版本，历史数据保留。
           </DialogDescription>
           <DialogFooter>
             <Button onClick={() => setInstallConfirm(null)}>取消</Button>

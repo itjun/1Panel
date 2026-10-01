@@ -26,10 +26,18 @@ type CheckInput struct {
 	PanelVersion string
 	HasBinary    bool
 	ServiceState string
+	InitMode     string // systemd / supervisor（无 systemd 主机的守护进程）
 	ProbeErr     error
 	Health       Health
 	HealthErr    error
 	CurrentErr   error
+}
+
+func initLabel(mode string) string {
+	if mode == "supervisor" {
+		return "守护进程"
+	}
+	return "systemd"
 }
 
 // IsNoSampleData agent 已连通但库里还没有 raw_metrics
@@ -55,10 +63,10 @@ func BuildCheckReport(in CheckInput) CheckReport {
 		if st == "" {
 			st = "unknown"
 		}
-		svc.Detail = "systemd 状态 " + st + "（需要 active）"
+		svc.Detail = initLabel(in.InitMode) + " 状态 " + st + "（需要 active）"
 	default:
 		svc.OK = true
-		svc.Detail = "systemd active"
+		svc.Detail = initLabel(in.InitMode) + " active"
 	}
 	items = append(items, svc)
 

@@ -3,6 +3,7 @@
 package agentinstall
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -69,6 +70,9 @@ type ProbeInfo struct {
 	Arch         string // uname -m
 	OS           string // uname -s
 	HasSystemd   bool
+	InitMode     string // systemd：PID 1 是 systemd；supervisor：容器 / OpenRC / sysvinit 等，走自带守护循环
+	HasCron      bool   // 有 crontab，守护方式可挂 @reboot + 每分钟 ensure
+	HasOpenRC    bool   // 有 rc-update，守护方式可挂 local.d 开机自启
 	HasBinary    bool
 	ServiceState string // active / inactive / failed / not-found
 	DataMount    string
@@ -87,6 +91,9 @@ const probeScript = `echo "=OS=$(uname -s)"
 echo "=ARCH=$(uname -m)"
 echo "=UID=$(id -u)"
 command -v systemctl >/dev/null 2>&1 && echo "=SYSTEMD=1" || echo "=SYSTEMD=0"
+[ -d /run/systemd/system ] && echo "=INIT=systemd" || echo "=INIT=supervisor"
+command -v crontab >/dev/null 2>&1 && echo "=CRON=1"
+command -v rc-update >/dev/null 2>&1 && echo "=OPENRC=1"
 [ -f /usr/local/bin/spanel-agent ] && echo "=BIN=1" || echo "=BIN=0"
 if [ -d /usr/local/bin ]; then
   [ -w /usr/local/bin ] && echo "=WR_BIN=1" || echo "=WR_BIN=0"
@@ -94,7 +101,11 @@ else
   [ -w /usr/local ] && echo "=WR_BIN=1" || echo "=WR_BIN=0"
 fi
 [ -w /tmp ] && echo "=WR_TMP=1" || echo "=WR_TMP=0"
-echo "=SVC=$(systemctl is-active spanel-agent 2>/dev/null || true)"
+if [ -x /usr/local/bin/spanel-agent-ctl ]; then
+  echo "=SVC=$(/usr/local/bin/spanel-agent-ctl status 2>/dev/null)"
+else
+  echo "=SVC=$(systemctl is-active spanel-agent 2>/dev/null || true)"
+fi
 DATA=/var/lib/spanel-agent
 [ -e "$DATA" ] || DATA=/var/lib
 [ -e "$DATA" ] || DATA=/
@@ -128,6 +139,12 @@ func parseProbe(out string) ProbeInfo {
 			_, _ = fmt.Sscanf(strings.TrimPrefix(line, "=UID="), "%d", &info.UID)
 		case line == "=SYSTEMD=1":
 			info.HasSystemd = true
+		case strings.HasPrefix(line, "=INIT="):
+			info.InitMode = strings.TrimPrefix(line, "=INIT=")
+		case line == "=CRON=1":
+			info.HasCron = true
+		case line == "=OPENRC=1":
+			info.HasOpenRC = true
 		case line == "=BIN=1":
 			info.HasBinary = true
 		case line == "=WR_BIN=1":
@@ -155,6 +172,9 @@ func parseProbe(out string) ProbeInfo {
 	if info.ServiceState == "" {
 		info.ServiceState = "not-found"
 	}
+	if info.InitMode != InitSystemd {
+		info.InitMode = InitSupervisor
+	}
 	if info.UID == 0 {
 		info.WritableBin = true
 		info.WritableTmp = true
@@ -175,12 +195,8 @@ func (p ProbeInfo) InstallBlockReason() string {
 	if osname != "" && osname != "linux" {
 		return fmt.Sprintf("目标系统是 %s，spanel-agent 仅支持 Linux", p.OS)
 	}
-	if !p.HasSystemd {
-		return "目标主机无 systemd，暂不支持安装"
-	}
-	if !p.WritableBin {
-		return "当前用户不能写入 /usr/local/bin，请用 root 安装"
-	}
+	// 无 systemd 不阻断：Install 改用自带守护循环（InitSupervisor）
+	// /usr/local/bin 不可写不在这里阻断：Install 会经 sudo 提权写入
 	if !p.WritableTmp {
 		return "当前用户不能写入 /tmp，无法上传 Agent 二进制"
 	}
@@ -225,7 +241,7 @@ func fmtKB(kb uint64) string {
 }
 
 // Install 安装或更新（幂等）。流程：sftp 上传 → sha256 校验 → 备份旧版 → 原子替换
-// → 确保 systemd unit → 启动。健康检查由调用方（app_agent）走 agentcli 隧道完成，
+// → 写入 spanel-agent-ctl（systemd 主机另写 unit，其余挂 cron / OpenRC 自启）→ 启动。健康检查由调用方（app_agent）走 agentcli 隧道完成，
 // 失败时调用 Rollback。prog 可为 nil；上传阶段回调 0~100 百分比，校验替换阶段回调 -1。
 func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wantSHA string, prog ProgressFn) error {
 	info, err := i.Probe(host, opt)
@@ -234,6 +250,13 @@ func (i *Installer) Install(host string, opt sshd.ConnectOption, bin []byte, wan
 	}
 	if reason := info.InstallBlockReason(); reason != "" {
 		return fmt.Errorf("%s", reason)
+	}
+	// 上传前先确认能拿到 root，顺带清掉上次以 root 身份留下的临时文件（/tmp 粘滞位下普通用户覆盖不了）
+	if out, err := i.mgr.RunAsRoot(host, opt, "rm -f "+remoteBinNew); err != nil {
+		if errors.Is(err, sshd.ErrNoRoot) {
+			return err
+		}
+		return fmt.Errorf("提权检查失败: %v\n%s", err, strings.TrimSpace(string(out)))
 	}
 
 	// 1) 上传 + 校验
@@ -259,26 +282,40 @@ mkdir -p %[6]s && chmod 700 %[6]s
 [ -d %[1]s ] && rm -rf %[1]s || true
 [ -f %[1]s ] && mv %[1]s %[2]s || true
 mv %[3]s %[1]s
+chown root:root %[1]s
 chmod 755 %[1]s
-if [ ! -f %[4]s ]; then
-cat > %[4]s <<'UNIT'
-%[5]sUNIT
+cat > %[7]s <<'SPANEL_CTL'
+%[8]sSPANEL_CTL
+chown root:root %[7]s
+chmod 755 %[7]s
+`, remoteBin, remoteBinOld, remoteBinNew, remoteUnit, unitContent, remoteDataDir, remoteCtl, ctlScriptFor(info.InitMode))
+	if info.InitMode == InitSystemd {
+		script += fmt.Sprintf(`if [ ! -f %[1]s ]; then
+cat > %[1]s <<'UNIT'
+%[2]sUNIT
 fi
-systemctl daemon-reload
-systemctl enable spanel-agent >/dev/null 2>&1
-systemctl restart spanel-agent
-`, remoteBin, remoteBinOld, remoteBinNew, remoteUnit, unitContent, remoteDataDir)
-	if out, err := i.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 60 * time.Second}); err != nil {
+`, remoteUnit, unitContent)
+	}
+	script += remoteCtl + " install-hooks\n" + remoteCtl + " start\n"
+	if out, err := i.mgr.RunAsRoot(host, opt, script, sshd.RunOptions{Timeout: 60 * time.Second}); err != nil {
 		return fmt.Errorf("安装命令失败: %v\n%s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
+// startCmd / statusCmd 兼容旧安装（无 ctl 时退回 systemctl）
+const (
+	startCmd  = `if [ -x ` + remoteCtl + ` ]; then ` + remoteCtl + ` start; else systemctl restart spanel-agent; fi`
+	statusCmd = `if [ -x ` + remoteCtl + ` ]; then ` + remoteCtl + ` status; else systemctl is-active spanel-agent 2>/dev/null; fi`
+)
+
 // Rollback 健康检查失败后恢复旧版（无旧版时停止服务并报错）
 func (i *Installer) Rollback(host string, opt sshd.ConnectOption) error {
-	script := fmt.Sprintf(`if [ -f %[1]s ]; then mv -f %[1]s %[2]s && systemctl restart spanel-agent; else systemctl stop spanel-agent 2>/dev/null || true; fi`,
-		remoteBinOld, remoteBin)
-	out, err := i.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 30 * time.Second})
+	script := fmt.Sprintf(`if [ -f %[1]s ]; then mv -f %[1]s %[2]s && { %[3]s; }; else
+  if [ -x %[4]s ]; then %[4]s stop; else systemctl stop spanel-agent 2>/dev/null; fi
+  true
+fi`, remoteBinOld, remoteBin, startCmd, remoteCtl)
+	out, err := i.mgr.RunAsRoot(host, opt, script, sshd.RunOptions{Timeout: 30 * time.Second})
 	if err != nil {
 		return fmt.Errorf("回滚失败: %v\n%s", err, strings.TrimSpace(string(out)))
 	}
@@ -287,14 +324,18 @@ func (i *Installer) Rollback(host string, opt sshd.ConnectOption) error {
 
 // Uninstall 卸载 agent；keepData=true 保留 /var/lib/spanel-agent（重装可续看历史）
 func (i *Installer) Uninstall(host string, opt sshd.ConnectOption, keepData bool) error {
-	script := fmt.Sprintf(`systemctl disable --now spanel-agent 2>/dev/null || true
-rm -f %[1]s %[2]s %[3]s %[4]s
-systemctl daemon-reload
-`, remoteUnit, remoteBin, remoteBinOld, remoteBinNew)
+	script := fmt.Sprintf(`if [ -x %[5]s ]; then %[5]s stop; %[5]s uninstall-hooks; fi
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl disable --now spanel-agent >/dev/null 2>&1
+fi
+rm -f %[1]s %[2]s %[3]s %[4]s %[5]s /run/spanel-agent.pid /var/run/spanel-agent.pid
+if command -v systemctl >/dev/null 2>&1; then systemctl daemon-reload >/dev/null 2>&1; fi
+`, remoteUnit, remoteBin, remoteBinOld, remoteBinNew, remoteCtl)
 	if !keepData {
 		script += fmt.Sprintf("rm -rf %s\n", remoteDataDir)
 	}
-	out, err := i.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 30 * time.Second})
+	script += "true\n"
+	out, err := i.mgr.RunAsRoot(host, opt, script, sshd.RunOptions{Timeout: 30 * time.Second})
 	if err != nil {
 		return fmt.Errorf("卸载失败: %v\n%s", err, strings.TrimSpace(string(out)))
 	}
@@ -343,8 +384,9 @@ func (i *Installer) upload(host string, opt sshd.ConnectOption, bin []byte, prog
 	return f.Close()
 }
 
-// WaitHealthy 轮询远端 systemd 直到 agent 服务 active（安装后拉起需要一点时间）。
-// 只依赖 systemctl（Probe 已确保存在），不依赖 curl 等外部工具——无 curl 的
+// WaitHealthy 轮询远端 spanel-agent-ctl status 直到 agent 服务 active（安装后拉起需要一点时间）。
+// pid 文件 0644 且状态按 /proc 判断，普通用户无需提权即可查询。
+// 不依赖 curl 等外部工具——无 curl 的
 // 最小化系统上 curl 探测会 exit 127 导致安装被误判失败；真正的 HTTP/版本
 // 校验由调用方经隧道 GetJSON /health 完成，失败走回滚。
 // prog 可为 nil；按已等待时长回调 0~100 百分比。
@@ -354,8 +396,7 @@ func (i *Installer) WaitHealthy(host string, opt sshd.ConnectOption, timeout tim
 	nextAt := 0
 	// active 后再稳定等 1s，给 HTTP 监听一点就绪余量
 	for time.Now().Before(deadline) {
-		out, err := i.mgr.Run(host, opt, "systemctl is-active spanel-agent 2>/dev/null",
-			sshd.RunOptions{Timeout: 5 * time.Second})
+		out, err := i.mgr.Run(host, opt, statusCmd, sshd.RunOptions{Timeout: 5 * time.Second})
 		if err == nil && strings.TrimSpace(string(out)) == "active" {
 			time.Sleep(1 * time.Second)
 			return nil

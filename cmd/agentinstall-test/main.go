@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"diteng-pannel/internal/agentcli"
@@ -35,8 +37,8 @@ func main() {
 	// ---- 1) 探测 ----
 	info, err := ins.Probe(host, opt)
 	must(err, "probe")
-	fmt.Printf("[probe] arch=%s systemd=%v hasBinary=%v service=%s\n",
-		info.Arch, info.HasSystemd, info.HasBinary, info.ServiceState)
+	fmt.Printf("[probe] arch=%s init=%s cron=%v openrc=%v hasBinary=%v service=%s\n",
+		info.Arch, info.InitMode, info.HasCron, info.HasOpenRC, info.HasBinary, info.ServiceState)
 
 	bin, sum, err := agentres.Binary(info.Arch)
 	must(err, "内置二进制")
@@ -116,6 +118,16 @@ func optFor(host string) (sshd.ConnectOption, error) {
 			return sshd.ConnectOption{
 				Host: h.Name, HostName: h.HostName, User: h.User,
 				Port: h.Port, IdentityFile: h.IdentityFile,
+			}, nil
+		}
+	}
+	// config.d 里的主机不在 Parse 结果中时，可用 SPANEL_TEST_ADDR=user@ip 直接指定
+	if addr := os.Getenv("SPANEL_TEST_ADDR"); addr != "" {
+		if user, hostName, ok := strings.Cut(addr, "@"); ok {
+			home, _ := os.UserHomeDir()
+			return sshd.ConnectOption{
+				Host: host, HostName: hostName, User: user, Port: "22",
+				IdentityFile: filepath.Join(home, ".ssh", "id_ed25519"),
 			}, nil
 		}
 	}
