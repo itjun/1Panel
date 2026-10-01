@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"diteng-pannel/internal/wecom"
 )
 
 // CopyIDInput 是 CopySSHID 的入参
@@ -56,6 +58,11 @@ type HostAlertNotify struct {
 	Detail      string `json:"detail"`
 	TitleSuffix string `json:"titleSuffix"` // 证书告警的企微标题后缀；空则走原有类型文案
 	Expired     bool   `json:"expired"`     // 证书已过期时企微用严重，未过期用警告
+	// Title / Lines 非空时企微按「标题 + 逐行字段」输出，与系统通知、应用内同一套文案。
+	Title string       `json:"title"`
+	Lines []wecom.Line `json:"lines"`
+	// Level 资源告警档位：warn 显示 [警告]，danger 显示 [严重]；空则按类型推断。
+	Level string `json:"level"`
 }
 
 // DesktopNotify 本机系统通知入参；Host/EventID/Kind 写入通知 Data，点击后可跳转。

@@ -33,14 +33,16 @@ function sentKey(state: "down" | "up", domainKey: string): string {
 async function sendLocal(
   host: string,
   state: "down" | "up",
-  notice: certnotify.Notice
+  notice: certnotify.Notice,
+  wecom: boolean
 ): Promise<void> {
   await appendAndNotifyDesktop({
     host,
     kind: "cert",
     state,
-    title: notice.title,
-    body: notice.body,
+    message: { title: notice.title, lines: [], body: notice.body },
+    parts: { hostName: host, metric: "证书", value: notice.body },
+    wecom,
     historyForClick: true,
   });
 }
@@ -60,6 +62,9 @@ async function sendWecom(
     detail: notice.body,
     titleSuffix: notice.title,
     expired: false,
+    level: "",
+    title: "",
+    lines: [],
   });
 }
 
@@ -141,7 +146,7 @@ async function pollHost(host: string): Promise<void> {
       const key = sentKey(item.state, item.notice.domainKey);
       const flags = flagsOf(key);
       if (needDesktop && !flags.desktop) {
-        await sendLocal(host, item.state, item.notice);
+        await sendLocal(host, item.state, item.notice, needWecom);
         remember(key, { desktop: true });
         await save(false);
       }

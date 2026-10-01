@@ -45,11 +45,14 @@ func (a *App) onMenuCheckAlert(snap menucheck.Snapshot) {
 	eventID := ""
 	if a.alertHistory != nil {
 		if saved, err := a.alertHistory.Append(alerthistory.Event{
-			Host:   "菜单检查",
-			Kind:   "menu:" + snap.ID,
-			State:  "down",
-			Title:  title,
-			Detail: msg,
+			Host:     "菜单检查",
+			Kind:     "menu:" + snap.ID,
+			State:    "down",
+			Title:    title,
+			Detail:   msg,
+			Metric:   snap.Label,
+			Value:    msg,
+			Channels: []string{"inApp", "system"},
 		}); err == nil {
 			eventID = saved.ID
 		}

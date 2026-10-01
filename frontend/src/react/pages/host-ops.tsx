@@ -41,7 +41,7 @@ import { DistroBadge } from "@/react/components/distro-badge";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
-import { usageBands } from "@/react/lib/usage-tone";
+import { USAGE_DANGER, usageBands } from "@/react/lib/usage-tone";
 import { AppsPage } from "@/react/pages/host-apps";
 import { DiskPage } from "@/react/pages/host-disk";
 import { NetworkPage } from "@/react/pages/host-network";
@@ -49,7 +49,7 @@ import { PackagesPage } from "@/react/pages/host-packages";
 import { useSession, type Tool } from "@/react/state/session";
 import {
   isCpuAlert,
-  isDiskLow,
+  isDiskFull,
   isLoadAlert,
   isMemAlert,
   mountDisks,
@@ -678,7 +678,7 @@ function OverviewPage({ host }: { host: string }) {
               <RingMeter
                 title="磁盘"
                 percent={diskSummary?.percent || 0}
-                danger={isDiskLow(disks.data)}
+                danger={isDiskFull(disks.data)}
                 center={diskSummary ? `${diskSummary.percent.toFixed(1)}%` : "—"}
                 caption={
                   diskSummary ? (
@@ -721,9 +721,9 @@ function OverviewPage({ host }: { host: string }) {
               分析大文件
             </Button>
           </div>
-          {isDiskLow(disks.data) ? (
+          {isDiskFull(disks.data) ? (
             <div className="mb-3">
-              <Notice text="存在分区可用空间偏低（≤ 10 GB）" tone="warning" />
+              <Notice text={`有分区使用率达到危险档（≥ ${USAGE_DANGER}%）`} tone="warning" />
             </div>
           ) : null}
           {!physDisks.length && !mounts.length ? (

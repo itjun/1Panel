@@ -143,6 +143,13 @@ export function OpenHostsInTerminal(hosts: string[] | null, mode: string): $Canc
 }
 
 /**
+ * PreviewHostAlertMarkdown 返回企微将收到的 markdown 原文（不发送），供设置页预览。
+ */
+export function PreviewHostAlertMarkdown($in: $models.HostAlertNotify): $CancellablePromise<string> {
+    return $Call.ByID(3499992026, $in);
+}
+
+/**
  * SetAskBeforeQuit 设置「退出前询问」；与确认框内勾选写入同一份配置。
  */
 export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {

@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+func TestFormatWatchMarkdownTitleAndLines(t *testing.T) {
+	at := time.Date(2026, 9, 29, 1, 0, 34, 0, time.Local)
+	md := FormatWatchMarkdown(WatchNotify{
+		Level:    "ok",
+		Host:     "cdcp-postgres",
+		Title:    "「cdcp-postgres」CPU已回落",
+		Detail:   "不应出现",
+		NotifyAt: at,
+		Lines: []Line{
+			{Label: "回落值", Value: "72.1%"},
+			{Label: "峰值", Value: " "},
+			{Label: "阈值", Value: "≥ 90%"},
+		},
+	})
+	want := "### <font color=\"info\">[正常]</font> 「cdcp-postgres」CPU已回落\n" +
+		">时间: 2026-09-29 01:00:34\n" +
+		">回落值: 72.1%\n" +
+		">阈值: ≥ 90%\n" +
+		sourceLine()
+	if md != want {
+		t.Fatalf("got:\n%q\nwant:\n%q", md, want)
+	}
+}
+
 func TestFormatWatchMarkdownDown(t *testing.T) {
 	at := time.Date(2026, 8, 26, 16, 8, 0, 0, time.Local)
 	md := FormatWatchMarkdown(WatchNotify{

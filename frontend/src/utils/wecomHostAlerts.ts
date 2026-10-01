@@ -1,11 +1,13 @@
 import {
   ALL_ALERT_KINDS,
   isResourceAlertKind,
+  type AlertStartLevel,
 } from "@/utils/alerts";
 import {
   appendAndNotifyDesktop,
-  buildNotifyCopy,
+  notifyMessageFor,
   sendWecomAlertOnce,
+  sendWecomEscalation,
   sendWecomRecover,
   type NotifyTextParts,
 } from "@/utils/alertNotify";
@@ -13,8 +15,8 @@ import { settingsAccess } from "@/utils/settingsAccess";
 
 /** 已发企微、尚未回落的告警键（host|kind） */
 const firedWecom = new Set<string>();
-/** 已发系统通知、尚未回落的告警键 */
-const firedLocal = new Set<string>();
+/** 已发系统通知 / 写历史、尚未回落的告警键 → 告警事件 id（恢复时配对） */
+const firedLocal = new Map<string, string>();
 
 /** 告警类型：资源四类 + 连接（conn 仅本地通知，不发企微） */
 export type HostWecomKind = (typeof ALL_ALERT_KINDS)[number] | "conn";
@@ -61,11 +63,9 @@ function resourceParts(
 ): NotifyTextParts {
   if (parts) {
     return {
+      ...parts,
       hostName: parts.hostName || host,
       metric: parts.metric || kindLabel(kind),
-      threshold: parts.threshold,
-      value: parts.value,
-      service: parts.service,
     };
   }
   return {
@@ -88,6 +88,8 @@ export async function fireHostWecom(opts: {
   kind: HostWecomKind;
   detail?: string;
   parts?: NotifyTextParts;
+  /** 资源告警进入的档位 */
+  level?: AlertStartLevel;
 }): Promise<void> {
   // 客户端与目标主机断开不告警（多监控端各自断线会刷屏）
   if (opts.kind === "conn") return;
@@ -96,32 +98,75 @@ export async function fireHostWecom(opts: {
   if (!settings.isResourceNotifySubscribed(opts.host, opts.kind)) return;
   if (!settings.isContentKindEnabled(opts.kind)) return;
 
-  const copy = buildNotifyCopy({
-    state: "down",
-    kind: "resource",
-    parts: resourceParts(opts.host, opts.kind, opts.parts, opts.detail),
-  });
+  const parts = resourceParts(opts.host, opts.kind, opts.parts, opts.detail);
+  const message = notifyMessageFor({ state: "down", kind: "resource", parts, level: opts.level });
+  const webhook = settings.effectiveWecomWebhook();
 
   // 系统通知 + 历史：进程内按 key 去重直到回落
   if (!firedLocal.has(opts.key)) {
-    firedLocal.add(opts.key);
-    await appendAndNotifyDesktop({
+    firedLocal.set(opts.key, "");
+    const eventId = await appendAndNotifyDesktop({
       host: opts.host,
       kind: opts.kind,
       state: "down",
-      title: copy.title,
-      body: copy.body,
+      message,
+      parts,
+      wecom: !!webhook,
     });
+    if (firedLocal.has(opts.key)) firedLocal.set(opts.key, eventId);
   }
 
-  const webhook = settings.effectiveWecomWebhook();
   if (!webhook) return;
   await sendWecomAlertOnce(firedWecom, opts.key, {
     webhook,
     host: opts.host,
     kind: opts.kind,
-    detail: copy.body,
+    message,
   });
+}
+
+/**
+ * 升级出口：起推档为警告、读数升到危险档时，沿用原告警的 incidentId 再推一条。
+ * 系统通知与应用内各一条；企微只在原告警发过时多推这一次。
+ */
+export async function escalateHostWecom(opts: {
+  key: string;
+  host: string;
+  kind: HostWecomKind;
+  parts?: NotifyTextParts;
+}): Promise<void> {
+  if (opts.kind === "conn") return;
+  const hadLocal = firedLocal.has(opts.key);
+  const hadWecom = firedWecom.has(opts.key);
+  if (!hadLocal && !hadWecom) return;
+
+  const settings = settingsAccess();
+  if (!settings.isResourceNotifySubscribed(opts.host, opts.kind)) return;
+  if (!settings.isContentKindEnabled(opts.kind)) return;
+
+  const parts = resourceParts(opts.host, opts.kind, opts.parts);
+  const message = notifyMessageFor({
+    state: "down",
+    kind: "resource",
+    parts,
+    level: "danger",
+    escalated: true,
+  });
+  const webhook = hadWecom ? settings.effectiveWecomWebhook() : "";
+  if (hadLocal) {
+    await appendAndNotifyDesktop({
+      host: opts.host,
+      kind: opts.kind,
+      state: "down",
+      message,
+      parts,
+      incidentId: firedLocal.get(opts.key) || "",
+      wecom: !!webhook,
+    });
+  }
+  if (webhook) {
+    await sendWecomEscalation({ webhook, host: opts.host, kind: opts.kind, message });
+  }
 }
 
 export async function clearHostWecom(opts: {
@@ -129,10 +174,14 @@ export async function clearHostWecom(opts: {
   host: string;
   kind: HostWecomKind;
   parts?: NotifyTextParts;
+  /** 本次事件到过的最高档 */
+  level?: AlertStartLevel;
 }): Promise<void> {
   if (opts.kind === "conn") return;
 
-  const hadLocal = firedLocal.delete(opts.key);
+  const hadLocal = firedLocal.has(opts.key);
+  const incidentId = firedLocal.get(opts.key) || "";
+  firedLocal.delete(opts.key);
   const hadWecom = firedWecom.delete(opts.key);
   if (!hadLocal && !hadWecom) return;
 
@@ -142,21 +191,20 @@ export async function clearHostWecom(opts: {
   // 内容类型当下关闭也不发恢复
   if (!settings.isContentKindEnabled(opts.kind)) return;
 
+  const parts = resourceParts(opts.host, opts.kind, opts.parts);
+  const message = notifyMessageFor({ state: "up", kind: "resource", parts, level: opts.level });
   if (hadLocal) {
-    const copy = buildNotifyCopy({
-      state: "up",
-      kind: "resource",
-      parts: resourceParts(opts.host, opts.kind, opts.parts),
-    });
     await appendAndNotifyDesktop({
       host: opts.host,
       kind: opts.kind,
       state: "up",
-      title: copy.title,
-      body: copy.body,
+      message,
+      parts,
+      incidentId,
+      wecom: hadWecom && !!settings.effectiveWecomWebhook(),
     });
   }
 
   if (!hadWecom) return;
-  await sendWecomRecover({ host: opts.host, kind: opts.kind });
+  await sendWecomRecover({ host: opts.host, kind: opts.kind, message });
 }

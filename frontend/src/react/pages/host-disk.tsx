@@ -6,7 +6,8 @@ import { PhysicalDiskRows } from "@/react/components/overview/overview-parts";
 import { Notice, Page } from "@/react/components/page";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
-import { isDiskLow, mountDisks, physicalDisks } from "@/utils/alerts";
+import { isDiskFull, mountDisks, physicalDisks } from "@/utils/alerts";
+import { USAGE_DANGER } from "@/react/lib/usage-tone";
 import { formatBytes, formatErr } from "@/utils/format";
 
 const LARGE_FILES_LIMIT = 10;
@@ -67,9 +68,9 @@ export function DiskPage({ host }: { host: string }) {
 
         <section>
           <div className="mb-3 text-sm font-semibold text-ink">分区</div>
-          {isDiskLow(disks.data) ? (
+          {isDiskFull(disks.data) ? (
             <div className="mb-3">
-              <Notice text="存在分区可用空间偏低（≤ 10 GB）" tone="warning" />
+              <Notice text={`有分区使用率达到危险档（≥ ${USAGE_DANGER}%）`} tone="warning" />
             </div>
           ) : null}
           {mounts.length ? (

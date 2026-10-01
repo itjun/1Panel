@@ -12,6 +12,9 @@ import (
 // 全局内容类型总闸：资源四类 + 应用探活 + 证书到期。
 var knownAlertContentKinds = []string{"cpu", "mem", "disk", "load", "app", "cert"}
 
+// 资源指标可订阅的档位，按从低到高排列；一档都没订时按只订危险档。
+var alertLevelOrder = []string{"warn", "danger"}
+
 // 通知正文可选字段。
 var knownNotifyContentFields = []string{"hostName", "metric", "threshold", "value", "service"}
 
@@ -19,13 +22,15 @@ var knownNotifyContentFields = []string{"hostName", "metric", "threshold", "valu
 // 落盘到系统应用数据目录，重编译 / 换 webview 不会丢。
 type Data struct {
 	// FromDisk 本次 Get 是否来自已有文件（false = 尚未落盘，前端可把 localStorage 迁过来）
-	FromDisk               bool                `json:"fromDisk"`
-	NotifyEnabled          bool                `json:"notifyEnabled"`
-	WecomWebhook           string              `json:"wecomWebhook"`
-	SystemNotifyEnabled    bool                `json:"systemNotifyEnabled"`
-	InAppNotifyEnabled     bool                `json:"inAppNotifyEnabled"`
-	AlertContentKinds      []string            `json:"alertContentKinds"`
-	NotifyRecoverEnabled   bool                `json:"notifyRecoverEnabled"`
+	FromDisk             bool     `json:"fromDisk"`
+	NotifyEnabled        bool     `json:"notifyEnabled"`
+	WecomWebhook         string   `json:"wecomWebhook"`
+	SystemNotifyEnabled  bool     `json:"systemNotifyEnabled"`
+	InAppNotifyEnabled   bool     `json:"inAppNotifyEnabled"`
+	AlertContentKinds    []string `json:"alertContentKinds"`
+	NotifyRecoverEnabled bool     `json:"notifyRecoverEnabled"`
+	// AlertLevels 资源指标（cpu/mem/disk/load）订阅的档位，可同时订 warn 和 danger。
+	AlertLevels            map[string][]string `json:"alertLevels"`
 	NotifyContentFields    []string            `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
@@ -37,18 +42,20 @@ type Data struct {
 
 // fileData 仅用于读盘：区分缺省与 false/空数组；并兼容旧字段 wecomAlertKinds。
 type fileData struct {
-	NotifyEnabled          bool                `json:"notifyEnabled"`
-	WecomWebhook           string              `json:"wecomWebhook"`
-	WecomAlertKinds        []string            `json:"wecomAlertKinds"` // 废弃：仅迁移读入
-	SystemNotifyEnabled    *bool               `json:"systemNotifyEnabled"`
-	InAppNotifyEnabled     *bool               `json:"inAppNotifyEnabled"`
-	AlertContentKinds      *[]string           `json:"alertContentKinds"`
-	NotifyRecoverEnabled   *bool               `json:"notifyRecoverEnabled"`
-	NotifyContentFields    *[]string           `json:"notifyContentFields"`
-	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
-	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
-	HostCertNotifySubs     map[string]bool     `json:"hostCertNotifySubs"`
-	CertKindMigrated       *bool               `json:"certKindMigrated"`
+	NotifyEnabled        bool      `json:"notifyEnabled"`
+	WecomWebhook         string    `json:"wecomWebhook"`
+	WecomAlertKinds      []string  `json:"wecomAlertKinds"` // 废弃：仅迁移读入
+	SystemNotifyEnabled  *bool     `json:"systemNotifyEnabled"`
+	InAppNotifyEnabled   *bool     `json:"inAppNotifyEnabled"`
+	AlertContentKinds    *[]string `json:"alertContentKinds"`
+	NotifyRecoverEnabled *bool     `json:"notifyRecoverEnabled"`
+	// 旧版每类是单个字符串，新版是数组，读入时两种都认
+	AlertLevels            map[string]json.RawMessage `json:"alertLevels"`
+	NotifyContentFields    *[]string                  `json:"notifyContentFields"`
+	HostResourceNotifySubs map[string][]string        `json:"hostResourceNotifySubs"`
+	HostAppNotifySubs      map[string][]string        `json:"hostAppNotifySubs"`
+	HostCertNotifySubs     map[string]bool            `json:"hostCertNotifySubs"`
+	CertKindMigrated       *bool                      `json:"certKindMigrated"`
 }
 
 // Store 通知订阅持久化（线程安全）。
@@ -110,6 +117,7 @@ func emptyData() Data {
 		InAppNotifyEnabled:     true,
 		AlertContentKinds:      append([]string{}, knownAlertContentKinds...),
 		NotifyRecoverEnabled:   true,
+		AlertLevels:            resolveAlertLevels(nil),
 		NotifyContentFields:    append([]string{}, knownNotifyContentFields...),
 		HostResourceNotifySubs: map[string][]string{},
 		HostAppNotifySubs:      map[string][]string{},
@@ -172,6 +180,7 @@ func dataFromFile(raw fileData) Data {
 		HostResourceNotifySubs: raw.HostResourceNotifySubs,
 		HostAppNotifySubs:      raw.HostAppNotifySubs,
 		HostCertNotifySubs:     raw.HostCertNotifySubs,
+		AlertLevels:            alertLevelsFromFile(raw.AlertLevels),
 	}
 	if raw.SystemNotifyEnabled != nil {
 		d.SystemNotifyEnabled = *raw.SystemNotifyEnabled
@@ -206,6 +215,49 @@ func resolveAlertContentKinds(present *[]string, legacy []string) []string {
 	return append([]string{}, knownAlertContentKinds...)
 }
 
+// alertLevelsFromFile 兼容旧版单值：「warn」原义是警告起推、升到危险再推，等于两档都订。
+func alertLevelsFromFile(in map[string]json.RawMessage) map[string][]string {
+	out := map[string][]string{}
+	for kind, raw := range in {
+		var list []string
+		if err := json.Unmarshal(raw, &list); err == nil {
+			out[kind] = list
+			continue
+		}
+		var single string
+		if err := json.Unmarshal(raw, &single); err == nil {
+			if strings.TrimSpace(single) == "warn" {
+				out[kind] = []string{"warn", "danger"}
+			} else {
+				out[kind] = []string{strings.TrimSpace(single)}
+			}
+		}
+	}
+	return out
+}
+
+// resolveAlertLevels 每个资源指标都给出订阅档位：按从低到高去重，不认识的值丢弃，一档都没有时只订危险档。
+func resolveAlertLevels(in map[string][]string) map[string][]string {
+	out := map[string][]string{}
+	for _, kind := range []string{"cpu", "mem", "disk", "load"} {
+		picked := map[string]bool{}
+		for _, v := range in[kind] {
+			picked[strings.TrimSpace(v)] = true
+		}
+		levels := []string{}
+		for _, level := range alertLevelOrder {
+			if picked[level] {
+				levels = append(levels, level)
+			}
+		}
+		if len(levels) == 0 {
+			levels = []string{"danger"}
+		}
+		out[kind] = levels
+	}
+	return out
+}
+
 func resolveNotifyContentFields(present *[]string) []string {
 	if present != nil {
 		return filterKnown(compactList(*present), knownNotifyContentFields)
@@ -237,6 +289,7 @@ func normalize(d Data) Data {
 		SystemNotifyEnabled:    d.SystemNotifyEnabled,
 		InAppNotifyEnabled:     d.InAppNotifyEnabled,
 		NotifyRecoverEnabled:   d.NotifyRecoverEnabled,
+		AlertLevels:            resolveAlertLevels(d.AlertLevels),
 		AlertContentKinds:      filterKnown(compactList(d.AlertContentKinds), knownAlertContentKinds),
 		NotifyContentFields:    filterKnown(compactList(d.NotifyContentFields), knownNotifyContentFields),
 		HostResourceNotifySubs: compactHostMap(d.HostResourceNotifySubs),
@@ -320,6 +373,7 @@ func cloneData(d Data) Data {
 		InAppNotifyEnabled:     d.InAppNotifyEnabled,
 		AlertContentKinds:      append([]string{}, d.AlertContentKinds...),
 		NotifyRecoverEnabled:   d.NotifyRecoverEnabled,
+		AlertLevels:            resolveAlertLevels(d.AlertLevels),
 		NotifyContentFields:    append([]string{}, d.NotifyContentFields...),
 		HostResourceNotifySubs: cloneHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      cloneHostMap(d.HostAppNotifySubs),

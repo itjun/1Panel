@@ -19,6 +19,9 @@ import * as panelsync$0 from "./internal/panelsync/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as sshconfig$0 from "./internal/sshconfig/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as wecom$0 from "./internal/wecom/models.js";
 
 /**
  * AddHostInput 是「添加主机」对话框的入参
@@ -244,6 +247,17 @@ export interface HostAlertNotify {
      * 证书已过期时企微用严重，未过期用警告
      */
     "expired": boolean;
+
+    /**
+     * Title / Lines 非空时企微按「标题 + 逐行字段」输出，与系统通知、应用内同一套文案。
+     */
+    "title": string;
+    "lines": wecom$0.Line[] | null;
+
+    /**
+     * Level 资源告警档位：warn 显示 [警告]，danger 显示 [严重]；空则按类型推断。
+     */
+    "level": string;
 }
 
 /**

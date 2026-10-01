@@ -3,10 +3,11 @@ import { api } from "@/api";
 import { settingsAccess } from "@/utils/settingsAccess";
 import {
   appendAndNotifyDesktop,
-  buildNotifyCopy,
+  notifyMessageFor,
   sendWecomAlertOnce,
   sendWecomRecover,
 } from "@/utils/alertNotify";
+import type { NotifyTextParts } from "@/utils/notifyMessage";
 import {
   appAlertKind,
   isWatchServiceName,
@@ -14,8 +15,8 @@ import {
 
 /** 上一拍各主机服务是否健康（首次只建基线，不告警） */
 const prevOk = new Map<string, Map<string, boolean>>();
-/** 已发本地通知、尚未恢复的键 host|service */
-const firedLocal = new Set<string>();
+/** 已发本地通知、尚未恢复的键 host|service → 告警事件 id（恢复时配对） */
+const firedLocal = new Map<string, string>();
 /** 已发企微、尚未恢复的键 */
 const firedWecom = new Set<string>();
 
@@ -51,33 +52,33 @@ async function fireAppDown(opts: {
 
   const key = `${opts.host}|${opts.service}`;
   const kind = appAlertKind(opts.service);
-  const copy = buildNotifyCopy({
-    state: "down",
-    kind: "app",
-    parts: {
-      hostName: opts.host,
-      service: opts.service,
-      value: opts.detail,
-    },
-  });
+  const parts: NotifyTextParts = {
+    hostName: opts.host,
+    service: opts.service,
+    metric: "应用探活",
+    value: opts.detail,
+  };
+  const message = notifyMessageFor({ state: "down", kind: "app", parts });
+  const webhook = settings.effectiveWecomWebhook();
 
   if (!firedLocal.has(key)) {
-    firedLocal.add(key);
-    await appendAndNotifyDesktop({
+    firedLocal.set(key, "");
+    const eventId = await appendAndNotifyDesktop({
       host: opts.host,
       kind,
       state: "down",
-      title: copy.title,
-      body: copy.body,
+      message,
+      parts,
+      wecom: !!webhook,
     });
+    if (firedLocal.has(key)) firedLocal.set(key, eventId);
   }
 
-  const webhook = settings.effectiveWecomWebhook();
   await sendWecomAlertOnce(firedWecom, key, {
     webhook,
     host: opts.host,
     kind,
-    detail: copy.body,
+    message,
   });
 }
 
@@ -87,7 +88,9 @@ async function fireAppUp(opts: {
 }): Promise<void> {
   // 恢复：只有曾发出过通知才回落；去重态先清，再看闸门
   const key = `${opts.host}|${opts.service}`;
-  const hadLocal = firedLocal.delete(key);
+  const hadLocal = firedLocal.has(key);
+  const incidentId = firedLocal.get(key) || "";
+  firedLocal.delete(key);
   const hadWecom = firedWecom.delete(key);
   if (!hadLocal && !hadWecom) return;
 
@@ -95,30 +98,28 @@ async function fireAppUp(opts: {
   if (!settings.notifyRecoverEnabled) return;
   if (!settings.isContentKindEnabled("app")) return;
 
+  const kind = appAlertKind(opts.service);
+  const parts: NotifyTextParts = {
+    hostName: opts.host,
+    service: opts.service,
+    metric: "应用探活",
+    value: "探活已恢复",
+  };
+  const message = notifyMessageFor({ state: "up", kind: "app", parts });
   if (hadLocal) {
-    const copy = buildNotifyCopy({
-      state: "up",
-      kind: "app",
-      parts: {
-        hostName: opts.host,
-        service: opts.service,
-        value: "探活已恢复",
-      },
-    });
     await appendAndNotifyDesktop({
       host: opts.host,
-      kind: appAlertKind(opts.service),
+      kind,
       state: "up",
-      title: copy.title,
-      body: copy.body,
+      message,
+      parts,
+      incidentId,
+      wecom: hadWecom && !!settings.effectiveWecomWebhook(),
     });
   }
 
   if (!hadWecom) return;
-  await sendWecomRecover({
-    host: opts.host,
-    kind: appAlertKind(opts.service),
-  });
+  await sendWecomRecover({ host: opts.host, kind, message });
 }
 
 async function pollHost(host: string): Promise<void> {

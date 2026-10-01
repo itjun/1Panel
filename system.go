@@ -243,10 +243,19 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 	if webhook == "" {
 		return nil
 	}
-	host := strings.TrimSpace(in.Host)
-	if host == "" {
+	if strings.TrimSpace(in.Host) == "" {
 		return nil
 	}
+	return wecom.NotifyWecom(webhook, hostAlertMarkdown(in))
+}
+
+// PreviewHostAlertMarkdown 返回企微将收到的 markdown 原文（不发送），供设置页预览。
+func (s *System) PreviewHostAlertMarkdown(in HostAlertNotify) string {
+	return hostAlertMarkdown(in)
+}
+
+func hostAlertMarkdown(in HostAlertNotify) string {
+	host := strings.TrimSpace(in.Host)
 	kind := strings.TrimSpace(in.Kind)
 	up := strings.TrimSpace(in.State) == "up"
 	n := wecom.WatchNotify{
@@ -255,6 +264,23 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 		Detail:   strings.TrimSpace(in.Detail),
 		NotifyAt: time.Now(),
 		Source:   wecom.LocalSource(),
+		Title:    strings.TrimSpace(in.Title),
+		Lines:    in.Lines,
+	}
+	if n.Title != "" {
+		switch level := strings.TrimSpace(in.Level); {
+		case up:
+			n.Level = "ok"
+		case level == "warn":
+			n.Level = "warning"
+		case level == "danger":
+			n.Level = "critical"
+		case kind == "cert" && !in.Expired:
+			n.Level = "warning"
+		default:
+			n.Level = "critical"
+		}
+		return wecom.FormatWatchMarkdown(n)
 	}
 	if kind == "cert" {
 		// 与系统通知、应用内同一套标题和正文，不另加严重级别和来源行。
@@ -269,7 +295,7 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 		if text == "" {
 			text = "证书到期"
 		}
-		return wecom.NotifyWecom(webhook, text)
+		return text
 	}
 	if strings.HasPrefix(kind, "app:") {
 		svc := strings.TrimPrefix(kind, "app:")
@@ -289,7 +315,7 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 				n.Detail = "探活异常"
 			}
 		}
-		return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
+		return wecom.FormatWatchMarkdown(n)
 	}
 	label := resourceAlertLabel(kind)
 	if up {
@@ -305,7 +331,7 @@ func (s *System) NotifyHostAlert(in HostAlertNotify) error {
 			n.Detail = label + "超过警戒阈值"
 		}
 	}
-	return wecom.NotifyWecom(webhook, wecom.FormatWatchMarkdown(n))
+	return wecom.FormatWatchMarkdown(n)
 }
 
 // NotifyDesktop 本机系统通知（Wails 原生通知中心）。

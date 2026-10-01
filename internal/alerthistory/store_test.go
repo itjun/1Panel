@@ -56,6 +56,24 @@ func TestStoreAppendCapAndRead(t *testing.T) {
 	_ = os.Remove(s.path)
 }
 
+func TestAppendIncidentDefaultsToOwnID(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), historyFile)}
+	down, err := s.Append(Event{Host: "h", Kind: "cpu", State: "down", Value: " 93.4% "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if down.IncidentID != down.ID || down.Value != "93.4%" || down.Channels == nil {
+		t.Fatalf("down=%#v", down)
+	}
+	up, err := s.Append(Event{Host: "h", Kind: "cpu", State: "up", IncidentID: down.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.IncidentID != down.ID {
+		t.Fatalf("up incident=%q want %q", up.IncidentID, down.ID)
+	}
+}
+
 func TestStoreMaxEvents(t *testing.T) {
 	dir := t.TempDir()
 	s := &Store{path: filepath.Join(dir, "alert_history.json")}

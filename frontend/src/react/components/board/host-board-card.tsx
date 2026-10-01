@@ -1,8 +1,7 @@
 import type { monitor } from "@/api";
 import {
-  ALERT,
   isCpuAlert,
-  isDiskLow,
+  isDiskFull,
   isLoadAlert,
   isMemAlert,
   summarizeDisks,
@@ -87,7 +86,7 @@ export function HostBoardCard({
   const cpuAlert = isCpuAlert(overview);
   const memAlert = isMemAlert(overview);
   const loadAlert = isLoadAlert(overview);
-  const diskAlert = isDiskLow(disks);
+  const diskAlert = isDiskFull(disks);
   const diskSummary = summarizeDisks(disks);
   const diskPct = diskSummary?.percent ?? 0;
   const sparkHeight = sparkHeightOf(density);
@@ -109,7 +108,7 @@ export function HostBoardCard({
   if (overview?.cpuCount) {
     loadRatioText = `核均 ${((overview.load1 || 0) / overview.cpuCount).toFixed(2)}`;
     loadBarPct = clampPct(
-      ((overview.load1 || 0) / overview.cpuCount / ALERT.loadRatio) * 100,
+      ((overview.load1 || 0) / overview.cpuCount) * 100,
     );
   }
 

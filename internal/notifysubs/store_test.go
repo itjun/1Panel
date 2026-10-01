@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -219,5 +220,36 @@ func TestExplicitEmptyAlertContentKinds(t *testing.T) {
 	}
 	if len(s2.Get().AlertContentKinds) != 0 {
 		t.Fatalf("cert off must stick after migration: %v", s2.Get().AlertContentKinds)
+	}
+}
+
+func TestAlertLevelsDefaultAndFilter(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notify_subs.json")
+	// cpu/mem 为旧版单值，disk/load 为新版数组
+	body := `{"alertLevels":{"cpu":"warn","mem":"bogus","disk":["danger","warn","danger"," x "],"load":[],"extra":["warn"]}}`
+	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Store{path: path, data: emptyData()}
+	if err := s.load(); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Get().AlertLevels
+	want := map[string]string{"cpu": "warn,danger", "mem": "danger", "disk": "warn,danger", "load": "danger"}
+	if len(got) != len(want) {
+		t.Fatalf("alertLevels=%v want %v", got, want)
+	}
+	for k, v := range want {
+		if strings.Join(got[k], ",") != v {
+			t.Fatalf("alertLevels[%s]=%v want %s", k, got[k], v)
+		}
+	}
+
+	legacy := &Store{path: filepath.Join(dir, "missing.json"), data: emptyData()}
+	for _, kind := range []string{"cpu", "mem", "disk", "load"} {
+		if strings.Join(legacy.Get().AlertLevels[kind], ",") != "danger" {
+			t.Fatalf("missing file should default danger: %v", legacy.Get().AlertLevels)
+		}
 	}
 }

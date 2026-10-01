@@ -29,6 +29,16 @@ type WatchNotify struct {
 	NotifyAt      time.Time
 	ProcStartedAt time.Time // zero = 省略
 	Source        string    // 发送端「Hostname 内网IP」；空则自动取本机
+	// Title 非空时直接作标题（忽略 Host/Service/TitleSuffix 拼装）；
+	// Lines 非空时逐行输出，代替「内容」行。
+	Title string
+	Lines []Line
+}
+
+// Line 企微正文的一行「标签: 值」
+type Line struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 const wecomWebhookPrefix = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key="
@@ -109,17 +119,20 @@ func FormatWatchMarkdown(n WatchNotify) string {
 		badgeColor = "warning"
 	}
 
-	title := n.Service
-	if n.Host != "" && n.Service != "" {
-		title = n.Host + " 的 " + n.Service
-	} else if n.Host != "" {
-		title = n.Host
-	}
-	if n.TitleSuffix != "" {
-		if title != "" {
-			title = title + " · " + n.TitleSuffix
-		} else {
-			title = n.TitleSuffix
+	title := strings.TrimSpace(n.Title)
+	if title == "" {
+		title = n.Service
+		if n.Host != "" && n.Service != "" {
+			title = n.Host + " 的 " + n.Service
+		} else if n.Host != "" {
+			title = n.Host
+		}
+		if n.TitleSuffix != "" {
+			if title != "" {
+				title = title + " · " + n.TitleSuffix
+			} else {
+				title = n.TitleSuffix
+			}
 		}
 	}
 
@@ -130,7 +143,17 @@ func FormatWatchMarkdown(n WatchNotify) string {
 		at = time.Now()
 	}
 	appendQuote(&b, "时间", at.Format("2006-01-02 15:04:05"))
-	if n.Detail != "" {
+	lines := 0
+	for _, ln := range n.Lines {
+		label := strings.TrimSpace(ln.Label)
+		val := strings.TrimSpace(ln.Value)
+		if label == "" || val == "" {
+			continue
+		}
+		appendQuote(&b, label, val)
+		lines++
+	}
+	if lines == 0 && n.Detail != "" {
 		appendQuote(&b, "内容", n.Detail)
 	}
 	src := strings.TrimSpace(n.Source)

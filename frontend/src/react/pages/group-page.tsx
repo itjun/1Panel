@@ -31,7 +31,7 @@ import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
 import {
   isCpuAlert,
-  isDiskLow,
+  isDiskFull,
   isLoadAlert,
   isMemAlert,
   summarizeDisks,
@@ -383,7 +383,7 @@ export function GroupPage({
           loadPercent: ov && ov.cpuCount > 0 ? ((ov.load1 || 0) / ov.cpuCount) * 100 : ov ? 0 : null,
           cpuAlert: isCpuAlert(ov),
           memAlert: isMemAlert(ov),
-          diskAlert: isDiskLow(snap?.disks),
+          diskAlert: isDiskFull(snap?.disks),
           loadAlert: isLoadAlert(ov),
         };
       }),

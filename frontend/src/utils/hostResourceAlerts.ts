@@ -2,40 +2,35 @@ import type { monitor } from "@/api";
 import { api } from "@/api";
 import { settingsAccess } from "@/utils/settingsAccess";
 import {
-  ALERT,
   ALL_ALERT_KINDS,
-  isCpuAlert,
-  isDiskLow,
-  isLoadAlert,
-  isMemAlert,
+  alertThresholdText,
+  levelRank,
+  normalizeAlertLevels,
+  RESOURCE_POLL_MS,
+  resourceReading,
+  type AlertStartLevel,
   type ResourceAlertKind,
+  type ResourceReading,
 } from "@/utils/alerts";
-import { formatBytes } from "@/utils/format";
-import type { NotifyTextParts } from "@/utils/alertNotify";
-import { clearHostWecom, fireHostWecom } from "@/utils/wecomHostAlerts";
+import type { NotifyTextParts } from "@/utils/notifyMessage";
+import {
+  clearHostWecom,
+  escalateHostWecom,
+  fireHostWecom,
+} from "@/utils/wecomHostAlerts";
 
-/** 上一拍各主机已触发的资源告警类型（首次只建基线，不告警） */
-const prevKinds = new Map<string, Set<ResourceAlertKind>>();
+/** 已采过基线的主机（首拍只建基线，不推送） */
+const baselined = new Set<string>();
+/** 告警中的「主机|指标」→ 已推送到的最高档；不在表里即未告警 */
+const activeLevels = new Map<string, AlertStartLevel>();
+/** 告警期间读数最高的一次（主机|指标 → 峰值），回落时写进恢复消息 */
+const peaks = new Map<string, ResourceReading>();
 
-const POLL_MS = 5000;
-const GB = 1024 * 1024 * 1024;
+const POLL_MS = RESOURCE_POLL_MS;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let ticking = false;
 let lastTickAt = 0;
-
-function collectKinds(
-  ov: monitor.Overview | null | undefined,
-  disks: monitor.DiskInfo[] | null | undefined
-): Set<ResourceAlertKind> {
-  const out = new Set<ResourceAlertKind>();
-  if (!ov) return out;
-  if (isCpuAlert(ov)) out.add("cpu");
-  if (isMemAlert(ov)) out.add("mem");
-  if (isLoadAlert(ov)) out.add("load");
-  if (isDiskLow(disks)) out.add("disk");
-  return out;
-}
 
 function metricLabel(kind: ResourceAlertKind): string {
   switch (kind) {
@@ -52,63 +47,47 @@ function metricLabel(kind: ResourceAlertKind): string {
   }
 }
 
-/** 结构化正文字段，供 notifyContentFields 勾选拼装 */
+function trackPeak(key: string, reading: ResourceReading): void {
+  const prev = peaks.get(key);
+  if (!prev || reading.percent > prev.percent) peaks.set(key, reading);
+}
+
+/** 结构化正文字段，供 notifyContentFields 勾选拼装；阈值写所在档的分界 */
 function partsOf(
   host: string,
   kind: ResourceAlertKind,
-  ov: monitor.Overview,
-  disks: monitor.DiskInfo[] | null | undefined
+  level: AlertStartLevel,
+  reading: ResourceReading,
+  peak?: ResourceReading
 ): NotifyTextParts {
-  const base: NotifyTextParts = {
+  return {
     hostName: host,
     metric: metricLabel(kind),
+    value: reading.text,
+    threshold: alertThresholdText(kind, level),
+    peak: peak?.text,
   };
-  switch (kind) {
-    case "cpu":
-      return {
-        ...base,
-        value: `${ov.cpuPercent.toFixed(1)}%`,
-        threshold: `≥ ${ALERT.cpu}%`,
-      };
-    case "mem":
-      return {
-        ...base,
-        value: `${ov.memPercent.toFixed(1)}%`,
-        threshold: `> ${ALERT.mem}%`,
-      };
-    case "load":
-      return {
-        ...base,
-        value: `${ov.load1.toFixed(2)} / ${ov.cpuCount} 核`,
-        threshold: `> ${ALERT.loadRatio}`,
-      };
-    case "disk": {
-      const thr = ALERT.diskAvailBytes;
-      const candidates = (disks || []).filter((d) => (d.total || 0) > thr);
-      let value = `可用不足 ${ALERT.diskAvailBytes / GB} GB`;
-      if (candidates.length) {
-        const worst = [...candidates].sort(
-          (a, b) => (a.avail || 0) - (b.avail || 0)
-        )[0];
-        const mount = worst.mount || worst.filesystem || "磁盘";
-        value = `${mount} 可用 ${formatBytes(worst.avail)}`;
-      }
-      return {
-        ...base,
-        value,
-        threshold: `≤ ${ALERT.diskAvailBytes / GB} GB`,
-      };
-    }
-    default:
-      return base;
+}
+
+function forgetHost(host: string): void {
+  baselined.delete(host);
+  for (const kind of ALL_ALERT_KINDS) {
+    activeLevels.delete(`${host}|${kind}`);
+    peaks.delete(`${host}|${kind}`);
   }
 }
 
+/**
+ * 每个「主机|指标」的档位状态机：
+ * 起推档 = 订阅里最低的一档。低于起推档 → 达到起推档推告警；
+ * 警告、危险都订时升到危险档推升级；
+ * 跌回起推档以下推回落；危险档降回警告档不推，只继续记峰值。
+ */
 async function pollHost(host: string): Promise<void> {
   const settings = settingsAccess();
   const subscribed = new Set(settings.listResourceNotifySubs(host));
   if (!subscribed.size) {
-    prevKinds.delete(host);
+    forgetHost(host);
     return;
   }
 
@@ -126,50 +105,65 @@ async function pollHost(host: string): Promise<void> {
   }
   if (!ov) return;
 
-  const now = collectKinds(ov, disks);
-  let prev = prevKinds.get(host);
-  const first = !prev;
-  if (!prev) {
-    prev = new Set();
-    prevKinds.set(host, prev);
-  }
+  const first = !baselined.has(host);
+  baselined.add(host);
 
   for (const kind of ALL_ALERT_KINDS) {
+    const key = `${host}|${kind}`;
+    const active = activeLevels.get(key);
     if (!subscribed.has(kind)) {
-      if (prev.has(kind)) {
-        prev.delete(kind);
-        void clearHostWecom({
-          key: `${host}|${kind}`,
-          host,
-          kind,
-        });
+      if (active) {
+        activeLevels.delete(key);
+        peaks.delete(key);
+        void clearHostWecom({ key, host, kind });
       }
       continue;
     }
-    const on = now.has(kind);
-    const was = prev.has(kind);
+    const reading = resourceReading(kind, ov, disks);
+    if (!reading) continue;
+    const levels = normalizeAlertLevels(settings.alertLevels[kind]);
+    const start = levels[0];
+    const level = reading.level;
+    const reached = level !== "ok" && levelRank(level) >= levelRank(start);
+
     if (first) {
-      if (on) prev.add(kind);
+      if (reached) activeLevels.set(key, level);
       continue;
     }
-    if (on && !was) {
-      prev.add(kind);
-      await fireHostWecom({
-        key: `${host}|${kind}`,
-        host,
-        kind,
-        parts: partsOf(host, kind, ov, disks),
-      });
-    } else if (!on && was) {
-      prev.delete(kind);
+
+    if (reached) {
+      trackPeak(key, reading);
+      if (!active) {
+        activeLevels.set(key, level);
+        await fireHostWecom({
+          key,
+          host,
+          kind,
+          level,
+          parts: partsOf(host, kind, level, reading),
+        });
+      } else if (active === "warn" && level === "danger") {
+        activeLevels.set(key, "danger");
+        // 只订了警告档：升到危险档只记档位与峰值，不再推送
+        if (levels.includes("danger")) {
+          await escalateHostWecom({
+            key,
+            host,
+            kind,
+            parts: partsOf(host, kind, "danger", reading),
+          });
+        }
+      }
+    } else if (active) {
+      activeLevels.delete(key);
+      const peak = peaks.get(key);
+      peaks.delete(key);
       await clearHostWecom({
-        key: `${host}|${kind}`,
+        key,
         host,
         kind,
-        parts: {
-          hostName: host,
-          metric: metricLabel(kind),
-        },
+        level: active,
+        parts: partsOf(host, kind, start, reading, peak),
       });
     }
   }
@@ -188,12 +182,14 @@ async function tick(): Promise<void> {
     // 只打已订阅主机；空名单绝不 listHosts / 扫全集
     const hosts = settings.hostsWithResourceNotifySubs();
     if (hosts.length === 0) {
-      prevKinds.clear();
+      baselined.clear();
+      activeLevels.clear();
+      peaks.clear();
       return;
     }
     const active = new Set(hosts);
-    for (const h of [...prevKinds.keys()]) {
-      if (!active.has(h)) prevKinds.delete(h);
+    for (const h of [...baselined]) {
+      if (!active.has(h)) forgetHost(h);
     }
     await Promise.all(hosts.map((h) => pollHost(h)));
   } finally {

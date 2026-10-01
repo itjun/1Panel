@@ -169,9 +169,12 @@ export function WorkspaceRail() {
     }
     void tick();
     const timer = window.setInterval(() => void tick(), 15000);
+    const onChanged = () => void tick();
+    window.addEventListener("alerts-changed", onChanged);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.removeEventListener("alerts-changed", onChanged);
     };
   }, []);
 

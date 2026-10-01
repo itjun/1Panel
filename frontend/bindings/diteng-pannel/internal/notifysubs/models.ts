@@ -16,6 +16,11 @@ export interface Data {
     "inAppNotifyEnabled": boolean;
     "alertContentKinds": string[] | null;
     "notifyRecoverEnabled": boolean;
+
+    /**
+     * AlertLevels 资源指标（cpu/mem/disk/load）订阅的档位，可同时订 warn 和 danger。
+     */
+    "alertLevels": { [_ in string]?: string[] | null } | null;
     "notifyContentFields": string[] | null;
     "hostResourceNotifySubs": { [_ in string]?: string[] | null } | null;
     "hostAppNotifySubs": { [_ in string]?: string[] | null } | null;

@@ -3,13 +3,15 @@
 
 /**
  * Event 一条应用内告警历史（资源超阈 / 回落）。
+ * 告警与其恢复共用 IncidentID（= 告警事件自己的 ID），前端据此合并成一次事件。
  */
 export interface Event {
     "id": string;
+    "incidentId": string;
     "host": string;
 
     /**
-     * cpu|mem|disk|load|app:<service>
+     * cpu|mem|disk|load|cert|app:<service>
      */
     "kind": string;
 
@@ -19,6 +21,29 @@ export interface Event {
     "state": string;
     "title": string;
     "detail": string;
+    "metric": string;
+
+    /**
+     * 当时读数；恢复事件为回落时的读数
+     */
+    "value": string;
+    "threshold": string;
+
+    /**
+     * 仅恢复事件：告警期间峰值
+     */
+    "peak": string;
+
+    /**
+     * 资源告警档位：warn / danger；其他类型为空
+     */
+    "level": string;
+    "service": string;
+
+    /**
+     * system|inApp|wecom，实际尝试发送的渠道
+     */
+    "channels": string[] | null;
 
     /**
      * unix ms

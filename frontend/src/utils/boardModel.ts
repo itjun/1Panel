@@ -1,5 +1,5 @@
 import type { monitor } from "../api";
-import { isCpuAlert, isDiskLow, isLoadAlert, isMemAlert } from "./alerts";
+import { isCpuAlert, isDiskFull, isLoadAlert, isMemAlert } from "./alerts";
 import { watchServiceSortKey } from "./watchServices";
 
 /** 看板上的主机健康状态；attention 只表示数据/探活降级，不新增资源告警阈值。 */
@@ -92,7 +92,7 @@ function resourceCritical(card: BoardHostCard): boolean {
     isCpuAlert(ov) ||
     isMemAlert(ov) ||
     isLoadAlert(ov) ||
-    isDiskLow(card.disks)
+    isDiskFull(card.disks)
   );
 }
 

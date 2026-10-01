@@ -1,5 +1,5 @@
 /**
- * 告警通知共享出口：资源告警（wecomHostAlerts）与应用探活告警（appWatchAlerts）共用。
+ * 告警通知共享出口：资源告警（wecomHostAlerts）、应用探活告警（appWatchAlerts）、证书告警共用。
  *
  * 三层闸门（调用方先过 1~3，本文件负责频道分发）：
  * 1. 主机订阅
@@ -9,123 +9,105 @@
  */
 
 import { api } from "@/api";
-import type { NotifyContentField } from "@/react/state/settings";
+import type { main } from "@/api";
 import { settingsAccess } from "@/utils/settingsAccess";
+import type { AlertStartLevel } from "@/utils/alerts";
+import {
+  buildNotifyMessage,
+  type NotifyMessage,
+  type NotifyMessageKind,
+  type NotifyTextParts,
+} from "@/utils/notifyMessage";
 
-/** 拼装系统通知 / 企微文案的结构化字段 */
-export type NotifyTextParts = {
-  hostName?: string;
-  metric?: string;
-  threshold?: string;
-  value?: string;
-  service?: string;
-};
+export type { NotifyTextParts } from "@/utils/notifyMessage";
 
-function fieldOn(field: NotifyContentField): boolean {
-  return settingsAccess().isNotifyContentFieldEnabled(field);
+/** 按当前「正文带上」勾选生成消息 */
+export function notifyMessageFor(opts: {
+  state: "down" | "up";
+  kind: NotifyMessageKind;
+  parts: NotifyTextParts;
+  level?: AlertStartLevel;
+  escalated?: boolean;
+}): NotifyMessage {
+  return buildNotifyMessage({
+    ...opts,
+    fields: settingsAccess().notifyContentFields,
+  });
 }
 
-/**
- * 按 notifyContentFields 勾选拼装标题与正文；未勾选的字段不写入。
- * kind=resource：标题偏「超阈值 / 已回落」；kind=app：偏「探活异常 / 已恢复」。
- */
-export function buildNotifyCopy(opts: {
+/** 企微入参：标题与逐行正文取自同一份消息 */
+export function hostAlertPayload(opts: {
+  webhook: string;
+  host: string;
+  kind: string;
   state: "down" | "up";
-  kind: "resource" | "app";
-  parts: NotifyTextParts;
-}): { title: string; body: string } {
-  const host = fieldOn("hostName")
-    ? (opts.parts.hostName || "").trim()
-    : "";
-  const metric = fieldOn("metric") ? (opts.parts.metric || "").trim() : "";
-  const threshold = fieldOn("threshold")
-    ? (opts.parts.threshold || "").trim()
-    : "";
-  const value = fieldOn("value") ? (opts.parts.value || "").trim() : "";
-  const service = fieldOn("service")
-    ? (opts.parts.service || "").trim()
-    : "";
-
-  const hostPrefix = host ? `「${host}」` : "";
-
-  let title = "";
-  if (opts.kind === "app") {
-    const svc = service || "";
-    if (opts.state === "up") {
-      if (hostPrefix || svc) {
-        title = `${hostPrefix}${svc}${svc ? " " : ""}已恢复`.trim();
-      } else {
-        title = "已恢复";
-      }
-    } else {
-      if (hostPrefix || svc) {
-        title = `${hostPrefix}${svc}${svc ? " " : ""}探活异常`.trim();
-      } else {
-        title = "探活异常";
-      }
-    }
-  } else {
-    const m = metric || "";
-    if (opts.state === "up") {
-      if (hostPrefix || m) {
-        title = `${hostPrefix}${m}已回落`;
-      } else {
-        title = "已回落";
-      }
-    } else {
-      if (hostPrefix || m) {
-        title = `${hostPrefix}${m}超阈值`;
-      } else {
-        title = "超阈值";
-      }
-    }
-  }
-
-  const bodyBits: string[] = [];
-  if (host) bodyBits.push(host);
-  if (metric) bodyBits.push(metric);
-  if (service) bodyBits.push(service);
-  if (value) bodyBits.push(value);
-  if (threshold) bodyBits.push(`阈值 ${threshold}`);
-
-  let body = bodyBits.join(" · ");
-  if (!body) {
-    body = title;
-  }
-  return { title, body };
+  message: NotifyMessage;
+}): main.HostAlertNotify {
+  return {
+    webhook: opts.webhook,
+    host: opts.host,
+    kind: opts.kind,
+    state: opts.state,
+    detail: opts.message.body,
+    titleSuffix: "",
+    expired: false,
+    title: opts.message.title,
+    lines: opts.message.lines,
+    level: opts.message.level || "",
+  };
 }
 
 /**
  * 写入应用内历史 → 系统通知（带 eventId）→ 刷新未读。
  * 分别受 inAppNotifyEnabled / systemNotifyEnabled 控制。
+ * 返回历史事件 id（未写历史为空串），恢复事件用它作 incidentId 配对。
  */
 export async function appendAndNotifyDesktop(opts: {
   host: string;
   kind: string;
   state: "down" | "up";
-  title: string;
-  body: string;
+  message: NotifyMessage;
+  /** 结构化读数全量入库，详情页不受「正文带上」影响 */
+  parts?: NotifyTextParts;
+  /** 恢复事件指向对应告警事件 id */
+  incidentId?: string;
+  /** 本次还会发企微（只用于记录送达渠道） */
+  wecom?: boolean;
   /** 系统通知点击要定位到历史行时，应用内关闭也写入历史 */
   historyForClick?: boolean;
-}): Promise<void> {
+}): Promise<string> {
   const settings = settingsAccess();
   const wantInApp = settings.inAppNotifyEnabled;
   const wantSystem = settings.systemNotifyEnabled;
   const wantHistory = wantInApp || (!!opts.historyForClick && wantSystem);
-  if (!wantInApp && !wantSystem) return;
+
+  const channels: string[] = [];
+  if (wantSystem) channels.push("system");
+  if (wantInApp) channels.push("inApp");
+  if (opts.wecom) channels.push("wecom");
 
   let eventId = "";
-  if (wantHistory) {
+  // 只发企微时也写一条历史，保证恢复能配对、消息页能看到送达记录
+  if (wantHistory || opts.wecom) {
     try {
+      const parts = opts.parts || {};
       const saved = await api.appendAlertHistory({
         id: "",
+        incidentId: opts.incidentId || "",
         host: opts.host,
         kind: opts.kind,
         state: opts.state,
-        title: opts.title,
-        detail: opts.body,
+        title: opts.message.title,
+        detail: opts.message.body,
+        level: opts.message.level || "",
+        metric: parts.metric || "",
+        value: parts.value || "",
+        threshold: parts.threshold || "",
+        peak: parts.peak || "",
+        service: parts.service || "",
+        channels,
         at: 0,
-        read: false,
+        read: !wantInApp,
       });
       eventId = saved.id || "";
     } catch {
@@ -135,7 +117,7 @@ export async function appendAndNotifyDesktop(opts: {
 
   if (wantSystem) {
     void api
-      .notifyDesktop(opts.title, opts.body, {
+      .notifyDesktop(opts.message.title, opts.message.body, {
         host: opts.host,
         eventId,
         kind: opts.kind,
@@ -143,9 +125,10 @@ export async function appendAndNotifyDesktop(opts: {
       .catch(() => {});
   }
 
-  if (wantHistory) {
+  if (eventId) {
     window.dispatchEvent(new Event("alerts-changed"));
   }
+  return eventId;
 }
 
 /**
@@ -155,22 +138,32 @@ export async function appendAndNotifyDesktop(opts: {
 export async function sendWecomAlertOnce(
   fired: Set<string>,
   key: string,
-  opts: { webhook: string; host: string; kind: string; detail: string }
+  opts: { webhook: string; host: string; kind: string; message: NotifyMessage }
 ): Promise<void> {
   if (!opts.webhook || fired.has(key)) return;
   fired.add(key);
   try {
-    await api.notifyHostAlert({
-      webhook: opts.webhook,
-      host: opts.host,
-      kind: opts.kind,
-      state: "down",
-      detail: opts.detail,
-      titleSuffix: "",
-      expired: false,
-    });
+    await api.notifyHostAlert(
+      hostAlertPayload({ ...opts, state: "down" })
+    );
   } catch {
     fired.delete(key);
+  }
+}
+
+/** 企微升级通知：同一次事件从警告档升到危险档时再推一次；失败不重试 */
+export async function sendWecomEscalation(opts: {
+  webhook: string;
+  host: string;
+  kind: string;
+  message: NotifyMessage;
+}): Promise<boolean> {
+  if (!opts.webhook) return false;
+  try {
+    await api.notifyHostAlert(hostAlertPayload({ ...opts, state: "down" }));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -182,20 +175,14 @@ export async function sendWecomAlertOnce(
 export async function sendWecomRecover(opts: {
   host: string;
   kind: string;
+  message: NotifyMessage;
 }): Promise<void> {
-  const settings = settingsAccess();
-  const webhook = settings.effectiveWecomWebhook();
+  const webhook = settingsAccess().effectiveWecomWebhook();
   if (!webhook) return;
   try {
-    await api.notifyHostAlert({
-      webhook,
-      host: opts.host,
-      kind: opts.kind,
-      state: "up",
-      detail: "",
-      titleSuffix: "",
-      expired: false,
-    });
+    await api.notifyHostAlert(
+      hostAlertPayload({ ...opts, webhook, state: "up" })
+    );
   } catch {
     /* 恢复通知失败不回填 */
   }

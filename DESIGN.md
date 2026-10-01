@@ -285,6 +285,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - ❌ 禁止再用「细线进度条 + 粗体数字」的老写法。
 - ❌ 禁止在 Meter 上加渐变、发光、动画（数值变化用 `--duration-base` 颜色过渡即可）。
 - 除 Meter 外，**不再加任何其他装饰性视觉元素**。
+- **告警与 Meter 同一套分档**：CPU / 内存 / 负载 / 磁盘告警按上表三档判定（警告 ≥ 60%、危险 ≥ 85%），负载按 `load1 / 核数` 折算，磁盘取容量大于 10 GB 的分区里使用率最高的一个。判定统一走 `utils/alerts.ts` 的 `resourceReading`（内部调 `usage-tone.ts`），看板、分组、主机页圆环标红、告警推送都用它，不另写阈值。
 
 ---
 
@@ -412,6 +413,11 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
   - 成功 / 待处理 / 错误三者互斥，同一时刻最多一条。
   - 常驻状态说明（如「未检测到 nginx」「远程缺少 openssl」）用 warning、不带关闭按钮；warning 不得用于操作成功或失败。
 - 标签 / 状态胶囊：`--radius-tag`，底色用 `*-soft`，文字用对应功能色。
+- 状态灯（`components/notify/incident-detail.tsx` `StatusLed`）：8px 方块、`--radius-tag`，实色 `danger`（进行中）/ `warn`（警告档进行中、到期提醒）/ `success`（已回落）/ `line-strong`（未记录回落）；旁边**必须**配状态文字，不单靠颜色表意。时间线节点同款：「进入警告档」`warn`、「进入危险档」「升到危险档」`danger`，升级节点插在首发与回落之间；「等待回落」用 1px `line-strong` 空心。
+- 告警档位标签：消息列表主机名后、详情状态标签后各放一枚 `Tag`，警告 `warn`、危险 `danger`，取事件到过的最高档；旧记录无档位不显示。
+- 档位订阅（通知设置「通知什么」CPU / 内存 / 磁盘 / 负载每行，`ResourceRuleRow`）：规则说明在左，右侧两个 `Checkbox`「警告 ≥ 60%」「危险 ≥ 85%」，可同时勾选；至少保留一档（仅剩一档时禁用并用 `data-tip` 说明），整类不要用左侧类型勾选；该类型未勾选时两个复选框都禁用。两档都订时，预览矩阵对应类型多出一行「升级」。
+- 消息页（通知 → 指标消息 / 应用消息）：一次「告警 + 回落」按 `incidentId` 合并为一条事件；`Page flush` 左右分栏，左列表宽 360px、右边 1px `--color-line` 分隔，按日期分组（组标题 32px 吸顶、`text-xs text-muted`），每条两行（主机 + 类型 + 时间 / 峰值 + 持续时长），未读主机名 600 字重 + 6px accent 方点，选中 `accent-soft`，上下方向键切换；右侧详情内边距 24px、区块间 `gap-section`，唯一的大数字是峰值（`text-2xl` 等宽 600，危险档 `text-danger`）配 `Meter`。筛选收拢为顶栏 `Select` + `RadioGroup` + `Switch`，不再堆按钮组。
+- 通知预览矩阵（通知设置「正文带上」正下方，`components/notify/channel-preview.tsx`）：**全部展开、不做下拉 / 切换**——行 = 消息类型（CPU / 内存 / 磁盘 / 负载 / 应用探活）× 告警 / 升级（警告、危险两档都订时）/ 恢复，列 = 系统通知 / 应用内 / 企业微信，列头 32px 吸顶。每格一张预览卡，模拟对应渠道的消息外观：`bg-raised` + `--radius-panel` + 12px 内边距，无描边无阴影（模拟的是浮出的通知，故用浮层圆角）；渠道关闭整列 `opacity-50`、列头标「未开启，不会发送」；类型或「恢复」未勾选整行 `opacity-50`，行头用 `text-warn` 写原因。企业微信卡渲染后端 `PreviewHostAlertMarkdown` 原文：`<font color>` 映射 red→`danger`、warning→`warn`、info→`success-text`、comment→`muted`，引用行左侧 2px `line-strong` 竖线。
 - Meter：见 §4.7，唯一允许的「装饰级」组件。
 - 窗口壳层：顶栏、侧栏、Win/Linux 窗口按钮全部走共享组件，平台判断只从 `lib/platform.ts` 引入。
 

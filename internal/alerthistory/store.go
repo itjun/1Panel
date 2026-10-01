@@ -15,16 +15,30 @@ import (
 const maxEvents = 2000
 
 // Event 一条应用内告警历史（资源超阈 / 回落）。
+// 告警与其恢复共用 IncidentID（= 告警事件自己的 ID），前端据此合并成一次事件。
 type Event struct {
-	ID     string `json:"id"`
-	Host   string `json:"host"`
-	Kind   string `json:"kind"`  // cpu|mem|disk|load|app:<service>
-	State  string `json:"state"` // down|up
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
-	At     int64  `json:"at"` // unix ms
-	Read   bool   `json:"read"`
+	ID         string   `json:"id"`
+	IncidentID string   `json:"incidentId"`
+	Host       string   `json:"host"`
+	Kind       string   `json:"kind"`  // cpu|mem|disk|load|cert|app:<service>
+	State      string   `json:"state"` // down|up
+	Title      string   `json:"title"`
+	Detail     string   `json:"detail"`
+	Metric     string   `json:"metric"`
+	Value      string   `json:"value"` // 当时读数；恢复事件为回落时的读数
+	Threshold  string   `json:"threshold"`
+	Peak       string   `json:"peak"`  // 仅恢复事件：告警期间峰值
+	Level      string   `json:"level"` // 资源告警档位：warn / danger；其他类型为空
+	Service    string   `json:"service"`
+	Channels   []string `json:"channels"` // system|inApp|wecom，实际尝试发送的渠道
+	At         int64    `json:"at"`       // unix ms
+	Read       bool     `json:"read"`
 }
+
+const (
+	historyFile       = "alert_history.v2.json"
+	legacyHistoryFile = "alert_history.json"
+)
 
 // Store 管理告警历史持久化（线程安全）。
 type Store struct {
@@ -35,9 +49,11 @@ type Store struct {
 
 // NewStore 创建告警历史存储，数据落盘到系统应用数据目录：
 //
-//	Windows: %AppData%\<app>\alert_history.json
-//	macOS:   ~/Library/Application Support/<app>/alert_history.json
-//	Linux:   ~/.config/<app>/alert_history.json
+//	Windows: %AppData%\<app>\alert_history.v2.json
+//	macOS:   ~/Library/Application Support/<app>/alert_history.v2.json
+//	Linux:   ~/.config/<app>/alert_history.v2.json
+//
+// 旧版 alert_history.json 只有纯文本正文，启动时直接删除，不迁移。
 func NewStore(appName string) (*Store, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
@@ -47,8 +63,9 @@ func NewStore(appName string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("创建应用数据目录失败: %w", err)
 	}
+	_ = os.Remove(filepath.Join(dir, legacyHistoryFile))
 	s := &Store{
-		path:   filepath.Join(dir, "alert_history.json"),
+		path:   filepath.Join(dir, historyFile),
 		events: nil,
 	}
 	if err := s.load(); err != nil {
@@ -98,8 +115,21 @@ func (s *Store) Append(e Event) (Event, error) {
 	e.State = strings.TrimSpace(e.State)
 	e.Title = strings.TrimSpace(e.Title)
 	e.Detail = strings.TrimSpace(e.Detail)
+	e.IncidentID = strings.TrimSpace(e.IncidentID)
+	e.Metric = strings.TrimSpace(e.Metric)
+	e.Value = strings.TrimSpace(e.Value)
+	e.Threshold = strings.TrimSpace(e.Threshold)
+	e.Peak = strings.TrimSpace(e.Peak)
+	e.Level = strings.TrimSpace(e.Level)
+	e.Service = strings.TrimSpace(e.Service)
+	if e.Channels == nil {
+		e.Channels = []string{}
+	}
 	if e.ID == "" {
 		e.ID = uuid.NewString()
+	}
+	if e.IncidentID == "" {
+		e.IncidentID = e.ID
 	}
 	if e.At == 0 {
 		e.At = time.Now().UnixMilli()
@@ -197,7 +227,7 @@ func (s *Store) load() error {
 	}
 	var list []Event
 	if err := json.Unmarshal(b, &list); err != nil {
-		return fmt.Errorf("解析 alert_history.json 失败: %w", err)
+		return fmt.Errorf("解析 %s 失败: %w", historyFile, err)
 	}
 	s.events = list
 	if len(s.events) > maxEvents {

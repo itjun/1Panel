@@ -475,6 +475,8 @@ const apiImpl = {
   notifyHostAlert: async (input: main.HostAlertNotify): Promise<void> => {
     await System.NotifyHostAlert(input);
   },
+  previewHostAlertMarkdown: (input: main.HostAlertNotify): Promise<string> =>
+    str(System.PreviewHostAlertMarkdown(input)),
 
   /**
    * 本机系统通知（Wails 原生通知中心）。

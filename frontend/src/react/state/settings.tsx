@@ -1,6 +1,11 @@
 import { useSyncExternalStore } from "react";
 import { api } from "@/api";
-import { ALL_ALERT_KINDS, type ResourceAlertKind } from "@/utils/alerts";
+import {
+  ALL_ALERT_KINDS,
+  normalizeAlertLevels,
+  type AlertStartLevel,
+  type ResourceAlertKind,
+} from "@/utils/alerts";
 
 const STORAGE_KEY = "ipannel.settings.v1";
 
@@ -38,6 +43,8 @@ export type AppSettings = {
   inAppNotifyEnabled: boolean;
   alertContentKinds: AlertContentKind[];
   notifyRecoverEnabled: boolean;
+  /** 每类资源指标订阅的档位（可同时订阅警告和危险）；两档都订时，升到危险档再推一次 */
+  alertLevels: Record<ResourceAlertKind, AlertStartLevel[]>;
   notifyContentFields: NotifyContentField[];
   hostResourceNotifySubs: Record<string, ResourceAlertKind[]>;
   hostAppNotifySubs: Record<string, string[]>;
@@ -60,6 +67,7 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   inAppNotifyEnabled: true,
   alertContentKinds: [...ALL_ALERT_KINDS, "app", "cert"],
   notifyRecoverEnabled: true,
+  alertLevels: { cpu: ["danger"], mem: ["danger"], disk: ["danger"], load: ["danger"] },
   notifyContentFields: ["hostName", "metric", "threshold", "value", "service"],
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
@@ -90,6 +98,14 @@ function parseHostHomeRows(value: unknown): string[][] {
   return rows;
 }
 
+function parseAlertLevels(value: unknown): AppSettings["alertLevels"] {
+  const out = { ...SETTINGS_DEFAULTS.alertLevels };
+  if (!value || typeof value !== "object") return out;
+  const raw = value as Record<string, unknown>;
+  for (const kind of ALL_ALERT_KINDS) out[kind] = normalizeAlertLevels(raw[kind]);
+  return out;
+}
+
 function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -118,6 +134,7 @@ function loadSettings(): AppSettings {
         parsed.alertContentKinds || SETTINGS_DEFAULTS.alertContentKinds,
       notifyContentFields:
         parsed.notifyContentFields || SETTINGS_DEFAULTS.notifyContentFields,
+      alertLevels: parseAlertLevels(parsed.alertLevels),
       hostResourceNotifySubs: parsed.hostResourceNotifySubs || {},
       hostAppNotifySubs: parsed.hostAppNotifySubs || {},
       hostCertNotifySubs: parsed.hostCertNotifySubs || {},
@@ -237,6 +254,7 @@ function emit() {
       inAppNotifyEnabled: current.inAppNotifyEnabled,
       alertContentKinds: current.alertContentKinds,
       notifyRecoverEnabled: current.notifyRecoverEnabled,
+      alertLevels: current.alertLevels,
       notifyContentFields: current.notifyContentFields,
       hostResourceNotifySubs: current.hostResourceNotifySubs,
       hostAppNotifySubs: current.hostAppNotifySubs,
