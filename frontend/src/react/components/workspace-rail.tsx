@@ -1,8 +1,7 @@
 /**
- * WorkspaceRail — React 版左侧工作区栏。
+ * WorkspaceRail — 二级标签栏：当前一级模块的分区 / 已打开主机与分组。
  */
 
-import { Events } from "@wailsio/runtime";
 import {
   useEffect,
   useRef,
@@ -23,7 +22,6 @@ import {
   type ConfigSection,
   type NotifySection,
   type SettingsSection,
-  type Workspace,
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
 import { useSidebar } from "@/react/state/sidebar";
@@ -32,8 +30,6 @@ import { clampContextMenuPos } from "@/utils/contextMenuPos";
 const RAIL_ORDER_KEY = "1pannel-rail-order";
 const VISITED_GROUPS_KEY = "1pannel-visited-groups";
 const RAIL_ENTRY_MIME = "application/x-rail-entry";
-
-const HOST_MODULE: { id: Workspace; label: string } = { id: "remote", label: "主机" };
 
 const NOTIFY_SECTIONS: { id: NotifySection; label: string }[] = [
   { id: "metricMessages", label: "指标消息" },
@@ -89,15 +85,9 @@ function saveStringList(key: string, list: string[]) {
   }
 }
 
-function formatCount(n: number): string {
-  return n > 99 ? "99+" : String(n);
-}
-
 export function WorkspaceRail() {
   const session = useSession();
   const { width: sidebarWidth } = useSidebar();
-  const [unread, setUnread] = useState(0);
-  const [configNeedsAttention, setConfigNeedsAttention] = useState(false);
   const [visitedGroupIds, setVisitedGroupIds] = useState(() =>
     loadStringList(VISITED_GROUPS_KEY),
   );
@@ -159,54 +149,6 @@ export function WorkspaceRail() {
     setSelectedHostNames((prev) => (prev.length === 0 ? prev : []));
     hostAnchorRef.current = "";
   }, [session.activeGroupId, session.activeHost, session.homeView]);
-
-  // 通知未读数
-  useEffect(() => {
-    let cancelled = false;
-    async function tick() {
-      try {
-        const n = await api.unreadAlertCount();
-        if (!cancelled) setUnread(Number(n) || 0);
-      } catch {
-        /* 轮询失败时保持上次数字 */
-      }
-    }
-    void tick();
-    const timer = window.setInterval(() => void tick(), 15000);
-    const onChanged = () => void tick();
-    window.addEventListener("alerts-changed", onChanged);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener("alerts-changed", onChanged);
-    };
-  }, []);
-
-  // 配置红点
-  useEffect(() => {
-    let cancelled = false;
-    async function refresh() {
-      try {
-        const overview = await api.getPanelConfigOverview();
-        if (cancelled) return;
-        setConfigNeedsAttention(
-          !!(overview.configStale || overview.drift || overview.needsReview),
-        );
-      } catch {
-        /* 打开配置工作区时再报错 */
-      }
-    }
-    void refresh();
-    const offs = [
-      Events.On("panel-config-imported", () => void refresh()),
-      Events.On("panel-config-needs-review", () => setConfigNeedsAttention(true)),
-      Events.On("panel-config-import-error", () => setConfigNeedsAttention(true)),
-    ];
-    return () => {
-      cancelled = true;
-      offs.forEach((off) => off());
-    };
-  }, []);
 
   function closeGroupTab(id: string) {
     const gid = id.trim();
@@ -308,29 +250,11 @@ export function WorkspaceRail() {
       <aside
         className="glass-chrome flex shrink-0 flex-col pb-2.5"
         style={{ width: sidebarWidth, minWidth: sidebarWidth }}
-        aria-label="应用导航"
+        aria-label="二级导航"
       >
-      <ModuleNav
-        unread={unread}
-        configNeedsAttention={configNeedsAttention}
-        hostActive={!session.settingsOpen && session.workspace === "remote"}
-        localActive={!session.settingsOpen && session.workspace === "local"}
-        inspectActive={!session.settingsOpen && session.workspace === "inspect"}
-        notifyActive={!session.settingsOpen && session.workspace === "notify"}
-        configActive={!session.settingsOpen && session.workspace === "config"}
-        settingsActive={session.settingsOpen}
-        onHost={() => session.goHome()}
-        onLocal={() => session.setWorkspace("local")}
-        onInspect={() => session.setWorkspace("inspect")}
-        onNotify={() => session.setWorkspace("notify")}
-        onConfig={() => session.setWorkspace("config")}
-        onSettings={() => session.openSettings(true)}
-      />
-
-      <div className="mx-2 my-2 h-px shrink-0 bg-line" role="separator" />
-
       <div
-        className="flex min-h-0 flex-1 flex-col overflow-auto"
+        key={listKind}
+        className="motion-fade-in flex min-h-0 flex-1 flex-col overflow-auto"
         onPointerLeave={() => setHoverKey("")}
         onContextMenu={(e) => {
           if (listKind !== "hosts") return;
@@ -394,6 +318,19 @@ export function WorkspaceRail() {
 
         {listKind === "hosts" ? (
           <>
+            <RailNavButton
+              label="全部主机"
+              active={
+                session.workspace === "remote" &&
+                !session.activeHost &&
+                session.homeView === "home"
+              }
+              onClick={() => {
+                clearHostSelection();
+                session.goHome();
+              }}
+            />
+            {railEntries.length > 0 ? <div className="h-2 shrink-0" /> : null}
             {railEntries.map((entry) => {
               if (entry.kind === "group") {
                 const active =
@@ -595,92 +532,6 @@ export function WorkspaceRail() {
         </CtxMenu>
       ) : null}
     </aside>
-  );
-}
-
-/** 侧栏顶部模块切换：平铺全部模块；当前模块只加粗，色块留给下方当前标签，避免两处同时高亮 */
-function ModuleNav({
-  unread,
-  configNeedsAttention,
-  hostActive,
-  localActive,
-  inspectActive,
-  notifyActive,
-  configActive,
-  settingsActive,
-  onHost,
-  onLocal,
-  onInspect,
-  onNotify,
-  onConfig,
-  onSettings,
-}: {
-  unread: number;
-  configNeedsAttention: boolean;
-  hostActive: boolean;
-  localActive: boolean;
-  inspectActive: boolean;
-  notifyActive: boolean;
-  configActive: boolean;
-  settingsActive: boolean;
-  onHost: () => void;
-  onLocal: () => void;
-  onInspect: () => void;
-  onNotify: () => void;
-  onConfig: () => void;
-  onSettings: () => void;
-}) {
-  const badge = unread > 0 ? formatCount(unread) : null;
-  return (
-    <nav className="flex shrink-0 flex-col" aria-label="切换模块">
-      <ModuleButton active={hostActive} label={HOST_MODULE.label} onClick={onHost} />
-      <ModuleButton active={localActive} label="本机" onClick={onLocal} />
-      <ModuleButton active={inspectActive} label="巡检" onClick={onInspect} />
-      <ModuleButton active={notifyActive} label="通知" badge={badge} onClick={onNotify} />
-      <ModuleButton
-        active={configActive}
-        label="配置"
-        statusDot={configNeedsAttention}
-        onClick={onConfig}
-      />
-      <ModuleButton active={settingsActive} label="设置" onClick={onSettings} />
-    </nav>
-  );
-}
-
-function ModuleButton({
-  label,
-  active,
-  badge,
-  statusDot,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  badge?: string | null;
-  statusDot?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "rail-item relative flex h-10 shrink-0 items-center px-3 text-left hover:bg-line",
-        active ? "font-semibold text-ink" : "text-muted hover:text-ink",
-      )}
-      onClick={onClick}
-    >
-      <span className="truncate">{label}</span>
-      {badge ? (
-        <Tag tone="accent" className="ml-auto font-mono tabular-nums">
-          {badge}
-        </Tag>
-      ) : null}
-      {statusDot ? (
-        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
-      ) : null}
-    </button>
   );
 }
 

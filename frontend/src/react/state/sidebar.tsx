@@ -14,13 +14,13 @@ import {
 const SIDEBAR_OPEN_KEY = "1pannel-sidebar-open";
 const SIDEBAR_WIDTH_KEY = "1pannel-sidebar-width";
 
-/** 默认宽度：三端统一 232px（DESIGN.md §4.1 / §9），= 左上 72px 预留 + 五个 32px 导航钮。 */
+/** 二级栏默认宽度：三端统一 200px（DESIGN.md §4.1 / §9），不含左侧 72px 一级图标栏。 */
 export function defaultSidebarWidth(): number {
-  return 232;
+  return 200;
 }
 
 export const SIDEBAR_WIDTH_MIN = 160;
-export const SIDEBAR_WIDTH_MAX = 480;
+export const SIDEBAR_WIDTH_MAX = 400;
 
 function loadSidebarOpen(): boolean {
   try {

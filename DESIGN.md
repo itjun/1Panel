@@ -4,7 +4,7 @@
 > 任何 UI / CSS / 组件 / 动效 / 主题相关变更，必须以本规范为依据；与本规范冲突的写法视为不合格，不得合入。
 > **主题**：「机柜面板」—— 灵感来自服务器机柜前面板：中性浅灰金属外框 + 白色面板，**品牌蓝 `#0052D9` 是主角，状态色与彩色图标负责活力**。本规范自成一体，不再依附任何第三方设计体系。
 > **绿色只表成功**：绿色只用于成功状态（success，按 TDesign 官方值）；品牌色、按钮、图表、装饰、Meter 正常段不用绿色（代码编辑器语法高亮除外）。
-> **扁平化**：两块纯色面（L 形灰色外框 + 白色内容平面）、无卡片、零阴影、色块表达选中。
+> **扁平化**：三块纯色面（深一档的一级图标栏 + L 形灰色外框 + 白色内容平面）、无卡片、零阴影、色块表达选中。
 > **实现落点**：`frontend/src/react/styles/globals.css`（色彩 / 圆角 / 间距 / 字体 / 动效 token）、`frontend/src/react/lib/motion.ts`（动效时值）、`frontend/src/react/lib/platform.ts`（平台判断唯一出口）、`frontend/src/react/components/ui/*`（共享 UI 组件）。
 
 ---
@@ -53,6 +53,7 @@
 
 | 语义 | Token | 值 |
 |---|---|---|
+| 一级图标栏 | `--color-rail` | `#EAEBEE`（比 canvas 深一档；12px muted 文字在上面 4.57:1） |
 | 画布 | `--color-canvas` | `#F2F3F5`（TDesign bg-color-page，对白色 surface 1.11:1） |
 | 容器面 | `--color-surface` | `#FFFFFF` |
 | 次级面 / hover 底 | `--color-raised` | `#F3F4F6` |
@@ -94,6 +95,7 @@
 
 | 语义 | Token | 值 |
 |---|---|---|
+| 一级图标栏 | `--color-rail` | `#0D1017`（比 canvas 深一档） |
 | 画布 | `--color-canvas` | `#12161F` |
 | 容器面 | `--color-surface` | `#1A1F2B` |
 | 次级面 / hover 底 | `--color-raised` | `#232A38` |
@@ -216,14 +218,15 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 
 ### 4.1 信息架构（本产品）
 
-本产品是**桌面端中后台运维工具**，默认采用 **左右结构（侧栏 + 内容）**，复杂主机页可在内容区再叠 Tab / 工具条（混合结构）。
+本产品是**桌面端中后台运维工具**，采用 **三段式结构（一级图标栏 + 二级标签栏 + 内容）**，企业微信式；复杂主机页可在内容区再叠 Tab / 工具条（混合结构）。
 
 | 区域 | 约定 |
 |---|---|
-| 壳层两块色面 | 顶栏 + 侧栏是一整片 **L 形外框**（`--color-canvas`），内容区是一整块**白色平面**（`--color-surface`）；外框与内容之间、顶栏与侧栏之间**不画分隔线**，只靠色块区分 |
-| 顶栏工具条 | 固定 **40px**（`.shell-app-toolbar`），**整窗贯通**；底色 `--color-canvas`（与侧栏同色），无下边线；**左上角三端统一预留 72px**：Mac 放系统红绿灯，Win/Linux 放应用图标；导航按钮（侧栏开关 / 后退 / 前进 / 刷新 / 主页）从 72px 之后开始，三端 x 坐标一致；页面标题 / 操作经 portal 挂入。顶栏内 secondary 按钮与输入框改用 `--color-surface` 底（canvas 上 raised 对比不够） |
+| 壳层三块色面 | 从深到浅：一级图标栏（`--color-rail`，通顶）→ 顶栏 + 二级栏组成的 **L 形外框**（`--color-canvas`）→ 内容区一整块**白色平面**（`--color-surface`）；三者之间**不画分隔线**，只靠色块区分 |
+| 一级图标栏（Rail） | 宽 **72px**，**从窗口顶端通到底**；三端统一不透明底色 `--color-rail`；顶部 40px 是窗口拖拽区：Mac 系统红绿灯落在这里，Win/Linux 在此居中放 18px 应用图标；其下自上而下平铺高频模块（主机 / 本机 / 通知），低频模块（巡检 / 配置 / 设置）固定在栏底；侧栏开关不影响图标栏，始终显示 |
+| 顶栏工具条 | 固定 **40px**（`.shell-app-toolbar`），从图标栏右缘（x = 72px）贯通到窗口右缘；底色 `--color-canvas`（与二级栏同色），无下边线；导航按钮（侧栏开关 / 后退 / 前进 / 刷新 / 主页）贴着图标栏开始，三端 x 坐标一致；页面标题 / 操作经 portal 挂入。顶栏内 secondary 按钮与输入框改用 `--color-surface` 底（canvas 上 raised 对比不够） |
 | Win/Linux 窗口按钮 | 最小化 / 最大化 / 关闭自绘于右上角，尺寸 **38×28**，风格与导航按钮一致（线性图标、hover 用 `--color-line`，关闭 hover 用 `--color-danger`） |
-| 侧栏（Sider） | 整站导航；位于顶栏**下方**；默认宽度 **232px**（三端一致，不再分平台）；可拖拽改宽（160–480px），双击分割条复位；底色 `--color-canvas`，无右边线；分割条平时不可见，hover / 拖动时才显示 |
+| 二级标签栏（Sider） | 当前一级模块的分区 / 已打开主机与分组；位于顶栏**下方**、图标栏右侧；默认宽度 **200px**（三端一致）；可拖拽改宽（160–400px），双击分割条复位；顶栏「侧栏开关」只收起这一栏；底色 `--color-canvas`，无右边线；分割条平时不可见，hover / 拖动时才显示 |
 | 内容区 | `main` 底色 `--color-surface`，**左上角 6px 圆角**（白色平面嵌在灰框里；整套设计唯一的圆角装饰，侧栏收起时也保持）；内部贴边 `.content-float`；区块不再套卡片 |
 | 区块间距 | `--spacing-section` / `--gap-section: 24px`：内容区里区块与区块之间（Tailwind `gap-section` / `space-y-section`） |
 | 网格间隙 | `--gap-card: 8px`：网格内同类单元之间（巡检格、概览格、左右分栏）；监控页例外：整页一块固定面板，图表网格 `gap-px` 铺在 `bg-line` 上形成 1px 发丝分隔，单个图表不另描边 |
@@ -378,7 +381,8 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 
 ### 8.1 表面层级
 
-1. **外框** `--color-canvas`：顶栏 + 侧栏组成的 L 形中性浅灰底
+0. **一级图标栏** `--color-rail`：通顶的 72px 竖栏，比外框深一档
+1. **外框** `--color-canvas`：顶栏 + 二级栏组成的 L 形中性浅灰底
 2. **内容平面** `--color-surface`：`main` 整块白底（左上 6px 圆角）；`.surface-float` 与内容平面同色、无描边 / 圆角 / 阴影，仅作为语义容器保留；`.content-float` 仅为可滚动内容区
 3. **浮层**（菜单 / 对话框 / 抽屉）：`--color-surface` + 1px `--color-line` 描边，**无阴影**；菜单与对话框圆角 `--radius-panel`（6px），贴边抽屉只画一侧描边；动画走 Motion token
 4. **石墨面**（终端 / 代码 / 日志）：独立深色，保留 ANSI / 编辑器主题，**亮色下也不洗成浅底**
@@ -404,8 +408,9 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 数据卡片悬停 / 聚焦：`Card` 及内容区数据块（含监控图表）**不显示悬停 / 聚焦边框**，保持扁平，区块读作一个整体；悬停边框只保留给看板主机卡（`board.css` 的 `.host-board-card`）—— 静止 1px 透明边框占位，`:hover` / `:focus-within` 显示 1px `--color-line-strong` 边框标识范围，过渡 `--duration-base` + `--ease-standard`；不加阴影，不另改底色；表格行等已有 hover 底色的元素不再叠加。
 - 网格色块单元：同类单元平铺成网格（巡检项、Docker 容器等）用 `bg-raised p-4` 纯色块区分，块间距 `gap-card`，无描边 / 阴影；可点整块时 hover `bg-line`；块内 secondary 按钮与 neutral 标签改 `bg-surface`（hover `bg-line`），否则与色块同色。**不要在 `Card` 上写 `bg-*`**：`.surface-float` 不在 Tailwind 层内，会盖掉 `bg-*` 工具类，色块单元用普通 `div`。
 - 环图（`RingMeter`）直接落在内容平面上，不再垫 raised 色块（环图所在区块本身就是平面，再垫一层即卡片套卡片）。
-- 侧栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；当前主机只加粗、当前工具色块、工具列表缩进 12px；侧栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；主机列表与工具列表之间用 8px 留白分隔。
-- 侧栏结构：顶部固定平铺模块切换（主机 / 本机 / 巡检 / 通知 / 配置 / 设置，行高 40px，不随下方滚动；通知带未读数 Tag、配置待处理时右上红点），不做弹出菜单；当前模块只加粗（`font-semibold text-ink`，无色块），色块只给下方当前标签，同一时刻侧栏只有一处色块；模块区与下方标签列表之间画一根 1px `--color-line` 横线（左右与侧栏项边缘对齐、内缩 8px，上下各 8px 间距）区分一级 / 二级功能，标签列表（当前模块的分区 / 已打开主机与分组）独立滚动。
+- 二级栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；二级栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；行高 40px，左右内缩 8px。
+- 一级图标栏（`components/module-rail.tsx`，`.module-rail-item`）：每项 **56×52** 方块（`--radius-control`），20px lucide 线性图标（描边 1.5）+ 下方 4px + 12px 文字，项间距 4px；第一项顶边紧贴顶栏下沿（y = 40px），与二级栏第一行、内容区白色平面的顶边在同一条线上，栏底留 8px；顶部依次为主机 / 本机 / 通知，底部依次为巡检 / 配置 / 设置；图标：主机 `Server`、本机 `Laptop`、巡检 `ScanSearch`、通知 `Bell`、配置 `FileCog`、设置 `Settings`。静止 `text-muted` 无底；hover `bg-line` + `text-ink`；选中底色 `--color-canvas`（与二级栏同色，读作向右打开到二级栏）+ 图标与文字 `--color-accent`、文字 600，无指示条；通知未读数是图标右上角的 accent 小 Tag（等宽数字，>99 显示 99+），配置待处理是图标右上角 6px `--color-danger` 圆点；键盘焦点 2px `--color-accent-focus` 外环。右键图标栏任意位置弹出菜单（与侧栏主机右键菜单同款），一项「隐藏名称 / 显示名称」，偏好存本机（`1pannel-rail-labels`）；隐藏名称时去掉文字，方块缩为 **40×40**、图标仍 20px，悬停用 Tooltip 显示名称（另写 `aria-label`）；栏宽保持 72px 不变，红绿灯与导航钮位置不受影响；未读 Tag 与红点跟随方块尺寸贴在图标右上角。
+- 二级栏结构：只列当前一级模块的标签，不再有模块区与横线；第一行顶边紧贴顶栏下沿，不留上内边距；主机模块顶部固定一行「全部主机」（回首页，首页时为选中态），其下 8px 留白再列已打开的主机与分组（可拖拽排序、右键菜单）；巡检即使只有一项也照常显示二级栏，避免切模块时版面跳动；整栏独立滚动。图标栏与二级栏各自有一处选中色块，属正常。
 - 页面提示条（`Notice` / `FlashNotices` + `useFlashMessage`），视觉按 TDesign Alert：
   - 四种 theme：success（`--color-success` / `success-soft`，绿，同 TDesign）、info（`info` / `info-soft`）、warning（`warn` / `warn-soft`，组件里旧名 `warn` 等价）、error（`danger` / `danger-soft`）。
   - 结构：左侧 16px 实心圆状态图标（圆面 = 主题色，符号用 `--color-surface`；success ✓、info i、warning / error !）+ 8px 间距 + 正文（`text-sm`、行高 24px、`--color-ink`，不用主题色）+ 右侧可选关闭 ×（16px、描边 1.5，`--color-muted`，hover / 聚焦变 `--color-ink`，`aria-label="关闭提示"`，可键盘聚焦）。
@@ -445,15 +450,16 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 表面圆角 | `--radius-surface: 0` | 扁平化：区块 / 表格容器无圆角 |
 | 浮层圆角 | `--radius-panel: 6px` | 菜单 / 对话框仍需轻微圆角与内容平面区分 |
 | 内容区左上圆角 | `main` `border-top-left-radius: var(--radius-panel)` | 整套设计唯一的圆角装饰；侧栏收起时也保持 |
-| 壳层 chrome | 顶栏 + 侧栏三端统一不透明 `--color-canvas`，无分隔线；内容区 `--color-surface`；左上角 72px 预留 | 无系统磨砂（Mac 不用 vibrancy / 透桌面）；Mac 红绿灯与 Win/Linux 应用图标共用同一预留区 |
+| 壳层 chrome | 三段式：72px 一级图标栏 `--color-rail` 通顶；顶栏 + 二级栏三端统一不透明 `--color-canvas`；内容区 `--color-surface`；三者无分隔线 | 无系统磨砂（Mac 不用 vibrancy / 液态玻璃 / 透桌面，2026-10-02 试过后撤回）；Mac 红绿灯与 Win/Linux 应用图标共用图标栏顶部 40px |
 | 顶栏内控件 | secondary 按钮与 `.motion-field` 在顶栏里改用 `--color-surface` 底 | canvas 与 raised 太接近，按钮会“消失” |
 | 控件圆角 | `--radius-control: 4px` | 按钮、输入等 |
 | 区块间距 | `--spacing-section` / `--gap-section: 24px` | 取代卡片描边做分段 |
 | 数据卡片悬停边框 | 仅看板主机卡：静止透明 1px 边框，悬停 / 聚焦 1px `--color-line-strong`（`board.css` `.host-board-card`）；`Card` 与内容区数据块无悬停边框 | 看板主机卡是可点选的独立对象，需要标识范围；内容区区块扁平读作整体，悬停描边只会打碎版面 |
 | 网格间隙 | `--gap-card: 8px` | 网格内同类单元之间；回归 8 点网格 |
 | 允许的“阴影” | 输入类 focus 外环（2px `--color-accent-focus`）；Linux frameless 1px 外描边（outline）；拖拽插入线柔光环（`0 0 0 2px --color-accent-soft`：首页分组拖拽，见「首页主机列表」行；表格列顺序拖拽，见 §4.4） | 这三处表达焦点 / 窗口边界 / 拖拽落点，不表达层级；Tailwind `--shadow-*` / `--inset-shadow-*` / `--drop-shadow-*` 命名空间已清空 |
-| 顶栏高度 | 40px | 对齐桌面窗口控件带；整窗贯通，侧栏在其下 |
-| 侧栏宽度 | 默认 232px（三端一致）；可拖 160–480px；双击分割条复位 | Firefox 式分割条 |
+| 顶栏高度 | 40px | 对齐桌面窗口控件带；从图标栏右缘贯通到窗口右缘，二级栏在其下 |
+| 图标栏宽度 | 固定 72px，不可拖 | 等于原左上角红绿灯预留宽度，导航钮 x 坐标三端不变 |
+| 二级栏宽度 | 默认 200px（三端一致）；可拖 160–400px；双击分割条复位 | Firefox 式分割条 |
 | 表行 / 表头 | 40px / 36px | 运维密度；虚拟表常量与 CSS 必须同源 |
 | 首页主机列表 | 机柜式分组：每组一个 `.host-rack-block`（`--color-raised` 底、`--radius-panel` 圆角、内边距 `--gap-card`，无边框无阴影）；分排布局：首页由若干「排」纵向堆叠，排间距 `--gap-section`；每排（`.host-rack-lane`）内分组块定宽 `--host-rack-column: 280px`（不拉伸，窄于内容区时 `max-width: 100%`）、从左到右、块间距 `--gap-card`、顶部对齐、块高随内容，分组过多时排内 flex-wrap 折行（仍属同一排），绝不横向滚动；每排放哪些分组由用户拖拽决定，存为 UI 偏好 `hostHomeRows: string[][]`（`ipannel.settings.v1`，与其它设置同路径，仅存本机）；设置页「恢复默认」保留该布局不清空（分组折叠状态独立存于 `1pannel-host-group-collapsed`，本就不受影响）；对账：丢弃不存在的 id，未在布局中的分组按 `order` 追加到最后一排末尾，空排移除，首次无布局时全部分组按 `order` 放一排；分组改名换 id 时布局同步替换；每次拖完保存布局并按「从上到下、从左到右」展开调用 `ReorderGroups` 同步 `order`；「置顶」固定在第一排最前面（有置顶主机才显示；同排其余位置照常放其他分组，没有普通排时单独一排），「未分组」单独占最下一排（有主机或拖主机中才显示），二者不可拖、不是分组拖拽落点（分组插不到置顶之前），用户自建空分组照常显示；组标题行 36px：折叠箭头 + 组名（semibold）+ 台数（muted），整行为分组拖拽把手（`cursor: grab`，位移超 4px 才开始拖动，折叠箭头点击仍为折叠）；不另设把手图标 / 右键移位等冗余入口，拖拽 + 落点预览即全部交互；分组拖拽：被拖块 `opacity-50`；落点先定排（按排容器 rect，排下方空白到下一排之前都算该排），排内先按块顶部分子行再按指针 x 与块中线求插入点，排内末块右侧空白 = 插到该排末尾，3px `--color-accent` 竖向插入线（外加 `0 0 0 2px --color-accent-soft` 柔光环；§10.4 阴影禁令特例——落点指示与 focus 外环同性质，不表达层级）画在目标块左侧（或末块右侧）间距中线、高度同该块；指针位于两排之间的间隙时显示横向 3px `--color-accent` 线 + 同款柔光（排间距中线），松手在此插入新排；没有置顶时，指针在第一排顶部之上则横线画在第一排上方，松手插入为新的第一排；有置顶时置顶所在排即最高层，其上方不出横线，指针在此按第一排排内落点处理；拖拽中最后一个普通排下方出现「拖到这里新建一排」落区（高 56px、宽同内容区、`--radius-panel`、1px 虚线 `--color-line-strong` 边框、`--color-muted` 文字居中，指针进入变 `--color-accent-soft` 底 + `--color-accent` 边框 / 文字），松手在最后新增一排；拖空的排自动消失；分组 / 主机拖拽贴近主内容区上下边缘 48px 时纵向自动滚动；置顶 / 未分组不可拖、不可越过，筛选生效时禁用分组拖拽；主机行 40px、行间 2px 间隙、`--radius-control` 圆角：22px 发行版图标（`DistroBadge boxSize={22}`，外框即 22px）+ 10px 间距 + 主机名（正文字号 `--app-font-size`，省略号、溢出时 Tooltip 显示全名），不显示协议 / 用户副信息；静止无底、hover `--color-surface`、选中 `--color-accent-soft` + `--color-accent` 文字、键盘焦点 2px `--color-accent-focus` 描边；编辑按钮仅行悬停 / 行内聚焦时显示（opacity + visibility，始终占位），悬停底 `--color-line`；拖拽投放目标块改 `--color-accent-soft` 底 + 2px `--color-accent` 内描边 | 列表是导航入口而非数据表；按组分列一眼看清分组结构，不套用 §4.4 行间线 |
 | 操作提示条浮层 | 所有页面的 `FlashNotices` 不按文档流占位：portal 到 `body`，`fixed` 浮在顶栏下方 16px、按整个窗口水平居中（与对话框同轴），宽随内容、最大 560px；层级 `z-[100]`，压过对话框遮罩（`z-50`）与右键菜单（`z-[61]`），仅低于 tooltip；外层 `pointer-events: none`，只有提示条本身可悬停 / 点关闭，且点它不会被对话框当作外部点击而关闭；视觉仍按 §8.2（`*-soft` 实底、无边框、无阴影），停留 / 淡出规则不变 | 占位会把页面内容顶下去再弹回；对话框打开期间操作失败（如安装 Agent）时，提示若在遮罩下就看不清 |
@@ -487,7 +493,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - [ ] 桌面字号 ≥ 12px；正文默认 14px 体系；字重仅 400 / 600
 - [ ] 数值列使用 `--font-mono` 或 `tabular-nums`，右对齐
 - [ ] 间距服从 8 点网格（或 §9 已列特例）；圆角只用 §4.3 四档
-- [ ] 顶栏 40px、左上 72px 预留、侧栏默认 232px、表行 40 / 表头 36 未被破坏（除非改 §9）
+- [ ] 顶栏 40px、一级图标栏 72px 通顶、二级栏默认 200px、表行 40 / 表头 36 未被破坏（除非改 §9）
 - [ ] 三端同一页面截图对照：侧栏宽度、行高、颜色、间距一致；字形按系统不同属预期，另一差异为窗口按钮位置
 
 ### 10.3 动效

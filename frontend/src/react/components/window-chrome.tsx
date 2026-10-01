@@ -36,7 +36,7 @@ export function useToolbarDoubleClickMaximize(enabled: boolean) {
       if (event.button !== 0) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (!target.closest(".shell-app-toolbar")) return;
+      if (!target.closest(".shell-app-toolbar, .module-rail-drag")) return;
       if (target.closest(TOOLBAR_INTERACTIVE_SELECTOR)) return;
       void Window.ToggleMaximise();
     };

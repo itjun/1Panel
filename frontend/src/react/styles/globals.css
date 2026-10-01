@@ -4,6 +4,8 @@
    JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
 @theme static {
   /* 机柜面板规范 DESIGN.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态 */
+  /* 一级图标栏（DESIGN.md §4.1）：比 canvas 深一档；12px muted 文字在上面 4.57:1 */
+  --color-rail: #eaebee;
   --color-canvas: #f2f3f5;
   --color-surface: #ffffff;
   --color-raised: #f3f4f6;
@@ -109,6 +111,7 @@
 /* 机柜面板规范 DESIGN.md §2.2 暗色：同一块面板关灯后的样子，层级与亮色一致。
    灰阶保留原有蓝黑调，不随亮色壳层中性化（2026-09-30 定案） */
 html.dark {
+  --color-rail: #0d1017;
   --color-canvas: #12161f;
   --color-surface: #1a1f2b;
   --color-raised: #232a38;
@@ -482,6 +485,74 @@ pre,
   font-weight: 600;
 }
 
+/* 一级图标栏（DESIGN.md §4.1 / §8.2）：72px 通顶，比 canvas 深一档 */
+.module-rail {
+  width: 72px;
+  min-width: 72px;
+  background-color: var(--color-rail);
+}
+
+/* 56×52 方块：图标 + 下方小字；选中底色取二级栏的 canvas，读作向右打开 */
+.module-rail-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 56px;
+  height: 52px;
+  border-radius: var(--radius-control);
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 16px;
+  transition:
+    color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard);
+}
+
+.module-rail-item:hover {
+  background-color: var(--color-line);
+  color: var(--color-ink);
+}
+
+.module-rail-item[aria-current="page"] {
+  background-color: var(--color-canvas);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.module-rail-item:focus-visible {
+  outline: 2px solid var(--color-accent-focus);
+  outline-offset: 0;
+}
+
+/* 未读 Tag 与配置红点：贴在图标右上角，随两种尺寸各自定位 */
+.module-rail-badge {
+  top: 2px;
+  left: 32px;
+}
+
+.module-rail-dot {
+  top: 6px;
+  left: 36px;
+}
+
+/* 右键「隐藏名称」：只留图标，方块缩到 40×40；栏宽仍 72px，红绿灯与导航钮位置不变 */
+.module-rail[data-labels="off"] .module-rail-item {
+  width: 40px;
+  height: 40px;
+}
+
+.module-rail[data-labels="off"] .module-rail-badge {
+  top: -4px;
+  left: 24px;
+}
+
+.module-rail[data-labels="off"] .module-rail-dot {
+  top: 6px;
+  left: 28px;
+}
 /* 编辑抽屉：贴内容区右边，只画左侧 1px line，无圆角无阴影 */
 .edit-dock {
   width: 380px;
