@@ -108,6 +108,14 @@ type ColumnHeader = {
 
 const TRAFFIC_VERDICT_TIP =
   "判断方法：拿最近 3 天的流入 : 流出比例，和过去 30 天每天比例的中位数（平时水平）比。偏离 1.6 倍标橙，偏离 2.5 倍标红；比例正常时再看近 7 天总量比前 7 天涨跌超过一半没有";
+const PRIVATE_IP_TIP =
+  "网卡上绑定的私网地址（10.x / 172.16–31.x / 192.168.x），同一内网的机器用它互相访问；已排除回环和 Docker 网卡";
+const EGRESS_IP_TIP =
+  "这台机器访问外网时，对方看到的来源 IP（经 myip.ipip.net 查询，含归属地，10 分钟刷新一次）。云主机走 NAT 时就是弹性公网 IP";
+const PUBLIC_IP_TIP =
+  "直接绑定在网卡上的公网地址。云主机通常经 NAT 映射弹性公网 IP，网卡上只有内网地址，这里为空属正常，请看出口 IP；独立服务器或直绑公网 IP 的 VPS 才会显示";
+const GATEWAY_IP_TIP = "默认路由的下一跳，访问其它网段和外网的流量都先发给它";
+const DOCKER_IP_TIP = "Docker 网桥及容器网卡的地址，只在本机和容器之间使用，外部不可直接访问";
 const TRAFFIC_USAGE_TIP =
   "这台机器主网卡（通常是 eth0）在一段时间里流入和流出的数据总量；包含内网机器之间的传输，不含机器自己跟自己的通信（lo）";
 
@@ -205,10 +213,26 @@ function IpCopyButton({
   );
 }
 
-function AddressField({ label, children }: { label: string; children: ReactNode }) {
+function AddressField({
+  label,
+  tip,
+  children,
+}: {
+  label: string;
+  tip?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="min-w-0">
-      <div className="text-xs text-muted">{label}</div>
+      <div className="text-xs text-muted">
+        {tip ? (
+          <span data-tip={tip} className="cursor-help underline decoration-dotted underline-offset-4">
+            {label}
+          </span>
+        ) : (
+          label
+        )}
+      </div>
       <div className="mt-1 flex flex-col items-start">{children}</div>
     </div>
   );
@@ -918,7 +942,7 @@ export function NetworkPage({ host }: { host: string }) {
           <Card className="p-0">
             <h3 className="mb-3 text-sm font-semibold text-ink">地址</h3>
             <div className="gap-card grid md:grid-cols-3 xl:grid-cols-5">
-              <AddressField label="内网 IP">
+              <AddressField label="内网 IP" tip={PRIVATE_IP_TIP}>
                 <IpList
                   ips={privateIPs}
                   expanded={ipExpanded.private}
@@ -926,7 +950,7 @@ export function NetworkPage({ host }: { host: string }) {
                   flash={flash}
                 />
               </AddressField>
-              <AddressField label="出口 IP">
+              <AddressField label="出口 IP" tip={EGRESS_IP_TIP}>
                 {egressIp ? (
                   <>
                     <IpCopyButton ip={egressIp} tag="出口" flash={flash} />
@@ -938,7 +962,7 @@ export function NetworkPage({ host }: { host: string }) {
                   <span className="py-1 text-sm text-muted">—</span>
                 )}
               </AddressField>
-              <AddressField label="公网 IP">
+              <AddressField label="公网 IP" tip={PUBLIC_IP_TIP}>
                 <IpList
                   ips={otherPublicIPs}
                   expanded={ipExpanded.public}
@@ -946,14 +970,14 @@ export function NetworkPage({ host }: { host: string }) {
                   flash={flash}
                 />
               </AddressField>
-              <AddressField label="默认网关">
+              <AddressField label="默认网关" tip={GATEWAY_IP_TIP}>
                 {gatewayIp ? (
                   <IpCopyButton ip={gatewayIp} flash={flash} />
                 ) : (
                   <span className="py-1 text-sm text-muted">—</span>
                 )}
               </AddressField>
-              <AddressField label="Docker 网桥">
+              <AddressField label="Docker 网桥" tip={DOCKER_IP_TIP}>
                 <IpList
                   ips={dockerIPs}
                   expanded={ipExpanded.docker}
