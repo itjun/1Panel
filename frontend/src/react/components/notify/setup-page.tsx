@@ -5,25 +5,33 @@ import { PreviewMatrix, type PreviewRow } from "@/react/components/notify/channe
 import { FlashNotices, Page } from "@/react/components/page";
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
+import { InputNumber } from "@/react/components/ui/input-number";
+import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Switch } from "@/react/components/ui/switch";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { useSession } from "@/react/state/session";
 import {
+  ALERT_REPEAT_RANGE,
+  ALERT_SUSTAIN_RANGE,
   updateSettings,
   useSettings,
   type AlertContentKind,
   type NotifyContentField,
 } from "@/react/state/settings";
 import {
+  ALERT_KIND_LABEL,
   ALERT_RULES,
   alertRuleText,
   alertThresholdText,
   isResourceAlertKind,
   LEVEL_LABEL,
   levelPercent,
+  LOAD_WINDOW_LABEL,
   normalizeAlertLevels,
   RESOURCE_POLL_MS,
+  type AlertCondition,
   type AlertStartLevel,
+  type LoadWindow,
   type ResourceAlertKind,
 } from "@/utils/alerts";
 import { copyText } from "@/utils/clipboard";
@@ -79,33 +87,55 @@ const CONTENT_RULES: { kind: AlertContentKind; name: string; desc?: string }[] =
 type SampleKind = ResourceAlertKind | "app";
 
 const SAMPLE_OPTIONS: { value: SampleKind; label: string }[] = [
-  { value: "cpu", label: "CPU" },
-  { value: "mem", label: "内存" },
-  { value: "disk", label: "磁盘" },
-  { value: "load", label: "负载" },
+  ...ALERT_RULES.map((rule) => ({ value: rule.kind as SampleKind, label: rule.name })),
   { value: "app", label: "应用探活" },
 ];
 
 const LEVEL_ORDER: AlertStartLevel[] = ["warn", "danger"];
 
-/** 预览用的示例读数：警告档读数、危险档读数（也当峰值）、回落值 */
-const SAMPLE_READINGS: Record<ResourceAlertKind, { warn: string; danger: string; recovered: string }> = {
-  cpu: { warn: "64.2%", danger: "91.3%", recovered: "42.1%" },
-  mem: { warn: "67.5%", danger: "88.2%", recovered: "52.4%" },
-  disk: {
-    warn: "/data 已用 63.8%（可用 72 GB）",
-    danger: "/data 已用 87.2%（可用 26 GB）",
-    recovered: "/data 已用 51.0%（可用 98 GB）",
-  },
-  load: { warn: "5.12 / 8 核（64%）", danger: "7.20 / 8 核（90%）", recovered: "3.36 / 8 核（42%）" },
-};
+const LOAD_WINDOW_OPTIONS = (["load1", "load5", "load15"] as const).map((value) => ({
+  value,
+  label: LOAD_WINDOW_LABEL[value],
+}));
 
-const SAMPLE_METRIC: Record<ResourceAlertKind, string> = {
-  cpu: "CPU",
-  mem: "内存",
-  disk: "磁盘",
-  load: "负载",
-};
+type SampleReading = { text: string; condition?: AlertCondition };
+
+/** 预览用的示例读数：警告档读数、危险档读数（也当峰值）、回落值 */
+function sampleReadings(
+  kind: ResourceAlertKind,
+  loadWindow: LoadWindow,
+): { warn: SampleReading; danger: SampleReading; recovered: SampleReading } {
+  switch (kind) {
+    case "cpu":
+      return { warn: { text: "64.2%" }, danger: { text: "91.3%" }, recovered: { text: "42.1%" } };
+    case "mem":
+      return { warn: { text: "67.5%" }, danger: { text: "88.2%" }, recovered: { text: "52.4%" } };
+    case "disk":
+      return {
+        warn: { text: "/data 已用 63.8%（可用 72 GB）" },
+        danger: { text: "/data 可用 8 GB（已用 96.0%）", condition: "avail" },
+        recovered: { text: "/data 已用 51.0%（可用 98 GB）" },
+      };
+    case "load":
+      return {
+        warn: { text: `${loadWindow} 5.12 / 8 核（64%）` },
+        danger: { text: `${loadWindow} 7.20 / 8 核（90%）` },
+        recovered: { text: `${loadWindow} 3.36 / 8 核（42%）` },
+      };
+    case "net":
+      return {
+        warn: { text: "发送 82.4 MB/s（66%）" },
+        danger: { text: "发送 113.0 MB/s（90%）" },
+        recovered: { text: "发送 12.6 MB/s（10%）" },
+      };
+    case "diskio":
+      return {
+        warn: { text: "写入 136.0 MB/s（68%）" },
+        danger: { text: "写入 182.0 MB/s（91%）" },
+        recovered: { text: "写入 24.0 MB/s（12%）" },
+      };
+  }
+}
 
 export function SetupPage() {
   const settings = useSettings();
@@ -180,47 +210,42 @@ export function SetupPage() {
         const kind = option.value;
         const levels = normalizeAlertLevels(settings.alertLevels[kind]);
         const start = levels[0];
-        const sample = SAMPLE_READINGS[kind];
-        const base = {
-          name: option.label,
-          host: sampleHost,
-          kind,
-          state,
-          muted,
-        };
+        const sample = sampleReadings(kind, settings.alertLoadWindow);
+        const base = { name: option.label, host: sampleHost, kind, state, muted };
         const fields = settings.notifyContentFields;
+        const partsFor = (level: AlertStartLevel, reading: SampleReading, peak?: SampleReading): NotifyTextParts => ({
+          hostName: sampleHost,
+          metric: ALERT_KIND_LABEL[kind],
+          threshold: alertThresholdText(kind, level, reading.condition),
+          value: reading.text,
+          peak: peak?.text,
+        });
         if (up) {
-          const parts: NotifyTextParts = {
-            hostName: sampleHost,
-            metric: SAMPLE_METRIC[kind],
-            threshold: alertThresholdText(kind, start),
-            value: sample.recovered,
-            peak: sample.danger,
-          };
           rows.push({
             ...base,
             key: `${kind}-up`,
-            message: buildNotifyMessage({ state, kind: "resource", parts, fields, level: "danger" }),
+            message: buildNotifyMessage({
+              state,
+              kind: "resource",
+              parts: partsFor(start, sample.recovered, sample.danger),
+              fields,
+              level: "danger",
+            }),
           });
           continue;
         }
-        const parts: NotifyTextParts = {
-          hostName: sampleHost,
-          metric: SAMPLE_METRIC[kind],
-          threshold: alertThresholdText(kind, start),
-          value: sample[start],
-        };
         rows.push({
           ...base,
           key: `${kind}-down`,
-          message: buildNotifyMessage({ state, kind: "resource", parts, fields, level: start }),
+          message: buildNotifyMessage({
+            state,
+            kind: "resource",
+            parts: partsFor(start, sample[start]),
+            fields,
+            level: start,
+          }),
         });
         if (levels.length > 1) {
-          const escalated: NotifyTextParts = {
-            ...parts,
-            threshold: alertThresholdText(kind, "danger"),
-            value: sample.danger,
-          };
           rows.push({
             ...base,
             key: `${kind}-escalate`,
@@ -228,10 +253,26 @@ export function SetupPage() {
             message: buildNotifyMessage({
               state,
               kind: "resource",
-              parts: escalated,
+              parts: partsFor("danger", sample.danger),
               fields,
               level: "danger",
               escalated: true,
+            }),
+          });
+        }
+        if (settings.alertRepeatMinutes > 0) {
+          const level = levels.length > 1 ? "danger" : start;
+          rows.push({
+            ...base,
+            key: `${kind}-repeat`,
+            stage: "重复",
+            message: buildNotifyMessage({
+              state,
+              kind: "resource",
+              parts: partsFor(level, sample[level]),
+              fields,
+              level,
+              repeatMs: settings.alertRepeatMinutes * 60_000,
             }),
           });
         }
@@ -242,6 +283,8 @@ export function SetupPage() {
     sampleHost,
     settings.alertContentKinds,
     settings.alertLevels,
+    settings.alertLoadWindow,
+    settings.alertRepeatMinutes,
     settings.notifyContentFields,
     settings.notifyRecoverEnabled,
   ]);
@@ -352,6 +395,7 @@ export function SetupPage() {
                   {isResourceAlertKind(rule.kind) ? (
                     <ResourceRuleRow
                       kind={rule.kind}
+                      loadWindow={settings.alertLoadWindow}
                       levels={normalizeAlertLevels(settings.alertLevels[rule.kind])}
                       disabled={!settings.alertContentKinds.includes(rule.kind)}
                       onChange={(levels) =>
@@ -370,6 +414,46 @@ export function SetupPage() {
                 恢复
               </Checkbox>
               <span className="text-xs text-muted">告警解除时再发一条，带回落值和告警期间的峰值</span>
+            </div>
+            <div className="mt-4 grid grid-cols-[120px_1fr] items-center gap-x-4 gap-y-3 border-t border-line pt-4">
+              <span className="text-sm text-ink">连续</span>
+              <div className="flex items-center gap-3">
+                <InputNumber
+                  value={settings.alertSustain}
+                  min={ALERT_SUSTAIN_RANGE.min}
+                  max={ALERT_SUSTAIN_RANGE.max}
+                  onCommit={(value) => updateSettings({ alertSustain: value })}
+                  aria-label="连续几次采样达标才推送"
+                  className="w-28"
+                />
+                <span className="text-xs text-muted">
+                  次采样达标才推送，回落同理；每次 {POLL_SECONDS} 秒，现为{" "}
+ 秒
+                </span>
+              </div>
+              <span className="text-sm text-ink">重复提醒</span>
+              <div className="flex items-center gap-3">
+                <InputNumber
+                  value={settings.alertRepeatMinutes}
+                  min={ALERT_REPEAT_RANGE.min}
+                  max={ALERT_REPEAT_RANGE.max}
+                  step={5}
+                  onCommit={(value) => updateSettings({ alertRepeatMinutes: value })}
+                  aria-label="告警未回落时每隔几分钟重复提醒"
+                  className="w-28"
+                />
+                <span className="text-xs text-muted">分钟一次，告警未回落时再提醒；0 为不重复</span>
+              </div>
+              <span className="text-sm text-ink">负载取</span>
+              <div className="flex items-center gap-3">
+                <RadioGroup<LoadWindow>
+                  value={settings.alertLoadWindow}
+                  onChange={(value) => updateSettings({ alertLoadWindow: value })}
+                  options={LOAD_WINDOW_OPTIONS}
+                  aria-label="负载取哪个平均窗口"
+                />
+                <span className="text-xs text-muted">平均负载，按核数折算后判档</span>
+              </div>
             </div>
           </section>
 
@@ -414,11 +498,13 @@ export function SetupPage() {
 
 function ResourceRuleRow({
   kind,
+  loadWindow,
   levels,
   disabled,
   onChange,
 }: {
   kind: ResourceAlertKind;
+  loadWindow: LoadWindow;
   levels: AlertStartLevel[];
   disabled: boolean;
   onChange: (levels: AlertStartLevel[]) => void;
@@ -426,7 +512,7 @@ function ResourceRuleRow({
   return (
     <div className="flex min-w-0 items-center gap-4">
       <span className="min-w-0 flex-1 text-xs text-muted">
-        {alertRuleText(kind, levels)}，每 {POLL_SECONDS} 秒采样一次
+        {alertRuleText(kind, levels, loadWindow)}
       </span>
       <div role="group" aria-label="订阅哪些档位" className="flex shrink-0 items-center gap-4">
         {LEVEL_ORDER.map((level) => {

@@ -119,7 +119,7 @@ func TestMissingFileNotFromDisk(t *testing.T) {
 	if !got.SystemNotifyEnabled || !got.InAppNotifyEnabled || !got.NotifyRecoverEnabled {
 		t.Fatalf("empty defaults should keep channels/recover on: %#v", got)
 	}
-	if len(got.AlertContentKinds) != 6 || len(got.NotifyContentFields) != 5 {
+	if len(got.AlertContentKinds) != len(knownAlertContentKinds) || len(got.NotifyContentFields) != 5 {
 		t.Fatalf("empty defaults kinds=%v fields=%v", got.AlertContentKinds, got.NotifyContentFields)
 	}
 	if !got.CertKindMigrated || !containsKind(got.AlertContentKinds, "cert") {
@@ -236,7 +236,7 @@ func TestAlertLevelsDefaultAndFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := s.Get().AlertLevels
-	want := map[string]string{"cpu": "warn,danger", "mem": "danger", "disk": "warn,danger", "load": "danger"}
+	want := map[string]string{"cpu": "warn,danger", "mem": "danger", "disk": "warn,danger", "load": "danger", "net": "danger", "diskio": "danger"}
 	if len(got) != len(want) {
 		t.Fatalf("alertLevels=%v want %v", got, want)
 	}
@@ -250,6 +250,46 @@ func TestAlertLevelsDefaultAndFilter(t *testing.T) {
 	for _, kind := range []string{"cpu", "mem", "disk", "load"} {
 		if strings.Join(legacy.Get().AlertLevels[kind], ",") != "danger" {
 			t.Fatalf("missing file should default danger: %v", legacy.Get().AlertLevels)
+		}
+	}
+}
+
+func TestAlertSustainRepeatWindow(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notify_subs.json")
+	body := `{"alertSustain":99,"alertRepeatMinutes":-5,"alertLoadWindow":"load7","alertContentKinds":["cpu","net","diskio"]}`
+	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Store{path: path, data: emptyData()}
+	if err := s.load(); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Get()
+	if got.AlertSustain != maxAlertSustain || got.AlertRepeatMinutes != 0 || got.AlertLoadWindow != "load1" {
+		t.Fatalf("sustain=%d repeat=%d window=%q", got.AlertSustain, got.AlertRepeatMinutes, got.AlertLoadWindow)
+	}
+	if strings.Join(got.AlertContentKinds, ",") != "cpu,net,diskio,cert" {
+		t.Fatalf("kinds=%v", got.AlertContentKinds)
+	}
+	if strings.Join(got.AlertLevels["net"], ",") != "danger" {
+		t.Fatalf("net levels=%v", got.AlertLevels["net"])
+	}
+
+	legacy := &Store{path: filepath.Join(dir, "legacy.json"), data: emptyData()}
+	if err := os.WriteFile(legacy.path, []byte(`{"alertContentKinds":["cpu"]}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := legacy.load(); err != nil {
+		t.Fatal(err)
+	}
+	lg := legacy.Get()
+	if lg.AlertSustain != 1 || lg.AlertRepeatMinutes != 0 || lg.AlertLoadWindow != "load1" {
+		t.Fatalf("legacy defaults: %+v", lg)
+	}
+	for _, k := range lg.AlertContentKinds {
+		if k == "net" || k == "diskio" {
+			t.Fatalf("legacy config must not auto-enable rate kinds: %v", lg.AlertContentKinds)
 		}
 	}
 }

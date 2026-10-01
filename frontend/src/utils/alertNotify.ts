@@ -28,6 +28,7 @@ export function notifyMessageFor(opts: {
   parts: NotifyTextParts;
   level?: AlertStartLevel;
   escalated?: boolean;
+  repeatMs?: number;
 }): NotifyMessage {
   return buildNotifyMessage({
     ...opts,
@@ -71,6 +72,8 @@ export async function appendAndNotifyDesktop(opts: {
   parts?: NotifyTextParts;
   /** 恢复事件指向对应告警事件 id */
   incidentId?: string;
+  /** 资源告警的阶段：首发 / 升级 / 重复提醒 */
+  stage?: "fire" | "escalate" | "repeat";
   /** 本次还会发企微（只用于记录送达渠道） */
   wecom?: boolean;
   /** 系统通知点击要定位到历史行时，应用内关闭也写入历史 */
@@ -100,6 +103,7 @@ export async function appendAndNotifyDesktop(opts: {
         title: opts.message.title,
         detail: opts.message.body,
         level: opts.message.level || "",
+        stage: opts.stage || "",
         metric: parts.metric || "",
         value: parts.value || "",
         threshold: parts.threshold || "",
@@ -151,7 +155,7 @@ export async function sendWecomAlertOnce(
   }
 }
 
-/** 企微升级通知：同一次事件从警告档升到危险档时再推一次；失败不重试 */
+/** 企微补推（升级、重复提醒）：同一次事件额外推一次；失败不重试 */
 export async function sendWecomEscalation(opts: {
   webhook: string;
   host: string;

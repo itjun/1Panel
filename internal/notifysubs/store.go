@@ -10,7 +10,19 @@ import (
 )
 
 // 全局内容类型总闸：资源四类 + 应用探活 + 证书到期。
-var knownAlertContentKinds = []string{"cpu", "mem", "disk", "load", "app", "cert"}
+var knownAlertContentKinds = []string{"cpu", "mem", "disk", "load", "net", "diskio", "app", "cert"}
+
+// 资源指标类型；net / diskio 为速率类，旧配置升级时不自动勾选。
+var resourceAlertKinds = []string{"cpu", "mem", "disk", "load", "net", "diskio"}
+
+const (
+	defaultAlertSustain   = 1
+	maxAlertSustain       = 12
+	maxAlertRepeatMinutes = 1440
+	defaultLoadWindow     = "load1"
+)
+
+var knownLoadWindows = map[string]bool{"load1": true, "load5": true, "load15": true}
 
 // 资源指标可订阅的档位，按从低到高排列；一档都没订时按只订危险档。
 var alertLevelOrder = []string{"warn", "danger"}
@@ -30,7 +42,11 @@ type Data struct {
 	AlertContentKinds    []string `json:"alertContentKinds"`
 	NotifyRecoverEnabled bool     `json:"notifyRecoverEnabled"`
 	// AlertLevels 资源指标（cpu/mem/disk/load）订阅的档位，可同时订 warn 和 danger。
-	AlertLevels            map[string][]string `json:"alertLevels"`
+	AlertLevels map[string][]string `json:"alertLevels"`
+	// AlertSustain 连续几次采样达标才推送（1–12）；AlertRepeatMinutes 未回落时每隔几分钟重复提醒（0 = 不重复）。
+	AlertSustain           int                 `json:"alertSustain"`
+	AlertRepeatMinutes     int                 `json:"alertRepeatMinutes"`
+	AlertLoadWindow        string              `json:"alertLoadWindow"` // load1 | load5 | load15
 	NotifyContentFields    []string            `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
@@ -51,6 +67,9 @@ type fileData struct {
 	NotifyRecoverEnabled *bool     `json:"notifyRecoverEnabled"`
 	// 旧版每类是单个字符串，新版是数组，读入时两种都认
 	AlertLevels            map[string]json.RawMessage `json:"alertLevels"`
+	AlertSustain           *int                       `json:"alertSustain"`
+	AlertRepeatMinutes     int                        `json:"alertRepeatMinutes"`
+	AlertLoadWindow        string                     `json:"alertLoadWindow"`
 	NotifyContentFields    *[]string                  `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string        `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string        `json:"hostAppNotifySubs"`
@@ -118,6 +137,8 @@ func emptyData() Data {
 		AlertContentKinds:      append([]string{}, knownAlertContentKinds...),
 		NotifyRecoverEnabled:   true,
 		AlertLevels:            resolveAlertLevels(nil),
+		AlertSustain:           defaultAlertSustain,
+		AlertLoadWindow:        defaultLoadWindow,
 		NotifyContentFields:    append([]string{}, knownNotifyContentFields...),
 		HostResourceNotifySubs: map[string][]string{},
 		HostAppNotifySubs:      map[string][]string{},
@@ -181,6 +202,12 @@ func dataFromFile(raw fileData) Data {
 		HostAppNotifySubs:      raw.HostAppNotifySubs,
 		HostCertNotifySubs:     raw.HostCertNotifySubs,
 		AlertLevels:            alertLevelsFromFile(raw.AlertLevels),
+		AlertSustain:           defaultAlertSustain,
+		AlertRepeatMinutes:     raw.AlertRepeatMinutes,
+		AlertLoadWindow:        raw.AlertLoadWindow,
+	}
+	if raw.AlertSustain != nil {
+		d.AlertSustain = *raw.AlertSustain
 	}
 	if raw.SystemNotifyEnabled != nil {
 		d.SystemNotifyEnabled = *raw.SystemNotifyEnabled
@@ -239,7 +266,7 @@ func alertLevelsFromFile(in map[string]json.RawMessage) map[string][]string {
 // resolveAlertLevels 每个资源指标都给出订阅档位：按从低到高去重，不认识的值丢弃，一档都没有时只订危险档。
 func resolveAlertLevels(in map[string][]string) map[string][]string {
 	out := map[string][]string{}
-	for _, kind := range []string{"cpu", "mem", "disk", "load"} {
+	for _, kind := range resourceAlertKinds {
 		picked := map[string]bool{}
 		for _, v := range in[kind] {
 			picked[strings.TrimSpace(v)] = true
@@ -256,6 +283,24 @@ func resolveAlertLevels(in map[string][]string) map[string][]string {
 		out[kind] = levels
 	}
 	return out
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+func resolveLoadWindow(v string) string {
+	v = strings.TrimSpace(v)
+	if knownLoadWindows[v] {
+		return v
+	}
+	return defaultLoadWindow
 }
 
 func resolveNotifyContentFields(present *[]string) []string {
@@ -290,6 +335,9 @@ func normalize(d Data) Data {
 		InAppNotifyEnabled:     d.InAppNotifyEnabled,
 		NotifyRecoverEnabled:   d.NotifyRecoverEnabled,
 		AlertLevels:            resolveAlertLevels(d.AlertLevels),
+		AlertSustain:           clampInt(d.AlertSustain, 1, maxAlertSustain),
+		AlertRepeatMinutes:     clampInt(d.AlertRepeatMinutes, 0, maxAlertRepeatMinutes),
+		AlertLoadWindow:        resolveLoadWindow(d.AlertLoadWindow),
 		AlertContentKinds:      filterKnown(compactList(d.AlertContentKinds), knownAlertContentKinds),
 		NotifyContentFields:    filterKnown(compactList(d.NotifyContentFields), knownNotifyContentFields),
 		HostResourceNotifySubs: compactHostMap(d.HostResourceNotifySubs),
@@ -374,6 +422,9 @@ func cloneData(d Data) Data {
 		AlertContentKinds:      append([]string{}, d.AlertContentKinds...),
 		NotifyRecoverEnabled:   d.NotifyRecoverEnabled,
 		AlertLevels:            resolveAlertLevels(d.AlertLevels),
+		AlertSustain:           d.AlertSustain,
+		AlertRepeatMinutes:     d.AlertRepeatMinutes,
+		AlertLoadWindow:        d.AlertLoadWindow,
 		NotifyContentFields:    append([]string{}, d.NotifyContentFields...),
 		HostResourceNotifySubs: cloneHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      cloneHostMap(d.HostAppNotifySubs),

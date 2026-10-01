@@ -21,6 +21,17 @@ export interface Data {
      * AlertLevels 资源指标（cpu/mem/disk/load）订阅的档位，可同时订 warn 和 danger。
      */
     "alertLevels": { [_ in string]?: string[] | null } | null;
+
+    /**
+     * AlertSustain 连续几次采样达标才推送（1–12）；AlertRepeatMinutes 未回落时每隔几分钟重复提醒（0 = 不重复）。
+     */
+    "alertSustain": number;
+    "alertRepeatMinutes": number;
+
+    /**
+     * load1 | load5 | load15
+     */
+    "alertLoadWindow": string;
     "notifyContentFields": string[] | null;
     "hostResourceNotifySubs": { [_ in string]?: string[] | null } | null;
     "hostAppNotifySubs": { [_ in string]?: string[] | null } | null;

@@ -38,6 +38,11 @@ export interface Event {
      * 资源告警档位：warn / danger；其他类型为空
      */
     "level": string;
+
+    /**
+     * 资源告警阶段：fire 首发 / escalate 升级 / repeat 重复提醒；其他为空
+     */
+    "stage": string;
     "service": string;
 
     /**

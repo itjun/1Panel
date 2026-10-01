@@ -29,6 +29,7 @@ type Event struct {
 	Threshold  string   `json:"threshold"`
 	Peak       string   `json:"peak"`  // 仅恢复事件：告警期间峰值
 	Level      string   `json:"level"` // 资源告警档位：warn / danger；其他类型为空
+	Stage      string   `json:"stage"` // 资源告警阶段：fire 首发 / escalate 升级 / repeat 重复提醒；其他为空
 	Service    string   `json:"service"`
 	Channels   []string `json:"channels"` // system|inApp|wecom，实际尝试发送的渠道
 	At         int64    `json:"at"`       // unix ms
@@ -121,6 +122,7 @@ func (s *Store) Append(e Event) (Event, error) {
 	e.Threshold = strings.TrimSpace(e.Threshold)
 	e.Peak = strings.TrimSpace(e.Peak)
 	e.Level = strings.TrimSpace(e.Level)
+	e.Stage = strings.TrimSpace(e.Stage)
 	e.Service = strings.TrimSpace(e.Service)
 	if e.Channels == nil {
 		e.Channels = []string{}

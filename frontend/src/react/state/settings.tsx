@@ -4,6 +4,7 @@ import {
   ALL_ALERT_KINDS,
   normalizeAlertLevels,
   type AlertStartLevel,
+  type LoadWindow,
   type ResourceAlertKind,
 } from "@/utils/alerts";
 
@@ -45,6 +46,12 @@ export type AppSettings = {
   notifyRecoverEnabled: boolean;
   /** 每类资源指标订阅的档位（可同时订阅警告和危险）；两档都订时，升到危险档再推一次 */
   alertLevels: Record<ResourceAlertKind, AlertStartLevel[]>;
+  /** 连续几次采样都达到该档才推送（回落同理），每次 5 秒 */
+  alertSustain: number;
+  /** 告警未回落时每隔几分钟重复提醒；0 = 不重复 */
+  alertRepeatMinutes: number;
+  /** 负载告警取哪个平均窗口 */
+  alertLoadWindow: LoadWindow;
   notifyContentFields: NotifyContentField[];
   hostResourceNotifySubs: Record<string, ResourceAlertKind[]>;
   hostAppNotifySubs: Record<string, string[]>;
@@ -67,7 +74,17 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   inAppNotifyEnabled: true,
   alertContentKinds: [...ALL_ALERT_KINDS, "app", "cert"],
   notifyRecoverEnabled: true,
-  alertLevels: { cpu: ["danger"], mem: ["danger"], disk: ["danger"], load: ["danger"] },
+  alertLevels: {
+    cpu: ["danger"],
+    mem: ["danger"],
+    disk: ["danger"],
+    load: ["danger"],
+    net: ["danger"],
+    diskio: ["danger"],
+  },
+  alertSustain: 1,
+  alertRepeatMinutes: 0,
+  alertLoadWindow: "load1",
   notifyContentFields: ["hostName", "metric", "threshold", "value", "service"],
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
@@ -75,6 +92,9 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   hostHomeRows: [],
   terminalOpenMode: "tab",
 };
+
+export const ALERT_SUSTAIN_RANGE = { min: 1, max: 12 } as const;
+export const ALERT_REPEAT_RANGE = { min: 0, max: 1440 } as const;
 
 let current = loadSettings();
 const listeners = new Set<() => void>();
@@ -106,6 +126,15 @@ function parseAlertLevels(value: unknown): AppSettings["alertLevels"] {
   return out;
 }
 
+function clampInt(value: unknown, range: { min: number; max: number }, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(Math.round(value), range.min), range.max);
+}
+
+function parseLoadWindow(value: unknown): LoadWindow {
+  return value === "load5" || value === "load15" ? value : "load1";
+}
+
 function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -135,6 +164,13 @@ function loadSettings(): AppSettings {
       notifyContentFields:
         parsed.notifyContentFields || SETTINGS_DEFAULTS.notifyContentFields,
       alertLevels: parseAlertLevels(parsed.alertLevels),
+      alertSustain: clampInt(parsed.alertSustain, ALERT_SUSTAIN_RANGE, SETTINGS_DEFAULTS.alertSustain),
+      alertRepeatMinutes: clampInt(
+        parsed.alertRepeatMinutes,
+        ALERT_REPEAT_RANGE,
+        SETTINGS_DEFAULTS.alertRepeatMinutes,
+      ),
+      alertLoadWindow: parseLoadWindow(parsed.alertLoadWindow),
       hostResourceNotifySubs: parsed.hostResourceNotifySubs || {},
       hostAppNotifySubs: parsed.hostAppNotifySubs || {},
       hostCertNotifySubs: parsed.hostCertNotifySubs || {},
@@ -255,6 +291,9 @@ function emit() {
       alertContentKinds: current.alertContentKinds,
       notifyRecoverEnabled: current.notifyRecoverEnabled,
       alertLevels: current.alertLevels,
+      alertSustain: current.alertSustain,
+      alertRepeatMinutes: current.alertRepeatMinutes,
+      alertLoadWindow: current.alertLoadWindow,
       notifyContentFields: current.notifyContentFields,
       hostResourceNotifySubs: current.hostResourceNotifySubs,
       hostAppNotifySubs: current.hostAppNotifySubs,

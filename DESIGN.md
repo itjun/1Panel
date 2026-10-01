@@ -289,7 +289,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - ❌ 禁止再用「细线进度条 + 粗体数字」的老写法。
 - ❌ 禁止在 Meter 上加渐变、发光、动画（数值变化用 `--duration-base` 颜色过渡即可）。
 - 除 Meter 外，**不再加任何其他装饰性视觉元素**。
-- **告警与 Meter 同一套分档**：CPU / 内存 / 负载 / 磁盘告警按上表三档判定（警告 ≥ 60%、危险 ≥ 85%），负载按 `load1 / 核数` 折算，磁盘取容量大于 10 GB 的分区里使用率最高的一个。判定统一走 `utils/alerts.ts` 的 `resourceReading`（内部调 `usage-tone.ts`），看板、分组、主机页圆环标红、告警推送都用它，不另写阈值。
+- **告警与 Meter 同一套分档，全局固定、不可调**：所有资源告警都折成占比后按上表判定（警告 ≥ 60%、危险 ≥ 85%），统一走 `utils/alerts.ts` 的 `alertReading`。CPU / 内存取使用率；负载取设置的窗口（load1 / 5 / 15）÷ 核数；磁盘取容量大于 10 GB 的分区使用率，容量 ≥ 100 GB 的分区另判可用空间（≤ 20 GB 警告、≤ 10 GB 危险），两者取更差的一档；网络收发按 1 Gbps（125 MB/s）、磁盘读写按 200 MB/s 折算。看板、分组、主机页圆环标红仍只看 `resourceReading` 的危险档。
 
 ---
 
@@ -420,8 +420,10 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 状态灯（`components/notify/incident-detail.tsx` `StatusLed`）：8px 方块、`--radius-tag`，实色 `danger`（进行中）/ `warn`（警告档进行中、到期提醒）/ `success`（已回落）/ `line-strong`（未记录回落）；旁边**必须**配状态文字，不单靠颜色表意。时间线节点同款：「进入警告档」`warn`、「进入危险档」「升到危险档」`danger`，升级节点插在首发与回落之间；「等待回落」用 1px `line-strong` 空心。
 - 告警档位标签：消息列表主机名后、详情状态标签后各放一枚 `Tag`，警告 `warn`、危险 `danger`，取事件到过的最高档；旧记录无档位不显示。
 - 档位订阅（通知设置「通知什么」CPU / 内存 / 磁盘 / 负载每行，`ResourceRuleRow`）：规则说明在左，右侧两个 `Checkbox`「警告 ≥ 60%」「危险 ≥ 85%」，可同时勾选；至少保留一档（仅剩一档时禁用并用 `data-tip` 说明），整类不要用左侧类型勾选；该类型未勾选时两个复选框都禁用。两档都订时，预览矩阵对应类型多出一行「升级」。
+- 告警全局控件组（「通知什么」类型列表下方，1px `line` 分隔线 + 16px 间距，与上方同一套 `120px_1fr` grid）：「连续」`InputNumber`（1–12 次采样）、「重复提醒」`InputNumber`（0–1440 分钟，0 为关闭）、「负载取」`RadioGroup`（1 / 5 / 15 分钟），控件右侧 `text-xs text-muted` 写含义。不开放阈值输入。
+- 时间线重复提醒节点：颜色按该条档位（`warn` / `danger`），只列最近 3 次，更早的合并成一行「另提醒 N 次」（空心 `line-strong` 节点）。
 - 消息页（通知 → 指标消息 / 应用消息）：一次「告警 + 回落」按 `incidentId` 合并为一条事件；`Page flush` 左右分栏，左列表宽 360px、右边 1px `--color-line` 分隔，按日期分组（组标题 32px 吸顶、`text-xs text-muted`），每条两行（主机 + 类型 + 时间 / 峰值 + 持续时长），未读主机名 600 字重 + 6px accent 方点，选中 `accent-soft`，上下方向键切换；右侧详情内边距 24px、区块间 `gap-section`，唯一的大数字是峰值（`text-2xl` 等宽 600，危险档 `text-danger`）配 `Meter`。筛选收拢为顶栏 `Select` + `RadioGroup` + `Switch`，不再堆按钮组。
-- 通知预览矩阵（通知设置「正文带上」正下方，`components/notify/channel-preview.tsx`）：**全部展开、不做下拉 / 切换**——行 = 消息类型（CPU / 内存 / 磁盘 / 负载 / 应用探活）× 告警 / 升级（警告、危险两档都订时）/ 恢复，列 = 系统通知 / 应用内 / 企业微信，列头 32px 吸顶。每格一张预览卡，模拟对应渠道的消息外观：`bg-raised` + `--radius-panel` + 12px 内边距，无描边无阴影（模拟的是浮出的通知，故用浮层圆角）；渠道关闭整列 `opacity-50`、列头标「未开启，不会发送」；类型或「恢复」未勾选整行 `opacity-50`，行头用 `text-warn` 写原因。企业微信卡渲染后端 `PreviewHostAlertMarkdown` 原文：`<font color>` 映射 red→`danger`、warning→`warn`、info→`success-text`、comment→`muted`，引用行左侧 2px `line-strong` 竖线。
+- 通知预览矩阵（通知设置「正文带上」正下方，`components/notify/channel-preview.tsx`）：**全部展开、不做下拉 / 切换**——行 = 消息类型（CPU / 内存 / 磁盘 / 负载 / 应用探活）× 告警 / 升级（警告、危险两档都订时）/ 重复（开了重复提醒时）/ 恢复，列 = 系统通知 / 应用内 / 企业微信，列头 32px 吸顶。每格一张预览卡，模拟对应渠道的消息外观：`bg-raised` + `--radius-panel` + 12px 内边距，无描边无阴影（模拟的是浮出的通知，故用浮层圆角）；渠道关闭整列 `opacity-50`、列头标「未开启，不会发送」；类型或「恢复」未勾选整行 `opacity-50`，行头用 `text-warn` 写原因。企业微信卡渲染后端 `PreviewHostAlertMarkdown` 原文：`<font color>` 映射 red→`danger`、warning→`warn`、info→`success-text`、comment→`muted`，引用行左侧 2px `line-strong` 竖线。
 - Meter：见 §4.7，唯一允许的「装饰级」组件。
 - 窗口壳层：顶栏、侧栏、Win/Linux 窗口按钮全部走共享组件，平台判断只从 `lib/platform.ts` 引入。
 

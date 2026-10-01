@@ -1,4 +1,5 @@
 import {
+  ALERT_KIND_LABEL,
   ALL_ALERT_KINDS,
   isResourceAlertKind,
   type AlertStartLevel,
@@ -39,20 +40,8 @@ export function shouldToastHostAlert(
 }
 
 function kindLabel(kind: HostWecomKind): string {
-  switch (kind) {
-    case "mem":
-      return "内存";
-    case "cpu":
-      return "CPU";
-    case "disk":
-      return "磁盘";
-    case "load":
-      return "负载";
-    case "conn":
-      return "连接";
-    default:
-      return kind;
-  }
+  if (kind === "conn") return "连接";
+  return ALERT_KIND_LABEL[kind] || kind;
 }
 
 function resourceParts(
@@ -109,6 +98,7 @@ export async function fireHostWecom(opts: {
       host: opts.host,
       kind: opts.kind,
       state: "down",
+      stage: "fire",
       message,
       parts,
       wecom: !!webhook,
@@ -158,6 +148,54 @@ export async function escalateHostWecom(opts: {
       host: opts.host,
       kind: opts.kind,
       state: "down",
+      stage: "escalate",
+      message,
+      parts,
+      incidentId: firedLocal.get(opts.key) || "",
+      wecom: !!webhook,
+    });
+  }
+  if (webhook) {
+    await sendWecomEscalation({ webhook, host: opts.host, kind: opts.kind, message });
+  }
+}
+
+/**
+ * 重复提醒出口：告警未回落、到了重复间隔时再推一条，沿用原告警的 incidentId。
+ * 三个渠道各推一条，企微每次都推（需该事件发过企微）。
+ */
+export async function repeatHostWecom(opts: {
+  key: string;
+  host: string;
+  kind: HostWecomKind;
+  level: AlertStartLevel;
+  durationMs: number;
+  parts?: NotifyTextParts;
+}): Promise<void> {
+  if (opts.kind === "conn") return;
+  const hadLocal = firedLocal.has(opts.key);
+  const hadWecom = firedWecom.has(opts.key);
+  if (!hadLocal && !hadWecom) return;
+
+  const settings = settingsAccess();
+  if (!settings.isResourceNotifySubscribed(opts.host, opts.kind)) return;
+  if (!settings.isContentKindEnabled(opts.kind)) return;
+
+  const parts = resourceParts(opts.host, opts.kind, opts.parts);
+  const message = notifyMessageFor({
+    state: "down",
+    kind: "resource",
+    parts,
+    level: opts.level,
+    repeatMs: opts.durationMs,
+  });
+  const webhook = hadWecom ? settings.effectiveWecomWebhook() : "";
+  if (hadLocal) {
+    await appendAndNotifyDesktop({
+      host: opts.host,
+      kind: opts.kind,
+      state: "down",
+      stage: "repeat",
       message,
       parts,
       incidentId: firedLocal.get(opts.key) || "",

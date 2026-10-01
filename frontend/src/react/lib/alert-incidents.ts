@@ -22,6 +22,8 @@ export type Incident = {
   down?: AlertEvent;
   /** 起推档为警告时，升到危险档的那条 */
   escalation?: AlertEvent;
+  /** 未回落期间的重复提醒，按时间先后 */
+  repeats: AlertEvent[];
   up?: AlertEvent;
   /** 事件到过的最高档；旧记录与非资源类为 undefined */
   level?: AlertStartLevel;
@@ -63,7 +65,10 @@ export function buildIncidents(events: AlertEvent[]): Incident[] {
     const list = [...unsorted].sort((a, b) => (a.at || 0) - (b.at || 0));
     const downs = list.filter((e) => e.state !== "up");
     const down = downs[0];
-    const escalation = downs.slice(1).find((e) => e.level === "danger");
+    const escalation =
+      downs.find((e) => e.stage === "escalate") ||
+      downs.slice(1).find((e) => !e.stage && e.level === "danger");
+    const repeats = downs.filter((e) => e.stage === "repeat");
     const up = list.find((e) => e.state === "up");
     const level = maxLevel(downs);
     const first = down || up || list[0];
@@ -83,6 +88,7 @@ export function buildIncidents(events: AlertEvent[]): Incident[] {
       service: first.service || parseAppAlertKind(kind),
       down,
       escalation,
+      repeats,
       up,
       level,
       status,
@@ -132,6 +138,10 @@ export function kindLabel(kind: string): string {
       return "磁盘";
     case "load":
       return "负载";
+    case "net":
+      return "网络";
+    case "diskio":
+      return "磁盘 IO";
     case "cert":
       return "证书";
     default:
@@ -210,7 +220,7 @@ export function dayKey(at: number): number {
   return startOfDay(at);
 }
 
-/** 从读数文字取占比，供 Meter 使用：CPU / 内存 = 百分比，负载 = load1 / 核数，磁盘 = 已用百分比；旧版磁盘读数无占比返回 undefined */
+/** 从读数文字取占比，供 Meter 使用：CPU / 内存 = 百分比，负载 / 网络 / 磁盘 IO = 括号里的折算占比，磁盘 = 已用百分比；旧版磁盘读数无占比返回 undefined */
 export function usagePercent(kind: string, text?: string): number | undefined {
   const v = (text || "").trim();
   if (!v) return undefined;
@@ -218,6 +228,8 @@ export function usagePercent(kind: string, text?: string): number | undefined {
     const n = parseFloat(v);
     return Number.isFinite(n) ? n : undefined;
   }
+  const tail = v.match(/（([\d.]+)%）/);
+  if ((kind === "load" || kind === "net" || kind === "diskio") && tail) return parseFloat(tail[1]);
   if (kind === "load") {
     const m = v.match(/^([\d.]+)\s*\/\s*(\d+)/);
     if (!m) return undefined;

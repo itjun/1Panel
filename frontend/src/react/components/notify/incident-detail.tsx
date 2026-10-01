@@ -251,8 +251,35 @@ function firstStepLabel(incident: Incident, app: boolean): string {
   return "超阈值";
 }
 
+type Step = { ev?: AlertEvent; label: string; valueLabel: string; tone: StepTone };
+
+const MAX_REPEAT_STEPS = 3;
+
+/** 首发与回落之间：升级节点 + 重复提醒（只列最近 3 次，更早的合并成一行） */
+function middleSteps(incident: Incident): Step[] {
+  const kept = incident.repeats.slice(-MAX_REPEAT_STEPS);
+  const hidden = incident.repeats.length - kept.length;
+  const events = [...kept];
+  if (incident.escalation) events.push(incident.escalation);
+  events.sort((a, b) => (a.at || 0) - (b.at || 0));
+  const out: Step[] = [];
+  let summarized = hidden === 0;
+  for (const ev of events) {
+    if (ev === incident.escalation) {
+      out.push({ ev, label: "升到危险档", valueLabel: "当前值", tone: "danger" });
+      continue;
+    }
+    if (!summarized) {
+      out.push({ label: `另提醒 ${hidden} 次`, valueLabel: "", tone: "idle" });
+      summarized = true;
+    }
+    out.push({ ev, label: "重复提醒", valueLabel: "当前值", tone: ev.level === "warn" ? "warn" : "danger" });
+  }
+  return out;
+}
+
 function Timeline({ incident, app }: { incident: Incident; app: boolean }) {
-  const steps: { ev?: AlertEvent; label: string; valueLabel: string; tone: StepTone }[] = [
+  const steps: Step[] = [
     {
       ev: incident.down,
       label: firstStepLabel(incident, app),
@@ -260,9 +287,7 @@ function Timeline({ incident, app }: { incident: Incident; app: boolean }) {
       tone: incident.down?.level === "warn" ? "warn" : "danger",
     },
   ];
-  if (incident.escalation) {
-    steps.push({ ev: incident.escalation, label: "升到危险档", valueLabel: "当前值", tone: "danger" });
-  }
+  steps.push(...middleSteps(incident));
   if (incident.up) {
     steps.push({ ev: incident.up, label: app ? "已恢复" : "已回落", valueLabel: app ? "" : "回落值", tone: "ok" });
   } else {

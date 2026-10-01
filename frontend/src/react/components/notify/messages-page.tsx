@@ -20,6 +20,7 @@ import {
   type Incident,
 } from "@/react/lib/alert-incidents";
 import { cn } from "@/react/lib/utils";
+import { ALERT_RULES } from "@/utils/alerts";
 import { useSession } from "@/react/state/session";
 import { formatErr } from "@/utils/format";
 import { WATCH_SERVICE_ORDER } from "@/utils/watchServices";
@@ -34,10 +35,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 
 const METRIC_KIND_OPTIONS = [
   { value: "all", label: "全部类型" },
-  { value: "cpu", label: "CPU" },
-  { value: "mem", label: "内存" },
-  { value: "disk", label: "磁盘" },
-  { value: "load", label: "负载" },
+  ...ALERT_RULES.map((rule) => ({ value: rule.kind as string, label: rule.name as string })),
   { value: "cert", label: "证书" },
 ];
 

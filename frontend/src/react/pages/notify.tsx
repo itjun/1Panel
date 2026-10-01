@@ -233,7 +233,10 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             <tbody>
               {hosts.length === 0 ? (
                 <tr className="h-table-row border-t border-line">
-                  <td className="px-3 text-muted" colSpan={kind === "metricSubs" ? 7 : 10}>
+                  <td
+                    className="px-3 text-muted"
+                    colSpan={kind === "metricSubs" ? ALERT_RULES.length + 3 : WATCH_SERVICE_ORDER.length + 2}
+                  >
                     没有匹配的主机
                   </td>
                 </tr>

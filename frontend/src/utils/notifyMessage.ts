@@ -6,6 +6,17 @@
 import type { NotifyContentField } from "@/react/state/settings";
 import { LEVEL_LABEL, type AlertStartLevel } from "@/utils/alerts";
 
+/** 持续时长：45 秒 / 25 分钟 / 2 小时 10 分 */
+export function formatDuration(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s} 秒`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} 分钟`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${h} 小时 ${rest} 分` : `${h} 小时`;
+}
+
 export type NotifyMessageKind = "resource" | "app";
 
 /** 告警现场的结构化读数（全量；是否写进正文由 fields 决定） */
@@ -40,6 +51,8 @@ export function buildNotifyMessage(opts: {
   level?: AlertStartLevel;
   /** 从警告档升到危险档的那条 */
   escalated?: boolean;
+  /** 重复提醒：告警已持续的毫秒数 */
+  repeatMs?: number;
 }): NotifyMessage {
   const on = (field: NotifyContentField) => opts.fields.includes(field);
   const pick = (field: NotifyContentField, raw?: string) =>
@@ -77,9 +90,17 @@ export function buildNotifyMessage(opts: {
   return { title, lines, body, level: opts.kind === "resource" ? opts.level : undefined };
 }
 
-function resourceVerb(opts: { state: "down" | "up"; level?: AlertStartLevel; escalated?: boolean }) {
+function resourceVerb(opts: {
+  state: "down" | "up";
+  level?: AlertStartLevel;
+  escalated?: boolean;
+  repeatMs?: number;
+}) {
   if (opts.state === "up") return "已回落";
   if (opts.escalated) return "升到危险档";
+  if (opts.repeatMs !== undefined && opts.level) {
+    return `仍在${LEVEL_LABEL[opts.level]}档（已持续 ${formatDuration(opts.repeatMs)}）`;
+  }
   if (opts.level) return `进入${LEVEL_LABEL[opts.level]}档`;
   return "超阈值";
 }
