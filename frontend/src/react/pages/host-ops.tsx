@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Events } from "@wailsio/runtime";
 import type * as echarts from "echarts";
 import {
   useCallback,
@@ -345,6 +346,7 @@ function OverviewPage({ host }: { host: string }) {
   const [checkBusy, setCheckBusy] = useState(false);
   const [installBusy, setInstallBusy] = useState(false);
   const [installConfirm, setInstallConfirm] = useState(false);
+  const [installProgress, setInstallProgress] = useState("");
   const flash = useFlashMessage();
 
   const hostConfig: sshconfig.HostConfig | null =
@@ -451,16 +453,26 @@ function OverviewPage({ host }: { host: string }) {
 
   async function runInstall() {
     setInstallBusy(true);
+    setInstallProgress("准备安装…");
     flash.clear();
+    const off = Events.On(
+      "agent-install-progress",
+      (ev: { data?: { host?: string; text?: string } }) => {
+        if (ev?.data?.host === host && ev.data.text) setInstallProgress(ev.data.text);
+      },
+    );
     try {
       await api.installAgent(host);
       setInstallConfirm(false);
       await agentStatus.refetch();
       flash.showToast("Agent 安装/更新已完成");
     } catch (e) {
-      flash.showError(formatErr(e));
+      setInstallConfirm(false);
+      flash.showError(`安装失败: ${formatErr(e)}`);
     } finally {
+      off();
       setInstallBusy(false);
+      setInstallProgress("");
     }
   }
 
@@ -876,8 +888,12 @@ function OverviewPage({ host }: { host: string }) {
       <ConfirmDialog
         open={installConfirm}
         title={agentMissing ? "安装 Agent" : "更新 Agent"}
-        description={`将向 ${host} ${agentMissing ? "部署" : "更新"} spanel-agent（systemd 服务）。已落库的监控历史保留。`}
-        confirmLabel={agentMissing ? "安装" : "更新"}
+        description={
+          installBusy && installProgress
+            ? `正在${agentMissing ? "安装" : "更新"}：${installProgress}`
+            : `将向 ${host} ${agentMissing ? "部署" : "更新"} spanel-agent（自动选择 systemd 或守护进程，断开后保持运行）。已落库的监控历史保留。`
+        }
+        confirmLabel={installBusy ? `${agentMissing ? "安装" : "更新"}中…` : agentMissing ? "安装" : "更新"}
         busy={installBusy}
         onClose={() => setInstallConfirm(false)}
         onConfirm={() => void runInstall()}
