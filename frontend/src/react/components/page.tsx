@@ -10,6 +10,7 @@ import { useRegisterPageRefresh } from "@/react/state/page-refresh";
 export function Page({
   title,
   actions,
+  toolbar,
   children,
   dark = false,
   flush = false,
@@ -18,6 +19,8 @@ export function Page({
 }: {
   title?: string;
   actions?: ReactNode;
+  /** 内容区顶部工具行（路径提示等），本机 / 主机页都显示在页内，不进通栏 */
+  toolbar?: ReactNode;
   children: ReactNode;
   dark?: boolean;
   /** 左右分栏等需要贴边铺满时关掉内边距 */
@@ -32,7 +35,8 @@ export function Page({
   const padded = !flush && !dark;
 
   let inlineToolbar: ReactNode = null;
-  if (hostWorkspace && actions) {
+  const inlineActions = hostWorkspace ? actions : null;
+  if (toolbar || inlineActions) {
     inlineToolbar = (
       <div
         className={cn(
@@ -40,7 +44,8 @@ export function Page({
           !padded && "px-[var(--gap-card)] pt-[var(--gap-card)]",
         )}
       >
-        {actions}
+        {toolbar}
+        {inlineActions}
       </div>
     );
   }

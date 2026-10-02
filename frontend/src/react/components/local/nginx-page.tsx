@@ -46,19 +46,17 @@ export function LocalNginxPage() {
       title="本机 Nginx"
       flush
       actions={
-        <span
-          className="flex max-w-[420px] items-center gap-2 text-sm text-muted"
-          data-tip={info.data?.confPath}
-        >
+        <span className="flex items-center gap-2 text-sm text-muted">
           <Tag tone={info.data?.running ? "ok" : "neutral"}>
             {info.data?.running ? "运行中" : "未运行"}
           </Tag>
-          <span className="truncate">
-            {info.data?.version ? `v${info.data.version}` : ""}
-            {info.data?.version && info.data?.confPath ? " · " : ""}
-            {info.data?.confPath || ""}
-          </span>
+          {info.data?.version ? <span>v{info.data.version}</span> : null}
         </span>
+      }
+      toolbar={
+        info.data?.confD ? (
+          <span className="font-mono text-sm text-muted">{info.data.confD}</span>
+        ) : null
       }
       onRefresh={() => void info.refetch()}
     >
