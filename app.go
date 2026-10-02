@@ -145,7 +145,7 @@ func NewApp() *application.App {
 		},
 		ShouldQuit: core.shouldQuit,
 		OnShutdown: core.shutdown,
-		Icon:       appIconPNG,
+		Icon:       appIcon(),
 	})
 	core.app = app
 
