@@ -30,6 +30,8 @@ APP_BUNDLE = f"{BIN_DIR}/{APP_NAME}.app"
 WIN_EXE = f"{BIN_DIR}/{APP_NAME}.exe"
 LINUX_BIN = f"{BIN_DIR}/{APP_NAME}"
 INSTALL_DIR = f"/Applications/{APP_NAME}.app"
+LSREGISTER = ("/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+              "LaunchServices.framework/Support/lsregister")
 
 IS_WINDOWS = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
@@ -307,6 +309,8 @@ def install():
         print(f"==> 覆盖安装到 {INSTALL_DIR}")
         shutil.rmtree(INSTALL_DIR, ignore_errors=True)
         shutil.copytree(APP_BUNDLE, INSTALL_DIR)
+        # 重新登记，Dock/「应用程序」/聚焦才会丢掉旧图标缓存
+        subprocess.run([LSREGISTER, "-f", INSTALL_DIR], capture_output=True)
     else:
         install_linux()
 
