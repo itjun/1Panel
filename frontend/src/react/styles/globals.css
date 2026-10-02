@@ -281,7 +281,7 @@ pre,
 }
 
 /* 壳 chrome（DESIGN.md §4.1）：顶栏 + 侧栏是一整片 canvas 外框，内容区是一整块 surface 平面，
-   两者之间不画分隔线，只靠色块区分。类名暂留 glass-chrome*，语义为实色（暗色走 token）。
+   两者之间不画分隔线，只靠色块区分。经典模式为实色，亚克力仅改变壳层背景。
    用 background-color，不要用 background 简写。 */
 .glass-chrome,
 .shell-app-toolbar {
@@ -290,6 +290,31 @@ pre,
 
 .glass-chrome {
   position: relative;
+}
+
+/* Only the native controller can enable this attribute; browser/HTTP surfaces stay solid.
+   The texture PNG has 1% alpha baked in, so text and controls never lose opacity. */
+html[data-window-material="acrylic"] {
+  --chrome-canvas: rgba(242, 243, 245, 0.8);
+  --chrome-rail: rgba(234, 235, 238, 0.8);
+}
+html.dark[data-window-material="acrylic"] {
+  --chrome-canvas: rgba(18, 22, 31, 0.75);
+  --chrome-rail: rgba(13, 16, 23, 0.75);
+}
+html[data-window-material="acrylic"],
+html[data-window-material="acrylic"] body,
+html[data-window-material="acrylic"] #app,
+html[data-window-material="acrylic"] .react-root {
+  background-color: transparent;
+}
+html[data-window-material="acrylic"] :is(.glass-chrome, .shell-app-toolbar) {
+  background-color: var(--chrome-canvas);
+  background-image: url("../assets/chrome-noise.png");
+}
+html[data-window-material="acrylic"] .module-rail {
+  background-color: var(--chrome-rail);
+  background-image: url("../assets/chrome-noise.png");
 }
 
 /* 内容平面左上 6px 圆角：白色平面嵌在灰框里，整套设计唯一的圆角装饰。

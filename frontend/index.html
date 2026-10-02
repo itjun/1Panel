@@ -12,7 +12,7 @@
       #app {
         margin: 0;
         height: 100%;
-        background-color: #f9fafb !important;
+        background-color: var(--color-canvas, #f2f3f5);
         color-scheme: light;
       }
       .boot-skel {
@@ -20,7 +20,7 @@
         height: 100%;
         grid-template-rows: 40px 1fr;
         grid-template-columns: var(--boot-sidebar, 320px) 1fr;
-        background: #f9fafb;
+        background: var(--color-canvas, #f2f3f5);
       }
       html.boot-no-side .boot-skel {
         grid-template-columns: 1fr;
@@ -31,7 +31,7 @@
       }
       .boot-tb-l,
       .boot-tb-r {
-        background: #f9fafb;
+        background: var(--color-canvas, #f2f3f5);
       }
       .boot-tb-r {
         display: flex;
@@ -46,7 +46,7 @@
       }
       .boot-side {
         padding: 12px 10px;
-        background: #f9fafb;
+        background: var(--color-canvas, #f2f3f5);
       }
       .boot-line {
         height: 28px;
@@ -55,14 +55,14 @@
         background: rgba(31, 35, 41, 0.06);
       }
       .boot-main {
-        background: #ffffff;
+        background: var(--color-surface, #ffffff);
         overflow: hidden;
       }
       .boot-card {
         height: 88px;
         margin-bottom: 8px;
         border-radius: 0;
-        background: #ffffff;
+        background: var(--color-surface, #ffffff);
         box-shadow: 0 0 0 1px #e5e7eb;
       }
       .boot-grid {
@@ -73,7 +73,7 @@
       .boot-tile {
         height: 72px;
         border-radius: 0;
-        background: #ffffff;
+        background: var(--color-surface, #ffffff);
         box-shadow: 0 0 0 1px #e5e7eb;
       }
       .boot-pulse {
