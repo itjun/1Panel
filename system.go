@@ -389,13 +389,17 @@ func ghosttyOpenURL(hosts []string) (string, error) {
 
 // OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
 // macOS 走 Ghostty（ghostty://open?host=…）；Windows 走 Windows Terminal + 系统
-// OpenSSH（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口），见 terminal_windows.go。
+// OpenSSH，见 terminal_windows.go；Linux 走系统默认终端 + 系统 ssh，见
+// terminal_linux.go（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口）。
 func (s *System) OpenHostsInTerminal(hosts []string, mode string) error {
 	if runtime.GOOS == "windows" {
 		return openHostsInTerminalWindows(hosts, mode)
 	}
+	if runtime.GOOS == "linux" {
+		return openHostsInTerminalLinux(hosts, mode)
+	}
 	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("仅支持在 macOS / Windows 上打开终端")
+		return fmt.Errorf("仅支持在 macOS / Windows / Linux 上打开终端")
 	}
 	target, err := ghosttyOpenURL(hosts)
 	if err != nil {

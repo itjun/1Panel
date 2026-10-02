@@ -54,19 +54,6 @@ func resolveWTExe() string {
 	return ""
 }
 
-func normalizeTerminalHosts(hosts []string) []string {
-	out := make([]string, 0, len(hosts))
-	for _, host := range hosts {
-		alias := strings.TrimSpace(host)
-		// ssh Host 别名按语法不含空白与换行；防 wt 参数串位
-		if alias == "" || strings.ContainsAny(alias, " \t\r\n\"';") {
-			continue
-		}
-		out = append(out, alias)
-	}
-	return out
-}
-
 // buildWTArgs 组装 wt.exe 参数。wt 把独立 argv 元素 ";" 当作子命令分隔符。
 func buildWTArgs(sshExe string, hosts []string, mode string) []string {
 	args := make([]string, 0, len(hosts)*5+3)
