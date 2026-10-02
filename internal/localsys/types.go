@@ -118,6 +118,7 @@ type NginxInfo struct {
 	Version   string       `json:"version"`
 	ConfPath  string       `json:"confPath"`
 	ConfDir   string       `json:"confDir"`
+	ConfD     string       `json:"confD"` // 列表来源的 conf.d 目录
 	Files     []NginxFile  `json:"files"`
 }
 

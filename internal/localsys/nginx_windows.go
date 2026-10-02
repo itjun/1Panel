@@ -33,7 +33,8 @@ func CollectNginx() (*NginxInfo, error) {
 	info.ConfPath = conf
 	if conf != "" {
 		info.ConfDir = filepath.Dir(conf)
-		info.Files = collectNginxFilesWin(conf)
+		info.ConfD = detectConfDWin(info.ConfDir)
+		info.Files = listConfDFiles(info.ConfD)
 	}
 	if nginxIsRunningWin() {
 		info.Running = true
@@ -263,51 +264,14 @@ func detectNginxConfWin(bin string) string {
 	return ""
 }
 
-// collectNginxFilesWin 只列用户会改的配置：主配置 nginx.conf + conf.d 下的文件。
-// mime.types、fastcgi_params 等 nginx 自带文件不进列表（一般不修改）；
-// Windows 解压布局 conf.d 与 conf 平级，两处都扫。
-func collectNginxFilesWin(mainConf string) []NginxFile {
-	confDir := filepath.Dir(mainConf)
-	seen := map[string]bool{}
-	var files []NginxFile
-	add := func(path string) {
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			return
-		}
-		if seen[abs] {
-			return
-		}
-		st, err := os.Stat(abs)
-		if err != nil || st.IsDir() {
-			return
-		}
-		seen[abs] = true
-		files = append(files, NginxFile{
-			Name: filepath.Base(abs),
-			Path: abs,
-			Size: st.Size(),
-		})
-	}
-	add(mainConf)
-	for _, base := range []string{confDir, filepath.Dir(confDir)} {
-		entries, err := os.ReadDir(filepath.Join(base, "conf.d"))
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-				continue
-			}
-			if strings.HasSuffix(e.Name(), ".conf") || !strings.Contains(e.Name(), ".") {
-				add(filepath.Join(base, "conf.d", e.Name()))
-			}
+// detectConfDWin Windows 解压布局 conf.d 可能在 conf 内或与 conf 平级（安装根下），
+// 取先存在的那个；都不存在时回落到 conf 内。
+func detectConfDWin(confDir string) string {
+	inner := filepath.Join(confDir, "conf.d")
+	for _, c := range []string{inner, filepath.Join(filepath.Dir(confDir), "conf.d")} {
+		if st, err := os.Stat(c); err == nil && st.IsDir() {
+			return c
 		}
 	}
-	return files
-}
-
-// listNginxFiles Windows：CollectNginx 未走公共层（自带 collectNginxFilesWin），占位。
-func listNginxFiles(conf string) []NginxFile {
-	return nil
+	return inner
 }

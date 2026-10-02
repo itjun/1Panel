@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"diteng-pannel/internal/prochide"
@@ -28,7 +29,8 @@ func collectNginxInfo(bin string, fallbacks []string, running bool) *NginxInfo {
 	info.ConfPath = conf
 	if conf != "" {
 		info.ConfDir = filepath.Dir(conf)
-		info.Files = listNginxFiles(conf)
+		info.ConfD = filepath.Join(info.ConfDir, "conf.d")
+		info.Files = listConfDFiles(info.ConfD)
 	}
 	info.Running = running
 	return info
@@ -62,81 +64,30 @@ func detectNginxConf(bin string, fallbacks []string) string {
 	return ""
 }
 
-// collectNginxFiles 主配置 + include 链 + 常见子目录（macOS 用；
-// Linux 只列 conf.d，见 nginx_linux.go）。
-func collectNginxFiles(mainConf string) []NginxFile {
-	dir := filepath.Dir(mainConf)
-	seen := map[string]bool{}
+// listConfDFiles 只列给定 conf.d 目录下的用户配置（不递归、跳过隐藏文件）。
+// nginx.conf、mime.types、servers/、sites-* 等一律不进列表：自定义配置只允许放 conf.d。
+func listConfDFiles(confD string) []NginxFile {
+	entries, err := os.ReadDir(confD)
+	if err != nil {
+		return nil
+	}
 	var files []NginxFile
-	add := func(path string) {
-		abs, err := filepath.Abs(path)
+	for _, e := range entries {
+		if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		st, err := e.Info()
 		if err != nil {
-			return
+			continue
 		}
-		if seen[abs] {
-			return
-		}
-		st, err := os.Stat(abs)
-		if err != nil || st.IsDir() {
-			return
-		}
-		seen[abs] = true
 		files = append(files, NginxFile{
-			Name: filepath.Base(abs),
-			Path: abs,
+			Name: e.Name(),
+			Path: filepath.Join(confD, e.Name()),
 			Size: st.Size(),
 		})
 	}
-	add(mainConf)
-	walkIncludes(mainConf, dir, add, 0)
-	// 常见子目录兜底
-	for _, sub := range []string{"conf.d", "servers", "sites-enabled", "sites-available"} {
-		entries, err := os.ReadDir(filepath.Join(dir, sub))
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-				continue
-			}
-			if strings.HasSuffix(e.Name(), ".conf") || !strings.Contains(e.Name(), ".") {
-				add(filepath.Join(dir, sub, e.Name()))
-			}
-		}
-	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
 	return files
-}
-
-func walkIncludes(confPath, root string, add func(string), depth int) {
-	if depth > 8 {
-		return
-	}
-	b, err := os.ReadFile(confPath)
-	if err != nil {
-		return
-	}
-	for _, line := range strings.Split(string(b), "\n") {
-		trim := strings.TrimSpace(line)
-		if trim == "" || strings.HasPrefix(trim, "#") {
-			continue
-		}
-		fields := strings.Fields(trim)
-		if len(fields) < 2 || fields[0] != "include" {
-			continue
-		}
-		pat := strings.TrimSuffix(fields[1], ";")
-		if !filepath.IsAbs(pat) {
-			pat = filepath.Join(filepath.Dir(confPath), pat)
-		}
-		matches, err := filepath.Glob(pat)
-		if err != nil {
-			continue
-		}
-		for _, m := range matches {
-			add(m)
-			walkIncludes(m, root, add, depth+1)
-		}
-	}
 }
 
 // nginxReadCommon 读取配置文件内容；路径必须在 conf 目录内（macOS / Linux）。

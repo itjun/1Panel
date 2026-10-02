@@ -57,8 +57,3 @@ func nginxIsRunning() bool {
 func NginxRead(path string) (string, error) {
 	return nginxReadCommon(path)
 }
-
-// listNginxFiles macOS：主配置 + include 链 + 常见子目录。
-func listNginxFiles(conf string) []NginxFile {
-	return collectNginxFiles(conf)
-}

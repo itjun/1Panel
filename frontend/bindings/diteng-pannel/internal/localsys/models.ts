@@ -122,6 +122,11 @@ export interface NginxInfo {
     "version": string;
     "confPath": string;
     "confDir": string;
+
+    /**
+     * 列表来源的 conf.d 目录
+     */
+    "confD": string;
     "files": NginxFile[] | null;
 }
 

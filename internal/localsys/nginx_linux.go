@@ -5,9 +5,6 @@ package localsys
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
-	"sort"
-	"strings"
 )
 
 // CollectNginx 采集 Nginx 配置列表。
@@ -57,31 +54,4 @@ func nginxIsRunning() bool {
 // NginxRead 读取配置文件内容；路径必须在 conf 目录内。
 func NginxRead(path string) (string, error) {
 	return nginxReadCommon(path)
-}
-
-// listNginxFiles Linux：只列 conf 目录下 conf.d/ 里的用户配置
-// （nginx.conf 自身、mime.types、modules-enabled 模块片段等系统文件不进列表）。
-func listNginxFiles(conf string) []NginxFile {
-	dir := filepath.Join(filepath.Dir(conf), "conf.d")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var files []NginxFile
-	for _, e := range entries {
-		if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-			continue
-		}
-		st, err := e.Info()
-		if err != nil {
-			continue
-		}
-		files = append(files, NginxFile{
-			Name: e.Name(),
-			Path: filepath.Join(dir, e.Name()),
-			Size: st.Size(),
-		})
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
-	return files
 }

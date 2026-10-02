@@ -3,8 +3,6 @@
 package localsys
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -201,41 +199,6 @@ func TestCollectNetworkLinux(t *testing.T) {
 		}
 	}
 	t.Logf("ifaces=%d gw=%q primary=%q", len(snap.Interfaces), snap.DefaultGateway, snap.PrimaryIface)
-}
-
-func TestListNginxFilesLinuxOnlyConfD(t *testing.T) {
-	dir := t.TempDir()
-	confDir := filepath.Join(dir, "etc", "nginx")
-	confD := filepath.Join(confDir, "conf.d")
-	if err := os.MkdirAll(confD, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	// 主配置与 conf.d 外的文件不应出现在列表里
-	for _, p := range []string{
-		filepath.Join(confDir, "nginx.conf"),
-		filepath.Join(confD, "gateway.conf"),
-		filepath.Join(confD, "site.conf"),
-		filepath.Join(confD, ".hidden.conf"),
-	} {
-		if err := os.WriteFile(p, []byte("server {}\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := os.MkdirAll(filepath.Join(confDir, "sites-enabled"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(confDir, "sites-enabled", "default"), []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	files := listNginxFiles(filepath.Join(confDir, "nginx.conf"))
-	names := make([]string, 0, len(files))
-	for _, f := range files {
-		names = append(names, f.Name)
-	}
-	if strings.Join(names, ",") != "gateway.conf,site.conf" {
-		t.Fatalf("conf.d 以外的文件不应列出，得到 %v", names)
-	}
 }
 
 func TestCollectNginxLinux(t *testing.T) {
