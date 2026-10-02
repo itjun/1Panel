@@ -4,5 +4,8 @@ package macui
 
 import "github.com/wailsapp/wails/v3/pkg/application"
 
-// EnableFrostedBackdrop 已停用：主窗口改为不透明白底，非 macOS 亦无系统磨砂。
-func EnableFrostedBackdrop(win *application.WebviewWindow) {}
+func FrostedBackdropCapability() (bool, string) {
+	return false, "本版本尚未提供原生亚克力，正在使用经典外观"
+}
+func SetFrostedBackdrop(win *application.WebviewWindow, enabled bool) error { return nil }
+func ObserveTransparency(changed func()) func()                             { return func() {} }
