@@ -34,10 +34,12 @@ import {
 } from "@/react/state/settings";
 import { useSession } from "@/react/state/session";
 import { formatErr } from "@/utils/format";
+import { setWindowMaterial, useWindowTheme, type WindowMaterial } from "@/react/state/window-theme";
 
 export function SettingsPage() {
   const session = useSession();
   const settings = useSettings();
+  const windowTheme = useWindowTheme();
   const [ask, setAsk] = useState(true);
   const flash = useFlashMessage();
   const [boardEnabled, setBoardEnabled] = useState(true);
@@ -78,6 +80,7 @@ export function SettingsPage() {
   });
 
   const changed =
+    windowTheme.theme.preference !== "auto" ||
     settings.appearance !== SETTINGS_DEFAULTS.appearance ||
     settings.fontFamily !== SETTINGS_DEFAULTS.fontFamily ||
     settings.monoFontFamily !== SETTINGS_DEFAULTS.monoFontFamily ||
@@ -94,10 +97,16 @@ export function SettingsPage() {
         section === "look" || section === "session" ? (
           <Button
             size="sm"
-            disabled={!changed}
+            disabled={!changed || windowTheme.pending}
             onClick={() => {
-              resetSettings();
-              void api.setAskBeforeQuit(true).then(() => setAsk(true));
+              void (async () => {
+                try {
+                  if (windowTheme.desktop) await setWindowMaterial("auto");
+                  resetSettings();
+                  await api.setAskBeforeQuit(true);
+                  setAsk(true);
+                } catch (error) { flash.showError(formatErr(error)); }
+              })();
             }}
           >
             恢复默认值
@@ -118,9 +127,31 @@ export function SettingsPage() {
         {section === "look" ? (
           <section className="flex flex-col">
             <h2 className="mb-2 text-sm font-semibold text-ink">外观</h2>
-            <SettingRow label="主题" hint="改完立刻生效">
+            <SettingRow label="窗口材质" hint="自动按系统能力选择；手动选择会保存在本机，改完立刻生效">
+              <div className="flex flex-col items-start gap-2">
+                <RadioGroup<WindowMaterial>
+                  aria-label="窗口材质"
+                  value={windowTheme.theme.preference as WindowMaterial}
+                  disabled={windowTheme.pending || !windowTheme.desktop}
+                  onChange={(preference) => {
+                    void setWindowMaterial(preference).catch((error) => flash.showError(formatErr(error)));
+                  }}
+                  options={[
+                    { value: "auto", label: "自动" },
+                    { value: "classic", label: "经典" },
+                    { value: "acrylic", label: "亚克力" },
+                  ]}
+                />
+                <p className="m-0 text-xs text-muted" role="status">
+                  当前生效：{windowTheme.theme.effective === "acrylic" ? "亚克力" : "经典"}
+                  {windowTheme.theme.reason ? ` · ${windowTheme.theme.reason}` : ""}
+                </p>
+                <p className="m-0 text-xs text-muted">亚克力用于顶部和侧栏，内容区保持实色。</p>
+              </div>
+            </SettingRow>
+            <SettingRow label="颜色模式" hint="改完立刻生效，与窗口材质独立">
               <RadioGroup
-                aria-label="主题"
+                aria-label="颜色模式"
                 value={settings.appearance}
                 onChange={(appearance) => updateSettings({ appearance })}
                 options={[

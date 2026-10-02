@@ -27,6 +27,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Events } from "@wailsio/runtime";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/api";
+import { initializeWindowTheme } from "@/react/state/window-theme";
 import { startAppWatchAlertPoll, stopAppWatchAlertPoll } from "@/utils/appWatchAlerts";
 import { startCertAlertPoll, stopCertAlertPoll } from "@/utils/certAlerts";
 import { startHostResourceAlertPoll, stopHostResourceAlertPoll } from "@/utils/hostResourceAlerts";
@@ -55,6 +56,7 @@ export function App() {
 }
 
 function Shell() {
+  useEffect(() => initializeWindowTheme(), []);
   const session = useSession();
   const sidebar = useSidebar();
   const appOs = detectAppOs();
