@@ -89,9 +89,18 @@ tasks:
       - "appicon.icon"
     generates:
       - "darwin/icons.icns"
+      - "darwin/Assets.car"
       - "windows/icon.ico"
     cmds:
-      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico -iconcomposerinput appicon.icon -macassetdir darwin
+      # actool 只在 Xcode 里有；xcode-select 指向 Command Line Tools 时改用 Xcode.app
+      - |
+        {{if eq OS "darwin"}}if ! xcrun --find actool >/dev/null 2>&1 && [ -d /Applications/Xcode.app/Contents/Developer ]; then
+          export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+        fi{{end}}
+        wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico -iconcomposerinput appicon.icon -macassetdir darwin
+      # actool 不可用时 wails3 会静默退回 PNG 生成 icns，深色/着色外观下图标会被系统压暗
+      - cmd: test -f darwin/Assets.car || { echo "未生成 build/darwin/Assets.car：需要 Xcode 26+（actool），否则深色外观下 Dock 图标显示异常" >&2; exit 1; }
+        platforms: [darwin]
 
   dev:frontend:
     summary: Runs the frontend in development mode

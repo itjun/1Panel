@@ -17,6 +17,7 @@ build/*
 !build/README.md
 !build/appicon.svg
 !build/appicon.png
+!build/appicon.icon/
 !build/darwin/
 !build/darwin/Taskfile.yml
 !build/darwin/Info.plist
