@@ -74,6 +74,10 @@ export function GetMyEgress(): $CancellablePromise<monitor$0.EgressInfo> {
     return $Call.ByID(772990904);
 }
 
+export function GetWindowThemeState(): $CancellablePromise<$models.WindowThemeState> {
+    return $Call.ByID(3647533731);
+}
+
 /**
  * ListBoardURLs 返回该分组在本机私网 IP 上的看板链接。
  * groupName 为空时只返回 http://ip:port 基址（设置页示例）。
@@ -180,10 +184,21 @@ export function SetTrafficLightsHidden(hidden: boolean): $CancellablePromise<voi
     return $Call.ByID(2375721563, hidden);
 }
 
+export function SetWindowMaterial(preference: string): $CancellablePromise<$models.WindowThemeState> {
+    return $Call.ByID(663592792, preference);
+}
+
 /**
  * TestWecomWebhook 向企业微信群机器人发一条测试消息，确认地址可用。
  * 空地址或企微拒绝时返回错误；前端据此决定能否保存新地址。
  */
 export function TestWecomWebhook(webhook: string): $CancellablePromise<void> {
     return $Call.ByID(1547119601, webhook);
+}
+
+/**
+ * WindowThemeReady acknowledges the revision whose CSS has actually been painted.
+ */
+export function WindowThemeReady(revision: number): $CancellablePromise<boolean> {
+    return $Call.ByID(4210744855, revision);
 }

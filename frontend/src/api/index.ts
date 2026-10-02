@@ -560,6 +560,9 @@ const apiImpl = {
   setThemeAppearance: async (mode: string): Promise<void> => {
     await System.SetThemeAppearance(mode);
   },
+  getWindowThemeState: (): Promise<main.WindowThemeState> => must(System.GetWindowThemeState()),
+  setWindowMaterial: (preference: string): Promise<main.WindowThemeState> => must(System.SetWindowMaterial(preference)),
+  windowThemeReady: (revision: number): Promise<boolean> => System.WindowThemeReady(revision),
   /** 本机已安装的字体家族（设置页「自定义字体」列表） */
   listSystemFonts: (): Promise<sysfonts.SystemFont[]> => arr(System.ListSystemFonts()),
   /** 看板 HTTP 配置 */

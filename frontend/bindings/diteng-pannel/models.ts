@@ -616,3 +616,11 @@ export interface UpdateHostInput {
      */
     "note": string;
 }
+
+export interface WindowThemeState {
+    "preference": string;
+    "effective": string;
+    "supported": boolean;
+    "reason": string;
+    "revision": number;
+}

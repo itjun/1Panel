@@ -69,5 +69,6 @@ export type {
     PanelHostDraft,
     PanelStateDraft,
     PanelSystemEditor,
-    UpdateHostInput
+    UpdateHostInput,
+    WindowThemeState
 } from "./models.js";
