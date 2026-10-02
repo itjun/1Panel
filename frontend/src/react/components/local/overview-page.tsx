@@ -121,7 +121,7 @@ export function LocalOverviewPage() {
 
   let osText = "未知系统";
   if (data?.productVer) {
-    osText = `${data.productName || "macOS"} ${data.productVer}`;
+    osText = `${data.productName || ""} ${data.productVer}`.trim();
   } else if (data?.osRelease) {
     osText = data.osRelease;
   }

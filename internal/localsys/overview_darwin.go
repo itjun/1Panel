@@ -6,24 +6,23 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-// CollectOverview 采集本机系统概览。
-func CollectOverview() (*Overview, error) {
-	o := &Overview{
-		Arch:     runtime.GOARCH,
-		Hostname: hostname(),
-		Kernel:   sysctl("kern.osrelease"),
-	}
+// fillOSIdentity macOS：sw_vers（产品名 / 版本）+ sysctl（内核 / 机型）。
+func fillOSIdentity(o *Overview) {
 	o.ModelName = sysctl("hw.model")
+	o.Kernel = sysctl("kern.osrelease")
+	parseSWVers(o)
+}
+
+// fillCPUIdentity macOS：CPU 型号 / 逻辑核数 / P/E 核拓扑。
+func fillCPUIdentity(o *Overview) {
 	o.CPUModel = sysctl("machdep.cpu.brand_string")
 	if o.CPUModel == "" {
 		o.CPUModel = "Apple Silicon"
@@ -32,64 +31,12 @@ func CollectOverview() (*Overview, error) {
 		o.CPUCount = n
 	}
 	parseCPULevels(o)
-	if mem, err := strconv.ParseUint(strings.TrimSpace(sysctl("hw.memsize")), 10, 64); err == nil {
-		o.MemTotal = mem
-	}
+}
 
-	parseSWVers(o)
-	parseLoadAvg(o)
-	parseBootTime(o)
+// adjustMemUsed macOS：与活动监视器同口径「已用」=（活动 + 联动 + 压缩）× 页大小，
+// 比 gopsutil 的 total − inactive − free 更接近用户认知。
+func adjustMemUsed(o *Overview) {
 	parseMemUsed(o)
-	parseSwapUsage(o)
-	cores, total, perf, eff := samplePerCPUPercents(o.PerfCores, o.EffCores)
-	o.CPUCores = cores
-	o.CPUPercent = total
-	o.PerfCPUPercent = perf
-	o.EffCPUPercent = eff
-	o.Disks = listDisks()
-	o.IPAddress = primaryIPv4()
-	o.PublicIP = publicIPCached()
-	fillNetDiskCounters(o)
-	o.Runtimes = detectRuntimes()
-	fillSystemTemps(o)
-
-	if o.MemTotal > 0 {
-		o.MemPercent = float64(o.MemUsed) / float64(o.MemTotal) * 100
-	}
-	if o.SwapTotal > 0 {
-		o.SwapPercent = float64(o.SwapUsed) / float64(o.SwapTotal) * 100
-	}
-	return o, nil
-}
-
-func hostname() string {
-	h, err := os.Hostname()
-	if err != nil {
-		return ""
-	}
-	return h
-}
-
-// parseCPULevels 读 hw.perflevel{N}，区分 Performance / Efficiency 逻辑核心数。
-func parseCPULevels(o *Overview) {
-	nLevels, _ := strconv.Atoi(strings.TrimSpace(sysctl("hw.nperflevels")))
-	for i := 0; i < nLevels; i++ {
-		prefix := fmt.Sprintf("hw.perflevel%d.", i)
-		name := strings.ToLower(sysctl(prefix + "name"))
-		n, err := strconv.Atoi(strings.TrimSpace(sysctl(prefix + "logicalcpu")))
-		if err != nil || n <= 0 {
-			n, err = strconv.Atoi(strings.TrimSpace(sysctl(prefix + "physicalcpu")))
-		}
-		if err != nil || n <= 0 {
-			continue
-		}
-		switch {
-		case strings.Contains(name, "performance"):
-			o.PerfCores = n
-		case strings.Contains(name, "efficiency"):
-			o.EffCores = n
-		}
-	}
 }
 
 func sysctl(key string) string {
@@ -120,30 +67,24 @@ func parseSWVers(o *Overview) {
 	}
 }
 
-func parseLoadAvg(o *Overview) {
-	raw := sysctl("vm.loadavg")
-	// { 1.23 2.34 3.45 }
-	re := regexp.MustCompile(`([\d.]+)\s+([\d.]+)\s+([\d.]+)`)
-	m := re.FindStringSubmatch(raw)
-	if len(m) == 4 {
-		o.Load1, _ = strconv.ParseFloat(m[1], 64)
-		o.Load5, _ = strconv.ParseFloat(m[2], 64)
-		o.Load15, _ = strconv.ParseFloat(m[3], 64)
-	}
-}
-
-func parseBootTime(o *Overview) {
-	raw := sysctl("kern.boottime")
-	// { sec = 1789004012, usec = 513549 } Thu Sep 10 ...
-	re := regexp.MustCompile(`sec\s*=\s*(\d+)`)
-	m := re.FindStringSubmatch(raw)
-	if len(m) == 2 {
-		sec, _ := strconv.ParseInt(m[1], 10, 64)
-		if sec > 0 {
-			up := time.Now().Unix() - sec
-			if up > 0 {
-				o.Uptime = uint64(up)
-			}
+// parseCPULevels 读 hw.perflevel{N}，区分 Performance / Efficiency 逻辑核心数。
+func parseCPULevels(o *Overview) {
+	nLevels, _ := strconv.Atoi(strings.TrimSpace(sysctl("hw.nperflevels")))
+	for i := 0; i < nLevels; i++ {
+		prefix := fmt.Sprintf("hw.perflevel%d.", i)
+		name := strings.ToLower(sysctl(prefix + "name"))
+		n, err := strconv.Atoi(strings.TrimSpace(sysctl(prefix + "logicalcpu")))
+		if err != nil || n <= 0 {
+			n, err = strconv.Atoi(strings.TrimSpace(sysctl(prefix + "physicalcpu")))
+		}
+		if err != nil || n <= 0 {
+			continue
+		}
+		switch {
+		case strings.Contains(name, "performance"):
+			o.PerfCores = n
+		case strings.Contains(name, "efficiency"):
+			o.EffCores = n
 		}
 	}
 }
@@ -182,17 +123,6 @@ func parseMemUsed(o *Overview) {
 		}
 	}
 	o.MemUsed = (active + wired + compressed) * pageSize
-}
-
-// parseSwapUsage 解析 `sysctl vm.swapusage`。
-func parseSwapUsage(o *Overview) {
-	raw := sysctl("vm.swapusage")
-	total, used, ok := ParseSwapUsage(raw)
-	if !ok {
-		return
-	}
-	o.SwapTotal = total
-	o.SwapUsed = used
 }
 
 func listDisks() []DiskInfo {
@@ -624,32 +554,4 @@ func parseBytesField(s string) uint64 {
 	return n
 }
 
-func primaryIPv4() string {
-	out, err := exec.Command("route", "-n", "get", "default").Output()
-	if err != nil {
-		return firstNonLoopbackIPv4()
-	}
-	iface := ""
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if v, ok := strings.CutPrefix(line, "interface:"); ok {
-			iface = strings.TrimSpace(v)
-			break
-		}
-	}
-	if iface == "" {
-		return firstNonLoopbackIPv4()
-	}
-	ipOut, err := exec.Command("ipconfig", "getifaddr", iface).Output()
-	if err != nil {
-		return firstNonLoopbackIPv4()
-	}
-	ip := strings.TrimSpace(string(ipOut))
-	if ip != "" {
-		return ip
-	}
-	return firstNonLoopbackIPv4()
-}
-
-// detectRuntimes / runtimeVersion / firstNonLoopbackIPv4 为跨平台实现，
-// 已移至 runtimes.go 供 macOS 与 Windows 共用。
+// detectRuntimes / runtimeVersion / firstNonLoopbackIPv4 为跨平台实现，见 runtimes.go。

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import appIcon from "@/react/assets/appicon.png";
-import { isWindowsPlatform } from "@/react/lib/platform";
+import { isLinuxPlatform, isWindowsPlatform } from "@/react/lib/platform";
 import {
   HostBackupRestoreDialog,
   exportHostBackup,
@@ -295,7 +295,7 @@ export function SettingsPage() {
               <span>{statusLabel(status.data)}</span>
               <Button onClick={() => session.setConfigSection("overview")}>打开配置中心</Button>
             </SettingRow>
-            {isWindowsPlatform() ? (
+            {isWindowsPlatform() || isLinuxPlatform() ? (
               <SettingRow
                 label="终端打开方式"
                 hint="「终端打开」主机时的窗口行为；连接由系统 OpenSSH 按本机 SSH 配置建立"

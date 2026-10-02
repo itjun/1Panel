@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { api, type main } from "@/api";
 import { LocalAppsPage } from "@/react/components/local/apps-page";
+import { LocalAptPage } from "@/react/components/local/apt-page";
 import { LocalHostsPage } from "@/react/components/local/hosts-page";
 import { LocalMonitorPage } from "@/react/components/local/monitor-page";
 import { LocalNetworkPage } from "@/react/components/local/network-page";
@@ -14,6 +15,7 @@ import { Card } from "@/react/components/ui/card";
 import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { useSession, type LocalSection } from "@/react/state/session";
+import { isLinuxPlatform } from "@/react/lib/platform";
 import { formatErr } from "@/utils/format";
 
 export function LocalPage() {
@@ -22,6 +24,7 @@ export function LocalPage() {
   if (section === "monitor") return <LocalMonitorPage />;
   if (section === "procs") return <LocalAppsPage />;
   if (section === "packages") return <LocalPackagesPage />;
+  if (section === "apt" && isLinuxPlatform()) return <LocalAptPage />;
   if (section === "storage") return <LocalStoragePage />;
   if (section === "network") return <LocalNetworkPage />;
   if (section === "nginx") return <LocalNginxPage />;
@@ -201,6 +204,8 @@ export const LOCAL_SECTIONS: { id: LocalSection; label: string }[] = [
   { id: "monitor", label: "性能监控" },
   { id: "procs", label: "应用进程" },
   { id: "packages", label: "软件列表" },
+  // 软件源是 apt（/etc/apt）专属概念，仅 Linux 侧栏显示
+  ...(isLinuxPlatform() ? [{ id: "apt" as const, label: "软件源" }] : []),
   { id: "storage", label: "磁盘空间" },
   { id: "network", label: "网络信息" },
   { id: "nginx", label: "Nginx" },

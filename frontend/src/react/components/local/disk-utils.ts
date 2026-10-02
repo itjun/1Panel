@@ -30,10 +30,29 @@ export function isExternalMountPath(mount?: string | null): boolean {
   return !!name && !name.includes("/");
 }
 
+/**
+ * Linux 桌面环境自动挂载的外置盘（U 盘 / 移动硬盘）：
+ * /media/<用户>/<卷名>（GNOME 新版）或 /run/media/<用户>/<卷名>（KDE / 老版）。
+ */
+export function isLinuxExternalMountPath(mount?: string | null): boolean {
+  const m = (mount || "").trim();
+  const prefix = m.startsWith("/run/media/") ? "/run/media/" : m.startsWith("/media/") ? "/media/" : "";
+  if (!prefix) return false;
+  const rest = m.slice(prefix.length);
+  const parts = rest.split("/").filter(Boolean);
+  // <用户>/<卷名> 或个别发行版直接 <卷名>
+  return parts.length >= 1 && parts.length <= 2 && parts.every((part) => part.length > 0);
+}
+
 export function diskMountLabel(d: localsys.DiskInfo): string {
   const m = (d.mount || "").trim();
   if (isExternalMountPath(m)) {
     const name = m.slice("/Volumes/".length);
+    return name ? `${name}（外置）` : m;
+  }
+  if (isLinuxExternalMountPath(m)) {
+    const parts = m.split("/").filter(Boolean);
+    const name = parts[parts.length - 1];
     return name ? `${name}（外置）` : m;
   }
   return m || d.device || "磁盘";
@@ -44,6 +63,10 @@ export function diskExternalRowLabel(d: localsys.DiskInfo): string {
   if (isExternalMountPath(m)) {
     const name = m.slice("/Volumes/".length);
     return name || m;
+  }
+  if (isLinuxExternalMountPath(m)) {
+    const parts = m.split("/").filter(Boolean);
+    return parts[parts.length - 1] || m;
   }
   return diskMountLabel(d);
 }

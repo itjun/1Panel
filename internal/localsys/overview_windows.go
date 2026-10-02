@@ -4,51 +4,38 @@ package localsys
 
 import (
 	"fmt"
-	"net"
-	"os"
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
-// x/sys 未封装的 kernel32 入口。
-var (
-	modKernel32             = windows.NewLazySystemDLL("kernel32.dll")
-	procGlobalMemoryStatusEx = modKernel32.NewProc("GlobalMemoryStatusEx")
-	procGetTickCount64       = modKernel32.NewProc("GetTickCount64")
-)
-
-// memoryStatusEx 对应 MEMORYSTATUSEX（x64）。
-type memoryStatusEx struct {
-	Length               uint32
-	MemoryLoad           uint32
-	TotalPhys            uint64
-	AvailPhys            uint64
-	TotalPageFile        uint64
-	AvailPageFile        uint64
-	TotalVirtual         uint64
-	AvailVirtual         uint64
-	AvailExtendedVirtual uint64
+// fillOSIdentity Windows：注册表版本（Win11 旧版兼容仍写 Windows 10，需替换）。
+func fillOSIdentity(o *Overview) {
+	ver := readWindowsVersion()
+	o.OSRelease = ver.osReleaseText()
+	o.ProductName = "Windows"
+	o.ProductVer = strings.TrimSpace(ver.DisplayVersion)
+	o.Kernel = ver.kernelText()
+	o.ModelName = machineModelWin()
 }
 
-func globalMemoryStatus() (*memoryStatusEx, bool) {
-	ms := memoryStatusEx{Length: uint32(unsafe.Sizeof(memoryStatusEx{}))}
-	r0, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&ms)))
-	if r0 == 0 {
-		return nil, false
+// fillCPUIdentity Windows：注册表 CPU 型号。
+func fillCPUIdentity(o *Overview) {
+	o.CPUModel = cpuModelWin()
+	o.CPUCount = runtime.NumCPU()
+}
+
+// adjustMemUsed Windows：无覆盖（gopsutil 的 total − available 与原实现一致）。
+func adjustMemUsed(o *Overview) {}
+
+// fillLoadAvg Windows 无 Unix loadavg；用处理器队列长度近似 1 分钟负载。
+func fillLoadAvg(o *Overview) {
+	if q, ok := processorQueueLength(); ok {
+		o.Load1 = q
 	}
-	return &ms, true
-}
-
-func tickCount64() uint64 {
-	r0, _, _ := procGetTickCount64.Call()
-	return uint64(r0)
 }
 
 // ---- Windows 版本信息（注册表，不走 PowerShell） ----
@@ -117,78 +104,6 @@ func (v winVersionInfo) kernelText() string {
 	return fmt.Sprintf("Windows NT %d.%d.%s", maj, min, build)
 }
 
-// ---- CPU 使用率差分采样（与 macOS 版同思路） ----
-
-type winCPUTicks struct {
-	idle   []uint64
-	kernel []uint64
-	user   []uint64
-}
-
-var (
-	winCPUMu     sync.Mutex
-	winCPUPrev   winCPUTicks
-	winCPUPrevAt time.Time
-	winCPUPrevOK bool
-)
-
-func ticksBusyPercent(dIdle, dKernel, dUser uint64) float64 {
-	total := dKernel + dUser // KernelTime 已包含 IdleTime
-	if total == 0 {
-		return 0
-	}
-	busy := int64(dKernel) - int64(dIdle) + int64(dUser)
-	if busy < 0 {
-		busy = 0
-	}
-	pct := float64(busy) / float64(total) * 100
-	if pct > 100 {
-		pct = 100
-	}
-	return pct
-}
-
-// sampleCPUPercentsWin 返回每核使用率与整机使用率；首次调用会短暂双采样。
-func sampleCPUPercentsWin() (cores []CPUCoreStat, total float64) {
-	winCPUMu.Lock()
-	defer winCPUMu.Unlock()
-
-	idle, kernel, user, err := ntReadPerCPUTicks()
-	if err != nil || len(idle) == 0 {
-		return nil, 0
-	}
-	now := time.Now()
-	if !winCPUPrevOK || len(winCPUPrev.idle) != len(idle) ||
-		now.Sub(winCPUPrevAt) > 5*time.Second {
-		winCPUPrev = winCPUTicks{idle: idle, kernel: kernel, user: user}
-		winCPUPrevAt = now
-		winCPUPrevOK = true
-		time.Sleep(150 * time.Millisecond)
-		idle2, kernel2, user2, err2 := ntReadPerCPUTicks()
-		if err2 != nil || len(idle2) != len(idle) {
-			return nil, 0
-		}
-		idle, kernel, user = idle2, kernel2, user2
-	}
-
-	percents := make([]float64, len(idle))
-	var dIdleAll, dKernelAll, dUserAll uint64
-	for i := range idle {
-		dIdle := idle[i] - winCPUPrev.idle[i]
-		dKernel := kernel[i] - winCPUPrev.kernel[i]
-		dUser := user[i] - winCPUPrev.user[i]
-		percents[i] = ticksBusyPercent(dIdle, dKernel, dUser)
-		dIdleAll += dIdle
-		dKernelAll += dKernel
-		dUserAll += dUser
-	}
-	winCPUPrev = winCPUTicks{idle: idle, kernel: kernel, user: user}
-	winCPUPrevAt = now
-
-	cores = BuildCPUCoreStats(percents, 0, 0)
-	return cores, ticksBusyPercent(dIdleAll, dKernelAll, dUserAll)
-}
-
 // ---- 磁盘 ----
 
 const (
@@ -231,8 +146,8 @@ func eachLocalDrive(fn func(root string, rootPtr *uint16, isRemovable bool) bool
 	}
 }
 
-// listDisksWin 枚举本地固定盘与可移动盘卷；每卷自成一个「物理盘」。
-func listDisksWin() []DiskInfo {
+// listDisks 枚举本地固定盘与可移动盘卷；每卷自成一个「物理盘」。
+func listDisks() []DiskInfo {
 	var disks []DiskInfo
 	eachLocalDrive(func(root string, rootPtr *uint16, isRemovable bool) bool {
 		var freeCaller, total, free uint64
@@ -319,21 +234,19 @@ func volumeSerial(root *uint16) uint32 {
 	return serial
 }
 
-// ---- 主 IP ----
-
-func primaryIPv4Win() string {
-	// 用一次 UDP「连接」借出实际出口接口的地址；不会真正发包。
-	conn, err := net.Dial("udp4", "8.8.8.8:53")
-	if err == nil {
-		defer conn.Close()
-		if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok && addr.IP.To4() != nil && !addr.IP.IsLoopback() {
-			return addr.IP.String()
-		}
+// fillNetDiskCounters Windows：GetIfTable2 汇总网卡 + NT 查询磁盘累计 IO。
+func fillNetDiskCounters(o *Overview) {
+	rx, tx := sumNetOctets()
+	o.NetRxBytes = rx
+	o.NetTxBytes = tx
+	if read, write, ops, ok := ntSystemDiskIO(); ok {
+		o.DiskReadBytes = read
+		o.DiskWriteBytes = write
+		o.DiskIOCount = ops
 	}
-	return firstNonLoopbackIPv4()
 }
 
-// ---- 机型 ----
+// ---- 机型 / CPU 型号 ----
 
 func machineModelWin() string {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
@@ -365,66 +278,4 @@ func cpuModelWin() string {
 	defer k.Close()
 	name, _, _ := k.GetStringValue("ProcessorNameString")
 	return strings.TrimSpace(name)
-}
-
-// CollectOverview 采集本机系统概览（Windows）。
-func CollectOverview() (*Overview, error) {
-	o := &Overview{
-		Arch:     runtime.GOARCH,
-		Hostname: hostname(),
-	}
-	ver := readWindowsVersion()
-	o.OSRelease = ver.osReleaseText()
-	o.ProductName = "Windows"
-	o.ProductVer = strings.TrimSpace(ver.DisplayVersion)
-	o.Kernel = ver.kernelText()
-	o.CPUModel = cpuModelWin()
-	o.ModelName = machineModelWin()
-	o.CPUCount = runtime.NumCPU()
-
-	if ms, ok := globalMemoryStatus(); ok {
-		o.MemTotal = ms.TotalPhys
-		o.MemUsed = ms.TotalPhys - ms.AvailPhys
-		o.MemPercent = float64(o.MemUsed) / float64(o.MemTotal) * 100
-	}
-	if total, used, ok := ntPageFileUsage(); ok {
-		o.SwapTotal = total
-		o.SwapUsed = used
-		o.SwapPercent = float64(used) / float64(total) * 100
-	}
-
-	// Windows 无 Unix loadavg；用处理器队列长度近似 1 分钟负载
-	if q, ok := processorQueueLength(); ok {
-		o.Load1 = q
-	}
-
-	o.Uptime = tickCount64() / 1000
-
-	cores, total := sampleCPUPercentsWin()
-	o.CPUCores = cores
-	o.CPUPercent = total
-
-	o.Disks = listDisksWin()
-	o.IPAddress = primaryIPv4Win()
-	o.PublicIP = publicIPCached()
-
-	rx, tx := sumNetOctets()
-	o.NetRxBytes = rx
-	o.NetTxBytes = tx
-	if read, write, ops, ok := ntSystemDiskIO(); ok {
-		o.DiskReadBytes = read
-		o.DiskWriteBytes = write
-		o.DiskIOCount = ops
-	}
-	o.Runtimes = detectRuntimes()
-	// 温度：Windows 无统一接口，保留 nil（前端显示「—」）
-	return o, nil
-}
-
-func hostname() string {
-	h, err := os.Hostname()
-	if err != nil {
-		return ""
-	}
-	return h
 }

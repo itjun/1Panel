@@ -116,8 +116,8 @@ task darwin:package
 │   ├── groups/                   # 分组本地存储（~/Library/Application Support/ServerPanel/groups.json）
 │   ├── sshd/                     # SSH 长连接管理
 │   ├── monitor/                  # 远程主机监控采集（overview/disks/processes/docker/services）
-│   ├── localsys/                 # 本机系统采集（darwin + windows 实现，Linux 返回未支持）
-│   └── localapps/                # 本机应用进程扫描与归并（darwin + windows 实现）
+│   ├── localsys/                 # 本机系统采集（gopsutil 跨平台 + 各平台钩子：darwin / windows / linux）
+│   └── localapps/                # 本机应用进程扫描与归并（共享骨架 + 各平台钩子：darwin / windows / linux）
 ├── frontend/
 │   └── src/
 │       ├── react/                # React 前端（pages / components / state / lib）
@@ -128,7 +128,7 @@ task darwin:package
 
 ## 限制
 
-- 桌面端支持 macOS（通用包）与 Windows 10/11 x64；Linux 未适配
+- 桌面端支持 macOS（通用包）、Windows 10/11 x64 与 Linux（Debian 13 验证，deb/rpm/AppImage 任务见 build/linux）
 - 仅 Debian/Ubuntu 目标机（其他发行版的 `systemctl`、`dpkg-query` 等命令可能不可用）
 - 监控采集全部为只读命令，不做任何写操作
 - 终端通过系统 `ssh` 二进制启动，依赖本机存在 `ssh`（Windows 为系统 OpenSSH）
@@ -138,6 +138,11 @@ task darwin:package
   - 负载用「处理器队列长度」近似 Unix loadavg（仅 1 分钟值）
   - 磁盘空间扫描不做 NTFS 硬链接去重（稀疏极少见，避免逐文件打开句柄拖慢扫描）
   - Nginx 页在 Windows 上依赖手动安装的 nginx.exe（PATH / 常见目录探测），未安装时提示「未检测到」
+- Linux 本机工作区的已知边界：
+  - 进程网络速率经 `ss` 的 TCP 连接计数（bytes_acked / bytes_received）差分统计，UDP / ICMP 不计入；缺 iproute2（ss）时网络列显示 0 并提示
+  - CPU/GPU 温度走 hwmon，虚拟机 / 无传感器设备显示「—」
+  - 软件列表按存在的包管理器展示（dpkg / rpm / pacman / flatpak / snap + 桌面应用）
+  - 磁盘空间「应用占用」按 .desktop 入口归并 XDG 数据目录（~/.config、~/.cache、~/.local/share 等），无 bundle 概念
 
 ## 初始化脚本
 

@@ -315,6 +315,53 @@ def install():
         install_linux()
 
 
+def _graphical_session_env():
+    """从当前图形会话补齐显示相关环境变量。
+
+    build.py 可能被没有图形环境的 shell 调起(agent / cron / ssh)：Wayland 下
+    缺 WAYLAND_DISPLAY 应用起不来，X11 下缺 DISPLAY 会退到无头。这里通过
+    loginctl 找到活动图形会话的 Leader 进程，从 /proc/<pid>/environ 继承显示
+    变量（仅补缺失项，不覆盖调用方已有值）。拿不到会话时原样返回。"""
+    inherit_keys = (
+        "WAYLAND_DISPLAY", "DISPLAY", "XDG_SESSION_TYPE",
+        "XDG_RUNTIME_DIR", "XDG_CURRENT_DESKTOP", "DBUS_SESSION_BUS_ADDRESS",
+    )
+    env = {}
+    try:
+        sessions = subprocess.run(
+            ["loginctl", "list-sessions", "--no-legend"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.splitlines()
+        for line in sessions:
+            fields = line.split()
+            if len(fields) < 2:
+                continue
+            session_id = fields[0]
+            info = subprocess.run(
+                ["loginctl", "show-session", session_id, "-p", "Type", "-p", "Leader"],
+                capture_output=True, text=True, timeout=5,
+            ).stdout
+            props = dict(
+                l.split("=", 1) for l in info.strip().splitlines() if "=" in l
+            )
+            if props.get("Type") not in ("wayland", "x11"):
+                continue
+            leader = props.get("Leader", "")
+            with open(f"/proc/{leader}/environ", "rb") as f:
+                for item in f.read().split(b"\0"):
+                    if b"=" not in item:
+                        continue
+                    key, _, value = item.partition(b"=")
+                    key = key.decode("utf-8", "replace")
+                    if key in inherit_keys and key not in env:
+                        env[key] = value.decode("utf-8", "replace")
+            if env:
+                break
+    except Exception as exc:  # 会话探测失败不阻塞启动，仅提示
+        print(f"    图形会话探测失败（{exc}），沿用调用方环境", file=sys.stderr)
+    return env
+
+
 def launch():
     if IS_WINDOWS:
         # os.startfile 以 shell 默认方式启动 exe（工作目录 = 项目根）
@@ -327,13 +374,17 @@ def launch():
         subprocess.run(["open", INSTALL_DIR], check=True)
     else:
         # 分离会话后台启动，stdout/stderr 落盘日志便于排查"没起来"
-        print(f"==> 启动 {LINUX_INSTALL_BIN}（日志: {LINUX_LAUNCH_LOG}）")
+        # 无图形环境的调用方（agent/cron/ssh）自动继承当前图形会话的显示变量
+        env = {**os.environ, **_graphical_session_env()}
+        backend = "Wayland" if env.get("WAYLAND_DISPLAY") else (
+            "X11" if env.get("DISPLAY") else "无显示环境（应用可能无法出窗口）")
+        print(f"==> 启动 {LINUX_INSTALL_BIN}（显示协议: {backend}，日志: {LINUX_LAUNCH_LOG}）")
         os.makedirs(os.path.dirname(LINUX_LAUNCH_LOG), exist_ok=True)
         with open(LINUX_LAUNCH_LOG, "ab") as log:
             subprocess.Popen(
                 [LINUX_INSTALL_BIN],
                 stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                start_new_session=True, cwd=os.path.expanduser("~"),
+                start_new_session=True, cwd=os.path.expanduser("~"), env=env,
             )
 
 

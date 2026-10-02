@@ -3,23 +3,18 @@
 package localsys
 
 import (
-	"net"
 	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
-// CollectNetwork 采集本机网卡、地址与默认网关（GetAdaptersAddresses + GetIfTable2）。
-func CollectNetwork() (*NetworkSnapshot, error) {
-	snap := &NetworkSnapshot{}
+// defaultRoute Windows：取带网关且 IPv4 度量最小的活动适配器。
+func defaultRoute() (gateway, iface string) {
 	adapters, err := listAdapters()
 	if err != nil {
-		return nil, err
+		return "", ""
 	}
-	octets := ifOctetsByIndex()
-
-	// 默认网关：取带网关且 IPv4 度量最小的活动适配器
 	bestGateway := ""
 	bestIface := ""
 	bestMetric := uint32(^uint32(0))
@@ -38,54 +33,49 @@ func CollectNetwork() (*NetworkSnapshot, error) {
 			bestIface = a.name
 		}
 	}
-	snap.DefaultGateway = bestGateway
-	snap.PrimaryIface = bestIface
+	return bestGateway, bestIface
+}
 
+// decorateInterfaces Windows：用 GetAdaptersAddresses 的 FriendlyName / 类型补展示名与类型。
+// gopsutil 的 Name 是适配器 GUID（AdapterName），需要对照回友好名（如「以太网」「WLAN」）。
+func decorateInterfaces(ifcs []NetInterface) {
+	adapters, err := listAdapters()
+	if err != nil {
+		return
+	}
+	byName := make(map[string]winAdapter, len(adapters))
 	for _, a := range adapters {
-		if a.kind == "loopback" {
+		byName[a.name] = a
+	}
+	for i := range ifcs {
+		ifc := &ifcs[i]
+		a, ok := byName[ifc.Name]
+		if !ok {
 			continue
 		}
-		ifc := NetInterface{
-			Name:    a.name,
-			Display: a.display,
-			Kind:    a.kind,
-			State:   a.state,
-			MTU:     a.mtu,
-			MAC:     a.mac,
-			IPv4:    a.ipv4,
-			IPv6:    a.ipv6,
-			RxBytes: octets[a.ifIndex].rx,
-			TxBytes: octets[a.ifIndex].tx,
+		if a.display != "" {
+			ifc.Display = a.display
 		}
-		snap.Interfaces = append(snap.Interfaces, ifc)
-		if ifc.IPv4 != "" && !isLinkLocalIP(ifc.IPv4) {
-			snap.PrivateIPs = append(snap.PrivateIPs, ifc.IPv4)
-		}
-		if snap.PrimaryIface != "" && a.name == snap.PrimaryIface && ifc.IPv4 != "" {
-			snap.PrimaryIP = ifc.IPv4
+		ifc.Kind = classifyAdapterKind(a.ifType, a.display)
+		if ifc.Kind == "loopback" {
+			ifc.Kind = "other"
 		}
 	}
-	if snap.PrimaryIP == "" {
-		snap.PrimaryIP = primaryIPv4Win()
-	}
-	if snap.PrimaryIP == "" && len(snap.PrivateIPs) > 0 {
-		snap.PrimaryIP = snap.PrivateIPs[0]
-	}
-	return snap, nil
 }
 
 type winAdapter struct {
-	name        string // AdapterName（GUID 字符串，稳定键）
-	display     string // FriendlyName，如「以太网」「WLAN」
-	kind        string
-	state       string
-	mtu         int
-	mac         string
-	ipv4        string
-	ipv6        string
-	gateway     string
-	ifIndex     uint32
-	ipv4Metric  uint32
+	name       string // AdapterName（GUID 字符串，稳定键）
+	display    string // FriendlyName，如「以太网」「WLAN」
+	kind       string
+	state      string
+	mtu        int
+	mac        string
+	ipv4       string
+	ipv6       string
+	gateway    string
+	ifType     uint32
+	ifIndex    uint32
+	ipv4Metric uint32
 }
 
 func listAdapters() ([]winAdapter, error) {
@@ -117,6 +107,7 @@ func parseAdapters(head *windows.IpAdapterAddresses) []winAdapter {
 	var out []winAdapter
 	for aa := head; aa != nil; aa = aa.Next {
 		a := winAdapter{
+			ifType:     aa.IfType,
 			ifIndex:    aa.IfIndex,
 			mtu:        int(aa.Mtu),
 			ipv4Metric: aa.Ipv4Metric,
@@ -195,14 +186,6 @@ func classifyAdapterKind(ifType uint32, display string) string {
 		return "other"
 	}
 	return "other"
-}
-
-func isLinkLocalIP(ip string) bool {
-	parsed := net.ParseIP(ip)
-	if parsed == nil {
-		return false
-	}
-	return parsed.IsLinkLocalUnicast()
 }
 
 // ---- GetIfTable2：每接口收发字节数 ----

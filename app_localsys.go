@@ -1,8 +1,11 @@
 package main
 
-import "diteng-pannel/internal/localsys"
+import (
+	"diteng-pannel/internal/aptsource"
+	"diteng-pannel/internal/localsys"
+)
 
-// LocalSys 本机系统信息（macOS；不经 SSH）。
+// LocalSys 本机系统信息（macOS / Windows / Linux，不经 SSH）。
 type LocalSys App
 
 func (s *LocalSys) Overview() (*localsys.Overview, error) {
@@ -27,6 +30,15 @@ func (s *LocalSys) NginxRead(path string) (string, error) {
 
 func (s *LocalSys) Hosts() (*localsys.HostsInfo, error) {
 	return localsys.CollectHosts()
+}
+
+// AptSources 本机 /etc/apt 源文件 + 发行版（只读查看，仅 Linux 侧栏入口）。
+func (s *LocalSys) AptSources() (*aptsource.Snapshot, error) {
+	snap, err := aptsource.Collect()
+	if err != nil {
+		return nil, err
+	}
+	return &snap, nil
 }
 
 func (s *LocalSys) StorageScanStart() (*localsys.StorageStatus, error) {

@@ -4,10 +4,8 @@ package localapps
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -15,13 +13,11 @@ import (
 )
 
 var (
-	scanMuWin  sync.Mutex
-	lastScanAt time.Time
-	cpuPrevAt  time.Time
-	threadCPU  = map[uint64]uint64{} // tid -> 上一轮 (user+kernel) 100ns
+	cpuPrevAt time.Time
+	threadCPU = map[uint64]uint64{} // tid -> 上一轮 (user+kernel) 100ns
 )
 
-// procCPUHistory 单轮扫描内的进程 CPU 时间，供下一轮差分。
+// procCPUSample 单轮扫描内的进程 CPU 时间，供下一轮差分。
 type procCPUSample struct {
 	cpu100ns uint64
 	at       time.Time
@@ -29,35 +25,23 @@ type procCPUSample struct {
 
 var procCPUPrev = map[int]procCPUSample{}
 
-// Scan 扫描当前用户拥有的开发运行时与 TCP 服务候选并归并。
-func Scan() (*Snapshot, error) {
-	scanMuWin.Lock()
-	defer scanMuWin.Unlock()
-
-	now := time.Now()
-	lastScanAt = now
+// collectProcs Windows：NT 进程快照 + 属主过滤（管理员可跨用户）。
+func collectProcs(now time.Time) ([]RawProc, []string, error) {
 	warnings := []string{
 		"Windows 下暂无法按进程统计网络收发速率，网络列为 0",
 	}
-
 	procs, err := winProcessSnapshot()
 	if err != nil {
-		return nil, fmt.Errorf("读取进程快照失败: %w", err)
+		return nil, warnings, fmt.Errorf("读取进程快照失败: %w", err)
 	}
-	sockets, _ := socketSnapshot()
-	listeners := listenersByPID(sockets)
 
 	currentUser := currentUserName()
-	selfPID := os.Getpid()
 	raws := make([]RawProc, 0, 32)
-
-	alive := map[int]bool{}
 	for i := range procs {
 		p := &procs[i]
 		if p.PID <= 0 || p.PID == 4 { // Idle / System
 			continue
 		}
-		alive[p.PID] = true
 		owner := processOwner(p.PID)
 		if owner == "" || (currentUser != "" && owner != currentUser && !isAdminToken()) {
 			continue
@@ -73,95 +57,40 @@ func Scan() (*Snapshot, error) {
 			args = []string{}
 		}
 
-		var goInfo goCacheEntry
-		runtime := DetectRuntime(comm, args, exe, false)
-		if runtime == "" {
-			goInfo = lookupGoInfo(exe)
-			runtime = DetectRuntime(comm, args, exe, goInfo.isGo)
-		}
-		if runtime == "" && len(listeners[p.PID]) == 0 {
-			continue
-		}
-
-		kind := AppKindRuntime
-		confidence := ConfidenceHigh
-		evidence := []string{"识别到开发运行时：" + runtime}
-		if runtime == "" {
-			runtime = "unknown"
-			kind = AppKindService
-			confidence = ConfidenceMedium
-			evidence = listenerEvidence(listeners[p.PID], portsFromListeners(listeners[p.PID]))
-		}
-
 		rp := RawProc{
-			PID:             p.PID,
-			PPID:            p.PPID,
-			User:            owner,
-			Kind:            kind,
-			Runtime:         runtime,
-			Confidence:      confidence,
-			Evidence:        evidence,
-			CPU:             procCPUPercent(p, now),
-			RSS:             p.WorkingSet,
-			ThreadCount:     maxInt(p.ThreadCount, 1),
-			Elapsed:         uptimeSeconds(p.CreateTime),
-			Comm:            comm,
-			Exe:             exe,
-			Cwd:             cwd,
-			Cmd:             cmdline,
-			Args:            args,
-			ListenAddresses: append([]string(nil), listeners[p.PID]...),
-			Ports:           portsFromListeners(listeners[p.PID]),
-			DiskRead:        p.ReadBytes,
-			DiskWrite:       p.WriteBytes,
-			IsGo:            goInfo.isGo,
-			Extra:           map[string]string{},
-			Threads:         threadNodes(p, now),
+			PID:         p.PID,
+			PPID:        p.PPID,
+			User:        owner,
+			CPU:         procCPUPercent(p, now),
+			RSS:         p.WorkingSet,
+			ThreadCount: maxInt(p.ThreadCount, 1),
+			Elapsed:     uptimeSeconds(p.CreateTime),
+			Comm:        comm,
+			Exe:         exe,
+			Cwd:         cwd,
+			Cmd:         cmdline,
+			Args:        args,
+			DiskRead:    p.ReadBytes,
+			DiskWrite:   p.WriteBytes,
+			Extra:       map[string]string{},
+			Threads:     threadNodes(p, now),
 		}
-		if goInfo.isGo {
-			if goInfo.module != "" {
-				rp.Extra["module"] = goInfo.module
-			}
-			if goInfo.goVersion != "" {
-				rp.Extra["goVersion"] = goInfo.goVersion
-			}
-		}
-		if p.PID == selfPID {
-			rp.Extra["self"] = "1"
-		}
-		applyRates(&rp, now)
 		raws = append(raws, rp)
 	}
-
-	apps := GroupApps(raws)
-
-	// 清理已消失进程的差分历史，避免 map 无限增长
-	for pid := range procCPUPrev {
-		if !alive[pid] {
-			delete(procCPUPrev, pid)
-		}
-	}
-	if now.Sub(cpuPrevAt) > 10*time.Minute {
-		threadCPU = map[uint64]uint64{}
-	}
-
-	return &Snapshot{
-		SampledAt: now.Unix(),
-		Apps:      apps,
-		Warnings:  warnings,
-	}, nil
+	return raws, warnings, nil
 }
 
-// ProcDetail 返回单个进程的完整详情。
-func ProcDetail(pid int) (*ProcNode, error) {
-	if pid <= 0 {
-		return nil, fmt.Errorf("非法 PID")
-	}
-	scanMuWin.Lock()
-	defer scanMuWin.Unlock()
+// collectListeners Windows：NT 套接字表（含属主 PID）。
+func collectListeners(pids []int) (map[int][]string, []string) {
+	sockets, _ := socketSnapshot()
+	return listenersByPID(sockets), nil
+}
 
-	now := time.Now()
-	lastScanAt = now
+// fillProcCwds Windows：collectProcs 已随命令行一并读取，无需批量补。
+func fillProcCwds(kept []*RawProc) {}
+
+// collectProcDetail Windows：单进程基础字段 + 套接字表强刷监听地址。
+func collectProcDetail(pid int, now time.Time) (*RawProc, error) {
 	procs, err := winProcessSnapshot()
 	if err != nil {
 		return nil, fmt.Errorf("读取进程快照失败: %w", err)
@@ -202,14 +131,7 @@ func ProcDetail(pid int) (*ProcNode, error) {
 		args = []string{}
 	}
 
-	var goInfo goCacheEntry
-	runtime := DetectRuntime(comm, args, exe, false)
-	if runtime == "" {
-		goInfo = lookupGoInfo(exe)
-		runtime = DetectRuntime(comm, args, exe, goInfo.isGo)
-	}
-
-	rp := RawProc{
+	rp := &RawProc{
 		PID:         base.PID,
 		PPID:        base.PPID,
 		User:        owner,
@@ -224,49 +146,17 @@ func ProcDetail(pid int) (*ProcNode, error) {
 		Args:        args,
 		DiskRead:    base.ReadBytes,
 		DiskWrite:   base.WriteBytes,
-		IsGo:        goInfo.isGo,
 		Extra:       map[string]string{},
 		Threads:     threadNodes(base, now),
 	}
-	if goInfo.isGo {
-		if goInfo.module != "" {
-			rp.Extra["module"] = goInfo.module
-		}
-		if goInfo.goVersion != "" {
-			rp.Extra["goVersion"] = goInfo.goVersion
-		}
-	}
-	if pid == os.Getpid() {
-		rp.Extra["self"] = "1"
-	}
-	applyRates(&rp, now)
 	rp.ListenAddresses = listenAddrs
 	rp.Ports = uniqueSortedPorts(ports)
-
-	if runtime != "" {
-		rp.Kind = AppKindRuntime
-		rp.Confidence = ConfidenceHigh
-		rp.Evidence = []string{"识别到开发运行时：" + runtime}
-	} else if len(rp.ListenAddresses) > 0 {
-		rp.Kind = AppKindService
-		rp.Confidence = ConfidenceMedium
-		for _, address := range rp.ListenAddresses {
-			rp.Evidence = append(rp.Evidence, "TCP 监听："+address)
-		}
-	}
-	if runtime == "" {
-		runtime = "unknown"
-	}
-	node := rawToProcNode(&rp, runtime)
-	return &node, nil
+	return rp, nil
 }
 
-// Resources 列出进程的网络端点。Windows 无普通用户可用的文件句柄枚举接口，
+// listProcResources Windows 列出进程的网络端点。Windows 无普通用户可用的文件句柄枚举接口，
 // 仅返回 TCP/UDP 连接并给出说明。
-func Resources(pid int) (*ResourceSnapshot, error) {
-	if pid <= 0 {
-		return nil, fmt.Errorf("非法 PID")
-	}
+func listProcResources(pid int) (*ResourceSnapshot, error) {
 	sockets, err := socketSnapshot()
 	if err != nil {
 		return nil, err
@@ -293,15 +183,9 @@ func Resources(pid int) (*ResourceSnapshot, error) {
 	return snap, nil
 }
 
-// Kill 结束进程；force=false 时先向窗口投递 WM_CLOSE 优雅关闭，
+// killProc Windows：force=false 时先向窗口投递 WM_CLOSE 优雅关闭，
 // 无窗口或未退出时报错提示改用强制结束；force=true 直接 TerminateProcess。
-func Kill(pid int, force bool) error {
-	if pid <= 0 {
-		return fmt.Errorf("非法 PID")
-	}
-	if pid == os.Getpid() {
-		return fmt.Errorf("不能结束本程序自身")
-	}
+func killProc(pid int, force bool) error {
 	currentUser := currentUserName()
 	owner := processOwner(pid)
 	if owner == "" {
@@ -326,6 +210,18 @@ func Kill(pid int, force bool) error {
 		return fmt.Errorf("已发送关闭消息但进程未退出（控制台/服务进程需要强制结束）")
 	}
 	return fmt.Errorf("该进程没有可关闭的窗口，请使用强制结束")
+}
+
+// cleanupScanHistory Windows：清理进程 / 线程差分缓存。
+func cleanupScanHistory(alive map[int]bool, now time.Time) {
+	for pid := range procCPUPrev {
+		if !alive[pid] {
+			delete(procCPUPrev, pid)
+		}
+	}
+	if now.Sub(cpuPrevAt) > 10*time.Minute {
+		threadCPU = map[uint64]uint64{}
+	}
 }
 
 func terminateProcess(pid int) error {
@@ -485,16 +381,6 @@ func listenersByPID(sockets []winSocketInfo) map[int][]string {
 		sort.Strings(byPID[pid])
 	}
 	return byPID
-}
-
-func portsFromListeners(addrs []string) []int {
-	var ports []int
-	for _, address := range addrs {
-		if port := parseListenPort(address); port > 0 {
-			ports = append(ports, port)
-		}
-	}
-	return uniqueSortedPorts(ports)
 }
 
 func exeBase(path string) string {

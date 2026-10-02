@@ -51,6 +51,7 @@ export type LocalSection =
   | "storage"
   | "network"
   | "packages"
+  | "apt"
   | "procs"
   | "monitor"
   | "overview";

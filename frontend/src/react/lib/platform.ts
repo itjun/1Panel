@@ -34,6 +34,10 @@ export function isWindowsPlatform(): boolean {
   return detectAppOs() === "win";
 }
 
+export function isLinuxPlatform(): boolean {
+  return detectAppOs() === "linux";
+}
+
 /** 只需要读修饰键，原生事件与 React 合成事件都能传。 */
 type ModifierEvent = { metaKey: boolean; ctrlKey: boolean };
 

@@ -1,7 +1,7 @@
-//go:build !darwin
+//go:build windows
 
 package localsys
 
 func fillSystemTemps(o *Overview) {
-	// 非 macOS 无 SMC 温度
+	// Windows 无统一温度接口，保留 nil（前端显示「—」）
 }

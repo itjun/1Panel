@@ -41,6 +41,7 @@ export * as main from "../../bindings/diteng-pannel/models";
 import type { CancellablePromise } from "@wailsio/runtime";
 import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
 import type * as agentinstall from "../../bindings/diteng-pannel/internal/agentinstall/models";
+import type * as aptsource from "../../bindings/diteng-pannel/internal/aptsource/models";
 import type * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
 import type * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
 import type * as certnotify from "../../bindings/diteng-pannel/internal/certnotify/models";
@@ -427,6 +428,8 @@ const apiImpl = {
   localSysNginxRead: (path: string): Promise<string> => str(LocalSys.NginxRead(path)),
   /** 本机 /etc/hosts */
   localSysHosts: (): Promise<localsys.HostsInfo> => must(LocalSys.Hosts()),
+
+  localSysAptSources: (): Promise<aptsource.Snapshot> => must(LocalSys.AptSources()),
 
   /** 本机磁盘占用：开始扫描 */
   localSysStorageScanStart: (): Promise<localsys.StorageStatus> =>

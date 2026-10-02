@@ -307,3 +307,7 @@ func collectNginxFilesWin(mainConf string) []NginxFile {
 	return files
 }
 
+// listNginxFiles Windows：CollectNginx 未走公共层（自带 collectNginxFilesWin），占位。
+func listNginxFiles(conf string) []NginxFile {
+	return nil
+}

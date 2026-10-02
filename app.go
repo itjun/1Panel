@@ -218,7 +218,12 @@ func NewApp() *application.App {
 		core.startBoardHTTP()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
-		core.enforceMinSize()
+		// Linux 不得在缩放事件里再 SetSize：创建时的 Min 约束已由窗口管理器在
+		// 交互式拖拽中平滑钳制，事件内强制会与拖拽锚点互相拉扯，四角拖动时
+		// 窗口反复弹跳。Windows 保留（应对启动期隐藏窗口 bounds 异常的兜底）。
+		if goruntime.GOOS != "linux" {
+			core.enforceMinSize()
+		}
 		core.scheduleSaveGeom()
 		macui.ApplyCenteredTrafficLights(win)
 	})

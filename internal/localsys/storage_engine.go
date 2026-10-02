@@ -1,4 +1,4 @@
-//go:build darwin || windows
+//go:build darwin || linux || windows
 
 package localsys
 
@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-// 存储扫描通用引擎（macOS / Windows 共用）：
+// 存储扫描通用引擎（macOS / Windows / Linux 共用）：
 // 状态机、缓存、目录树、Top-N 大文件堆与扫描骨架都在这里；
 // 平台差异（扫描根、容器容量、应用归并、Reveal、文件占用口径）由各平台文件提供：
 //   - defaultStorageRoots() / storageContainerSummary()

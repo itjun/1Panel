@@ -212,7 +212,7 @@ func uniqueSortedPIDs(pids []int) []int {
 	return unique
 }
 
-func Resources(pid int) (*ResourceSnapshot, error) {
+func listProcResources(pid int) (*ResourceSnapshot, error) {
 	if pid <= 0 {
 		return nil, fmt.Errorf("非法 PID")
 	}

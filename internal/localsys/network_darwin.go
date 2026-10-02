@@ -4,91 +4,36 @@ package localsys
 
 import (
 	"bufio"
-	"net"
 	"os/exec"
 	"strconv"
 	"strings"
 )
 
-// CollectNetwork 采集本机网卡与默认网关信息。
-func CollectNetwork() (*NetworkSnapshot, error) {
-	ports := parseHardwarePorts(runCmd("networksetup", "-listallhardwareports"))
-	ifaces := parseIfconfig(runCmd("ifconfig"))
-	// -n：禁止反向 DNS；无 -n 时 netstat -ib 常卡数秒
-	bytesMap := parseNetstatIB(runCmd("netstat", "-ibn"))
+// defaultRoute macOS：route -n get default。
+func defaultRoute() (gateway, iface string) {
+	return parseDefaultRoute(runCmd("route", "-n", "get", "default"))
+}
 
-	// 合并
-	byDev := map[string]*NetInterface{}
-	for i := range ifaces {
-		ifc := ifaces[i]
-		byDev[ifc.Name] = &ifc
-	}
+// decorateInterfaces macOS：用 networksetup 的硬件端口名补展示名（如 Wi-Fi）与类型。
+func decorateInterfaces(ifcs []NetInterface) {
+	ports := parseHardwarePorts(runCmd("networksetup", "-listallhardwareports"))
+	byDev := make(map[string]hwPort, len(ports))
 	for _, p := range ports {
-		ifc, ok := byDev[p.device]
+		byDev[p.device] = p
+	}
+	for i := range ifcs {
+		ifc := &ifcs[i]
+		p, ok := byDev[ifc.Name]
 		if !ok {
-			ifc = &NetInterface{Name: p.device}
-			byDev[p.device] = ifc
+			ifc.Kind = classifyKind(ifc.Display, ifc.Name)
+			continue
 		}
 		ifc.Display = p.port
-		ifc.MAC = p.mac
-		ifc.Kind = classifyKind(p.port, p.device)
+		if ifc.MAC == "" {
+			ifc.MAC = p.mac
+		}
+		ifc.Kind = classifyKind(p.port, ifc.Name)
 	}
-	for name, ifc := range byDev {
-		if ifc.Kind == "" {
-			ifc.Kind = classifyKind(ifc.Display, name)
-		}
-		if ifc.Display == "" {
-			ifc.Display = name
-		}
-		if b, ok := bytesMap[name]; ok {
-			ifc.RxBytes = b.rx
-			ifc.TxBytes = b.tx
-		}
-	}
-
-	snap := &NetworkSnapshot{}
-	gw, primaryIface := parseDefaultRoute(runCmd("route", "-n", "get", "default"))
-	snap.DefaultGateway = gw
-	snap.PrimaryIface = primaryIface
-	if primaryIface != "" {
-		if ipOut, err := exec.Command("ipconfig", "getifaddr", primaryIface).Output(); err == nil {
-			snap.PrimaryIP = strings.TrimSpace(string(ipOut))
-		}
-	}
-
-	// 稳定顺序：先有 hardware port 的，再其它
-	order := []string{}
-	seen := map[string]bool{}
-	for _, p := range ports {
-		if !seen[p.device] {
-			order = append(order, p.device)
-			seen[p.device] = true
-		}
-	}
-	for name := range byDev {
-		if !seen[name] {
-			order = append(order, name)
-			seen[name] = true
-		}
-	}
-	for _, name := range order {
-		ifc := byDev[name]
-		if ifc == nil {
-			continue
-		}
-		// 跳过无用 loopback / 空
-		if name == "lo0" || name == "lo" {
-			continue
-		}
-		snap.Interfaces = append(snap.Interfaces, *ifc)
-		if ifc.IPv4 != "" && !isLinkLocal(ifc.IPv4) {
-			snap.PrivateIPs = append(snap.PrivateIPs, ifc.IPv4)
-		}
-	}
-	if snap.PrimaryIP == "" && len(snap.PrivateIPs) > 0 {
-		snap.PrimaryIP = snap.PrivateIPs[0]
-	}
-	return snap, nil
 }
 
 type hwPort struct {
@@ -124,66 +69,6 @@ func parseHardwarePorts(raw string) []hwPort {
 		}
 		if v, ok := strings.CutPrefix(line, "Ethernet Address:"); ok {
 			cur.mac = strings.TrimSpace(v)
-		}
-	}
-	flush()
-	return out
-}
-
-func parseIfconfig(raw string) []NetInterface {
-	var out []NetInterface
-	var cur *NetInterface
-	flush := func() {
-		if cur != nil && cur.Name != "" {
-			out = append(out, *cur)
-		}
-		cur = nil
-	}
-	sc := bufio.NewScanner(strings.NewReader(raw))
-	for sc.Scan() {
-		line := sc.Text()
-		if len(line) > 0 && line[0] != '\t' && line[0] != ' ' {
-			flush()
-			name := strings.Split(line, ":")[0]
-			cur = &NetInterface{Name: name, State: "down"}
-			if strings.Contains(line, "status: active") || strings.Contains(line, "<UP,") {
-				cur.State = "up"
-			}
-			continue
-		}
-		if cur == nil {
-			continue
-		}
-		trim := strings.TrimSpace(line)
-		if strings.HasPrefix(trim, "ether ") {
-			cur.MAC = strings.TrimSpace(strings.TrimPrefix(trim, "ether "))
-		}
-		if strings.HasPrefix(trim, "inet ") {
-			fields := strings.Fields(trim)
-			if len(fields) >= 2 {
-				cur.IPv4 = fields[1]
-			}
-		}
-		if strings.HasPrefix(trim, "inet6 ") {
-			fields := strings.Fields(trim)
-			if len(fields) >= 2 && cur.IPv6 == "" && !strings.HasPrefix(fields[1], "fe80") {
-				cur.IPv6 = fields[1]
-			}
-		}
-		if strings.HasPrefix(trim, "status:") {
-			st := strings.TrimSpace(strings.TrimPrefix(trim, "status:"))
-			if st == "active" {
-				cur.State = "up"
-			} else {
-				cur.State = "down"
-			}
-		}
-		if strings.Contains(trim, "mtu ") {
-			idx := strings.Index(trim, "mtu ")
-			rest := strings.Fields(trim[idx+4:])
-			if len(rest) > 0 {
-				cur.MTU, _ = strconv.Atoi(rest[0])
-			}
 		}
 	}
 	flush()
@@ -255,14 +140,6 @@ func classifyKind(portName, device string) string {
 	default:
 		return "other"
 	}
-}
-
-func isLinkLocal(ip string) bool {
-	parsed := net.ParseIP(ip)
-	if parsed == nil {
-		return false
-	}
-	return parsed.IsLinkLocalUnicast()
 }
 
 func runCmd(name string, args ...string) string {

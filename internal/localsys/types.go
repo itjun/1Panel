@@ -1,5 +1,5 @@
-// Package localsys 提供 macOS 本机系统信息采集（概览 / 网络 / 软件 / Nginx / Hosts）。
-// 不经 SSH，直接读本机；非 darwin 平台返回空实现。
+// Package localsys 提供本机系统信息采集（概览 / 网络 / 软件 / Nginx / 磁盘空间 / Hosts）。
+// 不经 SSH，直接读本机；通用采集走 gopsutil，平台差异在各平台文件（overview_common.go 钩子）。
 package localsys
 
 // Overview 本机系统概览（字段对齐 monitor.Overview，便于前端复用环图）。

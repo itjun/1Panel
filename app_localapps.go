@@ -2,7 +2,7 @@ package main
 
 import "diteng-pannel/internal/localapps"
 
-// LocalApps 本机应用监控服务（macOS 本机进程树，不经 SSH）。
+// LocalApps 本机应用监控服务（macOS / Windows / Linux 本机进程树，不经 SSH）。
 type LocalApps App
 
 // Scan 扫描本机应用进程树快照。

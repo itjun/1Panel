@@ -5,7 +5,7 @@ import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatErr } from "@/utils/format";
-import { isWindowsPlatform } from "@/react/lib/platform";
+import { isLinuxPlatform, isWindowsPlatform } from "@/react/lib/platform";
 
 const MAC_SOURCE_OPTS = [
   { value: "all", label: "全部" },
@@ -21,6 +21,17 @@ const WIN_SOURCE_OPTS = [
   { value: "user", label: "当前用户" },
 ] as const;
 
+/** Linux 来源按包管理器出现顺序展示；列表数据返回什么就展示什么 */
+const LINUX_SOURCE_ORDER = ["app", "dpkg", "rpm", "pacman", "flatpak", "snap"] as const;
+const LINUX_SOURCE_LABELS: Record<string, string> = {
+  app: "桌面应用",
+  dpkg: "dpkg",
+  rpm: "RPM",
+  pacman: "pacman",
+  flatpak: "Flatpak",
+  snap: "Snap",
+};
+
 const SOURCE_OPTS = isWindowsPlatform() ? WIN_SOURCE_OPTS : MAC_SOURCE_OPTS;
 
 /** 来源标签与筛选选项同源派生，避免双份维护 */
@@ -28,7 +39,9 @@ const SOURCE_LABELS: Record<string, string> = Object.fromEntries(
   [...MAC_SOURCE_OPTS, ...WIN_SOURCE_OPTS]
     .filter((opt) => opt.value !== "all")
     .map((opt) => [opt.value, opt.label]),
+  // Object.fromEntries 的第二参为 mapFn，这里改用合并写法
 );
+Object.assign(SOURCE_LABELS, LINUX_SOURCE_LABELS);
 
 function sourceLabel(s: string) {
   return SOURCE_LABELS[s] || s || "—";
@@ -44,17 +57,25 @@ export function LocalPackagesPage() {
 
   const counts = useMemo(() => {
     const all = query.data || [];
-    const count = (s: string) => all.filter((p) => p.source === s).length;
-    return {
-      all: all.length,
-      app: count("app"),
-      formula: count("formula"),
-      cask: count("cask"),
-      system: count("system"),
-      system32: count("system32"),
-      user: count("user"),
-    } as Record<string, number>;
+    const out: Record<string, number> = { all: all.length };
+    for (const item of all) {
+      if (item.source && item.source !== "all") {
+        out[item.source] = (out[item.source] || 0) + 1;
+      }
+    }
+    return out;
   }, [query.data]);
+
+  // Linux 来源随包管理器存在性动态出现，其余平台用固定选项
+  const sourceOptions = useMemo(() => {
+    if (!isLinuxPlatform()) return SOURCE_OPTS;
+    const present = LINUX_SOURCE_ORDER.filter((value) => counts[value] > 0);
+    if (present.length === 0) return SOURCE_OPTS;
+    return [
+      { value: "all", label: "全部" },
+      ...present.map((value) => ({ value, label: LINUX_SOURCE_LABELS[value] || value })),
+    ];
+  }, [counts]);
 
   const rows = useMemo(() => {
     let list = query.data || [];
@@ -80,7 +101,7 @@ export function LocalPackagesPage() {
             aria-label="来源"
             value={source}
             onChange={setSource}
-            options={SOURCE_OPTS.map((item) => {
+            options={sourceOptions.map((item) => {
               const count = counts[item.value];
               return {
                 value: item.value,

@@ -19,41 +19,30 @@ import (
 const nettopIdleStop = 60 * time.Second
 
 var (
-	scanMu      sync.Mutex
-	lastScanAt  time.Time
-
 	netMu        sync.Mutex
 	netBytes     = map[int]struct{ in, out uint64 }{}
 	nettopCmd    *exec.Cmd
 	nettopStopCh chan struct{}
 )
 
-// Scan 扫描当前用户的开发运行时和 TCP 服务候选并归并。
-func Scan() (*Snapshot, error) {
-	scanMu.Lock()
-	defer scanMu.Unlock()
-
-	now := time.Now()
-	lastScanAt = now
+// collectProcs macOS：ps 全量 + libproc 补 exe / 线程 / 磁盘 IO，nettop 补网络计数。
+// 只保留当前用户的进程；kind / 监听归并由公共流程完成。
+func collectProcs(now time.Time) ([]RawProc, []string, error) {
 	ensureNettopLocked()
-
 	warnings := []string{}
+
 	psList, err := listPSProcesses()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	argsByPID, err := listPSArgs()
 	if err != nil {
 		warnings = append(warnings, "读取进程参数失败: "+err.Error())
 		argsByPID = map[int][]string{}
 	}
-	listeners, lsofWarnings := collectListeningSockets()
-	warnings = append(warnings, lsofWarnings...)
 
-	selfPID := os.Getpid()
 	currentUID := uint64(os.Getuid())
 	raws := make([]RawProc, 0, 32)
-
 	for _, base := range psList {
 		if base.uid != currentUID {
 			continue
@@ -63,138 +52,67 @@ func Scan() (*Snapshot, error) {
 			args = []string{}
 		}
 		exe := libprocPidPath(base.pid)
-		// 先按 comm 识别解释器；其余进程再查 Go buildinfo（路径缓存 15s）
-		runtime := DetectRuntime(base.comm, args, exe, false)
-		var goInfo goCacheEntry
-		if runtime == "" {
-			goInfo = lookupGoInfo(exe)
-			runtime = DetectRuntime(base.comm, args, exe, goInfo.isGo)
+		threads := libprocThreads(base.pid)
+		if threads == nil {
+			threads = threadsFromPS(base.pid)
 		}
-		if runtime == "" {
-			if len(listeners[base.pid]) == 0 {
-				continue
-			}
-		}
-
-		kind := AppKindRuntime
-		confidence := ConfidenceHigh
-		evidence := []string{"识别到开发运行时：" + runtime}
-		if runtime == "" {
-			runtime = "unknown"
-			kind = AppKindService
-			confidence = ConfidenceMedium
-			evidence = make([]string, 0, len(listeners[base.pid]))
-			for _, address := range listeners[base.pid] {
-				evidence = append(evidence, "TCP 监听："+address)
-			}
-		}
-
 		rp := RawProc{
-			PID:             base.pid,
-			PPID:            base.ppid,
-			User:            base.user,
-			Kind:            kind,
-			Runtime:         runtime,
-			Confidence:      confidence,
-			Evidence:        evidence,
-			CPU:             base.cpu,
-			RSS:             base.rss,
-			Elapsed:         base.elapsed,
-			Comm:            base.comm,
-			Exe:             exe,
-			Cmd:             strings.Join(args, " "),
-			Args:            args,
-			ListenAddresses: append([]string(nil), listeners[base.pid]...),
-			IsGo:            goInfo.isGo,
-			Extra:           map[string]string{},
+			PID:         base.pid,
+			PPID:        base.ppid,
+			User:        base.user,
+			CPU:         base.cpu,
+			RSS:         base.rss,
+			ThreadCount: len(threads),
+			Elapsed:     base.elapsed,
+			Comm:        base.comm,
+			Exe:         exe,
+			Cmd:         strings.Join(args, " "),
+			Args:        args,
+			Extra:       map[string]string{},
+			Threads:     threads,
 		}
-		if goInfo.isGo {
-			if goInfo.module != "" {
-				rp.Extra["module"] = goInfo.module
-			}
-			if goInfo.goVersion != "" {
-				rp.Extra["goVersion"] = goInfo.goVersion
-			}
+		if rp.ThreadCount == 0 {
+			rp.ThreadCount = 1
 		}
-		if base.pid == selfPID {
-			rp.Extra["self"] = "1"
-		}
-
-		raws = append(raws, rp)
-	}
-
-	// 一次批量 lsof 查询补齐所有候选进程的 cwd，避免逐 PID 启动子进程。
-	pids := make([]int, 0, len(raws))
-	for i := range raws {
-		pids = append(pids, raws[i].PID)
-	}
-	cwds, cwdWarnings := collectWorkingDirectories(pids)
-	warnings = append(warnings, cwdWarnings...)
-	for i := range raws {
-		rp := &raws[i]
-		rp.Cwd = cwds[rp.PID]
-		for _, address := range rp.ListenAddresses {
-			if port := parseListenPort(address); port > 0 {
-				rp.Ports = append(rp.Ports, port)
-			}
-		}
-		rp.Ports = uniqueSortedPorts(rp.Ports)
-
-		if read, write, ok := libprocDiskIO(rp.PID); ok {
+		if read, write, ok := libprocDiskIO(base.pid); ok {
 			rp.DiskRead = read
 			rp.DiskWrite = write
 		}
 		netMu.Lock()
-		if values, ok := netBytes[rp.PID]; ok {
-			rp.NetIn = values.in
-			rp.NetOut = values.out
+		if nb, ok := netBytes[base.pid]; ok {
+			rp.NetIn = nb.in
+			rp.NetOut = nb.out
 		}
 		netMu.Unlock()
-		applyRates(rp, now)
-
-		threads := libprocThreads(rp.PID)
-		if threads == nil {
-			threads = threadsFromPS(rp.PID)
-		}
-		rp.Threads = threads
-		rp.ThreadCount = len(threads)
-		if rp.ThreadCount == 0 {
-			rp.ThreadCount = 1
-		}
+		raws = append(raws, rp)
 	}
-
-	apps := GroupApps(raws)
-
-	// 清理已消失进程的速率历史，避免 map 无限增长
-	alive := map[int]bool{}
-	for _, rp := range raws {
-		alive[rp.PID] = true
-	}
-	for pid := range rateHistory {
-		if !alive[pid] {
-			delete(rateHistory, pid)
-		}
-	}
-	return &Snapshot{
-		SampledAt: now.Unix(),
-		Apps:      apps,
-		Warnings:  warnings,
-	}, nil
+	return raws, warnings, nil
 }
 
-// ProcDetail 返回单个进程的完整详情（强制刷新 cwd/ports）。
-func ProcDetail(pid int) (*ProcNode, error) {
-	if pid <= 0 {
-		return nil, fmt.Errorf("非法 PID")
+// collectListeners macOS：一次批量 lsof 查监听套接字（性能关键，避免逐进程 lsof）。
+func collectListeners(pids []int) (map[int][]string, []string) {
+	listeners, warnings := collectListeningSockets()
+	return listeners, warnings
+}
+
+// fillProcCwds macOS：一次批量 lsof 补候选进程的工作目录。
+func fillProcCwds(kept []*RawProc) {
+	pids := make([]int, 0, len(kept))
+	for _, rp := range kept {
+		pids = append(pids, rp.PID)
 	}
+	cwds, warnings := collectWorkingDirectories(pids)
+	if len(warnings) > 0 {
+		// 工作目录缺失只影响分组名，不作为扫描警告上报
+		_ = warnings
+	}
+	for _, rp := range kept {
+		rp.Cwd = cwds[rp.PID]
+	}
+}
 
-	scanMu.Lock()
-	defer scanMu.Unlock()
-
-	now := time.Now()
-	lastScanAt = now
-	ensureNettopLocked()
-
+// collectProcDetail macOS：单进程基础字段，并经 fd 表强刷 cwd / 监听地址。
+func collectProcDetail(pid int, now time.Time) (*RawProc, error) {
 	psList, err := listPSProcesses()
 	if err != nil {
 		return nil, err
@@ -216,37 +134,32 @@ func ProcDetail(pid int) (*ProcNode, error) {
 		args = []string{}
 	}
 	exe := libprocPidPath(pid)
-	goInfo := lookupGoInfo(exe)
-	runtime := DetectRuntime(base.comm, args, exe, goInfo.isGo)
+	threads := libprocThreads(pid)
+	if threads == nil {
+		threads = threadsFromPS(pid)
+	}
 
-	rp := RawProc{
-		PID:     base.pid,
-		PPID:    base.ppid,
-		User:    base.user,
-		CPU:     base.cpu,
-		RSS:     base.rss,
-		Elapsed: base.elapsed,
-		Comm:    base.comm,
-		Exe:     exe,
-		Cmd:     strings.Join(args, " "),
-		Args:    args,
-		IsGo:    goInfo.isGo,
-		Extra:   map[string]string{},
+	rp := &RawProc{
+		PID:         base.pid,
+		PPID:        base.ppid,
+		User:        base.user,
+		CPU:         base.cpu,
+		RSS:         base.rss,
+		ThreadCount: len(threads),
+		Elapsed:     base.elapsed,
+		Comm:        base.comm,
+		Exe:         exe,
+		Cmd:         strings.Join(args, " "),
+		Args:        args,
+		Extra:       map[string]string{},
+		Threads:     threads,
 	}
-	if goInfo.isGo {
-		if goInfo.module != "" {
-			rp.Extra["module"] = goInfo.module
-		}
-		if goInfo.goVersion != "" {
-			rp.Extra["goVersion"] = goInfo.goVersion
-		}
+	if rp.ThreadCount == 0 {
+		rp.ThreadCount = 1
 	}
-	if pid == os.Getpid() {
-		rp.Extra["self"] = "1"
-	}
-	if r, w, ok := libprocDiskIO(pid); ok {
-		rp.DiskRead = r
-		rp.DiskWrite = w
+	if read, write, ok := libprocDiskIO(pid); ok {
+		rp.DiskRead = read
+		rp.DiskWrite = write
 	}
 	netMu.Lock()
 	if nb, ok := netBytes[pid]; ok {
@@ -254,19 +167,8 @@ func ProcDetail(pid int) (*ProcNode, error) {
 		rp.NetOut = nb.out
 	}
 	netMu.Unlock()
-	applyRates(&rp, now)
 
-	threads := libprocThreads(pid)
-	if threads == nil {
-		threads = threadsFromPS(pid)
-	}
-	rp.Threads = threads
-	rp.ThreadCount = len(threads)
-	if rp.ThreadCount == 0 {
-		rp.ThreadCount = 1
-	}
-
-	resourceSnapshot, _ := Resources(pid)
+	resourceSnapshot, _ := listProcResources(pid)
 	if resourceSnapshot != nil {
 		for _, resource := range resourceSnapshot.Resources {
 			if strings.EqualFold(resource.FD, "cwd") {
@@ -283,41 +185,15 @@ func ProcDetail(pid int) (*ProcNode, error) {
 			}
 		}
 	}
-	rp.Ports = uniqueSortedPorts(rp.Ports)
-	if runtime != "" {
-		rp.Kind = AppKindRuntime
-		rp.Confidence = ConfidenceHigh
-		rp.Evidence = []string{"识别到开发运行时：" + runtime}
-	} else if len(rp.ListenAddresses) > 0 {
-		rp.Kind = AppKindService
-		rp.Confidence = ConfidenceMedium
-		for _, address := range rp.ListenAddresses {
-			rp.Evidence = append(rp.Evidence, "TCP 监听："+address)
-		}
-	}
-
-	if runtime == "" {
-		runtime = "unknown"
-	}
-	node := rawToProcNode(&rp, runtime)
-	return &node, nil
+	return rp, nil
 }
 
-// Kill 终止指定进程；仅允许当前用户拥有的进程。
-// force=false 发送 SIGTERM，true 发送 SIGKILL。
-func Kill(pid int, force bool) error {
-	if pid <= 0 {
-		return fmt.Errorf("非法 PID")
-	}
-	if pid == os.Getpid() {
-		return fmt.Errorf("不能结束本程序自身")
-	}
-
+// killProc macOS：仅允许当前用户的进程；SIGTERM / SIGKILL。
+func killProc(pid int, force bool) error {
 	cur, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("获取当前用户失败: %w", err)
 	}
-
 	psList, err := listPSProcesses()
 	if err != nil {
 		return err
@@ -347,7 +223,8 @@ func Kill(pid int, force bool) error {
 	return proc.Signal(sig)
 }
 
-// ---------- ps ----------
+// cleanupScanHistory macOS：速率历史由公共流程清理，无平台缓存。
+func cleanupScanHistory(alive map[int]bool, now time.Time) {}
 
 type psRow struct {
 	pid     int
