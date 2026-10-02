@@ -238,11 +238,10 @@ function restoreNav(): Nav {
     return nav;
   }
 
+  // 本机 / 通知 / 巡检 / 配置 / 设置沿用 loadNav 里记下的工作区与分区
   const activeId = screen?.activeHostSessionId?.trim() || "";
   const active = openedHosts.find((item) => item.name === activeId);
   if (active) {
-    nav.workspace = "remote";
-    nav.settingsOpen = false;
     nav.activeHost = active.name;
     nav.activeTool = active.tool;
     return nav;
@@ -250,8 +249,6 @@ function restoreNav(): Nav {
 
   nav.activeHost = "";
   nav.homeView = "home";
-  nav.workspace = "remote";
-  nav.settingsOpen = false;
   return nav;
 }
 
