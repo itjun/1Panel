@@ -66,7 +66,13 @@ type App struct {
 
 	boardHTTP *boardhttp.Server // 内网只读看板 HTTP 网关
 
-	themeAppearance macui.AppearanceMode // light / dark / auto，由前端设置同步
+	themeAppearance   macui.AppearanceMode // light / dark / auto，由前端设置同步
+	windowTheme       *windowThemeManager
+	themeStartupReady bool // 原生材质和前端颜色已就绪，或启动等待已超时
+	themeStartupTimer *time.Timer
+	themeObserverMu   sync.Mutex
+	stopThemeObserver func()
+	themeStopped      bool
 
 	showMu       sync.Mutex
 	sized        bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
@@ -86,7 +92,7 @@ const RetryInterval = 30 * time.Second
 // NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
 // 返回的 *application.App 由 main.go 调用 Run。
 func mainWindowBackgroundColour() application.RGBA {
-	// 三端统一不透明壳底色（与亮色 --color-canvas #f2f3f5 同值），不走系统磨砂/透明窗。
+	// 启动骨架与经典模式底色；亚克力由可切换的原生控制器管理。
 	return application.NewRGB(242, 243, 245)
 }
 
@@ -99,6 +105,9 @@ func NewApp() *application.App {
 		panelPreviews: make(map[string]panelConfigPreviewRecord),
 		notifier:      ns,
 	}
+	core.windowTheme = newWindowThemeManager(windowThemePath(), macui.FrostedBackdropCapability, func(enabled bool) error {
+		return macui.SetFrostedBackdrop(core.mainWindow, enabled)
+	})
 	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
 		return core.connectOptionFor(host)
 	})
@@ -149,8 +158,7 @@ func NewApp() *application.App {
 	})
 	core.app = app
 
-	// 主窗口：隐藏标题栏。Hidden 只等到「尺寸已确定」，立刻 Show 出 HTML 骨架，
-	// 不再等 Vue 跑完（那会让 Dock 图标亮了窗口却迟迟不出来）。
+	// 主窗口等待材质和颜色就绪；1.5 秒后仍未就绪则显示经典骨架。
 	winW, winH := 1280, 800
 	if bounds, ok := loadMainWindowBounds(); ok {
 		winW, winH = bounds.Width, bounds.Height
@@ -193,11 +201,11 @@ func NewApp() *application.App {
 	core.themeAppearance = macui.AppearanceLight
 	macui.SetWindowAppearance(win, core.themeAppearance)
 
-	// 有上次尺寸：ApplicationStarted 后立刻 Show（骨架已在 HTML 里）。
-	// 没有：按主屏算完再 Show，仍然不等 Vue。
+	// 尺寸恢复与主题初始化独立，前端确认后才显示窗口。
 	core.fitWindowToPrimaryScreen()
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		core.markReady()
+		core.startWindowTheme()
 		core.restoreMainWindowPosition()
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
@@ -342,6 +350,19 @@ func NewApp() *application.App {
 }
 
 func (a *App) shutdown() {
+	a.showMu.Lock()
+	if a.themeStartupTimer != nil {
+		a.themeStartupTimer.Stop()
+	}
+	a.showMu.Unlock()
+	a.themeObserverMu.Lock()
+	a.themeStopped = true
+	stop := a.stopThemeObserver
+	a.stopThemeObserver = nil
+	a.themeObserverMu.Unlock()
+	if stop != nil {
+		stop()
+	}
 	if a.panelConfigStop != nil {
 		close(a.panelConfigStop)
 		a.panelConfigStop = nil
@@ -388,10 +409,10 @@ func (a *App) restoreMainWindowPosition() {
 	a.mainWindow.SetPosition(a.mainBounds.X, a.mainBounds.Y)
 }
 
-// maybeShowMainWindow 尺寸已确定就立刻 Show（HTML 骨架先上屏，不等 Vue）。
+// maybeShowMainWindow 等尺寸、运行态和主题初始化完成后显示。
 func (a *App) maybeShowMainWindow() {
 	a.showMu.Lock()
-	if a.shown || a.mainWindow == nil || !a.sized {
+	if a.shown || a.mainWindow == nil || !a.sized || !a.ready || !a.themeStartupReady {
 		a.showMu.Unlock()
 		return
 	}
@@ -402,7 +423,9 @@ func (a *App) maybeShowMainWindow() {
 	// impl 未就绪时返回 0x0，会把刚恢复的上次窗口尺寸强制改成最小尺寸
 	// （Windows 专属坑，macOS 无此问题）。Min 约束已在创建窗口的
 	// WM_GETMINMAXINFO 生效，无需重复设置。
-	win.Center()
+	if !a.mainBoundsOK {
+		win.Center()
+	}
 	win.Show()
 	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
 	a.syncTrafficLights()
@@ -412,7 +435,7 @@ func (a *App) forceShowMainWindow() bool {
 	a.showMu.Lock()
 	// Wails 未进入运行态（Run 尚未初始化 impl）时调用窗口 API 会空指针崩溃，
 	// 此处直接放弃本轮——稍后的重试或 ApplicationStarted 路径会正常显示窗口。
-	if a.mainWindow == nil || !a.ready {
+	if a.mainWindow == nil || !a.ready || !a.themeStartupReady {
 		a.showMu.Unlock()
 		return false
 	}
