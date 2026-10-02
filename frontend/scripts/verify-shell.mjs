@@ -51,12 +51,11 @@ const rail = fs.readFileSync(
   path.join(root, "src/react/components/workspace-rail.tsx"),
   "utf8",
 );
-if (!rail.includes('label: "主机"')) {
-  fail("WorkspaceRail.tsx missing the 主机 navigation item");
+const moduleRail = fs.readFileSync(path.join(root, "src/react/components/module-rail.tsx"), "utf8");
+if (!moduleRail.includes('label="主机"') || !app.includes("ModuleRail")) {
+  fail("primary module rail must provide host navigation");
 }
-if (!rail.includes("HOST_TOOLS")) {
-  fail("host tool tabs are not rendered in the sidebar");
-}
+if (!app.includes("HostToolTabs")) fail("host tool tabs must be rendered in the toolbar");
 if (app.includes("workspace-host__header")) {
   fail("host tool tabs are still rendered in the content header");
 }
@@ -64,8 +63,8 @@ ok("React shell and workspace navigation markers present");
 
 const shellStyles = fs.readFileSync(path.join(root, "src/react/styles/globals.css"), "utf8");
 if (shellStyles.includes("--shell-gutter")) fail("collapsed shell gutter should be gone");
-if (!shellStyles.includes(".glass-chrome")) fail("shared solid chrome rule missing");
-if (!rail.includes("glass-chrome")) fail("sidebar is not solid chrome");
+if (!shellStyles.includes(".glass-chrome")) fail("shared chrome rule missing");
+if (!rail.includes("glass-chrome")) fail("sidebar chrome is missing");
 if (shellStyles.includes('data-platform="solid"')) {
   fail("platform solid light-blue / white fork should be removed");
 }
@@ -78,8 +77,8 @@ if (shellStyles.includes("rgba(18, 18, 18, 0.58)")) {
 if (!/background-color:\s*var\(--color-surface\)/.test(shellStyles)) {
   fail("chrome must use --color-surface");
 }
-if (!/\.glass-chrome-main\s*\{[^}]*var\(--color-canvas\)/s.test(shellStyles)) {
-  fail("glass-chrome-main must use --color-canvas");
+if (!/\.glass-chrome-main\s*\{[^}]*var\(--color-surface\)/s.test(shellStyles)) {
+  fail("content must retain the opaque surface background in every material mode");
 }
 if (!/\.content-float\s*\{[^}]*overflow:\s*auto/s.test(shellStyles)) {
   fail("content-float must be a flush scroll region");
@@ -125,7 +124,8 @@ if (!sidebarState.includes("1pannel-sidebar-width")) fail("sidebar width is not 
 if (!sidebarState.includes("SIDEBAR_WIDTH_MIN") || !sidebarState.includes("SIDEBAR_WIDTH_MAX")) {
   fail("sidebar width min/max missing");
 }
-ok("solid chrome + flush content-float (right-angle surfaces) contract");
+if (!shellStyles.includes('html[data-window-material="acrylic"]')) fail("acrylic chrome must be gated by the effective native material");
+ok("classic / acrylic chrome with opaque content contract");
 ok("sidebar sits below the full-width app toolbar and is resizable");
 
 const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
@@ -136,8 +136,8 @@ if (entry.includes('dataset.platform') || entry.includes('data-platform')) {
 if (/background-color:\s*transparent\s*!important/.test(entry)) {
   fail("index.html boot must not use transparent root background");
 }
-if (!entry.includes("background-color: #f9fafb")) {
-  fail("index.html boot root should use solid canvas #f9fafb");
+if (!entry.includes("background-color: var(--color-canvas, #f2f3f5)")) {
+  fail("index.html boot root should use classic canvas #f2f3f5");
 }
 ok("index.html loads React with solid boot skeleton");
 
