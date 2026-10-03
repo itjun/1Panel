@@ -140,13 +140,14 @@ export function SettingsPage() {
                     { value: "auto", label: "自动" },
                     { value: "classic", label: "经典" },
                     { value: "acrylic", label: "亚克力" },
+                    { value: "mica", label: "云母" },
                   ]}
                 />
                 <p className="m-0 text-xs text-muted" role="status">
-                  当前生效：{windowTheme.theme.effective === "acrylic" ? "亚克力" : "经典"}
+                  当前生效：{windowTheme.theme.effective === "acrylic" ? "亚克力" : windowTheme.theme.effective === "mica" ? "云母" : "经典"}
                   {windowTheme.theme.reason ? ` · ${windowTheme.theme.reason}` : ""}
                 </p>
-                <p className="m-0 text-xs text-muted">亚克力用于顶部和侧栏，内容区保持实色。</p>
+                <p className="m-0 text-xs text-muted">亚克力是磨砂；云母在 Windows 11 上随壁纸轻微着色并指示窗口焦点。材质用于顶部和侧栏，内容区保持实色。</p>
               </div>
             </SettingRow>
             <SettingRow label="颜色模式" hint="改完立刻生效，与窗口材质独立">

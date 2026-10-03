@@ -90,7 +90,26 @@ test("unsupported desktop remembers requested material while keeping its effecti
   await theme.setWindowMaterial("acrylic");
   expect(theme.useWindowTheme().theme.preference).toBe("acrylic");
   expect(root.dataset.windowMaterial).toBe("classic");
+  await theme.setWindowMaterial("mica");
+  expect(theme.useWindowTheme().theme.preference).toBe("mica");
+  expect(root.dataset.windowMaterial).toBe("classic");
   await theme.setWindowMaterial("auto");
   expect(theme.useWindowTheme().theme.preference).toBe("auto");
+  stop();
+});
+
+test("Mica exposes the native opaque surface and follows effective fallback without discarding preference", async () => {
+  host._wails.environment.OS = "windows";
+  state = { preference: "mica", effective: "mica", supported: true, reason: "", revision: 30 };
+  const stop = theme.initializeWindowTheme();
+  await Bun.sleep(10);
+  expect(root.dataset.windowMaterial).toBe("mica");
+  expect(root.style.background).toBe("transparent");
+  emitTheme({ ...state, effective: "classic", supported: false, reason: "节电模式", revision: 31 });
+  expect(root.dataset.windowMaterial).toBe("classic");
+  expect(root.style.background).toBe("var(--color-canvas)");
+  expect(theme.useWindowTheme().theme.preference).toBe("mica");
+  emitTheme({ ...state, revision: 32 });
+  expect(root.dataset.windowMaterial).toBe("mica");
   stop();
 });
