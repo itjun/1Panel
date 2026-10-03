@@ -84,7 +84,7 @@
 | LED 分段条 警告（≥60%） | `--meter-warn` | `#F08A24` |
 | LED 分段条 危险（≥85%） | `--meter-danger` | `#D54941` |
 | LED 分段条 未亮格 | `--meter-off` | `#E5E7EB` |
-| 浮层遮罩 | `--color-scrim` | `rgba(0, 0, 0, 0.6)` |
+| 浮层遮罩（Smoke 烟雾） | `--color-scrim` | `rgba(0, 0, 0, 0.6)`（透明类材质：压暗下层表面强调重要 UI，如模态对话框 / 抽屉下方的遮罩；不区分明暗模式，始终半透明黑，明暗共用此值，2026-10-03 定案） |
 | 文字提示底 / 字（Tooltip） | `--color-tooltip` / `--color-tooltip-text` | `#1F2937` / `#FFFFFF`（反色小气泡，对比约 14.7:1） |
 
 功能色用于**状态语义**（成功 / 失败 / 告警 / 主操作）。success 为绿色（TDesign 官方值），占用正常档 `--meter-ok` 与之同源同值，是全站仅有的两处绿色出处；不得用蓝色冒充错误或告警，也不得用告警橙做装饰。
@@ -126,7 +126,7 @@
 | LED 分段条 警告 | `--meter-warn` | `#F29A4A` |
 | LED 分段条 危险 | `--meter-danger` | `#F06C63` |
 | LED 分段条 未亮格 | `--meter-off` | `#2C3445` |
-| 浮层遮罩 | `--color-scrim` | `rgba(0, 0, 0, 0.7)` |
+| 浮层遮罩 | `--color-scrim` | 不覆盖：Smoke 烟雾不分明暗，共用 §2.1 的 `rgba(0, 0, 0, 0.6)` |
 | 文字提示底 / 字（Tooltip） | `--color-tooltip` / `--color-tooltip-text` | `#DFE5EE` / `#1B2433`（暗色下反为浅底深字） |
 
 - 亮 ↔ 暗切换后，**信息层级不得颠倒**（标题仍强于正文，正文强于辅助）。
@@ -470,7 +470,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 彩色识别图标 | 系统发行版图标（`distro-badge.tsx`，`#F4511E` 底 + 白色图形，圆角 `side × 0.26`）；SFTP 文件夹 `#4C8DFF` 实心、文件 `#F7F8FA` / `#C5CDD6` / `#E4E9EE`；服务名色点（`host-apps.tsx` `serviceNameColors`，hsl 色相跳过 70–170） | 属品牌 / 识别色，允许硬编码、允许彩色、发行版徽标与色点圆角不受 §4.3 四档限制；**不得使用绿色色相** |
 | 胶囊 / 圆形控件 | Switch 轨道与圆钮、Slider 圆钮用 `rounded-full` | 形态即语义（TDesign 同款），不受 §4.3 四档限制；其余控件仍走四档 |
 | 文字提示无动效 | Tooltip 0ms 出现 / 消失、无入场动画 | 用户明确要求「秒弹出」；例外于 §5 浮层入场动效 |
-| 浮层遮罩 | 一律用 `bg-scrim`（`--color-scrim`） | 对话框 / 抽屉遮罩禁止 `bg-black/xx` 等透明度修饰符（会生成 `color-mix`，Linux 旧版 WebKitGTK 不支持） |
+| 浮层遮罩 | 一律用 `bg-scrim`（`--color-scrim`，Smoke 烟雾） | Smoke 是透明类材质，压暗下层表面以强调重要 UI（模态对话框 / 抽屉遮罩），不区分明暗模式、始终半透明黑；禁止 `bg-black/xx` 等透明度修饰符（会生成 `color-mix`，Linux 旧版 WebKitGTK 不支持） |
 
 ---
 

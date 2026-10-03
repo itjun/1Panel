@@ -2,6 +2,17 @@
 
 验证日期：2026-10-03。环境：Apple Silicon、macOS 27.0.1（26A434）、Wails v3 beta.14、Go 1.27、Bun 1.4。没有升级框架或改变 Go／React 架构。
 
+## Smoke 增量交付（2026-10-03）
+
+补齐 Fluent 三种材质的最后一块：Mica（遮挡类基础层）、亚克力（遮挡类临时层）之后，Smoke（烟雾）是透明类材质，通过压暗下层表面来强调重要的 UI，用于模态对话框 / 抽屉下方的遮罩；不区分明暗模式，始终是半透明黑色。
+
+Smoke 不是窗口背景材质，DWM 的 `DWMWA_SYSTEMBACKDROP_TYPE` 没有对应取值，因此不进入窗口材质偏好（`validWindowMaterial`）与设置页选项，只落为前端遮罩规格：
+
+- `--color-scrim` 明暗统一为 `rgba(0, 0, 0, 0.6)`；`html.dark` 不再覆盖为 0.7，与微软「not mode aware; always translucent black in both light and dark mode」一致。
+- 遮罩使用点不变，仍一律 `bg-scrim`：对话框（`ui/dialog.tsx`）、文件预览抽屉、本地应用页对话框三处。
+
+原生依据：[Materials used in Windows apps](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/materials)。
+
 ## Mica 增量交付（2026-10-03）
 
 窗口材质增加「云母」，仍保存到同一个 `theme.json`。旧的自动／经典／亚克力配置保持有效。自动选择现改为：Mac → 亚克力，Windows 11 22H2（build 22621）及以上 → 云母，其余环境 → 经典。
