@@ -55,11 +55,15 @@ CLEAN_PATHS = [
     BIN_DIR,
 ]
 
-PACKAGE_ENV = {**os.environ, "PACKAGE_MANAGER": "bun"}
+# 传给 wails3 的环境：运行时快照（ensure_path 补全 PATH 之后再取， import 期
+# 的模块级快照会定格在补全前，导致子进程仍找不到 go/wails3/bun）
+def wails_env():
+    return {**os.environ, "PACKAGE_MANAGER": "bun"}
 
 # Windows 下常见安装位置（用于 PATH 缺失时自动探测补全）
 WIN_TOOL_DIRS = [
     r"C:\Go\bin",
+    r"C:\Program Files\Go\bin",            # go.dev MSI / winget 默认安装位置
     os.path.expanduser(r"~\sdk\go\bin"),       # golang.org/dl 官方 zip 解压约定位置
     os.path.expanduser(r"~\go\bin"),           # go install 产物（wails3、task 等）
     os.path.expanduser(r"~\.bun\bin"),
@@ -167,7 +171,7 @@ def ensure_bun():
 
 
 def run_wails(*args: str) -> None:
-    subprocess.run(["wails3", *args], check=True, env=PACKAGE_ENV)
+    subprocess.run(["wails3", *args], check=True, env=wails_env())
 
 
 def build():
