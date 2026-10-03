@@ -35,6 +35,7 @@ type Candidate struct {
 	Server     string  `json:"server"`   // 服务端在哪一侧：a / b
 	Target     Addr    `json:"target"`
 	ClientAddr *Addr   `json:"clientAddr,omitempty"` // 同网段时客户端侧的对应地址
+	Port       int     `json:"port,omitempty"` // 探测时服务端监听的端口
 	Probed     bool    `json:"probed"`
 	OK         bool    `json:"ok"`
 	RTTMs      float64 `json:"rttMs"`

@@ -421,7 +421,12 @@ func firstSum(list ...*ivSum) *ivSum {
 	return nil
 }
 
-var errProbeTimeout = errors.New("探测未完成（超时或连接中断）：可能被防火墙拦截，或公网地址经过 NAT 没有端口映射")
+var errProbeTimeout = errors.New("探测未完成（超时或连接中断）")
+
+// probeTimeoutReason 探测超时的提示：带上端口，NAT / 安全组场景用户才知道该放行或映射哪个端口
+func probeTimeoutReason(port int) string {
+	return fmt.Sprintf("探测 TCP %d 未完成（超时或连接中断）：可能被防火墙 / 安全组拦截，或公网地址经过 NAT 没有把 TCP %d 映射到服务端；UDP 测速还需放行 UDP %d", port, port, port)
+}
 
 // probeResult 解析连通探测（iperf3 -J 单次小流量）
 func probeResult(out []byte, port int) (ok bool, rttMs float64, reason string) {
@@ -435,7 +440,7 @@ func probeResult(out []byte, port int) (ok bool, rttMs float64, reason string) {
 	}
 	if err := json.Unmarshal([]byte(text), &r); err != nil {
 		if text == "" || strings.HasPrefix(text, "{") {
-			return false, 0, errProbeTimeout.Error()
+			return false, 0, probeTimeoutReason(port)
 		}
 		return false, 0, firstLine(text)
 	}
@@ -446,7 +451,7 @@ func probeResult(out []byte, port int) (ok bool, rttMs float64, reason string) {
 			// 服务端忙说明 TCP 已连通（并发探测撞上了）
 			return true, 0, ""
 		case strings.Contains(low, "timed out"):
-			return false, 0, fmt.Sprintf("连接超时：可能被防火墙或安全组拦截，请放行 TCP/UDP %d", port)
+			return false, 0, fmt.Sprintf("连接 TCP %d 超时：可能被防火墙 / 安全组拦截，或 NAT 没有映射该端口；请放行 TCP %d（UDP 测速另需 UDP %d）", port, port, port)
 		case strings.Contains(low, "refused"):
 			return false, 0, fmt.Sprintf("连接被拒绝：端口 %d 未监听或被防火墙拒绝", port)
 		case strings.Contains(low, "no route"), strings.Contains(low, "unreachable"):

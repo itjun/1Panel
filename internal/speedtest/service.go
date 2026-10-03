@@ -257,7 +257,7 @@ func (s *Service) probe(ctx context.Context, ea, eb endpoint, cands []Candidate,
 		sv := servers[c.Server]
 		if sv.err != nil {
 			c.Probed = true
-			c.Reason = fmt.Sprintf("无法在 %s 上启动 iperf3 服务端：%v", sides[c.Server].label(), sv.err)
+			c.Reason = fmt.Sprintf("无法在 %s 上启动 iperf3 服务端（端口 %s）：%v", sides[c.Server].label(), portText(port), sv.err)
 			continue
 		}
 		wg.Add(1)
@@ -267,10 +267,11 @@ func (s *Service) probe(ctx context.Context, ea, eb endpoint, cands []Candidate,
 			args := []string{"-c", c.Target.IP, "-p", strconv.Itoa(port), "--connect-timeout", "1500", "-n", "256K", "-J"}
 			out, err := cli.iperfOnce(ctx, args, 6*time.Second)
 			c.Probed = true
+			c.Port = port
 			if len(out) == 0 && err != nil {
 				c.Reason = err.Error()
-				if strings.Contains(c.Reason, "超时") {
-					c.Reason = errProbeTimeout.Error()
+				if errors.Is(err, errProbeTimeout) || strings.Contains(c.Reason, "超时") {
+					c.Reason = probeTimeoutReason(port)
 				}
 				return
 			}
@@ -294,6 +295,13 @@ func (s *Service) probe(ctx context.Context, ea, eb endpoint, cands []Candidate,
 		}
 	}
 	return used
+}
+
+func portText(port int) string {
+	if port > 0 {
+		return strconv.Itoa(port)
+	}
+	return "自动 5201–5210"
 }
 
 // ===== 两机测速 =====
