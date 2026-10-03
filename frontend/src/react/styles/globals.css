@@ -3,7 +3,7 @@
 /* static：Tailwind 4 默认只输出被工具类引用到的变量，这里的 token 还会被
    JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
 @theme static {
-  /* 机柜面板规范 DESIGN.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态 */
+  /* 机柜面板规范 DESIGN.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态与健康档占用（Meter 正常段 / 占用曲线正常档） */
   /* 一级图标栏（DESIGN.md §4.1）：比 canvas 深一档；12px muted 文字在上面 4.57:1 */
   --color-rail: #eaebee;
   --color-canvas: #f2f3f5;
@@ -53,8 +53,9 @@
   --color-io-write: #f08a24;
   --color-chart-2: #1d8cf8;
   --color-chart-3: #f08a24;
-  /* LED 分段条（DESIGN.md §4.7）：正常 / ≥60% / ≥85% / 未亮格 */
-  --meter-ok: #0680a8;
+  /* LED 分段条（DESIGN.md §4.7）：正常 / ≥60% / ≥85% / 未亮格；正常档健康绿与 --color-success 同源，
+     三档对齐行业监控惯例（Grafana / htop：正常绿、警告橙、危险红），2026-10-03 定案 */
+  --meter-ok: #2ba471;
   --meter-warn: #f08a24;
   --meter-danger: #d54941;
   --meter-off: #e5e7eb;
@@ -145,7 +146,7 @@ html.dark {
   --color-io-write: #f29a4a;
   --color-chart-2: #4fb0ff;
   --color-chart-3: #f29a4a;
-  --meter-ok: #38bde0;
+  --meter-ok: #56c08d;
   --meter-warn: #f29a4a;
   --meter-danger: #f06c63;
   --meter-off: #2c3445;

@@ -105,7 +105,7 @@ export function lineOption(
   const line = readThemeColor("--color-line", "#e5e7eb");
   const surface = readThemeColor("--color-surface", "#ffffff");
   const ink = readThemeColor("--color-ink", "#1f2937");
-  const meterOk = readThemeColor("--meter-ok", "#0680a8");
+  const meterOk = readThemeColor("--meter-ok", "#2ba471");
   const meterWarn = readThemeColor("--meter-warn", "#f08a24");
   const meterDanger = readThemeColor("--meter-danger", "#d54941");
   const colors = seriesColorList(series.map((s) => s.name)).map((c, idx) => {
