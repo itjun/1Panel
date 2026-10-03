@@ -63,7 +63,7 @@ export type AppSettings = {
 };
 
 export const SETTINGS_DEFAULTS: AppSettings = {
-  appearance: "light",
+  appearance: "system",
   fontFamily: "",
   monoFontFamily: "",
   fontSize: 14,

@@ -88,11 +88,49 @@
           opacity: 0.55;
         }
       }
+      /* 深色骨架：globals.css 尚未加载时 var() 无值，这里给等值回退，
+         取值与 html.dark 的 --color-canvas / --color-surface 保持一致 */
+      html.dark,
+      html.dark body,
+      html.dark #app {
+        background-color: #12161f;
+        color-scheme: dark;
+      }
+      html.dark .boot-skel,
+      html.dark .boot-tb-l,
+      html.dark .boot-tb-r,
+      html.dark .boot-side {
+        background: #12161f;
+      }
+      html.dark .boot-title {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      html.dark .boot-line {
+        background: rgba(255, 255, 255, 0.07);
+      }
+      html.dark .boot-main,
+      html.dark .boot-card,
+      html.dark .boot-tile {
+        background: #1a1f2b;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+      }
     </style>
     <script>
       (function () {
-        document.documentElement.className = "light";
-        document.documentElement.style.colorScheme = "light";
+        // 颜色模式默认「跟随系统」；读取已存偏好后在首屏就铺对深浅色，避免先白后黑闪烁
+        var pref = "";
+        try {
+          var raw = localStorage.getItem("ipannel.settings.v1");
+          if (raw) pref = (JSON.parse(raw) || {}).appearance || "";
+        } catch (e) {}
+        if (pref !== "light" && pref !== "dark" && pref !== "system") pref = "system";
+        var dark =
+          pref === "dark" ||
+          (pref === "system" &&
+            !!window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.className = dark ? "dark" : "light";
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
         try {
           var n = Number(localStorage.getItem("ipannel.sidebarWidth"));
           if (n >= 180 && n <= 320) {
