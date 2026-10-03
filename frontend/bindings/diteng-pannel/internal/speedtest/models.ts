@@ -40,6 +40,11 @@ export interface Candidate {
      * 同网段时客户端侧的对应地址
      */
     "clientAddr"?: Addr | null;
+
+    /**
+     * 探测时服务端监听的端口
+     */
+    "port"?: number;
     "probed": boolean;
     "ok": boolean;
     "rttMs": number;

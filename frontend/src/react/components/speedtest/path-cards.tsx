@@ -19,7 +19,8 @@ function sameCandidate(a?: speedtest.Candidate | null, b?: speedtest.Candidate |
 
 function candidateTitle(c: speedtest.Candidate, report: speedtest.PathReport): string {
   const server = c.server === "a" ? report.a : report.b;
-  return `${RELATION_LABEL[c.relation] || c.relation} · ${endpointLabel(server.id)} ${c.target.ip}`;
+  const port = c.port ? `:${c.port}` : "";
+  return `${RELATION_LABEL[c.relation] || c.relation} · ${endpointLabel(server.id)} ${c.target.ip}${port}`;
 }
 
 function PathCard({
