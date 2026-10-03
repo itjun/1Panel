@@ -2,7 +2,25 @@
 
 验证日期：2026-10-03。环境：Apple Silicon、macOS 27.0.1（26A434）、Wails v3 beta.14、Go 1.27、Bun 1.4。没有升级框架或改变 Go／React 架构。
 
-## 实现
+## Mica 增量交付（2026-10-03）
+
+窗口材质增加「云母」，仍保存到同一个 `theme.json`。旧的自动／经典／亚克力配置保持有效。自动选择现改为：Mac → 亚克力，Windows 11 22H2（build 22621）及以上 → 云母，其余环境 → 经典。
+
+Windows 通过 `DWMWA_SYSTEMBACKDROP_TYPE=DWMSBT_MAINWINDOW` 应用原生 Mica，`DWMWA_USE_IMMERSIVE_DARK_MODE` 同步原有颜色模式；没有使用桌面截图、模拟模糊、旧版未公开 Mica 属性或 Win10 模糊替代。内建激活／非激活状态由 DWM 管理。Mac／Linux 手动选择云母会保存选择并显示经典回退原因。
+
+前端仅清除云母壳层的 WebView 覆盖，露出原生不透明云母基础层；一级功能条增加轻微层次色，内容区和控件仍实色。云母不叠加亚克力颗粒。Windows 支持版本在创建窗口时使用当前 Wails 的透明 WebView2 表面，以便即时开关材质，经典界面仍由完整实色 CSS 覆盖。
+
+Windows 每秒检测桌面合成、透明效果、高对比度、节电和系统颜色变化；条件变化时重新解析保存偏好。低端设备等更细的系统降级由 DWM 自行处理，应用不能仅凭 API 成功判断视觉上一定有壁纸着色。
+
+增量检查：Go 全量测试、材质／策略测试与竞态检查通过，前端 5 项测试（26 个断言）、类型检查、生产构建和壳层检查通过，Windows amd64 交叉构建与 Linux server 构建通过。Mac 原生桥 50 次复用／还原测试再次通过。新版已安装且签名校验通过。
+
+本次 Mac 桌面窗口捕捉也出现 `SCStreamErrorDomain -3811`；重置工具、确认唯一 1Panel 进程并按应用标识重新连接仍失败。未完成新增云母选项的桌面点击／视觉验收，当前旧进程未被强制结束，查看新选项需要正常退出后重启。Mac 原生能力测试确认云母不可用且自动仍选择亚克力。**本机是 Mac，Windows 原生 Mica、壁纸着色、焦点切换及真实系统设置切换尚未实机验收。**
+
+Windows 实机验收应依次检查：自动选云母；手动经典／云母切换和重启记忆；浅色／深色／跟随系统；壁纸变化；激活／非激活；关闭透明效果、高对比度、节电开关及恢复；拖动／缩放／全屏；内容区实色；Win10 和 Win11 build 22000 使用经典。
+
+原生接口依据：[DWM_SYSTEMBACKDROP_TYPE](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type)、[Mica 材质](https://learn.microsoft.com/en-us/windows/apps/design/style/mica)。
+
+## 亚克力首版实现与历史验收
 
 - 设置 → 外观：窗口材质「自动／经典／亚克力」与原有颜色模式独立；显示实际生效效果和回退原因。
 - Go 是材质偏好的唯一持久来源：`os.UserConfigDir()/ServerPanel/theme.json`，Mac 对应 `~/Library/Application Support/ServerPanel/theme.json`。临时文件写入、同步后原子替换；保存失败不改变原选择。
@@ -52,6 +70,7 @@
 ```sh
 CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 go test ./...
 CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 go test -race . -run 'TestWindowTheme|TestWindowMaterial'
+CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 go test -race ./internal/windowmaterial
 python3 scripts/test-window-material-native.py
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/OnePanel-theme-windows.exe .
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags server -o /tmp/OnePanel-theme-linux-server .
