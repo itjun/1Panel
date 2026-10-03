@@ -16,6 +16,7 @@ import * as Monitor from "./monitor.js";
 import * as NotifySubs from "./notifysubs.js";
 import * as Overview from "./overview.js";
 import * as PanelConfig from "./panelconfig.js";
+import * as SpeedTest from "./speedtest.js";
 import * as System from "./system.js";
 export {
     Agent,
@@ -33,6 +34,7 @@ export {
     NotifySubs,
     Overview,
     PanelConfig,
+    SpeedTest,
     System
 };
 

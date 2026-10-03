@@ -18,6 +18,7 @@ import * as CertNotify from "../../bindings/diteng-pannel/certnotify";
 import * as LocalApps from "../../bindings/diteng-pannel/localapps";
 import * as LocalSys from "../../bindings/diteng-pannel/localsys";
 import * as PanelConfig from "../../bindings/diteng-pannel/panelconfig";
+import * as SpeedTest from "../../bindings/diteng-pannel/speedtest";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -37,6 +38,7 @@ export * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/mo
 export * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 export * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 export * as main from "../../bindings/diteng-pannel/models";
+export * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
 import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
@@ -55,6 +57,7 @@ import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig
 import type * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
 import type * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 import type * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
+import type * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
 import { noteBackendCall } from "@/utils/uxPerf";
 
 // 保留原有类型导出名，视图层零改动
@@ -603,6 +606,23 @@ const apiImpl = {
   /** 从迁移包恢复；overwrite=true 时同名主机以备份为准 */
   restoreBackup: (path: string, overwrite: boolean): Promise<main.ImportResult> =>
     must(Backup.RestoreBackup(path, overwrite)),
+
+  // ============ 网络测速（内置 iperf3） ============
+  /** 识别 A、B 之间的局域网 / 广域网路径（实测连通）；port=0 自动 */
+  speedtestDetect: (a: string, b: string, port = 0): Promise<speedtest.PathReport> =>
+    must(SpeedTest.DetectPaths(a, b, port)),
+  speedtestStart: (req: speedtest.StartRequest): Promise<string> => str(SpeedTest.Start(req)),
+  speedtestStartGroup: (req: speedtest.GroupRequest): Promise<string> =>
+    str(SpeedTest.StartGroup(req)),
+  speedtestStop: async (id: string): Promise<void> => {
+    await SpeedTest.Stop(id);
+  },
+  speedtestActiveId: (): Promise<string> => str(SpeedTest.ActiveID()),
+  speedtestHistory: (): Promise<speedtest.HistoryItem[]> => arr(SpeedTest.ListHistory()),
+  speedtestRecord: (id: string): Promise<speedtest.Record> => must(SpeedTest.GetHistory(id)),
+  speedtestDeleteRecord: async (id: string): Promise<void> => {
+    await SpeedTest.DeleteHistory(id);
+  },
 };
 
 /** 包一层，只为数后台调用次数，不改变各方法的参数和返回值 */

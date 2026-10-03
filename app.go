@@ -25,6 +25,7 @@ import (
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/notifysubs"
 	"diteng-pannel/internal/panelstore"
+	"diteng-pannel/internal/speedtest"
 	"diteng-pannel/internal/sshd"
 	"diteng-pannel/internal/windowmaterial"
 
@@ -57,6 +58,7 @@ type App struct {
 	notifySubs      *notifysubs.Store
 	certNotify      *certnotify.Store
 	menuCheck       *menucheck.Watcher
+	speedTest       *speedtest.Service
 	panelConfigMu   sync.Mutex
 	panelConfigStop chan struct{}
 	panelPreviews   map[string]panelConfigPreviewRecord
@@ -116,6 +118,7 @@ func NewApp() *application.App {
 	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
 		return core.connectOptionFor(host)
 	})
+	core.speedTest = core.newSpeedTest()
 	desktop.SetService(ns)
 	initAskBeforeQuit()
 
@@ -141,6 +144,7 @@ func NewApp() *application.App {
 			application.NewService((*AlertHistory)(core)),
 			application.NewService((*NotifySubs)(core)),
 			application.NewService((*CertNotify)(core)),
+			application.NewService((*SpeedTest)(core)),
 			application.NewService(ns),
 		},
 		Assets: application.AssetOptions{
@@ -379,6 +383,9 @@ func (a *App) shutdown() {
 	}
 	if a.mainWindow != nil {
 		a.saveMainWindowGeom()
+	}
+	if a.speedTest != nil {
+		a.speedTest.Stop("")
 	}
 	a.sshMgr.CloseAll()
 }
