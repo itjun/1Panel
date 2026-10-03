@@ -148,7 +148,7 @@ func (r *remoteEP) upload(bin []byte) error {
 }
 
 func (r *remoteEP) addrs(ctx context.Context) ([]Addr, error) {
-	out, err := r.run(`ip -o -4 addr show 2>/dev/null; echo "=EGRESS="; (curl -4 -sL --max-time 2 https://myip.ipip.net/ 2>/dev/null || wget -qO- -T 2 https://myip.ipip.net/ 2>/dev/null) | head -c 400; true`, 12*time.Second)
+	out, err := r.run(`ip -o -4 addr show 2>/dev/null; echo "=EGRESS="; `+egressScript, 15*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("%s：读取网卡失败：%v", r.host, err)
 	}
@@ -162,6 +162,14 @@ func (r *remoteEP) addrs(ctx context.Context) ([]Addr, error) {
 	addrs = addHostName(addrs, resolveHost(ctx, r.opt.HostName, r.host))
 	return addEgress(addrs, egress), nil
 }
+
+// egressScript 查出口 IPv4：绕过代理（代理出口对入站测速没有意义），
+// 偶发返回 IPv6 时最多重试 3 次，直到拿到 IPv4
+const egressScript = `for i in 1 2 3; do
+o=$( (curl -4 -sL --noproxy "*" --max-time 2 https://myip.ipip.net/ 2>/dev/null || wget -qO- --no-proxy -T 2 https://myip.ipip.net/ 2>/dev/null) | head -c 400)
+echo "$o"
+echo "$o" | grep -Eq "[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+" && break
+done; true`
 
 func resolveHost(ctx context.Context, hostName, alias string) []net.IP {
 	h := strings.TrimSpace(hostName)
@@ -320,20 +328,35 @@ func localEgress(ctx context.Context) string {
 	if time.Now().Before(c.next) {
 		return c.ip
 	}
+	c.next = time.Now().Add(time.Minute)
+	for i := 0; i < 3; i++ {
+		if ip := fetchEgress4(ctx); ip != "" {
+			c.ip, c.next = ip, time.Now().Add(10*time.Minute)
+			break
+		}
+	}
+	return c.ip
+}
+
+// egressClient 只走 IPv4 直连，避免拿到 IPv6 或代理的出口
+var egressClient = &http.Client{Transport: &http.Transport{
+	Proxy: nil,
+	DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "tcp4", addr)
+	},
+}}
+
+func fetchEgress4(ctx context.Context) string {
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(cctx, http.MethodGet, "https://myip.ipip.net/", nil)
-	c.next = time.Now().Add(time.Minute)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := egressClient.Do(req)
 	if err != nil {
-		return c.ip
+		return ""
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-	if ip := parseEgress(string(body)); ip != "" {
-		c.ip, c.next = ip, time.Now().Add(10*time.Minute)
-	}
-	return c.ip
+	return parseEgress(string(body))
 }
 
 func (l *localEP) iperfOnce(ctx context.Context, args []string, timeout time.Duration) ([]byte, error) {
