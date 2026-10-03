@@ -20,6 +20,7 @@ import { InspectPage } from "@/react/pages/inspect";
 import { LocalPage } from "@/react/pages/local";
 import { NotifyPage } from "@/react/pages/notify";
 import { SettingsPage } from "@/react/pages/settings-page";
+import { SpeedtestPage } from "@/react/pages/speedtest";
 import { PageRefreshProvider } from "@/react/state/page-refresh";
 import { SessionProvider, useSession } from "@/react/state/session";
 import { SidebarProvider, useSidebar } from "@/react/state/sidebar";
@@ -233,6 +234,7 @@ function workspaceKey(session: ReturnType<typeof useSession>): string {
   if (session.workspace === "config") return "config";
   if (session.workspace === "local") return "local";
   if (session.workspace === "inspect") return "inspect";
+  if (session.workspace === "speedtest") return "speedtest";
   if (session.activeHost) return `host:${session.activeHost}`;
   if (session.homeView === "group") return `group:${session.activeGroupId || ""}`;
   return "home";
@@ -252,6 +254,7 @@ function WorkspaceBody({
   else if (session.workspace === "config") body = <ConfigCenterPage />;
   else if (session.workspace === "local") body = <LocalPage />;
   else if (session.workspace === "inspect") body = <InspectPage />;
+  else if (session.workspace === "speedtest") body = <SpeedtestPage />;
   else if (session.activeHost) body = <HostWorkspace />;
   else if (session.homeView === "group")
     body = <GroupPage onCreateHost={onCreateHost} />;

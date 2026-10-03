@@ -22,6 +22,7 @@ import {
   type ConfigSection,
   type NotifySection,
   type SettingsSection,
+  type SpeedtestSection,
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
 import { useSidebar } from "@/react/state/sidebar";
@@ -45,6 +46,12 @@ const CONFIG_SECTIONS: { id: ConfigSection; label: string }[] = [
   { id: "files", label: "SSH 文件" },
   { id: "diff", label: "差异与冲突" },
   { id: "backups", label: "备份" },
+];
+
+const SPEEDTEST_SECTIONS: { id: SpeedtestSection; label: string }[] = [
+  { id: "pair", label: "两机测速" },
+  { id: "group", label: "分组测速" },
+  { id: "history", label: "历史记录" },
 ];
 
 /** 设置页分区，与 SettingsPage 内区块一一对应。 */
@@ -242,7 +249,9 @@ export function WorkspaceRail() {
           ? "local"
           : session.workspace === "inspect"
             ? "inspect"
-            : "hosts";
+            : session.workspace === "speedtest"
+              ? "speedtest"
+              : "hosts";
 
   const railEntries = buildRailEntries();
 
@@ -304,6 +313,17 @@ export function WorkspaceRail() {
                 label={item.label}
                 active={session.localSection === item.id}
                 onClick={() => session.setLocalSection(item.id)}
+              />
+            ))
+          : null}
+
+        {listKind === "speedtest"
+          ? SPEEDTEST_SECTIONS.map((item) => (
+              <RailNavButton
+                key={item.id}
+                label={item.label}
+                active={session.speedtestSection === item.id}
+                onClick={() => session.setSpeedtestSection(item.id)}
               />
             ))
           : null}

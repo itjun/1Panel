@@ -870,6 +870,16 @@ export function GroupPage({
           >
             {batchBusy ? "安装中…" : "安装 Agent"}
           </Button>
+          {canEditGroup && hosts.length >= 2 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              data-tip="组内主机之间走局域网测带宽"
+              onClick={() => session.openSpeedtest("group", { groupId })}
+            >
+              分组测速
+            </Button>
+          ) : null}
           {hasCustomLayout ? (
             <Button variant="ghost" size="sm" onClick={resetLayout}>
               恢复默认列

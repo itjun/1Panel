@@ -6,6 +6,7 @@ import { Events } from "@wailsio/runtime";
 import {
   Bell,
   FileCog,
+  Gauge,
   Laptop,
   ScanSearch,
   Server,
@@ -106,6 +107,7 @@ export function ModuleRail() {
           badge={unread > 0 ? formatCount(unread) : null}
           onClick={() => session.setWorkspace("notify")}
         />
+        <RailModule icon={Gauge} label="测速" active={open && ws === "speedtest"} onClick={() => session.setWorkspace("speedtest")} />
         <div className="flex-1" />
         <RailModule icon={ScanSearch} label="巡检" active={open && ws === "inspect"} onClick={() => session.setWorkspace("inspect")} />
         <RailModule

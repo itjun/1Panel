@@ -26,7 +26,8 @@ export type Workspace =
   | "local"
   | "inspect"
   | "notify"
-  | "config";
+  | "config"
+  | "speedtest";
 
 export type Tool =
   | "overview"
@@ -65,6 +66,9 @@ export type NotifySection =
 
 export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";
 export type InspectSection = "menuCheck";
+export type SpeedtestSection = "pair" | "group" | "history";
+/** 从主机右键 / 分组页跳进测速时的预填 */
+export type SpeedtestPrefill = { a?: string; b?: string; groupId?: string; nonce: number };
 export type SettingsSection = "look" | "session" | "board" | "app" | "shortcuts" | "about";
 export type HomeView = "home" | "group";
 
@@ -114,6 +118,7 @@ type Nav = {
   notifySection: NotifySection;
   configSection: ConfigSection;
   inspectSection: InspectSection;
+  speedtestSection: SpeedtestSection;
   settingsSection: SettingsSection;
   homeView: HomeView;
   activeGroupId: string;
@@ -130,6 +135,7 @@ const defaultNav = (): Nav => ({
   notifySection: "metricMessages",
   configSection: "overview",
   inspectSection: "menuCheck",
+  speedtestSection: "pair",
   settingsSection: "look",
   homeView: "home",
   activeGroupId: "",
@@ -174,7 +180,7 @@ function loadNav(): Nav {
     if (
       workspace === "terminal" ||
       (workspace &&
-        !["remote", "local", "inspect", "notify", "config"].includes(workspace))
+        !["remote", "local", "inspect", "notify", "config", "speedtest"].includes(workspace))
     ) {
       workspace = "remote";
     }
@@ -194,6 +200,9 @@ function loadNav(): Nav {
     }
     if (!TOOL_IDS.has(merged.activeTool)) {
       merged.activeTool = "overview";
+    }
+    if (!["pair", "group", "history"].includes(merged.speedtestSection as string)) {
+      merged.speedtestSection = "pair";
     }
     if (merged.homeView !== "home" && merged.homeView !== "group") {
       merged.homeView = "home";
@@ -291,6 +300,10 @@ type SessionValue = Nav & {
   setNotifySection: (section: NotifySection) => void;
   setConfigSection: (section: ConfigSection) => void;
   setInspectSection: (section: InspectSection) => void;
+  setSpeedtestSection: (section: SpeedtestSection) => void;
+  speedtestPrefill: SpeedtestPrefill | null;
+  /** 跳到测速工作区并预填端点或分组 */
+  openSpeedtest: (section: SpeedtestSection, prefill?: Omit<SpeedtestPrefill, "nonce">) => void;
   setSettingsSection: (section: SettingsSection) => void;
   goHome: () => void;
   openGroup: (id: string) => void;
@@ -330,6 +343,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [osRelease, setOsRelease] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [editingHost, setEditingHostState] = useState("");
+  const [speedtestPrefill, setSpeedtestPrefill] = useState<SpeedtestPrefill | null>(null);
   const historyRef = useRef({ stack: [viewSnap(nav)], index: 0 });
   const [, setHistoryRev] = useState(0);
 
@@ -425,6 +439,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         patch({ configSection, workspace: "config", settingsOpen: false }),
       setInspectSection: (inspectSection) =>
         patch({ inspectSection, workspace: "inspect", settingsOpen: false }),
+      setSpeedtestSection: (speedtestSection) =>
+        patch({ speedtestSection, workspace: "speedtest", settingsOpen: false }),
+      speedtestPrefill,
+      openSpeedtest: (speedtestSection, prefill) => {
+        if (prefill) setSpeedtestPrefill({ ...prefill, nonce: Date.now() });
+        patch({ speedtestSection, workspace: "speedtest", settingsOpen: false });
+      },
       setSettingsSection: (settingsSection) =>
         patch({ settingsSection, settingsOpen: true }),
       goHome: () => {
@@ -581,6 +602,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       patch,
       refresh,
       editingHost,
+      speedtestPrefill,
     ],
   );
 
@@ -606,6 +628,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         notifySection: snap.notifySection,
         configSection: snap.configSection,
         inspectSection: snap.inspectSection,
+        speedtestSection: snap.speedtestSection,
         settingsSection: snap.settingsSection,
         homeView: snap.homeView,
         activeGroupId: snap.activeGroupId,

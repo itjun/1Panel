@@ -223,7 +223,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 区域 | 约定 |
 |---|---|
 | 壳层三块色面 | 从深到浅：一级图标栏（`--color-rail`，通顶）→ 顶栏 + 二级栏组成的 **L 形外框**（`--color-canvas`）→ 内容区一整块**白色平面**（`--color-surface`）；三者之间**不画分隔线**，只靠色块区分 |
-| 一级图标栏（Rail） | 宽 **72px**，**从窗口顶端通到底**；经典模式使用不透明底色 `--color-rail`；亚克力模式使用同色半透明覆盖；顶部 40px 是窗口拖拽区：Mac 系统红绿灯落在这里，Win/Linux 在此居中放 18px 应用图标；其下自上而下平铺高频模块（主机 / 本机 / 通知），低频模块（巡检 / 配置 / 设置）固定在栏底；侧栏开关不影响图标栏，始终显示 |
+| 一级图标栏（Rail） | 宽 **72px**，**从窗口顶端通到底**；经典模式使用不透明底色 `--color-rail`；亚克力模式使用同色半透明覆盖；顶部 40px 是窗口拖拽区：Mac 系统红绿灯落在这里，Win/Linux 在此居中放 18px 应用图标；其下自上而下平铺高频模块（主机 / 本机 / 通知 / 测速），低频模块（巡检 / 配置 / 设置）固定在栏底；侧栏开关不影响图标栏，始终显示 |
 | 顶栏工具条 | 固定 **40px**（`.shell-app-toolbar`），从图标栏右缘（x = 72px）贯通到窗口右缘；底色 `--color-canvas`（与二级栏同色），无下边线；导航按钮（侧栏开关 / 后退 / 前进 / 刷新 / 主页）贴着图标栏开始，三端 x 坐标一致；页面标题 / 操作经 portal 挂入。顶栏内 secondary 按钮与输入框改用 `--color-surface` 底（canvas 上 raised 对比不够） |
 | Win/Linux 窗口按钮 | 最小化 / 最大化 / 关闭自绘于右上角，尺寸 **38×28**，风格与导航按钮一致（线性图标、hover 用 `--color-line`，关闭 hover 用 `--color-danger`） |
 | 二级标签栏（Sider） | 当前一级模块的分区 / 已打开主机与分组；位于顶栏**下方**、图标栏右侧；默认宽度 **200px**（三端一致）；可拖拽改宽（160–400px），双击分割条复位；顶栏「侧栏开关」只收起这一栏；底色 `--color-canvas`，无右边线；分割条平时不可见，hover / 拖动时才显示 |
@@ -409,7 +409,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 网格色块单元：同类单元平铺成网格（巡检项、Docker 容器等）用 `bg-raised p-4` 纯色块区分，块间距 `gap-card`，无描边 / 阴影；可点整块时 hover `bg-line`；块内 secondary 按钮与 neutral 标签改 `bg-surface`（hover `bg-line`），否则与色块同色。**不要在 `Card` 上写 `bg-*`**：`.surface-float` 不在 Tailwind 层内，会盖掉 `bg-*` 工具类，色块单元用普通 `div`。
 - 环图（`RingMeter`）直接落在内容平面上，不再垫 raised 色块（环图所在区块本身就是平面，再垫一层即卡片套卡片）。
 - 二级栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；二级栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；行高 40px，左右内缩 8px。
-- 一级图标栏（`components/module-rail.tsx`，`.module-rail-item`）：每项 **56×52** 方块（`--radius-control`），20px lucide 线性图标（描边 1.5）+ 下方 4px + 12px 文字，项间距 4px；第一项顶边紧贴顶栏下沿（y = 40px），与二级栏第一行、内容区白色平面的顶边在同一条线上，栏底留 8px；顶部依次为主机 / 本机 / 通知，底部依次为巡检 / 配置 / 设置；图标：主机 `Server`、本机 `Laptop`、巡检 `ScanSearch`、通知 `Bell`、配置 `FileCog`、设置 `Settings`。静止 `text-muted` 无底；hover `bg-line` + `text-ink`；选中底色 `--color-canvas`（与二级栏同色，读作向右打开到二级栏）+ 图标与文字 `--color-accent`、文字 600，无指示条；通知未读数是图标右上角的 accent 小 Tag（等宽数字，>99 显示 99+），配置待处理是图标右上角 6px `--color-danger` 圆点；键盘焦点 2px `--color-accent-focus` 外环。图标与名称始终同时显示，不提供隐藏名称的开关，图标栏无右键菜单。
+- 一级图标栏（`components/module-rail.tsx`，`.module-rail-item`）：每项 **56×52** 方块（`--radius-control`），20px lucide 线性图标（描边 1.5）+ 下方 4px + 12px 文字，项间距 4px；第一项顶边紧贴顶栏下沿（y = 40px），与二级栏第一行、内容区白色平面的顶边在同一条线上，栏底留 8px；顶部依次为主机 / 本机 / 通知 / 测速，底部依次为巡检 / 配置 / 设置；图标：主机 `Server`、本机 `Laptop`、巡检 `ScanSearch`、通知 `Bell`、测速 `Gauge`、配置 `FileCog`、设置 `Settings`。静止 `text-muted` 无底；hover `bg-line` + `text-ink`；选中底色 `--color-canvas`（与二级栏同色，读作向右打开到二级栏）+ 图标与文字 `--color-accent`、文字 600，无指示条；通知未读数是图标右上角的 accent 小 Tag（等宽数字，>99 显示 99+），配置待处理是图标右上角 6px `--color-danger` 圆点；键盘焦点 2px `--color-accent-focus` 外环。图标与名称始终同时显示，不提供隐藏名称的开关，图标栏无右键菜单。
 - 二级栏结构：只列当前一级模块的标签，不再有模块区与横线；第一行顶边紧贴顶栏下沿，不留上内边距；主机模块顶部固定一行「全部主机」（回首页，首页时为选中态），其下 8px 留白再列已打开的主机与分组（可拖拽排序、右键菜单）；巡检即使只有一项也照常显示二级栏，避免切模块时版面跳动；整栏独立滚动。图标栏与二级栏各自有一处选中色块，属正常。
 - 页面提示条（`Notice` / `FlashNotices` + `useFlashMessage`），视觉按 TDesign Alert：
   - 四种 theme：success（`--color-success` / `success-soft`，绿，同 TDesign）、info（`info` / `info-soft`）、warning（`warn` / `warn-soft`，组件里旧名 `warn` 等价）、error（`danger` / `danger-soft`）。
@@ -428,6 +428,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 告警全局控件组（「通知什么」类型列表下方，1px `line` 分隔线 + 16px 间距，与上方同一套 `120px_1fr` grid）：「连续」`InputNumber`（1–12 次采样）、「重复提醒」`InputNumber`（0–1440 分钟，0 为关闭）、「负载取」`RadioGroup`（1 / 5 / 15 分钟），控件右侧 `text-xs text-muted` 写含义。不开放阈值输入。
 - 时间线重复提醒节点：颜色按该条档位（`warn` / `danger`），只列最近 3 次，更早的合并成一行「另提醒 N 次」（空心 `line-strong` 节点）。
 - 消息页（通知 → 指标消息 / 应用消息）：一次「告警 + 回落」按 `incidentId` 合并为一条事件；`Page flush` 左右分栏，左列表宽 360px、右边 1px `--color-line` 分隔，按日期分组（组标题 32px 吸顶、`text-xs text-muted`），每条两行（主机 + 类型 + 时间 / 峰值 + 持续时长），未读主机名 600 字重 + 6px accent 方点，选中 `accent-soft`，上下方向键切换；右侧详情内边距 24px、区块间 `gap-section`，唯一的大数字是峰值（`text-2xl` 等宽 600，危险档 `text-danger`）配 `Meter`。筛选收拢为顶栏 `Select` + `RadioGroup` + `Switch`，不再堆按钮组。
+- 网络测速（测速 → 两机测速 / 分组测速 / 历史记录，`components/speedtest/`）：路径卡片左右两块（局域网 / 广域网），可用 `bg-raised` + 6px `--color-success` 状态灯 + 「可连通 · RTT」，选中 `accent-soft` 底 + accent 标题，不可用 `opacity-60` + `line-strong` 灯 + 原因文字，只有可用卡可点；卡下列出 A、B 两端网段 Tag（公网 warn、虚拟内网 info）。实时曲线 A→B（A 发送）用 `--color-io-write`、B→A 用 `--color-io-read`，与监控「发送 / 接收」同义，单位按峰值在 Kbps / Mbps / Gbps 间切换，「分流」开关叠加同色 35% 不透明细线；指标条全部等宽数字。矩阵热力格只用三档已有 token：`bg-raised` / `bg-accent-tint` / `bg-accent-soft` + accent 字，不引入新色。
 - 通知预览矩阵（通知设置「正文带上」正下方，`components/notify/channel-preview.tsx`）：**全部展开、不做下拉 / 切换**——行 = 消息类型（CPU / 内存 / 磁盘 / 负载 / 应用探活）× 告警 / 升级（警告、危险两档都订时）/ 重复（开了重复提醒时）/ 恢复，列 = 系统通知 / 应用内 / 企业微信，列头 32px 吸顶。每格一张预览卡，模拟对应渠道的消息外观：`bg-raised` + `--radius-panel` + 12px 内边距，无描边无阴影（模拟的是浮出的通知，故用浮层圆角）；渠道关闭整列 `opacity-50`、列头标「未开启，不会发送」；类型或「恢复」未勾选整行 `opacity-50`，行头用 `text-warn` 写原因。企业微信卡渲染后端 `PreviewHostAlertMarkdown` 原文：`<font color>` 映射 red→`danger`、warning→`warn`、info→`success-text`、comment→`muted`，引用行左侧 2px `line-strong` 竖线。
 - Meter：见 §4.7，唯一允许的「装饰级」组件。
 - 窗口壳层：顶栏、侧栏、Win/Linux 窗口按钮全部走共享组件，平台判断只从 `lib/platform.ts` 引入。

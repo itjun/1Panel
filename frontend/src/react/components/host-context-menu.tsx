@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { cn } from "@/react/lib/utils";
+import { useSession } from "@/react/state/session";
 
 export type HostContextMenuState = {
   host: string;
@@ -60,6 +61,8 @@ export function HostContextMenu({
     return () => window.removeEventListener("keydown", onKey);
   }, [menu, onClose]);
 
+  const session = useSession();
+
   if (!mounted || !active) return null;
 
   const hosts = active.hosts.length > 0 ? active.hosts : [active.host];
@@ -109,6 +112,15 @@ export function HostContextMenu({
           onClick={() => {
             onClose();
             onEdit(active.host);
+          }}
+        />
+        <MenuItem
+          label="网络测速…"
+          disabled={hosts.length > 2}
+          onClick={() => {
+            onClose();
+            if (hosts.length === 2) session.openSpeedtest("pair", { a: hosts[0], b: hosts[1] });
+            else session.openSpeedtest("pair", { a: "@local", b: active.host });
           }}
         />
         <div className="my-1 border-t border-line" />
