@@ -19,26 +19,24 @@ import * as sshconfig$0 from "./internal/sshconfig/models.js";
 import * as $models from "./models.js";
 
 /**
- * AddHost 添加新主机：先校验别名不重复 → 用密码连一次验证 → 推送本机公钥 → 回写 ~/.ssh/config
- * 用户只需提供别名/IP/用户/密码 4 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
- * 验证通过并推送公钥后，后续对该主机即可免密登录
- * 密码可留空：此时按 `ssh user@ip` 的方式用本机默认私钥 / ssh-agent 测连，
- * 通过即保存，不推送公钥（用户已手动配好密钥对）。
+ * AddHost 添加新主机：先校验别名不重复 → 验证凭据 → 回写 ~/.ssh/config
+ * 用户只需提供别名/IP/用户 3 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
+ *   - 填了密码：用户+密码验证；并检查本机公钥是否已上传（缺才补传，已存在不动）
+ *   - 密码留空：只校验本机私钥登录（等同 `ssh user@ip`），不推送公钥
  * 契约：只有连通性+凭据验证成功才会写 config
  */
-export function AddHost(input: $models.AddHostInput): $CancellablePromise<void> {
+export function AddHost(input: $models.AddHostInput): $CancellablePromise<string> {
     return $Call.ByID(2699445634, input);
 }
 
 /**
- * CopySSHID 把本机公钥安装到远程主机的 authorized_keys，并把结果写入
+ * CopySSHID 检查本机公钥是否已在目标主机的 authorized_keys（缺才补传），并把结果写入
  * Panel JSON；OpenSSH 配置仍由 JSON 统一生成。
  * 步骤：
  *  1. 读 ~/.ssh/id_ed25519.pub（不存在则提示用户先生成）
- *  2. 用密码连一次目标主机
- *  3. 执行 mkdir -p ~/.ssh && echo "$pubkey" >> authorized_keys && chmod 限制权限
- *  4. 关闭连接
- *  5. 回写 ~/.ssh/config（追加 Host 块）
+ *  2. 用密码连一次目标主机，先 grep 检查再按需追加
+ *  3. 关闭连接
+ *  4. 回写 ~/.ssh/config（追加 Host 块）
  */
 export function CopySSHID(input: $models.CopyIDInput): $CancellablePromise<string> {
     return $Call.ByID(1594776111, input);
@@ -109,10 +107,10 @@ export function TestConnection(input: $models.AddHostInput): $CancellablePromise
 
 /**
  * UpdateHost 编辑主机 → 更新 Panel JSON（再生成 config）中的 HostName/User/备注
- * 别名不变；验证失败不写 config。
- *   - 填了密码：密码测连 → 推送本机公钥 → 保存新密码
- *   - 未填密码：主机添加时已验证过，用已有密钥/已存密码测连，不推公钥、不清空已存密码
+ * 别名不变；验证失败不写 config。成功返回验证结果消息。
+ *   - 填了密码：密码测连 → 检查本机公钥是否已上传（缺才补传）→ 保存新密码
+ *   - 未填密码：只校验本机私钥登录（不回退已存密码），不推公钥、不清空已存密码
  */
-export function UpdateHost(input: $models.UpdateHostInput): $CancellablePromise<void> {
+export function UpdateHost(input: $models.UpdateHostInput): $CancellablePromise<string> {
     return $Call.ByID(2265726266, input);
 }

@@ -85,34 +85,34 @@ func (s *Hosts) ListHostsAll() ([]sshconfig.HostConfig, error) {
 	return s.attachHostNotes(hosts), nil
 }
 
-// AddHost 添加新主机：先校验别名不重复 → 用密码连一次验证 → 推送本机公钥 → 回写 ~/.ssh/config
-// 用户只需提供别名/IP/用户/密码 4 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
-// 验证通过并推送公钥后，后续对该主机即可免密登录
-// 密码可留空：此时按 `ssh user@ip` 的方式用本机默认私钥 / ssh-agent 测连，
-// 通过即保存，不推送公钥（用户已手动配好密钥对）。
+// AddHost 添加新主机：先校验别名不重复 → 验证凭据 → 回写 ~/.ssh/config
+// 用户只需提供别名/IP/用户 3 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
+//   - 填了密码：用户+密码验证；并检查本机公钥是否已上传（缺才补传，已存在不动）
+//   - 密码留空：只校验本机私钥登录（等同 `ssh user@ip`），不推送公钥
 // 契约：只有连通性+凭据验证成功才会写 config
-func (s *Hosts) AddHost(input AddHostInput) error {
+func (s *Hosts) AddHost(input AddHostInput) (string, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.HostName = strings.TrimSpace(input.HostName)
 	input.User = strings.TrimSpace(input.User)
 	// 密码不 trim，保留用户输入原样
 	if input.Name == "" || input.HostName == "" || input.User == "" {
-		return fmt.Errorf("别名、IP、用户均不能为空")
+		return "", fmt.Errorf("别名、IP、用户均不能为空")
 	}
 	if strings.ContainsAny(input.Name, " \t\r\n*") {
-		return fmt.Errorf("别名不能包含空格或通配符 *")
+		return "", fmt.Errorf("别名不能包含空格或通配符 *")
 	}
 	// 校验别名是否已存在
 	hosts, err := s.ListHostsAll()
 	if err != nil {
-		return fmt.Errorf("读取 ssh config 失败: %w", err)
+		return "", fmt.Errorf("读取 ssh config 失败: %w", err)
 	}
 	for _, h := range hosts {
 		if h.Name == input.Name {
-			return fmt.Errorf("别名 %s 已存在，请换一个", input.Name)
+			return "", fmt.Errorf("别名 %s 已存在，请换一个", input.Name)
 		}
 	}
 	identityFiles := []string{"~/.ssh/id_ed25519"}
+	var verifyMsg string
 	if input.Password == "" {
 		identityFiles = defaultIdentityFiles()
 		probe := panelstore.PanelHost{
@@ -120,8 +120,9 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 			Port: "22", IdentityFiles: identityFiles,
 		}
 		if _, err := (*App)(s).testPanelHost(probe); err != nil {
-			return fmt.Errorf("未填密码，使用本机密钥登录失败: %w", err)
+			return "", fmt.Errorf("未填密码，使用本机密钥登录失败: %w", err)
 		}
+		verifyMsg = "密钥登录验证通过"
 	} else {
 		// 密码连接本身就是一次验证；失败则不会修改 Panel JSON。
 		copyInput := CopyIDInput{
@@ -133,8 +134,14 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 			PublicKeyFile: "~/.ssh/id_ed25519.pub",
 			IdentityFile:  "~/.ssh/id_ed25519",
 		}
-		if err := s.installSSHID(copyInput); err != nil {
-			return err
+		already, err := s.installSSHID(copyInput)
+		if err != nil {
+			return "", err
+		}
+		if already {
+			verifyMsg = "密码验证通过，公钥已存在"
+		} else {
+			verifyMsg = "密码验证通过，已上传公钥（后续可免密登录）"
 		}
 	}
 	if a := (*App)(s); a.panelStore != nil {
@@ -146,7 +153,7 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 			})
 			return nil
 		}); err != nil {
-			return fmt.Errorf("保存 Panel 主机失败: %w", err)
+			return "", fmt.Errorf("保存 Panel 主机失败: %w", err)
 		}
 	}
 	if (*App)(s).panelStore == nil && s.hostMeta != nil {
@@ -159,7 +166,7 @@ func (s *Hosts) AddHost(input AddHostInput) error {
 			}
 		}
 	}
-	return nil
+	return verifyMsg, nil
 }
 
 // defaultIdentityFiles 返回本机存在的 OpenSSH 默认私钥（与 `ssh user@ip` 默认尝试的顺序一致）；
@@ -269,20 +276,20 @@ func (s *Hosts) RenameHost(oldName, newName string) error {
 }
 
 // UpdateHost 编辑主机 → 更新 Panel JSON（再生成 config）中的 HostName/User/备注
-// 别名不变；验证失败不写 config。
-//   - 填了密码：密码测连 → 推送本机公钥 → 保存新密码
-//   - 未填密码：主机添加时已验证过，用已有密钥/已存密码测连，不推公钥、不清空已存密码
-func (s *Hosts) UpdateHost(input UpdateHostInput) error {
+// 别名不变；验证失败不写 config。成功返回验证结果消息。
+//   - 填了密码：密码测连 → 检查本机公钥是否已上传（缺才补传）→ 保存新密码
+//   - 未填密码：只校验本机私钥登录（不回退已存密码），不推公钥、不清空已存密码
+func (s *Hosts) UpdateHost(input UpdateHostInput) (string, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.HostName = strings.TrimSpace(input.HostName)
 	input.User = strings.TrimSpace(input.User)
 	if input.Name == "" || input.HostName == "" || input.User == "" {
-		return fmt.Errorf("别名、IP、用户均不能为空")
+		return "", fmt.Errorf("别名、IP、用户均不能为空")
 	}
 
 	hosts, err := s.ListHostsAll()
 	if err != nil {
-		return fmt.Errorf("读取 Panel 主机失败: %w", err)
+		return "", fmt.Errorf("读取 Panel 主机失败: %w", err)
 	}
 	var current *sshconfig.HostConfig
 	for i := range hosts {
@@ -292,15 +299,24 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 		}
 	}
 	if current == nil {
-		return fmt.Errorf("未找到主机别名: %s", input.Name)
+		return "", fmt.Errorf("未找到主机别名: %s", input.Name)
 	}
 
+	var verifyMsg string
 	if input.Password != "" {
-		if err := s.verifyWithPassword(input); err != nil {
-			return err
+		already, err := s.verifyWithPassword(input)
+		if err != nil {
+			return "", err
+		}
+		if already {
+			verifyMsg = "密码验证通过，公钥已存在"
+		} else {
+			verifyMsg = "密码验证通过，已上传公钥（后续可免密登录）"
 		}
 	} else if err := s.verifyWithExistingLogin(input, *current); err != nil {
-		return err
+		return "", err
+	} else {
+		verifyMsg = "密钥登录验证通过"
 	}
 
 	// 先更新 JSON，再由 JSON 生成 config；IdentityFile、分组和高级选项
@@ -320,10 +336,10 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 			}
 			return fmt.Errorf("未找到 Panel 主机: %s", input.Name)
 		}); err != nil {
-			return err
+			return "", err
 		}
 	} else if err := sshconfig.UpdateHostFields(input.Name, input.HostName, input.User); err != nil {
-		return err
+		return "", err
 	}
 
 	// 关闭旧连接，下次用新参数重连
@@ -338,23 +354,24 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) error {
 			}
 		}
 	}
-	return nil
+	return verifyMsg, nil
 }
 
-// verifyWithPassword 用新密码测连（不污染正式连接池），再推送本机公钥，保证新 IP/用户下后续可免密
-func (s *Hosts) verifyWithPassword(input UpdateHostInput) error {
+// verifyWithPassword 用新密码测连（不污染正式连接池），再检查/补传本机公钥，
+// 返回公钥是否原先就在目标主机上。
+func (s *Hosts) verifyWithPassword(input UpdateHostInput) (bool, error) {
 	if _, err := s.TestConnection(AddHostInput{
 		Name:     input.Name,
 		HostName: input.HostName,
 		User:     input.User,
 		Password: input.Password,
 	}); err != nil {
-		return err
+		return false, err
 	}
 
 	pub, err := readPublicKey("~/.ssh/id_ed25519.pub")
 	if err != nil {
-		return err
+		return false, err
 	}
 	opt := sshd.ConnectOption{
 		Host:     "__update__:" + input.Name,
@@ -363,19 +380,12 @@ func (s *Hosts) verifyWithPassword(input UpdateHostInput) error {
 		Port:     "22",
 		Password: input.Password,
 	}
-	defer s.sshMgr.Close(opt.Host)
-	script := fmt.Sprintf(
-		`mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys`,
-		pub,
-	)
-	if _, err := s.sshMgr.Run(opt.Host, opt, script); err != nil {
-		return fmt.Errorf("安装公钥失败: %w", err)
-	}
-	return nil
+	return s.ensureAuthorizedKey(opt.Host, opt, pub)
 }
 
-// verifyWithExistingLogin 未填密码时，沿用主机原有的密钥/已存密码/代理配置，
-// 只把地址和用户换成新值后测连
+// verifyWithExistingLogin 未填密码时，只校验本机私钥登录：沿用主机原有的密钥/代理配置，
+// 把地址和用户换成新值、剥离已存密码后测连（密钥不可用即失败，提示填密码可重传公钥）。
+// 已存密码仅从本次测试中剥离，存储中保留（供 SSH 兜底认证与 Agent 安装的 sudo 提权）。
 func (s *Hosts) verifyWithExistingLogin(input UpdateHostInput, current sshconfig.HostConfig) error {
 	a := (*App)(s)
 	var host panelstore.PanelHost
@@ -398,14 +408,12 @@ func (s *Hosts) verifyWithExistingLogin(input UpdateHostInput, current sshconfig
 		if current.IdentityFile != "" {
 			host.IdentityFiles = []string{current.IdentityFile}
 		}
-		if s.hostMeta != nil {
-			host.Password = s.hostMeta.GetPassword(input.Name)
-		}
 	}
 	host.HostName = input.HostName
 	host.User = input.User
+	host.Password = ""
 	if _, err := a.testPanelHost(host); err != nil {
-		return err
+		return fmt.Errorf("密钥登录验证失败: %w（如需重新上传公钥，请填写该用户密码后保存）", err)
 	}
 	return nil
 }
@@ -536,17 +544,21 @@ func (s *Hosts) DeleteHost(name string) error {
 	return nil
 }
 
-// CopySSHID 把本机公钥安装到远程主机的 authorized_keys，并把结果写入
+// CopySSHID 检查本机公钥是否已在目标主机的 authorized_keys（缺才补传），并把结果写入
 // Panel JSON；OpenSSH 配置仍由 JSON 统一生成。
 // 步骤：
 //  1. 读 ~/.ssh/id_ed25519.pub（不存在则提示用户先生成）
-//  2. 用密码连一次目标主机
-//  3. 执行 mkdir -p ~/.ssh && echo "$pubkey" >> authorized_keys && chmod 限制权限
-//  4. 关闭连接
-//  5. 回写 ~/.ssh/config（追加 Host 块）
+//  2. 用密码连一次目标主机，先 grep 检查再按需追加
+//  3. 关闭连接
+//  4. 回写 ~/.ssh/config（追加 Host 块）
 func (s *Hosts) CopySSHID(input CopyIDInput) (string, error) {
-	if err := s.installSSHID(input); err != nil {
+	already, err := s.installSSHID(input)
+	if err != nil {
 		return "", err
+	}
+	msg := "已上传公钥"
+	if already {
+		msg = "公钥已存在，无需重复上传"
 	}
 
 	if a := (*App)(s); a.panelStore != nil {
@@ -579,21 +591,22 @@ func (s *Hosts) CopySSHID(input CopyIDInput) (string, error) {
 			return "", fmt.Errorf("公钥已安装但回写 ssh config 失败: %w", err)
 		}
 	}
-	return "ok", nil
+	return msg, nil
 }
 
 // installSSHID only performs the remote credential operation. Keeping it
 // separate prevents AddHost from accidentally generating config twice.
-func (s *Hosts) installSSHID(input CopyIDInput) error {
+// 返回 already=true 表示公钥原先就在目标主机上（本次未改动）。
+func (s *Hosts) installSSHID(input CopyIDInput) (bool, error) {
 	if strings.TrimSpace(input.Name) == "" || strings.ContainsAny(input.Name, " \t\r\n*?#") {
-		return fmt.Errorf("主机别名无效")
+		return false, fmt.Errorf("主机别名无效")
 	}
 	if input.PublicKeyFile == "" {
-		return fmt.Errorf("公钥路径不能为空")
+		return false, fmt.Errorf("公钥路径不能为空")
 	}
 	pub, err := readPublicKey(input.PublicKeyFile)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if input.Port == "" {
 		input.Port = "22"
@@ -602,10 +615,21 @@ func (s *Hosts) installSSHID(input CopyIDInput) error {
 		Host: input.Name, HostName: input.HostName, User: input.User,
 		Port: input.Port, Password: input.Password,
 	}
-	script := fmt.Sprintf(`mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys`, pub)
-	if _, err := s.sshMgr.Run(input.Name, opt, script); err != nil {
-		return fmt.Errorf("安装公钥失败: %w", err)
+	return s.ensureAuthorizedKey(input.Name, opt, pub)
+}
+
+// ensureAuthorizedKey 先检查公钥是否已在目标主机 authorized_keys（按整行精确匹配），
+// 已存在则不动；缺失才建目录、收权限后追加。执行完关闭该临时连接。
+func (s *Hosts) ensureAuthorizedKey(cacheKey string, opt sshd.ConnectOption, pub string) (already bool, err error) {
+	defer s.sshMgr.Close(cacheKey)
+	script := fmt.Sprintf(`if grep -qxF '%s' ~/.ssh/authorized_keys 2>/dev/null; then
+  echo =PRESENT=1
+else
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo =PRESENT=0
+fi`, pub, pub)
+	out, err := s.sshMgr.Run(cacheKey, opt, script)
+	if err != nil {
+		return false, fmt.Errorf("检查/安装公钥失败: %w", err)
 	}
-	s.sshMgr.Close(input.Name)
-	return nil
+	return strings.Contains(string(out), "=PRESENT=1"), nil
 }

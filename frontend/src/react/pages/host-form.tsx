@@ -17,6 +17,9 @@ const EDIT_INPUT =
 
 const GROUP_NAME_RE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
+/** 保存成功后验证结果（密码验证/公钥状态）在抽屉内联展示的时长 */
+const SUCCESS_PAUSE_MS = 1100;
+
 function DockCloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -130,6 +133,7 @@ export function HostCreateForm({
   const [note, setNote] = useState("");
   const [groupId, setGroupId] = useState(preferred);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function handleSave() {
@@ -172,9 +176,10 @@ export function HostCreateForm({
 
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
-      // 填密码：测连并推公钥；留空：用本机密钥测连
-      await api.addHost({
+      // 填密码：密码验证 + 检查/上传公钥；留空：仅校验本机密钥登录
+      const msg = await api.addHost({
         name: alias,
         hostName: addr,
         user: login,
@@ -184,6 +189,11 @@ export function HostCreateForm({
       const gid = groupId.trim();
       if (gid) {
         await api.assignHost(alias, gid);
+      }
+      if (msg) {
+        // 抽屉挂在 Shell 层拿不到页面 FlashNotices，验证结果内联展示片刻再收起
+        setSuccess(msg);
+        await new Promise((resolve) => setTimeout(resolve, SUCCESS_PAUSE_MS));
       }
       onDone();
     } catch (err) {
@@ -223,6 +233,12 @@ export function HostCreateForm({
         {error ? (
           <div className="mb-4">
             <Notice text={error} />
+          </div>
+        ) : null}
+
+        {success ? (
+          <div className="mb-4">
+            <Notice text={success} tone="success" />
           </div>
         ) : null}
 
@@ -286,7 +302,7 @@ export function HostCreateForm({
                 />
                 <input
                   className={EDIT_INPUT}
-                  placeholder="密码（已配公钥可留空）"
+                  placeholder="密码（留空则仅校验密钥登录）"
                   type="password"
                   value={password}
                   disabled={busy}
@@ -326,8 +342,9 @@ export function HostCreateForm({
 /**
  * 侧栏编辑主机：别名 / 分组 / 端口 / 地址 / 用户 / 密码 / 备注均可改，密码可留空。
  * 按变更项分别保存：别名用 renameHost；地址/用户/密码有变才走 updateHost 测连
- * （留空密码时后端用已有密钥测连）；仅备注变化用 setHostNote；分组用 assignHost；
- * 端口用 getPanelState + savePanelState 补写（updateHost 不带 Port）。
+ * （填密码：密码验证 + 检查/上传公钥；留空：仅校验本机密钥登录）；仅备注变化用
+ * setHostNote；分组用 assignHost；端口用 getPanelState + savePanelState 补写
+ * （updateHost 不带 Port）。
  */
 export function HostEditForm({
   host,
@@ -348,6 +365,7 @@ export function HostEditForm({
   const [port, setPort] = useState(normalizePort(host.port || ""));
   const [groupId, setGroupId] = useState(() => session.groupIdOf(host.name));
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   // 改名成功但后续步骤失败时，重试要以已生效的新别名为准
   const currentNameRef = useRef(host.name);
@@ -363,6 +381,7 @@ export function HostEditForm({
     setPassword("");
     setSavedPassword("");
     setError("");
+    setSuccess("");
     void api
       .getHostPassword(host.name)
       .then((pwd) => {
@@ -395,6 +414,7 @@ export function HostEditForm({
 
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       // 1) 别名变更：先 rename，后续接口都用新别名
       if (nextAlias !== currentNameRef.current) {
@@ -402,9 +422,10 @@ export function HostEditForm({
         currentNameRef.current = nextAlias;
       }
 
-      // 2) 地址/用户/密码有变才测连；密码留空由后端用已有密钥测连
+      // 2) 地址/用户/密码有变才测连：填密码做密码验证+公钥检查，留空仅校验密钥
+      let verifyMsg = "";
       if (credentialsChanged) {
-        await api.updateHost({
+        verifyMsg = await api.updateHost({
           name: nextAlias,
           hostName: addr,
           user: login,
@@ -424,6 +445,11 @@ export function HostEditForm({
       await applyHostPort(nextAlias, port);
 
       session.renameHostRefs(host.name, nextAlias);
+      if (verifyMsg) {
+        // 抽屉挂在 Shell 层拿不到页面 FlashNotices，验证结果内联展示片刻再收起
+        setSuccess(verifyMsg);
+        await new Promise((resolve) => setTimeout(resolve, SUCCESS_PAUSE_MS));
+      }
       await onDone();
     } catch (err) {
       setError(formatErr(err));
@@ -454,6 +480,12 @@ export function HostEditForm({
         {error ? (
           <div className="mb-4">
             <Notice text={error} />
+          </div>
+        ) : null}
+
+        {success ? (
+          <div className="mb-4">
+            <Notice text={success} tone="success" />
           </div>
         ) : null}
 
@@ -512,7 +544,7 @@ export function HostEditForm({
             />
             <input
               className={EDIT_INPUT}
-              placeholder="密码（留空沿用密钥登录）"
+              placeholder="密码（留空则仅校验密钥登录）"
               type="password"
               value={password}
               disabled={busy}

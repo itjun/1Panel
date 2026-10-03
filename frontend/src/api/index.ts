@@ -81,17 +81,15 @@ async function must<T>(p: CancellablePromise<T | null>): Promise<T> {
 const apiImpl = {
   listHosts: () => arr(Hosts.ListHosts()),
   listHostsAll: () => arr(Hosts.ListHostsAll()),
-  addHost: async (input: main.AddHostInput): Promise<void> => {
-    await Hosts.AddHost(input);
-  },
+  addHost: (input: main.AddHostInput): Promise<string> =>
+    str(Hosts.AddHost(input)),
   testConnection: (input: main.AddHostInput): Promise<string> =>
     str(Hosts.TestConnection(input)),
   renameHost: async (oldName: string, newName: string): Promise<void> => {
     await Hosts.RenameHost(oldName, newName);
   },
-  updateHost: async (input: main.UpdateHostInput): Promise<void> => {
-    await Hosts.UpdateHost(input);
-  },
+  updateHost: (input: main.UpdateHostInput): Promise<string> =>
+    str(Hosts.UpdateHost(input)),
   deleteHost: async (name: string): Promise<void> => {
     await Hosts.DeleteHost(name);
   },
