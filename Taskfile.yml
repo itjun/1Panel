@@ -32,8 +32,15 @@ tasks:
       - task: agent:build
       - task: "{{.GOOS}}:build"
 
+  iperf:fetch:
+    summary: 按 internal/iperfres/SHA256SUMS 下载并校验内置 iperf3（已就绪则跳过）
+    cmds:
+      - go run ./cmd/iperffetch
+
   agent:build:
     summary: 源码若有改动则升版本并交叉编译；未改且产物在则跳过（不升版本）
+    # 网络测速内置的 iperf3 与 agent 同为 go:embed 产物，随 agent:build 一起就绪
+    deps: [iperf:fetch]
     cmds:
       - |
         set -e

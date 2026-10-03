@@ -98,3 +98,6 @@ Desktop.ini
 
 # 内置 agent 二进制（task agent:build 产物）
 internal/agentres/bin/spanel-agent-*
+
+# 内置 iperf3 二进制（task iperf:fetch 产物）
+internal/iperfres/bin/iperf3-*
