@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -116,24 +117,37 @@ func (p *Pool) Get(host string) (*Client, error) {
 	return p.GetWithOpt(host, opt)
 }
 
-// GetWithOpt 用调用方已备好的连接参数创建/复用 Client（避免重复解析 ssh config）
+// GetWithOpt 用调用方已备好的连接参数创建/复用 Client（避免重复解析 ssh config）。
+// Client 冻结创建时的连接参数；若调用方带来的参数与缓存里的不一致（典型：事后在
+// 主机设置里补填/修改了密码），整体替换为新 Client——否则 getToken/tryHeal 的
+// sudo 提权会一直拿旧参数，补填的密码永远不生效。旧 Client 由在途调用持有引用
+// 自然结束，不改动其字段，无共享可变状态。
 func (p *Pool) GetWithOpt(host string, opt sshd.ConnectOption) (*Client, error) {
+	fresh := &Client{mgr: p.mgr, host: host, opt: opt}
 	p.mu.Lock()
-	if c, ok := p.clients[host]; ok {
-		p.mu.Unlock()
-		return c, nil
-	}
-	p.mu.Unlock()
-
-	c := &Client{mgr: p.mgr, host: host, opt: opt}
-	p.mu.Lock()
-	if existing, ok := p.clients[host]; ok {
-		p.mu.Unlock()
+	defer p.mu.Unlock()
+	if existing, ok := p.clients[host]; ok && sameConnectOpt(existing.opt, opt) {
 		return existing, nil
 	}
-	p.clients[host] = c
-	p.mu.Unlock()
-	return c, nil
+	p.clients[host] = fresh
+	return fresh, nil
+}
+
+// sameConnectOpt 判断两份连接参数是否等价：凭据（密码/密钥）、地址、端口或代理任一
+// 变化即视为不同，触发 Client 换新。
+func sameConnectOpt(a, b sshd.ConnectOption) bool {
+	return a.Host == b.Host &&
+		a.HostName == b.HostName &&
+		a.User == b.User &&
+		a.Port == b.Port &&
+		a.Password == b.Password &&
+		a.IdentityFile == b.IdentityFile &&
+		slices.Equal(a.IdentityFiles, b.IdentityFiles) &&
+		a.HostKeyAlgos == b.HostKeyAlgos &&
+		a.ProxyJump == b.ProxyJump &&
+		a.ProxyCommand == b.ProxyCommand &&
+		a.IdentityAgent == b.IdentityAgent &&
+		a.ForwardAgent == b.ForwardAgent
 }
 
 // Status 探测（或读缓存）agent 状态；force 时跳过缓存。

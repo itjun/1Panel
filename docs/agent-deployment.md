@@ -64,6 +64,8 @@ sudo spanel-agent-ctl uninstall-hooks  # 删除 cron / OpenRC 自启
 1. 登录用户已经是 root：直接执行。
 2. 配置了免密 sudo：用 `sudo -n`。
 3. 面板保存了该主机的密码：用 `sudo -S`，密码经标准输入传入，不出现在远端进程列表里。
+   在主机设置里补填/修改密码后立即生效（`agentcli.Pool.GetWithOpt` 检测到连接参数
+   变化会换用新参数，无需重启面板）。
 4. 以上都不行：报错，并提示「配置免密 sudo / 在主机设置里填写密码 / 改用 root 登录」三种解决办法。
 
 只用公钥登录、面板里没存密码的普通用户，需要在目标机配置免密 sudo，例如：
