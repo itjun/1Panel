@@ -66,13 +66,17 @@ type App struct {
 
 	boardHTTP *boardhttp.Server // 内网只读看板 HTTP 网关
 
-	themeAppearance   macui.AppearanceMode // light / dark / auto，由前端设置同步
-	windowTheme       *windowThemeManager
-	themeStartupReady bool // 原生材质和前端颜色已就绪，或启动等待已超时
-	themeStartupTimer *time.Timer
-	themeObserverMu   sync.Mutex
-	stopThemeObserver func()
-	themeStopped      bool
+	themeAppearance        macui.AppearanceMode // light / dark / auto，由前端设置同步
+	themeMu                sync.Mutex           // themeAppearance 的读写锁（Linux 外观监听会并发读）
+	windowTheme            *windowThemeManager
+	themeStartupReady      bool // 原生材质和前端颜色已就绪，或启动等待已超时
+	themeStartupTimer      *time.Timer
+	themeObserverMu        sync.Mutex
+	stopThemeObserver      func()
+	themeStopped           bool
+	appearanceWatchMu      sync.Mutex // Linux 桌面深浅色门户监听
+	stopAppearanceWatch    func()
+	appearanceWatchStopped bool
 
 	showMu       sync.Mutex
 	sized        bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
@@ -363,6 +367,7 @@ func (a *App) shutdown() {
 	if stop != nil {
 		stop()
 	}
+	a.stopNativeAppearanceWatch()
 	if a.panelConfigStop != nil {
 		close(a.panelConfigStop)
 		a.panelConfigStop = nil

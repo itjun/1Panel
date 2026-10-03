@@ -57,15 +57,19 @@ func (s *System) SetAskBeforeQuit(ask bool) {
 
 // SetThemeAppearance 同步窗口原生外观：light / dark / auto（跟随系统）。
 func (s *System) SetThemeAppearance(mode string) {
+	next := macui.AppearanceLight
 	switch mode {
 	case string(macui.AppearanceDark):
-		s.themeAppearance = macui.AppearanceDark
+		next = macui.AppearanceDark
 	case string(macui.AppearanceAuto):
-		s.themeAppearance = macui.AppearanceAuto
-	default:
-		s.themeAppearance = macui.AppearanceLight
+		next = macui.AppearanceAuto
 	}
+	s.themeMu.Lock()
+	s.themeAppearance = next
+	s.themeMu.Unlock()
+	(*App)(s).startNativeAppearanceWatch()
 	s.applyAppearanceOnWindow(s.mainWindow)
+	s.applyNativeAppearance(next)
 }
 
 // ListSystemFonts 本机已安装的字体家族（设置页「自定义字体」列表用）；进程内只读一次。

@@ -12,13 +12,17 @@ let state: State = { preference: "auto", effective: "classic", supported: false,
 let saveFails = false;
 let readyCalls = 0;
 let getCalls = 0;
-let listener: ((event: { data: State }) => void) | undefined;
+const listeners = new Map<string, (event: { data?: unknown }) => void>();
+let appearanceHints: boolean[] = [];
+const emitTheme = (data: State) => listeners.get("window-theme-changed")?.({ data });
+const emitAppearance = (data: boolean) => listeners.get("system-appearance-changed")?.({ data });
 mock.module("react", () => ({ useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read() }));
-mock.module("@wailsio/runtime", () => ({ Events: { On: (_name: string, callback: typeof listener) => {
-  listener = callback; return () => { listener = undefined; };
+mock.module("@wailsio/runtime", () => ({ Events: { On: (name: string, callback: (event: { data?: unknown }) => void) => {
+  listeners.set(name, callback); return () => { listeners.delete(name); };
 } } }));
 mock.module("@/react/state/settings", () => ({
   readSettings: () => ({ appearance: "dark" }), appearanceToNativeMode: (value: string) => value,
+  applySystemAppearanceHint: (dark: boolean) => { appearanceHints.push(dark); },
 }));
 mock.module("@/api", () => ({ api: {
   setThemeAppearance: async () => {},
@@ -49,18 +53,32 @@ test("desktop paints effective material, acknowledges readiness and responds to 
   expect(root.dataset.windowMaterial).toBe("acrylic");
   expect(root.style.background).toBe("transparent");
   expect(readyCalls).toBe(1);
-  listener?.({ data: { ...state, effective: "classic", reason: "减少透明度", revision: 11 } });
+  emitTheme({ ...state, effective: "classic", reason: "减少透明度", revision: 11 });
   expect(root.dataset.windowMaterial).toBe("classic");
-  listener?.({ data: { ...state, revision: 10 } }); // Delayed response must not undo a newer fallback.
+  emitTheme({ ...state, revision: 10 }); // Delayed response must not undo a newer fallback.
   expect(root.dataset.windowMaterial).toBe("classic");
-  listener?.({ data: { ...state, revision: 12 } });
+  emitTheme({ ...state, revision: 12 });
   expect(root.dataset.windowMaterial).toBe("acrylic");
   saveFails = true;
   await expect(theme.setWindowMaterial("classic")).rejects.toThrow("保存失败");
   expect(theme.useWindowTheme().theme.preference).toBe("auto");
   expect(theme.useWindowTheme().pending).toBe(false);
   stop();
-  expect(listener).toBeUndefined();
+  expect(listeners.size).toBe(0);
+});
+
+test("desktop relays Linux system-appearance events to the appearance hint", async () => {
+  host._wails.environment.OS = "linux";
+  appearanceHints = [];
+  const stop = theme.initializeWindowTheme();
+  await Bun.sleep(10);
+  emitAppearance(true);
+  emitAppearance(false);
+  expect(appearanceHints).toEqual([true, false]);
+  stop();
+  appearanceHints = [];
+  emitAppearance(true);
+  expect(appearanceHints).toEqual([]);
 });
 
 test("unsupported desktop remembers requested material while keeping its effective solid theme", async () => {

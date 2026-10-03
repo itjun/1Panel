@@ -208,9 +208,10 @@ export function applyAppearanceToDocument(
   fontFamily?: string,
   fontSize?: number,
   monoFontFamily?: string,
+  forcedResolved?: ResolvedAppearance,
 ) {
   const root = document.documentElement;
-  const resolved = resolveAppearance(appearance);
+  const resolved = forcedResolved ?? resolveAppearance(appearance);
   root.classList.remove("light", "dark");
   root.classList.add(resolved);
   root.style.colorScheme = resolved;
@@ -274,13 +275,40 @@ function applySettings(settings: AppSettings) {
   syncSystemAppearanceWatch(settings.appearance);
 }
 
+/** Linux：WebKitGTK 不派发 prefers-color-scheme 的 matchMedia change 事件，
+ * Go 侧监听桌面门户后发 system-appearance-changed，这里按事件值重铺主题。 */
+export function applySystemAppearanceHint(dark: boolean) {
+  if (current.appearance !== "system") return;
+  applyAppearanceToDocument(
+    current.appearance,
+    current.fontFamily,
+    current.fontSize,
+    current.monoFontFamily,
+    dark ? "dark" : "light",
+  );
+}
+
+function syncNativeAppearance() {
+  void api
+    .setThemeAppearance(appearanceToNativeMode(current.appearance))
+    // Linux 的后端在这次调用里按桌面门户纠正 GTK 深浅色偏好；WebKitGTK 的
+    // matchMedia 值随查随新但不发变更事件，返回后重读一次，避免停留在旧值。
+    .then(() =>
+      applyAppearanceToDocument(
+        current.appearance,
+        current.fontFamily,
+        current.fontSize,
+        current.monoFontFamily,
+      ),
+    )
+    .catch(() => {});
+}
+
 function emit() {
   applySettings(current);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   listeners.forEach((listener) => listener());
-  void api
-    .setThemeAppearance(appearanceToNativeMode(current.appearance))
-    .catch(() => {});
+  syncNativeAppearance();
   void api
     .setNotifySubs({
       fromDisk: true,
@@ -334,6 +362,4 @@ export function useSettings() {
 }
 
 applySettings(current);
-void api
-  .setThemeAppearance(appearanceToNativeMode(current.appearance))
-  .catch(() => {});
+syncNativeAppearance();

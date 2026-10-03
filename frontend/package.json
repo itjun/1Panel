@@ -16,7 +16,8 @@
     "test:group-table-state": "bun scripts/test-group-table-state.mjs",
     "test:sftp-location-state": "bun scripts/test-sftp-location-state.mjs",
     "build:dev": "vite build --minify false --mode development",
-    "test:window-theme": "bun test scripts/window-theme.test.ts"
+    "test:window-theme": "bun test scripts/window-theme.test.ts",
+    "test:system-appearance": "bun test scripts/system-appearance.test.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",

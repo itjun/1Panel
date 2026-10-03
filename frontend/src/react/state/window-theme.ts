@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { Events } from "@wailsio/runtime";
 import { api } from "@/api";
 import type { main } from "@/api";
-import { appearanceToNativeMode, readSettings } from "@/react/state/settings";
+import { applySystemAppearanceHint, appearanceToNativeMode, readSettings } from "@/react/state/settings";
 
 export type WindowMaterial = "auto" | "classic" | "acrylic";
 
@@ -70,8 +70,13 @@ export function initializeWindowTheme(): () => void {
       retry = setTimeout(() => void refresh(), 250);
     }
   });
+  // Linux 的 WebKitGTK 不发 prefers-color-scheme 变更事件，跟随系统的实时切换靠它。
+  const offAppearance = Events.On("system-appearance-changed", (event: { data?: boolean }) => {
+    if (!active() || typeof event.data !== "boolean") return;
+    applySystemAppearanceHint(event.data);
+  });
   void refresh();
-  return () => { generation++; clearTimeout(retry); off(); };
+  return () => { generation++; clearTimeout(retry); off(); offAppearance(); };
 }
 
 export async function setWindowMaterial(preference: WindowMaterial): Promise<void> {

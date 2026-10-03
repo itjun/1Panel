@@ -43,7 +43,7 @@
 
 - 系统设置窗口的自动捕捉连续出现 `SCStreamErrorDomain -3811`，未实际改变「减少透明度」开关。能力解析、原生通知监听已测试，真实系统开关仍需补验。
 - 大列表滚动、高频监控图表、持续窗口拖动／缩放的 CPU／GPU 对照压测，及 WebKit 子进程长期资源观察。
-- Windows 实机、Linux GTK 桌面构建与实机运行；本机没有 Linux GTK 工具链。Linux server 编译只证明该编译路径兼容。
+- Windows 实机、Linux GTK 桌面构建与实机运行；本机没有 Linux GTK 工具链。Linux server 编译只证明该编译路径兼容。（2026-10-03 补：Linux GTK 桌面已在一台 Debian 13 / GNOME 48 实机构建并运行，材质按预期回退经典；该次实机同时修复并验收了「跟随系统」深浅色跟随门户的问题，见 docs/linux-appearance.md。）
 
 ## 复现命令
 
