@@ -17,6 +17,7 @@ import (
 	"diteng-pannel/internal/prochide"
 	"diteng-pannel/internal/sysfonts"
 	"diteng-pannel/internal/wecom"
+	"diteng-pannel/internal/windowmaterial"
 	"diteng-pannel/internal/winui"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -86,6 +87,7 @@ func (s *System) applyAppearanceOnWindow(win *application.WebviewWindow) {
 		mode = macui.AppearanceLight
 	}
 	macui.SetWindowAppearance(win, mode)
+	windowmaterial.SetAppearance(win, string(mode))
 }
 
 // BoardHTTPConfig 看板 HTTP 网关配置（供前端设置页）。

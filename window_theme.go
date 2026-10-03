@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"diteng-pannel/internal/macui"
+	"diteng-pannel/internal/windowmaterial"
 )
 
 type WindowThemeState struct {
@@ -25,12 +25,13 @@ type windowThemeManager struct {
 	mu         sync.Mutex
 	state      WindowThemeState
 	path       string
-	capability func() (bool, string)
-	apply      func(bool) error
+	automatic  string
+	capability func(string) (bool, string)
+	apply      func(string) error
 }
 
 func validWindowMaterial(value string) bool {
-	return value == "auto" || value == "classic" || value == "acrylic"
+	return value == "auto" || value == "classic" || value == "acrylic" || value == "mica"
 }
 
 func windowThemePath() string {
@@ -83,9 +84,9 @@ func saveWindowMaterial(path, preference string) error {
 	return os.Rename(file.Name(), path)
 }
 
-func newWindowThemeManager(path string, capability func() (bool, string), apply func(bool) error) *windowThemeManager {
+func newWindowThemeManager(path, automatic string, capability func(string) (bool, string), apply func(string) error) *windowThemeManager {
 	return &windowThemeManager{
-		path: path, capability: capability, apply: apply,
+		path: path, automatic: automatic, capability: capability, apply: apply,
 		state: WindowThemeState{Preference: loadWindowMaterial(path), Effective: "classic", Reason: "正在准备窗口材质"},
 	}
 }
@@ -98,21 +99,25 @@ func (m *windowThemeManager) snapshot() WindowThemeState {
 
 func (m *windowThemeManager) refreshLocked(forceClassic bool) WindowThemeState {
 	next := WindowThemeState{Preference: m.state.Preference, Effective: "classic"}
-	next.Supported, next.Reason = m.capability()
+	requested := next.Preference
+	if requested == "auto" || requested == "classic" {
+		requested = m.automatic
+	}
+	next.Supported, next.Reason = m.capability(requested)
 	if next.Preference == "classic" {
 		next.Reason = ""
 	}
 	if forceClassic {
 		next.Reason = "窗口材质初始化超时，正在使用经典外观"
 	} else if next.Supported && next.Preference != "classic" {
-		next.Effective = "acrylic"
+		next.Effective = requested
 	}
-	if err := m.apply(next.Effective == "acrylic"); err != nil {
+	if err := m.apply(next.Effective); err != nil {
 		next.Effective = "classic"
 		next.Supported = false
 		next.Reason = err.Error()
 		// Roll back any partially enabled native backdrop.
-		_ = m.apply(false)
+		_ = m.apply("classic")
 	}
 	next.Revision = m.state.Revision
 	if next != m.state {
@@ -174,7 +179,7 @@ func (a *App) startWindowTheme() {
 	go func() {
 		state := a.windowTheme.refresh(false)
 		a.app.Event.Emit("window-theme-changed", state)
-		stop := macui.ObserveTransparency(func() {
+		stop := windowmaterial.Observe(func() {
 			state := a.windowTheme.refresh(false)
 			a.app.Event.Emit("window-theme-changed", state)
 		})

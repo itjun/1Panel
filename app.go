@@ -26,6 +26,7 @@ import (
 	"diteng-pannel/internal/notifysubs"
 	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/sshd"
+	"diteng-pannel/internal/windowmaterial"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -109,8 +110,8 @@ func NewApp() *application.App {
 		panelPreviews: make(map[string]panelConfigPreviewRecord),
 		notifier:      ns,
 	}
-	core.windowTheme = newWindowThemeManager(windowThemePath(), macui.FrostedBackdropCapability, func(enabled bool) error {
-		return macui.SetFrostedBackdrop(core.mainWindow, enabled)
+	core.windowTheme = newWindowThemeManager(windowThemePath(), windowmaterial.Automatic(), windowmaterial.Capability, func(material string) error {
+		return windowmaterial.Apply(core.mainWindow, material)
 	})
 	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
 		return core.connectOptionFor(host)
@@ -196,6 +197,7 @@ func NewApp() *application.App {
 		winOpts.Windows.DisableMenu = true
 		winOpts.Windows.NonClientRegionSupport = true
 	}
+	windowmaterial.ConfigureWindow(&winOpts)
 	win := app.Window.NewWithOptions(winOpts)
 	core.mainWindow = win
 	core.interceptMainWindowClose(win)

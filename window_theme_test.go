@@ -17,7 +17,7 @@ func TestWindowMaterialMigration(t *testing.T) {
 			t.Fatalf("%q: got %q", content, got)
 		}
 	}
-	for _, pref := range []string{"auto", "classic", "acrylic"} {
+	for _, pref := range []string{"auto", "classic", "acrylic", "mica"} {
 		if err := saveWindowMaterial(path, pref); err != nil {
 			t.Fatal(err)
 		}
@@ -39,12 +39,13 @@ func TestWindowThemeResolutionAndRecovery(t *testing.T) {
 	supported := true
 	failed := false
 	enabled := false
-	m := newWindowThemeManager(path, func() (bool, string) {
+	m := newWindowThemeManager(path, "acrylic", func(string) (bool, string) {
 		if !supported {
 			return false, "减少透明度"
 		}
 		return true, ""
-	}, func(on bool) error {
+	}, func(material string) error {
+		on := material == "acrylic"
 		enabled = on
 		if failed && on {
 			return errors.New("native failure")
@@ -104,7 +105,7 @@ func TestWindowThemeSaveFailureLeavesWindowAndPreference(t *testing.T) {
 		t.Fatal(err)
 	}
 	applyCalls := 0
-	m := newWindowThemeManager(filepath.Join(blocker, "theme.json"), func() (bool, string) { return true, "" }, func(bool) error { applyCalls++; return nil })
+	m := newWindowThemeManager(filepath.Join(blocker, "theme.json"), "acrylic", func(string) (bool, string) { return true, "" }, func(string) error { applyCalls++; return nil })
 	before := m.refresh(false)
 	calls := applyCalls
 	if _, err := m.set("classic"); err == nil {
@@ -122,8 +123,8 @@ func TestWindowThemeSaveFailureLeavesWindowAndPreference(t *testing.T) {
 }
 
 func TestWindowThemeUnsupportedPlatformAndRevision(t *testing.T) {
-	m := newWindowThemeManager(filepath.Join(t.TempDir(), "theme.json"), func() (bool, string) { return false, "本版本尚未提供原生亚克力" }, func(enabled bool) error {
-		if enabled {
+	m := newWindowThemeManager(filepath.Join(t.TempDir(), "theme.json"), "acrylic", func(string) (bool, string) { return false, "本版本尚未提供原生亚克力" }, func(material string) error {
+		if material != "classic" {
 			t.Error("unsupported platform attempted acrylic")
 		}
 		return nil
@@ -142,5 +143,56 @@ func TestWindowThemeUnsupportedPlatformAndRevision(t *testing.T) {
 			t.Fatal("preference change did not advance revision")
 		}
 		second = s
+	}
+}
+
+func TestWindowThemeMicaSelectionAndRecovery(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "theme.json")
+	available, nativeFailure := true, false
+	applied := ""
+	m := newWindowThemeManager(path, "mica", func(material string) (bool, string) {
+		if material != "mica" || !available {
+			return false, "系统不支持所选材质"
+		}
+		return true, ""
+	}, func(material string) error {
+		applied = material
+		if material == "mica" && nativeFailure {
+			return errors.New("DWM failure")
+		}
+		return nil
+	})
+	if s := m.refresh(false); s.Preference != "auto" || s.Effective != "mica" || applied != "mica" {
+		t.Fatal(s)
+	}
+	if s, err := m.set("classic"); err != nil || s.Effective != "classic" || s.Reason != "" {
+		t.Fatal(s, err)
+	}
+	if s := m.refresh(false); s.Preference != "classic" || s.Effective != "classic" {
+		t.Fatal(s)
+	}
+	if s, err := m.set("mica"); err != nil || s.Effective != "mica" {
+		t.Fatal(s, err)
+	}
+	available = false
+	if s := m.refresh(false); s.Preference != "mica" || s.Effective != "classic" || applied != "classic" {
+		t.Fatal(s)
+	}
+	if loadWindowMaterial(path) != "mica" {
+		t.Fatal("fallback overwrote preference")
+	}
+	available, nativeFailure = true, true
+	if s := m.refresh(false); s.Effective != "classic" || s.Supported || s.Reason != "DWM failure" || applied != "classic" {
+		t.Fatal(s)
+	}
+	nativeFailure = false
+	if s := m.refresh(false); s.Effective != "mica" {
+		t.Fatal(s)
+	}
+	if s, err := m.set("acrylic"); err != nil || s.Preference != "acrylic" || s.Effective != "classic" {
+		t.Fatal(s, err)
+	}
+	if s, err := m.set("auto"); err != nil || s.Effective != "mica" {
+		t.Fatal(s, err)
 	}
 }
