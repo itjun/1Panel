@@ -233,6 +233,7 @@ func NewApp() *application.App {
 		}()
 		core.startAlertPollKeepalive()
 		core.startMenuCheckWatcher()
+		core.startLocalDiskStartupCheck()
 		core.startBoardHTTP()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
