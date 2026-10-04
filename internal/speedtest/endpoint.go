@@ -48,11 +48,20 @@ type endpoint interface {
 	ping(ctx context.Context, ip string) float64
 }
 
-var rePingAvg = regexp.MustCompile(`=\s*[\d.]+/([\d.]+)/`)
+var (
+	rePingAvgPosix = regexp.MustCompile(`=\s*[\d.]+/([\d.]+)/`)
+	rePingAvgWin   = regexp.MustCompile(`=\s*(\d+)\s*ms`)
+)
 
 func parsePingAvg(out string) float64 {
-	if m := rePingAvg.FindStringSubmatch(out); m != nil {
+	if m := rePingAvgPosix.FindStringSubmatch(out); m != nil {
 		v, _ := strconv.ParseFloat(m[1], 64)
+		return v
+	}
+	// Windows 汇总行为「Minimum = 1ms, Maximum = 3ms, Average = 2ms」（中文系统为 GBK 乱码），
+	// 不依赖文字标签，取最后一个值即平均
+	if all := rePingAvgWin.FindAllStringSubmatch(out, -1); len(all) > 0 {
+		v, _ := strconv.ParseFloat(all[len(all)-1][1], 64)
 		return v
 	}
 	return 0
@@ -284,30 +293,42 @@ func (l *localEP) local() bool   { return true }
 func (l *localEP) linux() bool   { return runtime.GOOS == "linux" }
 
 func (l *localEP) provision(ctx context.Context) error {
-	bin, want, err := iperfres.Binary(runtime.GOOS, runtime.GOARCH)
+	fl, err := iperfres.Files(runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(l.svc.dataDir, "iperf3")
+	// 版本化目录，升级内置 iperf3 后自动失效重写；Windows 的 exe 与 cygwin1.dll 须同目录
+	dir := filepath.Join(l.svc.dataDir, "iperf3", iperfres.Version)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	path := filepath.Join(dir, remoteBinName())
-	if b, err := os.ReadFile(path); err == nil {
+	reuse := true
+	for _, f := range fl {
+		b, err := os.ReadFile(filepath.Join(dir, f.Name))
+		if err != nil {
+			reuse = false
+			break
+		}
 		sum := sha256.Sum256(b)
-		if hex.EncodeToString(sum[:]) == want {
-			l.bin = path
-			return nil
+		if hex.EncodeToString(sum[:]) != f.SHA256 {
+			reuse = false
+			break
 		}
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, bin, 0o755); err != nil {
-		return err
+	if !reuse {
+		for _, f := range fl {
+			dst := filepath.Join(dir, f.Name)
+			tmp := dst + ".tmp"
+			if err := os.WriteFile(tmp, f.Data, 0o755); err != nil {
+				return err
+			}
+			_ = os.Remove(dst)
+			if err := os.Rename(tmp, dst); err != nil {
+				return err
+			}
+		}
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		return err
-	}
-	l.bin = path
+	l.bin = filepath.Join(dir, fl[0].Name)
 	return nil
 }
 
@@ -409,12 +430,18 @@ func (l *localEP) stopServer(string) {}
 func (l *localEP) ping(ctx context.Context, ip string) float64 {
 	cctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
-	args := []string{"-c", "3", "-i", "0.2", "-q", ip}
-	if runtime.GOOS == "darwin" {
-		args = append([]string{"-t", "3"}, args...)
+	var out []byte
+	if runtime.GOOS == "windows" {
+		// Windows ping 参数与输出均不同：-n 次数、-w 毫秒超时，汇总行为「Average = 1ms / 平均 = 1ms」
+		out, _ = exec.CommandContext(cctx, "ping", "-n", "3", "-w", "1000", ip).Output()
 	} else {
-		args = append([]string{"-W", "1"}, args...)
+		args := []string{"-c", "3", "-i", "0.2", "-q", ip}
+		if runtime.GOOS == "darwin" {
+			args = append([]string{"-t", "3"}, args...)
+		} else {
+			args = append([]string{"-W", "1"}, args...)
+		}
+		out, _ = exec.CommandContext(cctx, "ping", args...).Output()
 	}
-	out, _ := exec.CommandContext(cctx, "ping", args...).Output()
 	return parsePingAvg(string(out))
 }
