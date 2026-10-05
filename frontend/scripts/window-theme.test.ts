@@ -49,11 +49,11 @@ test("browser preview keeps a solid background and does not call native initiali
 });
 
 test("desktop paints effective material, acknowledges readiness and responds to accessibility events", async () => {
-  host._wails.environment.OS = "darwin";
-  state = { preference: "auto", effective: "acrylic", supported: true, reason: "", revision: 10 };
+  host._wails.environment.OS = "windows";
+  state = { preference: "auto", effective: "mica", supported: true, reason: "", revision: 10 };
   const stop = theme.initializeWindowTheme();
   await Bun.sleep(10);
-  expect(root.dataset.windowMaterial).toBe("acrylic");
+  expect(root.dataset.windowMaterial).toBe("mica");
   expect(root.style.background).toBe("transparent");
   expect(readyCalls).toBe(1);
   emitTheme({ ...state, effective: "classic", reason: "减少透明度", revision: 11 });
@@ -61,7 +61,7 @@ test("desktop paints effective material, acknowledges readiness and responds to 
   emitTheme({ ...state, revision: 10 }); // Delayed response must not undo a newer fallback.
   expect(root.dataset.windowMaterial).toBe("classic");
   emitTheme({ ...state, revision: 12 });
-  expect(root.dataset.windowMaterial).toBe("acrylic");
+  expect(root.dataset.windowMaterial).toBe("mica");
   saveFails = true;
   await expect(theme.setWindowMaterial("classic")).rejects.toThrow("保存失败");
   expect(theme.useWindowTheme().theme.preference).toBe("auto");
@@ -90,9 +90,6 @@ test("unsupported desktop remembers requested material while keeping its effecti
   state = { preference: "auto", effective: "classic", supported: false, reason: "尚未提供", revision: 20 };
   const stop = theme.initializeWindowTheme();
   await Bun.sleep(10);
-  await theme.setWindowMaterial("acrylic");
-  expect(theme.useWindowTheme().theme.preference).toBe("acrylic");
-  expect(root.dataset.windowMaterial).toBe("classic");
   await theme.setWindowMaterial("mica");
   expect(theme.useWindowTheme().theme.preference).toBe("mica");
   expect(root.dataset.windowMaterial).toBe("classic");

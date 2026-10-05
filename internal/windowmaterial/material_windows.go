@@ -67,7 +67,7 @@ func readPolicy() windowsPolicy {
 
 func Capability(material string) (bool, string) {
 	if material != "mica" {
-		return false, "本版本尚未提供 Windows 原生亚克力，正在使用经典外观"
+		return false, "未知窗口材质，正在使用经典外观"
 	}
 	return backdropCapability(readPolicy())
 }

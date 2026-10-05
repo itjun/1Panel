@@ -9,7 +9,7 @@ import (
 
 func TestWindowMaterialMigration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "theme.json")
-	for _, content := range []string{"", "{", `{}`, `{"material":"unknown"}`, `{"appearance":"dark"}`, `null`} {
+	for _, content := range []string{"", "{", `{}`, `{"material":"unknown"}`, `{"material":"acrylic"}`, `{"appearance":"dark"}`, `null`} {
 		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -17,7 +17,7 @@ func TestWindowMaterialMigration(t *testing.T) {
 			t.Fatalf("%q: got %q", content, got)
 		}
 	}
-	for _, pref := range []string{"auto", "classic", "acrylic", "mica"} {
+	for _, pref := range []string{"auto", "classic", "mica"} {
 		if err := saveWindowMaterial(path, pref); err != nil {
 			t.Fatal(err)
 		}
@@ -39,20 +39,20 @@ func TestWindowThemeResolutionAndRecovery(t *testing.T) {
 	supported := true
 	failed := false
 	enabled := false
-	m := newWindowThemeManager(path, "acrylic", func(string) (bool, string) {
+	m := newWindowThemeManager(path, "mica", func(string) (bool, string) {
 		if !supported {
 			return false, "减少透明度"
 		}
 		return true, ""
 	}, func(material string) error {
-		on := material == "acrylic"
+		on := material == "mica"
 		enabled = on
 		if failed && on {
 			return errors.New("native failure")
 		}
 		return nil
 	})
-	if s := m.refresh(false); s.Effective != "acrylic" || !enabled {
+	if s := m.refresh(false); s.Effective != "mica" || !enabled {
 		t.Fatal(s)
 	}
 	if s, err := m.set("classic"); err != nil || s.Effective != "classic" || enabled {
@@ -62,18 +62,18 @@ func TestWindowThemeResolutionAndRecovery(t *testing.T) {
 	if s := m.snapshot(); s.Preference != "classic" || s.Effective != "classic" {
 		t.Fatal(s)
 	}
-	if s, err := m.set("acrylic"); err != nil || s.Effective != "acrylic" {
+	if s, err := m.set("mica"); err != nil || s.Effective != "mica" {
 		t.Fatal(s, err)
 	}
 	supported = false
-	if s := m.refresh(false); s.Preference != "acrylic" || s.Effective != "classic" || enabled || s.Reason == "" {
+	if s := m.refresh(false); s.Preference != "mica" || s.Effective != "classic" || enabled || s.Reason == "" {
 		t.Fatal(s)
 	}
-	if got := loadWindowMaterial(path); got != "acrylic" {
+	if got := loadWindowMaterial(path); got != "mica" {
 		t.Fatal(got)
 	}
 	supported = true
-	if s := m.refresh(false); s.Effective != "acrylic" || !enabled {
+	if s := m.refresh(false); s.Effective != "mica" || !enabled {
 		t.Fatal(s)
 	}
 	failed = true
@@ -81,13 +81,13 @@ func TestWindowThemeResolutionAndRecovery(t *testing.T) {
 		t.Fatal(s)
 	}
 	failed = false
-	if s := m.refresh(false); s.Effective != "acrylic" {
+	if s := m.refresh(false); s.Effective != "mica" {
 		t.Fatal(s)
 	}
-	if s := m.refresh(true); s.Effective != "classic" || enabled || s.Preference != "acrylic" {
+	if s := m.refresh(true); s.Effective != "classic" || enabled || s.Preference != "mica" {
 		t.Fatal(s)
 	}
-	if s := m.refresh(false); s.Effective != "acrylic" {
+	if s := m.refresh(false); s.Effective != "mica" {
 		t.Fatal(s)
 	}
 	if _, err := m.set("auto"); err != nil {
@@ -105,7 +105,7 @@ func TestWindowThemeSaveFailureLeavesWindowAndPreference(t *testing.T) {
 		t.Fatal(err)
 	}
 	applyCalls := 0
-	m := newWindowThemeManager(filepath.Join(blocker, "theme.json"), "acrylic", func(string) (bool, string) { return true, "" }, func(string) error { applyCalls++; return nil })
+	m := newWindowThemeManager(filepath.Join(blocker, "theme.json"), "mica", func(string) (bool, string) { return true, "" }, func(string) error { applyCalls++; return nil })
 	before := m.refresh(false)
 	calls := applyCalls
 	if _, err := m.set("classic"); err == nil {
@@ -123,9 +123,9 @@ func TestWindowThemeSaveFailureLeavesWindowAndPreference(t *testing.T) {
 }
 
 func TestWindowThemeUnsupportedPlatformAndRevision(t *testing.T) {
-	m := newWindowThemeManager(filepath.Join(t.TempDir(), "theme.json"), "acrylic", func(string) (bool, string) { return false, "本版本尚未提供原生亚克力" }, func(material string) error {
+	m := newWindowThemeManager(filepath.Join(t.TempDir(), "theme.json"), "mica", func(string) (bool, string) { return false, "本版本尚未提供原生云母" }, func(material string) error {
 		if material != "classic" {
-			t.Error("unsupported platform attempted acrylic")
+			t.Error("unsupported platform attempted mica")
 		}
 		return nil
 	})
@@ -134,7 +134,7 @@ func TestWindowThemeUnsupportedPlatformAndRevision(t *testing.T) {
 	if first.Revision != second.Revision {
 		t.Fatal("idempotent refresh changed revision")
 	}
-	for _, pref := range []string{"acrylic", "classic", "auto"} {
+	for _, pref := range []string{"mica", "classic", "auto"} {
 		s, err := m.set(pref)
 		if err != nil || s.Preference != pref || s.Effective != "classic" || s.Supported {
 			t.Fatal(s, err)
@@ -189,8 +189,8 @@ func TestWindowThemeMicaSelectionAndRecovery(t *testing.T) {
 	if s := m.refresh(false); s.Effective != "mica" {
 		t.Fatal(s)
 	}
-	if s, err := m.set("acrylic"); err != nil || s.Preference != "acrylic" || s.Effective != "classic" {
-		t.Fatal(s, err)
+	if _, err := m.set("acrylic"); err == nil {
+		t.Fatal("acrylic is no longer a valid material")
 	}
 	if s, err := m.set("auto"); err != nil || s.Effective != "mica" {
 		t.Fatal(s, err)

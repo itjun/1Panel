@@ -284,7 +284,7 @@ pre,
 }
 
 /* 壳 chrome（DESIGN.md §4.1）：顶栏 + 侧栏是一整片 canvas 外框，内容区是一整块 surface 平面，
-   两者之间不画分隔线，只靠色块区分。经典模式为实色，亚克力仅改变壳层背景。
+   两者之间不画分隔线，只靠色块区分。经典模式为实色，云母仅改变壳层背景。
    用 background-color，不要用 background 简写。 */
 .glass-chrome,
 .shell-app-toolbar {
@@ -295,33 +295,16 @@ pre,
   position: relative;
 }
 
-/* Only the native controller can enable this attribute; browser/HTTP surfaces stay solid.
-   The texture PNG has 1% alpha baked in, so text and controls never lose opacity. */
-html[data-window-material="acrylic"] {
-  --chrome-canvas: rgba(242, 243, 245, 0.8);
-  --chrome-rail: rgba(234, 235, 238, 0.8);
-}
-html.dark[data-window-material="acrylic"] {
-  --chrome-canvas: rgba(18, 22, 31, 0.75);
-  --chrome-rail: rgba(13, 16, 23, 0.75);
-}
-html:is([data-window-material="acrylic"], [data-window-material="mica"]),
-html:is([data-window-material="acrylic"], [data-window-material="mica"]) body,
-html:is([data-window-material="acrylic"], [data-window-material="mica"]) #app,
-html:is([data-window-material="acrylic"], [data-window-material="mica"]) .react-root {
+/* Only the native controller can enable this attribute; browser/HTTP surfaces stay solid. */
+html[data-window-material="mica"],
+html[data-window-material="mica"] body,
+html[data-window-material="mica"] #app,
+html[data-window-material="mica"] .react-root {
   background-color: transparent;
-}
-html[data-window-material="acrylic"] :is(.glass-chrome, .shell-app-toolbar) {
-  background-color: var(--chrome-canvas);
-  background-image: url("../assets/chrome-noise.png");
-}
-html[data-window-material="acrylic"] .module-rail {
-  background-color: var(--chrome-rail);
-  background-image: url("../assets/chrome-noise.png");
 }
 
 /* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to
-   expose it; keep a subtle rail tint for hierarchy, with no Acrylic grain. */
+   expose it; keep a subtle rail tint for hierarchy. */
 html[data-window-material="mica"] :is(.glass-chrome, .shell-app-toolbar) {
   background-color: transparent;
   background-image: none;

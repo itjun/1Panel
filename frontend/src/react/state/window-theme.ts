@@ -4,7 +4,7 @@ import { api } from "@/api";
 import type { main } from "@/api";
 import { applySystemAppearanceHint, appearanceToNativeMode, readSettings } from "@/react/state/settings";
 
-export type WindowMaterial = "auto" | "classic" | "acrylic" | "mica";
+export type WindowMaterial = "auto" | "classic" | "mica";
 
 export function isDesktopWindow(): boolean {
   const host = window as Window & { _wails?: { environment?: { OS?: string } } };
@@ -47,7 +47,7 @@ function apply(state: main.WindowThemeState) {
   current = { ...current, theme: state };
   const root = document.documentElement;
   root.dataset.windowMaterial = state.effective;
-  root.style.background = (state.effective === "acrylic" || state.effective === "mica") ? "transparent" : "var(--color-canvas)";
+  root.style.background = state.effective === "mica" ? "transparent" : "var(--color-canvas)";
   publish();
 }
 

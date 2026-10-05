@@ -31,7 +31,7 @@ type windowThemeManager struct {
 }
 
 func validWindowMaterial(value string) bool {
-	return value == "auto" || value == "classic" || value == "acrylic" || value == "mica"
+	return value == "auto" || value == "classic" || value == "mica"
 }
 
 func windowThemePath() string {
