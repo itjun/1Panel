@@ -324,6 +324,18 @@ html[data-window-material="mica"] .rail-item.bg-line {
   background-color: var(--color-line-veil);
 }
 
+/* 顶栏按钮同一处理：云母下 ghost/secondary 悬停与导航钮按下（accent-soft）都是不透明实底，
+   会像贴纸盖在 DWM 云母面上，统一换成 veil。关闭键 hover 的实色 danger 保持不变——
+   对齐 Windows 11 原生行为（Mica 上关闭悬停即实色红），红色警示不宜降不透明度。 */
+html[data-window-material="mica"] .shell-app-toolbar [data-variant="secondary"]:hover,
+html[data-window-material="mica"] .shell-app-toolbar [data-variant="ghost"]:hover,
+html[data-window-material="mica"] .shell-app-toolbar :is(.hover\:bg-line:hover) {
+  background-color: var(--color-line-veil);
+}
+html[data-window-material="mica"] .shell-app-toolbar .bg-accent-soft {
+  background-color: var(--color-accent-veil);
+}
+
 /* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to
    expose it; keep a subtle rail tint for hierarchy. */
 html[data-window-material="mica"] :is(.glass-chrome, .shell-app-toolbar) {
