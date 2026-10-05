@@ -21,6 +21,11 @@
   --color-accent-hover: #366ef4;
   --color-accent-active: #003cab;
   --color-accent-soft: #e8efff;
+  /* 云母壳层选中底：accent 半透明覆盖（定值 rgba，不用 color-mix，老 WebKitGTK 不支持），
+     覆盖在任何背景（云母随壁纸着色 / 经典 canvas）上都直接融入 */
+  --color-accent-veil: rgba(0, 82, 217, 0.1);
+  /* 云母壳层悬停 / 多选浅底：中性半透明覆盖，同上理由用定值 */
+  --color-line-veil: rgba(31, 41, 55, 0.08);
   /* 比 accent-soft 更浅一档的蓝底：勾选未悬停格 */
   --color-accent-tint: #f2f6ff;
   /* 输入框聚焦时的 2px 外环 */
@@ -126,6 +131,8 @@ html.dark {
   --color-accent-hover: #6fa3ff;
   --color-accent-active: #3a78e8;
   --color-accent-soft: #1a2c52;
+  --color-accent-veil: rgba(76, 141, 255, 0.18);
+  --color-line-veil: rgba(230, 235, 243, 0.08);
   --color-accent-tint: #172440;
   --color-accent-focus: #22407a;
   --color-selection: #274a8c;
@@ -301,6 +308,20 @@ html[data-window-material="mica"] body,
 html[data-window-material="mica"] #app,
 html[data-window-material="mica"] .react-root {
   background-color: transparent;
+}
+
+/* 云母壳层选中 / 悬停底改为半透明覆盖：不透明实底会像贴纸盖在 DWM 云母面上；
+   veil 让底下的云母（随壁纸着色）直接透过来，经典模式仍用实底设计不变 */
+html[data-window-material="mica"] .rail-item-active,
+html[data-window-material="mica"] .module-rail-item[aria-current="page"] {
+  background-color: var(--color-accent-veil);
+}
+html[data-window-material="mica"] .module-rail-item:hover {
+  background-color: var(--color-line-veil);
+}
+html[data-window-material="mica"] .rail-item:hover,
+html[data-window-material="mica"] .rail-item.bg-line {
+  background-color: var(--color-line-veil);
 }
 
 /* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to

@@ -451,7 +451,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 表面圆角 | `--radius-surface: 0` | 扁平化：区块 / 表格容器无圆角 |
 | 浮层圆角 | `--radius-panel: 6px` | 菜单 / 对话框仍需轻微圆角与内容平面区分 |
 | 内容区左上圆角 | `main` `border-top-left-radius: var(--radius-panel)` | 整套设计唯一的圆角装饰；侧栏收起时也保持 |
-| 壳层 chrome | 三段式：72px 一级图标栏通顶；顶栏 + 二级栏使用 canvas 色调；内容区始终为实色 `--color-surface`；三者无分隔线 | 窗口材质可选自动 / 经典 / 云母，与浅色 / 深色 / 跟随系统独立。自动默认按实际能力选择：Windows 11 22H2（build 22621）及以上优先原生 Mica，其他平台回退经典。Mica 是由 DWM 绘制的不透明壁纸着色基础层，激活 / 非激活外观由系统管理；壳层清除 WebView 覆盖以露出 Mica，内容区始终实色。Windows 关闭透明效果 / 高对比度 / 节电模式时回退经典，条件恢复后重新应用保存偏好。Mac / Linux 手动选 Mica 时保留偏好并说明回退原因。Mac 红绿灯与 Win/Linux 应用图标共用图标栏顶部 40px |
+| 壳层 chrome | 三段式：72px 一级图标栏通顶；顶栏 + 二级栏使用 canvas 色调；内容区始终为实色 `--color-surface`；三者无分隔线 | 窗口材质可选自动 / 经典 / 云母，与浅色 / 深色 / 跟随系统独立。自动默认按实际能力选择：Windows 11 22H2（build 22621）及以上优先原生 Mica，其他平台回退经典。Mica 是由 DWM 绘制的不透明壁纸着色基础层，激活 / 非激活外观由系统管理；壳层清除 WebView 覆盖以露出 Mica，内容区始终实色。云母下壳层内（一级图标栏 / 二级栏 / 设置菜单）的选中与悬停底色改为半透明覆盖（accent veil / line veil），直接融入底下的材质，经典模式保持实底设计。Windows 关闭透明效果 / 高对比度 / 节电模式时回退经典，条件恢复后重新应用保存偏好。Mac / Linux 手动选 Mica 时保留偏好并说明回退原因。Mac 红绿灯与 Win/Linux 应用图标共用图标栏顶部 40px |
 | 顶栏内控件 | secondary 按钮与 `.motion-field` 在顶栏里改用 `--color-surface` 底 | canvas 与 raised 太接近，按钮会“消失” |
 | 控件圆角 | `--radius-control: 4px` | 按钮、输入等 |
 | 区块间距 | `--spacing-section` / `--gap-section: 24px` | 取代卡片描边做分段 |
