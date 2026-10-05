@@ -30,13 +30,13 @@ export function Page({
   refreshing?: boolean;
 }) {
   useRegisterPageRefresh(onRefresh, refreshing);
-  // 主机页：通栏被功能标签占用，标题由标签高亮代替，操作下沉为内容区顶部的工具行（DESIGN.md §4.6）
+  // 主机页：通栏被功能标签占用，标题由标签高亮代替；其余页标题仍上通栏。
+  // 操作按钮全站一律下沉为内容区顶部的页内工具行，不上通栏（DESIGN.md §4.6，2026-10-05 起本机等非主机页同规则）
   const hostWorkspace = useIsHostWorkspace();
   const padded = !flush && !dark;
 
   let inlineToolbar: ReactNode = null;
-  const inlineActions = hostWorkspace ? actions : null;
-  if (toolbar || inlineActions) {
+  if (toolbar || actions) {
     inlineToolbar = (
       <div
         className={cn(
@@ -45,7 +45,7 @@ export function Page({
         )}
       >
         {toolbar}
-        {inlineActions}
+        {actions}
       </div>
     );
   }
@@ -56,8 +56,6 @@ export function Page({
         <ShellToolbarPortal>
           <div className="flex h-full w-full items-center gap-3 px-[var(--gap-card)]">
             {title ? <h1 className="text-sm font-semibold leading-none text-ink">{title}</h1> : null}
-            {/* 右侧操作区：按钮间距 8px；各页面的操作按钮用 size="sm"（28px） */}
-            <div className="ml-auto flex items-center gap-2">{actions}</div>
           </div>
         </ShellToolbarPortal>
       )}
