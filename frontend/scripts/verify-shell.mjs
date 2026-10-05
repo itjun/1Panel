@@ -124,8 +124,9 @@ if (!sidebarState.includes("1pannel-sidebar-width")) fail("sidebar width is not 
 if (!sidebarState.includes("SIDEBAR_WIDTH_MIN") || !sidebarState.includes("SIDEBAR_WIDTH_MAX")) {
   fail("sidebar width min/max missing");
 }
-if (!shellStyles.includes('html[data-window-material="acrylic"]')) fail("acrylic chrome must be gated by the effective native material");
-ok("classic / acrylic chrome with opaque content contract");
+if (shellStyles.includes("acrylic")) fail("acrylic was removed from the material vocabulary (auto / classic / mica)");
+if (!shellStyles.includes('html[data-window-material="mica"]')) fail("mica chrome must be gated by the effective native material");
+ok("classic / mica chrome with opaque content contract");
 ok("sidebar sits below the full-width app toolbar and is resizable");
 
 const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
