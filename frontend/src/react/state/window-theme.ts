@@ -21,6 +21,25 @@ const listeners = new Set<() => void>();
 let generation = 0;
 let requestQueue = Promise.resolve();
 
+// Wails 在页面导航完成后才用 ExecJS 注入 window._wails.environment（runtime.Core），
+// 前端模块脚本必然先于它执行；等注入完成事件再判定，超时则按浏览器预览处理。
+const runtimeConfigReadyEvent = "wails:runtime-config-ready";
+
+function whenDesktopKnown(timeoutMs: number): Promise<boolean> {
+  if (isDesktopWindow()) return Promise.resolve(true);
+  if (typeof window.addEventListener !== "function") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const finish = (desktop: boolean) => {
+      clearTimeout(timer);
+      window.removeEventListener(runtimeConfigReadyEvent, onReady);
+      resolve(desktop);
+    };
+    const timer = setTimeout(() => finish(isDesktopWindow()), timeoutMs);
+    const onReady = () => finish(isDesktopWindow());
+    window.addEventListener(runtimeConfigReadyEvent, onReady);
+  });
+}
+
 function publish() { listeners.forEach((listener) => listener()); }
 
 function apply(state: main.WindowThemeState) {
@@ -39,44 +58,55 @@ async function painted() {
 export function initializeWindowTheme(): () => void {
   const ownGeneration = ++generation;
   const active = () => ownGeneration === generation;
-  current = { ...current, desktop: isDesktopWindow() };
-  if (!current.desktop) {
-    apply({ preference: "auto", effective: "classic", supported: false,
-      reason: "浏览器预览使用经典外观", revision: 0 } as main.WindowThemeState);
-    return () => { generation++; };
-  }
   let retry: ReturnType<typeof setTimeout> | undefined;
-  const refresh = async (attempt = 0) => {
-    try {
-      // Colour mode is an independent saved preference; sync it before revealing the window.
-      await api.setThemeAppearance(appearanceToNativeMode(readSettings().appearance));
-      const state = await api.getWindowThemeState();
-      if (!active()) return;
-      apply(state);
-      await painted();
-      if (!active()) return;
-      const ready = await api.windowThemeReady(state.revision);
-      if (!ready && attempt < 5) retry = setTimeout(() => void refresh(attempt + 1), 250);
-    } catch {
-      // Backend timeout displays the classic skeleton. Retry without blocking React or startup.
-      if (active() && attempt < 5) retry = setTimeout(() => void refresh(attempt + 1), 500);
+  let stopThemeEvents: () => void = () => {};
+  let stopAppearanceEvents: () => void = () => {};
+  void (async () => {
+    const desktop = await whenDesktopKnown(2000);
+    if (!active()) return;
+    current = { ...current, desktop };
+    if (!desktop) {
+      apply({ preference: "auto", effective: "classic", supported: false,
+        reason: "浏览器预览使用经典外观", revision: 0 } as main.WindowThemeState);
+      return;
     }
+    const refresh = async (attempt = 0) => {
+      try {
+        // Colour mode is an independent saved preference; sync it before revealing the window.
+        await api.setThemeAppearance(appearanceToNativeMode(readSettings().appearance));
+        const state = await api.getWindowThemeState();
+        if (!active()) return;
+        apply(state);
+        await painted();
+        if (!active()) return;
+        const ready = await api.windowThemeReady(state.revision);
+        if (!ready && attempt < 5) retry = setTimeout(() => void refresh(attempt + 1), 250);
+      } catch {
+        // Backend timeout displays the classic skeleton. Retry without blocking React or startup.
+        if (active() && attempt < 5) retry = setTimeout(() => void refresh(attempt + 1), 500);
+      }
+    };
+    stopThemeEvents = Events.On("window-theme-changed", (event: { data?: main.WindowThemeState }) => {
+      if (!active() || !event.data) return;
+      apply(event.data);
+      if (event.data.reason.includes("初始化超时")) {
+        clearTimeout(retry);
+        retry = setTimeout(() => void refresh(), 250);
+      }
+    });
+    // Linux 的 WebKitGTK 不发 prefers-color-scheme 变更事件，跟随系统的实时切换靠它。
+    stopAppearanceEvents = Events.On("system-appearance-changed", (event: { data?: boolean }) => {
+      if (!active() || typeof event.data !== "boolean") return;
+      applySystemAppearanceHint(event.data);
+    });
+    void refresh();
+  })();
+  return () => {
+    generation++;
+    clearTimeout(retry);
+    stopThemeEvents();
+    stopAppearanceEvents();
   };
-  const off = Events.On("window-theme-changed", (event: { data?: main.WindowThemeState }) => {
-    if (!active() || !event.data) return;
-    apply(event.data);
-    if (event.data.reason.includes("初始化超时")) {
-      clearTimeout(retry);
-      retry = setTimeout(() => void refresh(), 250);
-    }
-  });
-  // Linux 的 WebKitGTK 不发 prefers-color-scheme 变更事件，跟随系统的实时切换靠它。
-  const offAppearance = Events.On("system-appearance-changed", (event: { data?: boolean }) => {
-    if (!active() || typeof event.data !== "boolean") return;
-    applySystemAppearanceHint(event.data);
-  });
-  void refresh();
-  return () => { generation++; clearTimeout(retry); off(); offAppearance(); };
 }
 
 export async function setWindowMaterial(preference: WindowMaterial): Promise<void> {

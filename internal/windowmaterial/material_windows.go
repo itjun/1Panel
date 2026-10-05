@@ -27,7 +27,7 @@ func Automatic() string { return "mica" }
 
 func readPolicy() windowsPolicy {
 	p := windowsPolicy{build: windows.RtlGetVersion().BuildNumber, transparency: true}
-	if p.build < minimumMicaBuild {
+	if p.build < minimumBackdropBuild {
 		return p
 	}
 	var composition int32
@@ -69,11 +69,11 @@ func Capability(material string) (bool, string) {
 	if material != "mica" {
 		return false, "本版本尚未提供 Windows 原生亚克力，正在使用经典外观"
 	}
-	return micaCapability(readPolicy())
+	return backdropCapability(readPolicy())
 }
 
 func ConfigureWindow(options *application.WebviewWindowOptions) {
-	if windows.RtlGetVersion().BuildNumber >= minimumMicaBuild {
+	if windows.RtlGetVersion().BuildNumber >= minimumBackdropBuild {
 		// Keep the same WebView2 for live switching. Wails makes its surface
 		// transparent; classic CSS remains opaque over the whole window.
 		options.BackgroundType = application.BackgroundTypeTranslucent
@@ -94,6 +94,34 @@ func setAttribute(win *application.WebviewWindow, attribute uint32, value int32)
 	})
 }
 
+var (
+	classEraseMu      sync.Mutex
+	classEraseCleared bool
+)
+
+// Wails 的窗口类固定用 COLOR_BTNFACE 背景刷，会整面盖住 DWM 系统材质（实验验证：
+// 同样设 backdrop=3，无类刷透出壁纸磨砂，BTNFACE 刷呈不透明灰）。材质生效期间清掉
+// 类刷（该类仅本进程 Wails 窗口共用），回到经典时恢复，避免加载间隙露出未擦除底色。
+func setClassErase(win *application.WebviewWindow, erase bool) {
+	hwnd := uintptr(win.NativeWindow())
+	if hwnd == 0 {
+		return
+	}
+	classEraseMu.Lock()
+	defer classEraseMu.Unlock()
+	if erase == classEraseCleared {
+		return
+	}
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	var brush uintptr
+	if erase {
+		brush, _, _ = user32.NewProc("GetSysColorBrush").Call(15) // COLOR_BTNFACE
+	}
+	user32.NewProc("SetClassLongPtrW").Call(hwnd, ^uintptr(25), brush) // GCLP_HBRBACKGROUND(-26)
+	user32.NewProc("InvalidateRect").Call(hwnd, 0, 1)
+	classEraseCleared = !erase
+}
+
 func applyAppearance(win *application.WebviewWindow) error {
 	dark := readPolicy().dark
 	if mode, _ := appearance.Load().(string); mode == "light" {
@@ -109,22 +137,31 @@ func applyAppearance(win *application.WebviewWindow) error {
 }
 
 func Apply(win *application.WebviewWindow, material string) error {
-	if windows.RtlGetVersion().BuildNumber < minimumMicaBuild {
+	if windows.RtlGetVersion().BuildNumber < minimumBackdropBuild {
 		return nil
 	}
-	value := int32(1) // DWMSBT_NONE
+	value := int32(1) // DWMSBT_NONE：经典
 	if material == "mica" {
 		if err := applyAppearance(win); err != nil {
 			return err
 		}
+		// 先清类背景刷再开材质：BTNFACE 刷会把 DWM 材质盖成不透明灰
+		setClassErase(win, false)
+		// DWMSBT_MAINWINDOW: system-owned opaque Mica, including focus states.
 		value = 2
-	} // DWMSBT_MAINWINDOW: system-owned opaque Mica, including focus states.
-	return setAttribute(win, 38, value) // DWMWA_SYSTEMBACKDROP_TYPE
+	}
+	if err := setAttribute(win, 38, value); err != nil { // DWMWA_SYSTEMBACKDROP_TYPE
+		return err
+	}
+	if value == 1 {
+		setClassErase(win, true)
+	}
+	return nil
 }
 
 func SetAppearance(win *application.WebviewWindow, mode string) {
 	appearance.Store(mode)
-	if windows.RtlGetVersion().BuildNumber >= minimumMicaBuild {
+	if windows.RtlGetVersion().BuildNumber >= minimumBackdropBuild {
 		_ = applyAppearance(win)
 	}
 }

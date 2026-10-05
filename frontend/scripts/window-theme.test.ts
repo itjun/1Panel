@@ -1,7 +1,8 @@
 import { expect, mock, test } from "bun:test";
 
 const root = { dataset: {} as Record<string, string>, style: { background: "" } };
-const host = { _wails: { environment: { OS: "" } } };
+// Wails 的 environment 由导航完成后注入；host 需是 EventTarget 以模拟等待注入事件。
+const host = Object.assign(new EventTarget(), { _wails: { environment: { OS: "" } } });
 Object.assign(globalThis, {
   window: host, document: { documentElement: root }, location: { pathname: "/" },
   requestAnimationFrame: (callback: () => void) => { queueMicrotask(callback); return 1; },
@@ -38,6 +39,8 @@ const theme = await import("../src/react/state/window-theme");
 
 test("browser preview keeps a solid background and does not call native initialization", async () => {
   const stop = theme.initializeWindowTheme();
+  // environment 未注入但注入完成事件已到达（或超时）：仍按浏览器预览处理。
+  host.dispatchEvent(new Event("wails:runtime-config-ready"));
   await Bun.sleep(10);
   expect(getCalls).toBe(0);
   expect(root.dataset.windowMaterial).toBe("classic");

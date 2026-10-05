@@ -2,7 +2,7 @@ package windowmaterial
 
 // The documented DWM system-backdrop API requires 22621. No undocumented
 // legacy Mica attributes or Win10 blur fallbacks are used.
-const minimumMicaBuild = 22621
+const minimumBackdropBuild = 22621
 
 type windowsPolicy struct {
 	build        uint32
@@ -14,9 +14,9 @@ type windowsPolicy struct {
 	readFailed   bool
 }
 
-func micaCapability(policy windowsPolicy) (bool, string) {
+func backdropCapability(policy windowsPolicy) (bool, string) {
 	switch {
-	case policy.build < minimumMicaBuild:
+	case policy.build < minimumBackdropBuild:
 		return false, "原生云母需要 Windows 11 22H2（build 22621）及以上，正在使用经典外观"
 	case policy.readFailed:
 		return false, "无法检测 Windows 材质设置，正在使用经典外观"
