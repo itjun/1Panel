@@ -30,7 +30,6 @@ import {
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { FlashNotices } from "@/react/components/page";
-import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
 import { isPrimaryModifier, shortcutLabel } from "@/react/lib/platform";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { readSettings, updateSettings, useSettings } from "@/react/state/settings";
@@ -1104,48 +1103,46 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         setBlankMenu(next);
       }}
     >
-      <ShellToolbarPortal>
-        <div className="host-home-toolbar grid h-full w-full grid-cols-[1fr_auto_1fr] items-center px-5">
-          <div />
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                if (query) {
-                  event.stopPropagation();
-                  setQuery("");
-                  return;
-                }
-                (event.target as HTMLInputElement).blur();
-              }
-            }}
-            placeholder={`筛选主机 (${shortcutLabel("F")})`}
-            className="motion-field box-border h-8 w-[min(24rem,40vw)] rounded-control px-3 leading-none"
-          />
-          <div className="relative flex h-full items-center justify-self-end">
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label="新建"
-              onClick={(event) => {
-                event.stopPropagation();
-                const btn = event.currentTarget;
-                const rect = btn.getBoundingClientRect();
-                // 按钮在最右侧，菜单右缘跟按钮对齐
-                closeAllMenus();
-                setBlankMenu({ x: rect.right - 180, y: rect.bottom + 4 });
-              }}
-            >
-              +
-            </Button>
-          </div>
-        </div>
-      </ShellToolbarPortal>
-
       <div className="content-float relative flex min-w-0 flex-1 flex-col">
       <FlashNotices flash={flash} />
+
+      {/* 页内工具行：筛选与新建（原通栏槽位内容，随 §4.6 全站下沉规则移入内容区） */}
+      <div className="host-home-toolbar flex min-h-8 shrink-0 items-center gap-2 px-4 pt-4">
+        <input
+          ref={searchRef}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              if (query) {
+                event.stopPropagation();
+                setQuery("");
+                return;
+              }
+              (event.target as HTMLInputElement).blur();
+            }
+          }}
+          placeholder={`筛选主机 (${shortcutLabel("F")})`}
+          className="motion-field box-border h-8 w-[min(24rem,40vw)] rounded-control px-3 text-sm leading-none"
+        />
+        <div className="relative ml-auto flex items-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="新建"
+            onClick={(event) => {
+              event.stopPropagation();
+              const btn = event.currentTarget;
+              const rect = btn.getBoundingClientRect();
+              // 按钮在最右侧，菜单右缘跟按钮对齐
+              closeAllMenus();
+              setBlankMenu({ x: rect.right - 180, y: rect.bottom + 4 });
+            }}
+          >
+            +
+          </Button>
+        </div>
+      </div>
 
       {/* 内容区四周 16px 安全边距；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9）。
           整块禁选：拖动超过阈值前浏览器已开始划选文字，事后再禁选清不掉选区 */}
