@@ -121,10 +121,11 @@ func (c *Collector) CollectRuntimeProcs(host, runtime string, opt sshd.ConnectOp
 		return list, nil
 	}
 
-	// 所有 PID 的 cgroup 拼成一条命令（echo =CG=<pid>= 分段）
+	// 所有 PID 的 cgroup 拼成一条命令（echo '=CG=<pid>=' 分段；标记单引号包裹，
+	// 脚本经用户登录 shell 执行，zsh 对裸 = 开头的词做等号展开）
 	var sb strings.Builder
 	for _, p := range list {
-		fmt.Fprintf(&sb, "echo =CG=%d=; cat /proc/%d/cgroup 2>/dev/null; ", p.PID, p.PID)
+		fmt.Fprintf(&sb, "echo '=CG=%d='; cat /proc/%d/cgroup 2>/dev/null; ", p.PID, p.PID)
 	}
 	// cgroup 与 ss 并行执行；docker ps 仅在存在容器内进程时才查（秒级），
 	// 且走 15s 缓存——部署方式标注对容器列表新鲜度要求不高（Docker 管理页保持实时）

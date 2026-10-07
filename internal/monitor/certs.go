@@ -43,11 +43,12 @@ type CertListResult struct {
 func (c *Collector) CollectCerts(host string, opt sshd.ConnectOption) (CertListResult, error) {
 	// -text 一次性拿到 Subject/Issuer/Not After/SAN，兼容 openssl 1.0 ~ 3.x
 	// =FILE= 段是文件元信息；cert=1 时跟一段 =TEXT=（openssl 原始输出）
+	// 遍历用 find 而非 "$D"/* glob：zsh 对空目录 glob 报 no matches found，
+	// for 整段静默跳过；bash 只传字面量再被 [ -f ] 过滤。find 两边行为一致。
 	script := `D='/etc/nginx/cert'
 [ -d "$D" ] || { echo "=NODIR="; exit 0; }
 command -v openssl >/dev/null 2>&1 || { echo "=NOSSL="; exit 0; }
-for f in "$D"/*; do
-  [ -f "$f" ] || continue
+find "$D" -maxdepth 1 -type f | sort | while IFS= read -r f; do
   sz=$(stat -c %s "$f" 2>/dev/null || stat -f %z "$f" 2>/dev/null)
   mt=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)
   echo "=FILE="

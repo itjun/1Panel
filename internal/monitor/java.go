@@ -80,8 +80,9 @@ func (c *Collector) CollectJavaProcDetail(host string, pid uint32, opt sshd.Conn
 	if pid == 0 {
 		return JavaProcDetail{}, fmt.Errorf("非法 PID")
 	}
+	// 分段标记需单引号包裹：脚本经用户登录 shell 执行，zsh 对裸 = 开头的词做等号展开
 	out, err := c.mgr.Run(host, opt, fmt.Sprintf(
-		`echo =CWD=; readlink /proc/%d/cwd 2>/dev/null || true; echo =EXE=; readlink /proc/%d/exe 2>/dev/null || true; echo =IO=; cat /proc/%d/io 2>/dev/null; true`,
+		`echo '=CWD='; readlink /proc/%d/cwd 2>/dev/null || true; echo '=EXE='; readlink /proc/%d/exe 2>/dev/null || true; echo '=IO='; cat /proc/%d/io 2>/dev/null; true`,
 		pid, pid, pid,
 	))
 	if err != nil {

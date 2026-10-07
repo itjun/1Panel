@@ -532,12 +532,14 @@ func (s *Hosts) installSSHID(input CopyIDInput) (bool, error) {
 
 // ensureAuthorizedKey 先检查公钥是否已在目标主机 authorized_keys（按整行精确匹配），
 // 已存在则不动；缺失才建目录、收权限后追加。执行完关闭该临时连接。
+// 标记 =PRESENT=x 必须单引号包裹：脚本经用户登录 shell 执行，zsh 对裸 = 开头的
+// 词做等号展开（=PRESENT=1 被当作命令查找），bash/sh 则无此特性。
 func (s *Hosts) ensureAuthorizedKey(cacheKey string, opt sshd.ConnectOption, pub string) (already bool, err error) {
 	defer s.sshMgr.Close(cacheKey)
 	script := fmt.Sprintf(`if grep -qxF '%s' ~/.ssh/authorized_keys 2>/dev/null; then
-  echo =PRESENT=1
+  echo '=PRESENT=1'
 else
-  mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo =PRESENT=0
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo '=PRESENT=0'
 fi`, pub, pub)
 	out, err := s.sshMgr.Run(cacheKey, opt, script)
 	if err != nil {
