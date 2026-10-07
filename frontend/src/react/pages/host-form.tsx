@@ -169,8 +169,8 @@ export function HostCreateForm({
     const alias = name.trim();
     const addr = hostName.trim();
     const login = user.trim();
-    if (!alias || !addr || !login) {
-      setError("别名、地址、用户不能为空");
+    if (!alias || !addr || !login || !password) {
+      setError("别名、地址、用户、密码不能为空");
       return;
     }
 
@@ -178,7 +178,7 @@ export function HostCreateForm({
     setError("");
     setSuccess("");
     try {
-      // 填密码：密码验证 + 检查/上传公钥；留空：仅校验本机密钥登录
+      // 密码必填：密码验证 + 检查/上传公钥；agent 的 sudo 提权也依赖存储的密码
       const msg = await api.addHost({
         name: alias,
         hostName: addr,
@@ -215,7 +215,7 @@ export function HostCreateForm({
   const canSave =
     kind === "group"
       ? !!name.trim()
-      : !!name.trim() && !!hostName.trim() && !!user.trim();
+      : !!name.trim() && !!hostName.trim() && !!user.trim() && !!password;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -302,7 +302,7 @@ export function HostCreateForm({
                 />
                 <input
                   className={EDIT_INPUT}
-                  placeholder="密码（留空则仅校验密钥登录）"
+                  placeholder="密码"
                   type="password"
                   value={password}
                   disabled={busy}
@@ -340,11 +340,11 @@ export function HostCreateForm({
 }
 
 /**
- * 侧栏编辑主机：别名 / 分组 / 端口 / 地址 / 用户 / 密码 / 备注均可改，密码可留空。
- * 按变更项分别保存：别名用 renameHost；地址/用户/密码有变才走 updateHost 测连
- * （填密码：密码验证 + 检查/上传公钥；留空：仅校验本机密钥登录）；仅备注变化用
- * setHostNote；分组用 assignHost；端口用 getPanelState + savePanelState 补写
- * （updateHost 不带 Port）。
+ * 侧栏编辑主机：别名 / 分组 / 端口 / 地址 / 用户 / 密码 / 备注均可改。
+ * 密码必填：打开时用 getHostPassword 预填已存密码，改 IP 不必重新找密码；
+ * 地址/用户/密码有变才走 updateHost 测连（密码验证 + 检查/上传公钥）；
+ * 仅备注变化用 setHostNote；分组用 assignHost；端口用 getPanelState +
+ * savePanelState 补写（updateHost 不带 Port）。
  */
 export function HostEditForm({
   host,
@@ -402,8 +402,8 @@ export function HostEditForm({
     const nextAlias = alias.trim();
     const addr = hostName.trim();
     const login = user.trim();
-    if (!nextAlias || !addr || !login) {
-      setError("别名、地址、用户不能为空");
+    if (!nextAlias || !addr || !login || !password) {
+      setError("别名、地址、用户、密码不能为空");
       return;
     }
 
@@ -568,7 +568,7 @@ export function HostEditForm({
       <div className="shrink-0 border-t border-line p-4">
         <button
           type="button"
-          disabled={busy || !alias.trim() || !hostName.trim() || !user.trim()}
+          disabled={busy || !alias.trim() || !hostName.trim() || !user.trim() || !password}
           className="h-10 w-full rounded-control bg-accent text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void handleSave()}
         >

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"diteng-pannel/internal/panelstore"
@@ -95,8 +94,8 @@ func (s *Hosts) AddHost(input AddHostInput) (string, error) {
 	input.HostName = strings.TrimSpace(input.HostName)
 	input.User = strings.TrimSpace(input.User)
 	// 密码不 trim，保留用户输入原样
-	if input.Name == "" || input.HostName == "" || input.User == "" {
-		return "", fmt.Errorf("别名、IP、用户均不能为空")
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return "", fmt.Errorf("别名、IP、用户、密码均不能为空")
 	}
 	if strings.ContainsAny(input.Name, " \t\r\n*") {
 		return "", fmt.Errorf("别名不能包含空格或通配符 *")
@@ -111,38 +110,25 @@ func (s *Hosts) AddHost(input AddHostInput) (string, error) {
 			return "", fmt.Errorf("别名 %s 已存在，请换一个", input.Name)
 		}
 	}
+	// 密码必填：agent 读 token 依赖 sudo -S 提权，无密码的密钥-only 主机会
+	// 在 agent 识别上静默断链。密码连接本身就是一次验证；失败则不会修改 Panel JSON。
 	identityFiles := []string{"~/.ssh/id_ed25519"}
-	var verifyMsg string
-	if input.Password == "" {
-		identityFiles = defaultIdentityFiles()
-		probe := panelstore.PanelHost{
-			Alias: "__add__:" + input.Name, HostName: input.HostName, User: input.User,
-			Port: "22", IdentityFiles: identityFiles,
-		}
-		if _, err := (*App)(s).testPanelHost(probe); err != nil {
-			return "", fmt.Errorf("未填密码，使用本机密钥登录失败: %w", err)
-		}
-		verifyMsg = "密钥登录验证通过"
-	} else {
-		// 密码连接本身就是一次验证；失败则不会修改 Panel JSON。
-		copyInput := CopyIDInput{
-			Name:          input.Name,
-			HostName:      input.HostName,
-			User:          input.User,
-			Port:          "22",
-			Password:      input.Password,
-			PublicKeyFile: "~/.ssh/id_ed25519.pub",
-			IdentityFile:  "~/.ssh/id_ed25519",
-		}
-		already, err := s.installSSHID(copyInput)
-		if err != nil {
-			return "", err
-		}
-		if already {
-			verifyMsg = "密码验证通过，公钥已存在"
-		} else {
-			verifyMsg = "密码验证通过，已上传公钥（后续可免密登录）"
-		}
+	copyInput := CopyIDInput{
+		Name:          input.Name,
+		HostName:      input.HostName,
+		User:          input.User,
+		Port:          "22",
+		Password:      input.Password,
+		PublicKeyFile: "~/.ssh/id_ed25519.pub",
+		IdentityFile:  "~/.ssh/id_ed25519",
+	}
+	already, err := s.installSSHID(copyInput)
+	if err != nil {
+		return "", err
+	}
+	verifyMsg := "密码验证通过，公钥已存在"
+	if !already {
+		verifyMsg = "密码验证通过，已上传公钥（后续可免密登录）"
 	}
 	if a := (*App)(s); a.panelStore != nil {
 		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
@@ -167,20 +153,6 @@ func (s *Hosts) AddHost(input AddHostInput) (string, error) {
 		}
 	}
 	return verifyMsg, nil
-}
-
-// defaultIdentityFiles 返回本机存在的 OpenSSH 默认私钥（与 `ssh user@ip` 默认尝试的顺序一致）；
-// 都不存在时返回 nil，由连接器回退到 ssh-agent。
-func defaultIdentityFiles() []string {
-	names := []string{"id_rsa", "id_ecdsa", "id_ecdsa_sk", "id_ed25519", "id_ed25519_sk", "id_dsa"}
-	var out []string
-	for _, name := range names {
-		rel := "~/.ssh/" + name
-		if _, err := os.Stat(expandTilde(rel)); err == nil {
-			out = append(out, rel)
-		}
-	}
-	return out
 }
 
 // TestConnection 用密码尝试 SSH 登录（执行 hostname），仅验证连通性与凭据是否正确
@@ -283,40 +255,19 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) (string, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.HostName = strings.TrimSpace(input.HostName)
 	input.User = strings.TrimSpace(input.User)
-	if input.Name == "" || input.HostName == "" || input.User == "" {
-		return "", fmt.Errorf("别名、IP、用户均不能为空")
-	}
-
-	hosts, err := s.ListHostsAll()
-	if err != nil {
-		return "", fmt.Errorf("读取 Panel 主机失败: %w", err)
-	}
-	var current *sshconfig.HostConfig
-	for i := range hosts {
-		if hosts[i].Name == input.Name {
-			current = &hosts[i]
-			break
-		}
-	}
-	if current == nil {
-		return "", fmt.Errorf("未找到主机别名: %s", input.Name)
+	if input.Name == "" || input.HostName == "" || input.User == "" || input.Password == "" {
+		return "", fmt.Errorf("别名、IP、用户、密码均不能为空")
 	}
 
 	var verifyMsg string
-	if input.Password != "" {
-		already, err := s.verifyWithPassword(input)
-		if err != nil {
-			return "", err
-		}
-		if already {
-			verifyMsg = "密码验证通过，公钥已存在"
-		} else {
-			verifyMsg = "密码验证通过，已上传公钥（后续可免密登录）"
-		}
-	} else if err := s.verifyWithExistingLogin(input, *current); err != nil {
+	already, err := s.verifyWithPassword(input)
+	if err != nil {
 		return "", err
+	}
+	if already {
+		verifyMsg = "密码验证通过，公钥已存在"
 	} else {
-		verifyMsg = "密钥登录验证通过"
+		verifyMsg = "密码验证通过，已上传公钥（后续可免密登录）"
 	}
 
 	// 先更新 JSON，再由 JSON 生成 config；IdentityFile、分组和高级选项
@@ -327,9 +278,7 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) (string, error) {
 				if state.Hosts[i].Alias == input.Name {
 					state.Hosts[i].HostName = input.HostName
 					state.Hosts[i].User = input.User
-					if input.Password != "" {
-						state.Hosts[i].Password = input.Password
-					}
+					state.Hosts[i].Password = input.Password
 					state.Hosts[i].Note = input.Note
 					return nil
 				}
@@ -348,10 +297,8 @@ func (s *Hosts) UpdateHost(input UpdateHostInput) (string, error) {
 		if err := s.hostMeta.SetNote(input.Name, input.Note); err != nil {
 			application.Get().Logger.Warn("保存主机备注失败", "error", err)
 		}
-		if input.Password != "" {
-			if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
-				application.Get().Logger.Warn("保存主机密码失败", "error", err)
-			}
+		if err := s.hostMeta.SetPassword(input.Name, input.Password); err != nil {
+			application.Get().Logger.Warn("保存主机密码失败", "error", err)
 		}
 	}
 	return verifyMsg, nil
@@ -381,41 +328,6 @@ func (s *Hosts) verifyWithPassword(input UpdateHostInput) (bool, error) {
 		Password: input.Password,
 	}
 	return s.ensureAuthorizedKey(opt.Host, opt, pub)
-}
-
-// verifyWithExistingLogin 未填密码时，只校验本机私钥登录：沿用主机原有的密钥/代理配置，
-// 把地址和用户换成新值、剥离已存密码后测连（密钥不可用即失败，提示填密码可重传公钥）。
-// 已存密码仅从本次测试中剥离，存储中保留（供 SSH 兜底认证与 Agent 安装的 sudo 提权）。
-func (s *Hosts) verifyWithExistingLogin(input UpdateHostInput, current sshconfig.HostConfig) error {
-	a := (*App)(s)
-	var host panelstore.PanelHost
-	if a.panelStore != nil {
-		stored, ok := a.panelStore.GetHost(input.Name)
-		if !ok {
-			return fmt.Errorf("未找到 Panel 主机: %s", input.Name)
-		}
-		host = stored
-	} else {
-		host = panelstore.PanelHost{
-			Alias:         current.Name,
-			Port:          current.Port,
-			ProxyJump:     current.ProxyJump,
-			ProxyCommand:  current.ProxyCommand,
-			IdentityAgent: current.IdentityAgent,
-			ForwardAgent:  current.ForwardAgent,
-			HostKeyAlgos:  current.HostKeyAlgos,
-		}
-		if current.IdentityFile != "" {
-			host.IdentityFiles = []string{current.IdentityFile}
-		}
-	}
-	host.HostName = input.HostName
-	host.User = input.User
-	host.Password = ""
-	if _, err := a.testPanelHost(host); err != nil {
-		return fmt.Errorf("密钥登录验证失败: %w（如需重新上传公钥，请填写该用户密码后保存）", err)
-	}
-	return nil
 }
 
 // SetHostNote 仅更新本机备注（不改 ssh config、不验连；保留已存密码）
