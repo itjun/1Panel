@@ -423,45 +423,88 @@ func (s *System) OpenHostsInTerminal(hosts []string, mode string) error {
 	return nil
 }
 
-// CheckMenuPage 立即用 Go HTTP 检查菜单项（不打开浏览器）。id 空则检查全部，返回最后一项结果以兼容旧调用。
-func (s *System) CheckMenuPage(id string) MenuCheckResult {
-	(*App)(s).startMenuCheckWatcher()
-	if s.menuCheck == nil {
-		return MenuCheckResult{Message: "菜单检查未启动"}
+// CheckMenuPage 立即用 Go HTTP 执行巡检项（不打开浏览器、不告警）。id 空则检查全部，返回最后一项结果以兼容旧调用。
+func (s *System) CheckMenuPage(id string) (MenuCheckResult, error) {
+	w, err := s.menuCheckWatcher()
+	if err != nil {
+		return MenuCheckResult{}, err
 	}
-	snaps := s.menuCheck.CheckNow(id)
+	snaps := w.CheckNow(id)
 	if len(snaps) == 0 {
-		return MenuCheckResult{Message: "未找到检查项"}
+		return MenuCheckResult{}, fmt.Errorf("未找到巡检项")
 	}
-	return menuSnapToResult(snaps[len(snaps)-1])
+	return menuSnapToResult(snaps[len(snaps)-1]), nil
 }
 
-// ListMenuChecks 返回内置菜单检查项及最近一次结果。
-func (s *System) ListMenuChecks() []MenuCheckResult {
-	(*App)(s).startMenuCheckWatcher()
-	if s.menuCheck == nil {
-		return nil
+// ListMenuChecks 返回用户配置的巡检项及最近一次结果。
+func (s *System) ListMenuChecks() ([]MenuCheckResult, error) {
+	w, err := s.menuCheckWatcher()
+	if err != nil {
+		return nil, err
 	}
-	snaps := s.menuCheck.Latest()
+	snaps := w.Latest()
 	out := make([]MenuCheckResult, 0, len(snaps))
 	for _, sn := range snaps {
 		out = append(out, menuSnapToResult(sn))
 	}
-	return out
+	return out, nil
+}
+
+// SaveMenuCheck 新增（id 为空）或更新巡检项，保存后立即参与定时调度。
+func (s *System) SaveMenuCheck(item menucheck.Item) (menucheck.Item, error) {
+	if _, err := s.menuCheckWatcher(); err != nil {
+		return menucheck.Item{}, err
+	}
+	return s.menuCheckStore.Upsert(item)
+}
+
+// DeleteMenuCheck 删除巡检项。
+func (s *System) DeleteMenuCheck(id string) error {
+	w, err := s.menuCheckWatcher()
+	if err != nil {
+		return err
+	}
+	if err := s.menuCheckStore.Delete(id); err != nil {
+		return err
+	}
+	w.Forget(id)
+	return nil
+}
+
+// TestMenuCheck 用未保存的配置试发一次请求（编辑弹窗里的「发送测试」）。
+func (s *System) TestMenuCheck(item menucheck.Item) (MenuCheckResult, error) {
+	w, err := s.menuCheckWatcher()
+	if err != nil {
+		return MenuCheckResult{}, err
+	}
+	return menuSnapToResult(w.Test(item)), nil
+}
+
+func (s *System) menuCheckWatcher() (*menucheck.Watcher, error) {
+	(*App)(s).startMenuCheckWatcher()
+	if s.menuCheck == nil || s.menuCheckStore == nil {
+		return nil, fmt.Errorf("巡检未启动：无法读取本机配置文件")
+	}
+	return s.menuCheck, nil
 }
 
 func menuSnapToResult(sn menucheck.Snapshot) MenuCheckResult {
 	return MenuCheckResult{
-		ID:        sn.ID,
-		Label:     sn.Label,
-		URL:       sn.URL,
-		OK:        sn.OK,
-		HasData:   sn.HasData,
-		MenuText:  sn.MenuText,
-		DataText:  sn.DataText,
-		Title:     sn.Title,
-		Message:   sn.Message,
-		CheckedAt: sn.CheckedAt,
-		Scheduled: sn.Scheduled,
+		ID:          sn.ID,
+		Label:       sn.Label,
+		Method:      sn.Method,
+		URL:         sn.URL,
+		OK:          sn.OK,
+		HasData:     sn.HasData,
+		MenuText:    sn.MenuText,
+		DataText:    sn.DataText,
+		Title:       sn.Title,
+		Message:     sn.Message,
+		StatusCode:  sn.StatusCode,
+		DurationMs:  sn.DurationMs,
+		BodyPreview: sn.BodyPreview,
+		CheckedAt:   sn.CheckedAt,
+		Scheduled:   sn.Scheduled,
+		Config:      sn.Item,
 	}
 }

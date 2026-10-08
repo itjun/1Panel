@@ -13,6 +13,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as menucheck$0 from "./internal/menucheck/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as monitor$0 from "./internal/monitor/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -31,10 +34,17 @@ export function BootstrapZsh(host: string): $CancellablePromise<string> {
 }
 
 /**
- * CheckMenuPage 立即用 Go HTTP 检查菜单项（不打开浏览器）。id 空则检查全部，返回最后一项结果以兼容旧调用。
+ * CheckMenuPage 立即用 Go HTTP 执行巡检项（不打开浏览器、不告警）。id 空则检查全部，返回最后一项结果以兼容旧调用。
  */
 export function CheckMenuPage(id: string): $CancellablePromise<$models.MenuCheckResult> {
     return $Call.ByID(3866735965, id);
+}
+
+/**
+ * DeleteMenuCheck 删除巡检项。
+ */
+export function DeleteMenuCheck(id: string): $CancellablePromise<void> {
+    return $Call.ByID(178632773, id);
 }
 
 /**
@@ -87,7 +97,7 @@ export function ListBoardURLs(groupName: string): $CancellablePromise<string[] |
 }
 
 /**
- * ListMenuChecks 返回内置菜单检查项及最近一次结果。
+ * ListMenuChecks 返回用户配置的巡检项及最近一次结果。
  */
 export function ListMenuChecks(): $CancellablePromise<$models.MenuCheckResult[] | null> {
     return $Call.ByID(1424624473);
@@ -155,6 +165,13 @@ export function PreviewHostAlertMarkdown($in: $models.HostAlertNotify): $Cancell
 }
 
 /**
+ * SaveMenuCheck 新增（id 为空）或更新巡检项，保存后立即参与定时调度。
+ */
+export function SaveMenuCheck(item: menucheck$0.Item): $CancellablePromise<menucheck$0.Item> {
+    return $Call.ByID(1983911247, item);
+}
+
+/**
  * SetAskBeforeQuit 设置「退出前询问」；与确认框内勾选写入同一份配置。
  */
 export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
@@ -186,6 +203,13 @@ export function SetTrafficLightsHidden(hidden: boolean): $CancellablePromise<voi
 
 export function SetWindowMaterial(preference: string): $CancellablePromise<$models.WindowThemeState> {
     return $Call.ByID(663592792, preference);
+}
+
+/**
+ * TestMenuCheck 用未保存的配置试发一次请求（编辑弹窗里的「发送测试」）。
+ */
+export function TestMenuCheck(item: menucheck$0.Item): $CancellablePromise<$models.MenuCheckResult> {
+    return $Call.ByID(2844688420, item);
 }
 
 /**

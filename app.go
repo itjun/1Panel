@@ -62,6 +62,7 @@ type App struct {
 	notifySubs      *notifysubs.Store
 	certNotify      *certnotify.Store
 	menuCheck       *menucheck.Watcher
+	menuCheckStore  *menucheck.Store
 	speedTest       *speedtest.Service
 	updates         *updateController
 	panelConfigMu   sync.Mutex

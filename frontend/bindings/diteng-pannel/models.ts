@@ -3,6 +3,9 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as menucheck$0 from "./internal/menucheck/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as monitor$0 from "./internal/monitor/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -385,28 +388,33 @@ export interface LocalTextCheck {
 }
 
 /**
- * MenuCheckResult 菜单检查：菜单是否正常、数据是否正常。
+ * MenuCheckResult 巡检结果：请求是否正常、内容是否正常，附带当前配置供编辑回填。
  */
 export interface MenuCheckResult {
     "id": string;
     "label": string;
+    "method": string;
     "url": string;
 
     /**
-     * 菜单正常
+     * 请求正常
      */
     "ok": boolean;
 
     /**
-     * 数据正常
+     * 内容正常
      */
     "hasData": boolean;
     "menuText": string;
     "dataText": string;
     "title": string;
     "message": string;
+    "statusCode": number;
+    "durationMs": number;
+    "bodyPreview": string;
     "checkedAt": number;
     "scheduled": boolean;
+    "config": menucheck$0.Item;
 }
 
 export interface PanelBackup {

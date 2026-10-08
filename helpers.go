@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/wecom"
 )
 
@@ -74,19 +75,24 @@ type DesktopNotify struct {
 	Kind    string `json:"kind,omitempty"` // cpu|mem|disk|load
 }
 
-// MenuCheckResult 菜单检查：菜单是否正常、数据是否正常。
+// MenuCheckResult 巡检结果：请求是否正常、内容是否正常，附带当前配置供编辑回填。
 type MenuCheckResult struct {
-	ID        string `json:"id"`
-	Label     string `json:"label"`
-	URL       string `json:"url"`
-	OK        bool   `json:"ok"`      // 菜单正常
-	HasData   bool   `json:"hasData"` // 数据正常
-	MenuText  string `json:"menuText"`
-	DataText  string `json:"dataText"`
-	Title     string `json:"title"`
-	Message   string `json:"message"`
-	CheckedAt int64  `json:"checkedAt"`
-	Scheduled bool   `json:"scheduled"`
+	ID          string         `json:"id"`
+	Label       string         `json:"label"`
+	Method      string         `json:"method"`
+	URL         string         `json:"url"`
+	OK          bool           `json:"ok"`      // 请求正常
+	HasData     bool           `json:"hasData"` // 内容正常
+	MenuText    string         `json:"menuText"`
+	DataText    string         `json:"dataText"`
+	Title       string         `json:"title"`
+	Message     string         `json:"message"`
+	StatusCode  int            `json:"statusCode"`
+	DurationMs  int64          `json:"durationMs"`
+	BodyPreview string         `json:"bodyPreview"`
+	CheckedAt   int64          `json:"checkedAt"`
+	Scheduled   bool           `json:"scheduled"`
+	Config      menucheck.Item `json:"config"`
 }
 
 // readPublicKey 读公钥文件内容（去掉末尾换行）

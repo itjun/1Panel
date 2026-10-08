@@ -13,11 +13,19 @@ import (
 
 var menuCheckStartOnce sync.Once
 
-// startMenuCheckWatcher 每天 18:00–20:00 每 5 分钟用 Go HTTP 探活菜单页（不打开浏览器）。
-// 任一次菜单不可用：写入应用内告警历史 + 本机系统通知（不发企业微信）。
+// startMenuCheckWatcher 加载用户配置的巡检项，按各自的间隔与时间窗用 Go HTTP 探活（不打开浏览器）。
+// 定时检查每次失败：写入应用内告警历史 + 本机系统通知（不发企业微信）。
 func (a *App) startMenuCheckWatcher() {
 	menuCheckStartOnce.Do(func() {
-		w := menucheck.NewWatcher(nil, a.onMenuCheckAlert, a.onMenuCheckUpdate)
+		store, err := menucheck.NewStore("ServerPanel")
+		if err != nil {
+			if app := application.Get(); app != nil {
+				app.Logger.Error("初始化巡检配置失败", "error", err)
+			}
+			return
+		}
+		w := menucheck.NewWatcher(store, a.onMenuCheckAlert, a.onMenuCheckUpdate)
+		a.menuCheckStore = store
 		a.menuCheck = w
 		w.Start()
 	})
@@ -29,28 +37,31 @@ func (a *App) onMenuCheckUpdate(snap menucheck.Snapshot) {
 		app = application.Get()
 	}
 	if app != nil {
-		app.Event.Emit("menu-check-updated", snap)
+		app.Event.Emit("menu-check-updated", menuSnapToResult(snap))
 	}
 }
 
+// onMenuCheckAlert 正文只放判定结果，不带 URL / Header，避免 Token 落进通知与告警历史。
 func (a *App) onMenuCheckAlert(snap menucheck.Snapshot) {
 	msg := strings.TrimSpace(snap.Message)
 	if msg == "" {
-		msg = snap.MenuText
+		msg = "巡检失败"
 	}
-	if msg == "" {
-		msg = "菜单异常"
+	label := snap.Label
+	if label == "" {
+		label = "巡检"
 	}
-	title := snap.Label + " · 菜单异常"
+	title := label + " · 巡检失败"
+	kind := "inspect:" + snap.ID
 	eventID := ""
 	if a.alertHistory != nil {
 		if saved, err := a.alertHistory.Append(alerthistory.Event{
-			Host:     "菜单检查",
-			Kind:     "menu:" + snap.ID,
+			Host:     "巡检",
+			Kind:     kind,
 			State:    "down",
 			Title:    title,
 			Detail:   msg,
-			Metric:   snap.Label,
+			Metric:   label,
 			Value:    msg,
 			Channels: []string{"inApp", "system"},
 		}); err == nil {
@@ -60,9 +71,9 @@ func (a *App) onMenuCheckAlert(snap menucheck.Snapshot) {
 	_ = desktop.Notify(desktop.Payload{
 		Title:   title,
 		Body:    msg,
-		Host:    "菜单检查",
+		Host:    "巡检",
 		EventID: eventID,
-		Kind:    "menu:" + snap.ID,
+		Kind:    kind,
 	})
 	if app := a.app; app != nil {
 		app.Event.Emit("alert-history-updated", nil)

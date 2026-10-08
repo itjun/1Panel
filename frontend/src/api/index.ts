@@ -42,6 +42,7 @@ export * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/mode
 export * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 export * as main from "../../bindings/diteng-pannel/models";
 export * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
+export * as menucheck from "../../bindings/diteng-pannel/internal/menucheck/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
 import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
@@ -62,6 +63,7 @@ import type * as panelstore from "../../bindings/diteng-pannel/internal/panelsto
 import type * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 import type * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 import type * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
+import type * as menucheck from "../../bindings/diteng-pannel/internal/menucheck/models";
 import { noteBackendCall } from "@/utils/uxPerf";
 
 // 保留原有类型导出名，视图层零改动
@@ -506,11 +508,16 @@ const apiImpl = {
     });
   },
 
-  /** 菜单页可用性 + 是否有业务数据（Go HTTP，不打开浏览器） */
+  // ============ HTTP 巡检（用户自定义请求 + 断言 + 定时） ============
   checkMenuPage: (id: string): Promise<main.MenuCheckResult> =>
     must(System.CheckMenuPage(id)),
   listMenuChecks: (): Promise<main.MenuCheckResult[]> =>
     arr(System.ListMenuChecks()),
+  saveMenuCheck: (item: menucheck.Item): Promise<menucheck.Item> =>
+    must(System.SaveMenuCheck(item)),
+  deleteMenuCheck: (id: string): Promise<void> => System.DeleteMenuCheck(id),
+  testMenuCheck: (item: menucheck.Item): Promise<main.MenuCheckResult> =>
+    must(System.TestMenuCheck(item)),
 
   // ============ 应用内告警历史 ============
   listAlertHistory: (limit: number): Promise<alerthistory.Event[]> =>
