@@ -56,6 +56,48 @@ type ImportResult struct {
 	DroppedOptions []string `json:"droppedOptions"`
 }
 
+// PickAndExportBackup 弹出系统「存储」对话框，由用户选择保存位置后再导出。
+// 取消时返回空字符串。对话框由 Go 侧弹出：网页线程里的 Dialogs.SaveFile
+// 在 macOS 隐藏标题栏窗口上会挂住，保存框出不来。
+func (s *Backup) PickAndExportBackup() (string, error) {
+	a := (*App)(s)
+	if a == nil || a.app == nil {
+		return "", fmt.Errorf("应用未初始化")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("无法获取用户主目录: %w", err)
+	}
+	start := filepath.Join(home, "Downloads")
+	if info, err := os.Stat(start); err != nil || !info.IsDir() {
+		start = home
+	}
+	dialog := a.app.Dialog.SaveFile().
+		SetMessage("选择迁移包的保存位置").
+		SetDirectory(start).
+		SetFilename(defaultMigrationFilename()).
+		SetButtonText("存储").
+		CanCreateDirectories(true).
+		AddFilter("1Panel 迁移包 (*.zip)", "*.zip")
+	if a.mainWindow != nil {
+		dialog.AttachToWindow(a.mainWindow)
+	}
+	path, err := dialog.PromptForSingleSelection()
+	if err != nil {
+		return "", fmt.Errorf("无法打开保存对话框: %w", err)
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", nil
+	}
+	return (*Backup)(a).ExportBackup(path)
+}
+
+// defaultMigrationFilename 建议的迁移包文件名，用户可在保存框里改名。
+func defaultMigrationFilename() string {
+	return "1panel-backup-" + time.Now().Format("20060102-1504") + ".zip"
+}
+
 // ExportBackup 导出迁移包到 path（无 .zip 后缀时自动补上），返回摘要文案
 func (s *Backup) ExportBackup(path string) (string, error) {
 	a := (*App)(s)

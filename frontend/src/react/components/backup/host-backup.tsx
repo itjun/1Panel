@@ -17,21 +17,10 @@ import { formatErr } from "@/utils/format";
 
 const BACKUP_FILTERS = [{ DisplayName: "1Panel 备份 (*.zip, *.json)", Pattern: "*.zip;*.json" }];
 
-function fileStamp(date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
-}
-
-/** 选保存位置并导出迁移包；用户取消时返回 null */
+/** 弹出系统保存框，由用户选择位置后导出迁移包；取消时返回 null */
 export async function exportHostBackup(): Promise<string | null> {
-  const path = await Dialogs.SaveFile({
-    Title: "导出主机配置",
-    Filename: `1panel-backup-${fileStamp()}.zip`,
-    CanCreateDirectories: true,
-    Filters: [{ DisplayName: "1Panel 备份 (*.zip)", Pattern: "*.zip" }],
-  });
-  if (!path) return null;
-  return api.exportBackup(path);
+  const msg = await api.pickAndExportBackup();
+  return msg || null;
 }
 
 /** 选择要恢复的备份文件；用户取消时返回 null */

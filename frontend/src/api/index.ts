@@ -644,6 +644,8 @@ const apiImpl = {
   },
 
   // ============ 跨平台迁移（主机配置 .zip） ============
+  /** 弹出系统保存框，由用户选择位置后导出；取消时返回空字符串 */
+  pickAndExportBackup: (): Promise<string> => str(Backup.PickAndExportBackup()),
   /** 导出迁移包到 path，返回摘要文案 */
   exportBackup: (path: string): Promise<string> => str(Backup.ExportBackup(path)),
   /** 读取迁移包，返回恢复预览 */

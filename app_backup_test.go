@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/portable"
@@ -30,6 +31,17 @@ func writeTestFile(t *testing.T, path, content string, perm os.FileMode) {
 	}
 	if err := os.WriteFile(path, []byte(content), perm); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDefaultMigrationFilename(t *testing.T) {
+	name := defaultMigrationFilename()
+	if !strings.HasPrefix(name, "1panel-backup-") || !strings.HasSuffix(name, ".zip") {
+		t.Fatalf("filename = %q", name)
+	}
+	stamp := strings.TrimSuffix(strings.TrimPrefix(name, "1panel-backup-"), ".zip")
+	if _, err := time.Parse("20060102-1504", stamp); err != nil {
+		t.Fatalf("stamp %q: %v", stamp, err)
 	}
 }
 

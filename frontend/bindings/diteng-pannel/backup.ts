@@ -23,6 +23,15 @@ export function ExportBackup(path: string): $CancellablePromise<string> {
 }
 
 /**
+ * PickAndExportBackup 弹出系统「存储」对话框，由用户选择保存位置后再导出。
+ * 取消时返回空字符串。对话框由 Go 侧弹出：网页线程里的 Dialogs.SaveFile
+ * 在 macOS 隐藏标题栏窗口上会挂住，保存框出不来。
+ */
+export function PickAndExportBackup(): $CancellablePromise<string> {
+    return $Call.ByID(3057048440);
+}
+
+/**
  * PreviewBackup 读取迁移包并给出恢复预览（不修改本机任何数据）
  */
 export function PreviewBackup(path: string): $CancellablePromise<$models.BackupPreview | null> {
