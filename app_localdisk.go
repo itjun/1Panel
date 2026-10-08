@@ -27,7 +27,7 @@ const (
 )
 
 // startLocalDiskStartupCheck 每次启动检查一次本机磁盘：
-// 任一分区达到预警 / 危险档，写应用内告警历史 + 发本机系统通知（不发企业微信）。
+// 任一分区达到危险档，写应用内告警历史 + 发本机系统通知（不发企业微信）；只到预警档不提醒。
 // 不做跨启动去重——磁盘持续超标时每次启动都会提醒，回落到阈值内则本次启动保持安静。
 func (a *App) startLocalDiskStartupCheck() {
 	localDiskCheckOnce.Do(func() {
@@ -49,16 +49,12 @@ func (a *App) checkLocalDisk() {
 		return
 	}
 	breaches := evaluateLocalDisk(ov.Disks)
-	if len(breaches) == 0 {
+	if !localDiskShouldNotify(breaches) {
 		return
 	}
 
 	worst := breaches[0]
-	levelLabel := "警告"
-	if worst.Level == "danger" {
-		levelLabel = "危险"
-	}
-	title := "「本机」磁盘 进入" + levelLabel + "档"
+	title := "「本机」磁盘 进入危险档"
 	lines := make([]string, 0, len(breaches))
 	for _, b := range breaches {
 		lines = append(lines, localDiskBreachText(b))
@@ -171,6 +167,11 @@ func evaluateLocalDisk(disks []localsys.DiskInfo) []localDiskBreach {
 		return out[i].Percent > out[j].Percent
 	})
 	return out
+}
+
+// localDiskShouldNotify 只有最严重的分区到达危险档才提醒；breaches 已按严重度降序。
+func localDiskShouldNotify(breaches []localDiskBreach) bool {
+	return len(breaches) > 0 && breaches[0].Level == "danger"
 }
 
 // localDiskBreachText 与前端 alerts.ts 的读数文字同构；

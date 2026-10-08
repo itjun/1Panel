@@ -116,6 +116,29 @@ func TestEvaluateLocalDisk(t *testing.T) {
 	}
 }
 
+func TestLocalDiskShouldNotify(t *testing.T) {
+	cases := []struct {
+		name  string
+		disks []localsys.DiskInfo
+		want  bool
+	}{
+		{"全部健康", []localsys.DiskInfo{volume(`/`, 500*gib, 200*gib, 300*gib, 40, false)}, false},
+		{"只到预警档", []localsys.DiskInfo{volume(`/`, 460*gib, 335*gib, 125*gib, 72.7, false)}, false},
+		{"危险档", []localsys.DiskInfo{volume(`/`, 500*gib, 440*gib, 60*gib, 88, false)}, true},
+		{"预警与危险并存", []localsys.DiskInfo{
+			volume(`C:\`, 500*gib, 350*gib, 150*gib, 70, false),
+			volume(`D:\`, 500*gib, 440*gib, 60*gib, 88, false),
+		}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := localDiskShouldNotify(evaluateLocalDisk(tc.disks)); got != tc.want {
+				t.Fatalf("localDiskShouldNotify = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLocalDiskBreachText(t *testing.T) {
 	// 「已用 97.1%」的写法被前端 usagePercent 解析画占用条，格式不能变
 	got := localDiskBreachText(localDiskBreach{Mount: `C:\`, Avail: 26 * gib, Percent: 97.1, Level: "danger"})
