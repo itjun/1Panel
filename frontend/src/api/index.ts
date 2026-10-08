@@ -19,6 +19,7 @@ import * as LocalApps from "../../bindings/diteng-pannel/localapps";
 import * as LocalSys from "../../bindings/diteng-pannel/localsys";
 import * as PanelConfig from "../../bindings/diteng-pannel/panelconfig";
 import * as SpeedTest from "../../bindings/diteng-pannel/speedtest";
+import * as AppUpdate from "../../bindings/diteng-pannel/appupdate";
 import * as AppSession from "../../bindings/diteng-pannel/appsession";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
@@ -608,6 +609,27 @@ const apiImpl = {
   /** 用系统默认浏览器打开 http(s) 链接 */
   openExternalURL: (target: string): Promise<void> =>
     must(System.OpenExternalURL(target).then(() => undefined)),
+
+  // ============ 应用内更新 ============
+  getUpdateState: (): Promise<main.UpdateState> => must(AppUpdate.GetUpdateState()),
+  /** 立即检查更新；失败时抛出原因 */
+  checkUpdate: (): Promise<main.UpdateState> => must(AppUpdate.CheckUpdate()),
+  /** 后台下载并安装，完成后应用自动重启；进度走 update-state 事件 */
+  startUpdate: async (): Promise<void> => {
+    await AppUpdate.StartUpdate();
+  },
+  cancelUpdate: async (): Promise<void> => {
+    await AppUpdate.CancelUpdate();
+  },
+  skipUpdateVersion: async (version: string): Promise<void> => {
+    await AppUpdate.SkipVersion(version);
+  },
+  remindUpdateLater: async (): Promise<void> => {
+    await AppUpdate.RemindLater();
+  },
+  setUpdateAutoCheck: async (on: boolean): Promise<void> => {
+    await AppUpdate.SetAutoCheck(on);
+  },
 
   // ============ 跨平台迁移（主机配置 .zip） ============
   /** 导出迁移包到 path，返回摘要文案 */

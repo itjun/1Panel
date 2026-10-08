@@ -1,15 +1,51 @@
 name: Release
 
-# 打 v* tag 时触发:构建 Mac + Windows 两个平台包,上传到 GitHub Release
+# 打 v* tag 时触发:构建 Mac + Windows + Linux 三个平台包,上传到 GitHub Release
 on:
   push:
     tags:
       - "v*"
 
 jobs:
+  # 内嵌产物（spanel-agent amd64/arm64 + 网络测速 iperf3）均被 gitignore，
+  # 在 Linux 上统一构建一次，分发给各平台，保证三个包内嵌的版本完全一致。
+  embedded:
+    name: Build embedded agent + iperf3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Install task
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.53.1
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      # 各平台 ldflags 读取已提交的 VERSION；源码改了却没提交新版本号时直接失败，避免版本漂移
+      - name: Check agent version committed
+        run: go run ./cmd/agentversion check
+
+      - name: Build agent + fetch iperf3
+        run: task agent:build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: embedded-bin
+          path: |
+            internal/agentres/bin/spanel-agent-*
+            internal/iperfres/bin/
+          if-no-files-found: error
+
   build:
     name: Build ${{ matrix.artifact }}
+    needs: embedded
     runs-on: ${{ matrix.os }}
+    env:
+      # 注入客户端：应用内更新清单基地址（仓库 Variables 中配置）
+      UPDATE_BASE_URL: ${{ vars.UPDATE_BASE_URL }}
     strategy:
       fail-fast: false
       matrix:
@@ -18,8 +54,25 @@ jobs:
             artifact: 1Panel-${{ github.ref_name }}-mac-universal.zip
           - os: windows-latest
             artifact: 1Panel-${{ github.ref_name }}-win-amd64.zip
+          # 24.04 起官方源提供 webkitgtk-6.0（Wails v3 默认的 GTK4 后端）
+          - os: ubuntu-24.04
+            artifact: 1Panel-${{ github.ref_name }}-linux-amd64.tar.gz
     steps:
       - uses: actions/checkout@v4
+
+      # 产物路径的公共前缀是 internal/，解压回 internal/ 即还原到 go:embed 目录
+      - uses: actions/download-artifact@v4
+        with:
+          name: embedded-bin
+          path: internal
+
+      - name: Verify embedded binaries
+        shell: bash
+        run: |
+          set -e
+          test -s internal/agentres/bin/spanel-agent-linux-amd64
+          test -s internal/agentres/bin/spanel-agent-linux-arm64
+          ls -la internal/agentres/bin internal/iperfres/bin
 
       - uses: actions/setup-go@v5
         with:
@@ -45,6 +98,12 @@ jobs:
         shell: bash
         run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libx11-dev
+
       - name: Check Wails versions
         shell: bash
         run: ./scripts/check-wails-version.sh
@@ -64,6 +123,11 @@ jobs:
         shell: bash
         run: task windows:build
 
+      - name: Build Linux binary
+        if: runner.os == 'Linux'
+        shell: bash
+        run: task linux:build
+
       - name: Package macOS app
         if: runner.os == 'macOS'
         shell: bash
@@ -78,10 +142,24 @@ jobs:
         env:
           ARTIFACT: ${{ matrix.artifact }}
 
+      # 目录内含二进制 + desktop 项 + 图标；应用内更新只替换其中的 1Panel 二进制
+      - name: Package Linux binary
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          DIR="${ARTIFACT%.tar.gz}"
+          mkdir -p "bin/$DIR"
+          cp bin/1Panel "bin/$DIR/1Panel"
+          cp build/linux/com.itjun.panel.desktop "bin/$DIR/"
+          cp build/appicon.png "bin/$DIR/1Panel.png"
+          tar -C bin -czf "bin/$ARTIFACT" "$DIR"
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: bin/*.zip
+          path: bin/${{ matrix.artifact }}
           if-no-files-found: error
 
   release:
@@ -90,8 +168,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      VERSION: ${{ github.ref_name }}
+      UPDATE_BASE_URL: ${{ vars.UPDATE_BASE_URL }}
+      # 签名私钥加密存放在 release/update_sign.key.enc，CI 用该口令解密
+      UPDATE_KEY_PASSPHRASE: ${{ secrets.UPDATE_KEY_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
@@ -99,5 +184,68 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/**/*.zip
+          files: |
+            dist/**/*.zip
+            dist/**/*.tar.gz
           generate_release_notes: true
+
+      # ===== 应用内更新：生成签名清单并上传 S3 兼容存储 =====
+      # 未配置 UPDATE_BASE_URL / UPDATE_KEY_PASSPHRASE 时整段跳过，不影响 GitHub Release。
+      - uses: actions/setup-go@v5
+        if: env.UPDATE_BASE_URL != '' && env.UPDATE_KEY_PASSPHRASE != ''
+        with:
+          go-version: "1.26"
+
+      - name: Build signed update manifest
+        if: env.UPDATE_BASE_URL != '' && env.UPDATE_KEY_PASSPHRASE != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags
+          # 更新说明：取附注 tag 的说明；轻量 tag 为空时客户端只显示版本号
+          git for-each-ref "refs/tags/$VERSION" --format='%(contents)' > notes.md || true
+          mkdir -p upload/"$VERSION"
+          MAC_ZIP="$(find dist -name "1Panel-$VERSION-mac-universal.zip" | head -1)"
+          WIN_ZIP="$(find dist -name "1Panel-$VERSION-win-amd64.zip" | head -1)"
+          LINUX_TGZ="$(find dist -name "1Panel-$VERSION-linux-amd64.tar.gz" | head -1)"
+          cp "$MAC_ZIP" "$WIN_ZIP" "$LINUX_TGZ" upload/"$VERSION"/
+          go run ./cmd/releasetool manifest \
+            -version "$VERSION" \
+            -base-url "$UPDATE_BASE_URL" \
+            -policy release/update-policy.json \
+            -notes-file notes.md \
+            -asset "darwin-universal=upload/$VERSION/$(basename "$MAC_ZIP")" \
+            -asset "windows-amd64=upload/$VERSION/$(basename "$WIN_ZIP")" \
+            -asset "linux-amd64=upload/$VERSION/$(basename "$LINUX_TGZ")" \
+            -out upload/latest.json
+          go run ./cmd/releasetool sign -key-enc release/update_sign.key.enc -in upload/latest.json -out upload/latest.json.sig
+          # 用客户端内置公钥再校验一遍，防止加密私钥与代码里的公钥不配对
+          go run ./cmd/releasetool verify -in upload/latest.json -sig upload/latest.json.sig
+          cat upload/latest.json
+
+      - name: Upload to S3
+        if: env.UPDATE_BASE_URL != '' && env.UPDATE_KEY_PASSPHRASE != ''
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION || 'auto' }}
+          AWS_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_PREFIX: ${{ vars.S3_PREFIX }}
+          S3_ADDRESSING_STYLE: ${{ vars.S3_ADDRESSING_STYLE || 'auto' }}
+          # R2 / OSS / COS 等不支持 aws-cli 新版默认的 CRC 校验头
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          set -euo pipefail
+          aws configure set default.s3.addressing_style "$S3_ADDRESSING_STYLE"
+          DEST="s3://$S3_BUCKET${S3_PREFIX:+/${S3_PREFIX#/}}"
+          DEST="${DEST%/}"
+          # 先传安装包，最后覆盖清单：客户端读到新清单时安装包一定已就绪
+          aws s3 cp upload/"$VERSION"/ "$DEST/$VERSION/" --recursive \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp upload/latest.json.sig "$DEST/latest.json.sig" \
+            --cache-control "no-cache, max-age=60" --content-type "text/plain"
+          aws s3 cp upload/latest.json "$DEST/latest.json" \
+            --cache-control "no-cache, max-age=60" --content-type "application/json"

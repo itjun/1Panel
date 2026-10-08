@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1Panel 打包 · 发布 · 客户端更新流程说明</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --brand: #0052d9;
+    --brand-light: #f2f3ff;
+    --ink: #1f2329;
+    --muted: #646a73;
+    --line: #e5e6eb;
+    --canvas: #f5f6f7;
+    --surface: #ffffff;
+    --raised: #f2f3f5;
+    --success: #2ba471;
+    --warn: #e37318;
+    --danger: #d54941;
+    --radius: 6px;
+    --radius-lg: 9px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--canvas);
+    font-variant-numeric: tabular-nums;
+  }
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(255,255,255,.88);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  header.top .inner {
+    max-width: 1080px; margin: 0 auto; padding: 0 24px;
+    height: 48px; display: flex; align-items: center; gap: 24px;
+  }
+  header.top strong { font-size: 15px; }
+  header.top nav { display: flex; gap: 16px; overflow-x: auto; }
+  header.top nav a { color: var(--muted); text-decoration: none; white-space: nowrap; font-size: 13px; }
+  header.top nav a:hover { color: var(--brand); }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 24px 32px;
+    margin-bottom: 16px;
+  }
+  h1 { font-size: 24px; margin: 8px 0 4px; }
+  h2 { font-size: 18px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  h2 .no {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: var(--radius);
+    background: var(--brand); color: #fff; font-size: 13px;
+  }
+  h3 { font-size: 15px; margin: 20px 0 8px; }
+  p { margin: 8px 0; }
+  .lead { color: var(--muted); margin: 0 0 16px; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin: 12px 0; text-align: center; overflow-x: auto; }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; background: var(--raised); padding: 1px 6px; border-radius: 4px; }
+  pre { background: #1f2329; color: #e8eaed; padding: 16px; border-radius: var(--radius); overflow-x: auto; font-size: 12.5px; line-height: 1.6; }
+  pre code { background: none; padding: 0; color: inherit; }
+  pre .c { color: #8a9099; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 12px 0; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 12px 0; }
+  @media (max-width: 860px) { .grid3, .grid2 { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; background: var(--surface); }
+  .card h4 { margin: 0 0 8px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .tag { display: inline-block; font-size: 12px; line-height: 20px; padding: 0 8px; border-radius: 4px; background: var(--raised); color: var(--muted); }
+  .tag.ok { background: #e3f9e9; color: var(--success); }
+  .tag.warn { background: #fff1e9; color: var(--warn); }
+  .tag.danger { background: #fff0ed; color: var(--danger); }
+  .tag.brand { background: var(--brand-light); color: var(--brand); }
+  .note { border-left: 3px solid var(--brand); background: var(--brand-light); padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0; margin: 12px 0; }
+  .note.warn { border-color: var(--warn); background: #fff8f3; }
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 12px 0; }
+  .steps li { counter-increment: s; position: relative; padding: 0 0 12px 36px; }
+  .steps li::before {
+    content: counter(s); position: absolute; left: 0; top: 1px;
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 1px solid var(--brand); color: var(--brand);
+    display: flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+  footer { color: var(--muted); font-size: 12px; text-align: center; padding: 8px 0 32px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="inner">
+    <strong>1Panel 发布与更新</strong>
+    <nav>
+      <a href="#overview">总览</a>
+      <a href="#prepare">一次性准备</a>
+      <a href="#release">发版步骤</a>
+      <a href="#ci">CI 流水线</a>
+      <a href="#storage">产物与清单</a>
+      <a href="#client">客户端检查</a>
+      <a href="#prompt">弹窗规则</a>
+      <a href="#install">各系统安装</a>
+      <a href="#faq">排查与限制</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h1>打包 · 发布 · 客户端更新流程说明</h1>
+    <p class="lead">适用于 1Panel（Wails v3）的 macOS / Windows / Linux 三个平台。推一个 <code>v*</code> tag，GitHub Actions 会并行构建三个平台的安装包，统一上传到 GitHub Release（内部归档）和 S3 兼容对象存储（客户端更新源）。客户端定时检查签名清单，按版本策略弹出可选更新或强制更新。</p>
+    <div class="grid3">
+      <div class="card"><h4>macOS <span class="tag brand">universal</span></h4>
+        <ul><li>产物：<code>1Panel-vX-mac-universal.zip</code></li><li>构建机：<code>macos-latest</code></li><li>自动更新：<span class="tag ok">支持</span></li></ul></div>
+      <div class="card"><h4>Windows <span class="tag brand">amd64</span></h4>
+        <ul><li>产物：<code>1Panel-vX-win-amd64.zip</code></li><li>构建机：<code>windows-latest</code></li><li>自动更新：<span class="tag ok">支持（便携版）</span></li></ul></div>
+      <div class="card"><h4>Linux <span class="tag brand">amd64</span></h4>
+        <ul><li>产物：<code>1Panel-vX-linux-amd64.tar.gz</code></li><li>构建机：<code>ubuntu-24.04</code></li><li>自动更新：<span class="tag warn">仅用户目录安装</span></li></ul></div>
+    </div>
+  </section>
+
+  <section id="overview">
+    <h2><span class="no">1</span>整体流程总览</h2>
+    <p>从开发者推 tag 到用户完成更新的完整链路：</p>
+    <div class="mermaid">
+flowchart LR
+  dev["开发者 push tag vX"] --> ci[GitHubActions]
+  subgraph ciBox [CI 流水线]
+    ci --> emb["embedded：agent + iperf3"]
+    emb --> mac["macOS 构建"]
+    emb --> win["Windows 构建"]
+    emb --> lin["Linux 构建"]
+    mac --> rel["release 汇总"]
+    win --> rel
+    lin --> rel
+  end
+  rel --> gh["GitHub Release 内部归档"]
+  rel --> sign["生成 latest.json + ed25519 签名"]
+  sign --> s3[("S3 存储桶 公开读")]
+  s3 --> cMac["macOS 客户端"]
+  s3 --> cWin["Windows 客户端"]
+  s3 --> cLin["Linux 客户端"]
+    </div>
+    <div class="note">源码仓库 <code>itjun/1Panel</code> 是私有的，客户端拿不到它的 GitHub Release，所以更新包放在公开读取的 S3 兼容存储里（阿里云 OSS / 腾讯云 COS / Cloudflare R2 / MinIO 等）。GitHub Release 只做内部归档。</div>
+  </section>
+
+  <section id="prepare">
+    <h2><span class="no">2</span>一次性准备（只需做一次）</h2>
+    <h3>签名密钥</h3>
+    <p>公钥内置在 <code>internal/updater/pubkey.go</code>。私钥以 <b>scrypt + AES-256-GCM 加密</b>后提交在仓库的 <code>release/update_sign.key.enc</code>，CI 用 Secret 里的口令解密后签名。明文私钥与口令只在本机 <code>~/.config/1panel-release/</code>（权限 0600），<code>.gitignore</code> 会拦住明文私钥被误提交。把口令上传到 GitHub Secret：</p>
+    <pre><code>gh secret set UPDATE_KEY_PASSPHRASE -R itjun/1Panel &lt; ~/.config/1panel-release/passphrase</code></pre>
+    <div class="note warn">口令务必另外备份（如密码管理器）。仓库里只有密文，丢了口令等于丢了私钥：已安装的客户端将无法验签新清单，只能让所有用户手动重装一个内置新公钥的版本。口令一旦泄露，任何能读仓库的人都能签发更新，需立即换钥。</div>
+    <pre><code><span class="c"># 换口令：用新口令重新加密，再更新 Secret</span>
+UPDATE_KEY_PASSPHRASE='新口令' go run ./cmd/releasetool encrypt-key \
+  -in ~/.config/1panel-release/update_sign.key -out release/update_sign.key.enc</code></pre>
+
+    <h3>GitHub 仓库配置（Settings → Secrets and variables → Actions）</h3>
+    <table>
+      <tr><th style="width:28%">名称</th><th style="width:14%">类型</th><th>说明</th></tr>
+      <tr><td><code>UPDATE_KEY_PASSPHRASE</code></td><td>Secret</td><td>解密 <code>release/update_sign.key.enc</code> 的口令</td></tr>
+      <tr><td><code>S3_ENDPOINT</code></td><td>Secret</td><td>S3 兼容端点，如 <code>https://oss-cn-hangzhou.aliyuncs.com</code></td></tr>
+      <tr><td><code>S3_BUCKET</code></td><td>Secret</td><td>存储桶名</td></tr>
+      <tr><td><code>S3_ACCESS_KEY_ID</code> / <code>S3_SECRET_ACCESS_KEY</code></td><td>Secret</td><td>有写权限的访问密钥</td></tr>
+      <tr><td><code>S3_REGION</code></td><td>Secret（可选）</td><td>默认 <code>auto</code></td></tr>
+      <tr><td><code>UPDATE_BASE_URL</code></td><td>Variable</td><td>客户端读取的公开 HTTPS 地址，构建时注入程序，例如 <code>https://dl.example.com/1panel</code></td></tr>
+      <tr><td><code>S3_PREFIX</code></td><td>Variable（可选）</td><td>桶内目录前缀，需与 <code>UPDATE_BASE_URL</code> 对应</td></tr>
+      <tr><td><code>S3_ADDRESSING_STYLE</code></td><td>Variable（可选）</td><td>阿里云 OSS 设为 <code>virtual</code></td></tr>
+    </table>
+    <p>未配置 <code>UPDATE_BASE_URL</code> 或 <code>UPDATE_KEY_PASSPHRASE</code> 时，CI 跳过清单和上传，照常发 GitHub Release；客户端显示「此构建未配置更新源」，不检查更新。</p>
+  </section>
+
+  <section id="release">
+    <h2><span class="no">3</span>每次发版的操作步骤</h2>
+    <ol class="steps">
+      <li><b>提交代码</b>。如果改过 agent 源码，确认 <code>internal/agentres/VERSION</code> 和 <code>SOURCE.sha256</code> 已一起提交（本地 <code>python build.py</code> 会自动升号），否则 CI 第一步检查会失败。</li>
+      <li><b>（需要强制更新时）</b>修改 <code>release/update-policy.json</code> 的 <code>minSupportedVersion</code>，并提交。</li>
+      <li><b>打附注 tag 并推送</b>，tag 说明就是客户端弹窗里的更新说明。</li>
+      <li><b>等待 CI 完成</b>（GitHub → Actions → Release），约 10–20 分钟。</li>
+      <li><b>客户端自动收到</b>：下次启动后约 10 秒，或运行中下一个 6 小时检查周期。</li>
+    </ol>
+    <pre><code><span class="c"># 可选：本版强制所有低于 v1.1.0 的客户端更新</span>
+echo '{ "minSupportedVersion": "v1.1.0" }' &gt; release/update-policy.json
+git commit -am "chore: v1.1.0 强制更新"
+
+<span class="c"># 附注 tag：说明文字会显示在客户端更新弹窗</span>
+git tag -a v1.1.0 -m "v1.1.0 更新说明
+- 新增应用内自动更新
+- 修复若干问题"
+git push origin main v1.1.0</code></pre>
+    <div class="note">三个平台必须各自在对应系统的构建机上编译（Wails 依赖 CGO 和各平台原生 WebView：WebKit / WebView2 / WebKitGTK），但这由 CI 矩阵并行完成，开发者只需推一个 tag，不需要分别在三台电脑上发布。</div>
+  </section>
+
+  <section id="ci">
+    <h2><span class="no">4</span>CI 流水线详解（<code>.github/workflows/release.yml</code>）</h2>
+    <div class="mermaid">
+flowchart TB
+  t["push tag v*"] --> e1
+  subgraph job1 [Job embedded on ubuntu-latest]
+    e1["agentversion check 版本号已提交?"] -->|否| fail1["失败 终止发版"]
+    e1 -->|是| e2["task agent:build 编 agent amd64/arm64"]
+    e2 --> e3["iperf:fetch 下载并校验 iperf3"]
+    e3 --> e4["上传 artifact embedded-bin"]
+  end
+  e4 --> m1
+  e4 --> w1
+  e4 --> l1
+  subgraph job2 [Job build 矩阵并行]
+    m1["macOS: 还原内嵌产物"] --> m2["task darwin:package:universal"] --> m3["zip -r -y 1Panel.app"]
+    w1["Windows: 还原内嵌产物"] --> w2["task windows:build"] --> w3["7z 打包 1Panel.exe"]
+    l1["Linux: 还原内嵌产物 + apt 装 GTK4/WebKitGTK"] --> l2["task linux:build"] --> l3["tar.gz 二进制 + desktop + 图标"]
+  end
+  m3 --> r1
+  w3 --> r1
+  l3 --> r1
+  subgraph job3 [Job release on ubuntu-latest]
+    r1["下载三个产物"] --> r2["发布 GitHub Release"]
+    r2 --> r3{"配置了 UPDATE_BASE_URL 和 UPDATE_KEY_PASSPHRASE?"}
+    r3 -->|否| skip["跳过更新源上传"]
+    r3 -->|是| r4["releasetool manifest 计算 sha256 生成 latest.json"]
+    r4 --> r5["口令解密仓库内私钥 releasetool sign → latest.json.sig"]
+    r5 --> r6["releasetool verify 用内置公钥复核"]
+    r6 --> r7["aws s3 cp 先传安装包"]
+    r7 --> r8["最后覆盖 latest.json 与 .sig"]
+  end
+    </div>
+    <table>
+      <tr><th style="width:22%">环节</th><th>要点</th></tr>
+      <tr><td>版本号注入</td><td>三个平台的 Taskfile 都以 <code>-ldflags -X main.buildVersion=$(git describe --tags)</code> 写入版本，<code>-X main.updateBaseURL</code> 写入更新源地址。</td></tr>
+      <tr><td>内嵌产物</td><td>spanel-agent 与 iperf3 被 gitignore，统一在 Linux 上构建一次再分发，三个包内嵌版本一致；不依赖 Windows 上的 shell 工具。</td></tr>
+      <tr><td>上传顺序</td><td>先传 <code>vX/</code> 下的安装包（长缓存），最后覆盖根目录清单（<code>no-cache, max-age=60</code>），客户端读到新清单时安装包一定已就绪。</td></tr>
+      <tr><td>签名复核</td><td>上传前用客户端内置公钥再校验一次，防止 Secret 里的私钥与代码中的公钥不配对。</td></tr>
+    </table>
+  </section>
+
+  <section id="storage">
+    <h2><span class="no">5</span>存储布局与发布清单</h2>
+    <div class="grid2">
+      <div>
+        <h3>S3 目录结构</h3>
+<pre><code>&lt;UPDATE_BASE_URL&gt;/
+├── latest.json          <span class="c"># 发布清单（每次覆盖）</span>
+├── latest.json.sig      <span class="c"># ed25519 签名（base64）</span>
+├── v1.0.4/
+│   ├── 1Panel-v1.0.4-mac-universal.zip
+│   ├── 1Panel-v1.0.4-win-amd64.zip
+│   └── 1Panel-v1.0.4-linux-amd64.tar.gz
+└── v1.1.0/
+    └── ...</code></pre>
+      </div>
+      <div>
+        <h3>latest.json 示例</h3>
+<pre><code>{
+  "version": "v1.1.0",
+  "minSupportedVersion": "v1.0.0",
+  "releasedAt": "2026-10-04T10:00:00Z",
+  "notes": "v1.1.0 更新说明\n- 新增应用内自动更新",
+  "assets": {
+    "darwin-universal": { "name": "...", "url": "...", "sha256": "...", "size": 29262861 },
+    "windows-amd64":    { ... },
+    "linux-amd64":      { ... }
+  }
+}</code></pre>
+      </div>
+    </div>
+    <table>
+      <tr><th style="width:24%">客户端平台</th><th style="width:24%">清单平台键</th><th>说明</th></tr>
+      <tr><td>macOS（Intel / Apple 芯片）</td><td><code>darwin-universal</code></td><td>同一个 universal 包</td></tr>
+      <tr><td>Windows x64</td><td><code>windows-amd64</code></td><td>Windows ARM 暂无包，提示「没有当前平台的安装包」</td></tr>
+      <tr><td>Linux x64</td><td><code>linux-amd64</code></td><td>Linux ARM 暂无包</td></tr>
+    </table>
+    <h3>三重安全校验</h3>
+    <div class="mermaid">
+flowchart LR
+  a["下载 latest.json + .sig"] --> b{"ed25519 验签 内置公钥"}
+  b -->|失败| x["丢弃 不写缓存"]
+  b -->|通过| c["读取安装包 url / sha256 / size"]
+  c --> d["下载安装包"]
+  d --> e{"大小与 sha256 一致?"}
+  e -->|否| y["删除文件 报错 可重试"]
+  e -->|是| f["进入安装替换"]
+    </div>
+    <p>即使存储桶或 CDN 被篡改，没有私钥也无法伪造清单，篡改后的安装包也过不了 sha256 校验。</p>
+  </section>
+
+  <section id="client">
+    <h2><span class="no">6</span>客户端检查更新流程</h2>
+    <div class="mermaid">
+flowchart TB
+  start["应用启动 ApplicationStarted"] --> clean["清理上次更新残留 .old"]
+  clean --> en{"构建配置了更新源 且平台支持?"}
+  en -->|否| off["关于页显示原因 不检查"]
+  en -->|是| cache{"本地有已验签的缓存清单?"}
+  cache -->|有| ev1["用缓存判定 若强制则立即弹窗 断网也拦截"]
+  cache -->|无| devq
+  ev1 --> devq{"开发构建?"}
+  devq -->|是| manual["只允许手动检查 永不强制"]
+  devq -->|否| wait["等待 10 秒"]
+  wait --> fetch["拉取 latest.json + .sig"]
+  fetch --> ok{"成功且验签通过?"}
+  ok -->|否| silent["静默失败 保留上次状态"]
+  ok -->|是| save["写入缓存 比较版本"]
+  save --> decide["进入弹窗规则判定"]
+  silent --> sleep["每 6 小时 ±10 分钟"]
+  decide --> sleep
+  sleep --> fetch
+    </div>
+    <table>
+      <tr><th style="width:22%">触发方式</th><th>行为</th></tr>
+      <tr><td>启动检查</td><td>启动后约 10 秒检查一次。</td></tr>
+      <tr><td>定时检查</td><td>应用运行期间每 6 小时检查一次，加 ±10 分钟随机抖动，避免所有客户端同时请求。</td></tr>
+      <tr><td>手动检查</td><td>设置 → 关于 → 应用更新 →「检查更新」，结果显示在该行；发现新版本直接打开弹窗。</td></tr>
+      <tr><td>自动检查开关</td><td>设置 → 关于 →「自动检查更新」。关闭后可选更新不再主动弹窗，但强制更新仍会检查和拦截。</td></tr>
+      <tr><td>开发构建</td><td>版本形如 <code>v1.0.3-396-g83ba46a</code>（本地 <code>build.py</code> 产物）不自动检查、永不强制，手动检查可用。</td></tr>
+    </table>
+  </section>
+
+  <section id="prompt">
+    <h2><span class="no">7</span>弹窗规则：强制更新与可选更新</h2>
+    <div class="mermaid">
+flowchart TB
+  v{"新版本 &gt; 当前版本?"} -->|否| none["已是最新 不弹窗"]
+  v -->|是| m{"当前版本 &lt; minSupportedVersion?"}
+  m -->|是| forced["强制更新弹窗 不可关闭"]
+  m -->|否| a{"自动检查开关开启?"}
+  a -->|否| none2["不主动弹窗 关于页显示有新版本"]
+  a -->|是| s{"用户跳过了这个版本?"}
+  s -->|是| none2
+  s -->|否| r{"在 24 小时稍后提醒期内?"}
+  r -->|是| none2
+  r -->|否| opt["可选更新弹窗"]
+  forced --> vis{"主窗口可见?"}
+  opt --> vis
+  vis -->|否| notify["额外发系统通知 点击回到应用并打开弹窗"]
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h4>可选更新 <span class="tag brand">默认</span></h4>
+        <ul>
+          <li><b>立即更新</b>：下载 → 校验 → 替换 → 自动重启</li>
+          <li><b>稍后提醒</b>：24 小时内不再弹出该版本</li>
+          <li><b>跳过此版本</b>：该版本不再提醒，有更新版本时再弹</li>
+          <li>Esc / 点遮罩只关闭本次弹窗，6 小时后的检查会再次提醒</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>强制更新 <span class="tag danger">必须更新</span></h4>
+        <ul>
+          <li>触发：当前版本低于清单里的 <code>minSupportedVersion</code></li>
+          <li>弹窗不可关闭，Esc 与点遮罩无效</li>
+          <li>只有<b>立即更新</b>和<b>退出应用</b>两个按钮</li>
+          <li>不受自动检查开关影响；断网时用缓存清单继续拦截</li>
+        </ul>
+      </div>
+    </div>
+    <h3>强制更新示例</h3>
+    <table>
+      <tr><th>客户端当前版本</th><th>清单 version</th><th>minSupportedVersion</th><th>结果</th></tr>
+      <tr><td>v1.2.0</td><td>v1.2.0</td><td>v1.1.0</td><td><span class="tag">已是最新</span></td></tr>
+      <tr><td>v1.1.5</td><td>v1.2.0</td><td>v1.1.0</td><td><span class="tag brand">可选更新</span></td></tr>
+      <tr><td>v1.1.0</td><td>v1.2.0</td><td>v1.1.0</td><td><span class="tag brand">可选更新</span>（等于最低版本不强制）</td></tr>
+      <tr><td>v1.0.9</td><td>v1.2.0</td><td>v1.1.0</td><td><span class="tag danger">强制更新</span></td></tr>
+    </table>
+  </section>
+
+  <section id="install">
+    <h2><span class="no">8</span>各操作系统的下载安装与重启</h2>
+    <p>三个平台共用「下载到 <code>ServerPanel/update/download/</code> → 校验」流程，替换方式按平台区分。替换都采用「旧件改名为 <code>.old</code> → 新件挪入原位 → 失败则改回」，保证任何一步失败都不会留下损坏的应用。</p>
+
+    <h3>macOS</h3>
+    <div class="mermaid">
+flowchart LR
+  z["下载 .zip 校验通过"] --> d["在 .app 同目录建临时目录"]
+  d -->|无写权限| adm["系统授权框 管理员身份替换"]
+  d --> u["ditto 解压 保留签名与符号链接"]
+  u --> q["清除 quarantine 隔离属性"]
+  q --> sw["1Panel.app → 1Panel.app.old 新包挪入原位"]
+  adm --> rs
+  sw --> rs["open 重新启动 /Applications/1Panel.app"]
+  rs --> cl["新进程启动后删除 .app.old"]
+    </div>
+
+    <h3>Windows（便携版）</h3>
+    <div class="mermaid">
+flowchart LR
+  z["下载 .zip 校验通过"] --> x["解出 1Panel.exe → 1Panel.exe.new"]
+  x --> sw["运行中的 1Panel.exe 改名为 .old"]
+  sw --> mv[".new 改名为 1Panel.exe"]
+  mv --> rs["拉起新 exe 旧进程退出"]
+  rs --> cl["新进程等待 WebView2 释放锁 后台删除 .old"]
+    </div>
+
+    <h3>Linux</h3>
+    <div class="mermaid">
+flowchart LR
+  chk{"安装方式"} -->|"用户目录二进制 如 ~/.local/bin"| z["下载 .tar.gz 校验通过"]
+  chk -->|AppImage| no1["提示到发布页下载新版"]
+  chk -->|"deb / rpm 系统目录不可写"| no2["提示用包管理器或发布页更新"]
+  z --> x["解出 1Panel → 1Panel.new"]
+  x --> sw["旧二进制改名为 .old 新文件挪入原位"]
+  sw --> rs["exec 重新启动"]
+  rs --> cl["新进程启动后删除 .old"]
+    </div>
+
+    <table>
+      <tr><th style="width:14%">平台</th><th style="width:22%">安装包内容</th><th style="width:28%">替换对象</th><th>限制</th></tr>
+      <tr><td>macOS</td><td><code>1Panel.app</code></td><td>正在运行的 <code>.app</code>（通常 <code>/Applications</code>）</td><td>ad-hoc 签名、未公证；Go 下载的文件不带隔离属性，替换后可直接启动</td></tr>
+      <tr><td>Windows</td><td><code>1Panel.exe</code></td><td>正在运行的 exe 所在位置</td><td>便携版；放在 <code>Program Files</code> 等需管理员权限的目录会替换失败</td></tr>
+      <tr><td>Linux</td><td><code>1Panel</code> + desktop + 图标</td><td>正在运行的二进制</td><td>只支持用户可写目录；AppImage、deb/rpm 需手动更新</td></tr>
+    </table>
+  </section>
+
+  <section id="faq">
+    <h2><span class="no">9</span>排查、本地联调与已知限制</h2>
+    <h3>本地联调（不发版测试更新流程）</h3>
+<pre><code><span class="c"># 1. 生成假版本清单并签名</span>
+go run ./cmd/releasetool manifest -version v9.9.9 -base-url http://127.0.0.1:18765 \
+  -asset darwin-universal=/tmp/upd/v9.9.9/1Panel-v9.9.9-mac-universal.zip -out /tmp/upd/latest.json
+go run ./cmd/releasetool sign -key-file ~/.config/1panel-release/update_sign.key \
+  -in /tmp/upd/latest.json -out /tmp/upd/latest.json.sig
+
+<span class="c"># 2. 起本地更新源</span>
+cd /tmp/upd &amp;&amp; python3 -m http.server 18765
+
+<span class="c"># 3. 指向本地源并伪装成旧版本启动（清单仍须通过内置公钥验签）</span>
+ONEPANEL_UPDATE_BASE_URL=http://127.0.0.1:18765 ONEPANEL_UPDATE_CURRENT_VERSION=v1.0.0 \
+  /Applications/1Panel.app/Contents/MacOS/1Panel</code></pre>
+
+    <h3>常见问题</h3>
+    <table>
+      <tr><th style="width:30%">现象</th><th>原因与处理</th></tr>
+      <tr><td>关于页显示「此构建未配置更新源」</td><td>构建时没有 <code>UPDATE_BASE_URL</code>（本地 <code>build.py</code> 默认如此）。发布构建由 CI 注入。</td></tr>
+      <tr><td>关于页显示「开发构建无法比较版本」</td><td>版本号不是合法 semver（如只有提交短 SHA），先打 tag 再构建。</td></tr>
+      <tr><td>CI 第一步「Check agent version committed」失败</td><td>agent 源码改了但没提交新的 <code>VERSION</code> / <code>SOURCE.sha256</code>，本地跑 <code>task agent:build</code> 后提交。</td></tr>
+      <tr><td>CI「releasetool verify」失败</td><td>口令错误（「无法解密私钥」），或 <code>release/update_sign.key.enc</code> 与 <code>pubkey.go</code> 中的公钥不配对。</td></tr>
+      <tr><td>客户端检查失败「清单签名校验失败」</td><td>清单和签名不是同一次生成，或上传过程中只更新了其中一个；重新跑一次发版的上传步骤。</td></tr>
+      <tr><td>更新时提示「已取消管理员授权」</td><td>macOS 的 <code>.app</code> 所在目录当前用户不可写，需要在授权框输入管理员密码。</td></tr>
+    </table>
+
+    <h3>已知限制</h3>
+    <ul>
+      <li>首次上线：已安装的 v1.0.x 没有更新模块，需要手动安装一次带更新功能的版本，之后才能自动更新。</li>
+      <li>强制更新依赖客户端至少成功拉取过一次清单（或已有缓存），从未联网成功的旧客户端拦截不到。</li>
+      <li>更换签名密钥时，必须先发一个内置新公钥的版本，再改用新私钥签名。</li>
+      <li>Windows ARM、Linux ARM 暂无安装包。</li>
+    </ul>
+  </section>
+
+  <footer>1Panel · 发布与更新流程说明 · 对应代码：<code>internal/updater</code>、<code>app_update.go</code>、<code>cmd/releasetool</code>、<code>.github/workflows/release.yml</code></footer>
+</main>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "base",
+    securityLevel: "strict",
+    flowchart: { curve: "basis", htmlLabels: true, padding: 12 },
+    themeVariables: {
+      fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
+      fontSize: "13px",
+      primaryColor: "#f2f3ff",
+      primaryBorderColor: "#0052d9",
+      primaryTextColor: "#1f2329",
+      lineColor: "#8a9099",
+      secondaryColor: "#f2f3f5",
+      tertiaryColor: "#ffffff",
+      clusterBkg: "#f7f8fa",
+      clusterBorder: "#e5e6eb"
+    }
+  });
+</script>
+</body>
+</html>

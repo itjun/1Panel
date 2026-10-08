@@ -617,6 +617,35 @@ export interface UpdateHostInput {
     "note": string;
 }
 
+/**
+ * UpdateState 推送给前端的更新状态快照。
+ */
+export interface UpdateState {
+    "enabled": boolean;
+    "disabledReason": string;
+    "devBuild": boolean;
+    "current": string;
+    "status": string;
+    "hasUpdate": boolean;
+    "mandatory": boolean;
+    "latest": string;
+    "minSupported": string;
+    "notes": string;
+    "releasedAt": string;
+    "size": number;
+    "downloaded": number;
+    "total": number;
+    "error": string;
+    "lastChecked": string;
+
+    /**
+     * Prompt 后端判定应主动弹窗（强制更新，或未被跳过 / 推迟的可选更新）。
+     */
+    "prompt": boolean;
+    "autoCheck": boolean;
+    "skippedVersion": string;
+}
+
 export interface WindowThemeState {
     "preference": string;
     "effective": string;

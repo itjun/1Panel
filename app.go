@@ -63,6 +63,7 @@ type App struct {
 	certNotify      *certnotify.Store
 	menuCheck       *menucheck.Watcher
 	speedTest       *speedtest.Service
+	updates         *updateController
 	panelConfigMu   sync.Mutex
 	panelConfigStop chan struct{}
 	panelPreviews   map[string]panelConfigPreviewRecord
@@ -123,6 +124,7 @@ func NewApp() *application.App {
 		return core.connectOptionFor(host)
 	})
 	core.speedTest = core.newSpeedTest()
+	core.updates = newUpdateController(core)
 	desktop.SetService(ns)
 	initAskBeforeQuit()
 
@@ -149,6 +151,7 @@ func NewApp() *application.App {
 			application.NewService((*NotifySubs)(core)),
 			application.NewService((*CertNotify)(core)),
 			application.NewService((*SpeedTest)(core)),
+			application.NewService((*AppUpdate)(core)),
 			application.NewService((*AppSession)(core)),
 			application.NewService(ns),
 		},
@@ -240,6 +243,7 @@ func NewApp() *application.App {
 		core.startMenuCheckWatcher()
 		core.startLocalDiskStartupCheck()
 		core.startBoardHTTP()
+		core.updates.start()
 	})
 	win.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
 		// Linux 不得在缩放事件里再 SetSize：创建时的 Min 约束已由窗口管理器在
@@ -316,6 +320,11 @@ func NewApp() *application.App {
 		}
 		if result.Response.ActionIdentifier != "" &&
 			result.Response.ActionIdentifier != notifications.DefaultActionIdentifier {
+			return
+		}
+		if stringFromUserInfo(result.Response.UserInfo, "kind") == "update" {
+			(*System)(core).FocusMainWindow()
+			app.Event.Emit("update-show", nil)
 			return
 		}
 		host := stringFromUserInfo(result.Response.UserInfo, "host")

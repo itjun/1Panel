@@ -33,6 +33,7 @@ import {
   useSettings,
 } from "@/react/state/settings";
 import { useSession } from "@/react/state/session";
+import { openUpdateDialog, setUpdateState, useAppUpdate } from "@/react/state/app-update";
 import { formatErr } from "@/utils/format";
 import { setWindowMaterial, useWindowTheme, type WindowMaterial } from "@/react/state/window-theme";
 
@@ -423,12 +424,13 @@ function AboutSection() {
       {row("运行环境", info ? `${info.os} / ${info.arch}` : undefined)}
       {row("编译工具链", info?.goVersion)}
       {row("内置 Agent", info?.agentVer ? `v${info.agentVer}` : undefined)}
+      <UpdateSettingRows />
       <SettingRow label="链接" hint="用系统浏览器打开">
         <Button size="sm" onClick={() => void api.openExternalURL(info?.repoUrl || "")}>
           源码仓库
         </Button>
         <Button size="sm" onClick={() => void api.openExternalURL(info?.releasesUrl || "")}>
-          检查更新
+          发布页
         </Button>
         <Button size="sm" onClick={() => void api.openExternalURL(info?.issuesUrl || "")}>
           问题反馈
@@ -436,6 +438,74 @@ function AboutSection() {
       </SettingRow>
     </section>
   );
+}
+
+/** 「关于」里的应用更新：手动检查、状态说明与自动检查开关。 */
+function UpdateSettingRows() {
+  const { state } = useAppUpdate();
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState("");
+
+  async function check() {
+    setChecking(true);
+    setCheckError("");
+    try {
+      const next = await api.checkUpdate();
+      setUpdateState(next);
+      if (next.hasUpdate) openUpdateDialog();
+    } catch (e) {
+      setCheckError(formatErr(e));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  let hint = "…";
+  if (state) {
+    if (!state.enabled) hint = state.disabledReason || "此构建不支持自动更新";
+    else if (checkError) hint = `检查失败：${checkError}`;
+    else if (state.status === "downloading") hint = "正在下载新版本…";
+    else if (state.status === "installing") hint = "正在安装，完成后自动重启…";
+    else if (state.status === "error") hint = `更新失败：${state.error}`;
+    else if (state.hasUpdate)
+      hint = `发现新版本 ${state.latest}${state.mandatory ? "（必须更新）" : ""}`;
+    else if (state.lastChecked) hint = `已是最新版本 · 上次检查 ${formatCheckTime(state.lastChecked)}`;
+    else hint = "尚未检查";
+  }
+
+  return (
+    <>
+      <SettingRow label="应用更新" hint={hint}>
+        {state?.hasUpdate ? (
+          <Button size="sm" variant="primary" onClick={openUpdateDialog}>
+            查看 {state.latest}
+          </Button>
+        ) : null}
+        <Button
+          size="sm"
+          disabled={!state?.enabled || checking || state.status === "checking"}
+          onClick={() => void check()}
+        >
+          {checking ? "检查中…" : "检查更新"}
+        </Button>
+      </SettingRow>
+      <SettingRow label="自动检查更新" hint="启动时及每 6 小时检查一次；强制更新不受此开关影响">
+        <Switch
+          checked={state?.autoCheck ?? true}
+          disabled={!state?.enabled}
+          onChange={(on) => void api.setUpdateAutoCheck(on)}
+          aria-label="自动检查更新"
+        />
+      </SettingRow>
+    </>
+  );
+}
+
+function formatCheckTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function statusLabel(status?: {

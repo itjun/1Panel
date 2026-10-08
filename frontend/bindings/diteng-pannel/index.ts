@@ -4,6 +4,7 @@
 import * as Agent from "./agent.js";
 import * as AlertHistory from "./alerthistory.js";
 import * as AppSession from "./appsession.js";
+import * as AppUpdate from "./appupdate.js";
 import * as Backup from "./backup.js";
 import * as CertNotify from "./certnotify.js";
 import * as Certs from "./certs.js";
@@ -23,6 +24,7 @@ export {
     Agent,
     AlertHistory,
     AppSession,
+    AppUpdate,
     Backup,
     CertNotify,
     Certs,
@@ -74,5 +76,6 @@ export type {
     PanelStateDraft,
     PanelSystemEditor,
     UpdateHostInput,
+    UpdateState,
     WindowThemeState
 } from "./models.js";
