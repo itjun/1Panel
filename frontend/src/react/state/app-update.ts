@@ -87,8 +87,14 @@ export function initializeAppUpdate(): () => void {
       });
     }),
   ];
-  // 窗口在后台时可能错过事件：回到前台再对一次状态
-  const onFocus = () => syncFromBackend();
+  // 窗口在后台时可能错过事件：回到前台再对一次状态；
+  // 顺带请求后端尽快补一次检查（节流），弥补 6 小时轮询的滞后
+  const onFocus = () => {
+    syncFromBackend();
+    void api.pokeUpdateCheck().catch(() => {
+      /* 浏览器预览无后端 */
+    });
+  };
   window.addEventListener("focus", onFocus);
   syncFromBackend();
   return () => {

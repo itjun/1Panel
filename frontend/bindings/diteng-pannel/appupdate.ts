@@ -36,6 +36,14 @@ export function GetUpdateState(): $CancellablePromise<$models.UpdateState> {
 }
 
 /**
+ * PokeUpdateCheck 窗口重新可见 / 聚焦时请求尽快补一次检查（后端节流，
+ * 距上次尝试不足 10 分钟则跳过）。
+ */
+export function PokeUpdateCheck(): $CancellablePromise<void> {
+    return $Call.ByID(3091510358);
+}
+
+/**
  * RemindLater 24 小时内不再提醒当前版本（仅可选更新）。
  */
 export function RemindLater(): $CancellablePromise<void> {

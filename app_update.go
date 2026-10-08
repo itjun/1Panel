@@ -24,8 +24,9 @@ const (
 	updateFirstCheckDelay = 10 * time.Second
 	updateCheckInterval   = 6 * time.Hour
 	updateCheckJitter     = 10 * time.Minute
-	updateRemindLater  = 24 * time.Hour
-	updateFetchTimeout = 20 * time.Second
+	updateRemindLater     = 24 * time.Hour
+	updateFetchTimeout    = 20 * time.Second
+	updatePokeMinInterval = 10 * time.Minute
 )
 
 // 更新状态机：idle → checking → idle；idle → downloading → installing →（重启）；任一步失败 → error。
@@ -88,8 +89,8 @@ type updateController struct {
 	cancel   context.CancelFunc
 	started  bool
 
-	// netFailNotified 本次运行内连不上更新源已提示过，避免每轮轮询都打扰
-	netFailNotified bool
+	lastAttempt     time.Time // 最近一次检查尝试（含失败），poke 节流用
+	netFailNotified bool      // 本次运行内连不上更新源已提示过，避免每轮轮询都打扰
 }
 
 func updateDir() string {
@@ -263,6 +264,7 @@ func (c *updateController) check(manual bool) (UpdateState, error) {
 	}
 	prevStatus := c.state.Status
 	c.state.Status = updateChecking
+	c.lastAttempt = time.Now()
 	c.mu.Unlock()
 	c.emitState()
 
@@ -372,6 +374,31 @@ func isFetchUnreachable(err error) bool {
 		return true
 	}
 	return errors.Is(err, context.DeadlineExceeded)
+}
+
+// poke 前端窗口重新可见 / 聚焦时调用：尽快补一次检查，弥补 6 小时轮询的
+// 滞后（应用挂在托盘数小时后恢复，能立刻看到新版本提示）。
+// 距上次尝试不足 updatePokeMinInterval 则跳过；下载 / 安装中不打扰。
+func (c *updateController) poke() {
+	c.mu.Lock()
+	if !c.state.Enabled || c.dev || !c.prefs.AutoCheck || !c.started {
+		c.mu.Unlock()
+		return
+	}
+	switch c.state.Status {
+	case updateChecking, updateDownloading, updateInstalling:
+		c.mu.Unlock()
+		return
+	}
+	if !c.lastAttempt.IsZero() && time.Since(c.lastAttempt) < updatePokeMinInterval {
+		c.mu.Unlock()
+		return
+	}
+	c.lastAttempt = time.Now()
+	c.mu.Unlock()
+	go func() {
+		_, _ = c.check(false)
+	}()
 }
 
 func (c *updateController) mainWindowVisible() bool {
@@ -528,6 +555,12 @@ func (u *AppUpdate) GetUpdateState() UpdateState {
 // CheckUpdate 立即检查更新（设置页「检查更新」）。
 func (u *AppUpdate) CheckUpdate() (UpdateState, error) {
 	return (*App)(u).updates.check(true)
+}
+
+// PokeUpdateCheck 窗口重新可见 / 聚焦时请求尽快补一次检查（后端节流，
+// 距上次尝试不足 10 分钟则跳过）。
+func (u *AppUpdate) PokeUpdateCheck() {
+	(*App)(u).updates.poke()
 }
 
 // StartUpdate 开始下载并安装新版本，完成后自动重启。

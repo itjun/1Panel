@@ -626,6 +626,10 @@ const apiImpl = {
   getUpdateState: (): Promise<main.UpdateState> => must(AppUpdate.GetUpdateState()),
   /** 立即检查更新；失败时抛出原因 */
   checkUpdate: (): Promise<main.UpdateState> => must(AppUpdate.CheckUpdate()),
+  /** 窗口重新可见时请求尽快补一次检查（后端按 10 分钟节流） */
+  pokeUpdateCheck: async (): Promise<void> => {
+    await AppUpdate.PokeUpdateCheck();
+  },
   /** 后台下载并安装，完成后应用自动重启；进度走 update-state 事件 */
   startUpdate: async (): Promise<void> => {
     await AppUpdate.StartUpdate();
