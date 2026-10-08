@@ -62,6 +62,7 @@ export type NotifySection =
   | "appMessages"
   | "metricSubs"
   | "appSubs"
+  | "runLog"
   | "setup";
 
 export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";

@@ -14,6 +14,7 @@ import (
 	"diteng-pannel/internal/agentcli"
 	"diteng-pannel/internal/agentinstall"
 	"diteng-pannel/internal/alerthistory"
+	"diteng-pannel/internal/appsession"
 	"diteng-pannel/internal/boardhttp"
 	"diteng-pannel/internal/certnotify"
 	"diteng-pannel/internal/desktop"
@@ -55,6 +56,9 @@ type App struct {
 	hostIcons       *hosticon.Store
 	hostMeta        *hostmeta.Store
 	alertHistory    *alerthistory.Store
+	appSessions     *appsession.Store
+	appSessionStop  chan struct{}
+	appSessionOnce  sync.Once
 	notifySubs      *notifysubs.Store
 	certNotify      *certnotify.Store
 	menuCheck       *menucheck.Watcher
@@ -145,6 +149,7 @@ func NewApp() *application.App {
 			application.NewService((*NotifySubs)(core)),
 			application.NewService((*CertNotify)(core)),
 			application.NewService((*SpeedTest)(core)),
+			application.NewService((*AppSession)(core)),
 			application.NewService(ns),
 		},
 		Assets: application.AssetOptions{
@@ -291,6 +296,7 @@ func NewApp() *application.App {
 	} else {
 		core.alertHistory = ah
 	}
+	core.startAppSession()
 	if nsStore, err := notifysubs.NewStore("ServerPanel"); err != nil {
 		app.Logger.Error("初始化通知订阅存储失败", "error", err)
 	} else {
@@ -361,6 +367,7 @@ func NewApp() *application.App {
 }
 
 func (a *App) shutdown() {
+	a.endAppSession()
 	a.showMu.Lock()
 	if a.themeStartupTimer != nil {
 		a.themeStartupTimer.Stop()
@@ -560,6 +567,7 @@ func (a *App) installMinimalMenu(app *application.App) {
 // 先在后台拉起新实例，再 os.Exit(0)。子进程 fork 后由系统接管。
 func (a *App) restartApp() {
 	a.allowQuit.Store(true)
+	a.endAppSession()
 	exe, err := os.Executable()
 	if err != nil {
 		if a.app != nil {

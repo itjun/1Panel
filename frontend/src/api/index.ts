@@ -19,6 +19,7 @@ import * as LocalApps from "../../bindings/diteng-pannel/localapps";
 import * as LocalSys from "../../bindings/diteng-pannel/localsys";
 import * as PanelConfig from "../../bindings/diteng-pannel/panelconfig";
 import * as SpeedTest from "../../bindings/diteng-pannel/speedtest";
+import * as AppSession from "../../bindings/diteng-pannel/appsession";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -30,6 +31,7 @@ export * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/mode
 export * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 export * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
 export * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
+export * as appsession from "../../bindings/diteng-pannel/internal/appsession/models";
 export * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
 export * as certnotify from "../../bindings/diteng-pannel/internal/certnotify/models";
 export * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
@@ -45,6 +47,7 @@ import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/m
 import type * as agentinstall from "../../bindings/diteng-pannel/internal/agentinstall/models";
 import type * as aptsource from "../../bindings/diteng-pannel/internal/aptsource/models";
 import type * as alerthistory from "../../bindings/diteng-pannel/internal/alerthistory/models";
+import type * as appsession from "../../bindings/diteng-pannel/internal/appsession/models";
 import type * as notifysubs from "../../bindings/diteng-pannel/internal/notifysubs/models";
 import type * as certnotify from "../../bindings/diteng-pannel/internal/certnotify/models";
 import type * as filetext from "../../bindings/diteng-pannel/internal/filetext/models";
@@ -521,6 +524,14 @@ const apiImpl = {
     await AlertHistory.Clear();
   },
   unreadAlertCount: (): Promise<number> => AlertHistory.UnreadCount(),
+
+  // ============ 应用运行日志（启动 / 退出） ============
+  listAppSessions: (limit = 0): Promise<appsession.Session[]> =>
+    arr(AppSession.List(limit)),
+  currentAppSession: (): Promise<appsession.Session> => AppSession.Current(),
+  clearAppSessions: async (): Promise<void> => {
+    await AppSession.Clear();
+  },
 
   getNotifySubs: (): Promise<notifysubs.Data> => must(NotifySubs.Get()),
   planCertNotify: (

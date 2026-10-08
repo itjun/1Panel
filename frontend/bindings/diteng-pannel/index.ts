@@ -3,6 +3,7 @@
 
 import * as Agent from "./agent.js";
 import * as AlertHistory from "./alerthistory.js";
+import * as AppSession from "./appsession.js";
 import * as Backup from "./backup.js";
 import * as CertNotify from "./certnotify.js";
 import * as Certs from "./certs.js";
@@ -21,6 +22,7 @@ import * as System from "./system.js";
 export {
     Agent,
     AlertHistory,
+    AppSession,
     Backup,
     CertNotify,
     Certs,

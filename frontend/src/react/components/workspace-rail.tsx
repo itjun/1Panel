@@ -37,6 +37,7 @@ const NOTIFY_SECTIONS: { id: NotifySection; label: string }[] = [
   { id: "appMessages", label: "应用消息" },
   { id: "metricSubs", label: "指标订阅" },
   { id: "appSubs", label: "应用订阅" },
+  { id: "runLog", label: "运行日志" },
   { id: "setup", label: "通知设置" },
 ];
 
