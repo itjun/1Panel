@@ -89,3 +89,30 @@ func TestStoreMaxEvents(t *testing.T) {
 		t.Fatalf("len=%d want %d", len(s.events), old)
 	}
 }
+
+func TestStoreDelete(t *testing.T) {
+	s := &Store{path: filepath.Join(t.TempDir(), "alert_history.json")}
+	var ids []string
+	for i := 0; i < 3; i++ {
+		e, err := s.Append(Event{Host: "本机", Kind: "disk", State: "down"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, e.ID)
+	}
+	n, err := s.Delete([]string{ids[0], ids[2], "不存在", ""})
+	if err != nil || n != 2 {
+		t.Fatalf("Delete = %d, %v；期望删除 2 条", n, err)
+	}
+	left := s.List(0)
+	if len(left) != 1 || left[0].ID != ids[1] {
+		t.Fatalf("剩余事件不符: %+v", left)
+	}
+	reloaded := &Store{path: s.path}
+	if err := reloaded.load(); err != nil || len(reloaded.events) != 1 {
+		t.Fatalf("删除未落盘: %v %d", err, len(reloaded.events))
+	}
+	if n, _ := s.Delete(nil); n != 0 {
+		t.Fatalf("空列表应删除 0 条，实际 %d", n)
+	}
+}

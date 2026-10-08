@@ -29,6 +29,13 @@ export function Clear(): $CancellablePromise<void> {
 }
 
 /**
+ * Delete 删除指定事件，返回实际删除条数。
+ */
+export function Delete(ids: string[] | null): $CancellablePromise<number> {
+    return $Call.ByID(3905395677, ids);
+}
+
+/**
  * List 返回最近 limit 条（新→旧）；limit≤0 表示全部。
  */
 export function List(limit: number): $CancellablePromise<alerthistory$0.Event[] | null> {

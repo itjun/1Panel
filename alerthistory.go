@@ -58,6 +58,14 @@ func (s *AlertHistory) Clear() error {
 	return s.alertHistory.Clear()
 }
 
+// Delete 删除指定事件，返回实际删除条数。
+func (s *AlertHistory) Delete(ids []string) (int, error) {
+	if s.alertHistory == nil {
+		return 0, fmt.Errorf("告警历史未初始化")
+	}
+	return s.alertHistory.Delete(ids)
+}
+
 // UnreadCount 未读告警条数。
 func (s *AlertHistory) UnreadCount() int {
 	if s.alertHistory == nil {

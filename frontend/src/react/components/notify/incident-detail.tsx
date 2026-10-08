@@ -1,4 +1,4 @@
-import { Activity, BellRing } from "lucide-react";
+import { Activity, BellRing, Trash2 } from "lucide-react";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
 import { Tag, type TagTone } from "@/react/components/ui/tag";
@@ -70,6 +70,7 @@ export function IncidentDetail({
   onSelect,
   onOpenHost,
   onOpenSubs,
+  onDelete,
 }: {
   incident: Incident;
   all: Incident[];
@@ -77,6 +78,7 @@ export function IncidentDetail({
   onSelect: (id: string) => void;
   onOpenHost: (host: string) => void;
   onOpenSubs: () => void;
+  onDelete?: () => void;
 }) {
   const app = isAppKind(incident.kind);
   const pointEvent = incident.status === "notice";
@@ -106,6 +108,12 @@ export function IncidentDetail({
             {incident.host || "—"}
             <span className="ml-2 font-normal text-muted">{subject}</span>
           </h2>
+          {onDelete ? (
+            <Button size="sm" variant="ghost" className="ml-auto shrink-0" onClick={onDelete}>
+              <Trash2 aria-hidden className="size-3.5" strokeWidth={1.5} />
+              删除
+            </Button>
+          ) : null}
         </div>
         <p className="font-mono text-xs text-muted tabular-nums">{headline}</p>
       </header>

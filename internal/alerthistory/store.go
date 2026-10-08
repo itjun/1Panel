@@ -196,6 +196,33 @@ func (s *Store) Clear() error {
 	return s.saveLocked()
 }
 
+// Delete 删除指定 id 的事件，返回实际删除条数；不存在的 id 忽略。
+func (s *Store) Delete(ids []string) (int, error) {
+	drop := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if id = strings.TrimSpace(id); id != "" {
+			drop[id] = true
+		}
+	}
+	if len(drop) == 0 {
+		return 0, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := make([]Event, 0, len(s.events))
+	for _, e := range s.events {
+		if !drop[e.ID] {
+			kept = append(kept, e)
+		}
+	}
+	removed := len(s.events) - len(kept)
+	if removed == 0 {
+		return 0, nil
+	}
+	s.events = kept
+	return removed, s.saveLocked()
+}
+
 // UnreadCount 未读条数。
 func (s *Store) UnreadCount() int {
 	s.mu.RLock()

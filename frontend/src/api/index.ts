@@ -525,6 +525,7 @@ const apiImpl = {
   markAllAlertsRead: async (host = ""): Promise<void> => {
     await AlertHistory.MarkAllRead(host);
   },
+  deleteAlertHistory: (ids: string[]): Promise<number> => AlertHistory.Delete(ids),
   clearAlertHistory: async (): Promise<void> => {
     await AlertHistory.Clear();
   },

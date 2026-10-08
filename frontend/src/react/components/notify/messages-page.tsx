@@ -5,6 +5,7 @@ import { api } from "@/api";
 import { IncidentDetail, LevelTag, StatusLed } from "@/react/components/notify/incident-detail";
 import { Notice, Page } from "@/react/components/page";
 import { Button } from "@/react/components/ui/button";
+import { confirmDialog } from "@/react/components/ui/confirm-dialog";
 import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Select } from "@/react/components/ui/select";
 import { Switch } from "@/react/components/ui/switch";
@@ -93,6 +94,14 @@ export function MessagesPage({
     },
   });
 
+  const remove = useMutation({
+    mutationFn: (ids: string[]) => api.deleteAlertHistory(ids),
+    onSettled: () => {
+      void refetch();
+      notifyAlertsChanged();
+    },
+  });
+
   // 当前页（指标 / 应用）的全部事件，不受筛选影响：详情里的「近 7 天同类」要看全量
   const pageIncidents = useMemo(
     () =>
@@ -114,6 +123,44 @@ export function MessagesPage({
 
   const unreadCount = pageIncidents.filter((inc) => inc.unread).length;
   const hasActive = visible.some((inc) => inc.status === "active");
+  // 进行中的事件保留：删了告警，之后到来的回落会变成孤立记录
+  const clearable = visible.filter((inc) => inc.status !== "active");
+
+  async function onDeleteIncident(inc: Incident) {
+    const ok = await confirmDialog({
+      title: "删除这条消息？",
+      body:
+        inc.status === "active"
+          ? "该事件仍在进行中，删除后之后的回落记录会单独出现。此操作不可撤销。"
+          : "告警与其恢复记录会一起删除。此操作不可撤销。",
+      theme: "danger",
+      confirmText: "删除",
+    });
+    if (!ok) return;
+    const index = visible.findIndex((item) => item.id === inc.id);
+    const next = visible[index + 1] || visible[index - 1];
+    setSelectedId(next && next.id !== inc.id ? next.id : "");
+    remove.mutate(inc.eventIds);
+  }
+
+  async function onClearVisible() {
+    if (!clearable.length) return;
+    const filtered = kindFilter !== "all" || statusFilter !== "all" || unreadOnly;
+    const kept = visible.length - clearable.length;
+    const ok = await confirmDialog({
+      title: `清空 ${clearable.length} 条消息？`,
+      body: [
+        filtered ? "将删除当前筛选条件下列出的消息。" : `将删除全部${appPage ? "应用" : "指标"}消息。`,
+        kept > 0 ? `进行中的 ${kept} 条会保留。` : "",
+        "此操作不可撤销。",
+      ].join(""),
+      theme: "danger",
+      confirmText: "清空",
+    });
+    if (!ok) return;
+    setSelectedId("");
+    remove.mutate(clearable.flatMap((inc) => inc.eventIds));
+  }
 
   useEffect(() => {
     if (!hasActive) return;
@@ -225,6 +272,13 @@ export function MessagesPage({
           >
             全部已读
           </Button>
+          <Button
+            size="sm"
+            disabled={clearable.length <= 0 || remove.isPending}
+            onClick={() => void onClearVisible()}
+          >
+            清空
+          </Button>
         </>
       }
       onRefresh={() => void refetch()}
@@ -280,6 +334,7 @@ export function MessagesPage({
               onSelect={(id) => select(id, true)}
               onOpenHost={(host) => session.openHost(host, "monitor")}
               onOpenSubs={() => session.setNotifySection(appPage ? "appSubs" : "metricSubs")}
+              onDelete={() => void onDeleteIncident(selected)}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted">
