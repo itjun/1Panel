@@ -169,7 +169,9 @@ export function IncidentDetail({
         ) : null}
       </section>
 
-      {incident.host && incident.host !== "菜单检查" && incident.host !== "本机" ? (
+      {incident.host && incident.host !== "菜单检查" &&
+      incident.host !== "巡检" &&
+      incident.host !== "本机" ? (
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => onOpenHost(incident.host)}>
             <Activity size={16} strokeWidth={1.5} aria-hidden />

@@ -331,7 +331,7 @@ export function WorkspaceRail() {
 
         {listKind === "inspect" ? (
           <RailNavButton
-            label="菜单检查"
+            label="HTTP 巡检"
             active
             onClick={() => session.setInspectSection("menuCheck")}
           />

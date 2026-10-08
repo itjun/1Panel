@@ -9,7 +9,7 @@ export type AlertEvent = alerthistory.Event;
  * - active：资源 / 应用告警还没回落
  * - resolved：已回落 / 已恢复
  * - unclosed：没收到回落（面板重启前触发，或之后同类又触发过），不再算进行中
- * - notice：证书、菜单检查这类单点提醒，本来就没有「回落」
+ * - notice：证书、巡检这类单点提醒，本来就没有「回落」
  */
 export type IncidentStatus = "active" | "resolved" | "unclosed" | "notice";
 
@@ -145,7 +145,7 @@ export function kindLabel(kind: string): string {
     case "cert":
       return "证书";
     default:
-      if (kind.startsWith("menu:")) return "菜单";
+      if (kind.startsWith("inspect:") || kind.startsWith("menu:")) return "巡检";
       return kind || "—";
   }
 }
