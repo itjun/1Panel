@@ -160,6 +160,12 @@ scp scripts/bootstrap-zsh.sh user@host:/tmp/ && ssh user@host 'bash /tmp/bootstr
 ssh user@host 'bash -s' < scripts/bootstrap-zsh.sh
 ```
 
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。
+
+Copyright (c) 2026 黄荣君 (itjun)
+
 ## 致谢
 
 本项目的灵感来自 [1Panel](https://1panel.cn/)——一款优秀的开源 Linux 服务器运维管理面板。
