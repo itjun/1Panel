@@ -49,10 +49,14 @@ task darwin:package
 
 ### 下载
 
-打 `v*` tag 时,GitHub Actions 自动构建并发布到 **GitHub Releases**（页面右侧 Releases）：
+执行 `scripts/release.sh vX.Y.Z -F notes.md`（打附注 tag → 推送 → `gh run watch` 等 CI → 校验清单），GitHub Actions 构建三个平台并用 `gh` 发布到 **GitHub Releases**（页面右侧 Releases）。Release 同时是应用内更新源，客户端读取最新正式版里的签名清单 `latest.json`：
 
 - `1Panel-v<版本>-mac-universal.zip` —— macOS 通用包（Apple Silicon + Intel 通吃，含 `1Panel.app`）
 - `1Panel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Panel.exe`）
+- `1Panel-v<版本>-linux-amd64.tar.gz` —— Linux 64 位包
+- `latest.json` / `latest.json.sig` —— 应用内更新清单及 ed25519 签名
+
+详细流程见 [`docs/release-and-update.html`](docs/release-and-update.html)。
 
 ### macOS 同事侧使用步骤
 
