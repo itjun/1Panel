@@ -35,7 +35,7 @@ func (c *Client) httpClient() *http.Client {
 	}
 	return &http.Client{
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
+			Proxy:                 proxyFunc(),
 			ResponseHeaderTimeout: 30 * time.Second,
 			TLSHandshakeTimeout:   15 * time.Second,
 			IdleConnTimeout:       60 * time.Second,
