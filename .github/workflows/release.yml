@@ -88,6 +88,18 @@ jobs:
         with:
           node-version: "22"
 
+      # 前端包管理器为 bun，版本取 package.json 的 packageManager
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: frontend/package.json
+
+      # wails3 CLI 自身也链接 GTK4 / WebKitGTK，须在安装 CLI 之前装好
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libx11-dev
+
       # Wails v3 CLI 版本从 go.mod 读取，禁止硬编码漂移
       - name: Install wails3
         shell: bash
@@ -103,20 +115,13 @@ jobs:
         shell: bash
         run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libx11-dev
-
       - name: Check Wails versions
         shell: bash
         run: ./scripts/check-wails-version.sh
 
-      # 前端依赖:构建目录是 frontend/(Vue3)
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Build + package macOS universal app
         if: runner.os == 'macOS'
