@@ -14,6 +14,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { ChevronDown, Plus, Search, X } from "lucide-react";
 import { api, type sshconfig } from "@/api";
 import {
   moveGroupInRows,
@@ -161,6 +162,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const groupInsertRef = useRef<GroupDropMark | null>(null);
 
   const [query, setQuery] = useState("");
+  const [scrolled, setScrolled] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectionSection, setSelectionSection] = useState<string | null>(null);
   const [preferredGroupId, setPreferredGroupId] = useState<string>("");
@@ -1107,50 +1109,76 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       <FlashNotices flash={flash} />
 
       {/* 页内工具行：筛选与新建（原通栏槽位内容，随 §4.6 全站下沉规则移入内容区） */}
-      <div className="host-home-toolbar flex min-h-8 shrink-0 items-center gap-2 px-4 pt-4">
-        <input
-          ref={searchRef}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              if (query) {
-                event.stopPropagation();
-                setQuery("");
-                return;
+      {/* 内容滚动后底部出现 1px 分隔线，与吸顶表头同一做法 */}
+      <div
+        className={`host-home-toolbar motion-colors flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-4 ${
+          scrolled ? "border-line" : "border-transparent"
+        }`}
+      >
+        <label className="motion-field box-border flex h-8 w-[min(20rem,40vw)] cursor-text items-center gap-2 rounded-control pl-2.5 pr-1.5">
+          <Search size={14} className="shrink-0 text-muted" aria-hidden="true" />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                if (query) {
+                  event.stopPropagation();
+                  setQuery("");
+                  return;
+                }
+                (event.target as HTMLInputElement).blur();
               }
-              (event.target as HTMLInputElement).blur();
-            }
-          }}
-          placeholder={`筛选主机 (${shortcutLabel("F")})`}
-          className="motion-field box-border h-8 w-[min(24rem,40vw)] rounded-control px-3 text-sm leading-none"
-        />
-        <div className="relative ml-auto flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label="新建"
-            onClick={(event) => {
-              event.stopPropagation();
-              const btn = event.currentTarget;
-              const rect = btn.getBoundingClientRect();
-              // 按钮在最右侧，菜单右缘跟按钮对齐
-              closeAllMenus();
-              setBlankMenu({ x: rect.right - 180, y: rect.bottom + 4 });
             }}
-          >
-            +
-          </Button>
-        </div>
+            placeholder="筛选主机"
+            aria-label="筛选主机"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm leading-none text-ink outline-none placeholder:text-muted"
+          />
+          {query ? (
+            <button
+              type="button"
+              aria-label="清空筛选"
+              className="motion-colors inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-control text-muted hover:bg-line hover:text-ink"
+              onClick={() => {
+                setQuery("");
+                searchRef.current?.focus();
+              }}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          ) : (
+            <kbd className="shrink-0 rounded-control bg-line px-1.5 py-0.5 font-sans text-xs leading-none text-muted">
+              {shortcutLabel("F")}
+            </kbd>
+          )}
+        </label>
+        <Button
+          variant="secondary"
+          aria-haspopup="menu"
+          aria-expanded={!!blankMenu}
+          className="gap-1.5 pl-2.5 pr-2"
+          onClick={(event) => {
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            closeAllMenus();
+            setBlankMenu({ x: rect.left, y: rect.bottom + 4 });
+          }}
+        >
+          <Plus size={14} aria-hidden="true" />
+          新建
+          <ChevronDown size={14} className="text-muted" aria-hidden="true" />
+        </Button>
+        <span className="ml-auto truncate text-xs text-muted tabular-nums">{summaryText}</span>
       </div>
 
-      {/* 内容区四周 16px 安全边距；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9）。
+      {/* 内容区左右下 16px 安全边距（顶部由工具行下内边距承担）；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9）。
           整块禁选：拖动超过阈值前浏览器已开始划选文字，事后再禁选清不掉选区 */}
       <div
         ref={scrollRef}
-        className="flex min-h-0 flex-1 select-none flex-col gap-card overflow-auto p-4"
+        onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
+        className="flex min-h-0 flex-1 select-none flex-col gap-card overflow-auto px-4 pb-4 pt-3"
       >
-        <p className="m-0 text-xs text-muted">{summaryText}</p>
         {keyword && sections.length === 0 ? (
           <p className="m-0 text-sm text-muted">无匹配主机</p>
         ) : null}
