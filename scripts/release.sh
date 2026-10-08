@@ -47,7 +47,7 @@ fi
 
 gh secret list -R "$REPO" | grep -q "^UPDATE_SIGN_KEY[[:space:]]" || die "仓库未配置 Secret UPDATE_SIGN_KEY"
 go run ./cmd/agentversion check
-echo "上一个版本：${PREV:-无}，待发布：$VERSION（$(git rev-parse --short HEAD)）"
+echo "上一个版本：${PREV:-无}，待发布：${VERSION}（$(git rev-parse --short HEAD)）"
 
 step "打附注 tag 并推送"
 git tag -a "$VERSION" ${TAG_ARGS[@]+"${TAG_ARGS[@]}"}

@@ -56,7 +56,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: 1Panel-${{ github.ref_name }}-mac-universal.zip
+            artifact: 1Panel-${{ github.ref_name }}-mac-arm64.zip
           - os: windows-latest
             artifact: 1Panel-${{ github.ref_name }}-win-amd64.zip
           # 24.04 起官方源提供 webkitgtk-6.0（Wails v3 默认的 GTK4 后端）
@@ -123,10 +123,11 @@ jobs:
         working-directory: frontend
         run: bun install --frozen-lockfile
 
-      - name: Build + package macOS universal app
+      # Apple 芯片单架构。macos-latest 本身是 arm64，显式传入避免编出 Intel 切片。
+      - name: Build + package macOS arm64 app
         if: runner.os == 'macOS'
         shell: bash
-        run: task darwin:package:universal
+        run: task darwin:package ARCH=arm64
 
       - name: Build Windows exe
         if: runner.os == 'Windows'
@@ -211,12 +212,15 @@ jobs:
           git fetch --force --tags
           # 更新说明：取附注 tag 的说明；轻量 tag 为空时客户端只显示版本号
           git for-each-ref "refs/tags/$VERSION" --format='%(contents)' > notes.md
+          # darwin-universal 与 darwin-arm64 是同一份 arm64 包。
+          # v1.1.0 客户端只认 darwin-universal，保留别名才能继续自动更新。
           go run ./cmd/releasetool manifest \
             -version "$VERSION" \
             -base-url "https://github.com/$GH_REPO/releases/download" \
             -policy release/update-policy.json \
             -notes-file notes.md \
-            -asset "darwin-universal=dist/1Panel-$VERSION-mac-universal.zip" \
+            -asset "darwin-arm64=dist/1Panel-$VERSION-mac-arm64.zip" \
+            -asset "darwin-universal=dist/1Panel-$VERSION-mac-arm64.zip" \
             -asset "windows-amd64=dist/1Panel-$VERSION-win-amd64.zip" \
             -asset "linux-amd64=dist/1Panel-$VERSION-linux-amd64.tar.gz" \
             -out dist/latest.json

@@ -71,11 +71,15 @@ func (m *Manifest) AssetFor(key string) (Asset, bool) {
 	return a, ok
 }
 
-// PlatformKey 平台键：macOS 发布 universal 包，其余按 GOOS-GOARCH。
+// PlatformKey 平台键。macOS 只发布 arm64（Apple 芯片），Intel（amd64）没有安装包。
+// 其余平台按 GOOS-GOARCH。
 func PlatformKey(goos, goarch string) string {
 	switch goos {
 	case "darwin":
-		return "darwin-universal"
+		if goarch == "arm64" {
+			return "darwin-arm64"
+		}
+		return ""
 	case "windows":
 		return "windows-" + goarch
 	case "linux":

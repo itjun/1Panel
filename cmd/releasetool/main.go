@@ -3,7 +3,7 @@
 //	releasetool keygen -out update_sign.key
 //	releasetool manifest -version v1.2.0 -base-url https://dl.example.com/1panel \
 //	    -policy release/update-policy.json -notes-file notes.md \
-//	    -asset darwin-universal=dist/1Panel-v1.2.0-mac-universal.zip \
+//	    -asset darwin-arm64=dist/1Panel-v1.2.0-mac-arm64.zip \
 //	    -asset windows-amd64=dist/1Panel-v1.2.0-win-amd64.zip \
 //	    -asset linux-amd64=dist/1Panel-v1.2.0-linux-amd64.tar.gz -out latest.json
 //	releasetool sign -in latest.json -out latest.json.sig   # 私钥取环境变量 UPDATE_SIGN_KEY（CI）

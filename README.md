@@ -37,7 +37,7 @@ go install github.com/go-task/task/v3/cmd/task@latest
 # 开发模式（热重载）
 task dev
 
-# 构建 + 打包 .app（macOS 通用包 = task darwin:package:universal）
+# 构建 + 打包 .app（macOS 只发布 arm64）
 task darwin:package
 ```
 
@@ -51,7 +51,7 @@ task darwin:package
 
 执行 `scripts/release.sh vX.Y.Z -F notes.md`（打附注 tag → 推送 → `gh run watch` 等 CI → 校验清单），GitHub Actions 构建三个平台并用 `gh` 发布到 **GitHub Releases**（页面右侧 Releases）。Release 同时是应用内更新源，客户端读取最新正式版里的签名清单 `latest.json`：
 
-- `1Panel-v<版本>-mac-universal.zip` —— macOS 通用包（Apple Silicon + Intel 通吃，含 `1Panel.app`）
+- `1Panel-v<版本>-mac-arm64.zip` —— macOS arm64 包（Apple 芯片，含 `1Panel.app`）
 - `1Panel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Panel.exe`）
 - `1Panel-v<版本>-linux-amd64.tar.gz` —— Linux 64 位包
 - `latest.json` / `latest.json.sig` —— 应用内更新清单及 ed25519 签名
@@ -87,7 +87,7 @@ task darwin:package
 
 ### 系统要求
 
-- macOS 12 Monterey 或更高（Apple Silicon / Intel 均可，通用包）
+- macOS 12 Monterey 或更高（仅 Apple 芯片 / arm64）
 - Windows 10/11 64 位（本机采集经系统 API（NtQuery / 注册表 / IP Helper）完成，不依赖 PowerShell 文本解析）
 - 目标主机需为 Debian/Ubuntu 系列（其他发行版部分监控字段可能解析失败）
 
@@ -132,7 +132,7 @@ task darwin:package
 
 ## 限制
 
-- 桌面端支持 macOS（通用包）、Windows 10/11 x64 与 Linux（Debian 13 验证，deb/rpm/AppImage 任务见 build/linux）
+- 桌面端支持 macOS（Apple 芯片 arm64）、Windows 10/11 x64 与 Linux（Debian 13 验证，deb/rpm/AppImage 任务见 build/linux）
 - 仅 Debian/Ubuntu 目标机（其他发行版的 `systemctl`、`dpkg-query` 等命令可能不可用）
 - 监控采集全部为只读命令，不做任何写操作
 - 终端通过系统 `ssh` 二进制启动，依赖本机存在 `ssh`（Windows 为系统 OpenSSH）

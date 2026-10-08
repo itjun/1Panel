@@ -117,8 +117,8 @@
     <h1>打包 · 发布 · 客户端更新流程说明</h1>
     <p class="lead">适用于 1Panel（Wails v3）的 macOS / Windows / Linux 三个平台。推一个 <code>v*</code> tag，GitHub Actions 会并行构建三个平台的安装包，连同签名更新清单一起用 <code>gh</code> 发布到 GitHub Release，它同时是下载页和客户端更新源。客户端定时检查签名清单，按版本策略弹出可选更新或强制更新。</p>
     <div class="grid3">
-      <div class="card"><h4>macOS <span class="tag brand">universal</span></h4>
-        <ul><li>产物：<code>1Panel-vX-mac-universal.zip</code></li><li>构建机：<code>macos-latest</code></li><li>自动更新：<span class="tag ok">支持</span></li></ul></div>
+      <div class="card"><h4>macOS <span class="tag brand">arm64</span></h4>
+        <ul><li>产物：<code>1Panel-vX-mac-arm64.zip</code></li><li>构建机：<code>macos-latest</code>（Apple 芯片）</li><li>自动更新：<span class="tag ok">支持</span></li></ul></div>
       <div class="card"><h4>Windows <span class="tag brand">amd64</span></h4>
         <ul><li>产物：<code>1Panel-vX-win-amd64.zip</code></li><li>构建机：<code>windows-latest</code></li><li>自动更新：<span class="tag ok">支持（便携版）</span></li></ul></div>
       <div class="card"><h4>Linux <span class="tag brand">amd64</span></h4>
@@ -219,7 +219,7 @@ flowchart TB
   e4 --> w1
   e4 --> l1
   subgraph job2 [Job build 矩阵并行]
-    m1["macOS: 还原内嵌产物"] --> m2["task darwin:package:universal"] --> m3["zip -r -y 1Panel.app"]
+    m1["macOS: 还原内嵌产物"] --> m2["task darwin:package ARCH=arm64"] --> m3["zip -r -y 1Panel.app"]
     w1["Windows: 还原内嵌产物"] --> w2["task windows:build"] --> w3["7z 打包 1Panel.exe"]
     l1["Linux: 还原内嵌产物 + apt 装 GTK4/WebKitGTK"] --> l2["task linux:build"] --> l3["tar.gz 二进制 + desktop + 图标"]
   end
@@ -253,7 +253,7 @@ flowchart TB
 <pre><code>github.com/itjun/1Panel/releases/download/v1.1.0/
 ├── latest.json          <span class="c"># 发布清单（每个版本一份）</span>
 ├── latest.json.sig      <span class="c"># ed25519 签名（base64）</span>
-├── 1Panel-v1.1.0-mac-universal.zip
+├── 1Panel-v1.1.0-mac-arm64.zip
 ├── 1Panel-v1.1.0-win-amd64.zip
 └── 1Panel-v1.1.0-linux-amd64.tar.gz
 
@@ -268,7 +268,7 @@ releases/latest/download/latest.json(.sig)</code></pre>
   "releasedAt": "2026-10-04T10:00:00Z",
   "notes": "v1.1.0 更新说明\n- 新增应用内自动更新",
   "assets": {
-    "darwin-universal": { "name": "...", "url": "...", "sha256": "...", "size": 29262861 },
+    "darwin-arm64": { "name": "...", "url": "...", "sha256": "...", "size": 29262861 },
     "windows-amd64":    { ... },
     "linux-amd64":      { ... }
   }
@@ -277,7 +277,7 @@ releases/latest/download/latest.json(.sig)</code></pre>
     </div>
     <table>
       <tr><th style="width:24%">客户端平台</th><th style="width:24%">清单平台键</th><th>说明</th></tr>
-      <tr><td>macOS（Intel / Apple 芯片）</td><td><code>darwin-universal</code></td><td>同一个 universal 包</td></tr>
+      <tr><td>macOS（Apple 芯片）</td><td><code>darwin-arm64</code></td><td>只发布 arm64。清单同时写入 <code>darwin-universal</code> 指向同一 zip，已安装的 v1.1.0 仍能更新。Intel Mac 无安装包</td></tr>
       <tr><td>Windows x64</td><td><code>windows-amd64</code></td><td>Windows ARM 暂无包，提示「没有当前平台的安装包」</td></tr>
       <tr><td>Linux x64</td><td><code>linux-amd64</code></td><td>Linux ARM 暂无包</td></tr>
     </table>
@@ -427,7 +427,7 @@ flowchart LR
     <h3>本地联调（不发版测试更新流程）</h3>
 <pre><code><span class="c"># 1. 生成假版本清单并签名</span>
 go run ./cmd/releasetool manifest -version v9.9.9 -base-url http://127.0.0.1:18765 \
-  -asset darwin-universal=/tmp/upd/v9.9.9/1Panel-v9.9.9-mac-universal.zip -out /tmp/upd/latest.json
+  -asset darwin-arm64=/tmp/upd/v9.9.9/1Panel-v9.9.9-mac-arm64.zip -out /tmp/upd/latest.json
 go run ./cmd/releasetool sign -key-file ~/.config/1panel-release/update_sign.key \
   -in /tmp/upd/latest.json -out /tmp/upd/latest.json.sig
 
@@ -454,7 +454,7 @@ ONEPANEL_UPDATE_BASE_URL=http://127.0.0.1:18765 ONEPANEL_UPDATE_CURRENT_VERSION=
       <li>首次上线：已安装的 v1.0.x 没有更新模块，需要手动安装一次带更新功能的版本，之后才能自动更新。</li>
       <li>强制更新依赖客户端至少成功拉取过一次清单（或已有缓存），从未联网成功的旧客户端拦截不到。</li>
       <li>更换签名密钥时，必须先发一个内置新公钥的版本，再改用新私钥签名。</li>
-      <li>Windows ARM、Linux ARM 暂无安装包。</li>
+      <li>Intel Mac、Windows ARM、Linux ARM 暂无安装包。</li>
     </ul>
   </section>
 

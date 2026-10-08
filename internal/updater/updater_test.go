@@ -76,7 +76,8 @@ func TestManifestValidate(t *testing.T) {
 }
 
 func TestPlatformKey(t *testing.T) {
-	if PlatformKey("darwin", "arm64") != "darwin-universal" ||
+	if PlatformKey("darwin", "arm64") != "darwin-arm64" ||
+		PlatformKey("darwin", "amd64") != "" ||
 		PlatformKey("windows", "amd64") != "windows-amd64" ||
 		PlatformKey("linux", "amd64") != "linux-amd64" ||
 		PlatformKey("freebsd", "amd64") != "" {
@@ -116,7 +117,7 @@ func newFixture(t *testing.T) *fixture {
 		Version:             "v1.2.0",
 		MinSupportedVersion: "v1.1.0",
 		Assets: map[string]Asset{
-			"darwin-universal": {Name: "pkg.zip", URL: f.srv.URL + "/v1.2.0/pkg.zip", SHA256: f.sum, Size: int64(len(f.payload))},
+			"darwin-arm64": {Name: "pkg.zip", URL: f.srv.URL + "/v1.2.0/pkg.zip", SHA256: f.sum, Size: int64(len(f.payload))},
 		},
 	}, priv)
 	return f
