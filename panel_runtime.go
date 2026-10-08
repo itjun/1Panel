@@ -319,6 +319,13 @@ func panelGroupsAsLegacy(state panelstore.State) []groups.Group {
 			BoardTitle: group.BoardTitle, Order: group.Order, Hosts: members,
 		})
 	}
+	// panel JSON 里分组的存储顺序不等于展示顺序，与 groups.Store.List 一样按 Order 升序返回
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Order != out[j].Order {
+			return out[i].Order < out[j].Order
+		}
+		return out[i].ID < out[j].ID
+	})
 	return out
 }
 

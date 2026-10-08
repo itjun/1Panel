@@ -60,3 +60,22 @@ func TestPanelGroupRenameRejectsMissingLegacyCacheIndependently(t *testing.T) {
 		t.Fatal("Panel group was not renamed")
 	}
 }
+
+func TestPanelGroupsAsLegacySortsByOrder(t *testing.T) {
+	state := panelstore.State{
+		Version: panelstore.CurrentVersion,
+		Groups: []panelstore.PanelGroup{
+			{ID: "cdcp-main", Name: "cdcp-main", Order: 2},
+			{ID: "diteng-main", Name: "diteng-main", Order: 7},
+			{ID: "cdcp-alpha", Name: "cdcp-alpha", Order: 0},
+			{ID: "itjun-linux", Name: "itjun-linux", Order: 1},
+		},
+	}
+	got := panelGroupsAsLegacy(state)
+	want := []string{"cdcp-alpha", "itjun-linux", "cdcp-main", "diteng-main"}
+	for i, id := range want {
+		if got[i].ID != id {
+			t.Fatalf("idx=%d id=%s want %s", i, got[i].ID, id)
+		}
+	}
+}

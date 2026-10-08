@@ -3,7 +3,7 @@ import { Select, type SelectOption } from "@/react/components/ui/select";
 import { useSession } from "@/react/state/session";
 import { LOCAL_ID } from "./format";
 
-/** 端点选择：首项「本机」，其余为 SSH Config 主机（附所在分组）；可按名称、HostName(IP)、分组搜索 */
+/** 端点选择：首项「本机」，其余按首页顺序列出主机（附所在分组）；可按名称、HostName(IP)、分组搜索 */
 export function EndpointPicker({
   value,
   onChange,
@@ -26,7 +26,7 @@ export function EndpointPicker({
     const list: SelectOption<string>[] = [
       { value: LOCAL_ID, label: "本机", keywords: "local localhost 127.0.0.1", disabled: exclude === LOCAL_ID },
     ];
-    for (const h of session.hosts) {
+    for (const h of session.orderedHosts) {
       const group = groupOf.get(h.name);
       list.push({
         value: h.name,
@@ -41,7 +41,7 @@ export function EndpointPicker({
       });
     }
     return list;
-  }, [session.hosts, session.groups, exclude]);
+  }, [session.orderedHosts, session.groups, exclude]);
 
   return (
     <Select

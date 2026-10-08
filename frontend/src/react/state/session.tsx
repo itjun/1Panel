@@ -16,6 +16,7 @@ import {
 } from "@/utils/lastScreen";
 import { pushView, viewSnap, type ViewSnap } from "@/react/state/nav-history";
 import { readSettings } from "@/react/state/settings";
+import { reconcileHostRows } from "@/utils/hostRows";
 import type { PersistTool } from "@/utils/workspaceMigrate";
 
 export const UNGROUPED_ID = "__ungrouped__";
@@ -289,9 +290,31 @@ function writeMainFromNav(nav: Nav) {
   });
 }
 
+/**
+ * 分组顺序以首页机柜布局（hostHomeRows，从上到下、从左到右）为准：
+ * 后端 order 与布局展开不一致时写回后端，使所有页面的分组列表与首页同序。
+ */
+async function alignGroupOrder(listed: groups.Group[]): Promise<groups.Group[]> {
+  const byOrder = [...listed].sort((a, b) => a.order - b.order);
+  const ids = byOrder.map((group) => group.id);
+  const flat = reconcileHostRows(readSettings().hostHomeRows, ids).flat();
+  const rank = new Map(flat.map((id, i) => [id, i]));
+  const byLayout = (list: groups.Group[]) =>
+    [...list].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+  if (flat.every((id, i) => id === ids[i])) return byOrder;
+  try {
+    await api.reorderGroups("", flat);
+    return byLayout(await api.listGroups());
+  } catch {
+    return byLayout(listed);
+  }
+}
+
 type SessionValue = Nav & {
   hosts: sshconfig.HostConfig[];
   groups: groups.Group[];
+  /** 全部主机按首页顺序排列：分组顺序 → 组内顺序，最后是未分组 */
+  orderedHosts: sshconfig.HostConfig[];
   osRelease: Record<string, string>;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -355,13 +378,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextHosts, nextGroups, icons] = await Promise.all([
+      const [nextHosts, listedGroups, icons] = await Promise.all([
         api.listHosts(),
         api.listGroups(),
         api.listHostIcons().catch(() => []),
       ]);
       setHosts(nextHosts);
-      setGroups(nextGroups);
+      setGroups(await alignGroupOrder(listedGroups));
       const map: Record<string, string> = {};
       for (const icon of icons) {
         if (icon.host && icon.osRelease) map[icon.host] = icon.osRelease;
@@ -421,11 +444,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [groups],
   );
 
+  const orderedHosts = useMemo(() => {
+    const seen = new Set<string>();
+    const list: sshconfig.HostConfig[] = [];
+    for (const id of [...groups.map((group) => group.id), UNGROUPED_ID]) {
+      for (const host of hostsOf(id)) {
+        if (seen.has(host.name)) continue;
+        seen.add(host.name);
+        list.push(host);
+      }
+    }
+    return list;
+  }, [groups, hostsOf]);
+
   const value = useMemo<SessionValue>(
     () => ({
       ...nav,
       hosts,
       groups,
+      orderedHosts,
       osRelease,
       loading,
       refresh,
@@ -597,6 +634,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       groups,
       hosts,
       hostsOf,
+      orderedHosts,
       loading,
       nav,
       osRelease,

@@ -139,32 +139,30 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
     return map;
   }, [session]);
 
+  // 分组按钮与主机列表都沿用首页顺序（只列有主机的分组）
   const groupButtons = useMemo(() => {
     const names = new Set<string>();
-    for (const label of hostGroupLabel.values()) names.add(label);
-    const sorted = [...names].sort((a, b) => {
-      if (a === "未分组") return 1;
-      if (b === "未分组") return -1;
-      return a.localeCompare(b, "zh-CN");
-    });
+    for (const host of session.orderedHosts) {
+      const label = hostGroupLabel.get(host.name || "");
+      if (label) names.add(label);
+    }
     return [
       { value: "all", label: "全部" },
-      ...sorted.map((g) => ({ value: g, label: g })),
+      ...[...names].map((g) => ({ value: g, label: g })),
     ];
-  }, [hostGroupLabel]);
+  }, [hostGroupLabel, session.orderedHosts]);
 
   const hosts = useMemo(() => {
     const rows: string[] = [];
-    for (const host of session.hosts) {
+    for (const host of session.orderedHosts) {
       const name = host.name || "";
       if (!name) continue;
       const label = hostGroupLabel.get(name) || "未分组";
       if (groupFilter !== "all" && label !== groupFilter) continue;
       rows.push(name);
     }
-    rows.sort((a, b) => a.localeCompare(b, "zh-CN"));
     return rows;
-  }, [groupFilter, hostGroupLabel, session.hosts]);
+  }, [groupFilter, hostGroupLabel, session.orderedHosts]);
 
   return (
     <Page
