@@ -159,6 +159,17 @@ func NewApp() *application.App {
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
 		},
+		// 单实例：重复启动不落第二份进程（双开会撞存储与看板端口），而是
+		// 把已运行实例的主窗拉到前台后自身退出。锁在 application.New 内
+		// 获取，晚于 main.go 重启接力的 1.5s 等待，更新重启不受影响；
+		// build.py 编译前也会先杀旧进程。UniqueID 取模块名，不随用户可见
+		// 名称（1Panel）变化。
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "diteng-pannel",
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+				core.focusFromSecondInstance()
+			},
+		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: false,
 		},
@@ -487,6 +498,20 @@ func (a *App) forceShowMainWindow() bool {
 	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
 	a.syncTrafficLights()
 	return win.IsVisible()
+}
+
+// focusFromSecondInstance 第二个实例启动时把主窗带到前台。
+// 启动早期（Wails 未进入运行态）调用窗口 API 会空指针崩溃（同
+// forceShowMainWindow 的坑），此时放弃聚焦：第一实例正在启动，窗口
+// 稍后自然会显示。
+func (a *App) focusFromSecondInstance() {
+	a.showMu.Lock()
+	ready := a.ready
+	a.showMu.Unlock()
+	if !ready {
+		return
+	}
+	(*System)(a).FocusMainWindow()
 }
 
 // syncTrafficLights 将 macOS 红绿灯垂直居中到 WorkspaceRail 顶留白带。
