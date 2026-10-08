@@ -4,10 +4,10 @@
 //	releasetool manifest -version v1.2.0 -base-url https://dl.example.com/1panel \
 //	    -policy release/update-policy.json -notes-file notes.md \
 //	    -asset darwin-universal=dist/1Panel-v1.2.0-mac-universal.zip \
-//	    -asset windows-amd64=dist/1Panel-v1.2.0-win-amd64.zip -out latest.json
-//	releasetool sign -in latest.json -out latest.json.sig   # 私钥取环境变量 UPDATE_SIGN_KEY
-//	releasetool sign -key-enc release/update_sign.key.enc ... # 口令取环境变量 UPDATE_KEY_PASSPHRASE
-//	releasetool encrypt-key -in update_sign.key -out release/update_sign.key.enc
+//	    -asset windows-amd64=dist/1Panel-v1.2.0-win-amd64.zip \
+//	    -asset linux-amd64=dist/1Panel-v1.2.0-linux-amd64.tar.gz -out latest.json
+//	releasetool sign -in latest.json -out latest.json.sig   # 私钥取环境变量 UPDATE_SIGN_KEY（CI）
+//	releasetool sign -key-file ~/.config/1panel-release/update_sign.key ...   # 本机签名
 //	releasetool verify -in latest.json -sig latest.json.sig [-pub <base64>]
 package main
 
@@ -44,8 +44,6 @@ func main() {
 		err = cmdSign(os.Args[2:])
 	case "verify":
 		err = cmdVerify(os.Args[2:])
-	case "encrypt-key":
-		err = cmdEncryptKey(os.Args[2:])
 	default:
 		usage()
 	}
@@ -56,7 +54,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "用法: releasetool keygen|manifest|sign|verify|encrypt-key [参数]")
+	fmt.Fprintln(os.Stderr, "用法: releasetool keygen|manifest|sign|verify [参数]")
 	os.Exit(2)
 }
 
@@ -161,25 +159,11 @@ func cmdSign(args []string) error {
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
 	in := fs.String("in", updater.ManifestName, "待签名清单")
 	out := fs.String("out", updater.SignatureName, "签名输出文件")
-	keyFile := fs.String("key-file", "", "明文私钥文件；为空时读环境变量 UPDATE_SIGN_KEY")
-	keyEnc := fs.String("key-enc", "", "加密私钥文件，口令取环境变量 UPDATE_KEY_PASSPHRASE")
+	keyFile := fs.String("key-file", "", "私钥文件；为空时读环境变量 UPDATE_SIGN_KEY")
 	_ = fs.Parse(args)
 
 	keyText := os.Getenv("UPDATE_SIGN_KEY")
-	switch {
-	case *keyEnc != "":
-		b, err := os.ReadFile(*keyEnc)
-		if err != nil {
-			return err
-		}
-		pass, err := readPassphrase()
-		if err != nil {
-			return err
-		}
-		if keyText, err = decryptKeyText(string(b), pass); err != nil {
-			return err
-		}
-	case *keyFile != "":
+	if *keyFile != "" {
 		b, err := os.ReadFile(*keyFile)
 		if err != nil {
 			return err
@@ -187,7 +171,7 @@ func cmdSign(args []string) error {
 		keyText = string(b)
 	}
 	if strings.TrimSpace(keyText) == "" {
-		return errors.New("未提供私钥（-key-enc、-key-file 或 UPDATE_SIGN_KEY）")
+		return errors.New("未提供私钥（-key-file 或环境变量 UPDATE_SIGN_KEY）")
 	}
 	priv, err := updater.DecodePrivateKey(keyText)
 	if err != nil {

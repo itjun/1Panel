@@ -104,7 +104,6 @@ internal/iperfres/bin/iperf3-*
 internal/iperfres/bin/win64/
 /diteng-pannel.exe
 
-# 应用内更新签名私钥：只允许提交加密版 release/update_sign.key.enc
+# 应用内更新签名私钥：只放发布者本机与 GitHub Secret，禁止进仓库
 *.key
-!release/update_sign.key.enc
 update_sign.key

@@ -171,8 +171,8 @@ jobs:
     env:
       VERSION: ${{ github.ref_name }}
       UPDATE_BASE_URL: ${{ vars.UPDATE_BASE_URL }}
-      # 签名私钥加密存放在 release/update_sign.key.enc，CI 用该口令解密
-      UPDATE_KEY_PASSPHRASE: ${{ secrets.UPDATE_KEY_PASSPHRASE }}
+      # 清单签名私钥（ed25519 种子 base64），原件在发布者本机，不进仓库
+      UPDATE_SIGN_KEY: ${{ secrets.UPDATE_SIGN_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -190,14 +190,14 @@ jobs:
           generate_release_notes: true
 
       # ===== 应用内更新：生成签名清单并上传 S3 兼容存储 =====
-      # 未配置 UPDATE_BASE_URL / UPDATE_KEY_PASSPHRASE 时整段跳过，不影响 GitHub Release。
+      # 未配置 UPDATE_BASE_URL / UPDATE_SIGN_KEY 时整段跳过，不影响 GitHub Release。
       - uses: actions/setup-go@v5
-        if: env.UPDATE_BASE_URL != '' && env.UPDATE_KEY_PASSPHRASE != ''
+        if: env.UPDATE_BASE_URL != '' && env.UPDATE_SIGN_KEY != ''
         with:
           go-version: "1.26"
 
       - name: Build signed update manifest
-        if: env.UPDATE_BASE_URL != '' && env.UPDATE_KEY_PASSPHRASE != ''
+        if: env.UPDATE_BASE_URL != '' && env.UPDATE_SIGN_KEY != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -218,13 +218,13 @@ jobs:
             -asset "windows-amd64=upload/$VERSION/$(basename "$WIN_ZIP")" \
             -asset "linux-amd64=upload/$VERSION/$(basename "$LINUX_TGZ")" \
             -out upload/latest.json
-          go run ./cmd/releasetool sign -key-enc release/update_sign.key.enc -in upload/latest.json -out upload/latest.json.sig
-          # 用客户端内置公钥再校验一遍，防止加密私钥与代码里的公钥不配对
+          go run ./cmd/releasetool sign -in upload/latest.json -out upload/latest.json.sig
+          # 用客户端内置公钥再校验一遍，防止 Secret 里的私钥与代码里的公钥不配对
           go run ./cmd/releasetool verify -in upload/latest.json -sig upload/latest.json.sig
           cat upload/latest.json
 
       - name: Upload to S3
-        if: env.UPDATE_BASE_URL != '' && env.UPDATE_KEY_PASSPHRASE != ''
+        if: env.UPDATE_BASE_URL != '' && env.UPDATE_SIGN_KEY != ''
         shell: bash
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}

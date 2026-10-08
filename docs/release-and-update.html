@@ -154,17 +154,30 @@ flowchart LR
   <section id="prepare">
     <h2><span class="no">2</span>一次性准备（只需做一次）</h2>
     <h3>签名密钥</h3>
-    <p>公钥内置在 <code>internal/updater/pubkey.go</code>。私钥以 <b>scrypt + AES-256-GCM 加密</b>后提交在仓库的 <code>release/update_sign.key.enc</code>，CI 用 Secret 里的口令解密后签名。明文私钥与口令只在本机 <code>~/.config/1panel-release/</code>（权限 0600），<code>.gitignore</code> 会拦住明文私钥被误提交。把口令上传到 GitHub Secret：</p>
-    <pre><code>gh secret set UPDATE_KEY_PASSPHRASE -R itjun/1Panel &lt; ~/.config/1panel-release/passphrase</code></pre>
-    <div class="note warn">口令务必另外备份（如密码管理器）。仓库里只有密文，丢了口令等于丢了私钥：已安装的客户端将无法验签新清单，只能让所有用户手动重装一个内置新公钥的版本。口令一旦泄露，任何能读仓库的人都能签发更新，需立即换钥。</div>
-    <pre><code><span class="c"># 换口令：用新口令重新加密，再更新 Secret</span>
-UPDATE_KEY_PASSPHRASE='新口令' go run ./cmd/releasetool encrypt-key \
-  -in ~/.config/1panel-release/update_sign.key -out release/update_sign.key.enc</code></pre>
+    <p>采用与 Tauri / electron-updater 相同的常规做法：<b>公钥进代码，私钥不进仓库</b>。</p>
+    <table>
+      <tr><th style="width:28%">位置</th><th>内容与用途</th></tr>
+      <tr><td><code>internal/updater/pubkey.go</code></td><td>ed25519 公钥（base64），随客户端发布，用于验签清单</td></tr>
+      <tr><td><code>~/.config/1panel-release/update_sign.key</code></td><td>私钥原件（ed25519 种子 base64），目录 0700、文件 0600；本机签名用</td></tr>
+      <tr><td>GitHub Secret <code>UPDATE_SIGN_KEY</code></td><td>私钥副本，CI 签名用</td></tr>
+      <tr><td>私有仓库 <code>itjun/itjun-config</code> 的 <code>1Panel/</code></td><td>私钥与公钥备份，附恢复说明</td></tr>
+    </table>
+    <p><code>.gitignore</code> 忽略 <code>*.key</code>，防止私钥被误提交到源码仓库。首次配置或换机后，把私钥写入 GitHub Secret：</p>
+    <pre><code>gh secret set UPDATE_SIGN_KEY -R itjun/1Panel &lt; ~/.config/1panel-release/update_sign.key</code></pre>
+    <pre><code><span class="c"># 换机：从备份仓库恢复私钥到本机</span>
+mkdir -p -m 700 ~/.config/1panel-release
+cp ~/iLearn/itjun-config/1Panel/update_sign.key ~/.config/1panel-release/
+chmod 600 ~/.config/1panel-release/update_sign.key
+
+<span class="c"># 自检：输出的公钥必须与 pubkey.go 一致</span>
+echo test &gt; /tmp/t &amp;&amp; go run ./cmd/releasetool sign \
+  -key-file ~/.config/1panel-release/update_sign.key -in /tmp/t -out /tmp/t.sig</code></pre>
+    <div class="note warn">私钥丢失：已安装的客户端将无法验签新清单，只能让所有用户手动重装一个内置新公钥的版本，因此必须保留备份。私钥泄露：任何人都能签发「更新」，需立即用 <code>releasetool keygen</code> 换钥，先发一个内置新公钥的版本，再改用新私钥签名，并同步更新本机、Secret 与备份仓库。</div>
 
     <h3>GitHub 仓库配置（Settings → Secrets and variables → Actions）</h3>
     <table>
       <tr><th style="width:28%">名称</th><th style="width:14%">类型</th><th>说明</th></tr>
-      <tr><td><code>UPDATE_KEY_PASSPHRASE</code></td><td>Secret</td><td>解密 <code>release/update_sign.key.enc</code> 的口令</td></tr>
+      <tr><td><code>UPDATE_SIGN_KEY</code></td><td>Secret</td><td>清单签名私钥，内容即 <code>update_sign.key</code> 文件</td></tr>
       <tr><td><code>S3_ENDPOINT</code></td><td>Secret</td><td>S3 兼容端点，如 <code>https://oss-cn-hangzhou.aliyuncs.com</code></td></tr>
       <tr><td><code>S3_BUCKET</code></td><td>Secret</td><td>存储桶名</td></tr>
       <tr><td><code>S3_ACCESS_KEY_ID</code> / <code>S3_SECRET_ACCESS_KEY</code></td><td>Secret</td><td>有写权限的访问密钥</td></tr>
@@ -173,7 +186,7 @@ UPDATE_KEY_PASSPHRASE='新口令' go run ./cmd/releasetool encrypt-key \
       <tr><td><code>S3_PREFIX</code></td><td>Variable（可选）</td><td>桶内目录前缀，需与 <code>UPDATE_BASE_URL</code> 对应</td></tr>
       <tr><td><code>S3_ADDRESSING_STYLE</code></td><td>Variable（可选）</td><td>阿里云 OSS 设为 <code>virtual</code></td></tr>
     </table>
-    <p>未配置 <code>UPDATE_BASE_URL</code> 或 <code>UPDATE_KEY_PASSPHRASE</code> 时，CI 跳过清单和上传，照常发 GitHub Release；客户端显示「此构建未配置更新源」，不检查更新。</p>
+    <p>未配置 <code>UPDATE_BASE_URL</code> 或 <code>UPDATE_SIGN_KEY</code> 时，CI 跳过清单和上传，照常发 GitHub Release；客户端显示「此构建未配置更新源」，不检查更新。</p>
   </section>
 
   <section id="release">
@@ -221,10 +234,10 @@ flowchart TB
   l3 --> r1
   subgraph job3 [Job release on ubuntu-latest]
     r1["下载三个产物"] --> r2["发布 GitHub Release"]
-    r2 --> r3{"配置了 UPDATE_BASE_URL 和 UPDATE_KEY_PASSPHRASE?"}
+    r2 --> r3{"配置了 UPDATE_BASE_URL 和 UPDATE_SIGN_KEY?"}
     r3 -->|否| skip["跳过更新源上传"]
     r3 -->|是| r4["releasetool manifest 计算 sha256 生成 latest.json"]
-    r4 --> r5["口令解密仓库内私钥 releasetool sign → latest.json.sig"]
+    r4 --> r5["Secret 私钥 releasetool sign → latest.json.sig"]
     r5 --> r6["releasetool verify 用内置公钥复核"]
     r6 --> r7["aws s3 cp 先传安装包"]
     r7 --> r8["最后覆盖 latest.json 与 .sig"]
@@ -438,7 +451,7 @@ ONEPANEL_UPDATE_BASE_URL=http://127.0.0.1:18765 ONEPANEL_UPDATE_CURRENT_VERSION=
       <tr><td>关于页显示「此构建未配置更新源」</td><td>构建时没有 <code>UPDATE_BASE_URL</code>（本地 <code>build.py</code> 默认如此）。发布构建由 CI 注入。</td></tr>
       <tr><td>关于页显示「开发构建无法比较版本」</td><td>版本号不是合法 semver（如只有提交短 SHA），先打 tag 再构建。</td></tr>
       <tr><td>CI 第一步「Check agent version committed」失败</td><td>agent 源码改了但没提交新的 <code>VERSION</code> / <code>SOURCE.sha256</code>，本地跑 <code>task agent:build</code> 后提交。</td></tr>
-      <tr><td>CI「releasetool verify」失败</td><td>口令错误（「无法解密私钥」），或 <code>release/update_sign.key.enc</code> 与 <code>pubkey.go</code> 中的公钥不配对。</td></tr>
+      <tr><td>CI「releasetool verify」失败</td><td>Secret <code>UPDATE_SIGN_KEY</code> 与 <code>pubkey.go</code> 中的公钥不配对（写错了 Secret 或换钥只换了一半），按「签名密钥」一节重新写入 Secret。</td></tr>
       <tr><td>客户端检查失败「清单签名校验失败」</td><td>清单和签名不是同一次生成，或上传过程中只更新了其中一个；重新跑一次发版的上传步骤。</td></tr>
       <tr><td>更新时提示「已取消管理员授权」</td><td>macOS 的 <code>.app</code> 所在目录当前用户不可写，需要在授权框输入管理员密码。</td></tr>
     </table>
