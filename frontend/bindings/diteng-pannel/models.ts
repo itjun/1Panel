@@ -647,6 +647,16 @@ export interface UpdateState {
     "lastChecked": string;
 
     /**
+     * ReleaseURL 发布页地址；连不上更新源时引导用户手动下载。
+     */
+    "releaseUrl": string;
+
+    /**
+     * CheckFailed 上次自动检查连不上更新源（网络错误）；恢复成功后清除。
+     */
+    "checkFailed": boolean;
+
+    /**
      * Prompt 后端判定应主动弹窗（强制更新，或未被跳过 / 推迟的可选更新）。
      */
     "prompt": boolean;

@@ -5,15 +5,17 @@ import type { main } from "@/api";
 
 /*
   应用内更新状态：后端 update-state 事件推全量快照，这里镜像一份供弹窗与「关于」页共用。
-  update-available / update-show（点系统通知）以及启动时的 prompt 标记负责打开弹窗。
+  update-available / update-show（点系统通知）以及启动时的 prompt 标记负责打开弹窗；
+  update-check-failed（连不上更新源）打开手动下载引导弹窗。
 */
 
 type Snapshot = {
   state: main.UpdateState | null;
   dialogOpen: boolean;
+  failOpen: boolean;
 };
 
-let current: Snapshot = { state: null, dialogOpen: false };
+let current: Snapshot = { state: null, dialogOpen: false, failOpen: false };
 const listeners = new Set<() => void>();
 
 function publish(next: Partial<Snapshot>) {
@@ -53,6 +55,16 @@ export function closeUpdateDialog() {
   publish({ dialogOpen: false });
 }
 
+/** 连不上更新源的引导弹窗；已有可安装更新时不抢新版本弹窗。 */
+export function openCheckFailDialog() {
+  const s = current.state;
+  if (s && !s.hasUpdate && s.checkFailed) publish({ failOpen: true });
+}
+
+export function closeCheckFailDialog() {
+  publish({ failOpen: false });
+}
+
 /** 挂在应用根部调用一次，返回卸载函数。 */
 export function initializeAppUpdate(): () => void {
   const offs = [
@@ -63,10 +75,15 @@ export function initializeAppUpdate(): () => void {
       if (ev?.data) setUpdateState(ev.data);
       openUpdateDialog();
     }),
+    Events.On("update-check-failed", (ev: { data?: main.UpdateState }) => {
+      if (ev?.data) setUpdateState(ev.data);
+      openCheckFailDialog();
+    }),
     Events.On("update-show", () => {
       void api.getUpdateState().then((state) => {
         setUpdateState(state);
-        openUpdateDialog();
+        if (state.hasUpdate) openUpdateDialog();
+        else openCheckFailDialog();
       });
     }),
   ];

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand/v2"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,8 +24,8 @@ const (
 	updateFirstCheckDelay = 10 * time.Second
 	updateCheckInterval   = 6 * time.Hour
 	updateCheckJitter     = 10 * time.Minute
-	updateRemindLater     = 24 * time.Hour
-	updateFetchTimeout    = 20 * time.Second
+	updateRemindLater  = 24 * time.Hour
+	updateFetchTimeout = 20 * time.Second
 )
 
 // 更新状态机：idle → checking → idle；idle → downloading → installing →（重启）；任一步失败 → error。
@@ -57,6 +58,10 @@ type UpdateState struct {
 	Total          int64  `json:"total"`
 	Error          string `json:"error"`
 	LastChecked    string `json:"lastChecked"`
+	// ReleaseURL 发布页地址；连不上更新源时引导用户手动下载。
+	ReleaseURL string `json:"releaseUrl"`
+	// CheckFailed 上次自动检查连不上更新源（网络错误）；恢复成功后清除。
+	CheckFailed bool `json:"checkFailed"`
 	// Prompt 后端判定应主动弹窗（强制更新，或未被跳过 / 推迟的可选更新）。
 	Prompt         bool   `json:"prompt"`
 	AutoCheck      bool   `json:"autoCheck"`
@@ -82,6 +87,9 @@ type updateController struct {
 	manifest *updater.Manifest
 	cancel   context.CancelFunc
 	started  bool
+
+	// netFailNotified 本次运行内连不上更新源已提示过，避免每轮轮询都打扰
+	netFailNotified bool
 }
 
 func updateDir() string {
@@ -117,6 +125,7 @@ func newUpdateController(a *App) *updateController {
 		Status:         updateIdle,
 		AutoCheck:      c.prefs.AutoCheck,
 		SkippedVersion: c.prefs.SkippedVersion,
+		ReleaseURL:     strings.TrimSuffix(baseURL, "/download"),
 	}
 	switch supported, reason := updater.Supported(); {
 	case baseURL == "":
@@ -271,12 +280,28 @@ func (c *updateController) check(manual bool) (UpdateState, error) {
 		if manual {
 			c.state.Error = err.Error()
 		}
+		// 连不上更新源：记录在状态里（设置页展示），并按需引导手动下载
+		unreachable := !manual && isFetchUnreachable(err)
+		if unreachable {
+			c.state.Error = err.Error()
+			c.state.CheckFailed = true
+		}
+		// 同一次运行内只对「连不上」弹一次引导，之后的轮询失败保持静默
+		notifyFail := unreachable && !c.netFailNotified
+		if notifyFail {
+			c.netFailNotified = true
+		}
 		st := c.state
 		c.mu.Unlock()
 		c.emitState()
+		if notifyFail {
+			c.announceCheckFailed(st)
+		}
 		return st, err
 	}
 	c.state.Error = ""
+	c.state.CheckFailed = false
+	c.netFailNotified = false
 	c.state.LastChecked = time.Now().Format(time.RFC3339)
 	c.applyManifestLocked(m)
 	prompt := false
@@ -320,6 +345,33 @@ func (c *updateController) announce() {
 		EventID: "update-" + st.Latest,
 		Kind:    "update",
 	})
+}
+
+// announceCheckFailed 连不上更新源时引导用户去发布页手动下载。
+// 主窗口不可见时补系统通知（点击走 kind=update 的 update-show 路径）。
+func (c *updateController) announceCheckFailed(st UpdateState) {
+	if app := c.app.app; app != nil {
+		app.Event.Emit("update-check-failed", st)
+	}
+	if c.mainWindowVisible() {
+		return
+	}
+	_ = desktop.Notify(desktop.Payload{
+		Title:   "无法检查应用更新",
+		Body:    "连接更新服务器失败，可到发布页手动下载新版本。",
+		EventID: "update-check-failed",
+		Kind:    "update",
+	})
+}
+
+// isFetchUnreachable 判定失败是否属于「连不上更新源」（超时 / 连接失败 / DNS
+// 等网络错误）。HTTP 状态码异常或验签失败是源配置问题，不引导手动下载。
+func isFetchUnreachable(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 func (c *updateController) mainWindowVisible() bool {

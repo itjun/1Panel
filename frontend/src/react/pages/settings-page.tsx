@@ -469,9 +469,11 @@ function UpdateSettingRows() {
     else if (state.status === "error") hint = `更新失败：${state.error}`;
     else if (state.hasUpdate)
       hint = `发现新版本 ${state.latest}${state.mandatory ? "（必须更新）" : ""}`;
+    else if (state.checkFailed) hint = `检查失败：${state.error || "连不上更新源"}`;
     else if (state.lastChecked) hint = `已是最新版本 · 上次检查 ${formatCheckTime(state.lastChecked)}`;
     else hint = "尚未检查";
   }
+  const checkFailed = !!state?.enabled && (!!checkError || !!state?.checkFailed);
 
   return (
     <>
@@ -479,6 +481,11 @@ function UpdateSettingRows() {
         {state?.hasUpdate ? (
           <Button size="sm" variant="primary" onClick={openUpdateDialog}>
             查看 {state.latest}
+          </Button>
+        ) : null}
+        {checkFailed && state?.releaseUrl ? (
+          <Button size="sm" onClick={() => void api.openExternalURL(state.releaseUrl)}>
+            打开发布页
           </Button>
         ) : null}
         <Button

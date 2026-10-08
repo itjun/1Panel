@@ -8,7 +8,7 @@ import { useToolbarDoubleClickMaximize, WindowChrome, WindowControls } from "@/r
 import { ModuleRail } from "@/react/components/module-rail";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
 import { DialogHost } from "@/react/components/ui/confirm-dialog";
-import { UpdateDialog } from "@/react/components/update-dialog";
+import { UpdateCheckFailDialog, UpdateDialog } from "@/react/components/update-dialog";
 import { detectAppOs } from "@/react/lib/platform";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { ConfigCenterPage } from "@/react/pages/config-center";
@@ -227,6 +227,7 @@ function Shell() {
       </div>
       <DialogHost />
       <UpdateDialog />
+      <UpdateCheckFailDialog />
     </div>
   );
 }

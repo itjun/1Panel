@@ -11,7 +11,12 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
-import { closeUpdateDialog, initializeAppUpdate, useAppUpdate } from "@/react/state/app-update";
+import {
+  closeCheckFailDialog,
+  closeUpdateDialog,
+  initializeAppUpdate,
+  useAppUpdate,
+} from "@/react/state/app-update";
 import { formatBytes, formatErr } from "@/utils/format";
 
 /*
@@ -140,6 +145,52 @@ export function UpdateDialog() {
               </Button>
             </>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/*
+  更新检查失败弹窗：连不上更新源时引导用户打开发布页手动下载。
+  后端一次运行只发一次 update-check-failed，不会随 6 小时轮询反复打扰。
+*/
+export function UpdateCheckFailDialog() {
+  const { state, failOpen } = useAppUpdate();
+  const open = failOpen && !!state?.checkFailed && !state.hasUpdate;
+  if (!state || !open) return null;
+
+  return (
+    <Dialog open onOpenChange={(next) => {
+      if (!next) closeCheckFailDialog();
+    }}>
+      <DialogContent className="w-[min(460px,calc(100vw-32px))]">
+        <DialogTitle>无法检查应用更新</DialogTitle>
+        <DialogDescription className="mt-1 text-sm text-muted">
+          连接更新服务器失败，暂时无法确认是否有新版本。
+        </DialogDescription>
+
+        {state.error ? (
+          <div className="mt-4">
+            <Notice tone="error" text={state.error} />
+          </div>
+        ) : null}
+
+        <div className="mt-4 text-sm text-ink">
+          可以打开发布页，用系统浏览器手动下载最新版本的安装包。
+        </div>
+
+        <DialogFooter>
+          <Button onClick={closeCheckFailDialog}>关闭</Button>
+          {state.releaseUrl ? (
+            <Button
+              variant="primary"
+              autoFocus
+              onClick={() => void api.openExternalURL(state.releaseUrl)}
+            >
+              打开发布页
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
