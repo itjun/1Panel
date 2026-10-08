@@ -155,3 +155,9 @@ scp scripts/bootstrap-zsh.sh user@host:/tmp/ && ssh user@host 'bash /tmp/bootstr
 # 直接远程拉起（脚本本身不落地）
 ssh user@host 'bash -s' < scripts/bootstrap-zsh.sh
 ```
+
+## 致谢
+
+本项目的灵感来自 [1Panel](https://1panel.cn/)——一款优秀的开源 Linux 服务器运维管理面板。
+
+感谢 1Panel 团队和社区的开源贡献，为本项目带来了大量启发。
