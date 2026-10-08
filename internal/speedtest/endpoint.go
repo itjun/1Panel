@@ -157,7 +157,7 @@ func (r *remoteEP) upload(bin []byte) error {
 }
 
 func (r *remoteEP) addrs(ctx context.Context) ([]Addr, error) {
-	out, err := r.run(`ip -o -4 addr show 2>/dev/null; echo "=EGRESS="; `+egressScript, 15*time.Second)
+	out, err := r.run(`ip -o -4 addr show 2>/dev/null; echo "=SPEED="; `+sysSpeedScript+`; echo "=EGRESS="; `+egressScript, 15*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("%s：读取网卡失败：%v", r.host, err)
 	}
@@ -167,7 +167,12 @@ func (r *remoteEP) addrs(ctx context.Context) ([]Addr, error) {
 		egress = parseEgress(text[i:])
 		text = text[:i]
 	}
-	addrs := parseIPAddr(text)
+	var speeds map[string]int
+	if i := strings.Index(text, "=SPEED="); i >= 0 {
+		speeds = parseSysSpeeds(text[i:])
+		text = text[:i]
+	}
+	addrs := applySpeeds(parseIPAddr(text), speeds)
 	addrs = addHostName(addrs, resolveHost(ctx, r.opt.HostName, r.host))
 	return addEgress(addrs, egress), nil
 }
@@ -333,7 +338,7 @@ func (l *localEP) provision(ctx context.Context) error {
 }
 
 func (l *localEP) addrs(ctx context.Context) ([]Addr, error) {
-	return addEgress(localAddrs(), localEgress(ctx)), nil
+	return addEgress(applySpeeds(localAddrs(), localSpeeds(ctx)), localEgress(ctx)), nil
 }
 
 var localEgressCache struct {

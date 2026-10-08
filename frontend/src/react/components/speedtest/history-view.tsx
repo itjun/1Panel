@@ -14,6 +14,8 @@ import { MatrixGrid, PairDetail, StarTable } from "./group-results";
 import { LiveChart, StatStrip } from "./live-chart";
 import { PHASE_LABEL, Section, phaseTone } from "./pair-view";
 import { useSpeedtestRun } from "./store";
+import { evaluate } from "./verdict";
+import { VerdictPanel } from "./verdict-panel";
 
 const KIND_LABEL: Record<string, string> = { pair: "两机", star: "星型", mesh: "矩阵" };
 
@@ -38,6 +40,7 @@ function RecordDetail({ rec }: { rec: speedtest.Record }) {
 
   if (rec.kind === "pair") {
     const samples = rec.samples || [];
+    const verdict = rec.error ? null : evaluate({ summary: rec.summary, protocol, path: rec.path, params: rec.params });
     return (
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -63,6 +66,7 @@ function RecordDetail({ rec }: { rec: speedtest.Record }) {
           ) : null}
         </div>
         {rec.error ? <p className="text-sm text-danger">{rec.error}</p> : null}
+        {verdict ? <VerdictPanel verdict={verdict} /> : null}
         <StatStrip samples={samples} summary={rec.summary} protocol={protocol} fallbackRtt={rec.path?.rttMs} />
         {samples.length ? <LiveChart samples={samples} height={240} /> : null}
       </div>
@@ -79,11 +83,11 @@ function RecordDetail({ rec }: { rec: speedtest.Record }) {
         {paramsText(rec.params)}
       </div>
       {rec.kind === "star" ? (
-        <StarTable pairs={pairs} protocol={protocol} activeIndex={picked} onPick={setPicked} />
+        <StarTable pairs={pairs} protocol={protocol} params={rec.params} activeIndex={picked} onPick={setPicked} />
       ) : (
-        <MatrixGrid hosts={hosts} pairs={pairs} activeIndex={picked} onPick={setPicked} />
+        <MatrixGrid hosts={hosts} pairs={pairs} protocol={protocol} params={rec.params} activeIndex={picked} onPick={setPicked} />
       )}
-      {active ? <PairDetail pair={active} samples={active.samples || []} protocol={protocol} /> : null}
+      {active ? <PairDetail pair={active} samples={active.samples || []} protocol={protocol} params={rec.params} /> : null}
     </div>
   );
 }

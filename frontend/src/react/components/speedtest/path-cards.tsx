@@ -1,7 +1,7 @@
 import type { speedtest } from "@/api";
 import { Tag } from "@/react/components/ui/tag";
 import { cn } from "@/react/lib/utils";
-import { RELATION_LABEL, addrText, endpointLabel, formatMs } from "./format";
+import { RELATION_LABEL, addrText, endpointLabel, formatMs, linkSidesText, linkSpeedText } from "./format";
 
 /** 状态灯：可用 success，不可用 line-strong（不亮） */
 export function StatusLed({ on, className }: { on: boolean; className?: string }) {
@@ -103,6 +103,11 @@ function PathCard({
                   <span className={cn("min-w-0 flex-1 truncate", c.ok ? "text-ink" : "text-muted")}>
                     {candidateTitle(c, report)}
                   </span>
+                  {c.linkMbps ? (
+                    <span className="shrink-0 text-muted tabular-nums" data-tip={`两端网卡协商速率：${linkSidesText(c)}`}>
+                      上限 {linkSpeedText(c.linkMbps)}
+                    </span>
+                  ) : null}
                   <span className="shrink-0 text-muted tabular-nums">
                     {c.ok ? formatMs(c.rttMs) : c.probed ? "不通" : "未探测"}
                   </span>
@@ -131,8 +136,13 @@ function EndpointSegments({ view, side }: { view: speedtest.EndpointView; side: 
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {addrs.map((a) => (
-            <Tag key={`${a.source}-${a.ip}`} tone={a.kind === "wan" ? "warn" : a.kind === "overlay" ? "info" : "neutral"} title={`${a.iface || a.source}`}>
+            <Tag
+              key={`${a.source}-${a.ip}`}
+              tone={a.kind === "wan" ? "warn" : a.kind === "overlay" ? "info" : "neutral"}
+              title={a.speedMbps ? `${a.iface} · 协商速率 ${a.speedMbps} Mbps` : `${a.iface || a.source}`}
+            >
               <span className="font-mono">{addrText(a)}</span>
+              {a.speedMbps ? <span className="tabular-nums"> · {linkSpeedText(a.speedMbps)}</span> : null}
             </Tag>
           ))}
         </div>

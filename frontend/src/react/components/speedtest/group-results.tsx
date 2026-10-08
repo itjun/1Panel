@@ -4,6 +4,8 @@ import { Tag } from "@/react/components/ui/tag";
 import { cn } from "@/react/lib/utils";
 import { RELATION_LABEL, formatBps, formatMs } from "./format";
 import { LiveChart, StatStrip } from "./live-chart";
+import { evaluate } from "./verdict";
+import { GRADE_TEXT as GRADE_CELL_TEXT, GradeTag, VerdictPanel } from "./verdict-panel";
 
 const PAIR_STATUS: Record<string, { label: string; tone: "neutral" | "ok" | "warn" | "danger" | "accent" }> = {
   pending: { label: "等待", tone: "neutral" },
@@ -20,6 +22,10 @@ export function PairStatusTag({ status }: { status: string }) {
   return <Tag tone={s.tone}>{s.label}</Tag>;
 }
 
+function pairVerdict(p: speedtest.PairResult, protocol: string, params?: speedtest.Params | null) {
+  return p.status === "done" ? evaluate({ summary: p.summary, protocol, path: p.path, params }) : null;
+}
+
 function pathText(p?: speedtest.Candidate | null) {
   if (!p) return "—";
   return `${RELATION_LABEL[p.relation] || p.relation} ${p.target.ip}`;
@@ -29,23 +35,25 @@ function pathText(p?: speedtest.Candidate | null) {
 export function StarTable({
   pairs,
   protocol,
+  params,
   activeIndex,
   onPick,
 }: {
   pairs: speedtest.PairResult[];
   protocol: string;
+  params?: speedtest.Params | null;
   activeIndex: number;
   onPick: (index: number) => void;
 }) {
   const udp = protocol === "udp";
-  const head = ["主机", "状态", "路径", "中心→主机", "主机→中心", "RTT", udp ? "抖动 / 丢包" : "重传", "说明"];
+  const head = ["主机", "状态", "评价", "路径", "中心→主机", "主机→中心", "RTT", udp ? "抖动 / 丢包" : "重传", "说明"];
   return (
     <div className="surface-float overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
           <tr className="h-table-head border-b border-line">
             {head.map((h, i) => (
-              <th key={h} className={cn("px-3 font-normal", i >= 3 && i <= 6 && "text-right")}>
+              <th key={h} className={cn("px-3 font-normal", i >= 4 && i <= 7 && "text-right")}>
                 {h === "中心→主机" ? (
                   <span className="inline-flex items-center gap-1.5">
                     <span aria-hidden className="h-0.5 w-3 bg-io-write" />
@@ -79,6 +87,9 @@ export function StarTable({
                 <td className="px-3">
                   <PairStatusTag status={p.status} />
                 </td>
+                <td className="px-3">
+                  <GradeTag verdict={pairVerdict(p, protocol, params)} />
+                </td>
                 <td className="max-w-[220px] truncate px-3 font-mono text-xs">{pathText(p.path)}</td>
                 <td className="px-3 text-right tabular-nums">{formatBps(s?.ab)}</td>
                 <td className="px-3 text-right tabular-nums">{formatBps(s?.ba)}</td>
@@ -105,11 +116,15 @@ export function StarTable({
 export function MatrixGrid({
   hosts,
   pairs,
+  protocol,
+  params,
   activeIndex,
   onPick,
 }: {
   hosts: string[];
   pairs: speedtest.PairResult[];
+  protocol: string;
+  params?: speedtest.Params | null;
   activeIndex: number;
   onPick: (index: number) => void;
 }) {
@@ -152,7 +167,17 @@ export function MatrixGrid({
                 const p = i === undefined ? undefined : pairs[i];
                 const v = p?.summary?.ab || 0;
                 let body: ReactNode = "—";
-                if (p?.status === "done") body = formatBps(v);
+                const verdict = p ? pairVerdict(p, protocol, params) : null;
+                if (p?.status === "done") {
+                  body = (
+                    <span className="flex flex-col items-center gap-0.5">
+                      <span>{formatBps(v)}</span>
+                      {verdict ? (
+                        <span className={cn("text-xs font-normal", GRADE_CELL_TEXT[verdict.grade])}>{verdict.label}</span>
+                      ) : null}
+                    </span>
+                  );
+                }
                 else if (p?.status === "running" || p?.status === "probe") body = "测速中…";
                 else if (p?.status === "failed") body = <span className="text-danger">失败</span>;
                 else if (p?.status === "nolan") body = "内网不通";
@@ -185,13 +210,16 @@ export function PairDetail({
   pair,
   samples,
   protocol,
+  params,
   title,
 }: {
   pair: speedtest.PairResult;
   samples: speedtest.Sample[];
   protocol: string;
+  params?: speedtest.Params | null;
   title?: string;
 }) {
+  const verdict = pairVerdict(pair, protocol, params);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -202,6 +230,7 @@ export function PairDetail({
       {pair.reason ? <p className="text-sm text-muted">{pair.reason}</p> : null}
       {samples.length || pair.summary ? (
         <>
+          {verdict ? <VerdictPanel verdict={verdict} /> : null}
           <StatStrip samples={samples} summary={pair.summary} protocol={protocol} fallbackRtt={pair.path?.rttMs} />
           {samples.length ? <LiveChart samples={samples} height={220} /> : null}
         </>

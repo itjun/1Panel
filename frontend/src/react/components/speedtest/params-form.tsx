@@ -38,11 +38,13 @@ export function ParamsForm({
   onChange,
   disabled = false,
   fixedDirection,
+  bandwidthExtra,
 }: {
   value: speedtest.Params;
   onChange: (next: speedtest.Params) => void;
   disabled?: boolean;
   fixedDirection?: string;
+  bandwidthExtra?: ReactNode;
 }) {
   const [advanced, setAdvanced] = useState(false);
   const set = <K extends keyof speedtest.Params>(key: K, v: speedtest.Params[K]) => onChange({ ...value, [key]: v });
@@ -94,6 +96,7 @@ export function ParamsForm({
               onCommit={(v) => set("udpBandwidthMbps", v)}
             />
             <span className="text-sm text-muted">Mbps</span>
+            {bandwidthExtra}
           </Row>
         ) : null}
       </div>

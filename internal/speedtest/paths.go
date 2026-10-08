@@ -40,6 +40,8 @@ type Candidate struct {
 	OK         bool    `json:"ok"`
 	RTTMs      float64 `json:"rttMs"`
 	Reason     string  `json:"reason,omitempty"`
+	// LinkMbps 局域网链路上限：两端网卡协商速率的较小者，0 表示未知
+	LinkMbps int `json:"linkMbps,omitempty"`
 }
 
 // EndpointView 一侧端点的地址视图
@@ -128,6 +130,11 @@ func BuildCandidates(a, b EndpointView) []Candidate {
 					continue
 				}
 			}
+			cs := 0
+			if c.ClientAddr != nil {
+				cs = c.ClientAddr.SpeedMbps
+			}
+			c.LinkMbps = linkMbps(t.SpeedMbps, cs)
 			add(c)
 		}
 	}

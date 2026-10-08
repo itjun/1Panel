@@ -28,6 +28,8 @@ type Addr struct {
 	Iface  string `json:"iface,omitempty"`
 	Kind   string `json:"kind"`
 	Source string `json:"source"`
+	// SpeedMbps 网卡协商速率；0 表示未知（无线、虚拟网卡、HostName / 出口 IP 等）
+	SpeedMbps int `json:"speedMbps,omitempty"`
 }
 
 // CIDR 展示用：有网段时带 /prefix

@@ -47,6 +47,21 @@ export function addrText(a: speedtest.Addr | null | undefined): string {
   return a.prefix > 0 ? `${a.ip}/${a.prefix}` : a.ip;
 }
 
+/** 网卡协商速率：1000 → 1G，2500 → 2.5G，100 → 100M；未知为空串 */
+export function linkSpeedText(mbps: number | undefined): string {
+  const v = Number(mbps) || 0;
+  if (v <= 0) return "";
+  return v >= 1000 ? `${+(v / 1000).toFixed(1)}G` : `${v}M`;
+}
+
+/** 候选路径两端网卡速率：A 1G · B 2.5G（未知一端写「未知」） */
+export function linkSidesText(c: speedtest.Candidate): string {
+  const server = linkSpeedText(c.target.speedMbps) || "未知";
+  const client = linkSpeedText(c.clientAddr?.speedMbps) || "未知";
+  const [a, b] = c.server === "a" ? [server, client] : [client, server];
+  return `A ${a} · B ${b}`;
+}
+
 /** 参数摘要：TCP · 4 并发 · 10 秒 · 正向 */
 export function paramsText(p: speedtest.Params): string {
   const parts = [
@@ -74,14 +89,16 @@ export function summaryText(opts: {
   params: speedtest.Params;
   path?: speedtest.Candidate | null;
   summary?: speedtest.Summary | null;
+  verdict?: { label: string; headline: string; points: { text: string }[] } | null;
 }): string {
-  const { a, b, params, path, summary } = opts;
+  const { a, b, params, path, summary, verdict } = opts;
   const lines = [
     `网络测速 ${endpointLabel(a)} ⇄ ${endpointLabel(b)}`,
     `参数：${paramsText(params)}`,
   ];
   if (path) {
-    lines.push(`路径：${RELATION_LABEL[path.relation] || path.relation} ${path.target.ip}`);
+    const link = path.linkMbps ? `，链路上限 ${linkSpeedText(path.linkMbps)}（${linkSidesText(path)}）` : "";
+    lines.push(`路径：${RELATION_LABEL[path.relation] || path.relation} ${path.target.ip}${link}`);
   }
   if (summary) {
     if (summary.ab > 0) lines.push(`A→B 平均 ${formatBps(summary.ab)}，峰值 ${formatBps(summary.peakAB)}`);
@@ -92,6 +109,9 @@ export function summaryText(opts: {
     } else {
       lines.push(`重传 ${summary.retransmits}`);
     }
+  }
+  if (verdict) {
+    lines.push("", `评价：${verdict.label}，${verdict.headline}`, ...verdict.points.map((p) => `- ${p.text}`));
   }
   return lines.join("\n");
 }

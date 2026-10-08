@@ -14,6 +14,11 @@ export interface Addr {
     "iface"?: string;
     "kind": string;
     "source": string;
+
+    /**
+     * SpeedMbps 网卡协商速率；0 表示未知（无线、虚拟网卡、HostName / 出口 IP 等）
+     */
+    "speedMbps"?: number;
 }
 
 /**
@@ -49,6 +54,11 @@ export interface Candidate {
     "ok": boolean;
     "rttMs": number;
     "reason"?: string;
+
+    /**
+     * LinkMbps 局域网链路上限：两端网卡协商速率的较小者，0 表示未知
+     */
+    "linkMbps"?: number;
 }
 
 /**

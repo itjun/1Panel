@@ -10,11 +10,22 @@ import { useSession } from "@/react/state/session";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
 import { EndpointPicker } from "./endpoint-picker";
-import { LOCAL_ID, RELATION_LABEL, defaultParams, endpointLabel, paramsText, summaryText } from "./format";
+import {
+  LOCAL_ID,
+  RELATION_LABEL,
+  defaultParams,
+  endpointLabel,
+  linkSidesText,
+  linkSpeedText,
+  paramsText,
+  summaryText,
+} from "./format";
 import { LiveChart, StatStrip } from "./live-chart";
 import { ParamsForm } from "./params-form";
 import { PathCards } from "./path-cards";
 import { isFinished, speedtestStore, useSpeedtestRun } from "./store";
+import { evaluate } from "./verdict";
+import { VerdictPanel } from "./verdict-panel";
 
 const PARAMS_KEY = "ipannel.speedtest.params.v1";
 
@@ -52,7 +63,9 @@ const cache: {
   report: speedtest.PathReport | null;
   selected: speedtest.Candidate | null;
   prefillNonce: number;
-} = { a: LOCAL_ID, b: "", report: null, selected: null, prefillNonce: 0 };
+  /** 最近一次按链路上限自动填带宽的路径，切回页面时不重复覆盖手动修改 */
+  autoLinkKey: string;
+} = { a: LOCAL_ID, b: "", report: null, selected: null, prefillNonce: 0, autoLinkKey: "" };
 
 function defaultSelection(r: speedtest.PathReport): speedtest.Candidate | null {
   if (r.decision === "wan") return r.wan.best ?? null;
@@ -95,6 +108,34 @@ export function PairView() {
   useEffect(() => {
     localStorage.setItem(PARAMS_KEY, JSON.stringify(params));
   }, [params]);
+
+  const linkMbps = selected?.kind === "lan" ? selected.linkMbps || 0 : 0;
+  useEffect(() => {
+    if (!selected || !linkMbps) return;
+    const key = `${selected.server}|${selected.target.ip}|${linkMbps}`;
+    if (cache.autoLinkKey === key) return;
+    cache.autoLinkKey = key;
+    setParams((p) => ({ ...p, udpBandwidthMbps: linkMbps }));
+  }, [selected, linkMbps]);
+
+  const bandwidthExtra =
+    selected && linkMbps ? (
+      params.udpBandwidthMbps === linkMbps ? (
+        <span className="min-w-0 truncate text-xs text-muted" data-tip={linkSidesText(selected)}>
+          按链路上限 {linkSpeedText(linkMbps)} 自动填入
+        </span>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={running}
+          data-tip={linkSidesText(selected)}
+          onClick={() => setParams((p) => ({ ...p, udpBandwidthMbps: linkMbps }))}
+        >
+          按上限 {linkSpeedText(linkMbps)}
+        </Button>
+      )
+    ) : null;
 
   useEffect(() => {
     void api.speedtestActiveId().then((id) => {
@@ -169,12 +210,23 @@ export function PairView() {
   async function copyResult() {
     if (!pairRun?.params) return;
     await copyText(
-      summaryText({ a: pairRun.a || "", b: pairRun.b || "", params: pairRun.params, path: pairRun.path, summary: pairRun.summary }),
+      summaryText({
+        a: pairRun.a || "",
+        b: pairRun.b || "",
+        params: pairRun.params,
+        path: pairRun.path,
+        summary: pairRun.summary,
+        verdict: evaluate({ summary: pairRun.summary, protocol: pairRun.params.protocol, path: pairRun.path, params: pairRun.params }),
+      }),
     );
     flash.showToast("已复制测速结果");
   }
 
   const last = pairRun?.samples[pairRun.samples.length - 1];
+  const verdict =
+    pairRun?.phase === "done"
+      ? evaluate({ summary: pairRun.summary, protocol: pairRun.params?.protocol || "tcp", path: pairRun.path, params: pairRun.params })
+      : null;
   const actions = running ? (
     <Button variant="danger" onClick={stop} disabled={!run?.id}>
       <Square className="size-4" />
@@ -188,7 +240,7 @@ export function PairView() {
   );
 
   return (
-    <Page title="两机测速" actions={actions}>
+    <Page title="两机测速">
       <FlashNotices flash={flash} />
       <div className="flex flex-col gap-section">
         <Section title="端点">
@@ -216,6 +268,7 @@ export function PairView() {
               <RefreshCw className="size-4" />
               {detecting ? "识别中…" : "重新识别"}
             </Button>
+            {actions}
           </div>
         </Section>
 
@@ -230,7 +283,7 @@ export function PairView() {
         </Section>
 
         <Section title="参数">
-          <ParamsForm value={params} onChange={setParams} disabled={running} />
+          <ParamsForm value={params} onChange={setParams} disabled={running} bandwidthExtra={bandwidthExtra} />
         </Section>
 
         {pairRun ? (
@@ -266,6 +319,7 @@ export function PairView() {
             {pairRun.message && pairRun.phase !== "running" && pairRun.phase !== "done" ? (
               <p className={pairRun.phase === "failed" ? "text-sm text-danger" : "text-sm text-muted"}>{pairRun.message}</p>
             ) : null}
+            {verdict ? <VerdictPanel verdict={verdict} /> : null}
             <StatStrip
               samples={pairRun.samples}
               summary={pairRun.summary}

@@ -137,7 +137,7 @@ export function GroupView() {
   );
 
   return (
-    <Page title="分组测速" actions={actions}>
+    <Page title="分组测速">
       <FlashNotices flash={flash} />
       <div className="flex flex-col gap-section">
         <Section title="分组与方式">
@@ -182,6 +182,7 @@ export function GroupView() {
                 />
               </>
             ) : null}
+            {actions}
           </div>
           <p className="text-xs text-muted">
             {mode === "star"
@@ -233,13 +234,27 @@ export function GroupView() {
             ) : null}
             {pairs.length ? (
               groupRun.kind === "star" ? (
-                <StarTable pairs={pairs} protocol={groupRun.params?.protocol || "tcp"} activeIndex={activeIndex} onPick={setPicked} />
+                <StarTable
+                  pairs={pairs}
+                  protocol={groupRun.params?.protocol || "tcp"}
+                  params={groupRun.params}
+                  activeIndex={activeIndex} onPick={setPicked} />
               ) : (
-                <MatrixGrid hosts={runHosts} pairs={pairs} activeIndex={activeIndex} onPick={setPicked} />
+                <MatrixGrid
+                  hosts={runHosts}
+                  pairs={pairs}
+                  protocol={groupRun.params?.protocol || "tcp"}
+                  params={groupRun.params}
+                  activeIndex={activeIndex} onPick={setPicked} />
               )
             ) : null}
             {activePair ? (
-              <PairDetail pair={activePair} samples={activeSamples} protocol={groupRun.params?.protocol || "tcp"} />
+              <PairDetail
+                pair={activePair}
+                samples={activeSamples}
+                protocol={groupRun.params?.protocol || "tcp"}
+                params={groupRun.params}
+              />
             ) : null}
           </Section>
         ) : null}
