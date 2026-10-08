@@ -427,6 +427,10 @@ const apiImpl = {
   localSysNetwork: (): Promise<localsys.NetworkSnapshot> => must(LocalSys.Network()),
   /** 本机已安装软件 */
   localSysPackages: (): Promise<localsys.Package[]> => arr(LocalSys.Packages()),
+  /** 本机已安装应用本体与数据占用（较慢） */
+  localSysPackageSizes: (): Promise<localsys.PackageSize[]> => arr(LocalSys.PackageSizes()),
+  /** 本机已安装应用图标（PNG data URL，空串表示无） */
+  localSysPackageIcon: (path: string): Promise<string> => str(LocalSys.PackageIcon(path)),
   /** 本机 Nginx 配置列表 */
   localSysNginx: (): Promise<localsys.NginxInfo> => must(LocalSys.Nginx()),
   /** 本机 Nginx 配置文件内容（只读） */

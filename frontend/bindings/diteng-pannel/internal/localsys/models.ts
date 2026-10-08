@@ -231,7 +231,15 @@ export interface Overview {
  * Package 已安装软件。
  */
 export interface Package {
+    /**
+     * 显示名（macOS 应用为按系统语言本地化的名称）
+     */
     "name": string;
+
+    /**
+     * 文件名（去掉 .app），仅 macOS 应用
+     */
+    "fileName"?: string;
     "version": string;
 
     /**
@@ -239,6 +247,15 @@ export interface Package {
      */
     "source": string;
     "path": string;
+}
+
+/**
+ * PackageSize 已安装应用的本体与数据占用（按分配块计，字节）。
+ */
+export interface PackageSize {
+    "path": string;
+    "appSize": number;
+    "dataSize": number;
 }
 
 /**

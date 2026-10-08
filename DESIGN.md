@@ -468,7 +468,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 看板 | 深色专用表面 | 与石墨面共用中性色阶 |
 | 进程等超高密虚拟表 | 可低于 40px | 仅限已论证的数据密度场景，并在代码旁注释 |
 | 编辑器主题色 | CodeMirror 行号 / 当前行、Monokai 语法高亮允许硬编码 | 代码面板是独立石墨面，语法配色需与 Monokai 原色一致，不走全局 token |
-| 彩色识别图标 | 系统发行版图标（`distro-badge.tsx`，`#F4511E` 底 + 白色图形，圆角 `side × 0.26`）；SFTP 文件夹 `#4C8DFF` 实心、文件 `#F7F8FA` / `#C5CDD6` / `#E4E9EE`；服务名色点（`host-apps.tsx` `serviceNameColors`，hsl 色相跳过 70–170） | 属品牌 / 识别色，允许硬编码、允许彩色、发行版徽标与色点圆角不受 §4.3 四档限制；**不得使用绿色色相** |
+| 彩色识别图标 | 系统发行版图标（`distro-badge.tsx`，`#F4511E` 底 + 白色图形，圆角 `side × 0.26`）；SFTP 文件夹 `#4C8DFF` 实心、文件 `#F7F8FA` / `#C5CDD6` / `#E4E9EE`；服务名色点（`host-apps.tsx` `serviceNameColors`，hsl 色相跳过 70–170）；本机软件列表的应用图标（`local/packages-page.tsx`，20px，名称前 8px，取系统原图，取不到时用 lucide `AppWindow` 描边 1.5 `--color-muted` 兜底） | 属品牌 / 识别色，允许硬编码、允许彩色、发行版徽标与色点圆角不受 §4.3 四档限制；**不得使用绿色色相**（系统应用原图不受此限） |
 | 胶囊 / 圆形控件 | Switch 轨道与圆钮、Slider 圆钮用 `rounded-full` | 形态即语义（TDesign 同款），不受 §4.3 四档限制；其余控件仍走四档 |
 | 文字提示无动效 | Tooltip 0ms 出现 / 消失、无入场动画 | 用户明确要求「秒弹出」；例外于 §5 浮层入场动效 |
 | 浮层遮罩 | 一律用 `bg-scrim`（`--color-scrim`，Smoke 烟雾） | Smoke 是透明类材质，压暗下层表面以强调重要 UI（模态对话框 / 抽屉遮罩），不区分明暗模式、始终半透明黑；禁止 `bg-black/xx` 等透明度修饰符（会生成 `color-mix`，Linux 旧版 WebKitGTK 不支持） |

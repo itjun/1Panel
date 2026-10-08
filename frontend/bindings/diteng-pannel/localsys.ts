@@ -44,6 +44,20 @@ export function Overview(): $CancellablePromise<localsys$0.Overview | null> {
     return $Call.ByID(2549028183);
 }
 
+/**
+ * PackageIcon 已安装应用图标（PNG data URL）；取不到返回空串。
+ */
+export function PackageIcon(path: string): $CancellablePromise<string> {
+    return $Call.ByID(1509229533, path);
+}
+
+/**
+ * PackageSizes 已安装应用的本体与数据占用（较慢，前端在列表出来后单独拉取）。
+ */
+export function PackageSizes(): $CancellablePromise<localsys$0.PackageSize[] | null> {
+    return $Call.ByID(1787556450);
+}
+
 export function Packages(): $CancellablePromise<localsys$0.Package[] | null> {
     return $Call.ByID(1835217933);
 }

@@ -6,9 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -63,12 +67,25 @@ func listApplications() []Package {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+			name := appDisplayName(it.path)
+			if name == "" {
+				name = it.name
+			}
 			ver := appVersion(it.path)
-			out[i] = Package{Name: it.name, Version: ver, Source: "app", Path: it.path}
+			out[i] = Package{Name: name, FileName: it.name, Version: ver, Source: "app", Path: it.path}
 		}(i, it)
 	}
 	wg.Wait()
+	sortPackagesByName(out)
 	return out
+}
+
+// sortPackagesByName 按中文排序规则：忽略大小写，中文按拼音排在拉丁字母之后，与访达一致。
+func sortPackagesByName(pkgs []Package) {
+	col := collate.New(language.SimplifiedChinese, collate.IgnoreCase, collate.Numeric)
+	sort.SliceStable(pkgs, func(i, j int) bool {
+		return col.CompareString(pkgs[i].Name, pkgs[j].Name) < 0
+	})
 }
 
 func appVersion(appPath string) string {

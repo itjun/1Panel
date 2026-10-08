@@ -20,6 +20,16 @@ func (s *LocalSys) Packages() ([]localsys.Package, error) {
 	return localsys.CollectPackages()
 }
 
+// PackageSizes 已安装应用的本体与数据占用（较慢，前端在列表出来后单独拉取）。
+func (s *LocalSys) PackageSizes() ([]localsys.PackageSize, error) {
+	return localsys.CollectPackageSizes()
+}
+
+// PackageIcon 已安装应用图标（PNG data URL）；取不到返回空串。
+func (s *LocalSys) PackageIcon(path string) string {
+	return localsys.AppIcon(path)
+}
+
 func (s *LocalSys) Nginx() (*localsys.NginxInfo, error) {
 	return localsys.CollectNginx()
 }

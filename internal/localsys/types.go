@@ -105,10 +105,18 @@ type NetInterface struct {
 
 // Package 已安装软件。
 type Package struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Source  string `json:"source"` // app / formula / cask
-	Path    string `json:"path"`
+	Name     string `json:"name"`               // 显示名（macOS 应用为按系统语言本地化的名称）
+	FileName string `json:"fileName,omitempty"` // 文件名（去掉 .app），仅 macOS 应用
+	Version  string `json:"version"`
+	Source   string `json:"source"` // app / formula / cask
+	Path     string `json:"path"`
+}
+
+// PackageSize 已安装应用的本体与数据占用（按分配块计，字节）。
+type PackageSize struct {
+	Path     string `json:"path"`
+	AppSize  uint64 `json:"appSize"`
+	DataSize uint64 `json:"dataSize"`
 }
 
 // NginxInfo Nginx 配置概览。

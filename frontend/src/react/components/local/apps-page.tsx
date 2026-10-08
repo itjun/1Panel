@@ -10,6 +10,7 @@ import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
 import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Select } from "@/react/components/ui/select";
+import { SortableHeader, type SortDirection } from "@/react/components/ui/sortable-header";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,6 @@ type SortKey =
   | "memory"
   | "disk"
   | "network";
-type SortDirection = "asc" | "desc";
 
 const DEFAULT_SORT_DIRECTIONS: Record<SortKey, SortDirection> = {
   name: "asc",
@@ -125,45 +125,6 @@ function compareAppRows(
     delta = aPort - bPort;
   }
   return delta * multiplier || tieBreak;
-}
-
-function SortableHeader({
-  label,
-  sortKey,
-  activeKey,
-  direction,
-  onSort,
-  className,
-  align = "left",
-}: {
-  label: string;
-  sortKey: SortKey;
-  activeKey: SortKey;
-  direction: SortDirection;
-  onSort: (key: SortKey) => void;
-  className: string;
-  align?: "left" | "right";
-}) {
-  const active = sortKey === activeKey;
-  const arrow = active ? (direction === "asc" ? "↑" : "↓") : "↕";
-  return (
-    <th
-      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
-      className={className}
-    >
-      <button
-        type="button"
-        className={`flex w-full items-center gap-1 rounded-control text-left hover:text-accent focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent ${align === "right" ? "justify-end text-right" : "justify-start"} ${active ? "text-accent" : "text-muted"}`}
-        onClick={() => onSort(sortKey)}
-        data-tip={`${label}：点击排序，再次点击切换升降序`}
-      >
-        <span>{label}</span>
-        <span aria-hidden="true" className="text-xs text-muted">
-          {arrow}
-        </span>
-      </button>
-    </th>
-  );
 }
 
 function baseName(path: string | undefined) {

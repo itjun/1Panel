@@ -12,6 +12,7 @@ export type {
     NginxInfo,
     Overview,
     Package,
+    PackageSize,
     Runtime,
     StorageApp,
     StorageAppPart,
