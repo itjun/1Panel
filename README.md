@@ -27,7 +27,7 @@
 
 ## 开发
 
-依赖：Go 1.26+、Node 22+（Vite 8 要求）、Wails v3 CLI 与 task CLI。
+依赖：Go 1.27+、Node 22+（Vite 8 要求）、Wails v3 CLI 与 task CLI。
 
 ```bash
 # 安装 Wails CLI（首次）
@@ -93,7 +93,7 @@ task darwin:package
 
 ## 技术栈
 
-- **后端**：Go 1.26+、Wails v3、`golang.org/x/crypto/ssh`
+- **后端**：Go 1.27+、Wails v3、`golang.org/x/crypto/ssh`
 - **前端**：React 19、TypeScript、Tailwind CSS 4（自研 TDesign 风格组件）、xterm.js、ECharts
 - **本机采集**：macOS 走 sysctl/libproc 等；Windows 走 `NtQuerySystemInformation`、注册表、IP Helper（`GetAdaptersAddresses` / `GetExtendedTcpTable`）等系统 API
 - **目标主机**：通过系统 `ssh` 二进制建立长连接，运行只读采集命令（`/proc/*`、`free`、`df`、`ps`、`systemctl`、`crontab -l`、`docker ps/stats` 等）
