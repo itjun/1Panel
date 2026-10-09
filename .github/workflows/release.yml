@@ -16,13 +16,13 @@ jobs:
   # 在 Linux 上统一构建一次，分发给各平台，保证三个包内嵌的版本完全一致。
   embedded:
     name: Build embedded agent + iperf3
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Install task
         run: |
@@ -36,7 +36,7 @@ jobs:
       - name: Build agent + fetch iperf3
         run: task agent:build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: embedded-bin
           path: |
@@ -63,10 +63,10 @@ jobs:
           - os: ubuntu-24.04
             artifact: 1Panel-${{ github.ref_name }}-linux-amd64.tar.gz
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 产物路径的公共前缀是 internal/，解压回 internal/ 即还原到 go:embed 目录
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: embedded-bin
           path: internal
@@ -79,14 +79,16 @@ jobs:
           test -s internal/agentres/bin/spanel-agent-linux-arm64
           ls -la internal/agentres/bin internal/iperfres/bin
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       # Vite 8 要求 Node >= 20.19 / 22.12+
-      - uses: actions/setup-node@v4
+      # packageManager 为 bun，依赖由 bun 安装，关掉 setup-node 按 packageManager 自动开启的缓存
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
+          package-manager-cache: false
 
       # 前端包管理器为 bun，版本取 package.json 的 packageManager
       - uses: oven-sh/setup-bun@v2
@@ -167,7 +169,7 @@ jobs:
         env:
           ARTIFACT: ${{ matrix.artifact }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: bin/${{ matrix.artifact }}
@@ -176,7 +178,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:
@@ -186,19 +188,19 @@ jobs:
       # 清单签名私钥（ed25519 种子 base64），原件在发布者本机，不进仓库
       UPDATE_SIGN_KEY: ${{ secrets.UPDATE_SIGN_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: 1Panel-*
           merge-multiple: true
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       # 客户端已内置指向 GitHub Release 的更新源，缺清单会让所有客户端检查失败，因此私钥为必需项
       - name: Build signed update manifest
