@@ -111,6 +111,14 @@
   tab-size: 2;
   counter-reset: ng-line;
   user-select: text;
+  color-scheme: dark;
+}
+
+/* 深色代码区的选区独立于浅色壳，嵌套语法 token 也统一亮字。 */
+.local-code-pre::selection,
+.local-code-pre ::selection {
+  background: #365d91;
+  color: #f8f8f2;
 }
 
 .local-code-pre.muted {
@@ -131,6 +139,22 @@
   padding-left: 3.2em;
   position: relative;
   min-height: 1.55em;
+  min-width: 100%;
+  width: max-content;
+  box-sizing: border-box;
+}
+
+.local-code-pre.is-wrap .ng-line {
+  width: auto;
+}
+
+.local-code-pre .ng-line:hover {
+  background: rgba(102, 217, 239, 0.08);
+  box-shadow: inset 2px 0 #66d9ef;
+}
+
+.local-code-pre .ng-line:hover::before {
+  color: #f8f8f2;
 }
 
 .local-code-pre .ng-line::before {
