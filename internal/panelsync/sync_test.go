@@ -295,31 +295,50 @@ func TestGenerateRenamedGroupedHostReplacesOldAliasInGroupFile(t *testing.T) {
 func TestGenerateIsIdempotentAndDoesNotAccumulateBlankLines(t *testing.T) {
 	state := panelstore.State{
 		Version: panelstore.CurrentVersion,
-		Hosts:   []panelstore.PanelHost{{Alias: "prod", HostName: "10.0.0.8", User: "root"}},
-		ConfigLayout: panelstore.ConfigLayout{Files: []panelstore.ConfigFile{{
-			Path:    "config",
-			Content: "\n\n\n# 1PANNEL-GENERATED\nHost old\n    HostName 10.0.0.7\n",
-		}}},
+		Hosts: []panelstore.PanelHost{
+			{Alias: "prod", HostName: "10.0.0.8", User: "root"},
+			{Alias: "backup", HostName: "10.0.0.9", User: "root"},
+			{Alias: "app", HostName: "10.0.0.10", User: "root", GroupID: "apps"},
+			{Alias: "worker", HostName: "10.0.0.11", User: "root", GroupID: "apps"},
+		},
+		Groups: []panelstore.PanelGroup{{ID: "apps", Name: "apps"}},
+		ConfigLayout: panelstore.ConfigLayout{Files: []panelstore.ConfigFile{
+			{Path: "config", Content: "\n\n\n# 1PANNEL-GENERATED\nHost old\n    HostName 10.0.0.7\n\n"},
+			{Path: "config.d/apps.conf", Content: "# 1PANNEL-GENERATED\nHost old-app\n    HostName 10.0.0.6\n\n"},
+		}},
 	}
 
 	first, err := Generate(state)
 	if err != nil {
 		t.Fatal(err)
 	}
-	state.ConfigLayout.Files = []panelstore.ConfigFile{{
-		Path:    first.Files[0].Path,
-		Content: first.Files[0].Content,
-	}}
+	state.ConfigLayout.Files = nil
+	for _, file := range first.Files {
+		state.ConfigLayout.Files = append(state.ConfigLayout.Files, panelstore.ConfigFile{
+			Path: file.Path, Content: file.Content,
+		})
+	}
 	second, err := Generate(state)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if first.Files[0].Content != second.Files[0].Content {
-		t.Fatalf("generation is not idempotent:\nfirst:\n%q\nsecond:\n%q", first.Files[0].Content, second.Files[0].Content)
+	if len(first.Files) != 2 || len(second.Files) != 2 {
+		t.Fatalf("generated files: first=%d, second=%d, want 2 each", len(first.Files), len(second.Files))
 	}
-	if strings.HasPrefix(first.Files[0].Content, "\n") {
-		t.Fatalf("generated file keeps a leading blank line: %q", first.Files[0].Content)
+	for i, file := range first.Files {
+		if file.Content != second.Files[i].Content {
+			t.Fatalf("%s generation is not idempotent:\nfirst:\n%q\nsecond:\n%q", file.Path, file.Content, second.Files[i].Content)
+		}
+		if strings.HasPrefix(file.Content, "\n") {
+			t.Fatalf("%s keeps a leading blank line: %q", file.Path, file.Content)
+		}
+		if !strings.HasSuffix(file.Content, "\n") || strings.HasSuffix(file.Content, "\n\n") {
+			t.Fatalf("%s must end with exactly one newline: %q", file.Path, file.Content)
+		}
+		if strings.Count(file.Content, "\n\nHost ") != 1 || len(parseHosts(file.Content)) != 2 {
+			t.Fatalf("%s must keep one blank line between its two hosts: %q", file.Path, file.Content)
+		}
 	}
 }
 

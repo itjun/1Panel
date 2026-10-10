@@ -566,7 +566,10 @@ func renderFile(raw string, hosts []panelstore.PanelHost, state panelstore.State
 	}
 	if len(hosts) > 0 {
 		out = appendGeneratedSection(out, generatedMarker)
-		for _, h := range hosts {
+		for i, h := range hosts {
+			if i > 0 {
+				out = append(out, "")
+			}
 			out = append(out, renderHost(h)...)
 		}
 	}
@@ -625,7 +628,7 @@ func renderHost(h panelstore.PanelHost) []string {
 			lines = append(lines, "    "+option.Key+" "+option.Value)
 		}
 	}
-	return append(lines, "")
+	return lines
 }
 
 func renderPortForward(forward panelstore.PortForward) (string, bool) {
