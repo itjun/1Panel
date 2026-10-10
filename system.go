@@ -373,10 +373,11 @@ func (s *System) TestWecomWebhook(webhook string) error {
 	return wecom.TestWebhook(webhook)
 }
 
-// ghosttyOpenURL 拼出 Ghostty 认的地址。空格必须写成 %20。
-// Go 的 QueryEscape 会把空格写成 +，Ghostty 会把加号留在主机名里。
+// oneagentOpenURL 拼出 1Agent 认的地址（oneagent://open）。空格必须写成 %20。
+// Go 的 QueryEscape 会把空格写成 +，1Agent 会把加号留在主机名里。
 // 带 reuse=1：已经打开的主机只聚焦，不再多开一个会话；多台一起打开时并成一个工作区。
-func ghosttyOpenURL(hosts []string) (string, error) {
+// 设置里选了 1Agent 时由「终端打开」调用。
+func oneagentOpenURL(hosts []string) (string, error) {
 	parts := make([]string, 0, len(hosts))
 	for _, host := range hosts {
 		alias := strings.TrimSpace(host)
@@ -390,37 +391,34 @@ func ghosttyOpenURL(hosts []string) (string, error) {
 		return "", fmt.Errorf("没有主机")
 	}
 	parts = append(parts, "reuse=1")
-	return "ghostty://open?" + strings.Join(parts, "&"), nil
+	return "oneagent://open?" + strings.Join(parts, "&"), nil
+}
+
+// ListTerminalApps 返回本机可选用的终端。只有一个时设置页不展示选择，打开时固定用它。
+func (s *System) ListTerminalApps() []TerminalApp {
+	apps := listTerminalApps()
+	if apps == nil {
+		return []TerminalApp{}
+	}
+	return apps
 }
 
 // OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
-// macOS 走 Ghostty（ghostty://open?host=…）；Windows 走 Windows Terminal + 系统
-// OpenSSH，见 terminal_windows.go；Linux 走系统默认终端 + 系统 ssh，见
-// terminal_linux.go（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口）。
-func (s *System) OpenHostsInTerminal(hosts []string, mode string) error {
+// terminalID 来自 ListTerminalApps；空字符串表示用该平台的默认项。
+// 只有一个可用终端时忽略 terminalID，固定用那一个。
+// macOS 见 terminal_darwin.go，Windows 见 terminal_windows.go，Linux 见 terminal_linux.go。
+// mode: "tab"=最近窗口新标签页（默认），"window"=新窗口。只对 SupportsWindow 的终端生效。
+func (s *System) OpenHostsInTerminal(hosts []string, mode, terminalID string) error {
 	if runtime.GOOS == "windows" {
-		return openHostsInTerminalWindows(hosts, mode)
+		return openHostsInTerminalWindows(hosts, mode, terminalID)
 	}
 	if runtime.GOOS == "linux" {
-		return openHostsInTerminalLinux(hosts, mode)
+		return openHostsInTerminalLinux(hosts, mode, terminalID)
 	}
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("仅支持在 macOS / Windows / Linux 上打开终端")
 	}
-	target, err := ghosttyOpenURL(hosts)
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("open", target)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg == "" {
-			return fmt.Errorf("无法打开 Ghostty: %w", err)
-		}
-		return fmt.Errorf("无法打开 Ghostty: %s", msg)
-	}
-	return nil
+	return openHostsInTerminalDarwin(hosts, mode, terminalID)
 }
 
 // CheckMenuPage 立即用 Go HTTP 执行巡检项（不打开浏览器、不告警）。id 空则检查全部，返回最后一项结果以兼容旧调用。

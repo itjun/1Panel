@@ -523,7 +523,7 @@ export function WorkspaceRail() {
         onOpenInTerminal={(hosts) => {
           clearHostSelection();
           void api
-            .openHostsInTerminal(hosts, readSettings().terminalOpenMode)
+            .openHostsInTerminal(hosts, readSettings().terminalOpenMode, readSettings().terminalApp)
             .catch((err) => {
               void alertDialog({
                 theme: "danger",

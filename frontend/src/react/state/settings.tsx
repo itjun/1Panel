@@ -58,8 +58,10 @@ export type AppSettings = {
   hostCertNotifySubs: Record<string, boolean>;
   /** 首页主机列表的分组排布：每排一组 group id，从上到下、从左到右 */
   hostHomeRows: string[][];
-  /** Windows 终端打开方式：tab=最近使用的 Terminal 窗口新标签页（默认），window=新窗口 */
+  /** 终端打开方式：tab=最近窗口新标签页（默认），window=新窗口。只对支持该选项的终端生效 */
   terminalOpenMode: "tab" | "window";
+  /** 设置页选中的终端 id，空字符串表示用本机默认项 */
+  terminalApp: string;
 };
 
 export const SETTINGS_DEFAULTS: AppSettings = {
@@ -91,6 +93,7 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   hostCertNotifySubs: {},
   hostHomeRows: [],
   terminalOpenMode: "tab",
+  terminalApp: "",
 };
 
 export const ALERT_SUSTAIN_RANGE = { min: 1, max: 12 } as const;
@@ -177,6 +180,7 @@ function loadSettings(): AppSettings {
       hostHomeRows: parseHostHomeRows(parsed.hostHomeRows),
       terminalOpenMode:
         parsed.terminalOpenMode === "window" ? "window" : "tab",
+      terminalApp: typeof parsed.terminalApp === "string" ? parsed.terminalApp : "",
     };
   } catch {
     return { ...SETTINGS_DEFAULTS };

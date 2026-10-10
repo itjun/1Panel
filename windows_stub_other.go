@@ -10,6 +10,10 @@ func openURLWindows(target string) error {
 	return errors.New("仅 Windows 支持")
 }
 
-func openHostsInTerminalWindows(hosts []string, mode string) error {
+func openHostsInTerminalWindows(hosts []string, mode, terminalID string) error {
 	return errors.New("仅 Windows 支持")
+}
+
+func listTerminalAppsWindows() []TerminalApp {
+	return nil
 }

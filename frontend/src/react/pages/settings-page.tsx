@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import appIcon from "@/react/assets/appicon.png";
-import { isLinuxPlatform, isWindowsPlatform } from "@/react/lib/platform";
 import {
   HostBackupRestoreDialog,
   exportHostBackup,
@@ -60,6 +59,7 @@ export function SettingsPage() {
     enabled: boardEnabled,
     retry: false,
   });
+
 
   useQuery({
     queryKey: ["ask-before-quit"],
@@ -327,22 +327,7 @@ export function SettingsPage() {
               <span>{statusLabel(status.data)}</span>
               <Button onClick={() => session.setConfigSection("overview")}>打开配置中心</Button>
             </SettingRow>
-            {isWindowsPlatform() || isLinuxPlatform() ? (
-              <SettingRow
-                label="终端打开方式"
-                hint="「终端打开」主机时的窗口行为；连接由系统 OpenSSH 按本机 SSH 配置建立"
-              >
-                <RadioGroup
-                  aria-label="终端打开方式"
-                  value={settings.terminalOpenMode}
-                  onChange={(mode) => updateSettings({ terminalOpenMode: mode })}
-                  options={[
-                    { value: "tab", label: "最近窗口新标签页" },
-                    { value: "window", label: "新窗口" },
-                  ]}
-                />
-              </SettingRow>
-            ) : null}
+            <TerminalOpenSettings />
             <SettingRow label="退出前询问">
               <Switch
                 aria-label="退出前询问"
@@ -533,6 +518,54 @@ const SHORTCUT_ROWS: { label: string; win: string[]; mac: string[] }[] = [
   { label: "后退", win: ["Alt+←"], mac: ["⌘+[", "⌘+←"] },
   { label: "前进", win: ["Alt+→"], mac: ["⌘+]", "⌘+→"] },
 ];
+
+function TerminalOpenSettings() {
+  const settings = useSettings();
+  const terminals = useQuery({
+    queryKey: ["terminal-apps"],
+    queryFn: () => api.listTerminalApps(),
+  });
+  const apps = terminals.data ?? [];
+  const effective =
+    apps.length === 1
+      ? apps[0]
+      : (apps.find((app) => app.id === settings.terminalApp) ??
+        apps.find((app) => app.default) ??
+        apps[0]);
+  const showPicker = apps.length > 1;
+  const showMode = effective?.supportsWindow === true;
+
+  return (
+    <>
+      {showPicker && effective ? (
+        <SettingRow label="终端" hint="「终端打开」主机时使用这个终端。只列出本机可用的。">
+          <RadioGroup
+            aria-label="终端"
+            value={effective.id}
+            onChange={(terminalApp) => updateSettings({ terminalApp })}
+            options={apps.map((app) => ({ value: app.id, label: app.name }))}
+          />
+        </SettingRow>
+      ) : null}
+      {showMode ? (
+        <SettingRow
+          label={showPicker ? "打开方式" : "终端打开方式"}
+          hint="在已有窗口新建标签页，或另开一个窗口"
+        >
+          <RadioGroup
+            aria-label="终端打开方式"
+            value={settings.terminalOpenMode}
+            onChange={(mode) => updateSettings({ terminalOpenMode: mode })}
+            options={[
+              { value: "tab", label: "最近窗口新标签页" },
+              { value: "window", label: "新窗口" },
+            ]}
+          />
+        </SettingRow>
+      ) : null}
+    </>
+  );
+}
 
 function SettingRow({
   label,

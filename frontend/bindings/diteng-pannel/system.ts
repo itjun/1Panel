@@ -148,13 +148,20 @@ export function OpenExternalURL(target: string): $CancellablePromise<void> {
 }
 
 /**
- * OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
- * macOS 走 Ghostty（ghostty://open?host=…）；Windows 走 Windows Terminal + 系统
- * OpenSSH，见 terminal_windows.go；Linux 走系统默认终端 + 系统 ssh，见
- * terminal_linux.go（mode: "tab"=最近窗口新标签页（默认），"window"=新窗口）。
+ * ListTerminalApps 返回本机可选用的终端。只有一个时设置页不展示选择，打开时固定用它。
  */
-export function OpenHostsInTerminal(hosts: string[] | null, mode: string): $CancellablePromise<void> {
-    return $Call.ByID(328655905, hosts, mode);
+export function ListTerminalApps(): $CancellablePromise<$models.TerminalApp[] | null> {
+    return $Call.ByID(140795495);
+}
+
+/**
+ * OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
+ * terminalID 来自 ListTerminalApps；空字符串表示用该平台的默认项。
+ * 只有一个可用终端时忽略 terminalID，固定用那一个。
+ * mode: "tab"=最近窗口新标签页（默认），"window"=新窗口。只对 SupportsWindow 的终端生效。
+ */
+export function OpenHostsInTerminal(hosts: string[] | null, mode: string, terminalID: string): $CancellablePromise<void> {
+    return $Call.ByID(328655905, hosts, mode, terminalID);
 }
 
 /**

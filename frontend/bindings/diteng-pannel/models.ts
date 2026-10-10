@@ -78,6 +78,16 @@ export interface AppInfo {
 }
 
 /**
+ * TerminalApp 是设置页可以选用的一个终端。
+ */
+export interface TerminalApp {
+    "id": string;
+    "name": string;
+    "supportsWindow": boolean;
+    "default": boolean;
+}
+
+/**
  * BackupPreview 恢复前的预览信息
  */
 export interface BackupPreview {

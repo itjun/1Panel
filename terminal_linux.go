@@ -25,9 +25,9 @@ import (
 
 // linuxTerminalSpec 描述一款终端如何执行外部命令。
 type linuxTerminalSpec struct {
-	bin      string   // 可执行文件名
-	cmdArgs  []string // 执行命令用的固定前缀参数；空表示命令以位置参数直接跟随
-	tabArgs  []string // mode=tab 时追加的参数；空表示不支持标签页
+	bin     string   // 可执行文件名
+	cmdArgs []string // 执行命令用的固定前缀参数；空表示命令以位置参数直接跟随
+	tabArgs []string // mode=tab 时追加的参数；空表示不支持标签页
 }
 
 // 已知终端的调用规格。执行命令的前缀按各终端实际语义区分：
@@ -102,8 +102,90 @@ func buildLinuxTerminalArgs(spec linuxTerminalSpec, sshExe, alias, mode string) 
 	return append(args, sshExe, alias)
 }
 
-// openHostsInTerminalLinux 在系统终端中打开主机终端，逐台启动。
-func openHostsInTerminalLinux(hosts []string, mode string) error {
+func linuxTerminalDisplayName(bin string) string {
+	switch bin {
+	case "gnome-terminal":
+		return "GNOME 终端"
+	case "konsole":
+		return "Konsole"
+	case "xfce4-terminal":
+		return "XFCE 终端"
+	case "mate-terminal":
+		return "MATE 终端"
+	case "kitty":
+		return "Kitty"
+	case "alacritty":
+		return "Alacritty"
+	case "foot":
+		return "Foot"
+	case "wezterm":
+		return "WezTerm"
+	case "tilix":
+		return "Tilix"
+	case "urxvt":
+		return "URxvt"
+	case "xterm":
+		return "xterm"
+	default:
+		return bin
+	}
+}
+
+func listTerminalAppsLinux() []TerminalApp {
+	apps := make([]TerminalApp, 0, len(linuxTerminalSpecs))
+	for _, spec := range linuxTerminalSpecs {
+		if _, err := exec.LookPath(spec.bin); err != nil {
+			continue
+		}
+		apps = append(apps, TerminalApp{
+			ID:             spec.bin,
+			Name:           linuxTerminalDisplayName(spec.bin),
+			SupportsWindow: len(spec.tabArgs) > 0,
+		})
+	}
+	fallback := ""
+	if _, spec, err := resolveLinuxTerminal(); err == nil {
+		fallback = spec.bin
+	}
+	markDefaultTerminal(apps, fallback)
+	return apps
+}
+
+// resolveLinuxTerminalID 按设置里的终端 id 取可执行文件。
+// 空 id 仍走原来的系统默认探测，这样 $TERMINAL 自带的参数不会丢掉。
+func resolveLinuxTerminalID(terminalID string) (string, linuxTerminalSpec, error) {
+	apps := listTerminalAppsLinux()
+	resolvedPath, resolvedSpec, resolvedErr := resolveLinuxTerminal()
+	fallback := ""
+	if resolvedErr == nil {
+		fallback = resolvedSpec.bin
+	}
+	if len(apps) == 0 {
+		if resolvedErr != nil {
+			return "", linuxTerminalSpec{}, resolvedErr
+		}
+		return resolvedPath, resolvedSpec, nil
+	}
+	id := chooseListedTerminal(apps, terminalID, fallback)
+	if resolvedErr == nil && id == resolvedSpec.bin {
+		return resolvedPath, resolvedSpec, nil
+	}
+	for _, spec := range linuxTerminalSpecs {
+		if spec.bin != id {
+			continue
+		}
+		if p, err := exec.LookPath(spec.bin); err == nil {
+			return p, spec, nil
+		}
+	}
+	if resolvedErr != nil {
+		return "", linuxTerminalSpec{}, resolvedErr
+	}
+	return resolvedPath, resolvedSpec, nil
+}
+
+// openHostsInTerminalLinux 在选中的终端中打开主机终端，逐台启动。
+func openHostsInTerminalLinux(hosts []string, mode, terminalID string) error {
 	aliases := normalizeTerminalHosts(hosts)
 	if len(aliases) == 0 {
 		return fmt.Errorf("没有可打开的主机")
@@ -114,7 +196,7 @@ func openHostsInTerminalLinux(hosts []string, mode string) error {
 			"未找到 ssh 客户端，请先安装（Debian/Ubuntu: sudo apt install openssh-client）。安装前也可以手动连接：ssh %s",
 			aliases[0])
 	}
-	termPath, spec, err := resolveLinuxTerminal()
+	termPath, spec, err := resolveLinuxTerminalID(terminalID)
 	if err != nil {
 		return err
 	}

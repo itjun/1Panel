@@ -10,17 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode/utf16"
-
 )
 
-// Windows 终端打开流程（不经 Ghostty）：
-//  1. 首选 Windows Terminal（wt.exe）：mode=tab 在最近使用的窗口新建标签页，
-//     mode=window 每次打开新窗口；多台主机在一个窗口里各占一个标签。
-//  2. 连接命令直接交给系统 OpenSSH（ssh.exe）并传 SSH 配置里的 Host 别名，
-//     端口 / 密钥 / 跳板机等全部由 ssh.exe 读用户自己的 %USERPROFILE%\.ssh\config 解析，
-//     面板不重新拼连接参数，配置不会丢失。
-//  3. wt.exe 不可用时降级为 Windows PowerShell 窗口执行 ssh（-EncodedCommand 传参，
-//     不拼接可注入的 shell 文本）；ssh.exe 也不可用时返回明确指引。
+// Windows 终端打开流程：
+//  1. 可选终端是已安装的 Windows Terminal 和 PowerShell。设置里选了哪个就用哪个。
+//     没选过时优先 Windows Terminal。只剩一个时固定用它。
+//  2. Windows Terminal：mode=tab 在最近使用的窗口新建标签页，mode=window 打开新窗口；
+//     多台主机在一个窗口里各占一个标签。PowerShell 每台主机一个窗口。
+//  3. 连接命令直接交给系统 OpenSSH（ssh.exe）并传 SSH 配置里的 Host 别名。
+//     ssh.exe 不可用时返回明确指引。
 
 // resolveSSHExeWin 定位系统 OpenSSH 客户端。
 func resolveSSHExeWin() string {
@@ -71,8 +69,38 @@ func buildWTArgs(sshExe string, hosts []string, mode string) []string {
 	return args
 }
 
-// openHostsInTerminalWindows 在 Windows Terminal（或降级 PowerShell）中打开主机终端。
-func openHostsInTerminalWindows(hosts []string, mode string) error {
+const (
+	winTerminalWindowsTerminal = "windows-terminal"
+	winTerminalPowerShell      = "powershell"
+)
+
+func powershellAvailable() bool {
+	for _, name := range []string{"powershell.exe", "powershell"} {
+		if p, err := exec.LookPath(name); err == nil && p != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func listTerminalAppsWindows() []TerminalApp {
+	apps := make([]TerminalApp, 0, 2)
+	if resolveWTExe() != "" {
+		apps = append(apps, TerminalApp{ID: winTerminalWindowsTerminal, Name: "Windows Terminal", SupportsWindow: true})
+	}
+	if powershellAvailable() {
+		apps = append(apps, TerminalApp{ID: winTerminalPowerShell, Name: "PowerShell", SupportsWindow: false})
+	}
+	fallback := winTerminalPowerShell
+	if resolveWTExe() != "" {
+		fallback = winTerminalWindowsTerminal
+	}
+	markDefaultTerminal(apps, fallback)
+	return apps
+}
+
+// openHostsInTerminalWindows 在用户选中的终端里打开主机。没选过时优先 Windows Terminal。
+func openHostsInTerminalWindows(hosts []string, mode, terminalID string) error {
 	aliases := normalizeTerminalHosts(hosts)
 	if len(aliases) == 0 {
 		return fmt.Errorf("没有可打开的主机")
@@ -84,7 +112,19 @@ func openHostsInTerminalWindows(hosts []string, mode string) error {
 			aliases[0])
 	}
 
-	if wt := resolveWTExe(); wt != "" {
+	apps := listTerminalAppsWindows()
+	fallback := ""
+	for _, app := range apps {
+		if app.Default {
+			fallback = app.ID
+		}
+	}
+	switch chooseListedTerminal(apps, terminalID, fallback) {
+	case winTerminalWindowsTerminal:
+		wt := resolveWTExe()
+		if wt == "" {
+			return fmt.Errorf("未找到 Windows Terminal")
+		}
 		cmd := exec.Command(wt, buildWTArgs(sshExe, aliases, mode)...)
 		// wt 是 GUI 程序，Start 后即返回；启动失败才报错
 		if err := cmd.Start(); err != nil {
@@ -92,23 +132,21 @@ func openHostsInTerminalWindows(hosts []string, mode string) error {
 		}
 		_ = cmd.Process.Release()
 		return nil
-	}
-
-	// 降级：Windows PowerShell 窗口逐台连接。
-	// -EncodedCommand 传 Base64(UTF-16LE) 脚本，避免拼接可注入的命令文本。
-	for _, alias := range aliases {
-		if err := openSSHInPowerShell(sshExe, alias); err != nil {
-			return err
+	case winTerminalPowerShell:
+		for _, alias := range aliases {
+			if err := openSSHInPowerShell(sshExe, alias); err != nil {
+				return err
+			}
 		}
+		return nil
+	default:
+		return fmt.Errorf("未找到可用的终端")
 	}
-	return nil
 }
 
 func openSSHInPowerShell(sshExe, alias string) error {
-	notice := "Write-Host '未检测到 Windows Terminal，已改用 PowerShell 连接（可从 Microsoft Store 安装 Windows Terminal 获得更佳体验）' -ForegroundColor Yellow"
 	ps := exec.Command("powershell.exe", "-NoExit", "-EncodedCommand",
-		encodePowerShellCommand(fmt.Sprintf("%s; & '%s' '%s'",
-			notice,
+		encodePowerShellCommand(fmt.Sprintf("& '%s' '%s'",
 			strings.ReplaceAll(sshExe, "'", "''"),
 			strings.ReplaceAll(alias, "'", "''"))))
 	// 注意不要 prochide.Hide：这个 PowerShell 窗口就是降级后的终端，必须可见

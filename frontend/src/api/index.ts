@@ -607,14 +607,17 @@ const apiImpl = {
   focusMainWindow: async (): Promise<void> => {
     await System.FocusMainWindow();
   },
-  /** 把 SSH Host 别名交给系统终端打开（支持多台）。
-   *  macOS 走 Ghostty；Windows 走 Windows Terminal + OpenSSH，
-   *  mode="tab" 在最近使用的 Terminal 窗口新建标签页（默认），"window" 打开新窗口。 */
+  /** 本机可选用的终端。只有一个时设置页不展示选择。 */
+  listTerminalApps: (): Promise<main.TerminalApp[]> => arr(System.ListTerminalApps()),
+  /** 把 SSH Host 别名交给选中的终端打开（支持多台）。
+   *  terminalApp 为空时用本机默认项；只有一个可用终端时固定用它。
+   *  mode="tab" 在最近窗口新建标签页（默认），"window" 打开新窗口，只对支持的终端生效。 */
   openHostsInTerminal: async (
     hosts: string[],
     mode?: "tab" | "window",
+    terminalApp?: string,
   ): Promise<void> => {
-    await System.OpenHostsInTerminal(hosts, mode || "tab");
+    await System.OpenHostsInTerminal(hosts, mode || "tab", terminalApp || "");
   },
   /** 应用与运行环境信息（设置页「关于」） */
   getAppInfo: (): Promise<main.AppInfo> => must(System.GetAppInfo()),

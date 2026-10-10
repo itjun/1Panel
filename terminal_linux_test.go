@@ -92,7 +92,7 @@ func TestBuildLinuxTerminalArgs(t *testing.T) {
 }
 
 func TestOpenHostsInTerminalLinuxNoHost(t *testing.T) {
-	if err := openHostsInTerminalLinux([]string{"  "}, "tab"); err == nil {
+	if err := openHostsInTerminalLinux([]string{"  "}, "tab", ""); err == nil {
 		t.Fatal("空主机应报错")
 	}
 }

@@ -32,7 +32,7 @@ func TestEncodePowerShellCommand(t *testing.T) {
 }
 
 func TestOpenHostsInTerminalWindowsNoHost(t *testing.T) {
-	if err := openHostsInTerminalWindows([]string{"  "}, "tab"); err == nil {
+	if err := openHostsInTerminalWindows([]string{"  "}, "tab", ""); err == nil {
 		t.Fatal("空主机应报错")
 	}
 }
