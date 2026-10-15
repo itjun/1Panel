@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/zsh-users/zsh-autosuggestions",
+  "commit": "85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5",
+  "archiveURL": "https://codeload.github.com/zsh-users/zsh-autosuggestions/tar.gz/85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5",
+  "sha256": "20665e469e720e674964a66854d5534b9af78cdfd438512746ecd1ade8e819ce",
+  "license": "MIT",
+  "files": 61
+}

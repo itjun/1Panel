@@ -78,16 +78,6 @@ export interface AppInfo {
 }
 
 /**
- * TerminalApp 是设置页可以选用的一个终端。
- */
-export interface TerminalApp {
-    "id": string;
-    "name": string;
-    "supportsWindow": boolean;
-    "default": boolean;
-}
-
-/**
  * BackupPreview 恢复前的预览信息
  */
 export interface BackupPreview {
@@ -605,6 +595,16 @@ export interface PanelSystemEditor {
 }
 
 /**
+ * TerminalApp 是设置页可以选用的一个终端。
+ */
+export interface TerminalApp {
+    "id": string;
+    "name": string;
+    "supportsWindow": boolean;
+    "default": boolean;
+}
+
+/**
  * UpdateHostInput 是「编辑主机」对话框的入参
  * 别名不可在此接口修改（请用 RenameHost）；须带密码做连通性验证，通过后才写 config
  */
@@ -680,4 +680,54 @@ export interface WindowThemeState {
     "supported": boolean;
     "reason": string;
     "revision": number;
+}
+
+/**
+ * Installed plugin files and 1Panel configuration are reported separately.
+ * Inspect never sources the user's rc or executes their personal configuration.
+ */
+export interface ZshEnvironment {
+    "restoreCommand": string;
+    "os": string;
+    "distribution": string;
+    "user": string;
+    "home": string;
+    "shell": string;
+    "manager": string;
+    "zshrc": string;
+    "zsh": string;
+    "theme": string;
+    "ohMyZsh": boolean;
+    "ohMyZshRoot": string;
+    "privileged": boolean;
+    "git": boolean;
+    "highlighting": boolean;
+    "suggestions": boolean;
+    "managed": boolean;
+    "highlightingEnabled": boolean;
+    "suggestionsEnabled": boolean;
+    "correctionEnabled": boolean;
+    "supported": boolean;
+}
+
+export interface ZshSetupOptions {
+    "basePackages": boolean;
+    "highlighting": boolean;
+    "suggestions": boolean;
+    "correction": boolean;
+    "defaultShell": boolean;
+}
+
+export interface ZshSetupTask {
+    "host": string;
+
+    /**
+     * idle / running / success / error
+     */
+    "state": string;
+    "options": ZshSetupOptions;
+    "logs": string[] | null;
+    "error": string;
+    "startedAt": number;
+    "finishedAt": number;
 }

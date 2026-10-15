@@ -27,7 +27,7 @@ import * as $models from "./models.js";
 
 /**
  * BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
- * 实际执行交给前端终端(实时显示输出),执行完由终端命令清理临时脚本。
+ * 兼容旧接口；新界面用 StartZshSetup 执行并自动清理脚本。
  */
 export function BootstrapZsh(host: string): $CancellablePromise<string> {
     return $Call.ByID(3099666800, host);
@@ -88,6 +88,14 @@ export function GetWindowThemeState(): $CancellablePromise<$models.WindowThemeSt
     return $Call.ByID(3647533731);
 }
 
+export function GetZshSetup(host: string): $CancellablePromise<$models.ZshSetupTask> {
+    return $Call.ByID(525209599, host);
+}
+
+export function InspectZsh(host: string): $CancellablePromise<$models.ZshEnvironment> {
+    return $Call.ByID(4084222738, host);
+}
+
 /**
  * ListBoardURLs 返回该分组在本机私网 IP 上的看板链接。
  * groupName 为空时只返回 http://ip:port 基址（设置页示例）。
@@ -108,6 +116,13 @@ export function ListMenuChecks(): $CancellablePromise<$models.MenuCheckResult[] 
  */
 export function ListSystemFonts(): $CancellablePromise<sysfonts$0.SystemFont[] | null> {
     return $Call.ByID(3424802380);
+}
+
+/**
+ * ListTerminalApps 返回本机可选用的终端。只有一个时设置页不展示选择，打开时固定用它。
+ */
+export function ListTerminalApps(): $CancellablePromise<$models.TerminalApp[] | null> {
+    return $Call.ByID(140795495);
 }
 
 /**
@@ -148,16 +163,10 @@ export function OpenExternalURL(target: string): $CancellablePromise<void> {
 }
 
 /**
- * ListTerminalApps 返回本机可选用的终端。只有一个时设置页不展示选择，打开时固定用它。
- */
-export function ListTerminalApps(): $CancellablePromise<$models.TerminalApp[] | null> {
-    return $Call.ByID(140795495);
-}
-
-/**
  * OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
  * terminalID 来自 ListTerminalApps；空字符串表示用该平台的默认项。
  * 只有一个可用终端时忽略 terminalID，固定用那一个。
+ * macOS 见 terminal_darwin.go，Windows 见 terminal_windows.go，Linux 见 terminal_linux.go。
  * mode: "tab"=最近窗口新标签页（默认），"window"=新窗口。只对 SupportsWindow 的终端生效。
  */
 export function OpenHostsInTerminal(hosts: string[] | null, mode: string, terminalID: string): $CancellablePromise<void> {
@@ -210,6 +219,21 @@ export function SetTrafficLightsHidden(hidden: boolean): $CancellablePromise<voi
 
 export function SetWindowMaterial(preference: string): $CancellablePromise<$models.WindowThemeState> {
     return $Call.ByID(663592792, preference);
+}
+
+/**
+ * StartHostSetup installs the itjun-tools software bundle and all shell enhancements.
+ * The target is the SSH login user; personal configuration is backed up and retained.
+ */
+export function StartHostSetup(host: string): $CancellablePromise<$models.ZshSetupTask> {
+    return $Call.ByID(594721008, host);
+}
+
+/**
+ * StartZshSetup continues after its dialog closes. One job per host.
+ */
+export function StartZshSetup(host: string, options: $models.ZshSetupOptions): $CancellablePromise<$models.ZshSetupTask> {
+    return $Call.ByID(2428663491, host, options);
 }
 
 /**

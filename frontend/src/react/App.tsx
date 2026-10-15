@@ -8,6 +8,7 @@ import { useToolbarDoubleClickMaximize, WindowChrome, WindowControls } from "@/r
 import { ModuleRail } from "@/react/components/module-rail";
 import { WorkspaceRail } from "@/react/components/workspace-rail";
 import { DialogHost } from "@/react/components/ui/confirm-dialog";
+import { HostSetupDialogHost } from "@/react/components/host-setup-dialog";
 import { UpdateCheckFailDialog, UpdateDialog } from "@/react/components/update-dialog";
 import { detectAppOs } from "@/react/lib/platform";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
@@ -226,6 +227,7 @@ function Shell() {
       </div>
       </div>
       <DialogHost />
+      <HostSetupDialogHost />
       <UpdateDialog />
       <UpdateCheckFailDialog />
     </div>

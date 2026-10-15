@@ -68,6 +68,8 @@ type App struct {
 	panelConfigMu   sync.Mutex
 	panelConfigStop chan struct{}
 	panelPreviews   map[string]panelConfigPreviewRecord
+	zshSetupMu      sync.Mutex
+	zshSetups       map[string]*ZshSetupTask
 
 	app        *application.App
 	mainWindow *application.WebviewWindow
