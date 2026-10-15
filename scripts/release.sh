@@ -5,6 +5,8 @@
 #   scripts/release.sh v1.2.0 -F notes.md     # 更新说明取自文件
 #   scripts/release.sh v1.2.0 -m "说明"        # 更新说明直接给出
 #
+# 不指定版本号时用 scripts/publish.sh：自动把补丁号加一，并用提交标题生成说明。
+#
 # 更新说明即附注 tag 的内容，会显示在客户端更新弹窗与 GitHub Release 页。
 # 依赖：git、gh（已登录）、go。
 set -euo pipefail

@@ -49,7 +49,7 @@ task darwin:package
 
 ### 下载
 
-执行 `scripts/release.sh vX.Y.Z -F notes.md`（打附注 tag → 推送 → `gh run watch` 等 CI → 校验清单），GitHub Actions 构建三个平台并用 `gh` 发布到 **GitHub Releases**（页面右侧 Releases）。Release 同时是应用内更新源，客户端读取最新正式版里的签名清单 `latest.json`：
+日常发版执行 `scripts/publish.sh`。它取最新正式版，把补丁号加一，用这段提交标题写成更新说明，再交给 `scripts/release.sh`（打附注 tag → 推送 → `gh run watch` 等 CI → 校验清单）。要指定版本或改说明时用 `scripts/release.sh vX.Y.Z -F notes.md`（或 `-m "说明"`）。GitHub Actions 构建三个平台并用 `gh` 发布到 **GitHub Releases**（页面右侧 Releases）。Release 同时是应用内更新源，客户端读取最新正式版里的签名清单 `latest.json`：
 
 - `1Panel-v<版本>-mac-arm64.zip` —— macOS arm64 包（Apple 芯片，含 `1Panel.app`）
 - `1Panel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Panel.exe`）
