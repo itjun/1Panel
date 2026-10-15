@@ -106,7 +106,7 @@ export function NginxLogDownload({ host }: { host: string }) {
         <DialogContent className="w-[min(560px,calc(100vw-32px))]">
           <DialogTitle>下载 Nginx 日志</DialogTitle>
           <DialogDescription>
-            默认按远程主机的当天日期筛选日志记录，压缩为 .tar.gz 后下载。历史压缩包不包含在内。
+            默认按远程主机的当天日期筛选日志记录，以 zstd 6 级单线程压缩为 .tar.zst 后下载。历史压缩包不包含在内。
           </DialogDescription>
           <div className="mt-4 flex flex-col gap-4 text-sm">
             <label className="flex flex-col gap-2">
@@ -118,9 +118,9 @@ export function NginxLogDownload({ host }: { host: string }) {
               <input className="motion-field h-9 w-full rounded-control px-3 font-mono text-sm text-ink disabled:text-muted" value={temporaryDir} disabled={busy} onChange={(event) => { setTemporaryDir(event.target.value); setChecked(null); setMessage(null); }} />
             </label>
             <p className="text-muted">
-              压缩前检查空间，保留至少 1 GiB 或磁盘容量的 10%。以低优先级、2 MiB/s 限速处理，只读取开始时已有的内容；不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
+              压缩前检查磁盘和内存。磁盘预留至少 1 GiB 或容量的 10%；内存按 256 MiB 任务预算检查，并预留至少 512 MiB 或总内存的 10%。以低优先级、2 MiB/s 限速处理，只读取开始时已有的内容；不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
             </p>
-            <p className="text-xs text-muted">支持 Nginx 标准访问／错误日志时间及 ISO 8601 时间；无法识别日期的行会跳过。需要 Python 3、nice、ionice、stat 和日志读取权限，符号链接及设备文件不导出。</p>
+            <p className="text-xs text-muted">支持 Nginx 标准访问／错误日志时间及 ISO 8601 时间；无法识别日期的行会跳过。需要 Python 3、zstd、nice、ionice、stat 和日志读取权限，符号链接及设备文件不导出。</p>
             {checked ? (
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
                 <dt className="text-muted">日志日期</dt><dd>{checked.date}（主机时间）</dd>

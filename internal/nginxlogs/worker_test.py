@@ -2,17 +2,20 @@ import contextlib
 import datetime
 import hashlib
 import io
+import itertools
 import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
+from types import SimpleNamespace
 
 import worker
 
@@ -42,6 +45,11 @@ class WorkerTests(unittest.TestCase):
         self.archive_dir.mkdir()
         self.files = []
         self.addCleanup(self.close_files)
+        if sys.platform != "linux":
+            for target, value in (("memory_usage", (8 << 30, 6 << 30)), ("process_usage", (0, 16 << 20))):
+                mocked = patch.object(worker, target, new=lambda *args, result=value: result)
+                mocked.start()
+                self.addCleanup(mocked.stop)
         self.pacer = worker.Pacer()
         worker.LOCAL_READY.set()
 
@@ -60,7 +68,7 @@ class WorkerTests(unittest.TestCase):
     def compress(self, selections=None):
         with patch.object(worker.shutil, "disk_usage", return_value=ENOUGH):
             archive = worker.compress(self.files, str(self.archive_dir), lambda n: None, self.pacer, selections)
-        with tarfile.open(archive) as package:
+        with tarfile.open(fileobj=io.BytesIO(subprocess.check_output(["zstd", "-d", "-c", archive]))) as package:
             return {name: package.extractfile(name).read() for name in package.getnames()}
 
     def test_append_is_bounded_and_rotation_keeps_original_inode(self):
@@ -108,7 +116,7 @@ class WorkerTests(unittest.TestCase):
         self.scan()
         bound = worker.archive_bound(self.files)
         self.compress()
-        self.assertGreater(bound, (self.archive_dir / "nginx-logs.tar.gz").stat().st_size)
+        self.assertGreater(bound, (self.archive_dir / "nginx-logs.tar.zst").stat().st_size)
         with patch.object(worker.shutil, "disk_usage", return_value=Usage(20 << 30, 0, (2 << 30) + bound - 1)):
             with self.assertRaisesRegex(RuntimeError, "磁盘空间不足"):
                 worker.check_space(str(self.archive_dir), bound)
@@ -117,10 +125,10 @@ class WorkerTests(unittest.TestCase):
     def test_disk_drop_mid_compression_stops_reading(self):
         (self.root / "access.log").write_bytes(b"a" * (worker.CHUNK * 2))
         self.scan()
-        with patch.object(worker.shutil, "disk_usage", side_effect=[ENOUGH, Usage(20 << 30, 0, 1)]):
+        with patch.object(worker.shutil, "disk_usage", side_effect=itertools.chain([ENOUGH], itertools.repeat(Usage(20 << 30, 0, 1)))):
             with self.assertRaisesRegex(RuntimeError, "磁盘空间不足"):
                 worker.compress(self.files, str(self.archive_dir), lambda n: None, self.pacer)
-        self.assertEqual(os.lseek(self.files[0][1], 0, os.SEEK_CUR), worker.CHUNK)
+        self.assertLessEqual(os.lseek(self.files[0][1], 0, os.SEEK_CUR), worker.CHUNK)
 
     def test_empty_and_excessive_file_count_fail(self):
         with self.assertRaisesRegex(RuntimeError, "没有"):
@@ -191,10 +199,25 @@ class WorkerTests(unittest.TestCase):
     def test_heartbeat_eof_terminates_worker_and_cleans_archive(self):
         (self.root / "access.log").write_bytes(self.today_line() * 8192)
         # Exercise the real entrypoint, heartbeat, signals and cleanup on macOS too;
-        # only Linux capability probes are stubbed in this portable test.
+        # Linux capability probes and /proc resource readings are stubbed on macOS.
         code = Path(worker.__file__).read_text().replace('lock_parent="/tmp"', "lock_parent=" + repr(str(self.archive_dir))).replace('        check_environment(parent)', '        pass # platform probe tested on Linux')
+        if sys.platform != "linux":
+            code = code.replace('if __name__ == "__main__":', 'memory_usage = lambda: (8 << 30, 6 << 30)\nprocess_usage = lambda pid: (0, 16 << 20)\nif __name__ == "__main__":')
+        child_pid = Path(self.temp.name) / "compressor.pid"
+        code = code.replace("        pacer.child = child", "        pacer.child = child\n        open(" + repr(str(child_pid)) + ", 'w').write(str(child.pid))")
+        compile(code, "worker-test", "exec")
         process = subprocess.Popen([sys.executable, "-u", "-c", code, str(self.root), str(self.archive_dir)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.addCleanup(lambda: process.kill() if process.poll() is None else None)
+        def cleanup():
+            with contextlib.suppress(OSError):
+                process.stdin.close()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+            process.stdout.close()
+            process.stderr.close()
+        self.addCleanup(cleanup)
         process.stdin.write(b".A")
         process.stdin.flush()
         while True:
@@ -204,6 +227,8 @@ class WorkerTests(unittest.TestCase):
                 break
         process.stdin.close()
         self.assertNotEqual(process.wait(timeout=5), 0)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(int(child_pid.read_text()), 0)
         self.assertFalse(list(self.archive_dir.glob("1panel-nginx-*")))
         self.assertEqual(process.stdout.read(), b"")
         process.stdout.close()
@@ -290,6 +315,200 @@ class WorkerTests(unittest.TestCase):
         stamp = worker.line_timestamp(line)
         self.assertEqual(stamp, datetime.datetime(2026, 10, 14, 2, tzinfo=datetime.timezone.utc).timestamp())
         self.assertIsNone(worker.line_timestamp(b'ip [32/Oct/2026:10:00:00 +0800] invalid\n'))
+
+    def test_compressor_failure_reaps_child_and_run_removes_archive(self):
+        (self.root / "access.log").write_bytes(self.today_line() * 1024)
+        children, popen = [], subprocess.Popen
+        def failing(*args, **kwargs):
+            child = popen([sys.executable, "-c", "import sys; sys.stderr.write('compressor failed'); sys.exit(42)"], **kwargs)
+            children.append(child)
+            return child
+        with patch.object(worker, "check_environment"), patch.object(worker.subprocess, "Popen", side_effect=failing), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "zstd"):
+                worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
+        self.assertEqual(len(children), 1)
+        self.assertEqual(children[0].returncode, 42)
+        self.assertFalse(list(self.archive_dir.glob("1panel-nginx-*")))
+        self.assertIsNone(self.pacer.child)
+
+    def test_memory_drop_terminates_stalled_compressor_and_removes_archive(self):
+        (self.root / "access.log").write_bytes(self.today_line() * 16384)
+        children, popen = [], subprocess.Popen
+        def stalled(*args, **kwargs):
+            child = popen([sys.executable, "-c", "import time; time.sleep(60)"], **kwargs)
+            children.append(child)
+            return child
+        def memory_pressure(preflight=False, child=None):
+            if child is not None:
+                raise RuntimeError("内存不足")
+        start = time.monotonic()
+        with patch.object(worker, "check_environment"), patch.object(worker, "check_memory", side_effect=memory_pressure), patch.object(worker.subprocess, "Popen", side_effect=stalled), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "内存不足"):
+                worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
+        self.assertLess(time.monotonic() - start, 5)
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].returncode)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(children[0].pid, 0)
+        self.assertFalse(list(self.archive_dir.glob("1panel-nginx-*")))
+
+    def test_compressor_setup_failure_still_reaps_started_child(self):
+        popen, children = subprocess.Popen, []
+        def spawn(*args, **kwargs):
+            child = popen(*args, **kwargs)
+            children.append(child)
+            return child
+        with patch.object(worker.subprocess, "Popen", side_effect=spawn), patch.object(worker.threading, "Thread", side_effect=RuntimeError("setup failed")), (self.archive_dir / "partial.zst").open("wb") as output:
+            with self.assertRaisesRegex(RuntimeError, "setup failed"):
+                with worker.compressor(output, str(self.archive_dir), self.pacer):
+                    self.fail("unexpected compressor ready")
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].returncode)
+        self.assertIsNone(self.pacer.child)
+
+    def test_compressor_ignoring_terminate_is_killed_and_reaped(self):
+        popen = subprocess.Popen
+        ready = Path(self.temp.name) / "ready"
+        children = []
+        def stalled(*args, **kwargs):
+            code = "import signal,time,pathlib; signal.signal(signal.SIGTERM,signal.SIG_IGN); pathlib.Path(%r).touch(); time.sleep(60)" % str(ready)
+            child = popen([sys.executable, "-c", code], **kwargs)
+            children.append(child)
+            return child
+        with patch.object(worker.subprocess, "Popen", side_effect=stalled), (self.archive_dir / "partial.zst").open("wb") as output:
+            with self.assertRaisesRegex(RuntimeError, "cancel"):
+                with worker.compressor(output, str(self.archive_dir), self.pacer):
+                    deadline = time.monotonic() + 3
+                    while not ready.exists() and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertTrue(ready.exists())
+                    raise RuntimeError("cancel")
+        self.assertEqual(children[0].returncode, -signal.SIGKILL)
+        self.assertIsNone(self.pacer.child)
+
+    def test_checksum_and_incompressible_multiblock_content(self):
+        content = os.urandom(4 << 20)
+        (self.root / "access.log").write_bytes(content)
+        self.scan()
+        bound = worker.archive_bound(self.files)
+        with patch.object(worker, "RATE", 64 << 20):
+            self.assertEqual(self.compress(), {"access.log": content})
+        archive = self.archive_dir / "nginx-logs.tar.zst"
+        self.assertLess(archive.stat().st_size, bound)
+        frame = bytearray(archive.read_bytes())
+        self.assertEqual(frame[:4], b"\x28\xb5\x2f\xfd")
+        self.assertTrue(frame[4] & 4, "Zstandard frame checksum must be enabled")
+        frame[-1] ^= 1
+        corrupt = self.archive_dir / "corrupt.zst"
+        corrupt.write_bytes(frame)
+        self.assertNotEqual(subprocess.run(["zstd", "-t", str(corrupt)], capture_output=True).returncode, 0)
+
+    @unittest.skipUnless(os.environ.get("NGINX_LOGS_LARGE_TEST") == "1", "opt-in isolated 1 GiB test")
+    def test_gib_today_input_streams_with_bounded_memory(self):
+        # Accelerate only this isolated fixture. Production's 2 MiB/s setting is unchanged.
+        prefix = self.today_line().rstrip(b"\n")
+        line = prefix + b"x" * (65536 - len(prefix) - 1) + b"\n"
+        log = self.root / "access.log"
+        digest = hashlib.sha256()
+        with log.open("wb") as output:
+            for _ in range(16384):
+                output.write(line)
+                digest.update(line)
+        with patch.object(worker, "RATE", 128 << 20):
+            self.scan()
+            selections, unmatched, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
+            bound = worker.archive_bound(self.files, selections)
+            archive = worker.compress(self.files, str(self.archive_dir), lambda _: None, self.pacer, selections)
+        self.assertEqual((unmatched, excluded), (0, 0))
+        self.assertLess(Path(archive).stat().st_size, bound)
+        decoded = hashlib.sha256()
+        with subprocess.Popen(["zstd", "-d", "-c", archive], stdout=subprocess.PIPE) as child:
+            with tarfile.open(fileobj=child.stdout, mode="r|") as tar:
+                member = tar.next()
+                self.assertEqual(member.size, 1 << 30)
+                source = tar.extractfile(member)
+                while True:
+                    data = source.read(worker.CHUNK)
+                    if not data:
+                        break
+                    decoded.update(data)
+                self.assertIsNone(tar.next())
+            child.stdout.read()  # Consume tar padding and allow checksum verification to finish.
+            self.assertEqual(child.wait(), 0)
+        self.assertEqual(decoded.hexdigest(), digest.hexdigest())
+
+
+class ResourceTests(unittest.TestCase):
+    def test_memory_preflight_reserve_and_combined_process_budget(self):
+        reserve = (8 << 30) // 10
+        with patch.object(worker, "process_usage", return_value=(0, 16 << 20)), patch.object(worker, "child_usage", return_value=(0, 0)):
+            with patch.object(worker, "memory_usage", return_value=(8 << 30, reserve + worker.MEMORY_BUDGET - 1)):
+                with self.assertRaisesRegex(RuntimeError, "内存不足"):
+                    worker.check_memory(preflight=True)
+                worker.check_memory()
+            with patch.object(worker, "memory_usage", return_value=(8 << 30, reserve - 1)):
+                with self.assertRaisesRegex(RuntimeError, "内存不足"):
+                    worker.check_memory()
+            with patch.object(worker, "memory_usage", return_value=(8 << 30, 6 << 30)), patch.object(worker, "child_usage", return_value=(0, 250 << 20)):
+                with self.assertRaisesRegex(RuntimeError, "256 MiB"):
+                    worker.check_memory(child=object())
+            with patch.object(worker, "memory_usage", return_value=(1 << 30, (512 << 20) - 1)):
+                with self.assertRaisesRegex(RuntimeError, "内存不足"):
+                    worker.check_memory()
+
+    def test_linux_resource_parsing_handles_process_name_parentheses(self):
+        fields = ["0"] * 22
+        fields[11], fields[12], fields[21] = "100", "50", "4096"
+        with patch("builtins.open", mock_open(read_data="123 (a process (name)) " + " ".join(fields))), patch.object(worker.os, "sysconf", side_effect=[100, 4096]):
+            self.assertEqual(worker.process_usage(123), (1.5, 16 << 20))
+        with patch("builtins.open", mock_open(read_data="MemTotal: 8192 kB\nMemAvailable: 4096 kB\n")):
+            self.assertEqual(worker.memory_usage(), (8 << 20, 4 << 20))
+        with patch("builtins.open", mock_open(read_data="MemTotal: 8192 kB\n")):
+            with self.assertRaisesRegex(RuntimeError, "无法检查"):
+                worker.memory_usage()
+
+    def test_cpu_budget_includes_child_work_during_parent_sleep_and_after_wait(self):
+        clock, parent_cpu = [0.0], [0.0]
+        reaped = SimpleNamespace(ru_utime=0.0, ru_stime=0.0)
+        def sleep(seconds):
+            clock[0] += seconds
+        def usage(child):
+            return (min(clock[0], 0.3), 0) if child else (0, 0)
+        with patch.object(worker, "check_memory"), patch.object(worker, "child_usage", side_effect=usage), patch.object(worker.resource, "getrusage", return_value=reaped), patch.object(worker.time, "process_time", side_effect=lambda: parent_cpu[0]), patch.object(worker.time, "monotonic", side_effect=lambda: clock[0]), patch.object(worker.time, "sleep", side_effect=sleep):
+            pacer = worker.Pacer()
+            parent_cpu[0] = 0.1
+            pacer.child = object()
+            pacer.step()
+            self.assertAlmostEqual(clock[0], 2.0)
+            pacer.child = None
+            reaped.ru_utime = 0.3
+            self.assertAlmostEqual(pacer.cpu_time(), 0.4)
+            pacer.step()
+            self.assertAlmostEqual(clock[0], 2.0)
+
+    def test_cpu_budget_allows_for_resource_check_overhead(self):
+        clock, cpu, sleeps = [0.0], [0.0], []
+        def check(**kwargs):
+            clock[0] += 0.001
+            cpu[0] += 0.001
+        def sleep(seconds):
+            sleeps.append(seconds)
+            if len(sleeps) > 10:
+                self.fail("pacer keeps chasing its own resource-check cost")
+            clock[0] += seconds
+        with patch.object(worker, "check_memory", side_effect=check), patch.object(worker.Pacer, "cpu_time", side_effect=lambda: cpu[0]), patch.object(worker.time, "monotonic", side_effect=lambda: clock[0]), patch.object(worker.time, "sleep", side_effect=sleep):
+            pacer = worker.Pacer()
+            pacer.step()
+            self.assertLess(clock[0], 0.05)
+
+    def test_missing_or_unsupported_zstd_fails_without_fallback(self):
+        with patch.object(worker.shutil, "which", return_value=None), patch.object(worker.subprocess, "check_output") as command:
+            with self.assertRaisesRegex(RuntimeError, "未安装 zstd"):
+                worker.check_zstd()
+            command.assert_not_called()
+        with patch.object(worker.shutil, "which", return_value="/usr/bin/zstd"), patch.object(worker.subprocess, "check_output", return_value=b"old version"):
+            with self.assertRaisesRegex(RuntimeError, "不支持"):
+                worker.check_zstd()
 
 
 if __name__ == "__main__":

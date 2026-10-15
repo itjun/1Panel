@@ -28,8 +28,8 @@ func (s *Files) PickAndDownloadNginxLogs(ctx context.Context, host, logDir, temp
 		start = home
 	}
 	dialog := s.app.Dialog.SaveFile().SetMessage("保存 Nginx 日志压缩包").
-		SetDirectory(start).SetFilename("nginx-logs-"+time.Now().Format("20060102-150405")+".tar.gz").
-		SetButtonText("保存").CanCreateDirectories(true).AddFilter("Nginx 日志 (*.tar.gz)", "*.tar.gz")
+		SetDirectory(start).SetFilename("nginx-logs-"+time.Now().Format("20060102-150405")+".tar.zst").
+		SetButtonText("保存").CanCreateDirectories(true).AddFilter("Nginx 日志 (*.tar.zst)", "*.tar.zst")
 	if s.mainWindow != nil {
 		dialog.AttachToWindow(s.mainWindow)
 	}

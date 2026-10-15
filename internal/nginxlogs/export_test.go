@@ -3,7 +3,6 @@ package nginxlogs
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -100,7 +99,7 @@ func TestExportVerifiesBeforeReplacingDestination(t *testing.T) {
 				finish(channel, test.code)
 			})
 			dir := t.TempDir()
-			path := filepath.Join(dir, "logs.tar.gz")
+			path := filepath.Join(dir, "logs.tar.zst")
 			os.WriteFile(path, []byte("existing"), 0600)
 			err := Export(context.Background(), client, "/var/log/nginx", "/var/tmp", path, nil)
 			if (err == nil) != test.ok {
@@ -132,7 +131,7 @@ func TestCancelOnlyClosesExportSession(t *testing.T) {
 	dir := t.TempDir()
 	done := make(chan error, 1)
 	go func() {
-		done <- Export(ctx, client, "/var/log/nginx", "/var/tmp", filepath.Join(dir, "out.tar.gz"), nil)
+		done <- Export(ctx, client, "/var/log/nginx", "/var/tmp", filepath.Join(dir, "out.tar.zst"), nil)
 	}()
 	<-started
 	cancel()
@@ -164,7 +163,7 @@ func TestRemoteSpaceFailurePreservesLocalFile(t *testing.T) {
 		json.NewEncoder(channel.Stderr()).Encode(Progress{Phase: "error", Message: "磁盘空间不足"})
 		finish(channel, 1)
 	})
-	path := filepath.Join(t.TempDir(), "out.tar.gz")
+	path := filepath.Join(t.TempDir(), "out.tar.zst")
 	os.WriteFile(path, []byte("existing"), 0600)
 	err := Export(context.Background(), client, "/var/log/nginx", "/var/tmp", path, nil)
 	if err == nil || !strings.Contains(err.Error(), "磁盘空间不足") {
@@ -194,6 +193,9 @@ func TestPythonWorker(t *testing.T) {
 	if err != nil {
 		t.Skip("python3 is required for worker tests")
 	}
+	if _, err := exec.LookPath("zstd"); err != nil {
+		t.Skip("zstd is required for worker tests")
+	}
 	command := exec.Command(python, "-B", "-m", "unittest", "discover", "-s", ".", "-p", "*_test.py")
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatal(fmt.Sprintf("%v\n%s", err, output))
@@ -201,11 +203,15 @@ func TestPythonWorker(t *testing.T) {
 }
 
 // Exercise the actual Python compressor, binary SSH transport, progress and checksum together.
-// macOS lacks ionice; only the Linux capability probe is replaced in this portable test.
+// macOS lacks ionice and /proc; capability probes and resource readings are stubbed there.
 func TestExportWithRealWorker(t *testing.T) {
 	python, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("python3 is required")
+	}
+	zstd, err := exec.LookPath("zstd")
+	if err != nil {
+		t.Skip("zstd is required")
 	}
 	root, remoteTemp, local := t.TempDir(), t.TempDir(), t.TempDir()
 	content := bytes.Repeat([]byte(time.Now().Format("2006/01/02 15:04:05")+" [info] today's request\n"), 8192)
@@ -214,6 +220,7 @@ func TestExportWithRealWorker(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "access.log"), originalContent, 0600)
 	os.WriteFile(filepath.Join(root, "access.log.2.gz"), []byte("historical archive"), 0600)
 	code := strings.Replace(worker, "        check_environment(parent)", "        pass # portable test", 1)
+	code = strings.Replace(code, `if __name__ == "__main__":`, "if sys.platform != 'linux':\n    memory_usage = lambda: (8 << 30, 6 << 30)\n    process_usage = lambda pid: (0, 16 << 20)\n\nif __name__ == '__main__':", 1)
 	code = strings.Replace(code, `lock_parent="/tmp"`, "lock_parent="+quote(remoteTemp), 1)
 	client := testSSH(t, func(channel ssh.Channel) {
 		command := exec.Command(python, "-u", "-c", code, root, remoteTemp)
@@ -234,23 +241,17 @@ func TestExportWithRealWorker(t *testing.T) {
 		}
 		finish(channel, 0)
 	})
-	path := filepath.Join(local, "logs.tar.gz")
+	path := filepath.Join(local, "logs.tar.zst")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := Export(ctx, client, root, remoteTemp, path, nil); err != nil {
 		t.Fatal(err)
 	}
-	file, err := os.Open(path)
+	decoded, err := exec.Command(zstd, "-d", "-c", path).Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
-	gz, err := gzip.NewReader(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer gz.Close()
-	archive := tar.NewReader(gz)
+	archive := tar.NewReader(bytes.NewReader(decoded))
 	header, err := archive.Next()
 	if err != nil || header.Name != "access.log" {
 		t.Fatalf("archive header: %v %v", header, err)

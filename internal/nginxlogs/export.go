@@ -208,7 +208,7 @@ func Export(ctx context.Context, client *ssh.Client, root, temporaryDir, destina
 		return ctx.Err()
 	}
 	if waitErr != nil {
-		return fmt.Errorf("远程压缩失败（需要 Python 3、nice、ionice、stat 及日志读取权限）: %w %s", waitErr, strings.TrimSpace(messages.String()))
+		return fmt.Errorf("远程压缩失败（需要 Python 3、zstd、nice、ionice、stat 及日志读取权限）: %w %s", waitErr, strings.TrimSpace(messages.String()))
 	}
 	if status.Phase != "complete" || status.Total != writer.size || status.SHA256 != hex.EncodeToString(digest.Sum(nil)) {
 		return fmt.Errorf("压缩包完整性校验失败，请重试")
