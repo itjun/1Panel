@@ -69,9 +69,8 @@ func zshInstallationScript() []byte {
 	return append([]byte(b.String()), bootstrapZshScript...)
 }
 
-// BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
-// 兼容旧接口；新界面用 StartZshSetup 执行并自动清理脚本。
-func (s *System) BootstrapZsh(host string) (string, error) {
+// bootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp，返回远程路径。
+func (s *System) bootstrapZsh(host string) (string, error) {
 	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return "", err
@@ -305,7 +304,7 @@ func (s *System) StartZshSetup(host string, options ZshSetupOptions) (ZshSetupTa
 			defer s.zshSetupMu.Unlock()
 			appendZshSetupLog(task, line)
 		}
-		path, runErr := s.BootstrapZsh(host)
+		path, runErr := s.bootstrapZsh(host)
 		if runErr == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), zshSetupTimeout)
 			runErr = s.sshMgr.RunStream(ctx, host, opt, zshSetupCommand(path, options), appendLog)

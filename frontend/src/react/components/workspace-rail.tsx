@@ -14,7 +14,6 @@ import {
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
 import { alertDialog } from "@/react/components/ui/confirm-dialog";
-import { Tag } from "@/react/components/ui/tag";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { cn } from "@/react/lib/utils";
 import {
@@ -517,17 +516,11 @@ export function WorkspaceRail() {
 function RailNavButton({
   label,
   active,
-  badge,
-  statusDot,
   onClick,
-  onContextMenu,
 }: {
   label: string;
   active: boolean;
-  badge?: string | null;
-  statusDot?: boolean;
   onClick: () => void;
-  onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
@@ -537,17 +530,8 @@ function RailNavButton({
         active ? "rail-item-active" : "text-muted hover:bg-line hover:text-ink",
       )}
       onClick={onClick}
-      onContextMenu={onContextMenu}
     >
       <span className="truncate">{label}</span>
-      {badge ? (
-        <Tag tone="accent" className="ml-auto font-mono tabular-nums">
-          {badge}
-        </Tag>
-      ) : null}
-      {statusDot ? (
-        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-danger" />
-      ) : null}
     </button>
   );
 }
