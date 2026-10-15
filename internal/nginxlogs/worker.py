@@ -138,6 +138,14 @@ class Pacer:
             time.sleep(min(delay, 0.25))
 
 
+def archive_header(header):
+    # Inspect only the header: renamed backups must not be parsed as log text.
+    signatures = (b"\x1f\x8b", b"BZh", b"\xfd7zXZ\x00", b"\x28\xb5\x2f\xfd",
+                  b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08", b"\x1f\x9d")
+    skippable_zstd = len(header) >= 4 and 0x184D2A50 <= int.from_bytes(header[:4], "little") <= 0x184D2A5F
+    return header.startswith(signatures) or skippable_zstd or header[257:262] == b"ustar"
+
+
 def inventory(root, files, pacer, text_only=False):
     if not os.path.isabs(root) or os.path.realpath(root) == "/":
         raise RuntimeError("请选择日志目录的绝对路径，不能选择根目录")
@@ -160,13 +168,20 @@ def inventory(root, files, pacer, text_only=False):
             if not stat.S_ISREG(info.st_mode):
                 skipped += 1
                 continue
-            if len(files) >= MAX_FILES:
-                raise RuntimeError("日志文件超过 512 个，请选择更具体的目录")
             fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
             try:
                 current = os.fstat(fd)
                 if not stat.S_ISREG(current.st_mode) or (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
                     raise RuntimeError("日志发生轮转，请重试")
+                if text_only:
+                    # pread preserves offset zero for the subsequent bounded snapshot scan.
+                    header = os.pread(fd, min(current.st_size, 512), 0)
+                    pacer.step(len(header))
+                    if archive_header(header):
+                        skipped += 1
+                        continue
+                if len(files) >= MAX_FILES:
+                    raise RuntimeError("日志文件超过 512 个，请选择更具体的目录")
                 if current.st_size > 1024 ** 4:
                     raise RuntimeError("单个日志超过 1 TiB，请先缩小导出范围")
                 archive_name = os.path.relpath(os.path.join(base, name), root)
@@ -489,6 +504,7 @@ def run(root, parent, lock_parent="/tmp"):
         check_space(parent)
         scanned, last_scan = 0, 0
         scan_total = sum(info.st_size for _, _, info in files)
+        emit("filtering", date=window[0], done=0, total=scan_total)
         def scanning(size):
             nonlocal scanned, last_scan
             scanned += size

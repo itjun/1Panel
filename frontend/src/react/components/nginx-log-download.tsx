@@ -37,6 +37,7 @@ export function NginxLogDownload({ host }: { host: string }) {
   const [cancelRequested, setCancelRequested] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [checked, setChecked] = useState<Progress | null>(null);
+  const [scanTotal, setScanTotal] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const flash = useFlashMessage();
   const dialog = useRef<HTMLDivElement>(null);
@@ -49,6 +50,7 @@ export function NginxLogDownload({ host }: { host: string }) {
       const data = event.data;
       if (data?.host !== host || data.requestID !== requestID.current) return;
       setProgress(data.progress);
+      if (data.progress.phase === "filtering") setScanTotal(data.progress.total);
       if (data.progress.phase === "checked") setChecked(data.progress);
     });
     return () => {
@@ -66,6 +68,7 @@ export function NginxLogDownload({ host }: { host: string }) {
       setMessage(null);
       setProgress(null);
       setChecked(null);
+      setScanTotal(null);
       flash.clear();
     });
   }
@@ -82,6 +85,7 @@ export function NginxLogDownload({ host }: { host: string }) {
       setMessage(null);
       setProgress(null);
       setChecked(null);
+      setScanTotal(null);
       flash.clear();
     });
     dialog.current?.scrollTo({ top: 0 });
@@ -162,7 +166,8 @@ export function NginxLogDownload({ host }: { host: string }) {
               {checked ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
                   <dt className="text-muted">日志日期</dt><dd>{checked.date}（主机时间）</dd>
-                  <dt className="text-muted">当日日志</dt><dd>{checked.files} 个文件 · {bytes(checked.total)}</dd>
+                  {scanTotal !== null ? <><dt className="text-muted">待扫描总量</dt><dd>{bytes(scanTotal)}</dd></> : null}
+                  <dt className="text-muted">当日日志大小</dt><dd>{bytes(checked.total)} · {checked.files} 个文件</dd>
                   <dt className="text-muted">磁盘可用</dt><dd>{bytes(checked.available)}</dd>
                   <dt className="text-muted">压缩空间预算</dt><dd>{bytes(checked.required)}</dd>
                   <dt className="text-muted">安全预留</dt><dd>{bytes(checked.reserve)}</dd>
@@ -181,12 +186,23 @@ export function NginxLogDownload({ host }: { host: string }) {
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 rounded-panel bg-surface/95 px-8 py-6">
               <div role="status" aria-live="polite" className="flex w-full flex-col gap-3 text-sm">
                 <div className="flex items-center justify-center gap-2"><LoaderCircle className="size-4 animate-spin text-accent" />{cancelRequested ? "正在取消下载…" : status}</div>
+                {scanTotal !== null ? (
+                  <>
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
+                      <dt className="text-muted">待扫描总量</dt><dd className="text-right">{bytes(scanTotal)}</dd>
+                      <dt className="text-muted">当日日志大小</dt><dd className="text-right">{checked ? bytes(checked.total) : "筛选完成后确定"}</dd>
+                    </dl>
+                    {phase === "filtering" ? <p className="text-center text-xs text-muted">扫描范围包含未压缩轮转日志，筛选后仅打包当日记录。</p> : null}
+                  </>
+                ) : null}
                 {phase === "filtering" || phase === "compressing" || phase === "downloading" ? (
                   <>
                     <div className="h-2 w-full overflow-hidden rounded-control bg-raised" role="progressbar" aria-label={phase === "filtering" ? "筛选进度" : phase === "compressing" ? "压缩进度" : "下载进度"} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
                       <div className="h-full bg-accent" style={{ width: `${percent}%` }} />
                     </div>
-                    <span className="text-center text-xs text-muted tabular-nums">{bytes(progress?.done || 0)} / {bytes(progress?.total || 0)} · {percent.toFixed(0)}%</span>
+                    <span className="text-center text-xs text-muted tabular-nums">
+                      {phase === "filtering" ? `已扫描 ${bytes(progress?.done || 0)}` : `${phase === "compressing" ? "已处理当日日志" : "已下载"} ${bytes(progress?.done || 0)} / ${bytes(progress?.total || 0)}`} · {percent.toFixed(0)}%
+                    </span>
                   </>
                 ) : null}
               </div>

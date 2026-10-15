@@ -1,9 +1,12 @@
 import contextlib
+import bz2
 import datetime
+import gzip
 import hashlib
 import io
 import itertools
 import json
+import lzma
 import os
 from pathlib import Path
 import shutil
@@ -14,6 +17,7 @@ import tarfile
 import tempfile
 import time
 import unittest
+import zipfile
 from unittest.mock import patch, mock_open
 from types import SimpleNamespace
 
@@ -262,6 +266,58 @@ class WorkerTests(unittest.TestCase):
         selections, _, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
         self.assertEqual((skipped, excluded), (1, 1))
         self.assertEqual(self.compress(selections), {"access.log.1": content})
+
+    def test_renamed_compressed_backups_are_excluded_before_scanning(self):
+        content = self.today_line()
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as package:
+            package.writestr("access.log", content)
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as package:
+            member = tarfile.TarInfo("access.log")
+            member.size = len(content)
+            package.addfile(member, io.BytesIO(content))
+        backups = {
+            "access.log.1.gz-2026101400.backup": gzip.compress(content),
+            "renamed-bzip.backup": bz2.compress(content),
+            "renamed-xz.bak": lzma.compress(content),
+            "renamed-zstd.bak": subprocess.check_output(["zstd", "-q", "-c"], input=content),
+            "renamed-zip.bak": zip_buffer.getvalue(),
+            "renamed-tar.bak": tar_buffer.getvalue(),
+            "skippable-zstd.bak": bytes.fromhex("502a4d1800000000"),
+        }
+        for name, data in backups.items():
+            (self.root / name).write_bytes(data)
+        # Text logs and uncompressed backups remain eligible, regardless of their names.
+        expected = {name: content for name in ("access.log", "access.log.1", "plain.gz-2026101400.backup")}
+        for name, data in expected.items():
+            (self.root / name).write_bytes(data)
+        with patch.object(worker.os, "pread", wraps=os.pread) as read:
+            skipped = worker.inventory(str(self.root), self.files, self.pacer, text_only=True)
+        self.assertEqual(skipped, len(backups))
+        self.assertTrue(all(call.args[1] <= 512 and call.args[2] == 0 for call in read.call_args_list))
+        self.assertEqual({name for name, _, _ in self.files}, set(expected))
+        self.assertTrue(all(os.lseek(fd, 0, os.SEEK_CUR) == 0 for _, fd, _ in self.files))
+        self.assertEqual(sum(info.st_size for _, _, info in self.files), sum(map(len, expected.values())))
+        scanned = []
+        selections, unmatched, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), scanned.append)
+        self.assertEqual((unmatched, excluded), (0, 0))
+        self.assertEqual(sum(scanned), sum(map(len, expected.values())))
+        self.assertEqual(self.compress(selections), expected)
+
+    def test_progress_distinguishes_scan_total_from_today_size_without_backups(self):
+        today = self.today_line()
+        yesterday = b"2000/01/01 12:00:00 old request\n"
+        (self.root / "access.log").write_bytes(today + yesterday)
+        (self.root / "access.log.1.gz-2026101400.backup").write_bytes(gzip.compress(today * 100))
+        events = []
+        with patch.object(worker, "check_environment"), patch.object(worker, "emit", side_effect=lambda phase, **fields: events.append(dict(phase=phase, **fields))), patch.object(worker, "compress", side_effect=RuntimeError("stop before compression")):
+            with self.assertRaisesRegex(RuntimeError, "stop before compression"):
+                worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
+        filtering = next(event for event in events if event["phase"] == "filtering")
+        checked = next(event for event in events if event["phase"] == "checked")
+        self.assertEqual((filtering["done"], filtering["total"]), (0, len(today + yesterday)))
+        self.assertEqual((checked["total"], checked["files"], checked["skipped"]), (len(today), 1, 1))
 
     def test_today_selection_survives_rotation_and_excludes_later_append(self):
         log = self.root / "access.log"
