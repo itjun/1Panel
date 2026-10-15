@@ -75,7 +75,11 @@ export type {
     PanelHostDraft,
     PanelStateDraft,
     PanelSystemEditor,
+    TerminalApp,
     UpdateHostInput,
     UpdateState,
-    WindowThemeState
+    WindowThemeState,
+    ZshEnvironment,
+    ZshSetupOptions,
+    ZshSetupTask
 } from "./models.js";

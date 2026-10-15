@@ -150,15 +150,33 @@ task darwin:package
 
 ## 初始化脚本
 
-`scripts/bootstrap-zsh.sh` —— 一键在远程 Debian/Ubuntu 主机上初始化 zsh 环境：安装 zsh、Oh My Zsh、ys 主题、代码高亮插件（zsh-syntax-highlighting）、历史提示插件（zsh-autosuggestions），写入 `.zshrc` 并切换默认 shell。脚本幂等，可重复执行；下载的 install.sh 临时文件在任何退出情况下都会自动清理。
+在首页右键目标主机 →「初始化」→「开始初始化」。任务窗口展示目标、安装范围与日志，不切换当前主机或页面。一次安装 [itjun-tools](https://gitee.com/shenzhenitjun/itjun-tools) 的基础软件清单（openssh-server、vim、curl、wget、sudo、tree、ca-certificates），APT 主机另外安装 htop、btop 监控工具，加上 zsh、Git、完整 Oh My Zsh、命令高亮和历史建议；使用 ys 主题，将当前 SSH 登录用户的默认 Shell 设为 zsh，并启用 SSH 开机启动。关闭窗口后任务继续，可右键同一主机重新查看。
+
+支持使用 apt、dnf、yum、apk 的远程 Linux 主机。主机初始化需要 root 或免密 sudo；沿用目标系统现有软件源，不替换为 Debian trixie 源，也不执行整机升级。Alpine 的 SSH 软件包使用 openssh，RPM 与 Alpine 额外补齐 chsh 所需软件。[zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting) 和 [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) 使用官方固定版本，随应用内置并校验，目标主机无需访问 GitHub；来源、许可证和校验值见 `scripts/zsh-plugins/`。拼写纠错默认关闭：初始化配置末尾执行 `unsetopt correct correctall`，覆盖 Oh My Zsh 或原配置启用的纠错选项；高亮不保证参数或执行结果正确。APT 遇到其他安装任务持有锁时最多等待 300 秒，索引锁繁忙时自动重试；不会删除锁文件或终止其他升级任务。
+
+`scripts/bootstrap-zsh.sh` 可独立执行。脚本保留原 `.zshrc`（遵循远程环境中的 `ZDOTDIR`），只替换末尾的 1Panel 标记块，插件与配置保存在 `~/.local/share/1panel/zsh/`。完整 Oh My Zsh（全部内置插件、主题、工具）来自官方仓库的固定版本，随应用内置（来源、许可证和校验值见 `scripts/oh-my-zsh/`），通过面板安装框架无需远程访问 GitHub。已有完整框架会复用并避免重复加载，保留原插件列表及个人 PATH；首次安装默认启用 git、svn，高亮和历史建议另外加载。全新用户安装到 `~/.oh-my-zsh/`；该目录已有不完整内容时，保留它并使用 `~/.local/share/1panel/zsh/oh-my-zsh-full/`。独立脚本优先读取相邻的 `oh-my-zsh/oh-my-zsh.tar.gz` 和 `zsh-plugins/` 安装包；没有相邻安装包时才从官方源下载。每次写配置前产生独立备份与 `restore.sh`，语法或主题/功能加载验证失败时自动恢复配置；下载失败时不写入 `.zshrc`。恢复命令会覆盖备份之后的个人配置编辑，不卸载系统软件或插件，也不删除命令历史。
+
+日志只保留当前应用会话中每台主机的最近一次任务（最多 2000 行）；重启面板后仍可从环境检测取到主机上最近的配置恢复命令。任务总时限为 30 分钟，以容纳慢速软件下载与安装锁等待。SSH 中断或超时时，请先在终端确认远端任务状态再重试。
 
 ```bash
 # scp 到远程后执行
-scp scripts/bootstrap-zsh.sh user@host:/tmp/ && ssh user@host 'bash /tmp/bootstrap-zsh.sh'
+scp scripts/bootstrap-zsh.sh user@host:/tmp/ && ssh user@host 'sh /tmp/bootstrap-zsh.sh --apply --base-packages --default-shell'
 
 # 直接远程拉起（脚本本身不落地）
-ssh user@host 'bash -s' < scripts/bootstrap-zsh.sh
+ssh user@host 'sh -s -- --apply --base-packages --default-shell' < scripts/bootstrap-zsh.sh
+
+# 只读检测；可选参数：--no-highlighting --no-suggestions --no-correction --correction --default-shell --base-packages
+ssh user@host 'sh -s -- --inspect' < scripts/bootstrap-zsh.sh
 ```
+
+真机联调需要显式指定主机，普通 `go test` 不会连接或修改远程主机：
+
+```bash
+ONEPANEL_ZSH_LIVE_HOST=template go test . -run TestZshLiveHost -v -count=1 -timeout 45m
+ssh -T template 'python3 -' < scripts/verify-zsh-pty.py
+```
+
+第一项通过真实 `System` 服务验证依赖安装、SFTP 上传、流式日志、并发保护、重复执行、默认 Shell 切换与备份恢复，测试结束后保留 zsh 配置并恢复原登录 Shell。第二项通过远程 PTY 验证命令着色、纠错询问、灰字历史建议和右方向键接受建议，使用临时历史文件，不写入个人命令历史。
 
 ## 许可证
 

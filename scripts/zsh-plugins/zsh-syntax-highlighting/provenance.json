@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/zsh-users/zsh-syntax-highlighting",
+  "commit": "e6683f20e5c38d3e5447f45845d04ddda75d0f23",
+  "archiveURL": "https://codeload.github.com/zsh-users/zsh-syntax-highlighting/tar.gz/e6683f20e5c38d3e5447f45845d04ddda75d0f23",
+  "sha256": "6e8258a74e6f3cac03e1bb5ee72504bc4d819904e9aa742d62f60833168db265",
+  "license": "BSD-3-Clause",
+  "files": 342
+}

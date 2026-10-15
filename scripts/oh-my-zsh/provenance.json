@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/ohmyzsh/ohmyzsh",
+  "commit": "106f9874a22ec8cfa1e69ae8e1143d8720f087dc",
+  "archiveURL": "https://codeload.github.com/ohmyzsh/ohmyzsh/tar.gz/106f9874a22ec8cfa1e69ae8e1143d8720f087dc",
+  "sha256": "4bbd395f4a81b8bc66a6a02804a46236ed13643a3ac22082c843fcfbcf3a767e",
+  "license": "MIT",
+  "files": 1170,
+  "plugins": 371
+}

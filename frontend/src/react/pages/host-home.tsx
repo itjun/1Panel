@@ -22,6 +22,7 @@ import {
   type GroupDropMark,
 } from "@/utils/hostRows";
 import { DistroBadge } from "@/react/components/distro-badge";
+import { openHostSetup } from "@/react/components/host-setup-dialog";
 import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
@@ -1375,6 +1376,14 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           />
           {hostMenu.hosts.length <= 1 ? (
             <>
+              <MenuItem
+                label="初始化"
+                onClick={() => {
+                  const name = hostMenu.host;
+                  closeAllMenus();
+                  openHostSetup(name);
+                }}
+              />
               <MenuDivider />
               <MenuItem
                 label="编辑主机"
@@ -1481,7 +1490,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               </div>
               <MenuDivider />
               <MenuItem
-                label="安装 Agent…"
+                label="安装 Agent"
                 onClick={() => {
                   const name = hostMenu.host;
                   closeAllMenus();
@@ -1489,7 +1498,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 }}
               />
               <MenuItem
-                label="检查 Agent…"
+                label="检查 Agent"
                 onClick={() => {
                   const name = hostMenu.host;
                   closeAllMenus();
@@ -1498,7 +1507,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               />
               <MenuDivider />
               <MenuItem
-                label="删除…"
+                label="删除"
                 danger
                 onClick={() => {
                   const hosts = hostMenu.hosts.slice();
@@ -1511,7 +1520,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             <>
               <MenuDivider />
               <MenuItem
-                label="删除…"
+                label="删除"
                 danger
                 onClick={() => {
                   const hosts = hostMenu.hosts.slice();
