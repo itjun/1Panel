@@ -66,9 +66,8 @@ import {
   formatRateKBps,
   isAgentMissing,
 } from "@/utils/format";
-import { logHighlightHtml } from "@/utils/logHighlight";
+import { HostLogContent, HostLogControls, useHostLog } from "@/react/components/host-log-viewer";
 import { parseCronLine } from "@/utils/cron";
-import { HighlightPane } from "@/react/components/local/highlight-pane";
 
 export function HostToolPage({ host, tool }: { host: string; tool: Tool }) {
   if (tool === "overview") return <OverviewPage host={host} />;
@@ -2249,39 +2248,20 @@ function CronPage({ host }: { host: string }) {
   );
 }
 
-/* ---------- 日志 ---------- */
+/* ---------- 系统日志 ---------- */
 
 function LogsPage({ host }: { host: string }) {
   const logTypes = [
     { key: "system", label: "系统" },
     { key: "auth", label: "认证" },
     { key: "kernel", label: "内核" },
-    { key: "nginx_access", label: "Nginx 访问" },
-    { key: "nginx_error", label: "Nginx 错误" },
   ] as const;
   const [kind, setKind] = useState<string>("system");
-  const [lines, setLines] = useState(500);
-  const [search, setSearch] = useState("");
-
-  const query = useQuery({
-    queryKey: ["logs", host, kind, lines],
-    queryFn: () => api.collectLog(host, kind, lines),
-  });
-
-  const text = useMemo(() => {
-    const raw = query.data?.content || "";
-    if (!search.trim()) return raw;
-    return raw
-      .split("\n")
-      .filter((line) => line.toLowerCase().includes(search.trim().toLowerCase()))
-      .join("\n");
-  }, [query.data, search]);
-
-  const html = useMemo(() => logHighlightHtml(text), [text]);
+  const log = useHostLog(host, kind);
 
   return (
     <Page
-      title="日志"
+      title="系统日志"
       actions={
         <>
           {logTypes.map((item) => (
@@ -2293,33 +2273,13 @@ function LogsPage({ host }: { host: string }) {
               {item.label}
             </Button>
           ))}
-          <Select<number>
-            aria-label="行数"
-            value={lines}
-            onChange={setLines}
-            options={[100, 500, 1000, 2000].map((count) => ({
-              value: count,
-              label: `${count} 行`,
-            }))}
-          />
-          <input
-            className="motion-field h-8 rounded-control px-3 text-ink"
-            value={search}
-            placeholder="搜索过滤"
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <HostLogControls log={log} />
         </>
       }
-      onRefresh={() => void query.refetch()}
+      onRefresh={() => void log.query.refetch()}
+      refreshing={log.query.isFetching}
     >
-      {query.error ? <Notice text={formatErr(query.error)} /> : null}
-      {query.data?.source ? (
-        <p className="m-0 text-xs text-muted">来源 {query.data.source}</p>
-      ) : null}
-      {/* 日志本体保持独立石墨面（DESIGN.md §8.1） */}
-      <div className="surface-float min-h-0 flex-1 overflow-hidden !bg-graphite">
-        <HighlightPane html={html} text={text} pinBottom wrap />
-      </div>
+      <HostLogContent log={log} />
     </Page>
   );
 }

@@ -91,7 +91,7 @@ export const HOST_TOOLS: { id: Tool; label: string }[] = [
   { id: "network", label: "网络" },
   { id: "processes", label: "进程" },
   { id: "services", label: "服务" },
-  { id: "logs", label: "日志" },
+  { id: "logs", label: "系统日志" },
   { id: "packages", label: "软件包" },
   { id: "apt", label: "软件源" },
   { id: "cron", label: "定时任务" },

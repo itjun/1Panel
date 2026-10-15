@@ -177,7 +177,7 @@ export function NginxLogDownload({ host }: { host: string }) {
             </div>
             <DialogFooter>
               <Button disabled={busy} onClick={() => setOpen(false)}>关闭</Button>
-              <Button variant="primary" onClick={() => void start()} disabled={busy || !logDir.trim().startsWith("/") || !temporaryDir.trim().startsWith("/")}>压缩并下载</Button>
+              <Button variant="primary" onClick={() => void start()} disabled={busy || !logDir.trim().startsWith("/") || !temporaryDir.trim().startsWith("/")}>下载</Button>
             </DialogFooter>
           </div>
           {busy ? (

@@ -1,5 +1,6 @@
 import { NginxLogDownload } from "@/react/components/nginx-log-download";
 import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
+import { HostLogContent, HostLogControls, useHostLog } from "@/react/components/host-log-viewer";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api";
@@ -15,7 +16,7 @@ import { formatErr } from "@/utils/format";
 
 export function HostFilePage({ host, tool }: { host: string; tool: Tool }) {
   if (tool === "files") return <SftpPage host={host} />;
-  if (tool === "nginx") return <RemoteCodePage host={host} kind="nginx" />;
+  if (tool === "nginx") return <RemoteCodePage key={host} host={host} kind="nginx" />;
   if (tool === "apt") return <RemoteCodePage host={host} kind="apt" />;
   if (tool === "hosts") return <RemoteCodePage host={host} kind="hosts" />;
   return null;
@@ -41,11 +42,26 @@ function normalizeEntries(raw: unknown[]): Entry[] {
     });
 }
 
+const NGINX_VIEWS = [
+  { key: "config", label: "配置" },
+  { key: "nginx_access", label: "访问日志" },
+  { key: "nginx_error", label: "错误日志" },
+] as const;
+type NginxView = (typeof NGINX_VIEWS)[number]["key"];
+
 function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | "hosts" }) {
   const [selected, setSelected] = useState("");
+  const [nginxView, setNginxView] = useState<NginxView>("config");
+  const isShowingLogs = kind === "nginx" && nginxView !== "config";
+  let logKind = "nginx_access";
+  if (nginxView !== "config") {
+    logKind = nginxView;
+  }
+  const log = useHostLog(host, logKind, isShowingLogs);
 
   const listing = useQuery({
     queryKey: ["code-list", host, kind],
+    enabled: !isShowingLogs,
     queryFn: async () => {
       if (kind === "hosts") {
         const info = await api.collectHosts(host);
@@ -77,12 +93,12 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
 
   const path = selected || listing.data?.files[0]?.path || "";
   const listed = listing.data?.files.find((file) => file.path === path);
-  const needFetch = kind === "nginx" && !!path;
+  const isFileBodyNeeded = kind === "nginx" && !isShowingLogs && !!path;
 
   const body = useQuery({
     queryKey: ["code-body", host, path],
     queryFn: () => api.readFileText(host, path),
-    enabled: needFetch,
+    enabled: isFileBodyNeeded,
   });
 
   const loadedText =
@@ -106,10 +122,17 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
   }, [host, kind]);
 
   const refresh = () => {
+    if (isShowingLogs) {
+      void log.query.refetch();
+      return;
+    }
     void listing.refetch();
-    if (needFetch) void body.refetch();
+    if (isFileBodyNeeded) void body.refetch();
   };
-  const refreshing = listing.isFetching || (needFetch && body.isFetching);
+  let refreshing = listing.isFetching || (isFileBodyNeeded && body.isFetching);
+  if (isShowingLogs) {
+    refreshing = log.query.isFetching;
+  }
 
   const title = kind === "apt" ? "软件源" : kind === "hosts" ? "Hosts" : "Nginx";
 
@@ -119,55 +142,80 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
       flush
       actions={
         <>
-          <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
+          {kind === "nginx" ? (
+            <div className="flex shrink-0 items-center gap-4 pr-2" role="group" aria-label="Nginx 内容">
+              {NGINX_VIEWS.map((view) => (
+                <button
+                  key={view.key}
+                  type="button"
+                  aria-pressed={nginxView === view.key}
+                  className={`motion-colors h-8 whitespace-nowrap text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${nginxView === view.key ? "text-accent" : "text-muted hover:text-ink"}`}
+                  onClick={() => setNginxView(view.key)}
+                >
+                  {view.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {isShowingLogs ? <HostLogControls log={log} /> : (
+            <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
+          )}
           {kind === "nginx" ? <NginxLogDownload key={host} host={host} /> : null}
-          <CurrentTextRefresh onRefresh={refresh} refreshing={refreshing} disabled={!path} />
+          <CurrentTextRefresh onRefresh={refresh} refreshing={refreshing} disabled={!isShowingLogs && !path} />
         </>
       }
       onRefresh={refresh}
       refreshing={refreshing}
     >
-      {listing.error ? (
-        <div className="px-3 pt-3">
-          <Notice text={formatErr(listing.error)} />
+      {isShowingLogs ? (
+        <div className="gap-card m-[var(--gap-card)] flex min-h-0 flex-1 flex-col">
+          <HostLogContent log={log} />
         </div>
-      ) : null}
-      {needFetch && body.error ? (
-        <div className="px-3 pt-3"><Notice text={formatErr(body.error)} /></div>
-      ) : null}
-      {listing.data?.aptOnly ? (
-        <div className="px-3 pt-3">
-          <Notice tone="warn" text="仅支持 apt（Debian / Ubuntu）" />
-        </div>
-      ) : null}
-      <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
-        <div className="surface-float min-h-0 overflow-auto">
-          {(listing.data?.files || []).map((file) => (
-            <button
-              key={file.path}
-              type="button"
-              className={
-                file.path === path
-                  ? "flex h-table-row w-full items-center px-3 text-left font-mono text-sm font-semibold text-accent bg-accent-soft"
-                  : "flex h-table-row w-full items-center px-3 text-left font-mono text-sm hover:bg-raised"
-              }
-              onClick={() => setSelected(file.path)}
-            >
-              {file.name}
-            </button>
-          ))}
-          {!listing.isLoading && !(listing.data?.files || []).length ? (
-            <p className="px-3 py-4 text-sm text-muted">目录为空</p>
+      ) : (
+        <>
+          {listing.error ? (
+            <div className="px-3 pt-3">
+              <Notice text={formatErr(listing.error)} />
+            </div>
           ) : null}
-        </div>
-        <div className="surface-float min-h-0 overflow-hidden !bg-graphite">
-          {needFetch && body.isLoading && !loadedText ? (
-            <pre className="p-4 font-mono text-sm text-graphite-text">加载中…</pre>
-          ) : (
-            <HighlightPane html={html} text={loadedText} />
-          )}
-        </div>
-      </div>
+          {isFileBodyNeeded && body.error ? (
+            <div className="px-3 pt-3"><Notice text={formatErr(body.error)} /></div>
+          ) : null}
+          {listing.data?.aptOnly ? (
+            <div className="px-3 pt-3">
+              <Notice tone="warn" text="仅支持 apt（Debian / Ubuntu）" />
+            </div>
+          ) : null}
+          <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+            <div className="surface-float min-h-0 overflow-auto">
+              {(listing.data?.files || []).map((file) => (
+                <button
+                  key={file.path}
+                  type="button"
+                  className={
+                    file.path === path
+                      ? "flex h-table-row w-full items-center px-3 text-left font-mono text-sm font-semibold text-accent bg-accent-soft"
+                      : "flex h-table-row w-full items-center px-3 text-left font-mono text-sm hover:bg-raised"
+                  }
+                  onClick={() => setSelected(file.path)}
+                >
+                  {file.name}
+                </button>
+              ))}
+              {!listing.isLoading && !(listing.data?.files || []).length ? (
+                <p className="px-3 py-4 text-sm text-muted">目录为空</p>
+              ) : null}
+            </div>
+            <div className="surface-float min-h-0 overflow-hidden !bg-graphite">
+              {isFileBodyNeeded && body.isLoading && !loadedText ? (
+                <pre className="p-4 font-mono text-sm text-graphite-text">加载中…</pre>
+              ) : (
+                <HighlightPane html={html} text={loadedText} />
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </Page>
   );
 }
