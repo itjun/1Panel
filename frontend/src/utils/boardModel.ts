@@ -1,4 +1,4 @@
-import type { monitor } from "../api";
+import type { agentcli, monitor } from "../api";
 import { isCpuAlert, isDiskFull, isLoadAlert, isMemAlert } from "./alerts";
 import { watchServiceSortKey } from "./watchServices";
 
@@ -41,28 +41,41 @@ export interface BoardSummary {
 const BOARD_STALE_AFTER_MS = 12_000;
 
 /**
- * 把设置中的服务名和探活实例计数合成卡片使用的数据。
- * 未完成首轮采集时必须保留 unknown，不能把缺失的 map 键当成 0。
+ * 从 Agent 的实例快照统计实际运行进程；DOWN 占位行不属于实例。
+ * 运行数量和探活状态分开判断，采集未成功时不能把未知当成离线或正常。
  */
 export function buildBoardAppSubItems(
   subscribed: string[] | null,
-  counts: Record<string, number> | undefined,
-  countsKnown: boolean
+  instances: readonly agentcli.JavaAppInstance[] | undefined,
+  instancesKnown: boolean
 ): BoardAppSubItem[] | null {
   if (subscribed === null) return null;
+  const byService = new Map<string, Map<number, boolean>>();
+  for (const row of instances || []) {
+    const service = (row.service || "").trim();
+    if (!service || !Number.isInteger(row.pid) || row.pid <= 0 || !row.processUp || row.status === "DOWN") continue;
+    let processes = byService.get(service);
+    if (!processes) {
+      processes = new Map();
+      byService.set(service, processes);
+    }
+    const healthy = row.status === "UP" && row.healthUp && (!row.ingressOn || row.ingressUp);
+    // 同一进程只计一次；重复记录中只要存在异常，就不能标为正常。
+    processes.set(row.pid, (processes.get(row.pid) ?? true) && healthy);
+  }
   return [...subscribed]
     .map((name) => name.trim())
     .filter(Boolean)
     .sort((a, b) => watchServiceSortKey(a) - watchServiceSortKey(b))
     .map((name) => {
-      const raw = counts?.[name];
-      const count = Number.isFinite(Number(raw)) ? Math.max(0, Number(raw)) : 0;
+      const processes = byService.get(name);
+      const count = processes?.size ?? 0;
       return {
         name,
         count,
-        status: !countsKnown
+        status: !instancesKnown
           ? "unknown"
-          : count > 0
+          : count > 0 && [...processes!.values()].every(Boolean)
             ? "healthy"
             : "critical",
       };

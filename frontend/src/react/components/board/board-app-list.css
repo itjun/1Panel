@@ -1,0 +1,92 @@
+.board-app-list {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  gap: calc(4px * var(--board-scale, 1)) calc(8px * var(--board-scale, 1));
+  min-width: 0;
+  min-height: calc(22px * var(--board-scale, 1));
+  max-height: calc(48px * var(--board-scale, 1));
+  font-size: calc(14px * var(--board-scale, 1));
+  line-height: calc(22px * var(--board-scale, 1));
+}
+
+.board-app-list__item {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: calc(4px * var(--board-scale, 1));
+  min-width: 0;
+  max-width: min(100%, calc(180px * var(--board-scale, 1)));
+  height: calc(22px * var(--board-scale, 1));
+  box-sizing: border-box;
+  padding: 0 calc(5px * var(--board-scale, 1));
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  font: inherit;
+  white-space: nowrap;
+}
+
+.board-app-list__item.health-healthy { background: var(--color-success-soft); }
+.board-app-list__item.health-critical { background: var(--color-danger-soft); }
+.board-app-list__item.health-unknown { background: var(--color-raised); }
+
+.board-app-list__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-app-list__item b {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.board-app-list__empty { color: var(--color-muted); }
+
+.board-app-list .board-app-list__more {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  height: calc(22px * var(--board-scale, 1));
+  padding: 0 calc(4px * var(--board-scale, 1));
+  border: 0;
+  border-radius: var(--radius-tag);
+  color: var(--color-accent);
+  background: transparent;
+  font: inherit;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.board-app-list__more > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-app-list .board-app-list__more.is-critical { color: var(--color-danger); }
+.board-app-list .board-app-list__more.is-unknown { color: var(--color-warn); }
+.board-app-list button.board-app-list__more:hover { background: var(--color-raised); }
+.board-app-list button.board-app-list__more:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+/* 保留与真实标签相同的宽度约束，只测量尺寸，既不占位也不进入键盘/读屏顺序。 */
+.board-app-list__measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}

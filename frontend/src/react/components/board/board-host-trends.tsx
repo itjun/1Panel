@@ -108,7 +108,6 @@ export const BoardHostTrends = memo(function BoardHostTrends({ host, card, histo
     <section id="board-host-trends" className="board-trends" aria-labelledby="board-trends-title" data-host={host}>
       <header className="board-trends__header">
         <h2 id="board-trends-title"><span>{host}</span><span className="board-trends__period">近 1 小时趋势</span></h2>
-        <span className="board-trends__hint">点击上方主机切换曲线</span>
         <span className="board-trends__freshness">
           {history?.loading ? "正在更新…" : history?.updatedAt ? `曲线更新 ${timeLabel(history.updatedAt, true)}` : "等待采样"}
         </span>

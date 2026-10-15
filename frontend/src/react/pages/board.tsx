@@ -5,12 +5,13 @@ import {
   useRef,
   useState,
 } from "react";
-import type { monitor } from "@/api";
-import { Maximize, Minimize } from "lucide-react";
+import type { agentcli, monitor } from "@/api";
+import { Maximize, Minimize, X } from "lucide-react";
 import { Button } from "@/react/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/react/components/ui/dialog";
 import { boardHttpApi } from "@/api/board-http";
 import { BoardSummaryStrip } from "@/react/components/board/board-summary-strip";
-import { HostBoardTable } from "@/react/components/board/host-board-table";
+import { BoardFleetOverview } from "@/react/components/board/board-fleet-overview";
 import { BoardHostTrends } from "@/react/components/board/board-host-trends";
 import { normalizeBoardHistory, type BoardHistory } from "@/utils/boardHistory";
 import "@/react/components/board/board.css";
@@ -93,10 +94,31 @@ export function BoardPage({ groupId }: { groupId: string }) {
   const [hostStates, setHostStates] = useState<Record<string, HostSnap>>({});
   const [histories, setHistories] = useState<Record<string, BoardHistory>>({});
   const [requestedHost, setRequestedHost] = useState("");
-  const [instanceCounts, setInstanceCounts] = useState<
-    Record<string, Record<string, number>>
+  const [appsHost, setAppsHost] = useState("");
+  const overviewFocusRef = useRef<HTMLElement | null>(null);
+  const overviewFocusHostRef = useRef("");
+  const rememberOverviewFocus = useCallback((host: string) => {
+    overviewFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    overviewFocusHostRef.current = host;
+  }, []);
+  const openTrends = useCallback((host: string) => {
+    rememberOverviewFocus(host);
+    setRequestedHost(host);
+  }, [rememberOverviewFocus]);
+  const openApps = useCallback((host: string) => {
+    rememberOverviewFocus(host);
+    setAppsHost(host);
+  }, [rememberOverviewFocus]);
+  const restoreOverviewFocus = useCallback((event: Event) => {
+    event.preventDefault();
+    const previous = overviewFocusRef.current;
+    const fallback = document.querySelector<HTMLElement>(`.board-fleet [data-host="${CSS.escape(overviewFocusHostRef.current)}"] .board-host__name`);
+    (previous?.isConnected && previous.matches(".board-fleet button") ? previous : fallback)?.focus({ preventScroll: true });
+  }, []);
+  const [instances, setInstances] = useState<
+    Record<string, agentcli.JavaAppInstance[]>
   >({});
-  const [instanceCountsKnown, setInstanceCountsKnown] = useState<
+  const [instancesKnown, setInstancesKnown] = useState<
     Record<string, boolean>
   >({});
   const [instanceLoading, setInstanceLoading] = useState<Record<string, boolean>>(
@@ -107,7 +129,7 @@ export function BoardPage({ groupId }: { groupId: string }) {
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const selectedHost = hosts.find((host) => host.name === requestedHost)?.name || hosts[0]?.name || "";
+  const selectedHost = hosts.some((host) => host.name === requestedHost) ? requestedHost : "";
   const hostsRef = useRef(hosts);
   const hostStatesRef = useRef(hostStates);
   const subsRef = useRef(hostAppNotifySubs);
@@ -132,16 +154,12 @@ export function BoardPage({ groupId }: { groupId: string }) {
       try {
         const rows = await boardHttpApi.watchInstances(gid, name);
         if (!aliveRef.current) return;
-        const counts: Record<string, number> = {};
-        for (const r of rows || []) {
-          const svc = (r.service || "").trim();
-          if (!svc) continue;
-          counts[svc] = (counts[svc] || 0) + 1;
-        }
-        setInstanceCounts((m) => ({ ...m, [name]: counts }));
-        setInstanceCountsKnown((m) => ({ ...m, [name]: true }));
+        setInstances((m) => ({ ...m, [name]: rows || [] }));
+        setInstancesKnown((m) => ({ ...m, [name]: true }));
       } catch {
-        /* 探活失败时保留上次计数，避免闪空 */
+        if (!aliveRef.current) return;
+        // 保留快照，但本轮失败后不能继续用旧结果宣称正常。
+        setInstancesKnown((m) => ({ ...m, [name]: false }));
       } finally {
         instInFlight.current.delete(name);
         setInstanceLoading((m) => ({ ...m, [name]: false }));
@@ -328,6 +346,7 @@ export function BoardPage({ groupId }: { groupId: string }) {
     document.addEventListener("fullscreenchange", onFsChange);
 
     function onKeydown(e: KeyboardEvent) {
+      if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable=true]")) return;
       if (e.key === "f" || e.key === "F" || e.key === "F11") {
         e.preventDefault();
         void toggleFullscreen();
@@ -354,11 +373,11 @@ export function BoardPage({ groupId }: { groupId: string }) {
         appSubItems: configured
           ? buildBoardAppSubItems(
               subs,
-              instanceCounts[h.name],
-              instanceCountsKnown[h.name] === true,
+              instances[h.name],
+              instancesKnown[h.name] === true,
             )
           : null,
-        appSubLoading: configured && instanceLoading[h.name] === true,
+        appSubLoading: configured && !instancesKnown[h.name] && instanceLoading[h.name] === true,
         updatedAt: s.updatedAt,
       };
     }
@@ -367,8 +386,8 @@ export function BoardPage({ groupId }: { groupId: string }) {
     hosts,
     hostStates,
     hostAppNotifySubs,
-    instanceCounts,
-    instanceCountsKnown,
+    instances,
+    instancesKnown,
     instanceLoading,
   ]);
 
@@ -409,15 +428,41 @@ export function BoardPage({ groupId }: { groupId: string }) {
         <div className="board-mode__empty" role="alert">
           <strong>{metaError}</strong><Button onClick={() => void loadMeta()}>重新加载</Button>
         </div>
-      ) : hosts.length && selectedHost ? (
+      ) : hosts.length ? (
         <div className="board-mode__content">
-          <HostBoardTable hosts={hosts} cards={cards} selectedHost={selectedHost} now={nowMs} onSelect={setRequestedHost} />
-          <BoardHostTrends key={selectedHost} host={selectedHost} card={cards[selectedHost] || { loading: true }}
-            history={histories[selectedHost]} onRetry={retryRange} />
+          <BoardFleetOverview hosts={hosts} cards={cards} selectedHost={selectedHost} now={nowMs}
+            onSelect={openTrends} onApps={openApps} />
         </div>
       ) : (
         <div className="board-mode__empty" role="status"><strong>{metaLoading ? "正在读取主机分组…" : "当前分组暂无主机"}</strong></div>
       )}
+      <Dialog open={!!selectedHost} onOpenChange={(open) => { if (!open) setRequestedHost(""); }}>
+        <DialogContent className="board-dialog board-dialog--trends" aria-describedby={undefined} onCloseAutoFocus={restoreOverviewFocus}>
+          <DialogTitle className="sr-only">主机监控趋势</DialogTitle>
+          <div className="board-dialog__toolbar">
+            <select aria-label="切换趋势主机" value={selectedHost} onChange={(event) => setRequestedHost(event.target.value)}>
+              {hosts.map((host) => <option key={host.name} value={host.name}>{host.name}</option>)}
+            </select>
+            <Button variant="ghost" onClick={() => setRequestedHost("")} aria-label="关闭主机趋势"><X size={20} /></Button>
+          </div>
+          {selectedHost ? <BoardHostTrends key={selectedHost} host={selectedHost} card={cards[selectedHost] || { loading: true }}
+            history={histories[selectedHost]} onRetry={retryRange} /> : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!appsHost && !!cards[appsHost]} onOpenChange={(open) => { if (!open) setAppsHost(""); }}>
+        <DialogContent className="board-dialog board-dialog--apps" aria-describedby={undefined} onCloseAutoFocus={restoreOverviewFocus}>
+          <div className="board-dialog__toolbar">
+            <DialogTitle>{appsHost} · 应用订阅</DialogTitle>
+            <Button variant="ghost" onClick={() => setAppsHost("")} aria-label="关闭应用订阅"><X size={20} /></Button>
+          </div>
+          <div className="board-dialog__app-list">
+            {(cards[appsHost]?.appSubItems || []).map((item) => <div key={item.name} className={`board-dialog__app health-${item.status}`}>
+              <span>{item.name}</span><strong>{item.status === "unknown" ? "—" : item.count}</strong>
+              <span>{item.status === "unknown" ? "待确认" : item.status === "healthy" ? "正常" : item.count === 0 ? "离线" : "异常"}</span>
+            </div>)}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
