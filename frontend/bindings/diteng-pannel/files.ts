@@ -110,6 +110,14 @@ export function NormalizeLocalFileToLinux(file: string): $CancellablePromise<fil
 }
 
 /**
+ * ReadAppLog 只读指定 JAR 实例的控制台日志。通过 SFTP 读取 /proc 和日志，
+ * 不执行远程命令，不依赖 agent 升级，也不回退到可能混有多个实例的 application.log。
+ */
+export function ReadAppLog(host: string, req: $models.AppLogRequest): $CancellablePromise<$models.AppLogResult> {
+    return $Call.ByID(4011374610, host, req);
+}
+
+/**
  * ReadFilePreview（Files 服务）读取远程文本文件：返回编码/换行检测 + UTF-8 内容
  * 比 ReadFileText 更完整，供预览抽屉状态栏与「转 Linux 标准」使用
  */

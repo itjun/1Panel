@@ -309,6 +309,8 @@ const apiImpl = {
     must(Monitor.CollectLargestFiles(host, root, limit)),
   collectLog: (host: string, logType: string, lines: number): Promise<monitor.LogResult> =>
     must(Monitor.CollectLog(host, logType, lines)),
+  readAppLog: (host: string, req: main.AppLogRequest): Promise<main.AppLogResult> =>
+    must(Files.ReadAppLog(host, req)),
 
   listDir: (host: string, dir: string) => arr(Monitor.ListDir(host, dir)),
   /** 远程登录用户家目录（文件管理默认打开路径） */

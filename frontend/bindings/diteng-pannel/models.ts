@@ -77,6 +77,23 @@ export interface AppInfo {
     "issuesUrl": string;
 }
 
+export interface AppLogRequest {
+    "pid": number;
+    "jarPath": string;
+    "port": number;
+    "screen": string;
+    "processStart": string;
+    "lines": number;
+}
+
+export interface AppLogResult {
+    "pid": number;
+    "source": string;
+    "content": string;
+    "processStart": string;
+    "truncated": boolean;
+}
+
 /**
  * BackupPreview 恢复前的预览信息
  */
