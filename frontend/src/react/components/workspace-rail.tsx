@@ -18,6 +18,7 @@ import { Tag } from "@/react/components/ui/tag";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { cn } from "@/react/lib/utils";
 import {
+  UNGROUPED_ID,
   useSession,
   type ConfigSection,
   type NotifySection,
@@ -27,6 +28,13 @@ import {
 import { readSettings } from "@/react/state/settings";
 import { useSidebar } from "@/react/state/sidebar";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
+import {
+  buildRailGroups,
+  railOrderOf,
+  reorderRailGroups,
+  resolveRailDrop,
+  type RailDrop,
+} from "@/utils/railGroups";
 
 const RAIL_ORDER_KEY = "1pannel-rail-order";
 const VISITED_GROUPS_KEY = "1pannel-visited-groups";
@@ -65,14 +73,6 @@ const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "about", label: "关于" },
 ];
 
-type RailEntry =
-  | { kind: "host"; key: string; name: string }
-  | { kind: "group"; key: string; id: string };
-
-/** 分组 ID 可能与主机名相同，railOrder 里分组键加前缀区分 */
-const GROUP_KEY_PREFIX = "group:";
-const groupRailKey = (id: string) => GROUP_KEY_PREFIX + id;
-
 type GroupMenu = { id: string; x: number; y: number };
 
 function loadStringList(key: string): string[] {
@@ -108,7 +108,7 @@ export function WorkspaceRail() {
   const [groupMenu, setGroupMenu] = useState<GroupMenu | null>(null);
 
   const [railDragKey, setRailDragKey] = useState("");
-  const [railDrop, setRailDrop] = useState<{ key: string; before: boolean } | null>(null);
+  const [railDrop, setRailDrop] = useState<RailDrop | null>(null);
   // 会话行的悬停由 JS 记录单一行：WebKit 拖放结束后不刷新 :hover，拖过的行会残留高亮
   const [hoverKey, setHoverKey] = useState("");
 
@@ -175,62 +175,84 @@ export function WorkspaceRail() {
     }
   }
 
-  function buildRailEntries(): RailEntry[] {
-    const hosts = session.openedHosts;
-    const hostNames = new Set(hosts.map((h) => h.name));
-    const groups = new Set(visitedGroupIds);
-    const out: RailEntry[] = [];
-    const seen = new Set<string>();
-    const pushGroup = (id: string) => {
-      const key = groupRailKey(id);
-      if (!groups.has(id) || seen.has(key)) return;
-      out.push({ kind: "group", key, id });
-      seen.add(key);
-    };
-    for (const key of railOrder) {
-      if (key.startsWith(GROUP_KEY_PREFIX)) {
-        pushGroup(key.slice(GROUP_KEY_PREFIX.length));
-        continue;
-      }
-      if (hostNames.has(key)) {
-        if (seen.has(key)) continue;
-        out.push({ kind: "host", key, name: key });
-        seen.add(key);
-        continue;
-      }
-      // 旧版 railOrder 分组键无前缀
-      pushGroup(key);
-    }
-    for (const h of hosts) {
-      if (!seen.has(h.name)) out.push({ kind: "host", key: h.name, name: h.name });
-    }
-    for (const gid of visitedGroupIds) pushGroup(gid);
-    return out;
-  }
+  const railGroups = buildRailGroups({
+    openedHosts: session.openedHosts.map((host) => host.name),
+    visitedGroupIds,
+    railOrder,
+    groupIdOf: session.groupIdOf,
+    ungroupedId: UNGROUPED_ID,
+  });
+  const visibleHostNames = railGroups.flatMap((group) => group.hosts);
 
-  function moveRailEntry(sourceKey: string, targetKey: string, dropBefore: boolean) {
-    if (!sourceKey || sourceKey === targetKey) return;
-    const keys = buildRailEntries().map((e) => e.key);
-    const from = keys.indexOf(sourceKey);
-    if (from < 0) return;
-    keys.splice(from, 1);
-    const insertAt = keys.indexOf(targetKey);
-    if (insertAt < 0) return;
-    keys.splice(dropBefore ? insertAt : insertAt + 1, 0, sourceKey);
+  function moveRailEntry(sourceKey: string, drop: RailDrop) {
+    const next = reorderRailGroups(railGroups, sourceKey, drop);
+    if (!next) return;
+    const keys = railOrderOf(next);
     setRailOrder(keys);
     saveStringList(RAIL_ORDER_KEY, keys);
     // 主机顺序同步进 session（分组顺序只存在本组件）
-    const hostNames = keys.filter((k) => session.openedHosts.some((h) => h.name === k));
+    const hostNames = next.flatMap((group) => group.hosts);
     if (hostNames.length > 0) session.reorderOpenedHosts(hostNames);
+  }
+
+  function startRailDrag(event: DragEvent<HTMLButtonElement>, key: string) {
+    suppressHostClickRef.current = true;
+    setHoverKey("");
+    setRailDrop(null);
+    setRailDragKey(key);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(RAIL_ENTRY_MIME, key);
+    event.dataTransfer.setData("text/plain", key);
+    if (railGroups.some((group) => group.key === key)) {
+      const block = event.currentTarget.closest<HTMLElement>("[data-rail-group]");
+      if (block) {
+        const rect = block.getBoundingClientRect();
+        event.dataTransfer.setDragImage(block, event.clientX - rect.left, event.clientY - rect.top);
+      }
+    }
+  }
+
+  function dropAt(event: DragEvent<HTMLButtonElement>, targetKey: string, sourceKey: string) {
+    const movingGroup = railGroups.some((group) => group.key === sourceKey);
+    const target = movingGroup
+      ? event.currentTarget.closest<HTMLElement>("[data-rail-group]")!
+      : event.currentTarget;
+    const rect = target.getBoundingClientRect();
+    return resolveRailDrop(railGroups, sourceKey, targetKey, event.clientY < rect.top + rect.height / 2);
+  }
+
+  function overRailEntry(event: DragEvent<HTMLButtonElement>, key: string) {
+    if (!Array.from(event.dataTransfer.types).includes(RAIL_ENTRY_MIME)) return;
+    const drop = dropAt(event, key, railDragKey);
+    setRailDrop(drop);
+    if (!drop) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function dropRailEntry(event: DragEvent<HTMLButtonElement>, key: string) {
+    if (!Array.from(event.dataTransfer.types).includes(RAIL_ENTRY_MIME)) return;
+    event.preventDefault();
+    const source = event.dataTransfer.getData(RAIL_ENTRY_MIME) || railDragKey;
+    const drop = dropAt(event, key, source);
+    setRailDrop(null);
+    if (drop) moveRailEntry(source, drop);
+  }
+
+  function endRailDrag() {
+    setRailDragKey("");
+    setRailDrop(null);
+    setHoverKey("");
+    window.setTimeout(() => {
+      suppressHostClickRef.current = false;
+    }, 0);
   }
 
   /** 右键主机行：只弹主机操作菜单，不切换主机、不改多选。行在多选里就作用于整个多选。 */
   function openHostMenu(name: string, x: number, y: number) {
     let hosts = [name];
     if (selectedHostNames.length >= 2 && selectedHostNames.includes(name)) {
-      hosts = session.openedHosts
-        .map((h) => h.name)
-        .filter((n) => selectedHostNames.includes(n));
+      hosts = visibleHostNames.filter((name) => selectedHostNames.includes(name));
     }
     setHostMenu({ host: name, hosts, x, y });
   }
@@ -253,8 +275,6 @@ export function WorkspaceRail() {
             : session.workspace === "speedtest"
               ? "speedtest"
               : "hosts";
-
-  const railEntries = buildRailEntries();
 
   return (
       <aside
@@ -351,167 +371,106 @@ export function WorkspaceRail() {
                 session.goHome();
               }}
             />
-            {railEntries.length > 0 ? <div className="h-2 shrink-0" /> : null}
-            {railEntries.map((entry) => {
-              if (entry.kind === "group") {
-                const active =
-                  !session.settingsOpen &&
-                  session.homeView === "group" &&
-                  !session.activeHost &&
-                  session.activeGroupId === entry.id;
-                return (
-                  <RailSessionRow
-                    key={entry.key}
-                    label={session.groupName(entry.id) || entry.id}
-                    prefix="组"
-                    active={active}
-                    selected={false}
-                    hovered={hoverKey === entry.key}
-                    onHover={() => setHoverKey(entry.key)}
-                    dragging={railDragKey === entry.key}
-                    dropEdge={
-                      railDrop?.key === entry.key
-                        ? railDrop.before
-                          ? "before"
-                          : "after"
-                        : null
-                    }
-                    onPointerDown={(e) => {
-                      if (e.button !== 0) return;
-                      // 切到分组时清掉主机多选，避免 selected 与分组 active 叠出双高亮
-                      setSelectedHostNames([]);
-                      hostAnchorRef.current = "";
-                      session.openGroup(entry.id);
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      const pos = clampContextMenuPos(e.clientX, e.clientY, 180, 96);
-                      setGroupMenu({ id: entry.id, x: pos.x, y: pos.y });
-                    }}
-                    onDragStart={(e) => {
-                      suppressHostClickRef.current = true;
-                      setHoverKey("");
-                      setRailDragKey(entry.key);
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData(RAIL_ENTRY_MIME, entry.key);
-                      e.dataTransfer.setData("text/plain", entry.key);
-                    }}
-                    onDragOver={(e) => {
-                      if (!Array.from(e.dataTransfer.types).includes(RAIL_ENTRY_MIME)) return;
-                      if (entry.key === railDragKey) return;
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const before = e.clientY < rect.top + rect.height / 2;
-                      setRailDrop({ key: entry.key, before });
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const source = e.dataTransfer.getData(RAIL_ENTRY_MIME) || railDragKey;
-                      const before = railDrop?.key === entry.key ? railDrop.before : true;
-                      setRailDrop(null);
-                      moveRailEntry(source, entry.key, before);
-                    }}
-                    onDragEnd={() => {
-                      setRailDragKey("");
-                      setRailDrop(null);
-                      setHoverKey("");
-                      window.setTimeout(() => {
-                        suppressHostClickRef.current = false;
-                      }, 0);
-                    }}
-                  />
-                );
-              }
-
-              // 仅在当前落在某台主机时展示多选高亮；分组页上 leftover selected 不得冒充 active
-              const selected =
-                !!session.activeHost && selectedHostNames.includes(entry.name);
-              const active = session.activeHost === entry.name;
-              return (
+            {railGroups.length > 0 ? <div className="h-2 shrink-0" /> : null}
+            {railGroups.map((group) => (
+              <div
+                key={group.key}
+                data-rail-group={group.key}
+                className={cn(
+                  "relative flex shrink-0 flex-col",
+                  railDragKey === group.key && "opacity-40",
+                )}
+              >
                 <RailSessionRow
-                  key={entry.key}
-                  label={entry.name}
-                  active={active}
-                  selected={selected}
-                  hovered={hoverKey === entry.key}
-                  onHover={() => setHoverKey(entry.key)}
-                  dragging={railDragKey === entry.key}
-                  dropEdge={
-                    railDrop?.key === entry.key
-                      ? railDrop.before
-                        ? "before"
-                        : "after"
-                      : null
+                  entryKey={group.key}
+                  label={session.groupName(group.id) || group.id}
+                  prefix="组"
+                  active={
+                    !session.settingsOpen &&
+                    session.homeView === "group" &&
+                    !session.activeHost &&
+                    session.activeGroupId === group.id
                   }
+                  selected={false}
+                  hovered={hoverKey === group.key}
+                  onHover={() => setHoverKey(group.key)}
+                  dragging={false}
+                  dropEdge={null}
                   onPointerDown={(e) => {
                     if (e.button !== 0 || suppressHostClickRef.current) return;
-                    if (e.metaKey || e.ctrlKey) {
-                      e.preventDefault();
-                      setSelectedHostNames((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(entry.name)) next.delete(entry.name);
-                        else next.add(entry.name);
-                        return [...next];
-                      });
-                      hostAnchorRef.current = entry.name;
-                      return;
-                    }
-                    if (e.shiftKey && hostAnchorRef.current) {
-                      e.preventDefault();
-                      const ids = session.openedHosts.map((h) => h.name);
-                      const from = ids.indexOf(hostAnchorRef.current);
-                      const to = ids.indexOf(entry.name);
-                      if (from < 0 || to < 0) return;
-                      const lo = Math.min(from, to);
-                      const hi = Math.max(from, to);
-                      setSelectedHostNames(ids.slice(lo, hi + 1));
-                      return;
-                    }
-                    setSelectedHostNames([entry.name]);
-                    hostAnchorRef.current = entry.name;
-                    session.openHost(entry.name);
+                    clearHostSelection();
+                    session.openGroup(group.id);
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    e.stopPropagation();
-                    openHostMenu(entry.name, e.clientX, e.clientY);
+                    const pos = clampContextMenuPos(e.clientX, e.clientY, 180, 96);
+                    setGroupMenu({ id: group.id, x: pos.x, y: pos.y });
                   }}
-                  onDragStart={(e) => {
-                    suppressHostClickRef.current = true;
-                    setHoverKey("");
-                    setRailDragKey(entry.key);
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData(RAIL_ENTRY_MIME, entry.key);
-                    e.dataTransfer.setData("text/plain", entry.key);
-                  }}
-                  onDragOver={(e) => {
-                    if (!Array.from(e.dataTransfer.types).includes(RAIL_ENTRY_MIME)) return;
-                    if (entry.key === railDragKey) return;
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const before = e.clientY < rect.top + rect.height / 2;
-                    setRailDrop({ key: entry.key, before });
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const source = e.dataTransfer.getData(RAIL_ENTRY_MIME) || railDragKey;
-                    const before = railDrop?.key === entry.key ? railDrop.before : true;
-                    setRailDrop(null);
-                    moveRailEntry(source, entry.key, before);
-                  }}
-                  onDragEnd={() => {
-                    setRailDragKey("");
-                    setRailDrop(null);
-                    setHoverKey("");
-                    window.setTimeout(() => {
-                      suppressHostClickRef.current = false;
-                    }, 0);
-                  }}
+                  onDragStart={(e) => startRailDrag(e, group.key)}
+                  onDragOver={(e) => overRailEntry(e, group.key)}
+                  onDrop={(e) => dropRailEntry(e, group.key)}
+                  onDragEnd={endRailDrag}
                 />
-              );
-            })}
+                {group.hosts.map((name) => (
+                  <RailSessionRow
+                    key={name}
+                    entryKey={name}
+                    label={name}
+                    indented
+                    active={session.activeHost === name}
+                    selected={!!session.activeHost && selectedHostNames.includes(name)}
+                    hovered={hoverKey === name}
+                    onHover={() => setHoverKey(name)}
+                    dragging={railDragKey === name}
+                    dropEdge={railDrop?.key === name ? (railDrop.before ? "before" : "after") : null}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0 || suppressHostClickRef.current) return;
+                      if (e.metaKey || e.ctrlKey) {
+                        e.preventDefault();
+                        setSelectedHostNames((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(name)) next.delete(name);
+                          else next.add(name);
+                          return [...next];
+                        });
+                        hostAnchorRef.current = name;
+                        return;
+                      }
+                      if (e.shiftKey && hostAnchorRef.current) {
+                        e.preventDefault();
+                        const from = visibleHostNames.indexOf(hostAnchorRef.current);
+                        const to = visibleHostNames.indexOf(name);
+                        if (from < 0 || to < 0) return;
+                        const lo = Math.min(from, to);
+                        const hi = Math.max(from, to);
+                        setSelectedHostNames(visibleHostNames.slice(lo, hi + 1));
+                        return;
+                      }
+                      setSelectedHostNames([name]);
+                      hostAnchorRef.current = name;
+                      session.openHost(name);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openHostMenu(name, e.clientX, e.clientY);
+                    }}
+                    onDragStart={(e) => startRailDrag(e, name)}
+                    onDragOver={(e) => overRailEntry(e, name)}
+                    onDrop={(e) => dropRailEntry(e, name)}
+                    onDragEnd={endRailDrag}
+                  />
+                ))}
+                {railDrop?.key === group.key ? (
+                  <span
+                    className={cn(
+                      "pointer-events-none absolute inset-x-0 h-[3px] bg-accent",
+                      railDrop.before ? "top-0" : "bottom-0",
+                    )}
+                  />
+                ) : null}
+              </div>
+            ))}
           </>
         ) : null}
       </div>
@@ -595,8 +554,10 @@ function RailNavButton({
 }
 
 function RailSessionRow({
+  entryKey,
   label,
   prefix,
+  indented = false,
   active,
   selected,
   hovered,
@@ -610,8 +571,10 @@ function RailSessionRow({
   onDrop,
   onDragEnd,
 }: {
+  entryKey: string;
   label: string;
   prefix?: string;
+  indented?: boolean;
   active: boolean;
   selected: boolean;
   hovered: boolean;
@@ -638,8 +601,10 @@ function RailSessionRow({
     <button
       type="button"
       draggable
+      data-rail-key={entryKey}
       className={cn(
-        "rail-item relative flex h-10 shrink-0 cursor-grab select-none items-center gap-1.5 truncate px-3 text-left active:cursor-grabbing",
+        "rail-item relative flex h-10 shrink-0 cursor-grab select-none items-center gap-1.5 truncate pr-3 text-left active:cursor-grabbing",
+        indented ? "pl-7" : "pl-3",
         stateClass,
         dragging && "opacity-40",
       )}
