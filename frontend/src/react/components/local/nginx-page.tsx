@@ -1,3 +1,4 @@
+import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
@@ -29,6 +30,11 @@ export function LocalNginxPage() {
     retry: false,
   });
 
+  const refresh = () => {
+    void info.refetch();
+    if (chosen) void body.refetch();
+  };
+
   const html = useMemo(() => {
     if (body.isError) return "";
     const text = body.data || "";
@@ -45,20 +51,22 @@ export function LocalNginxPage() {
     <Page
       title="本机 Nginx"
       flush
-      actions={
+      actions={<>
         <span className="flex items-center gap-2 text-sm text-muted">
           <Tag tone={info.data?.running ? "ok" : "neutral"}>
             {info.data?.running ? "运行中" : "未运行"}
           </Tag>
           {info.data?.version ? <span>v{info.data.version}</span> : null}
         </span>
-      }
+        <CurrentTextRefresh onRefresh={refresh} refreshing={info.isFetching || body.isFetching} disabled={!chosen} />
+      </>}
       toolbar={
         info.data?.confD ? (
           <span className="font-mono text-sm text-muted">{info.data.confD}</span>
         ) : null
       }
-      onRefresh={() => void info.refetch()}
+      onRefresh={refresh}
+      refreshing={info.isFetching || body.isFetching}
     >
       {info.error ? (
         <div className="px-4 pt-4">

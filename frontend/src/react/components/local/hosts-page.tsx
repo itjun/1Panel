@@ -1,3 +1,4 @@
+import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { api } from "@/api";
@@ -25,11 +26,12 @@ export function LocalHostsPage() {
     <Page
       title="本机 Hosts"
       flush
-      actions={
+      actions={<>
         <span className="font-mono text-sm text-muted">
           {pathLabel}
         </span>
-      }
+        <CurrentTextRefresh onRefresh={() => void query.refetch()} refreshing={query.isFetching} />
+      </>}
       onRefresh={() => void query.refetch()}
     >
       {query.error ? (

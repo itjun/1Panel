@@ -1,3 +1,4 @@
+import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
@@ -33,7 +34,10 @@ export function LocalAptPage() {
     <Page
       title="本机软件源"
       flush
-      actions={<span className="font-mono text-sm text-muted">{hint}</span>}
+      actions={<>
+        <span className="font-mono text-sm text-muted">{hint}</span>
+        <CurrentTextRefresh onRefresh={() => void query.refetch()} refreshing={query.isFetching} disabled={!chosen} />
+      </>}
       onRefresh={() => void query.refetch()}
     >
       {query.error ? (
