@@ -9,6 +9,10 @@ export default defineConfig({
     host: "127.0.0.1",
     port: Number(process.env.WAILS_VITE_PORT) || 9245,
     strictPort: true,
+    // 本地验证独立看板时复用正在运行的只读网关；生产仍走同源 /api/board。
+    proxy: process.env.BOARD_API_ORIGIN
+      ? { "/api/board": { target: process.env.BOARD_API_ORIGIN, changeOrigin: true } }
+      : undefined,
   },
   plugins: [tailwindcss(), react({ include: /\.(jsx|tsx)$/ }), wails("./bindings")],
   resolve: {
