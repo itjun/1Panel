@@ -50,8 +50,6 @@ type Data struct {
 	NotifyContentFields    []string            `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string `json:"hostAppNotifySubs"`
-	// HostCertNotifySubs 按主机订阅证书到期。true 才发；缺省或 false 不发。
-	HostCertNotifySubs map[string]bool `json:"hostCertNotifySubs"`
 	// CertKindMigrated 旧配置已补过「证书」总闸。缺省时加载一次并打开，之后尊重用户关掉。
 	CertKindMigrated bool `json:"certKindMigrated"`
 }
@@ -73,7 +71,6 @@ type fileData struct {
 	NotifyContentFields    *[]string                  `json:"notifyContentFields"`
 	HostResourceNotifySubs map[string][]string        `json:"hostResourceNotifySubs"`
 	HostAppNotifySubs      map[string][]string        `json:"hostAppNotifySubs"`
-	HostCertNotifySubs     map[string]bool            `json:"hostCertNotifySubs"`
 	CertKindMigrated       *bool                      `json:"certKindMigrated"`
 }
 
@@ -142,7 +139,6 @@ func emptyData() Data {
 		NotifyContentFields:    append([]string{}, knownNotifyContentFields...),
 		HostResourceNotifySubs: map[string][]string{},
 		HostAppNotifySubs:      map[string][]string{},
-		HostCertNotifySubs:     map[string]bool{},
 		CertKindMigrated:       true,
 	}
 }
@@ -200,7 +196,6 @@ func dataFromFile(raw fileData) Data {
 		WecomWebhook:           raw.WecomWebhook,
 		HostResourceNotifySubs: raw.HostResourceNotifySubs,
 		HostAppNotifySubs:      raw.HostAppNotifySubs,
-		HostCertNotifySubs:     raw.HostCertNotifySubs,
 		AlertLevels:            alertLevelsFromFile(raw.AlertLevels),
 		AlertSustain:           defaultAlertSustain,
 		AlertRepeatMinutes:     raw.AlertRepeatMinutes,
@@ -342,20 +337,7 @@ func normalize(d Data) Data {
 		NotifyContentFields:    filterKnown(compactList(d.NotifyContentFields), knownNotifyContentFields),
 		HostResourceNotifySubs: compactHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      compactAppHostMap(d.HostAppNotifySubs),
-		HostCertNotifySubs:     compactCertHosts(d.HostCertNotifySubs),
 		CertKindMigrated:       true,
-	}
-	return out
-}
-
-func compactCertHosts(in map[string]bool) map[string]bool {
-	out := map[string]bool{}
-	for host, on := range in {
-		host = strings.TrimSpace(host)
-		if host == "" || !on {
-			continue
-		}
-		out[host] = true
 	}
 	return out
 }
@@ -428,19 +410,8 @@ func cloneData(d Data) Data {
 		NotifyContentFields:    append([]string{}, d.NotifyContentFields...),
 		HostResourceNotifySubs: cloneHostMap(d.HostResourceNotifySubs),
 		HostAppNotifySubs:      cloneHostMap(d.HostAppNotifySubs),
-		HostCertNotifySubs:     cloneCertHosts(d.HostCertNotifySubs),
 		CertKindMigrated:       d.CertKindMigrated,
 	}
-}
-
-func cloneCertHosts(in map[string]bool) map[string]bool {
-	out := map[string]bool{}
-	for k, v := range in {
-		if v {
-			out[k] = true
-		}
-	}
-	return out
 }
 
 func cloneHostMap(in map[string][]string) map[string][]string {

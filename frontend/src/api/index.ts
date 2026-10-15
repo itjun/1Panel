@@ -474,12 +474,8 @@ const apiImpl = {
   dockerInspect: (host: string, container: string): Promise<string> =>
     str(Monitor.DockerInspect(host, container)),
 
-  /** 初始化远程 zsh 环境 */
-  bootstrapZsh: (host: string): Promise<string> => str(System.BootstrapZsh(host)),
   inspectZsh: (host: string): Promise<main.ZshEnvironment> => must(System.InspectZsh(host)),
   startHostSetup: (host: string): Promise<main.ZshSetupTask> => must(System.StartHostSetup(host)),
-  startZshSetup: (host: string, options: main.ZshSetupOptions): Promise<main.ZshSetupTask> =>
-    must(System.StartZshSetup(host, options)),
   getZshSetup: (host: string): Promise<main.ZshSetupTask> => must(System.GetZshSetup(host)),
   copySSHID: (input: main.CopyIDInput): Promise<string> => str(Hosts.CopySSHID(input)),
   /** 本机出口公网 IP 与归属地（来自 myip.ipip.net） */

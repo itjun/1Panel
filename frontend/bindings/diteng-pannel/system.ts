@@ -26,14 +26,6 @@ import * as sysfonts$0 from "./internal/sysfonts/models.js";
 import * as $models from "./models.js";
 
 /**
- * BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
- * 兼容旧接口；新界面用 StartZshSetup 执行并自动清理脚本。
- */
-export function BootstrapZsh(host: string): $CancellablePromise<string> {
-    return $Call.ByID(3099666800, host);
-}
-
-/**
  * CheckMenuPage 立即用 Go HTTP 执行巡检项（不打开浏览器、不告警）。id 空则检查全部，返回最后一项结果以兼容旧调用。
  */
 export function CheckMenuPage(id: string): $CancellablePromise<$models.MenuCheckResult> {

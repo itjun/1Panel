@@ -26,35 +26,19 @@ export interface BoardHostCard {
   updatedAt?: number;
 }
 
-/** 近 1 小时 CPU/内存趋势（0–100），供 sparkline。 */
-export interface BoardHostTrend {
-  cpu: number[];
-  mem: number[];
-}
-
 export interface BoardSummary {
   totalHosts: number;
   onlineHosts: number;
   healthyHosts: number;
   attentionHosts: number;
   criticalHosts: number;
-  unknownHosts: number;
   appTargets: number;
   appHealthy: number;
   appCritical: number;
   appUnknown: number;
 }
 
-export interface BoardGridShape {
-  cols: number;
-  rows: number;
-  cardWidth: number;
-  cardHeight: number;
-}
-
 const BOARD_STALE_AFTER_MS = 12_000;
-const BOARD_GAP = 12;
-const BOARD_TARGET_RATIO = 1.55;
 
 /**
  * 把设置中的服务名和探活实例计数合成卡片使用的数据。
@@ -135,7 +119,6 @@ export function summarizeBoardCards(
     healthyHosts: 0,
     attentionHosts: 0,
     criticalHosts: 0,
-    unknownHosts: 0,
     appTargets: 0,
     appHealthy: 0,
     appCritical: 0,
@@ -157,7 +140,6 @@ export function summarizeBoardCards(
         summary.criticalHosts += 1;
         break;
       case "unknown":
-        summary.unknownHosts += 1;
         break;
     }
 
@@ -170,59 +152,4 @@ export function summarizeBoardCards(
   }
 
   return summary;
-}
-
-/**
- * 根据实际看板尺寸选择列数。候选列数以可读性为先，尽量避免 7 台主机被硬塞成 3×3。
- * 不返回 capacity，也不需要补隐藏空卡。
- */
-export function pickBoardGrid(
-  hostCount: number,
-  width: number,
-  height: number
-): BoardGridShape {
-  const count = Math.max(1, Math.floor(hostCount));
-  const safeWidth = Math.max(320, width || 1440);
-  const safeHeight = Math.max(180, height || 720);
-  const minCardWidth = safeWidth < 900 ? 240 : safeWidth < 1500 ? 290 : 330;
-  const maxCols = Math.max(1, Math.min(count, Math.floor((safeWidth + BOARD_GAP) / minCardWidth)));
-
-  let best: BoardGridShape | null = null;
-  let bestScore = Number.POSITIVE_INFINITY;
-
-  for (let cols = 1; cols <= maxCols; cols += 1) {
-    const rows = Math.ceil(count / cols);
-    const cardWidth = (safeWidth - BOARD_GAP * (cols - 1)) / cols;
-    const cardHeight = (safeHeight - BOARD_GAP * (rows - 1)) / rows;
-    const ratio = cardWidth / Math.max(cardHeight, 1);
-    const tooShort = Math.max(0, 150 - cardHeight) / 150;
-    const tooNarrow = Math.max(0, minCardWidth - cardWidth) / minCardWidth;
-    const score =
-      Math.abs(Math.log(Math.max(ratio, 0.1) / BOARD_TARGET_RATIO)) +
-      tooShort * 2 +
-      tooNarrow * 4;
-
-    if (score < bestScore) {
-      bestScore = score;
-      best = { cols, rows, cardWidth, cardHeight };
-    }
-  }
-
-  return best || {
-    cols: 1,
-    rows: count,
-    cardWidth: safeWidth,
-    cardHeight: safeHeight / count,
-  };
-}
-
-/** 供卡片选择 CSS 密度；订阅行在所有档位都保留。 */
-export function boardDensityOf(
-  shape: BoardGridShape
-): "lg" | "md" | "sm" | "xs" | "xxs" {
-  if (shape.cardWidth >= 500 && shape.cardHeight >= 250) return "lg";
-  if (shape.cardWidth >= 370 && shape.cardHeight >= 185) return "md";
-  if (shape.cardWidth >= 285 && shape.cardHeight >= 145) return "sm";
-  if (shape.cardWidth >= 225 && shape.cardHeight >= 115) return "xs";
-  return "xxs";
 }

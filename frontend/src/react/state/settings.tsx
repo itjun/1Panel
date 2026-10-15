@@ -55,7 +55,6 @@ export type AppSettings = {
   notifyContentFields: NotifyContentField[];
   hostResourceNotifySubs: Record<string, ResourceAlertKind[]>;
   hostAppNotifySubs: Record<string, string[]>;
-  hostCertNotifySubs: Record<string, boolean>;
   /** 首页主机列表的分组排布：每排一组 group id，从上到下、从左到右 */
   hostHomeRows: string[][];
   /** 终端打开方式：tab=最近窗口新标签页（默认），window=新窗口。只对支持该选项的终端生效 */
@@ -90,7 +89,6 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   notifyContentFields: ["hostName", "metric", "threshold", "value", "service"],
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
-  hostCertNotifySubs: {},
   hostHomeRows: [],
   terminalOpenMode: "tab",
   terminalApp: "",
@@ -142,7 +140,8 @@ function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...SETTINGS_DEFAULTS };
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    const parsed = JSON.parse(raw) as Partial<AppSettings> & { hostCertNotifySubs?: unknown };
+    delete parsed.hostCertNotifySubs;
     let fontFamily = SETTINGS_DEFAULTS.fontFamily;
     if (
       typeof parsed.fontFamily === "string" &&
@@ -176,7 +175,6 @@ function loadSettings(): AppSettings {
       alertLoadWindow: parseLoadWindow(parsed.alertLoadWindow),
       hostResourceNotifySubs: parsed.hostResourceNotifySubs || {},
       hostAppNotifySubs: parsed.hostAppNotifySubs || {},
-      hostCertNotifySubs: parsed.hostCertNotifySubs || {},
       hostHomeRows: parseHostHomeRows(parsed.hostHomeRows),
       terminalOpenMode:
         parsed.terminalOpenMode === "window" ? "window" : "tab",
@@ -329,7 +327,6 @@ function emit() {
       notifyContentFields: current.notifyContentFields,
       hostResourceNotifySubs: current.hostResourceNotifySubs,
       hostAppNotifySubs: current.hostAppNotifySubs,
-      hostCertNotifySubs: current.hostCertNotifySubs,
       certKindMigrated: true,
     })
     .catch(() => {});
