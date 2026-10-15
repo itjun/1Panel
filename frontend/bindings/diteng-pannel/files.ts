@@ -110,6 +110,14 @@ export function NormalizeLocalFileToLinux(file: string): $CancellablePromise<fil
 }
 
 /**
+ * PickAndDownloadNginxLogs selects a local destination, then checks, compresses and downloads logs.
+ * Wails cancellation propagates through ctx without closing the host's shared SSH connection.
+ */
+export function PickAndDownloadNginxLogs(host: string, logDir: string, temporaryDir: string, requestID: string): $CancellablePromise<string> {
+    return $Call.ByID(3083500976, host, logDir, temporaryDir, requestID);
+}
+
+/**
  * ReadAppLog 只读指定 JAR 实例的控制台日志。通过 SFTP 读取 /proc 和日志，
  * 不执行远程命令，不依赖 agent 升级，也不回退到可能混有多个实例的 application.log。
  */

@@ -1,3 +1,4 @@
+import { NginxLogDownload } from "@/react/components/nginx-log-download";
 import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -119,6 +120,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
       actions={
         <>
           <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
+          {kind === "nginx" ? <NginxLogDownload key={host} host={host} /> : null}
           <CurrentTextRefresh onRefresh={refresh} refreshing={refreshing} disabled={!path} />
         </>
       }

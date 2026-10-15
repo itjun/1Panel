@@ -435,6 +435,9 @@ const apiImpl = {
   localSysPackageSizes: (): Promise<localsys.PackageSize[]> => arr(LocalSys.PackageSizes()),
   /** 本机已安装应用图标（PNG data URL，空串表示无） */
   localSysPackageIcon: (path: string): Promise<string> => str(LocalSys.PackageIcon(path)),
+  pickAndDownloadNginxLogs: (host: string, logDir: string, temporaryDir: string, requestID: string): CancellablePromise<string> =>
+    Files.PickAndDownloadNginxLogs(host, logDir, temporaryDir, requestID),
+
   /** 本机 Nginx 配置列表 */
   localSysNginx: (): Promise<localsys.NginxInfo> => must(LocalSys.Nginx()),
   /** 本机 Nginx 配置文件内容（只读） */
