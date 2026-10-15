@@ -34,6 +34,8 @@ type Progress struct {
 	Reserve   uint64 `json:"reserve"`
 	SHA256    string `json:"sha256,omitempty"`
 	Message   string `json:"message,omitempty"`
+	Date      string `json:"date,omitempty"`
+	Unmatched int    `json:"unmatched,omitempty"`
 }
 
 func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'" }

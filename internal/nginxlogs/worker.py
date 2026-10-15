@@ -1,10 +1,13 @@
 """Read-only, bounded Nginx log export worker, sent over an isolated SSH session."""
 import contextlib
+import datetime
 import fcntl
+import functools
 import gzip
 import hashlib
 import json
 import os
+import re
 import select
 import shutil
 import signal
@@ -20,7 +23,14 @@ CHUNK = 256 * 1024
 RATE = 2 * 1024 * 1024
 MAX_FILES = 512
 MAX_ENTRIES = 10000
+MAX_LINE = 1024 * 1024
+MAX_RANGES = 10000
 LOCAL_READY = threading.Event()
+
+ACCESS_TIME = re.compile(rb"\[(\d{2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]")
+ERROR_TIME = re.compile(rb"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})")
+ISO_TIME = re.compile(rb'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))|"(?:time|time_iso8601|timestamp|@timestamp)"\s*:\s*"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))"')
+MONTHS = {name: i + 1 for i, name in enumerate("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split())}
 
 
 def emit(phase, **fields):
@@ -31,9 +41,14 @@ def reserve_bytes(total):
     return max(1024 ** 3, total // 10)
 
 
-def archive_bound(files):
+def selected_size(info, ranges=None):
+    return info.st_size if ranges is None else sum(end - start for start, end in ranges)
+
+
+def archive_bound(files, selections=None):
     # PAX names/headers, tar padding, and worst-case DEFLATE growth; never assume logs compress well.
-    raw = sum(info.st_size + 16384 for _, _, info in files) + 10240
+    raw = sum(selected_size(info, selections[name] if selections is not None else None) + 16384
+              for name, _, info in files) + 10240
     return raw + raw // 100 + 1024 * 1024
 
 
@@ -67,7 +82,7 @@ class Pacer:
         self.wall, self.cpu = time.monotonic(), time.process_time()
 
 
-def inventory(root, files, pacer):
+def inventory(root, files, pacer, text_only=False):
     if not os.path.isabs(root) or os.path.realpath(root) == "/":
         raise RuntimeError("请选择日志目录的绝对路径，不能选择根目录")
     skipped, entries = 0, 0
@@ -82,6 +97,9 @@ def inventory(root, files, pacer):
         if entries > MAX_ENTRIES:
             raise RuntimeError("目录条目过多，请选择更具体的日志目录")
         for name in names:
+            if text_only and name.lower().endswith((".gz", ".bz2", ".xz", ".zip", ".zst", ".z", ".tar")):
+                skipped += 1
+                continue
             info = os.stat(name, dir_fd=directory, follow_symlinks=False)
             if not stat.S_ISREG(info.st_mode):
                 skipped += 1
@@ -107,25 +125,136 @@ def inventory(root, files, pacer):
     return skipped
 
 
+def day_window(day=None):
+    # Both boundaries use the remote host's timezone, including DST transitions.
+    day = day or datetime.date.today()
+    following = day + datetime.timedelta(days=1)
+    start = time.mktime(day.timetuple())
+    end = time.mktime(following.timetuple())
+    return day.isoformat(), start, end
+
+
+@functools.lru_cache(maxsize=256)
+def parse_timestamp(kind, raw):
+    text = raw.decode("ascii")
+    try:
+        if kind == "access":
+            offset = (int(text[22:24]) * 60 + int(text[24:26])) * (1 if text[21] == "+" else -1)
+            zone = datetime.timezone(datetime.timedelta(minutes=offset))
+            return datetime.datetime(int(text[7:11]), MONTHS[text[3:6]], int(text[:2]),
+                                     int(text[12:14]), int(text[15:17]), int(text[18:20]), tzinfo=zone).timestamp()
+        if kind == "error":
+            return time.mktime(time.strptime(text, "%Y/%m/%d %H:%M:%S"))
+        return datetime.datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except (ValueError, KeyError, OverflowError):
+        return None
+
+
+def line_timestamp(line):
+    match = ERROR_TIME.match(line)
+    if match:
+        return parse_timestamp("error", match[1])
+    match = ACCESS_TIME.search(line)
+    if match:
+        return parse_timestamp("access", match[1])
+    match = ISO_TIME.search(line)
+    if match:
+        return parse_timestamp("iso", match[1] or match[2])
+    return None
+
+
+def snapshot_lines(fd, size, directory, pacer, progress):
+    pending, offset, left = b"", 0, size
+    while left:
+        check_space(directory, CHUNK * 2)
+        check_source_space(fd)
+        amount = min(CHUNK, left)
+        data = os.read(fd, amount)
+        if len(data) != amount:
+            raise RuntimeError("日志在筛选期间被截断，请重试；原日志未作修改")
+        left -= amount
+        pacer.step(amount)
+        progress(amount)
+        lines = (pending + data).split(b"\n")
+        pending = lines.pop()
+        for line in lines:
+            if len(line) > MAX_LINE:
+                raise RuntimeError("单行日志超过 1 MiB，无法安全筛选当日日志")
+            line += b"\n"
+            yield offset, line
+            offset += len(line)
+        if len(pending) > MAX_LINE:
+            raise RuntimeError("单行日志超过 1 MiB，无法安全筛选当日日志")
+    if pending:
+        yield offset, pending
+
+
+def select_today(files, directory, pacer, window, progress):
+    selections, unmatched, excluded, fragments = {}, 0, 0, 0
+    _, start, end = window
+    for index, (name, fd, info) in enumerate(files):
+        ranges = []
+        for offset, line in snapshot_lines(fd, info.st_size, directory, pacer, progress):
+            stamp = line_timestamp(line)
+            if stamp is None:
+                unmatched += 1
+                continue
+            if not start <= stamp < end:
+                continue
+            stop = offset + len(line)
+            if ranges and ranges[-1][1] == offset:
+                ranges[-1] = (ranges[-1][0], stop)
+            else:
+                fragments += 1
+                if fragments > MAX_RANGES:
+                    raise RuntimeError("当日日志片段过多，请选择更具体的日志目录")
+                ranges.append((offset, stop))
+        if os.fstat(fd).st_size < info.st_size:
+            raise RuntimeError("日志在筛选期间被截断，请重试")
+        if ranges:
+            selections[name] = ranges
+        else:
+            os.close(fd)
+            files[index] = (name, None, info)
+            excluded += 1
+    files[:] = [entry for entry in files if entry[1] is not None]
+    if not files:
+        raise RuntimeError("没有找到 %s 的日志记录（按远程主机日期，支持 Nginx 标准时间及 ISO 8601 时间）" % window[0])
+    return selections, unmatched, excluded
+
+
 class SnapshotReader:
-    def __init__(self, fd, size, directory, pacer, progress):
+    def __init__(self, fd, size, directory, pacer, progress, ranges=None):
         self.fd, self.left = fd, size
         self.directory, self.pacer, self.progress = directory, pacer, progress
+        self.ranges = iter(ranges if ranges is not None else [(0, size)])
+        self.range_left = 0
 
     def read(self, size):
         check_space(self.directory, CHUNK * 2)
         check_source_space(self.fd)
         size = min(size, self.left, CHUNK)
-        data = os.read(self.fd, size)
-        if len(data) != size:
-            raise RuntimeError("日志在压缩期间被截断，请重试；原日志未作修改")
+        parts, remaining = [], size
+        while remaining:
+            if not self.range_left:
+                start, end = next(self.ranges)
+                os.lseek(self.fd, start, os.SEEK_SET)
+                self.range_left = end - start
+            amount = min(remaining, self.range_left)
+            data = os.read(self.fd, amount)
+            if len(data) != amount:
+                raise RuntimeError("日志在压缩期间被截断，请重试；原日志未作修改")
+            parts.append(data)
+            self.range_left -= amount
+            remaining -= amount
+        data = b"".join(parts)
         self.left -= len(data)
         self.pacer.step(len(data))
         self.progress(len(data))
         return data
 
 
-def compress(files, directory, progress, pacer):
+def compress(files, directory, progress, pacer, selections=None):
     archive = os.path.join(directory, "nginx-logs.tar.gz")
     # Only the new private archive is writable. Every source descriptor is read-only.
     with open(archive, "xb", buffering=CHUNK) as output:
@@ -134,8 +263,9 @@ def compress(files, directory, progress, pacer):
                 tar.copybufsize = CHUNK
                 for index, (name, fd, info) in enumerate(files):
                     member = tarfile.TarInfo(name)
-                    member.size, member.mtime, member.mode = info.st_size, info.st_mtime, 0o600
-                    tar.addfile(member, SnapshotReader(fd, info.st_size, directory, pacer, progress))
+                    ranges = selections[name] if selections is not None else None
+                    member.size, member.mtime, member.mode = selected_size(info, ranges), info.st_mtime, 0o600
+                    tar.addfile(member, SnapshotReader(fd, member.size, directory, pacer, progress, ranges))
                     if os.fstat(fd).st_size < info.st_size:
                         raise RuntimeError("日志在压缩期间被截断，请重试")
                     os.close(fd)
@@ -199,15 +329,26 @@ def run(root, parent, lock_parent="/tmp"):
     try:
         check_environment(parent)
         lock = acquire_lock(lock_parent)
-        emit("checking")
+        window = day_window()  # Pin the target day once, even if the export crosses midnight.
+        emit("checking", date=window[0])
         pacer = Pacer()
-        skipped = inventory(root, files, pacer)
+        skipped = inventory(root, files, pacer, text_only=True)
         for _, fd, _ in files:
             check_source_space(fd)
-        budget = archive_bound(files)
+        check_space(parent)
+        scanned, last_scan = 0, 0
+        scan_total = sum(info.st_size for _, _, info in files)
+        def scanning(size):
+            nonlocal scanned, last_scan
+            scanned += size
+            if time.monotonic() - last_scan >= 0.25:
+                emit("filtering", date=window[0], done=scanned, total=scan_total)
+                last_scan = time.monotonic()
+        selections, unmatched, excluded = select_today(files, parent, pacer, window, scanning)
+        budget = archive_bound(files, selections)
         usage, reserve = check_space(parent, budget)
-        total = sum(info.st_size for _, _, info in files)
-        emit("checked", total=total, files=len(files), skipped=skipped,
+        total = sum(selected_size(info, selections[name]) for name, _, info in files)
+        emit("checked", date=window[0], total=total, files=len(files), skipped=skipped + excluded, unmatched=unmatched,
              available=usage.free, required=budget, reserve=reserve)
         if not LOCAL_READY.wait(timeout=15):
             raise RuntimeError("等待本地磁盘空间检查超时，未开始压缩")
@@ -219,7 +360,7 @@ def run(root, parent, lock_parent="/tmp"):
             if time.monotonic() - last >= 0.25:
                 emit("compressing", done=done, total=total)
                 last = time.monotonic()
-        archive = compress(files, directory, progress, pacer)
+        archive = compress(files, directory, progress, pacer, selections)
         files.clear()
         size = os.path.getsize(archive)
         emit("downloading", total=size, done=0)

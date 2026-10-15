@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import hashlib
 import io
 import json
@@ -17,6 +18,18 @@ import worker
 
 Usage = type(shutil.disk_usage("/"))
 ENOUGH = Usage(20 * 1024**3, 1 * 1024**3, 19 * 1024**3)
+
+
+@contextlib.contextmanager
+def host_timezone(name):
+    try:
+        with patch.dict(os.environ, {"TZ": name}):
+            time.tzset()
+            worker.parse_timestamp.cache_clear()
+            yield
+    finally:
+        time.tzset()
+        worker.parse_timestamp.cache_clear()
 
 
 class WorkerTests(unittest.TestCase):
@@ -41,9 +54,12 @@ class WorkerTests(unittest.TestCase):
     def scan(self):
         return worker.inventory(str(self.root), self.files, self.pacer)
 
-    def compress(self):
+    def today_line(self):
+        return (time.strftime("%Y/%m/%d %H:%M:%S") + " [info] current request\n").encode()
+
+    def compress(self, selections=None):
         with patch.object(worker.shutil, "disk_usage", return_value=ENOUGH):
-            archive = worker.compress(self.files, str(self.archive_dir), lambda n: None, self.pacer)
+            archive = worker.compress(self.files, str(self.archive_dir), lambda n: None, self.pacer, selections)
         with tarfile.open(archive) as package:
             return {name: package.extractfile(name).read() for name in package.getnames()}
 
@@ -147,7 +163,7 @@ class WorkerTests(unittest.TestCase):
         self.assertGreaterEqual(time.monotonic() - start, 0.24)
 
     def test_run_cleans_up_when_compression_fails(self):
-        (self.root / "access.log").write_bytes(b"test")
+        (self.root / "access.log").write_bytes(self.today_line())
         with patch.object(worker, "check_environment"), patch.object(worker.shutil, "disk_usage", return_value=ENOUGH), patch.object(worker, "compress", side_effect=RuntimeError("test failure")), contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaisesRegex(RuntimeError, "test failure"):
                 worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
@@ -155,7 +171,7 @@ class WorkerTests(unittest.TestCase):
         os.close(worker.acquire_lock(str(self.archive_dir)))
 
     def test_local_preflight_must_acknowledge_before_compression(self):
-        (self.root / "access.log").write_bytes(b"requests")
+        (self.root / "access.log").write_bytes(self.today_line())
         with patch.object(worker, "check_environment"), patch.object(worker.shutil, "disk_usage", return_value=ENOUGH), patch.object(worker.LOCAL_READY, "wait", return_value=False), contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaisesRegex(RuntimeError, "未开始压缩"):
                 worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
@@ -173,7 +189,7 @@ class WorkerTests(unittest.TestCase):
                 worker.check_environment(str(self.archive_dir))
 
     def test_heartbeat_eof_terminates_worker_and_cleans_archive(self):
-        (self.root / "access.log").write_bytes(b"a" * (8 * 1024**2))
+        (self.root / "access.log").write_bytes(self.today_line() * 8192)
         # Exercise the real entrypoint, heartbeat, signals and cleanup on macOS too;
         # only Linux capability probes are stubbed in this portable test.
         code = Path(worker.__file__).read_text().replace('lock_parent="/tmp"', "lock_parent=" + repr(str(self.archive_dir))).replace('        check_environment(parent)', '        pass # platform probe tested on Linux')
@@ -193,6 +209,87 @@ class WorkerTests(unittest.TestCase):
         process.stdout.close()
         process.stderr.close()
         os.close(worker.acquire_lock(str(self.archive_dir)))
+
+    def test_today_uses_host_timezone_and_excludes_adjacent_days(self):
+        with host_timezone("Asia/Shanghai"):
+            before = b'ip - - [14/Oct/2026:15:59:59 +0000] "yesterday"\n'
+            first = b'ip - - [14/Oct/2026:16:00:00 +0000] "today begins"\n'
+            error = b'2026/10/15 12:00:00 [error] request\n'
+            iso = b'{"time_iso8601":"2026-10-15T15:59:59Z","message":"today ends"}\n'
+            following = b'ip - - [15/Oct/2026:16:00:00 +0000] "tomorrow"\n'
+            unknown = b'no recognizable timestamp\n'
+            content = before + first + following + error + unknown + iso
+            (self.root / "access.log").write_bytes(content)
+            self.scan()
+            window = worker.day_window(datetime.date(2026, 10, 15))
+            selections, unmatched, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, window, lambda _: None)
+            self.assertEqual((unmatched, excluded), (1, 0))
+            self.assertLess(worker.archive_bound(self.files, selections), worker.archive_bound(self.files))
+            self.assertEqual(self.compress(selections), {"access.log": first + error + iso})
+            self.assertEqual((self.root / "access.log").read_bytes(), content)
+
+    def test_today_keeps_uncompressed_rotation_but_skips_archives(self):
+        content = self.today_line()
+        (self.root / "access.log.1").write_bytes(content)
+        (self.root / "access.log.2.gz").write_bytes(b"not read or decompressed")
+        (self.root / "error.log").touch()
+        skipped = worker.inventory(str(self.root), self.files, self.pacer, text_only=True)
+        selections, _, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
+        self.assertEqual((skipped, excluded), (1, 1))
+        self.assertEqual(self.compress(selections), {"access.log.1": content})
+
+    def test_today_selection_survives_rotation_and_excludes_later_append(self):
+        log = self.root / "access.log"
+        content = self.today_line()
+        log.write_bytes(content)
+        self.scan()
+        selections, _, _ = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
+        with log.open("ab") as output:
+            output.write(content)
+        log.rename(self.root / "access.log.1")
+        log.write_bytes(b"new active file")
+        self.assertEqual(self.compress(selections), {"access.log": content})
+        self.assertEqual(log.read_bytes(), b"new active file")
+
+    def test_no_today_records_fails_without_exporting_old_or_unknown_lines(self):
+        (self.root / "access.log").write_bytes(b'2000/01/01 00:00:00 old\nunknown date\n')
+        with patch.object(worker, "check_environment"), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "没有找到.*日志记录"):
+                worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
+        self.assertFalse(list(self.archive_dir.glob("1panel-nginx-*")))
+
+    def test_selection_limits_line_length_and_fragment_memory(self):
+        log = self.root / "access.log"
+        log.write_bytes(b"x" * (worker.MAX_LINE + 1))
+        self.scan()
+        with self.assertRaisesRegex(RuntimeError, "单行日志"):
+            worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
+        self.close_files()
+        log.write_bytes((self.today_line() + b"2000/01/01 00:00:00 old\n") * 3)
+        self.scan()
+        with patch.object(worker, "MAX_RANGES", 2), self.assertRaisesRegex(RuntimeError, "片段过多"):
+            worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
+
+    def test_selection_detects_truncation(self):
+        log = self.root / "access.log"
+        log.write_bytes(self.today_line() * 3)
+        self.scan()
+        log.write_bytes(self.today_line())
+        with self.assertRaisesRegex(RuntimeError, "截断"):
+            worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
+
+    def test_day_boundaries_account_for_daylight_saving(self):
+        with host_timezone("America/New_York"):
+            _, start, end = worker.day_window(datetime.date(2026, 3, 8))
+            self.assertEqual(end - start, 23 * 3600)
+            _, start, end = worker.day_window(datetime.date(2026, 11, 1))
+            self.assertEqual(end - start, 25 * 3600)
+
+    def test_primary_access_timestamp_wins_over_date_in_request(self):
+        line = b'ip - - [14/Oct/2026:10:00:00 +0800] "time":"2026-10-15T10:00:00+08:00"\n'
+        stamp = worker.line_timestamp(line)
+        self.assertEqual(stamp, datetime.datetime(2026, 10, 14, 2, tzinfo=datetime.timezone.utc).timestamp())
+        self.assertIsNone(worker.line_timestamp(b'ip [32/Oct/2026:10:00:00 +0800] invalid\n'))
 
 
 if __name__ == "__main__":

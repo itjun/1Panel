@@ -16,6 +16,8 @@ type Progress = {
   available: number;
   required: number;
   reserve: number;
+  date?: string;
+  unmatched?: number;
 };
 type ExportEvent = { host: string; requestID: string; progress: Progress };
 
@@ -86,7 +88,8 @@ export function NginxLogDownload({ host }: { host: string }) {
   }
 
   const phase = progress?.phase;
-  const status = phase === "compressing" ? "正在低负载压缩…"
+  const status = phase === "filtering" ? `正在筛选 ${progress?.date || "当日"} 的日志…`
+    : phase === "compressing" ? "正在低负载压缩…"
     : phase === "downloading" ? "正在下载压缩包…"
     : phase === "complete" ? "正在校验并保存…"
     : phase === "checked" ? "空间检查通过，开始压缩…"
@@ -103,7 +106,7 @@ export function NginxLogDownload({ host }: { host: string }) {
         <DialogContent className="w-[min(560px,calc(100vw-32px))]">
           <DialogTitle>下载 Nginx 日志</DialogTitle>
           <DialogDescription>
-            将日志目录中的普通文件（含轮转日志）压缩为 .tar.gz 后下载。自定义日志路径时，请填写对应目录。
+            默认按远程主机的当天日期筛选日志记录，压缩为 .tar.gz 后下载。历史压缩包不包含在内。
           </DialogDescription>
           <div className="mt-4 flex flex-col gap-4 text-sm">
             <label className="flex flex-col gap-2">
@@ -117,22 +120,24 @@ export function NginxLogDownload({ host }: { host: string }) {
             <p className="text-muted">
               压缩前检查空间，保留至少 1 GiB 或磁盘容量的 10%。以低优先级、2 MiB/s 限速处理，只读取开始时已有的内容；不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
             </p>
-            <p className="text-xs text-muted">需要远程主机具备 Python 3、nice、ionice、stat 和日志读取权限。符号链接及设备文件不导出。</p>
+            <p className="text-xs text-muted">支持 Nginx 标准访问／错误日志时间及 ISO 8601 时间；无法识别日期的行会跳过。需要 Python 3、nice、ionice、stat 和日志读取权限，符号链接及设备文件不导出。</p>
             {checked ? (
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
-                <dt className="text-muted">日志总量</dt><dd>{checked.files} 个文件 · {bytes(checked.total)}</dd>
+                <dt className="text-muted">日志日期</dt><dd>{checked.date}（主机时间）</dd>
+                <dt className="text-muted">当日日志</dt><dd>{checked.files} 个文件 · {bytes(checked.total)}</dd>
                 <dt className="text-muted">磁盘可用</dt><dd>{bytes(checked.available)}</dd>
                 <dt className="text-muted">压缩空间预算</dt><dd>{bytes(checked.required)}</dd>
                 <dt className="text-muted">安全预留</dt><dd>{bytes(checked.reserve)}</dd>
-                {checked.skipped > 0 ? <><dt className="text-muted">已跳过</dt><dd>{checked.skipped} 个链接或特殊文件</dd></> : null}
+                {checked.skipped > 0 ? <><dt className="text-muted">已跳过文件</dt><dd>{checked.skipped} 个历史压缩包、无当日记录或特殊文件</dd></> : null}
+                {checked.unmatched ? <><dt className="text-muted">未识别日期</dt><dd>{checked.unmatched} 行，未纳入下载</dd></> : null}
               </dl>
             ) : null}
             {busy ? (
               <div role="status" aria-live="polite" className="flex flex-col gap-2">
                 <div className="flex items-center gap-2"><LoaderCircle className="size-4 animate-spin text-accent" />{status}</div>
-                {phase === "compressing" || phase === "downloading" ? (
+                {phase === "filtering" || phase === "compressing" || phase === "downloading" ? (
                   <>
-                    <div className="h-2 w-full overflow-hidden rounded-control bg-raised" role="progressbar" aria-label={phase === "compressing" ? "压缩进度" : "下载进度"} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
+                    <div className="h-2 w-full overflow-hidden rounded-control bg-raised" role="progressbar" aria-label={phase === "filtering" ? "筛选进度" : phase === "compressing" ? "压缩进度" : "下载进度"} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
                       <div className="h-full bg-accent" style={{ width: `${percent}%` }} />
                     </div>
                     <span className="text-xs text-muted tabular-nums">{bytes(progress?.done || 0)} / {bytes(progress?.total || 0)} · {percent.toFixed(0)}%</span>

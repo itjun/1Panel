@@ -208,9 +208,11 @@ func TestExportWithRealWorker(t *testing.T) {
 		t.Skip("python3 is required")
 	}
 	root, remoteTemp, local := t.TempDir(), t.TempDir(), t.TempDir()
-	content := make([]byte, 1024*1024)
-	rand.Read(content)
-	os.WriteFile(filepath.Join(root, "access.log"), content, 0600)
+	content := bytes.Repeat([]byte(time.Now().Format("2006/01/02 15:04:05")+" [info] today's request\n"), 8192)
+	old := []byte(time.Now().AddDate(0, 0, -1).Format("2006/01/02 15:04:05") + " [info] yesterday\n")
+	originalContent := append(append([]byte{}, old...), content...)
+	os.WriteFile(filepath.Join(root, "access.log"), originalContent, 0600)
+	os.WriteFile(filepath.Join(root, "access.log.2.gz"), []byte("historical archive"), 0600)
 	code := strings.Replace(worker, "        check_environment(parent)", "        pass # portable test", 1)
 	code = strings.Replace(code, `lock_parent="/tmp"`, "lock_parent="+quote(remoteTemp), 1)
 	client := testSSH(t, func(channel ssh.Channel) {
@@ -258,8 +260,11 @@ func TestExportWithRealWorker(t *testing.T) {
 		t.Fatalf("archive content mismatch: %v", err)
 	}
 	original, _ := os.ReadFile(filepath.Join(root, "access.log"))
-	if !bytes.Equal(original, content) {
+	if !bytes.Equal(original, originalContent) {
 		t.Fatal("source was changed")
+	}
+	if _, err := archive.Next(); err != io.EOF {
+		t.Fatalf("unexpected historical archive: %v", err)
 	}
 	entries, _ := filepath.Glob(filepath.Join(remoteTemp, "1panel-nginx-*"))
 	if len(entries) != 0 {
