@@ -4,28 +4,26 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import type { monitor } from "@/api";
+import { Maximize, Minimize } from "lucide-react";
+import { Button } from "@/react/components/ui/button";
 import { boardHttpApi } from "@/api/board-http";
 import { BoardSummaryStrip } from "@/react/components/board/board-summary-strip";
-import { HostBoardCard } from "@/react/components/board/host-board-card";
+import { HostBoardTable } from "@/react/components/board/host-board-table";
+import { BoardHostTrends } from "@/react/components/board/board-host-trends";
+import { normalizeBoardHistory, type BoardHistory } from "@/utils/boardHistory";
 import "@/react/components/board/board.css";
-import { isMacPlatform } from "@/react/lib/platform";
 import {
-  boardDensityOf,
   buildBoardAppSubItems,
-  pickBoardGrid,
   summarizeBoardCards,
   type BoardHostCard,
-  type BoardHostTrend,
 } from "@/utils/boardModel";
 import { formatErr, isAgentMissing } from "@/utils/format";
 
 const POLL_MS = 3000;
 /** 近 1h 趋势与 overview 分开轮询，避免堵瞬时采集 */
 const RANGE_POLL_MS = 30000;
-const TREND_MAX_POINTS = 60;
 const TREND_WINDOW_SEC = 3600;
 
 type HostSnap = {
@@ -63,23 +61,6 @@ function errTimeSuffix(at?: number): string {
   return `（${pad2(d.getHours())}:${pad2(d.getMinutes())}）`;
 }
 
-function emptyTrend(): BoardHostTrend {
-  return { cpu: [], mem: [] };
-}
-
-/** 点数过多时均匀抽稀到约 maxN */
-function downsample(values: number[], maxN: number): number[] {
-  if (values.length <= maxN) return values;
-  if (maxN < 2) return values.slice(0, maxN);
-  const out: number[] = [];
-  const last = values.length - 1;
-  for (let i = 0; i < maxN; i++) {
-    const idx = Math.round((i / (maxN - 1)) * last);
-    out.push(values[idx]);
-  }
-  return out;
-}
-
 function hasAppNotifyConfig(
   hostAppNotifySubs: Record<string, string[]>,
   host: string,
@@ -110,7 +91,8 @@ export function BoardPage({ groupId }: { groupId: string }) {
     {},
   );
   const [hostStates, setHostStates] = useState<Record<string, HostSnap>>({});
-  const [trends, setTrends] = useState<Record<string, BoardHostTrend>>({});
+  const [histories, setHistories] = useState<Record<string, BoardHistory>>({});
+  const [requestedHost, setRequestedHost] = useState("");
   const [instanceCounts, setInstanceCounts] = useState<
     Record<string, Record<string, number>>
   >({});
@@ -121,15 +103,13 @@ export function BoardPage({ groupId }: { groupId: string }) {
     {},
   );
   const [metaError, setMetaError] = useState("");
+  const [metaLoading, setMetaLoading] = useState(true);
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [viewport, setViewport] = useState({ width: 0, height: 0 });
-
-  const gridRef = useRef<HTMLElement | null>(null);
+  const selectedHost = hosts.find((host) => host.name === requestedHost)?.name || hosts[0]?.name || "";
   const hostsRef = useRef(hosts);
   const hostStatesRef = useRef(hostStates);
-  const trendsRef = useRef(trends);
   const subsRef = useRef(hostAppNotifySubs);
   const aliveRef = useRef(true);
   const inFlight = useRef(new Set<string>());
@@ -138,7 +118,6 @@ export function BoardPage({ groupId }: { groupId: string }) {
 
   hostsRef.current = hosts;
   hostStatesRef.current = hostStates;
-  trendsRef.current = trends;
   subsRef.current = hostAppNotifySubs;
 
   const loadInstances = useCallback(
@@ -171,41 +150,30 @@ export function BoardPage({ groupId }: { groupId: string }) {
     [gid],
   );
 
-  const loadRange = useCallback(
-    async (name: string) => {
-      if (!gid) return;
-      if (rangeInFlight.current.has(name) || !aliveRef.current) return;
-      rangeInFlight.current.add(name);
-      try {
-        const now = Math.floor(Date.now() / 1000);
-        const r = await boardHttpApi.range(gid, name, now - TREND_WINDOW_SEC, now, "auto");
-        if (!aliveRef.current) return;
-        const pts = r.points || [];
-        const memTotal = hostStatesRef.current[name]?.overview?.memTotal || 0;
-        const cpuRaw: number[] = [];
-        const memRaw: number[] = [];
-        for (const p of pts) {
-          cpuRaw.push(Number(p.cpuPercent) || 0);
-          if (memTotal > 0) {
-            memRaw.push(((Number(p.memUsed) || 0) / memTotal) * 100);
-          }
-        }
-        setTrends((m) => ({
-          ...m,
-          [name]: {
-            cpu: downsample(cpuRaw, TREND_MAX_POINTS),
-            mem: memTotal > 0 ? downsample(memRaw, TREND_MAX_POINTS) : [],
-          },
-        }));
-      } catch {
-        if (!aliveRef.current) return;
-        setTrends((m) => ({ ...m, [name]: emptyTrend() }));
-      } finally {
-        rangeInFlight.current.delete(name);
-      }
-    },
-    [gid],
-  );
+  const loadRange = useCallback(async (name: string) => {
+    if (!gid || !name || rangeInFlight.current.has(name) || !aliveRef.current) return;
+    rangeInFlight.current.add(name);
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - TREND_WINDOW_SEC;
+    setHistories((previous) => ({ ...previous, [name]: {
+      ...(previous[name] ?? { points: [], from: from * 1000, to: to * 1000 }), loading: true,
+    } }));
+    try {
+      const result = await boardHttpApi.range(gid, name, from, to, "auto");
+      if (!aliveRef.current) return;
+      setHistories((previous) => ({ ...previous, [name]: {
+        points: normalizeBoardHistory(result.points, from * 1000, to * 1000),
+        from: from * 1000, to: to * 1000, loading: false, updatedAt: Date.now(),
+      } }));
+    } catch (error) {
+      if (!aliveRef.current) return;
+      setHistories((previous) => ({ ...previous, [name]: {
+        ...previous[name], loading: false, error: formatErr(error),
+      } }));
+    } finally {
+      rangeInFlight.current.delete(name);
+    }
+  }, [gid]);
 
   const loadOne = useCallback(
     async (name: string, showSkeleton: boolean, force = false) => {
@@ -218,13 +186,12 @@ export function BoardPage({ groupId }: { groupId: string }) {
         setHostStates((m) => ({ ...m, [name]: { loading: true } }));
       }
       try {
-        const ov = await boardHttpApi.overview(gid, name);
-        let disks: monitor.DiskInfo[] = [];
-        try {
-          disks = (await boardHttpApi.disks(gid, name)) || [];
-        } catch {
-          disks = [];
-        }
+        const [overviewResult, diskResult] = await Promise.allSettled([
+          boardHttpApi.overview(gid, name), boardHttpApi.disks(gid, name),
+        ]);
+        if (overviewResult.status === "rejected") throw overviewResult.reason;
+        const ov = overviewResult.value;
+        const disks = diskResult.status === "fulfilled" ? diskResult.value || [] : undefined;
         if (!aliveRef.current) return;
         setHostStates((m) => ({
           ...m,
@@ -235,15 +202,12 @@ export function BoardPage({ groupId }: { groupId: string }) {
             updatedAt: Date.now(),
           },
         }));
-        const t = trendsRef.current[name];
-        if (ov.memTotal > 0 && t && t.cpu.length > 0 && t.mem.length === 0) {
-          void loadRange(name);
-        }
       } catch (e) {
         if (!aliveRef.current) return;
         setHostStates((m) => ({
           ...m,
           [name]: {
+            ...m[name],
             loading: false,
             error: formatErr(e),
             errorAt: Date.now(),
@@ -253,14 +217,16 @@ export function BoardPage({ groupId }: { groupId: string }) {
         inFlight.current.delete(name);
       }
     },
-    [gid, loadRange],
+    [gid],
   );
 
   const loadMeta = useCallback(async () => {
     if (!gid) {
       setMetaError("缺少分组");
+      setMetaLoading(false);
       return;
     }
+    setMetaLoading(true);
     try {
       const [info, settings] = await Promise.all([
         boardHttpApi.group(gid),
@@ -270,7 +236,8 @@ export function BoardPage({ groupId }: { groupId: string }) {
       setMetaError("");
       setGroupName(info.name || gid);
       setBoardTitle((info.boardTitle || "").trim());
-      setHostAppNotifySubs(normalizeStringMap(settings.hostAppNotifySubs));
+      subsRef.current = normalizeStringMap(settings.hostAppNotifySubs);
+      setHostAppNotifySubs(subsRef.current);
       const nextHosts: HostBrief[] = (info.hosts || []).map((h) => ({
         name: h.name,
         hostName: h.hostName || "",
@@ -285,25 +252,19 @@ export function BoardPage({ groupId }: { groupId: string }) {
         }
         return fresh;
       });
-      setTrends((prev) => {
-        const fresh: Record<string, BoardHostTrend> = {};
-        for (const h of nextHosts) {
-          fresh[h.name] = prev[h.name] ?? emptyTrend();
-        }
-        return fresh;
-      });
 
       for (const h of nextHosts) {
         const had = hostStatesRef.current[h.name]?.overview;
         void loadOne(h.name, !had);
-        void loadRange(h.name);
         void loadInstances(h.name);
       }
     } catch (e) {
       if (!aliveRef.current) return;
       setMetaError(formatErr(e));
+    } finally {
+      if (aliveRef.current) setMetaLoading(false);
     }
-  }, [gid, loadOne, loadRange, loadInstances]);
+  }, [gid, loadOne, loadInstances]);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -323,9 +284,6 @@ export function BoardPage({ groupId }: { groupId: string }) {
         if (!aliveRef.current) return;
         setHostAppNotifySubs(normalizeStringMap(s.hostAppNotifySubs));
       }).catch(() => {});
-      for (const h of hostsRef.current) {
-        void loadRange(h.name);
-      }
     }, RANGE_POLL_MS);
 
     return () => {
@@ -333,7 +291,7 @@ export function BoardPage({ groupId }: { groupId: string }) {
       clearInterval(pollTimer);
       clearInterval(rangeTimer);
     };
-  }, [loadMeta, loadOne, loadRange, loadInstances]);
+  }, [loadMeta, loadOne, loadInstances]);
 
   useEffect(() => {
     const clock = setInterval(() => setNowMs(Date.now()), 1000);
@@ -341,20 +299,13 @@ export function BoardPage({ groupId }: { groupId: string }) {
   }, []);
 
   useEffect(() => {
-    const el = gridRef.current;
-    if (!el) return;
-    const update = () => {
-      const rect = el.getBoundingClientRect();
-      setViewport({
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [hosts.length]);
+    if (!selectedHost) return;
+    void loadRange(selectedHost);
+    const timer = setInterval(() => void loadRange(selectedHost), RANGE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [selectedHost, loadRange]);
+
+  const retryRange = useCallback(() => void loadRange(selectedHost), [selectedHost, loadRange]);
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -434,105 +385,38 @@ export function BoardPage({ groupId }: { groupId: string }) {
     return latest;
   }, [cards]);
 
-  const gridShape = useMemo(
-    () => pickBoardGrid(hosts.length, viewport.width, viewport.height),
-    [hosts.length, viewport.width, viewport.height],
-  );
-  const cardDensity = boardDensityOf(gridShape);
-
   return (
-    <div
-      className={isMacPlatform() ? "board-mode is-macos" : "board-mode"}
-      role="main"
-      aria-label="看板模式"
-    >
+    <div className="board-mode" role="main" aria-label="看板模式">
       <header className="board-mode__bar">
         <div className="board-mode__identity">
           <span className="board-mode__live-mark" aria-hidden="true" />
-          <div className="board-mode__titles">
-            <div className="board-mode__group-line">
-              <span className="board-mode__group">{groupName || "分组"}</span>
-              <span className="board-mode__count">{hosts.length} 台主机</span>
-            </div>
-            <span className="board-mode__mode">实时运维监控</span>
-          </div>
+          <h1 className="board-mode__board-title" data-tip={boardTitle || "运维监控看板"} data-tip-overflow="">
+            {boardTitle || "运维监控看板"}
+          </h1>
+          <span className="board-mode__group">分组：<strong>{groupName || "分组"}</strong></span>
         </div>
-
-        <div className="board-mode__center">
-          {boardTitle ? (
-            <span className="board-mode__board-title">{boardTitle}</span>
-          ) : (
-            <span className="board-mode__board-title board-mode__board-title--fallback">
-              运维监控看板
-            </span>
-          )}
-        </div>
-
         <div className="board-mode__right">
-          <span className="board-mode__last-update">
-            {formatLastUpdate(latestUpdate || undefined)}
-          </span>
-          <button
-            type="button"
-            className="board-mode__fs-btn"
-            onClick={() => void toggleFullscreen()}
-          >
+          <span className="board-mode__last-update">{formatLastUpdate(latestUpdate || undefined)}</span>
+          <time className="board-mode__clock" dateTime={new Date(nowMs).toISOString()}>{formatBoardClock(nowMs)}</time>
+          <Button className="board-mode__fs-btn" onClick={() => void toggleFullscreen()}>
+            {isFullscreen ? <Minimize size={16} strokeWidth={1.5} /> : <Maximize size={16} strokeWidth={1.5} />}
             {isFullscreen ? "退出全屏" : "全屏"}
-          </button>
-          <time className="board-mode__clock" dateTime={new Date(nowMs).toISOString()}>
-            {formatBoardClock(nowMs)}
-          </time>
+          </Button>
         </div>
       </header>
-
       <BoardSummaryStrip summary={summary} />
-
       {metaError ? (
-        <div className="board-mode__empty">
-          <strong>{metaError}</strong>
+        <div className="board-mode__empty" role="alert">
+          <strong>{metaError}</strong><Button onClick={() => void loadMeta()}>重新加载</Button>
+        </div>
+      ) : hosts.length && selectedHost ? (
+        <div className="board-mode__content">
+          <HostBoardTable hosts={hosts} cards={cards} selectedHost={selectedHost} now={nowMs} onSelect={setRequestedHost} />
+          <BoardHostTrends key={selectedHost} host={selectedHost} card={cards[selectedHost] || { loading: true }}
+            history={histories[selectedHost]} onRetry={retryRange} />
         </div>
       ) : (
-        <main
-          ref={gridRef}
-          className="board-mode__grid"
-          style={
-            {
-              "--board-cols": String(gridShape.cols),
-              "--board-rows": String(gridShape.rows),
-            } as CSSProperties
-          }
-        >
-          {hosts.length ? (
-            hosts.map((h) => {
-              const card = cards[h.name] || { loading: true };
-              const trend = trends[h.name] || emptyTrend();
-              return (
-                <HostBoardCard
-                  key={h.name}
-                  name={h.name}
-                  address={h.hostName || ""}
-                  loading={card.loading}
-                  overview={card.overview}
-                  disks={card.disks}
-                  error={card.error}
-                  cpuTrend={trend.cpu}
-                  memTrend={trend.mem}
-                  appSubItems={card.appSubItems}
-                  appSubLoading={card.appSubLoading}
-                  updatedAt={card.updatedAt}
-                  density={cardDensity}
-                />
-              );
-            })
-          ) : (
-            <div className="board-mode__empty">
-              <span className="board-mode__empty-mark" aria-hidden="true">
-                —
-              </span>
-              <strong>当前分组暂无主机</strong>
-            </div>
-          )}
-        </main>
+        <div className="board-mode__empty" role="status"><strong>{metaLoading ? "正在读取主机分组…" : "当前分组暂无主机"}</strong></div>
       )}
     </div>
   );

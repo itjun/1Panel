@@ -19,12 +19,21 @@ export type BoardHTTPSettings = {
 };
 
 async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: "GET", credentials: "same-origin" });
-  if (!res.ok) {
-    const text = (await res.text()).trim();
-    throw new Error(text || `HTTP ${res.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const res = await fetch(url, { method: "GET", credentials: "same-origin", signal: controller.signal });
+    if (!res.ok) {
+      const text = (await res.text()).trim();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return (await res.json()) as T;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("采集超时，将自动重试");
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-  return (await res.json()) as T;
 }
 
 export const boardHttpApi = {
