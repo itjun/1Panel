@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import * as echarts from "echarts";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { api } from "@/api";
 import type { agentapi, agentcli } from "@/api";
 import { Button } from "@/react/components/ui/button";
@@ -438,7 +440,7 @@ function AppsTable({
   nameColors,
   subscribed,
   onToggleSubscribe,
-  onRowClick,
+  onRowContextMenu,
   onShutdown,
 }: {
   title: string;
@@ -447,7 +449,7 @@ function AppsTable({
   nameColors: Map<string, string>;
   subscribed: (service: string) => boolean;
   onToggleSubscribe: (service: string, on: boolean) => void;
-  onRowClick: (row: InstRow) => void;
+  onRowContextMenu: (row: InstRow, event: MouseEvent<HTMLTableRowElement>) => void;
   onShutdown: (row: InstRow) => void;
 }) {
   const onlineCount = rows.filter((r) => isOnline(r)).length;
@@ -496,7 +498,7 @@ function AppsTable({
             {rows.map((row, idx) => {
               const latest = latestDeployVerForRow(row, latestByService);
               const latestHit = isLatestDeploy(row.deployVer || "", latest);
-              const clickable = canOpenCharts(row);
+              const chartsAvailable = canOpenCharts(row);
               const online = isOnline(row);
               const started = isAppStarted(row);
               const nameColor = nameColors.get(row.service) || "var(--color-ink)";
@@ -504,14 +506,11 @@ function AppsTable({
                 <tr
                   key={`${row.service}-${row.pid}-${row.port}-${idx}`}
                   className={
-                    clickable
+                    chartsAvailable
                       ? "group h-table-row border-b border-line last:border-b-0 hover:bg-raised"
                       : "h-table-row border-b border-line text-muted last:border-b-0"
                   }
-                  style={clickable ? { cursor: "pointer" } : undefined}
-                  onClick={() => {
-                    if (clickable) onRowClick(row);
-                  }}
+                  onContextMenu={(event) => onRowContextMenu(row, event)}
                 >
                   <td className="pl-4 pr-2 text-left align-middle font-mono text-xs tabular-nums text-muted">
                     {idx + 1}
@@ -629,6 +628,70 @@ function AppsTable({
   );
 }
 
+type AppChartMenuTarget = { row: InstRow; x: number; y: number };
+
+function AppChartMenu({
+  target,
+  onClose,
+  onOpen,
+}: {
+  target: AppChartMenuTarget;
+  onClose: () => void;
+  onOpen: (row: InstRow) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.left = `${Math.max(8, Math.min(target.x, window.innerWidth - el.offsetWidth - 8))}px`;
+    el.style.top = `${Math.max(8, Math.min(target.y, window.innerHeight - el.offsetHeight - 8))}px`;
+  }, [target]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onClose);
+    window.addEventListener("scroll", onClose, true);
+    window.addEventListener("resize", onClose);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onClose);
+      window.removeEventListener("scroll", onClose, true);
+      window.removeEventListener("resize", onClose);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      ref={ref}
+      role="menu"
+      aria-label={`${target.row.service} 监控`}
+      className="motion-menu-panel fixed z-[60] min-w-[180px] rounded-panel border border-line bg-surface py-1 text-sm text-ink"
+      data-open="true"
+      style={{ left: target.x, top: target.y }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        disabled={!canOpenCharts(target.row)}
+        className="block h-9 w-full px-3 text-left hover:bg-raised disabled:text-muted disabled:opacity-40"
+        onClick={() => {
+          onClose();
+          onOpen(target.row);
+        }}
+      >
+        {target.row.runtime === "bun" ? "展示监控曲线" : "展示 GC 监控曲线"}
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
 export function AppsPage({ host }: { host: string }) {
   const settings = useSettings();
   const flash = useFlashMessage();
@@ -639,6 +702,7 @@ export function AppsPage({ host }: { host: string }) {
   const [shutdownBusy, setShutdownBusy] = useState(false);
 
   const [chartsOpen, setChartsOpen] = useState(false);
+  const [chartMenu, setChartMenu] = useState<AppChartMenuTarget | null>(null);
   const [selectedService, setSelectedService] = useState("");
   const [jarPts, setJarPts] = useState<agentapi.JarRangePoint[]>([]);
   const [hostPts, setHostPts] = useState<agentapi.RangePoint[]>([]);
@@ -898,6 +962,7 @@ export function AppsPage({ host }: { host: string }) {
   useEffect(() => {
     setSelectedService("");
     setChartsOpen(false);
+    setChartMenu(null);
     setJarPts([]);
     setHostPts([]);
     setEvents([]);
@@ -930,12 +995,23 @@ export function AppsPage({ host }: { host: string }) {
             nameColors={nameColors}
             subscribed={isSubscribed}
             onToggleSubscribe={toggleSubscribe}
-            onRowClick={openCharts}
+            onRowContextMenu={(row, event) => {
+              event.preventDefault();
+              setChartMenu({ row, x: event.clientX, y: event.clientY });
+            }}
             onShutdown={setShutdownTarget}
           />
         ))}
         </div>
       )}
+
+      {chartMenu ? (
+        <AppChartMenu
+          target={chartMenu}
+          onClose={() => setChartMenu(null)}
+          onOpen={openCharts}
+        />
+      ) : null}
 
       <Dialog
         open={chartsOpen}
@@ -943,7 +1019,7 @@ export function AppsPage({ host }: { host: string }) {
           if (!v) setChartsOpen(false);
         }}
       >
-        <DialogContent className="flex h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw] flex-col overflow-hidden px-6 py-5">
+        <DialogContent className="flex h-[80vh] max-h-[80vh] w-[80vw] max-w-[80vw] flex-col overflow-hidden px-6 py-5">
           <DialogTitle className="shrink-0">
             {selectedService ? `${selectedService} · 对照（近 1 小时）` : "曲线"}
           </DialogTitle>
