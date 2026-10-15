@@ -267,19 +267,9 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                           </td>
                         ))}
                         <td className="p-0">
-                          <Checkbox
-                            className="sub-check"
-                            aria-label={`${host} 证书`}
-                            checked={!!settings.hostCertNotifySubs[host]}
-                            onChange={(checked) =>
-                              updateSettings({
-                                hostCertNotifySubs: {
-                                  ...settings.hostCertNotifySubs,
-                                  [host]: checked,
-                                },
-                              })
-                            }
-                          />
+                          <span className="block text-center text-xs text-muted" title="所有主机自动检测证书，剩余不足 30 天及已过期时每天提醒">
+                            默认开启
+                          </span>
                         </td>
                       </>
                     ) : (

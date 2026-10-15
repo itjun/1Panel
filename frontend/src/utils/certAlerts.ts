@@ -2,7 +2,8 @@
  * 证书到期告警。
  *
  * 检测在 spanel-agent：每天主机本地时间 06:00 扫 /etc/nginx/cert，结果留在主机上。
- * 面板在线（含挂后台）时来取。同一张证书（域名 + 颁发者 + 到期时间）每个主机本地日一条，
+ * 所有主机默认检测，无需订阅；面板在线（含挂后台）时来取。
+ * 同一张证书（域名 + 颁发者 + 到期时间）每个主机本地日一条，
  * 剩余天数 < 30（含已过期）就继续催，直到这组剩余 ≥ 30 或文件没了。
  * 面板断了几天，打开时按最新一次扫描补一条，不按漏掉的天数补。
  */
@@ -77,7 +78,6 @@ function deliveryId(host: string, date: string, key: string): string {
 
 async function pollHost(host: string): Promise<void> {
   const settings = settingsAccess();
-  if (!settings.isCertNotifySubscribed(host)) return;
   if (!settings.isContentKindEnabled("cert")) return;
   if ((unsupportedUntil.get(host) || 0) > Date.now()) return;
 
@@ -174,15 +174,17 @@ async function tick(): Promise<void> {
   lastTickAt = now;
   ticking = true;
   try {
-    const hosts = settingsAccess().hostsWithCertNotifySubs();
-    if (!hosts.length) return;
+    if (!settingsAccess().isContentKindEnabled("cert")) return;
+    const hosts = [...new Set((await api.listHosts()).map((host) => host.name).filter(Boolean))];
     await Promise.all(hosts.map((host) => pollHost(host)));
+  } catch {
+    /* 主机列表暂不可用时保留游标，下一分钟重试。 */
   } finally {
     ticking = false;
   }
 }
 
-/** 启动证书告警轮询。只打已订阅主机，空名单不扫。 */
+/** 启动全部主机的证书告警轮询，新增主机自动纳入。 */
 export function startCertAlertPoll(): void {
   stopCertAlertPoll();
   void tick();
