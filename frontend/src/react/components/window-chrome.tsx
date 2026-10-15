@@ -141,17 +141,13 @@ export function WindowChrome() {
 
   return (
     <div className="flex h-full items-center">
-      {/* Firefox（MPL 2.0）16×16 图标，侧栏以箭头方向提示收放。 */}
+      {/* Firefox（MPL 2.0）导航图标为 16×16，侧栏保持相近的视觉尺寸、描边粗细。 */}
       <ChromeButton label={open ? "收起侧栏" : "展开侧栏"} expanded={open} onClick={toggle}>
-        <g fillRule="evenodd">
-          <path d="M16 12.25 16 4a2 2 0 0 0-2-2L2 2a2 2 0 0 0-2 2l0 8.25a2 2 0 0 0 2 2l12 0a2 2 0 0 0 2-2zm-14.75.15 0-8.55.6-.6 4.9 0 0 9.75-4.9 0-.6-.6zM8 13l6.15 0 .6-.6 0-8.55-.6-.6-6.15 0L8 13z" />
+        <g fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+          <rect x={1.75} y={1.75} width={12.5} height={12.5} rx={1.25} />
+          <path d="M5.75 1.75V14.25" strokeLinecap="butt" />
           <path
-            d={open ? "M12.5 5.5 10 8l2.5 2.5" : "M10 5.5 12.5 8 10 10.5"}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            d={open ? "M11.5 5.25 8.75 8l2.75 2.75" : "M8.75 5.25 11.5 8l-2.75 2.75"}
           />
         </g>
       </ChromeButton>
