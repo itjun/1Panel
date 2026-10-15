@@ -92,14 +92,14 @@ export function HostContextMenu({
       >
         <div className="truncate px-3 py-1.5 text-xs text-muted">{title}</div>
         <MenuItem
-          label="终端打开"
+          label="打开终端"
           onClick={() => {
             onClose();
             onOpenInTerminal(hosts);
           }}
         />
         <MenuItem
-          label={isPinned ? "取消置顶" : "置顶"}
+          label={isPinned ? "取消置顶" : "置顶显示"}
           disabled={batch}
           onClick={() => {
             onClose();
@@ -107,7 +107,7 @@ export function HostContextMenu({
           }}
         />
         <MenuItem
-          label="编辑…"
+          label="编辑主机"
           disabled={batch}
           onClick={() => {
             onClose();
@@ -115,7 +115,7 @@ export function HostContextMenu({
           }}
         />
         <MenuItem
-          label="网络测速…"
+          label="网络测速"
           disabled={hosts.length > 2}
           onClick={() => {
             onClose();
