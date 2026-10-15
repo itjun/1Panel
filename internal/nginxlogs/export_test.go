@@ -202,8 +202,8 @@ func TestPythonWorker(t *testing.T) {
 	}
 }
 
-// Exercise the actual Python compressor, binary SSH transport, progress and checksum together.
-// macOS lacks ionice and /proc; capability probes and resource readings are stubbed there.
+// 一起走真实的 Python 压缩、二进制 SSH 传输、进度和校验。
+// macOS 没有 ionice 和 /proc；能力探测和资源读数在这里被替换掉。
 func TestExportWithRealWorker(t *testing.T) {
 	python, err := exec.LookPath("python3")
 	if err != nil {
@@ -218,8 +218,10 @@ func TestExportWithRealWorker(t *testing.T) {
 	old := []byte(time.Now().AddDate(0, 0, -1).Format("2006/01/02 15:04:05") + " [info] yesterday\n")
 	originalContent := append(append([]byte{}, old...), content...)
 	os.WriteFile(filepath.Join(root, "access.log"), originalContent, 0600)
+	os.WriteFile(filepath.Join(root, "error.log"), []byte("undated traceback\n"), 0600)
+	os.WriteFile(filepath.Join(root, "access.log.1"), []byte("ignored rotation"), 0600)
 	os.WriteFile(filepath.Join(root, "access.log.2.gz"), []byte("historical archive"), 0600)
-	code := strings.Replace(worker, "        check_environment(parent)", "        pass # portable test", 1)
+	code := strings.Replace(worker, "        check_environment(parent)", "        pass # 可移植测试", 1)
 	code = strings.Replace(code, `if __name__ == "__main__":`, "if sys.platform != 'linux':\n    memory_usage = lambda: (8 << 30, 6 << 30)\n    process_usage = lambda pid: (0, 16 << 20)\n\nif __name__ == '__main__':", 1)
 	code = strings.Replace(code, `lock_parent="/tmp"`, "lock_parent="+quote(remoteTemp), 1)
 	client := testSSH(t, func(channel ssh.Channel) {
@@ -257,12 +259,20 @@ func TestExportWithRealWorker(t *testing.T) {
 		t.Fatalf("archive header: %v %v", header, err)
 	}
 	got, err := io.ReadAll(archive)
-	if err != nil || !bytes.Equal(got, content) {
+	if err != nil || !bytes.Equal(got, originalContent) {
 		t.Fatalf("archive content mismatch: %v", err)
 	}
 	original, _ := os.ReadFile(filepath.Join(root, "access.log"))
 	if !bytes.Equal(original, originalContent) {
 		t.Fatal("source was changed")
+	}
+	header, err = archive.Next()
+	if err != nil || header.Name != "error.log" {
+		t.Fatalf("error log header: %v %v", header, err)
+	}
+	got, err = io.ReadAll(archive)
+	if err != nil || string(got) != "undated traceback\n" {
+		t.Fatalf("error log content mismatch: %v", err)
 	}
 	if _, err := archive.Next(); err != io.EOF {
 		t.Fatalf("unexpected historical archive: %v", err)

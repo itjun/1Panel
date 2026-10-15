@@ -1,12 +1,8 @@
 import contextlib
-import bz2
-import datetime
-import gzip
 import hashlib
 import io
 import itertools
 import json
-import lzma
 import os
 from pathlib import Path
 import shutil
@@ -17,7 +13,6 @@ import tarfile
 import tempfile
 import time
 import unittest
-import zipfile
 from unittest.mock import patch, mock_open
 from types import SimpleNamespace
 
@@ -25,18 +20,6 @@ import worker
 
 Usage = type(shutil.disk_usage("/"))
 ENOUGH = Usage(20 * 1024**3, 1 * 1024**3, 19 * 1024**3)
-
-
-@contextlib.contextmanager
-def host_timezone(name):
-    try:
-        with patch.dict(os.environ, {"TZ": name}):
-            time.tzset()
-            worker.parse_timestamp.cache_clear()
-            yield
-    finally:
-        time.tzset()
-        worker.parse_timestamp.cache_clear()
 
 
 class WorkerTests(unittest.TestCase):
@@ -69,9 +52,9 @@ class WorkerTests(unittest.TestCase):
     def today_line(self):
         return (time.strftime("%Y/%m/%d %H:%M:%S") + " [info] current request\n").encode()
 
-    def compress(self, selections=None):
+    def compress(self):
         with patch.object(worker.shutil, "disk_usage", return_value=ENOUGH):
-            archive = worker.compress(self.files, str(self.archive_dir), lambda n: None, self.pacer, selections)
+            archive = worker.compress(self.files, str(self.archive_dir), lambda n: None, self.pacer)
         with tarfile.open(fileobj=io.BytesIO(subprocess.check_output(["zstd", "-d", "-c", archive]))) as package:
             return {name: package.extractfile(name).read() for name in package.getnames()}
 
@@ -91,20 +74,20 @@ class WorkerTests(unittest.TestCase):
 
     def test_symlinks_fifo_and_symlink_directories_are_not_followed(self):
         (self.root / "error.log").write_bytes(b"error")
-        os.symlink("/dev/zero", self.root / "device.log")
+        os.symlink("/dev/zero", self.root / "access.log")
         os.mkfifo(self.root / "fifo")
         os.symlink(self.archive_dir, self.root / "linked")
         (self.archive_dir / "secret").write_bytes(b"secret")
-        self.assertEqual(self.scan(), 2)
+        self.assertEqual(self.scan(), 1)
         self.assertEqual(self.compress(), {"error.log": b"error"})
 
-    def test_spaces_quotes_unicode_and_nested_names(self):
-        child = self.root / "sub directory"
+    def test_spaces_quotes_unicode_in_directory(self):
+        child = self.root / "访问 ' $(touch nope)"
         child.mkdir()
-        name = "sub directory/访问 ' $(touch nope).log"
-        (self.root / name).write_bytes(b"log")
+        self.root = child
+        (self.root / "access.log").write_bytes(b"log")
         self.scan()
-        self.assertEqual(self.compress(), {name: b"log"})
+        self.assertEqual(self.compress(), {"access.log": b"log"})
 
     def test_truncation_fails_instead_of_publishing_incomplete_log(self):
         log = self.root / "access.log"
@@ -134,14 +117,13 @@ class WorkerTests(unittest.TestCase):
                 worker.compress(self.files, str(self.archive_dir), lambda n: None, self.pacer)
         self.assertLessEqual(os.lseek(self.files[0][1], 0, os.SEEK_CUR), worker.CHUNK)
 
-    def test_empty_and_excessive_file_count_fail(self):
+    def test_missing_and_empty_logs(self):
         with self.assertRaisesRegex(RuntimeError, "没有"):
             self.scan()
-        (self.root / "a.log").touch()
-        (self.root / "b.log").touch()
-        with patch.object(worker, "MAX_FILES", 1):
-            with self.assertRaisesRegex(RuntimeError, "超过"):
-                self.scan()
+        (self.root / "access.log").touch()
+        (self.root / "error.log").touch()
+        self.assertEqual(self.scan(), 0)
+        self.assertEqual(self.compress(), {"access.log": b"", "error.log": b""})
 
     def test_lock_excludes_concurrent_jobs_and_releases_after_close(self):
         fd = worker.acquire_lock(str(self.archive_dir))
@@ -202,9 +184,9 @@ class WorkerTests(unittest.TestCase):
 
     def test_heartbeat_eof_terminates_worker_and_cleans_archive(self):
         (self.root / "access.log").write_bytes(self.today_line() * 8192)
-        # Exercise the real entrypoint, heartbeat, signals and cleanup on macOS too;
-        # Linux capability probes and /proc resource readings are stubbed on macOS.
-        code = Path(worker.__file__).read_text().replace('lock_parent="/tmp"', "lock_parent=" + repr(str(self.archive_dir))).replace('        check_environment(parent)', '        pass # platform probe tested on Linux')
+        # 在 macOS 上也走真实入口、心跳、信号和清理；
+        # Linux 能力探测和 /proc 资源读数在 macOS 上被替换掉。
+        code = Path(worker.__file__).read_text().replace('lock_parent="/tmp"', "lock_parent=" + repr(str(self.archive_dir))).replace('        check_environment(parent)', '        pass # 平台探测在 Linux 上测')
         if sys.platform != "linux":
             code = code.replace('if __name__ == "__main__":', 'memory_usage = lambda: (8 << 30, 6 << 30)\nprocess_usage = lambda pid: (0, 16 << 20)\nif __name__ == "__main__":')
         child_pid = Path(self.temp.name) / "compressor.pid"
@@ -224,9 +206,11 @@ class WorkerTests(unittest.TestCase):
         self.addCleanup(cleanup)
         process.stdin.write(b".A")
         process.stdin.flush()
+        events = []
         while True:
             line = process.stderr.readline()
-            self.assertTrue(line, "worker exited before compression")
+            self.assertTrue(line, "worker exited before compression: %s" % events)
+            events.append(line.decode())
             if json.loads(line)["phase"] == "compressing":
                 break
         process.stdin.close()
@@ -239,138 +223,42 @@ class WorkerTests(unittest.TestCase):
         process.stderr.close()
         os.close(worker.acquire_lock(str(self.archive_dir)))
 
-    def test_today_uses_host_timezone_and_excludes_adjacent_days(self):
-        with host_timezone("Asia/Shanghai"):
-            before = b'ip - - [14/Oct/2026:15:59:59 +0000] "yesterday"\n'
-            first = b'ip - - [14/Oct/2026:16:00:00 +0000] "today begins"\n'
-            error = b'2026/10/15 12:00:00 [error] request\n'
-            iso = b'{"time_iso8601":"2026-10-15T15:59:59Z","message":"today ends"}\n'
-            following = b'ip - - [15/Oct/2026:16:00:00 +0000] "tomorrow"\n'
-            unknown = b'no recognizable timestamp\n'
-            content = before + first + following + error + unknown + iso
-            (self.root / "access.log").write_bytes(content)
-            self.scan()
-            window = worker.day_window(datetime.date(2026, 10, 15))
-            selections, unmatched, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, window, lambda _: None)
-            self.assertEqual((unmatched, excluded), (1, 0))
-            self.assertLess(worker.archive_bound(self.files, selections), worker.archive_bound(self.files))
-            self.assertEqual(self.compress(selections), {"access.log": first + error + iso})
-            self.assertEqual((self.root / "access.log").read_bytes(), content)
-
-    def test_today_keeps_uncompressed_rotation_but_skips_archives(self):
-        content = self.today_line()
-        (self.root / "access.log.1").write_bytes(content)
-        (self.root / "access.log.2.gz").write_bytes(b"not read or decompressed")
-        (self.root / "error.log").touch()
-        skipped = worker.inventory(str(self.root), self.files, self.pacer, text_only=True)
-        selections, _, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
-        self.assertEqual((skipped, excluded), (1, 1))
-        self.assertEqual(self.compress(selections), {"access.log.1": content})
-
-    def test_renamed_compressed_backups_are_excluded_before_scanning(self):
-        content = self.today_line()
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as package:
-            package.writestr("access.log", content)
-        tar_buffer = io.BytesIO()
-        with tarfile.open(fileobj=tar_buffer, mode="w") as package:
-            member = tarfile.TarInfo("access.log")
-            member.size = len(content)
-            package.addfile(member, io.BytesIO(content))
-        backups = {
-            "access.log.1.gz-2026101400.backup": gzip.compress(content),
-            "renamed-bzip.backup": bz2.compress(content),
-            "renamed-xz.bak": lzma.compress(content),
-            "renamed-zstd.bak": subprocess.check_output(["zstd", "-q", "-c"], input=content),
-            "renamed-zip.bak": zip_buffer.getvalue(),
-            "renamed-tar.bak": tar_buffer.getvalue(),
-            "skippable-zstd.bak": bytes.fromhex("502a4d1800000000"),
+    def test_only_current_two_logs_are_exported_without_content_filtering(self):
+        expected = {
+            "access.log": b"2000/01/01 00:00:00 old request\n" + self.today_line(),
+            "error.log": b"undated traceback\n" + b"x" * (2 << 20),
         }
-        for name, data in backups.items():
-            (self.root / name).write_bytes(data)
-        # Text logs and uncompressed backups remain eligible, regardless of their names.
-        expected = {name: content for name in ("access.log", "access.log.1", "plain.gz-2026101400.backup")}
-        for name, data in expected.items():
-            (self.root / name).write_bytes(data)
-        with patch.object(worker.os, "pread", wraps=os.pread) as read:
-            skipped = worker.inventory(str(self.root), self.files, self.pacer, text_only=True)
-        self.assertEqual(skipped, len(backups))
-        self.assertTrue(all(call.args[1] <= 512 and call.args[2] == 0 for call in read.call_args_list))
-        self.assertEqual({name for name, _, _ in self.files}, set(expected))
-        self.assertTrue(all(os.lseek(fd, 0, os.SEEK_CUR) == 0 for _, fd, _ in self.files))
-        self.assertEqual(sum(info.st_size for _, _, info in self.files), sum(map(len, expected.values())))
-        scanned = []
-        selections, unmatched, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), scanned.append)
-        self.assertEqual((unmatched, excluded), (0, 0))
-        self.assertEqual(sum(scanned), sum(map(len, expected.values())))
-        self.assertEqual(self.compress(selections), expected)
+        for name, content in expected.items():
+            (self.root / name).write_bytes(content)
+        for name in ("access.log.1", "error.log.1", "access.log.2.gz", "access.log.1.gz-2026101400.backup", "url.txt"):
+            (self.root / name).write_bytes(b"ignored")
+        nested = self.root / "nested"
+        nested.mkdir()
+        (nested / "access.log").write_bytes(b"ignored")
+        with patch.object(worker.os, "fwalk", side_effect=AssertionError("must not enumerate directory")), patch.object(worker.os, "read", side_effect=AssertionError("must not pre-read contents")), patch.object(worker.os, "pread", side_effect=AssertionError("must not inspect contents")):
+            self.assertEqual(self.scan(), 0)
+        with patch.object(worker, "RATE", 64 << 20):
+            self.assertEqual(self.compress(), expected)
+        for name, content in expected.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
 
-    def test_progress_distinguishes_scan_total_from_today_size_without_backups(self):
-        today = self.today_line()
-        yesterday = b"2000/01/01 12:00:00 old request\n"
-        (self.root / "access.log").write_bytes(today + yesterday)
-        (self.root / "access.log.1.gz-2026101400.backup").write_bytes(gzip.compress(today * 100))
+    def test_preflight_uses_file_sizes_and_never_filters(self):
+        access, error = b"old date and no timestamp\n", b"error\n"
+        (self.root / "access.log").write_bytes(access)
+        (self.root / "error.log").write_bytes(error)
         events = []
-        with patch.object(worker, "check_environment"), patch.object(worker, "emit", side_effect=lambda phase, **fields: events.append(dict(phase=phase, **fields))), patch.object(worker, "compress", side_effect=RuntimeError("stop before compression")):
+        with patch.object(worker, "check_environment"), patch.object(worker, "emit", side_effect=lambda phase, **fields: events.append(dict(phase=phase, **fields))), patch.object(worker, "compress", side_effect=RuntimeError("stop before compression")), patch.object(worker.os, "read", side_effect=AssertionError("must not read before compression")):
             with self.assertRaisesRegex(RuntimeError, "stop before compression"):
                 worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
-        filtering = next(event for event in events if event["phase"] == "filtering")
-        checked = next(event for event in events if event["phase"] == "checked")
-        self.assertEqual((filtering["done"], filtering["total"]), (0, len(today + yesterday)))
-        self.assertEqual((checked["total"], checked["files"], checked["skipped"]), (len(today), 1, 1))
+        self.assertEqual([event["phase"] for event in events], ["checking", "checked"])
+        checked = events[-1]
+        self.assertEqual((checked["total"], checked["files"], checked["skipped"]), (len(access + error), 2, 0))
 
-    def test_today_selection_survives_rotation_and_excludes_later_append(self):
-        log = self.root / "access.log"
-        content = self.today_line()
-        log.write_bytes(content)
-        self.scan()
-        selections, _, _ = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
-        with log.open("ab") as output:
-            output.write(content)
-        log.rename(self.root / "access.log.1")
-        log.write_bytes(b"new active file")
-        self.assertEqual(self.compress(selections), {"access.log": content})
-        self.assertEqual(log.read_bytes(), b"new active file")
-
-    def test_no_today_records_fails_without_exporting_old_or_unknown_lines(self):
-        (self.root / "access.log").write_bytes(b'2000/01/01 00:00:00 old\nunknown date\n')
-        with patch.object(worker, "check_environment"), contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaisesRegex(RuntimeError, "没有找到.*日志记录"):
-                worker.run(str(self.root), str(self.archive_dir), str(self.archive_dir))
-        self.assertFalse(list(self.archive_dir.glob("1panel-nginx-*")))
-
-    def test_selection_limits_line_length_and_fragment_memory(self):
-        log = self.root / "access.log"
-        log.write_bytes(b"x" * (worker.MAX_LINE + 1))
-        self.scan()
-        with self.assertRaisesRegex(RuntimeError, "单行日志"):
-            worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
-        self.close_files()
-        log.write_bytes((self.today_line() + b"2000/01/01 00:00:00 old\n") * 3)
-        self.scan()
-        with patch.object(worker, "MAX_RANGES", 2), self.assertRaisesRegex(RuntimeError, "片段过多"):
-            worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
-
-    def test_selection_detects_truncation(self):
-        log = self.root / "access.log"
-        log.write_bytes(self.today_line() * 3)
-        self.scan()
-        log.write_bytes(self.today_line())
-        with self.assertRaisesRegex(RuntimeError, "截断"):
-            worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
-
-    def test_day_boundaries_account_for_daylight_saving(self):
-        with host_timezone("America/New_York"):
-            _, start, end = worker.day_window(datetime.date(2026, 3, 8))
-            self.assertEqual(end - start, 23 * 3600)
-            _, start, end = worker.day_window(datetime.date(2026, 11, 1))
-            self.assertEqual(end - start, 25 * 3600)
-
-    def test_primary_access_timestamp_wins_over_date_in_request(self):
-        line = b'ip - - [14/Oct/2026:10:00:00 +0800] "time":"2026-10-15T10:00:00+08:00"\n'
-        stamp = worker.line_timestamp(line)
-        self.assertEqual(stamp, datetime.datetime(2026, 10, 14, 2, tzinfo=datetime.timezone.utc).timestamp())
-        self.assertIsNone(worker.line_timestamp(b'ip [32/Oct/2026:10:00:00 +0800] invalid\n'))
+    def test_fifo_target_is_skipped_without_blocking(self):
+        (self.root / "access.log").write_bytes(b"access")
+        os.mkfifo(self.root / "error.log")
+        self.assertEqual(self.scan(), 1)
+        self.assertEqual(self.compress(), {"access.log": b"access"})
 
     def test_compressor_failure_reaps_child_and_run_removes_archive(self):
         (self.root / "access.log").write_bytes(self.today_line() * 1024)
@@ -460,8 +348,8 @@ class WorkerTests(unittest.TestCase):
         self.assertNotEqual(subprocess.run(["zstd", "-t", str(corrupt)], capture_output=True).returncode, 0)
 
     @unittest.skipUnless(os.environ.get("NGINX_LOGS_LARGE_TEST") == "1", "opt-in isolated 1 GiB test")
-    def test_gib_today_input_streams_with_bounded_memory(self):
-        # Accelerate only this isolated fixture. Production's 2 MiB/s setting is unchanged.
+    def test_gib_input_streams_with_bounded_memory(self):
+        # 只给这个隔离夹具加速。正式环境的 2 MiB/s 设置不变。
         prefix = self.today_line().rstrip(b"\n")
         line = prefix + b"x" * (65536 - len(prefix) - 1) + b"\n"
         log = self.root / "access.log"
@@ -472,10 +360,8 @@ class WorkerTests(unittest.TestCase):
                 digest.update(line)
         with patch.object(worker, "RATE", 128 << 20):
             self.scan()
-            selections, unmatched, excluded = worker.select_today(self.files, str(self.archive_dir), self.pacer, worker.day_window(), lambda _: None)
-            bound = worker.archive_bound(self.files, selections)
-            archive = worker.compress(self.files, str(self.archive_dir), lambda _: None, self.pacer, selections)
-        self.assertEqual((unmatched, excluded), (0, 0))
+            bound = worker.archive_bound(self.files)
+            archive = worker.compress(self.files, str(self.archive_dir), lambda _: None, self.pacer)
         self.assertLess(Path(archive).stat().st_size, bound)
         decoded = hashlib.sha256()
         with subprocess.Popen(["zstd", "-d", "-c", archive], stdout=subprocess.PIPE) as child:
@@ -489,7 +375,7 @@ class WorkerTests(unittest.TestCase):
                         break
                     decoded.update(data)
                 self.assertIsNone(tar.next())
-            child.stdout.read()  # Consume tar padding and allow checksum verification to finish.
+            child.stdout.read()  # 读掉 tar 填充，让校验能跑完。
             self.assertEqual(child.wait(), 0)
         self.assertEqual(decoded.hexdigest(), digest.hexdigest())
 

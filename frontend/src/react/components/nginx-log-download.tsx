@@ -18,8 +18,6 @@ type Progress = {
   available: number;
   required: number;
   reserve: number;
-  date?: string;
-  unmatched?: number;
 };
 type ExportEvent = { host: string; requestID: string; progress: Progress };
 
@@ -37,7 +35,6 @@ export function NginxLogDownload({ host }: { host: string }) {
   const [cancelRequested, setCancelRequested] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [checked, setChecked] = useState<Progress | null>(null);
-  const [scanTotal, setScanTotal] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const flash = useFlashMessage();
   const dialog = useRef<HTMLDivElement>(null);
@@ -50,7 +47,6 @@ export function NginxLogDownload({ host }: { host: string }) {
       const data = event.data;
       if (data?.host !== host || data.requestID !== requestID.current) return;
       setProgress(data.progress);
-      if (data.progress.phase === "filtering") setScanTotal(data.progress.total);
       if (data.progress.phase === "checked") setChecked(data.progress);
     });
     return () => {
@@ -68,13 +64,12 @@ export function NginxLogDownload({ host }: { host: string }) {
       setMessage(null);
       setProgress(null);
       setChecked(null);
-      setScanTotal(null);
       flash.clear();
     });
   }
 
   async function start() {
-    // Claim the request synchronously, before rendering or opening the native save dialog.
+    // 先同步占住这次请求，再绘制界面或打开系统保存窗口。
     if (requestID.current) return;
     const id = crypto.randomUUID();
     requestID.current = id;
@@ -85,13 +80,12 @@ export function NginxLogDownload({ host }: { host: string }) {
       setMessage(null);
       setProgress(null);
       setChecked(null);
-      setScanTotal(null);
       flash.clear();
     });
     dialog.current?.scrollTo({ top: 0 });
     dialog.current?.focus({ preventScroll: true });
     try {
-      // Give the busy mask a paint before a native dialog can block the webview.
+      // 先让忙碌蒙层画出来，再打开可能卡住 webview 的系统窗口。
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       if (requestID.current !== id) return;
       if (cancelling.current) {
@@ -126,13 +120,18 @@ export function NginxLogDownload({ host }: { host: string }) {
   }
 
   const phase = progress?.phase;
-  const status = phase === "filtering" ? `正在筛选 ${progress?.date || "当日"} 的日志…`
-    : phase === "compressing" ? "正在低负载压缩…"
-    : phase === "downloading" ? "正在下载压缩包…"
-    : phase === "complete" ? "正在校验并保存…"
-    : phase === "checked" ? "空间检查通过，开始压缩…"
-    : phase === "checking" ? "正在检查日志与磁盘空间…"
-    : "选择保存位置并连接主机…";
+  let status = "选择保存位置并连接主机…";
+  if (phase === "compressing") {
+    status = "正在低负载压缩…";
+  } else if (phase === "downloading") {
+    status = "正在下载压缩包…";
+  } else if (phase === "complete") {
+    status = "正在校验并保存…";
+  } else if (phase === "checked") {
+    status = "空间检查通过，开始压缩…";
+  } else if (phase === "checking") {
+    status = "正在检查日志与磁盘空间…";
+  }
   const percent = progress?.total ? Math.min(100, progress.done / progress.total * 100) : 0;
 
   return (
@@ -147,7 +146,7 @@ export function NginxLogDownload({ host }: { host: string }) {
           onPointerDownOutside={(event) => { if (requestID.current) event.preventDefault(); }}>
           <DialogTitle>下载 Nginx 日志</DialogTitle>
           <DialogDescription>
-            默认按远程主机的当天日期筛选日志记录，以 zstd 6 级单线程压缩为 .tar.zst 后下载。历史压缩包不包含在内。
+            直接将目录中的 access.log 和 error.log 打包为一个 .tar.zst 文件后下载，不筛选日期，不包含轮转日志或备份文件。
           </DialogDescription>
           <div inert={busy} aria-hidden={busy || undefined}>
             <div className="mt-4 flex flex-col gap-4 text-sm">
@@ -162,17 +161,14 @@ export function NginxLogDownload({ host }: { host: string }) {
               <p className="text-muted">
                 压缩前检查磁盘和内存。磁盘预留至少 1 GiB 或容量的 10%；内存按 256 MiB 任务预算检查，并预留至少 512 MiB 或总内存的 10%。以低优先级、2 MiB/s 限速处理，只读取开始时已有的内容；不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
               </p>
-              <p className="text-xs text-muted">支持 Nginx 标准访问／错误日志时间及 ISO 8601 时间；无法识别日期的行会跳过。需要 Python 3、zstd、nice、ionice、stat 和日志读取权限，符号链接及设备文件不导出。</p>
+              <p className="text-xs text-muted">保留文件内的全部记录，包括历史日期和无时间戳内容。使用 zstd 6 级单线程压缩；缺失的文件会跳过，符号链接及设备文件不导出。</p>
               {checked ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
-                  <dt className="text-muted">日志日期</dt><dd>{checked.date}（主机时间）</dd>
-                  {scanTotal !== null ? <><dt className="text-muted">待扫描总量</dt><dd>{bytes(scanTotal)}</dd></> : null}
-                  <dt className="text-muted">当日日志大小</dt><dd>{bytes(checked.total)} · {checked.files} 个文件</dd>
+                  <dt className="text-muted">日志原始大小</dt><dd>{bytes(checked.total)} · {checked.files} 个文件</dd>
                   <dt className="text-muted">磁盘可用</dt><dd>{bytes(checked.available)}</dd>
                   <dt className="text-muted">压缩空间预算</dt><dd>{bytes(checked.required)}</dd>
                   <dt className="text-muted">安全预留</dt><dd>{bytes(checked.reserve)}</dd>
-                  {checked.skipped > 0 ? <><dt className="text-muted">已跳过文件</dt><dd>{checked.skipped} 个历史压缩包、无当日记录或特殊文件</dd></> : null}
-                  {checked.unmatched ? <><dt className="text-muted">未识别日期</dt><dd>{checked.unmatched} 行，未纳入下载</dd></> : null}
+                  {checked.skipped > 0 ? <><dt className="text-muted">已跳过文件</dt><dd>{checked.skipped} 个目标文件缺失或不是普通文件</dd></> : null}
                 </dl>
               ) : null}
               {message ? <Notice tone={cancelling.current ? "info" : "error"} text={message} /> : null}
@@ -186,22 +182,22 @@ export function NginxLogDownload({ host }: { host: string }) {
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 rounded-panel bg-surface/95 px-8 py-6">
               <div role="status" aria-live="polite" className="flex w-full flex-col gap-3 text-sm">
                 <div className="flex items-center justify-center gap-2"><LoaderCircle className="size-4 animate-spin text-accent" />{cancelRequested ? "正在取消下载…" : status}</div>
-                {scanTotal !== null ? (
+                {checked ? (
                   <>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
-                      <dt className="text-muted">待扫描总量</dt><dd className="text-right">{bytes(scanTotal)}</dd>
-                      <dt className="text-muted">当日日志大小</dt><dd className="text-right">{checked ? bytes(checked.total) : "筛选完成后确定"}</dd>
+                      <dt className="text-muted">打包文件</dt><dd className="text-right">access.log、error.log</dd>
+                      <dt className="text-muted">日志原始大小</dt><dd className="text-right">{bytes(checked.total)} · {checked.files} 个文件</dd>
                     </dl>
-                    {phase === "filtering" ? <p className="text-center text-xs text-muted">扫描范围包含未压缩轮转日志，筛选后仅打包当日记录。</p> : null}
+                    {checked.skipped > 0 ? <p className="text-center text-xs text-muted">{checked.skipped} 个目标文件缺失或不是普通文件，仅打包可读取的文件。</p> : null}
                   </>
                 ) : null}
-                {phase === "filtering" || phase === "compressing" || phase === "downloading" ? (
+                {phase === "compressing" || phase === "downloading" ? (
                   <>
-                    <div className="h-2 w-full overflow-hidden rounded-control bg-raised" role="progressbar" aria-label={phase === "filtering" ? "筛选进度" : phase === "compressing" ? "压缩进度" : "下载进度"} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
+                    <div className="h-2 w-full overflow-hidden rounded-control bg-raised" role="progressbar" aria-label={phase === "compressing" ? "压缩进度" : "下载进度"} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
                       <div className="h-full bg-accent" style={{ width: `${percent}%` }} />
                     </div>
                     <span className="text-center text-xs text-muted tabular-nums">
-                      {phase === "filtering" ? `已扫描 ${bytes(progress?.done || 0)}` : `${phase === "compressing" ? "已处理当日日志" : "已下载"} ${bytes(progress?.done || 0)} / ${bytes(progress?.total || 0)}`} · {percent.toFixed(0)}%
+                      {phase === "compressing" ? "已压缩" : "已下载"} {bytes(progress?.done || 0)} / {bytes(progress?.total || 0)} · {percent.toFixed(0)}%
                     </span>
                   </>
                 ) : null}

@@ -1,12 +1,9 @@
-"""Read-only, bounded Nginx log export worker, sent over an isolated SSH session."""
+"""只读、有大小上限的 Nginx 日志导出 worker，通过独立 SSH 会话下发。"""
 import contextlib
-import datetime
 import fcntl
-import functools
 import hashlib
 import json
 import os
-import re
 import resource
 import select
 import shutil
@@ -21,17 +18,9 @@ import time
 
 CHUNK = 256 * 1024
 RATE = 2 * 1024 * 1024
-MAX_FILES = 512
-MAX_ENTRIES = 10000
-MAX_LINE = 1024 * 1024
-MAX_RANGES = 10000
+LOG_NAMES = ("access.log", "error.log")
 MEMORY_BUDGET = 256 * 1024 * 1024
 LOCAL_READY = threading.Event()
-
-ACCESS_TIME = re.compile(rb"\[(\d{2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]")
-ERROR_TIME = re.compile(rb"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})")
-ISO_TIME = re.compile(rb'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))|"(?:time|time_iso8601|timestamp|@timestamp)"\s*:\s*"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))"')
-MONTHS = {name: i + 1 for i, name in enumerate("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split())}
 
 
 def emit(phase, **fields):
@@ -42,14 +31,10 @@ def reserve_bytes(total):
     return max(1024 ** 3, total // 10)
 
 
-def selected_size(info, ranges=None):
-    return info.st_size if ranges is None else sum(end - start for start, end in ranges)
-
-
-def archive_bound(files, selections=None):
-    # PAX/tar overhead plus 1% and 1 MiB covers Zstandard raw-block/frame overhead.
-    # Never budget from an assumed compression ratio, even for repetitive logs.
-    raw = sum(selected_size(info, selections[name] if selections is not None else None) + 16384
+def archive_bound(files):
+    # PAX/tar 开销，再加 1% 和 1 MiB，用来覆盖 zstd 原始块和帧的开销。
+    # 不按假设的压缩率做预算，重复内容的日志也一样。
+    raw = sum(info.st_size + 16384
               for name, _, info in files) + 10240
     return raw + raw // 100 + 1024 * 1024
 
@@ -86,7 +71,7 @@ def memory_usage():
 
 def process_usage(pid):
     with open("/proc/%d/stat" % pid) as source:
-        # comm may contain spaces or parentheses. Fields after its final ')' start at state (3).
+        # comm 里可能有空格或括号。最后一个 ')' 之后的字段从 state（第 3 列）开始。
         fields = source.read().rsplit(")", 1)[1].split()
     cpu = (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK")
     rss = int(fields[21]) * os.sysconf("SC_PAGE_SIZE")
@@ -122,7 +107,7 @@ class Pacer:
 
     def cpu_time(self):
         live_cpu = child_usage(self.child)[0]
-        # Reaped children move into RUSAGE_CHILDREN; a live/zombie child is counted via /proc.
+        # 已回收的子进程计入 RUSAGE_CHILDREN；还活着或僵死的子进程用 /proc 统计。
         completed = resource.getrusage(resource.RUSAGE_CHILDREN)
         return time.process_time() + completed.ru_utime + completed.ru_stime + live_cpu
 
@@ -131,40 +116,26 @@ class Pacer:
         while True:
             check_memory(child=self.child)
             delay = max(self.size / RATE, (self.cpu_time() - self.cpu) / 0.20) - (time.monotonic() - self.wall)
-            # A tiny tolerance avoids chasing the CPU cost of the resource checks themselves.
+            # 留一点余量，避免资源检查自己的 CPU 开销把循环越追越紧。
             if delay <= 0.005:
                 return
-            # Account for child CPU consumed while the parent sleeps; remain cancellable and check memory.
+            # 父进程睡眠期间也计入子进程 CPU；保持可取消，并继续检查内存。
             time.sleep(min(delay, 0.25))
 
 
-def archive_header(header):
-    # Inspect only the header: renamed backups must not be parsed as log text.
-    signatures = (b"\x1f\x8b", b"BZh", b"\xfd7zXZ\x00", b"\x28\xb5\x2f\xfd",
-                  b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08", b"\x1f\x9d")
-    skippable_zstd = len(header) >= 4 and 0x184D2A50 <= int.from_bytes(header[:4], "little") <= 0x184D2A5F
-    return header.startswith(signatures) or skippable_zstd or header[257:262] == b"ustar"
-
-
-def inventory(root, files, pacer, text_only=False):
+def inventory(root, files, pacer):
     if not os.path.isabs(root) or os.path.realpath(root) == "/":
         raise RuntimeError("请选择日志目录的绝对路径，不能选择根目录")
-    skipped, entries = 0, 0
-    def failed(error):
-        raise error
-    # fwalk + dir_fd + O_NOFOLLOW prevent symlink substitutions from reading devices or unrelated files.
-    for base, dirs, names, directory in os.fwalk(root, follow_symlinks=False, onerror=failed):
-        rel = os.path.relpath(base, root)
-        if rel.count(os.sep) > 16:
-            raise RuntimeError("日志目录层级过深，请选择更具体的目录")
-        entries += len(dirs) + len(names)
-        if entries > MAX_ENTRIES:
-            raise RuntimeError("目录条目过多，请选择更具体的日志目录")
-        for name in names:
-            if text_only and name.lower().endswith((".gz", ".bz2", ".xz", ".zip", ".zst", ".z", ".tar")):
+    skipped = 0
+    directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        # 只检查这两个文件名；不遍历目录，也不读取日志内容。
+        for name in LOG_NAMES:
+            try:
+                info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            except FileNotFoundError:
                 skipped += 1
                 continue
-            info = os.stat(name, dir_fd=directory, follow_symlinks=False)
             if not stat.S_ISREG(info.st_mode):
                 skipped += 1
                 continue
@@ -173,152 +144,33 @@ def inventory(root, files, pacer, text_only=False):
                 current = os.fstat(fd)
                 if not stat.S_ISREG(current.st_mode) or (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
                     raise RuntimeError("日志发生轮转，请重试")
-                if text_only:
-                    # pread preserves offset zero for the subsequent bounded snapshot scan.
-                    header = os.pread(fd, min(current.st_size, 512), 0)
-                    pacer.step(len(header))
-                    if archive_header(header):
-                        skipped += 1
-                        continue
-                if len(files) >= MAX_FILES:
-                    raise RuntimeError("日志文件超过 512 个，请选择更具体的目录")
                 if current.st_size > 1024 ** 4:
                     raise RuntimeError("单个日志超过 1 TiB，请先缩小导出范围")
-                archive_name = os.path.relpath(os.path.join(base, name), root)
-                files.append((archive_name, fd, current))
+                files.append((name, fd, current))
                 fd = None
             finally:
                 if fd is not None:
                     os.close(fd)
             pacer.step()
+    finally:
+        os.close(directory)
     if not files:
-        raise RuntimeError("日志目录中没有可读取的普通文件（符号链接和设备文件不导出）")
+        raise RuntimeError("目录中没有可读取的 access.log 或 error.log 普通文件")
     return skipped
 
 
-def day_window(day=None):
-    # Both boundaries use the remote host's timezone, including DST transitions.
-    day = day or datetime.date.today()
-    following = day + datetime.timedelta(days=1)
-    start = time.mktime(day.timetuple())
-    end = time.mktime(following.timetuple())
-    return day.isoformat(), start, end
-
-
-@functools.lru_cache(maxsize=256)
-def parse_timestamp(kind, raw):
-    text = raw.decode("ascii")
-    try:
-        if kind == "access":
-            offset = (int(text[22:24]) * 60 + int(text[24:26])) * (1 if text[21] == "+" else -1)
-            zone = datetime.timezone(datetime.timedelta(minutes=offset))
-            return datetime.datetime(int(text[7:11]), MONTHS[text[3:6]], int(text[:2]),
-                                     int(text[12:14]), int(text[15:17]), int(text[18:20]), tzinfo=zone).timestamp()
-        if kind == "error":
-            return time.mktime(time.strptime(text, "%Y/%m/%d %H:%M:%S"))
-        return datetime.datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
-    except (ValueError, KeyError, OverflowError):
-        return None
-
-
-def line_timestamp(line):
-    match = ERROR_TIME.match(line)
-    if match:
-        return parse_timestamp("error", match[1])
-    match = ACCESS_TIME.search(line)
-    if match:
-        return parse_timestamp("access", match[1])
-    match = ISO_TIME.search(line)
-    if match:
-        return parse_timestamp("iso", match[1] or match[2])
-    return None
-
-
-def snapshot_lines(fd, size, directory, pacer, progress):
-    pending, offset, left = b"", 0, size
-    while left:
-        check_space(directory, CHUNK * 2)
-        check_source_space(fd)
-        amount = min(CHUNK, left)
-        data = os.read(fd, amount)
-        if len(data) != amount:
-            raise RuntimeError("日志在筛选期间被截断，请重试；原日志未作修改")
-        left -= amount
-        pacer.step(amount)
-        progress(amount)
-        lines = (pending + data).split(b"\n")
-        pending = lines.pop()
-        for line in lines:
-            if len(line) > MAX_LINE:
-                raise RuntimeError("单行日志超过 1 MiB，无法安全筛选当日日志")
-            line += b"\n"
-            yield offset, line
-            offset += len(line)
-        if len(pending) > MAX_LINE:
-            raise RuntimeError("单行日志超过 1 MiB，无法安全筛选当日日志")
-    if pending:
-        yield offset, pending
-
-
-def select_today(files, directory, pacer, window, progress):
-    selections, unmatched, excluded, fragments = {}, 0, 0, 0
-    _, start, end = window
-    for index, (name, fd, info) in enumerate(files):
-        ranges = []
-        for offset, line in snapshot_lines(fd, info.st_size, directory, pacer, progress):
-            stamp = line_timestamp(line)
-            if stamp is None:
-                unmatched += 1
-                continue
-            if not start <= stamp < end:
-                continue
-            stop = offset + len(line)
-            if ranges and ranges[-1][1] == offset:
-                ranges[-1] = (ranges[-1][0], stop)
-            else:
-                fragments += 1
-                if fragments > MAX_RANGES:
-                    raise RuntimeError("当日日志片段过多，请选择更具体的日志目录")
-                ranges.append((offset, stop))
-        if os.fstat(fd).st_size < info.st_size:
-            raise RuntimeError("日志在筛选期间被截断，请重试")
-        if ranges:
-            selections[name] = ranges
-        else:
-            os.close(fd)
-            files[index] = (name, None, info)
-            excluded += 1
-    files[:] = [entry for entry in files if entry[1] is not None]
-    if not files:
-        raise RuntimeError("没有找到 %s 的日志记录（按远程主机日期，支持 Nginx 标准时间及 ISO 8601 时间）" % window[0])
-    return selections, unmatched, excluded
-
-
 class SnapshotReader:
-    def __init__(self, fd, size, directory, pacer, progress, ranges=None):
+    def __init__(self, fd, size, directory, pacer, progress):
         self.fd, self.left = fd, size
         self.directory, self.pacer, self.progress = directory, pacer, progress
-        self.ranges = iter(ranges if ranges is not None else [(0, size)])
-        self.range_left = 0
 
     def read(self, size):
         check_space(self.directory, CHUNK * 2)
         check_source_space(self.fd)
         size = min(size, self.left, CHUNK)
-        parts, remaining = [], size
-        while remaining:
-            if not self.range_left:
-                start, end = next(self.ranges)
-                os.lseek(self.fd, start, os.SEEK_SET)
-                self.range_left = end - start
-            amount = min(remaining, self.range_left)
-            data = os.read(self.fd, amount)
-            if len(data) != amount:
-                raise RuntimeError("日志在压缩期间被截断，请重试；原日志未作修改")
-            parts.append(data)
-            self.range_left -= amount
-            remaining -= amount
-        data = b"".join(parts)
+        data = os.read(self.fd, size)
+        if len(data) != size:
+            raise RuntimeError("日志在压缩期间被截断，请重试；原日志未作修改")
         self.left -= len(data)
         self.pacer.step(len(data))
         self.progress(len(data))
@@ -337,7 +189,7 @@ class CompressorPipe:
 
     def write(self, data):
         if self.aborted:
-            return len(data)  # Discard tarfile's cleanup flush after an error/cancellation.
+            return len(data)  # 出错或取消后，丢掉 tarfile 收尾时的清理写入。
         pending = memoryview(data)
         while pending:
             self.check()
@@ -363,7 +215,7 @@ def compressor(output, directory, pacer):
                                  stdin=subprocess.PIPE, stdout=output, stderr=subprocess.PIPE, bufsize=0)
         pacer.child = child
         diagnostic = bytearray()
-        # Drain even after the diagnostic limit, so a noisy failed compressor cannot block the pipe.
+        # 诊断信息到上限后仍继续读完，避免失败的压缩进程把管道堵死。
         def drain():
             while True:
                 data = child.stderr.read(4096)
@@ -378,7 +230,7 @@ def compressor(output, directory, pacer):
         while child.poll() is None:
             pipe.check()
             time.sleep(0.1)
-        pacer.step()  # Includes the reaped child's CPU time, including its final frame flush.
+        pacer.step()  # 计入已回收子进程的 CPU，包括最后一帧刷出的时间。
         reader.join(timeout=2)
         if child.returncode != 0:
             raise RuntimeError("zstd 压缩失败：" + diagnostic.decode("utf-8", errors="replace").strip())
@@ -409,19 +261,18 @@ def tar_stream(compressed):
             raise
 
 
-def compress(files, directory, progress, pacer, selections=None):
+def compress(files, directory, progress, pacer):
     check_memory(preflight=True)
     archive = os.path.join(directory, "nginx-logs.tar.zst")
-    # Only the new private archive is writable. Every source descriptor is read-only.
+    # 只有新建的私有压缩包可写。所有日志源描述符都是只读。
     with open(archive, "xb", buffering=CHUNK) as output:
         with compressor(output, directory, pacer) as compressed:
             with tar_stream(compressed) as tar:
                 tar.copybufsize = CHUNK
                 for index, (name, fd, info) in enumerate(files):
                     member = tarfile.TarInfo(name)
-                    ranges = selections[name] if selections is not None else None
-                    member.size, member.mtime, member.mode = selected_size(info, ranges), info.st_mtime, 0o600
-                    tar.addfile(member, SnapshotReader(fd, member.size, directory, pacer, progress, ranges))
+                    member.size, member.mtime, member.mode = info.st_size, info.st_mtime, 0o600
+                    tar.addfile(member, SnapshotReader(fd, member.size, directory, pacer, progress))
                     if os.fstat(fd).st_size < info.st_size:
                         raise RuntimeError("日志在压缩期间被截断，请重试")
                     os.close(fd)
@@ -448,15 +299,15 @@ def acquire_lock(parent):
 
 
 def stop(signum, frame):
-    # Do not interrupt cleanup if SSH hangup and heartbeat EOF arrive together.
+    # SSH 挂断和心跳 EOF 可能同时到达，清理过程不要被再次打断。
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, signal.SIG_IGN)
     raise RuntimeError("日志下载已取消或连接中断")
 
 
 def watch_connection():
-    # Heartbeat is on stdin, independent of the binary stdout transfer. EOF or a lost client
-    # cancels even while compressing (when there is no stdout to detect a broken pipe).
+    # 心跳走 stdin，与 stdout 的二进制传输分开。EOF 或客户端丢失时，
+    # 即使正在压缩（此时没有 stdout 可发现断开的管道）也要取消。
     while True:
         ready, _, _ = select.select([sys.stdin.buffer], [], [], 15)
         data = os.read(sys.stdin.fileno(), 64) if ready else b""
@@ -495,39 +346,27 @@ def run(root, parent, lock_parent="/tmp"):
         check_environment(parent)
         check_memory(preflight=True)
         lock = acquire_lock(lock_parent)
-        window = day_window()  # Pin the target day once, even if the export crosses midnight.
-        emit("checking", date=window[0])
+        emit("checking")
         pacer = Pacer()
-        skipped = inventory(root, files, pacer, text_only=True)
+        skipped = inventory(root, files, pacer)
         for _, fd, _ in files:
             check_source_space(fd)
-        check_space(parent)
-        scanned, last_scan = 0, 0
-        scan_total = sum(info.st_size for _, _, info in files)
-        emit("filtering", date=window[0], done=0, total=scan_total)
-        def scanning(size):
-            nonlocal scanned, last_scan
-            scanned += size
-            if time.monotonic() - last_scan >= 0.25:
-                emit("filtering", date=window[0], done=scanned, total=scan_total)
-                last_scan = time.monotonic()
-        selections, unmatched, excluded = select_today(files, parent, pacer, window, scanning)
-        budget = archive_bound(files, selections)
+        budget = archive_bound(files)
         usage, reserve = check_space(parent, budget)
-        total = sum(selected_size(info, selections[name]) for name, _, info in files)
-        emit("checked", date=window[0], total=total, files=len(files), skipped=skipped + excluded, unmatched=unmatched,
+        total = sum(info.st_size for _, _, info in files)
+        emit("checked", total=total, files=len(files), skipped=skipped,
              available=usage.free, required=budget, reserve=reserve)
         if not LOCAL_READY.wait(timeout=15):
             raise RuntimeError("等待本地磁盘空间检查超时，未开始压缩")
         directory = tempfile.mkdtemp(prefix="1panel-nginx-", dir=parent)
-        done, last = 0, 0
+        done, last = 0, None
         def progress(size):
             nonlocal done, last
             done += size
-            if time.monotonic() - last >= 0.25:
+            if last is None or time.monotonic() - last >= 0.25:
                 emit("compressing", done=done, total=total)
                 last = time.monotonic()
-        archive = compress(files, directory, progress, pacer, selections)
+        archive = compress(files, directory, progress, pacer)
         files.clear()
         size = os.path.getsize(archive)
         emit("downloading", total=size, done=0)
@@ -554,7 +393,7 @@ def run(root, parent, lock_parent="/tmp"):
         if directory:
             shutil.rmtree(directory)
         if lock is not None:
-            # Keep the lock inode: unlinking lets another process bypass an existing waiter.
+            # 保留锁文件的 inode。删掉锁文件会让正在等待的另一个进程绕过这把锁。
             os.close(lock)
 
 
