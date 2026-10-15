@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, type filetext } from "@/api";
+import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
 import { HighlightPane } from "@/react/components/local/highlight-pane";
 import { Button } from "@/react/components/ui/button";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
@@ -20,6 +21,7 @@ type Props = {
 export function FilePreviewDrawer({ host, target, source = "remote", onClose }: Props) {
   const [preview, setPreview] = useState<filetext.Preview | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [converting, setConverting] = useState(false);
   const [confirmNormalize, setConfirmNormalize] = useState(false);
   const [error, setError] = useState("");
@@ -85,7 +87,7 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
     return () => {
       cancelled = true;
     };
-  }, [host, source, target]);
+  }, [host, source, target, refreshVersion]);
 
   async function normalizeToLinux() {
     if (!path || converting) return;
@@ -125,15 +127,20 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
         className="motion-drawer-panel relative z-10 flex h-full w-1/2 min-w-[320px] flex-col border-l border-line bg-surface"
         data-open={visible ? "true" : "false"}
       >
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
+        <div className="flex h-10 shrink-0 items-center gap-2 px-4">
           <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
             {preview?.name || displayTarget?.name || "预览"}
           </h2>
+          <CurrentTextRefresh
+            onRefresh={() => setRefreshVersion((version) => version + 1)}
+            refreshing={loading}
+            disabled={!target || converting}
+          />
           <Button size="sm" onClick={onClose}>
             关闭
           </Button>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col p-3">
+        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
           {needsNormalize ? (
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-surface bg-warn-soft px-3 py-2 text-sm text-warn">
               <span>

@@ -1,3 +1,4 @@
+import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api";
@@ -103,6 +104,12 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
     setSelected("");
   }, [host, kind]);
 
+  const refresh = () => {
+    void listing.refetch();
+    if (needFetch) void body.refetch();
+  };
+  const refreshing = listing.isFetching || (needFetch && body.isFetching);
+
   const title = kind === "apt" ? "软件源" : kind === "hosts" ? "Hosts" : "Nginx";
 
   return (
@@ -110,17 +117,21 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
       title={title}
       flush
       actions={
-        <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
+        <>
+          <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
+          <CurrentTextRefresh onRefresh={refresh} refreshing={refreshing} disabled={!path} />
+        </>
       }
-      onRefresh={() => {
-        void listing.refetch();
-        if (needFetch) void body.refetch();
-      }}
+      onRefresh={refresh}
+      refreshing={refreshing}
     >
       {listing.error ? (
         <div className="px-3 pt-3">
           <Notice text={formatErr(listing.error)} />
         </div>
+      ) : null}
+      {needFetch && body.error ? (
+        <div className="px-3 pt-3"><Notice text={formatErr(body.error)} /></div>
       ) : null}
       {listing.data?.aptOnly ? (
         <div className="px-3 pt-3">
