@@ -56,6 +56,7 @@ export type LocalSection =
   | "apt"
   | "procs"
   | "monitor"
+  | "runLog"
   | "overview";
 
 export type NotifySection =
@@ -63,7 +64,6 @@ export type NotifySection =
   | "appMessages"
   | "metricSubs"
   | "appSubs"
-  | "runLog"
   | "setup";
 
 export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";
@@ -195,6 +195,14 @@ function loadNav(): Nav {
     // 旧「关于本机」分区已删除，回落到系统概览
     if ((merged.localSection as string) === "sysinfo") {
       merged.localSection = "overview";
+    }
+    // 运行日志从通知迁到本机；仅在旧页面正在显示时迁移工作区。
+    if ((merged.notifySection as string) === "runLog") {
+      merged.notifySection = "metricMessages";
+      if (merged.workspace === "notify") {
+        merged.workspace = "local";
+        merged.localSection = "runLog";
+      }
     }
     // 旧单栏文件管理器已删除，落到双栏文件页
     if ((merged.activeTool as string) === "file-manager") {
