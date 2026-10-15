@@ -48,13 +48,13 @@ export function useToolbarDoubleClickMaximize(enabled: boolean) {
 function ChromeButton({
   label,
   disabled,
-  pressed,
+  expanded,
   onClick,
   children,
 }: {
   label: string;
   disabled?: boolean;
-  pressed?: boolean;
+  expanded?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -64,11 +64,9 @@ function ChromeButton({
       type="button"
       data-tip={label}
       aria-label={label}
-      aria-pressed={pressed}
+      aria-expanded={expanded}
       disabled={disabled}
-      className={`no-drag mx-0.5 flex size-7 shrink-0 items-center justify-center rounded-control leading-none disabled:cursor-default disabled:opacity-40 ${
-        pressed ? "bg-accent-soft text-accent" : "text-ink hover:bg-line"
-      }`}
+      className="no-drag mx-0.5 flex size-7 shrink-0 items-center justify-center rounded-control leading-none text-ink hover:bg-line disabled:cursor-default disabled:opacity-40"
       onClick={onClick}
     >
       <svg
@@ -143,13 +141,18 @@ export function WindowChrome() {
 
   return (
     <div className="flex h-full items-center">
-      {/* 下列 path 直接取自 Firefox（MPL 2.0）16×16 填充图标 */}
-      <ChromeButton label={open ? "收起侧栏" : "展开侧栏"} pressed={open} onClick={toggle}>
+      {/* Firefox（MPL 2.0）16×16 图标，侧栏以箭头方向提示收放。 */}
+      <ChromeButton label={open ? "收起侧栏" : "展开侧栏"} expanded={open} onClick={toggle}>
         <g fillRule="evenodd">
           <path d="M16 12.25 16 4a2 2 0 0 0-2-2L2 2a2 2 0 0 0-2 2l0 8.25a2 2 0 0 0 2 2l12 0a2 2 0 0 0 2-2zm-14.75.15 0-8.55.6-.6 4.9 0 0 9.75-4.9 0-.6-.6zM8 13l6.15 0 .6-.6 0-8.55-.6-.6-6.15 0L8 13z" />
-          <path d="M5.5 10.5A.5.5 0 0 0 5 10l-2 0a.5.5 0 0 0 0 1l2 0a.5.5 0 0 0 .5-.5z" />
-          <path d="M5.5 8a.5.5 0 0 0-.5-.5l-2 0a.5.5 0 0 0 0 1l2 0a.5.5 0 0 0 .5-.5z" />
-          <path d="M5.5 5.5A.5.5 0 0 0 5 5L3 5a.5.5 0 0 0 0 1l2 0a.5.5 0 0 0 .5-.5z" />
+          <path
+            d={open ? "M12.5 5.5 10 8l2.5 2.5" : "M10 5.5 12.5 8 10 10.5"}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </g>
       </ChromeButton>
       <ChromeButton label="后退" disabled={!canBack} onClick={goBack}>
