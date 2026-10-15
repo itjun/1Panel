@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, type filetext } from "@/api";
 import { HighlightPane } from "@/react/components/local/highlight-pane";
 import { Button } from "@/react/components/ui/button";
@@ -110,8 +111,9 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
 
   if (!mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-40 flex justify-end">
+  // 挂到 body，避免页面动效的堆叠上下文让顶栏浮在蒙层上方。
+  return createPortal(
+    <div className="react-popup fixed inset-0 z-40 flex justify-end">
       <button
         type="button"
         className="motion-overlay absolute inset-0 bg-scrim"
@@ -188,6 +190,7 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
           </div>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
