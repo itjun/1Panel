@@ -4,7 +4,6 @@ import fcntl
 import hashlib
 import json
 import os
-import resource
 import select
 import shutil
 import signal
@@ -17,9 +16,7 @@ import threading
 import time
 
 CHUNK = 256 * 1024
-RATE = 2 * 1024 * 1024
 LOG_NAMES = ("access.log", "error.log")
-MEMORY_BUDGET = 256 * 1024 * 1024
 LOCAL_READY = threading.Event()
 
 
@@ -56,74 +53,7 @@ def check_source_space(fd):
         raise RuntimeError("日志所在磁盘空间不足，停止导出以便及时释放轮转文件")
 
 
-def memory_usage():
-    try:
-        with open("/proc/meminfo") as source:
-            values = {}
-            for line in source:
-                parts = line.split()
-                if len(parts) >= 2:
-                    values[parts[0].rstrip(":")] = int(parts[1]) * 1024
-        return values["MemTotal"], values["MemAvailable"]
-    except (OSError, KeyError, ValueError) as error:
-        raise RuntimeError("无法检查主机可用内存，已停止日志导出") from error
-
-
-def process_usage(pid):
-    with open("/proc/%d/stat" % pid) as source:
-        # comm 里可能有空格或括号。最后一个 ')' 之后的字段从 state（第 3 列）开始。
-        fields = source.read().rsplit(")", 1)[1].split()
-    cpu = (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK")
-    rss = int(fields[21]) * os.sysconf("SC_PAGE_SIZE")
-    return cpu, rss
-
-
-def child_usage(child):
-    if child is None or child.returncode is not None:
-        return 0, 0
-    try:
-        return process_usage(child.pid)
-    except FileNotFoundError:
-        if child.poll() is not None:
-            return 0, 0
-        raise RuntimeError("无法检查压缩进程资源，已停止日志导出")
-
-
-def check_memory(preflight=False, child=None):
-    total, available = memory_usage()
-    reserve = max(512 * 1024 * 1024, total // 10)
-    required = reserve + (MEMORY_BUDGET if preflight else 0)
-    if available < required:
-        raise RuntimeError("内存不足：可用 %d MiB，任务预算 256 MiB，安全预留 %d MiB" %
-                           (available // 2**20, reserve // 2**20))
-    if process_usage(os.getpid())[1] + child_usage(child)[1] > MEMORY_BUDGET:
-        raise RuntimeError("日志导出进程内存超过 256 MiB 预算，已停止")
-
-
-class Pacer:
-    def __init__(self):
-        self.child = None
-        self.wall, self.cpu, self.size = time.monotonic(), self.cpu_time(), 0
-
-    def cpu_time(self):
-        live_cpu = child_usage(self.child)[0]
-        # 已回收的子进程计入 RUSAGE_CHILDREN；还活着或僵死的子进程用 /proc 统计。
-        completed = resource.getrusage(resource.RUSAGE_CHILDREN)
-        return time.process_time() + completed.ru_utime + completed.ru_stime + live_cpu
-
-    def step(self, size=0):
-        self.size += size
-        while True:
-            check_memory(child=self.child)
-            delay = max(self.size / RATE, (self.cpu_time() - self.cpu) / 0.20) - (time.monotonic() - self.wall)
-            # 留一点余量，避免资源检查自己的 CPU 开销把循环越追越紧。
-            if delay <= 0.005:
-                return
-            # 父进程睡眠期间也计入子进程 CPU；保持可取消，并继续检查内存。
-            time.sleep(min(delay, 0.25))
-
-
-def inventory(root, files, pacer):
+def inventory(root, files):
     if not os.path.isabs(root) or os.path.realpath(root) == "/":
         raise RuntimeError("请选择日志目录的绝对路径，不能选择根目录")
     skipped = 0
@@ -151,7 +81,6 @@ def inventory(root, files, pacer):
             finally:
                 if fd is not None:
                     os.close(fd)
-            pacer.step()
     finally:
         os.close(directory)
     if not files:
@@ -160,9 +89,9 @@ def inventory(root, files, pacer):
 
 
 class SnapshotReader:
-    def __init__(self, fd, size, directory, pacer, progress):
+    def __init__(self, fd, size, directory, progress):
         self.fd, self.left = fd, size
-        self.directory, self.pacer, self.progress = directory, pacer, progress
+        self.directory, self.progress = directory, progress
 
     def read(self, size):
         check_space(self.directory, CHUNK * 2)
@@ -172,19 +101,17 @@ class SnapshotReader:
         if len(data) != size:
             raise RuntimeError("日志在压缩期间被截断，请重试；原日志未作修改")
         self.left -= len(data)
-        self.pacer.step(len(data))
         self.progress(len(data))
         return data
 
 
 class CompressorPipe:
-    def __init__(self, child, directory, pacer):
-        self.child, self.directory, self.pacer = child, directory, pacer
+    def __init__(self, child, directory):
+        self.child, self.directory = child, directory
         self.aborted = False
         os.set_blocking(child.stdin.fileno(), False)
 
     def check(self):
-        self.pacer.step()
         check_space(self.directory, CHUNK * 2)
 
     def write(self, data):
@@ -208,12 +135,11 @@ class CompressorPipe:
 
 
 @contextlib.contextmanager
-def compressor(output, directory, pacer):
+def compressor(output, directory):
     child, reader = None, None
     try:
-        child = subprocess.Popen(["zstd", "-6", "--single-thread", "--check", "-q", "-c"],
+        child = subprocess.Popen(["zstd", "-q", "-c"],
                                  stdin=subprocess.PIPE, stdout=output, stderr=subprocess.PIPE, bufsize=0)
-        pacer.child = child
         diagnostic = bytearray()
         # 诊断信息到上限后仍继续读完，避免失败的压缩进程把管道堵死。
         def drain():
@@ -224,13 +150,12 @@ def compressor(output, directory, pacer):
                 diagnostic.extend(data[:max(0, 8192 - len(diagnostic))])
         reader = threading.Thread(target=drain, daemon=True)
         reader.start()
-        pipe = CompressorPipe(child, directory, pacer)
+        pipe = CompressorPipe(child, directory)
         yield pipe
         child.stdin.close()
         while child.poll() is None:
             pipe.check()
             time.sleep(0.1)
-        pacer.step()  # 计入已回收子进程的 CPU，包括最后一帧刷出的时间。
         reader.join(timeout=2)
         if child.returncode != 0:
             raise RuntimeError("zstd 压缩失败：" + diagnostic.decode("utf-8", errors="replace").strip())
@@ -248,7 +173,6 @@ def compressor(output, directory, pacer):
             if reader is not None and reader.ident is not None:
                 reader.join(timeout=2)
             child.stderr.close()
-        pacer.child = None
 
 
 @contextlib.contextmanager
@@ -261,18 +185,17 @@ def tar_stream(compressed):
             raise
 
 
-def compress(files, directory, progress, pacer):
-    check_memory(preflight=True)
+def compress(files, directory, progress):
     archive = os.path.join(directory, "nginx-logs.tar.zst")
     # 只有新建的私有压缩包可写。所有日志源描述符都是只读。
     with open(archive, "xb", buffering=CHUNK) as output:
-        with compressor(output, directory, pacer) as compressed:
+        with compressor(output, directory) as compressed:
             with tar_stream(compressed) as tar:
                 tar.copybufsize = CHUNK
                 for index, (name, fd, info) in enumerate(files):
                     member = tarfile.TarInfo(name)
                     member.size, member.mtime, member.mode = info.st_size, info.st_mtime, 0o600
-                    tar.addfile(member, SnapshotReader(fd, member.size, directory, pacer, progress))
+                    tar.addfile(member, SnapshotReader(fd, member.size, directory, progress))
                     if os.fstat(fd).st_size < info.st_size:
                         raise RuntimeError("日志在压缩期间被截断，请重试")
                     os.close(fd)
@@ -321,11 +244,6 @@ def watch_connection():
 def check_environment(parent):
     if sys.platform != "linux":
         raise RuntimeError("日志压缩下载仅支持 Linux 远程主机")
-    if os.getpriority(os.PRIO_PROCESS, 0) != 19:
-        raise RuntimeError("无法设置最低 CPU 优先级，已停止")
-    priority = subprocess.check_output(["ionice", "-p", str(os.getpid())], env=dict(os.environ, LC_ALL="C"), timeout=5)
-    if not priority.startswith(b"idle"):
-        raise RuntimeError("无法设置空闲磁盘 I/O 优先级，已停止")
     fs = subprocess.check_output(["stat", "-f", "-c", "%T", parent], timeout=5).strip()
     if fs in (b"tmpfs", b"ramfs"):
         raise RuntimeError("压缩临时目录位于内存文件系统，请改用磁盘目录")
@@ -335,20 +253,15 @@ def check_environment(parent):
 def check_zstd():
     if not shutil.which("zstd"):
         raise RuntimeError("远程主机未安装 zstd，请先安装后重试；不会自动安装或切换压缩格式")
-    help_text = subprocess.check_output(["zstd", "--help"], stderr=subprocess.STDOUT, timeout=5)
-    if b"--single-thread" not in help_text or not any(flag in help_text for flag in (b"--check", b"--[no-]check")):
-        raise RuntimeError("远程 zstd 不支持单线程或帧校验参数，请升级后重试")
 
 
 def run(root, parent, lock_parent="/tmp"):
     files, directory, lock = [], None, None
     try:
         check_environment(parent)
-        check_memory(preflight=True)
         lock = acquire_lock(lock_parent)
         emit("checking")
-        pacer = Pacer()
-        skipped = inventory(root, files, pacer)
+        skipped = inventory(root, files)
         for _, fd, _ in files:
             check_source_space(fd)
         budget = archive_bound(files)
@@ -366,19 +279,17 @@ def run(root, parent, lock_parent="/tmp"):
             if last is None or time.monotonic() - last >= 0.25:
                 emit("compressing", done=done, total=total)
                 last = time.monotonic()
-        archive = compress(files, directory, progress, pacer)
+        archive = compress(files, directory, progress)
         files.clear()
         size = os.path.getsize(archive)
         emit("downloading", total=size, done=0)
         digest, done = hashlib.sha256(), 0
-        pacer = Pacer()
         with open(archive, "rb") as source:
             while True:
                 check_space(parent)
                 data = source.read(CHUNK)
                 if not data:
                     break
-                pacer.step(len(data))
                 sys.stdout.buffer.write(data)
                 sys.stdout.buffer.flush()
                 digest.update(data)

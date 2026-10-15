@@ -122,7 +122,7 @@ export function NginxLogDownload({ host }: { host: string }) {
   const phase = progress?.phase;
   let status = "选择保存位置并连接主机…";
   if (phase === "compressing") {
-    status = "正在低负载压缩…";
+    status = "正在压缩日志…";
   } else if (phase === "downloading") {
     status = "正在下载压缩包…";
   } else if (phase === "complete") {
@@ -159,9 +159,9 @@ export function NginxLogDownload({ host }: { host: string }) {
                 <input className="motion-field h-9 w-full rounded-control px-3 font-mono text-sm text-ink disabled:text-muted" value={temporaryDir} disabled={busy} onChange={(event) => { setTemporaryDir(event.target.value); setChecked(null); setMessage(null); }} />
               </label>
               <p className="text-muted">
-                压缩前检查磁盘和内存。磁盘预留至少 1 GiB 或容量的 10%；内存按 256 MiB 任务预算检查，并预留至少 512 MiB 或总内存的 10%。以低优先级、2 MiB/s 限速处理，只读取开始时已有的内容；不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
+                压缩前检查磁盘空间，并预留至少 1 GiB 或容量的 10%。只读取开始时已有的内容，不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
               </p>
-              <p className="text-xs text-muted">保留文件内的全部记录，包括历史日期和无时间戳内容。使用 zstd 6 级单线程压缩；缺失的文件会跳过，符号链接及设备文件不导出。</p>
+              <p className="text-xs text-muted">保留文件内的全部记录，包括历史日期和无时间戳内容。使用 zstd 默认参数压缩；缺失的文件会跳过，符号链接及设备文件不导出。</p>
               {checked ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
                   <dt className="text-muted">日志原始大小</dt><dd>{bytes(checked.total)} · {checked.files} 个文件</dd>

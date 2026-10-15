@@ -203,7 +203,7 @@ func TestPythonWorker(t *testing.T) {
 }
 
 // 一起走真实的 Python 压缩、二进制 SSH 传输、进度和校验。
-// macOS 没有 ionice 和 /proc；能力探测和资源读数在这里被替换掉。
+// 为了让测试可移植，Linux 文件系统能力探测被替换掉。
 func TestExportWithRealWorker(t *testing.T) {
 	python, err := exec.LookPath("python3")
 	if err != nil {
@@ -222,7 +222,6 @@ func TestExportWithRealWorker(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "access.log.1"), []byte("ignored rotation"), 0600)
 	os.WriteFile(filepath.Join(root, "access.log.2.gz"), []byte("historical archive"), 0600)
 	code := strings.Replace(worker, "        check_environment(parent)", "        pass # 可移植测试", 1)
-	code = strings.Replace(code, `if __name__ == "__main__":`, "if sys.platform != 'linux':\n    memory_usage = lambda: (8 << 30, 6 << 30)\n    process_usage = lambda pid: (0, 16 << 20)\n\nif __name__ == '__main__':", 1)
 	code = strings.Replace(code, `lock_parent="/tmp"`, "lock_parent="+quote(remoteTemp), 1)
 	client := testSSH(t, func(channel ssh.Channel) {
 		command := exec.Command(python, "-u", "-c", code, root, remoteTemp)

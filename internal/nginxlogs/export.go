@@ -1,4 +1,4 @@
-// Package nginxlogs exports bounded, read-only snapshots through an isolated SSH session.
+// Package nginxlogs 在独立 SSH 会话里导出只读、有大小上限的日志快照。
 package nginxlogs
 
 import (
@@ -46,8 +46,8 @@ func Command(root, temporaryDir string) (string, error) {
 			return "", fmt.Errorf("请选择日志目录和临时目录的绝对路径，不能选择根目录")
 		}
 	}
-	// No sudo, shell interpolation, Nginx command, or service-control operation.
-	return "exec nice -n 19 ionice -c 3 python3 -u -c " + quote(worker) + " " + quote(root) + " " + quote(temporaryDir), nil
+	// 不使用 sudo，不做 shell 拼接，也不执行 Nginx 命令或服务控制。
+	return "exec python3 -u -c " + quote(worker) + " " + quote(root) + " " + quote(temporaryDir), nil
 }
 
 func checkLocalSpace(dir string, required uint64) error {
@@ -77,8 +77,7 @@ func (w *checkedWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// Export only publishes the destination after the remote process exits successfully and
-// its completed archive matches both the received size and SHA-256. Existing files survive failures.
+// Export 只在远程进程成功退出，且完整压缩包的大小和 SHA-256 都与收到的数据一致后，才发布目标文件。失败时保留已有文件。
 func Export(ctx context.Context, client *ssh.Client, root, temporaryDir, destination string, progress func(Progress)) error {
 	command, err := Command(root, temporaryDir)
 	if err != nil {
@@ -118,7 +117,7 @@ func Export(ctx context.Context, client *ssh.Client, root, temporaryDir, destina
 	}
 
 	stop, heartbeatDone := make(chan struct{}), make(chan struct{})
-	// Cancellation must also unblock a heartbeat write when the transport stops responding.
+	// 取消时也要解开卡住的心跳写入，避免传输不再响应时一直阻塞。
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -136,7 +135,7 @@ func Export(ctx context.Context, client *ssh.Client, root, temporaryDir, destina
 			}
 			select {
 			case <-ctx.Done():
-				// EOF lets the worker clean up, even on SSH servers that ignore signal requests.
+				// EOF 让 worker 清理临时文件；有的 SSH 服务会忽略信号请求。
 				_ = stdin.Close()
 				_ = session.Signal(ssh.SIGTERM)
 				_ = session.Close()
@@ -149,7 +148,7 @@ func Export(ctx context.Context, client *ssh.Client, root, temporaryDir, destina
 	}()
 	defer func() {
 		close(stop)
-		_ = session.Close() // also unblocks a heartbeat write after a dropped network connection
+		_ = session.Close() // 连接断开后，关闭会话也能解开卡住的心跳写入
 		<-heartbeatDone
 	}()
 
@@ -208,7 +207,7 @@ func Export(ctx context.Context, client *ssh.Client, root, temporaryDir, destina
 		return ctx.Err()
 	}
 	if waitErr != nil {
-		return fmt.Errorf("远程压缩失败（需要 Python 3、zstd、nice、ionice、stat 及日志读取权限）: %w %s", waitErr, strings.TrimSpace(messages.String()))
+		return fmt.Errorf("远程压缩失败（需要 Python 3、zstd、stat 及日志读取权限）: %w %s", waitErr, strings.TrimSpace(messages.String()))
 	}
 	if status.Phase != "complete" || status.Total != writer.size || status.SHA256 != hex.EncodeToString(digest.Sum(nil)) {
 		return fmt.Errorf("压缩包完整性校验失败，请重试")
