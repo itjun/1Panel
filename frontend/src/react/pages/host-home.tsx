@@ -135,7 +135,7 @@ function MenuItem({
   return (
     <button
       type="button"
-      className={`flex w-full items-center justify-between gap-4 px-3 py-2 text-left hover:bg-raised ${
+      className={`flex w-full items-center justify-start px-3 py-2 text-left hover:bg-raised ${
         danger ? "text-danger" : "text-ink"
       }`}
       onClick={onClick}
@@ -1338,7 +1338,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             </div>
           ) : null}
           <MenuItem
-            label="打开"
+            label="打开面板"
             onClick={() => {
               const hosts = hostMenu.hosts.slice();
               closeAllMenus();
@@ -1363,7 +1363,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             }}
           />
           <MenuItem
-            label="终端打开"
+            label="打开终端"
             onClick={() => {
               const hosts = hostMenu.hosts.slice();
               closeAllMenus();
@@ -1377,7 +1377,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             <>
               <MenuDivider />
               <MenuItem
-                label="编辑…"
+                label="编辑主机"
                 onClick={() => {
                   const name = hostMenu.host;
                   closeAllMenus();
@@ -1414,7 +1414,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               />
               <MenuItem
                 label={
-                  session.pinned.includes(hostMenu.host) ? "取消置顶" : "置顶"
+                  session.pinned.includes(hostMenu.host) ? "取消置顶" : "置顶显示"
                 }
                 onClick={() => {
                   const name = hostMenu.host;
