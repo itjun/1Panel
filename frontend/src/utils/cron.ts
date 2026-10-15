@@ -15,26 +15,26 @@ const WEEKDAYS = "SUN MON TUE WED THU FRI SAT".split(" ");
 const DAY_LABELS = "日一二三四五六";
 const UNSUPPORTED = "暂无法解析，请查看原始计划";
 
-// Only accept Linux crontab fields; the descriptor also supports Quartz syntax.
+function cronToken(token: string, min: number, names: string[]): number {
+  if (/^\d+$/.test(token)) return Number(token);
+  const index = names.indexOf(token);
+  return index < 0 ? NaN : index + min;
+}
+
+// 只接受 Linux crontab 字段；cronstrue 还会吃 Quartz 语法，这里先挡掉。
 function validField(field: string, min: number, max: number, names: string[] = []): boolean {
-  const value = (token: string) => {
-    if (/^\d+$/.test(token)) return Number(token);
-    const index = names.indexOf(token);
-    return index < 0 ? NaN : index + min;
-  };
   return field.split(",").every((part) => {
-    const pieces = part.split("/");
-    if (pieces.length > 2) return false;
-    if (pieces.length === 2 && (!/^\d+$/.test(pieces[1]) ||
-      !Number.isSafeInteger(Number(pieces[1])) || Number(pieces[1]) < 1)) {
+    const [base, step, extra] = part.split("/");
+    if (extra !== undefined) return false;
+    if (step !== undefined && (!/^\d+$/.test(step) || !Number.isSafeInteger(Number(step)) || Number(step) < 1)) {
       return false;
     }
-    const base = pieces[0];
     if (base === "*") return true;
     const bounds = base.split("-");
-    if (bounds.length > 2 || (pieces.length === 2 && bounds.length !== 2)) return false;
-    const start = value(bounds[0]);
-    const end = value(bounds[bounds.length - 1]);
+    // 带步长时必须是范围（*/n 已在上面放行）；单值步长如 1/2 不是 Linux cron。
+    if (bounds.length > 2 || (step !== undefined && bounds.length !== 2)) return false;
+    const start = cronToken(bounds[0], min, names);
+    const end = cronToken(bounds[bounds.length - 1], min, names);
     return start >= min && end <= max && start <= end;
   });
 }

@@ -25,9 +25,8 @@ type System App
 //go:embed scripts/bootstrap-zsh.sh
 var bootstrapZshScript []byte
 
-// Official complete framework, pinned and licensed in scripts/oh-my-zsh.
-// Prefixing a materializer keeps the uploaded script standalone and avoids
-// requiring a fresh host to access GitHub for Oh My Zsh itself.
+// 内置完整 Oh My Zsh，版本与许可证见 scripts/oh-my-zsh。
+// 上传前拼上 materialize_*，新主机不用访问 GitHub 也能解出框架。
 //
 //go:embed scripts/oh-my-zsh/oh-my-zsh.tar.gz
 var ohMyZshArchive []byte
@@ -41,8 +40,19 @@ var zshAutosuggestionsArchive []byte
 var zshSyntaxHighlightingArchive []byte
 
 func zshInstallationScript() []byte {
-	prefix := "materialize_oh_my_zsh() {\nbase64 -d <<'ONEPANEL_OH_MY_ZSH'\n" + base64.StdEncoding.EncodeToString(ohMyZshArchive) + "\nONEPANEL_OH_MY_ZSH\n}\n"
-	prefix += "materialize_zsh_plugin() {\ncase \"$1\" in\n"
+	var b strings.Builder
+	writeHereDoc := func(marker string, archive []byte) {
+		b.WriteString("base64 -d <<'")
+		b.WriteString(marker)
+		b.WriteString("'\n")
+		b.WriteString(base64.StdEncoding.EncodeToString(archive))
+		b.WriteString("\n")
+		b.WriteString(marker)
+		b.WriteString("\n")
+	}
+	b.WriteString("materialize_oh_my_zsh() {\n")
+	writeHereDoc("ONEPANEL_OH_MY_ZSH", ohMyZshArchive)
+	b.WriteString("}\nmaterialize_zsh_plugin() {\ncase \"$1\" in\n")
 	for _, plugin := range []struct {
 		name    string
 		archive []byte
@@ -50,10 +60,13 @@ func zshInstallationScript() []byte {
 		{"zsh-autosuggestions", zshAutosuggestionsArchive},
 		{"zsh-syntax-highlighting", zshSyntaxHighlightingArchive},
 	} {
-		prefix += plugin.name + ")\nbase64 -d <<'ONEPANEL_ZSH_PLUGIN'\n" + base64.StdEncoding.EncodeToString(plugin.archive) + "\nONEPANEL_ZSH_PLUGIN\n;;\n"
+		b.WriteString(plugin.name)
+		b.WriteString(")\n")
+		writeHereDoc("ONEPANEL_ZSH_PLUGIN", plugin.archive)
+		b.WriteString(";;\n")
 	}
-	prefix += "*) return 1 ;;\nesac\n}\n"
-	return append([]byte(prefix), bootstrapZshScript...)
+	b.WriteString("*) return 1 ;;\nesac\n}\n")
+	return append([]byte(b.String()), bootstrapZshScript...)
 }
 
 // BootstrapZsh 把内置的 zsh 初始化脚本上传到远程主机 /tmp,返回远程路径。
@@ -109,8 +122,8 @@ type ZshSetupOptions struct {
 	DefaultShell bool `json:"defaultShell"`
 }
 
-// Installed plugin files and 1Panel configuration are reported separately.
-// Inspect never sources the user's rc or executes their personal configuration.
+// 已安装的插件文件和 1Panel 配置分开回报。
+// Inspect 不 source 用户 rc，也不执行个人配置。
 type ZshEnvironment struct {
 	RestoreCommand      string `json:"restoreCommand"`
 	OS                  string `json:"os"`
@@ -135,6 +148,10 @@ type ZshEnvironment struct {
 	Supported           bool   `json:"supported"`
 }
 
+func zshBool(values map[string]string, key string) bool {
+	return values[key] == "true"
+}
+
 func parseZshEnvironment(out string) ZshEnvironment {
 	values := map[string]string{}
 	for _, line := range strings.Split(out, "\n") {
@@ -146,14 +163,18 @@ func parseZshEnvironment(out string) ZshEnvironment {
 		RestoreCommand: values["restoreCommand"],
 		OS:             values["os"], Distribution: values["distribution"], User: values["user"],
 		Home: values["home"], Shell: values["shell"], Manager: values["manager"],
-		Zshrc: values["zshrc"], Zsh: values["zsh"], Theme: values["theme"], Privileged: values["privileged"] == "true",
-		OhMyZsh: values["ohMyZsh"] == "true", OhMyZshRoot: values["ohMyZshRoot"],
-		Git: values["git"] == "true", Highlighting: values["highlighting"] == "true",
-		Suggestions: values["suggestions"] == "true", Managed: values["managed"] == "true",
-		HighlightingEnabled: values["highlightingEnabled"] == "true",
-		SuggestionsEnabled:  values["suggestionsEnabled"] == "true", CorrectionEnabled: values["correctionEnabled"] == "true",
+		Zshrc: values["zshrc"], Zsh: values["zsh"], Theme: values["theme"], OhMyZshRoot: values["ohMyZshRoot"],
+		Privileged: zshBool(values, "privileged"), OhMyZsh: zshBool(values, "ohMyZsh"),
+		Git: zshBool(values, "git"), Highlighting: zshBool(values, "highlighting"),
+		Suggestions: zshBool(values, "suggestions"), Managed: zshBool(values, "managed"),
+		HighlightingEnabled: zshBool(values, "highlightingEnabled"),
+		SuggestionsEnabled:  zshBool(values, "suggestionsEnabled"),
+		CorrectionEnabled:   zshBool(values, "correctionEnabled"),
 	}
-	env.Supported = env.OS == "Linux" && (env.Manager == "apt-get" || env.Manager == "dnf" || env.Manager == "yum" || env.Manager == "apk")
+	switch env.Manager {
+	case "apt-get", "dnf", "yum", "apk":
+		env.Supported = env.OS == "Linux"
+	}
 	return env
 }
 
@@ -185,6 +206,13 @@ type ZshSetupTask struct {
 
 func zshShellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func appendZshSetupLog(task *ZshSetupTask, line string) {
+	if len(task.Logs) >= 2000 {
+		task.Logs = task.Logs[1:]
+	}
+	task.Logs = append(task.Logs, line)
 }
 
 func zshSetupErrorMessage(logs []string, err error) string {
@@ -231,8 +259,8 @@ func zshSetupCommand(path string, options ZshSetupOptions) string {
 	return "sh " + quoted + args + " 2>&1; result=$?; rm -f -- " + quoted + "; exit $result"
 }
 
-// StartHostSetup installs the itjun-tools software bundle and all shell enhancements.
-// The target is the SSH login user; personal configuration is backed up and retained.
+// StartHostSetup 安装 itjun-tools 基础软件，并打开全部 Shell 增强。
+// 目标是 SSH 登录用户；个人配置先备份再保留。
 func (s *System) StartHostSetup(host string) (ZshSetupTask, error) {
 	return s.StartZshSetup(host, ZshSetupOptions{
 		BasePackages: true, Highlighting: true, Suggestions: true, Correction: false, DefaultShell: true,
@@ -241,7 +269,7 @@ func (s *System) StartHostSetup(host string) (ZshSetupTask, error) {
 
 const zshSetupTimeout = 30 * time.Minute
 
-// StartZshSetup continues after its dialog closes. One job per host.
+// StartZshSetup 关窗后继续跑。每台主机同时只有一个任务。
 func (s *System) StartZshSetup(host string, options ZshSetupOptions) (ZshSetupTask, error) {
 	env, err := s.InspectZsh(host)
 	if err != nil {
@@ -275,10 +303,7 @@ func (s *System) StartZshSetup(host string, options ZshSetupOptions) (ZshSetupTa
 		appendLog := func(line string) {
 			s.zshSetupMu.Lock()
 			defer s.zshSetupMu.Unlock()
-			if len(task.Logs) >= 2000 {
-				task.Logs = task.Logs[1:]
-			}
-			task.Logs = append(task.Logs, line)
+			appendZshSetupLog(task, line)
 		}
 		path, runErr := s.BootstrapZsh(host)
 		if runErr == nil {
@@ -293,10 +318,7 @@ func (s *System) StartZshSetup(host string, options ZshSetupOptions) (ZshSetupTa
 		task.FinishedAt = time.Now().UnixMilli()
 		if runErr != nil {
 			task.State, task.Error = "error", zshSetupErrorMessage(task.Logs, runErr)
-			if len(task.Logs) >= 2000 {
-				task.Logs = task.Logs[1:]
-			}
-			task.Logs = append(task.Logs, "[任务失败] "+task.Error)
+			appendZshSetupLog(task, "[任务失败] "+task.Error)
 		} else {
 			task.State = "success"
 		}

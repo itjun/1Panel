@@ -1,6 +1,6 @@
 #!/bin/sh
-# 1Panel remote zsh setup. Run as the SSH login user, never sudo this whole script.
-# --inspect is read-only. --apply preserves .zshrc and writes an owned include.
+# 1Panel 远程 zsh 初始化。以 SSH 登录用户运行，不要对整个脚本 sudo。
+# --inspect 只读。--apply 保留 .zshrc，并写入归当前用户所有的 include。
 set -eu
 umask 077
 BASE="$HOME/.local/share/1panel/zsh"
@@ -163,6 +163,20 @@ install_deps() {
     fi
   fi
 }
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+verify_sha256() {
+  [ "$(sha256_file "$1")" = "$2" ] || die "$3"
+}
+unpack_archive() {
+  mkdir "$2"
+  tar -xzf "$1" --strip-components=1 -C "$2" || die "$3"
+}
 clone_repository() {
   component="$1"
   url="$2"
@@ -214,14 +228,8 @@ install_plugin() {
     [ -f "$dest/$plugin.zsh" ] || die "插件文件缺失: $plugin"
     return
   fi
-  if command -v sha256sum >/dev/null 2>&1; then
-    checksum="$(sha256sum "$archive" | cut -d' ' -f1)"
-  else
-    checksum="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
-  fi
-  [ "$checksum" = "$plugin_checksum" ] || die "插件安装包校验失败: ${plugin}；未写入配置。"
-  mkdir "$WORK/$plugin"
-  tar -xzf "$archive" --strip-components=1 -C "$WORK/$plugin" || die "插件安装包解压失败: $plugin"
+  verify_sha256 "$archive" "$plugin_checksum" "插件安装包校验失败: ${plugin}；未写入配置。"
+  unpack_archive "$archive" "$WORK/$plugin" "插件安装包解压失败: $plugin"
   [ -f "$WORK/$plugin/$plugin.zsh" ] || die "插件文件缺失: $plugin"
   mv "$WORK/$plugin" "$dest"
 }
@@ -245,14 +253,8 @@ install_oh_my_zsh() {
     else
       die '缺少 curl 或 wget，无法下载完整 Oh My Zsh。'
     fi
-    if command -v sha256sum >/dev/null 2>&1; then
-      checksum="$(sha256sum "$archive" | cut -d' ' -f1)"
-    else
-      checksum="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
-    fi
-    [ "$checksum" = "$OMZ_SHA256" ] || die 'Oh My Zsh 安装包校验失败，未写入配置。'
-    mkdir "$WORK/oh-my-zsh"
-    tar -xzf "$archive" --strip-components=1 -C "$WORK/oh-my-zsh" || die 'Oh My Zsh 安装包解压失败。'
+    verify_sha256 "$archive" "$OMZ_SHA256" 'Oh My Zsh 安装包校验失败，未写入配置。'
+    unpack_archive "$archive" "$WORK/oh-my-zsh" 'Oh My Zsh 安装包解压失败。'
     [ -f "$WORK/oh-my-zsh/oh-my-zsh.sh" ] && [ -f "$WORK/oh-my-zsh/lib/cli.zsh" ] || die 'Oh My Zsh 框架文件缺失。'
     mv "$WORK/oh-my-zsh" "$framework"
   fi

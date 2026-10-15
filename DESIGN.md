@@ -405,7 +405,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 焦点：可见 `focus-visible`，输入类用 `--color-accent-focus` 外环。
 - 表格：行高 40 / 表头 36 与虚拟表常量一致（见 §4.4、§9）；表头无底色；hover 用 raised，不加阴影。
 - 区块：内容区不再用卡片；`Card` / `.surface-float` 只是无描边、无圆角的普通区块，区块之间 24px（`gap-section`），区块标题 `text-sm font-semibold text-ink`。
-- 数据卡片悬停 / 聚焦：`Card` 及内容区数据块（含监控图表）**不显示悬停 / 聚焦边框**，保持扁平，区块读作一个整体；悬停边框只保留给看板主机卡（`board.css` 的 `.host-board-card`）—— 静止 1px 透明边框占位，`:hover` / `:focus-within` 显示 1px `--color-line-strong` 边框标识范围，过渡 `--duration-base` + `--ease-standard`；不加阴影，不另改底色；表格行等已有 hover 底色的元素不再叠加。
+- 数据卡片悬停 / 聚焦：`Card` 及内容区数据块（含监控图表）**不显示悬停 / 聚焦边框**，保持扁平，区块读作一个整体；不加阴影，不另改底色。表格行用已有 hover 底色，不再叠加描边。看板主机选择走总览表行底色，见 §9「看板」。
 - 网格色块单元：同类单元平铺成网格（巡检项、Docker 容器等）用 `bg-raised p-4` 纯色块区分，块间距 `gap-card`，无描边 / 阴影；可点整块时 hover `bg-line`；块内 secondary 按钮与 neutral 标签改 `bg-surface`（hover `bg-line`），否则与色块同色。**不要在 `Card` 上写 `bg-*`**：`.surface-float` 不在 Tailwind 层内，会盖掉 `bg-*` 工具类，色块单元用普通 `div`。
 - 环图（`RingMeter`）直接落在内容平面上，不再垫 raised 色块（环图所在区块本身就是平面，再垫一层即卡片套卡片）。
 - 二级栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；二级栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；行高 40px，左右内缩 8px。
@@ -455,7 +455,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 顶栏内控件 | secondary 按钮与 `.motion-field` 在顶栏里改用 `--color-surface` 底 | canvas 与 raised 太接近，按钮会“消失” |
 | 控件圆角 | `--radius-control: 4px` | 按钮、输入等 |
 | 区块间距 | `--spacing-section` / `--gap-section: 24px` | 取代卡片描边做分段 |
-| 数据卡片悬停边框 | 仅看板主机卡：静止透明 1px 边框，悬停 / 聚焦 1px `--color-line-strong`（`board.css` `.host-board-card`）；`Card` 与内容区数据块无悬停边框 | 看板主机卡是可点选的独立对象，需要标识范围；内容区区块扁平读作整体，悬停描边只会打碎版面 |
+| 数据卡片悬停边框 | `Card` 与内容区数据块无悬停边框 | 内容区区块扁平读作整体，悬停描边只会打碎版面。看板主机选择走总览表行底色，见「看板」行 |
 | 网格间隙 | `--gap-card: 8px` | 网格内同类单元之间；回归 8 点网格 |
 | 允许的“阴影” | 输入类 focus 外环（2px `--color-accent-focus`）；Linux frameless 1px 外描边（outline）；拖拽插入线柔光环（`0 0 0 2px --color-accent-soft`：首页分组拖拽，见「首页主机列表」行；表格列顺序拖拽，见 §4.4） | 这三处表达焦点 / 窗口边界 / 拖拽落点，不表达层级；Tailwind `--shadow-*` / `--inset-shadow-*` / `--drop-shadow-*` 命名空间已清空 |
 | 顶栏高度 | 40px | 对齐桌面窗口控件带；从图标栏右缘贯通到窗口右缘，二级栏在其下 |

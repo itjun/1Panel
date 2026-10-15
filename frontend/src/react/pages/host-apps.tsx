@@ -20,6 +20,7 @@ import { Tag } from "@/react/components/ui/tag";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
+import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import {
   formatBytes,
   formatDurationLong,
@@ -651,8 +652,9 @@ function AppMenu({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.left = `${Math.max(8, Math.min(target.x, window.innerWidth - el.offsetWidth - 8))}px`;
-    el.style.top = `${Math.max(8, Math.min(target.y, window.innerHeight - el.offsetHeight - 8))}px`;
+    const pos = clampContextMenuPos(target.x, target.y, el.offsetWidth, el.offsetHeight);
+    el.style.left = `${pos.x}px`;
+    el.style.top = `${pos.y}px`;
   }, [target]);
 
   useEffect(() => {

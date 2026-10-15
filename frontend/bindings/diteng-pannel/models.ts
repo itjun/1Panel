@@ -700,8 +700,8 @@ export interface WindowThemeState {
 }
 
 /**
- * Installed plugin files and 1Panel configuration are reported separately.
- * Inspect never sources the user's rc or executes their personal configuration.
+ * 已安装的插件文件和 1Panel 配置分开回报。
+ * Inspect 不 source 用户 rc，也不执行个人配置。
  */
 export interface ZshEnvironment {
     "restoreCommand": string;
