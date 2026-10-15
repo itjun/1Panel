@@ -267,7 +267,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                           </td>
                         ))}
                         <td className="p-0">
-                          <span className="block text-center text-xs text-muted" title="所有主机自动检测证书，剩余不足 30 天及已过期时每天提醒">
+                          <span className="block text-center text-xs text-muted" data-tip="所有主机自动检测证书，剩余不足 30 天及已过期时每天提醒">
                             默认开启
                           </span>
                         </td>

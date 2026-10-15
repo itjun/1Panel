@@ -222,15 +222,15 @@ export function SetWindowMaterial(preference: string): $CancellablePromise<$mode
 }
 
 /**
- * StartHostSetup installs the itjun-tools software bundle and all shell enhancements.
- * The target is the SSH login user; personal configuration is backed up and retained.
+ * StartHostSetup 安装 itjun-tools 基础软件，并打开全部 Shell 增强。
+ * 目标是 SSH 登录用户；个人配置先备份再保留。
  */
 export function StartHostSetup(host: string): $CancellablePromise<$models.ZshSetupTask> {
     return $Call.ByID(594721008, host);
 }
 
 /**
- * StartZshSetup continues after its dialog closes. One job per host.
+ * StartZshSetup 关窗后继续跑。每台主机同时只有一个任务。
  */
 export function StartZshSetup(host: string, options: $models.ZshSetupOptions): $CancellablePromise<$models.ZshSetupTask> {
     return $Call.ByID(2428663491, host, options);
