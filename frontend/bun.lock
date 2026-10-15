@@ -19,6 +19,7 @@
         "@wailsio/runtime": "3.0.0-beta.14",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "cronstrue": "^3.31.0",
         "echarts": "^6.1.0",
         "highlight.js": "^11.12.0",
         "lucide-react": "^1.47.0",
@@ -246,6 +247,8 @@
     "clsx": ["clsx@2.1.1", "", {}, "sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA=="],
 
     "crelt": ["crelt@1.0.7", "", {}, "sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA=="],
+
+    "cronstrue": ["cronstrue@3.31.0", "", { "bin": { "cronstrue": "bin/cli.js" } }, "sha512-P+qVKwM6CHu6lWfQIq13DCBx95pxY/2zCQhIJvu5FsEsOlt9ZtuUI124V1LafoPsqHH09ruRsentTc4sbWxQHA=="],
 
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 

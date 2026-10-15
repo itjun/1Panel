@@ -67,6 +67,7 @@ import {
   isAgentMissing,
 } from "@/utils/format";
 import { logHighlightHtml } from "@/utils/logHighlight";
+import { parseCronLine } from "@/utils/cron";
 import { HighlightPane } from "@/react/components/local/highlight-pane";
 
 export function HostToolPage({ host, tool }: { host: string; tool: Tool }) {
@@ -2182,16 +2183,10 @@ function CronPage({ host }: { host: string }) {
 
   const rows = useMemo(() => {
     return (query.data || []).map((c, index) => {
-      const fields = (c.line || "").split(/\s+/).filter(Boolean);
-      const isSystem = c.source !== "user";
-      const schedule = fields.slice(0, 5).join(" ");
-      const cmd = isSystem ? fields.slice(6).join(" ") : fields.slice(5).join(" ");
       return {
         id: String(index),
         source: c.source,
-        user: c.user,
-        schedule,
-        cmd,
+        ...parseCronLine(c),
         line: c.line,
       };
     });
@@ -2209,6 +2204,7 @@ function CronPage({ host }: { host: string }) {
           { key: "source", label: "来源" },
           { key: "user", label: "用户" },
           { key: "schedule", label: "计划" },
+          { key: "description", label: "执行时间" },
           { key: "cmd", label: "命令" },
         ]}
         rows={rows.map((item) => ({
@@ -2217,6 +2213,9 @@ function CronPage({ host }: { host: string }) {
             SOURCE_LABEL[item.source] || item.source || "—",
             item.user || "—",
             item.schedule || "—",
+            <span data-tip={`${item.description}（按远程主机的 Cron 时间设置）`}>
+              {item.description}
+            </span>,
             item.cmd || item.line || "—",
           ],
         }))}
