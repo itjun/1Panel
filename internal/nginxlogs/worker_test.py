@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import hashlib
 import io
 import itertools
@@ -205,23 +206,63 @@ class WorkerTests(unittest.TestCase):
         process.stderr.close()
         os.close(worker.acquire_lock(str(self.archive_dir)))
 
-    def test_only_current_two_logs_are_exported_without_content_filtering(self):
+    def test_today_modified_logs_and_rotations_are_exported_without_content_filtering(self):
         expected = {
             "access.log": b"2000/01/01 00:00:00 old request\n" + self.today_line(),
             "error.log": b"undated traceback\n" + b"x" * (2 << 20),
+            "access.log.1": b"2000/01/01 00:00:00 old content in today modified rotation\n",
+            "error.log.12": b"rotated error\n",
         }
         for name, content in expected.items():
             (self.root / name).write_bytes(content)
-        for name in ("access.log.1", "error.log.1", "access.log.2.gz", "access.log.1.gz-2026101400.backup", "url.txt"):
+        for name in ("access.log.2.gz", "access.log.1.gz-2026101400.backup", "access.log.backup", "access.log.1.bak", "access.log.1x", "access.log.", "other.log.1", "url.txt"):
             (self.root / name).write_bytes(b"ignored")
         nested = self.root / "nested"
         nested.mkdir()
         (nested / "access.log").write_bytes(b"ignored")
-        with patch.object(worker.os, "fwalk", side_effect=AssertionError("must not enumerate directory")), patch.object(worker.os, "read", side_effect=AssertionError("must not pre-read contents")), patch.object(worker.os, "pread", side_effect=AssertionError("must not inspect contents")):
+        with patch.object(worker.os, "fwalk", side_effect=AssertionError("must not recurse into directories")), patch.object(worker.os, "read", side_effect=AssertionError("must not pre-read contents")), patch.object(worker.os, "pread", side_effect=AssertionError("must not inspect contents")):
             self.assertEqual(self.scan(), 0)
         self.assertEqual(self.compress(), expected)
         for name, content in expected.items():
             self.assertEqual((self.root / name).read_bytes(), content)
+
+    def test_file_mtime_day_uses_remote_timezone_and_midnight_boundaries(self):
+        previous = os.environ.get("TZ")
+        os.environ["TZ"] = "Asia/Shanghai"
+        time.tzset()
+        try:
+            day = datetime.date(2026, 10, 15)
+            stamps = {
+                "access.log": "2026-10-14T16:00:00+00:00",
+                "access.log.1": "2026-10-15T15:59:59+00:00",
+                "access.log.2": "2026-10-14T15:59:59+00:00",
+                "error.log": "2026-10-15T16:00:00+00:00",
+            }
+            for name, stamp in stamps.items():
+                path = self.root / name
+                path.write_bytes(b"content date does not matter")
+                timestamp = datetime.datetime.fromisoformat(stamp).timestamp()
+                os.utime(path, (timestamp, timestamp))
+            self.assertEqual(worker.inventory(str(self.root), self.files, day), 2)
+            self.assertEqual(self.compress(), {
+                "access.log": b"content date does not matter",
+                "access.log.1": b"content date does not matter",
+            })
+        finally:
+            if previous is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous
+            time.tzset()
+
+    def test_only_old_mtime_logs_fail_without_reading_contents(self):
+        path = self.root / "access.log.1"
+        path.write_bytes(self.today_line())
+        os.utime(path, (0, 0))
+        with patch.object(worker.os, "read", side_effect=AssertionError("must not read log contents")):
+            with self.assertRaisesRegex(RuntimeError, "没有.*修改过"):
+                self.scan()
+        self.assertFalse(self.files)
 
     def test_preflight_uses_file_sizes_and_never_filters(self):
         access, error = b"old date and no timestamp\n", b"error\n"
@@ -234,6 +275,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual([event["phase"] for event in events], ["checking", "checked"])
         checked = events[-1]
         self.assertEqual((checked["total"], checked["files"], checked["skipped"]), (len(access + error), 2, 0))
+        self.assertEqual(checked["date"], datetime.date.today().isoformat())
 
     def test_fifo_target_is_skipped_without_blocking(self):
         (self.root / "access.log").write_bytes(b"access")

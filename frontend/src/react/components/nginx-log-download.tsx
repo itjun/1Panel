@@ -11,6 +11,7 @@ import { formatErr } from "@/utils/format";
 
 type Progress = {
   phase: string;
+  date?: string;
   done: number;
   total: number;
   files: number;
@@ -146,7 +147,7 @@ export function NginxLogDownload({ host }: { host: string }) {
           onPointerDownOutside={(event) => { if (requestID.current) event.preventDefault(); }}>
           <DialogTitle>下载 Nginx 日志</DialogTitle>
           <DialogDescription>
-            直接将目录中的 access.log 和 error.log 打包为一个 .tar.zst 文件后下载，不筛选日期，不包含轮转日志或备份文件。
+            按远程主机当天的文件修改日期，选择 access.log、error.log 及其数字轮转文件（如 access.log.1），整文件打包为一个 .tar.zst 下载。
           </DialogDescription>
           <div inert={busy} aria-hidden={busy || undefined}>
             <div className="mt-4 flex flex-col gap-4 text-sm">
@@ -161,14 +162,15 @@ export function NginxLogDownload({ host }: { host: string }) {
               <p className="text-muted">
                 压缩前检查磁盘空间，并预留至少 1 GiB 或容量的 10%。只读取开始时已有的内容，不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
               </p>
-              <p className="text-xs text-muted">保留文件内的全部记录，包括历史日期和无时间戳内容。使用 zstd 默认参数压缩；缺失的文件会跳过，符号链接及设备文件不导出。</p>
+              <p className="text-xs text-muted">使用 zstd 默认参数，不逐行筛选。选中文件的历史记录和无时间戳内容也会保留；不包含 .gz 等压缩包、备份或子目录。</p>
               {checked ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
-                  <dt className="text-muted">日志原始大小</dt><dd>{bytes(checked.total)} · {checked.files} 个文件</dd>
+                  <dt className="text-muted">文件修改日期</dt><dd>{checked.date}（主机时间）</dd>
+                  <dt className="text-muted">选中文件大小</dt><dd>{bytes(checked.total)} · {checked.files} 个文件</dd>
                   <dt className="text-muted">磁盘可用</dt><dd>{bytes(checked.available)}</dd>
                   <dt className="text-muted">压缩空间预算</dt><dd>{bytes(checked.required)}</dd>
                   <dt className="text-muted">安全预留</dt><dd>{bytes(checked.reserve)}</dd>
-                  {checked.skipped > 0 ? <><dt className="text-muted">已跳过文件</dt><dd>{checked.skipped} 个目标文件缺失或不是普通文件</dd></> : null}
+                  {checked.skipped > 0 ? <><dt className="text-muted">已跳过文件</dt><dd>{checked.skipped} 个日志文件非当天修改或不是普通文件</dd></> : null}
                 </dl>
               ) : null}
               {message ? <Notice tone={cancelling.current ? "info" : "error"} text={message} /> : null}
@@ -185,10 +187,10 @@ export function NginxLogDownload({ host }: { host: string }) {
                 {checked ? (
                   <>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
-                      <dt className="text-muted">打包文件</dt><dd className="text-right">access.log、error.log</dd>
-                      <dt className="text-muted">日志原始大小</dt><dd className="text-right">{bytes(checked.total)} · {checked.files} 个文件</dd>
+                      <dt className="text-muted">文件修改日期</dt><dd className="text-right">{checked.date}（主机时间）</dd>
+                      <dt className="text-muted">选中文件大小</dt><dd className="text-right">{bytes(checked.total)} · {checked.files} 个文件</dd>
                     </dl>
-                    {checked.skipped > 0 ? <p className="text-center text-xs text-muted">{checked.skipped} 个目标文件缺失或不是普通文件，仅打包可读取的文件。</p> : null}
+                    {checked.skipped > 0 ? <p className="text-center text-xs text-muted">{checked.skipped} 个日志文件非当天修改或不是普通文件，仅打包符合条件的文件。</p> : null}
                   </>
                 ) : null}
                 {phase === "compressing" || phase === "downloading" ? (

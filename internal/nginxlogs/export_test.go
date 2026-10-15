@@ -219,7 +219,12 @@ func TestExportWithRealWorker(t *testing.T) {
 	originalContent := append(append([]byte{}, old...), content...)
 	os.WriteFile(filepath.Join(root, "access.log"), originalContent, 0600)
 	os.WriteFile(filepath.Join(root, "error.log"), []byte("undated traceback\n"), 0600)
-	os.WriteFile(filepath.Join(root, "access.log.1"), []byte("ignored rotation"), 0600)
+	os.WriteFile(filepath.Join(root, "access.log.1"), []byte("whole rotated log"), 0600)
+	os.WriteFile(filepath.Join(root, "error.log.2"), []byte("today content in yesterday modified file"), 0600)
+	yesterday := time.Now().AddDate(0, 0, -1)
+	if err := os.Chtimes(filepath.Join(root, "error.log.2"), yesterday, yesterday); err != nil {
+		t.Fatal(err)
+	}
 	os.WriteFile(filepath.Join(root, "access.log.2.gz"), []byte("historical archive"), 0600)
 	code := strings.Replace(worker, "        check_environment(parent)", "        pass # 可移植测试", 1)
 	code = strings.Replace(code, `lock_parent="/tmp"`, "lock_parent="+quote(remoteTemp), 1)
@@ -264,6 +269,14 @@ func TestExportWithRealWorker(t *testing.T) {
 	original, _ := os.ReadFile(filepath.Join(root, "access.log"))
 	if !bytes.Equal(original, originalContent) {
 		t.Fatal("source was changed")
+	}
+	header, err = archive.Next()
+	if err != nil || header.Name != "access.log.1" {
+		t.Fatalf("rotated log header: %v %v", header, err)
+	}
+	got, err = io.ReadAll(archive)
+	if err != nil || string(got) != "whole rotated log" {
+		t.Fatalf("rotated log content mismatch: %v", err)
 	}
 	header, err = archive.Next()
 	if err != nil || header.Name != "error.log" {

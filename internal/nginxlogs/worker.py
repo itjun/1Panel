@@ -1,9 +1,11 @@
 """只读、有大小上限的 Nginx 日志导出 worker，通过独立 SSH 会话下发。"""
 import contextlib
+import datetime
 import fcntl
 import hashlib
 import json
 import os
+import re
 import select
 import shutil
 import signal
@@ -16,7 +18,7 @@ import threading
 import time
 
 CHUNK = 256 * 1024
-LOG_NAMES = ("access.log", "error.log")
+LOG_NAME = re.compile(r"(?:access|error)\.log(?:\.[0-9]+)?")
 LOCAL_READY = threading.Event()
 
 
@@ -53,20 +55,24 @@ def check_source_space(fd):
         raise RuntimeError("日志所在磁盘空间不足，停止导出以便及时释放轮转文件")
 
 
-def inventory(root, files):
+def inventory(root, files, day=None):
     if not os.path.isabs(root) or os.path.realpath(root) == "/":
         raise RuntimeError("请选择日志目录的绝对路径，不能选择根目录")
+    day = day or datetime.date.today()
     skipped = 0
     directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        # 只检查这两个文件名；不遍历目录，也不读取日志内容。
-        for name in LOG_NAMES:
+        # 只匹配当前目录里的现行日志和纯数字轮转。
+        # 是否纳入只看文件元数据，不扫描日志内容。
+        with os.scandir(directory) as entries:
+            names = sorted(entry.name for entry in entries if LOG_NAME.fullmatch(entry.name))
+        for name in names:
             try:
                 info = os.stat(name, dir_fd=directory, follow_symlinks=False)
             except FileNotFoundError:
                 skipped += 1
                 continue
-            if not stat.S_ISREG(info.st_mode):
+            if not stat.S_ISREG(info.st_mode) or datetime.date.fromtimestamp(info.st_mtime) != day:
                 skipped += 1
                 continue
             fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
@@ -74,6 +80,9 @@ def inventory(root, files):
                 current = os.fstat(fd)
                 if not stat.S_ISREG(current.st_mode) or (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
                     raise RuntimeError("日志发生轮转，请重试")
+                if datetime.date.fromtimestamp(current.st_mtime) != day:
+                    skipped += 1
+                    continue
                 if current.st_size > 1024 ** 4:
                     raise RuntimeError("单个日志超过 1 TiB，请先缩小导出范围")
                 files.append((name, fd, current))
@@ -84,7 +93,7 @@ def inventory(root, files):
     finally:
         os.close(directory)
     if not files:
-        raise RuntimeError("目录中没有可读取的 access.log 或 error.log 普通文件")
+        raise RuntimeError("目录中没有 %s 修改过的 access.log、error.log 或数字轮转日志" % day.isoformat())
     return skipped
 
 
@@ -260,14 +269,15 @@ def run(root, parent, lock_parent="/tmp"):
     try:
         check_environment(parent)
         lock = acquire_lock(lock_parent)
-        emit("checking")
-        skipped = inventory(root, files)
+        day = datetime.date.today()  # 固定远程主机上的当天，避免跨过午夜后日期变化。
+        emit("checking", date=day.isoformat())
+        skipped = inventory(root, files, day)
         for _, fd, _ in files:
             check_source_space(fd)
         budget = archive_bound(files)
         usage, reserve = check_space(parent, budget)
         total = sum(info.st_size for _, _, info in files)
-        emit("checked", total=total, files=len(files), skipped=skipped,
+        emit("checked", date=day.isoformat(), total=total, files=len(files), skipped=skipped,
              available=usage.free, required=budget, reserve=reserve)
         if not LOCAL_READY.wait(timeout=15):
             raise RuntimeError("等待本地磁盘空间检查超时，未开始压缩")
