@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api";
 import { TH_STICKY_LINE } from "@/react/components/data-table";
 import { MessagesPage } from "@/react/components/notify/messages-page";
-import { RunLogPage } from "@/react/components/notify/run-log-page";
 import { SetupPage } from "@/react/components/notify/setup-page";
 import { Page } from "@/react/components/page";
 import { Button } from "@/react/components/ui/button";
@@ -103,7 +102,6 @@ export function NotifyPage() {
   }, [setNotifySection]);
 
   if (session.notifySection === "setup") return <SetupPage />;
-  if (session.notifySection === "runLog") return <RunLogPage />;
   if (session.notifySection === "metricSubs" || session.notifySection === "appSubs") {
     return <SubsPage kind={session.notifySection} />;
   }

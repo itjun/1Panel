@@ -7,12 +7,14 @@ import { LocalNginxPage } from "@/react/components/local/nginx-page";
 import { LocalOverviewPage } from "@/react/components/local/overview-page";
 import { LocalPackagesPage } from "@/react/components/local/packages-page";
 import { LocalStoragePage } from "@/react/components/local/storage-page";
+import { RunLogPage } from "@/react/components/local/run-log-page";
 import { useSession, type LocalSection } from "@/react/state/session";
 import { isLinuxPlatform } from "@/react/lib/platform";
 
 export function LocalPage() {
   const session = useSession();
   const section = session.localSection;
+  if (section === "runLog") return <RunLogPage />;
   if (section === "monitor") return <LocalMonitorPage />;
   if (section === "procs") return <LocalAppsPage />;
   if (section === "packages") return <LocalPackagesPage />;
@@ -35,4 +37,5 @@ export const LOCAL_SECTIONS: { id: LocalSection; label: string }[] = [
   { id: "network", label: "网络信息" },
   { id: "nginx", label: "Nginx" },
   { id: "hosts", label: "Hosts" },
+  { id: "runLog", label: "运行日志" },
 ];
