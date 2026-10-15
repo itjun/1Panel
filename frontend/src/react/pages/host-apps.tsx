@@ -5,6 +5,7 @@ import type { MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/api";
 import type { agentapi, agentcli } from "@/api";
+import { AppLogDialog } from "@/react/components/app-log-dialog";
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
 import {
@@ -101,6 +102,10 @@ function isAppStarted(row: InstRow) {
 
 function canOpenCharts(row: InstRow) {
   return !!row.service && isAppStarted(row) && isOnline(row);
+}
+
+function canOpenLogs(row: InstRow) {
+  return row.runtime !== "bun" && row.pid > 0 && !!row.jarPath;
 }
 
 function compareDeployVer(a: string, b: string): number {
@@ -628,16 +633,18 @@ function AppsTable({
   );
 }
 
-type AppChartMenuTarget = { row: InstRow; x: number; y: number };
+type AppMenuTarget = { row: InstRow; x: number; y: number };
 
-function AppChartMenu({
+function AppMenu({
   target,
   onClose,
   onOpen,
+  onOpenLogs,
 }: {
-  target: AppChartMenuTarget;
+  target: AppMenuTarget;
   onClose: () => void;
   onOpen: (row: InstRow) => void;
+  onOpenLogs: (row: InstRow) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -668,7 +675,7 @@ function AppChartMenu({
     <div
       ref={ref}
       role="menu"
-      aria-label={`${target.row.service} 监控`}
+      aria-label={`${target.row.service} 应用操作`}
       className="motion-menu-panel fixed z-[60] min-w-[180px] rounded-panel border border-line bg-surface py-1 text-sm text-ink"
       data-open="true"
       style={{ left: target.x, top: target.y }}
@@ -687,6 +694,18 @@ function AppChartMenu({
       >
         {target.row.runtime === "bun" ? "展示监控曲线" : "展示 GC 监控曲线"}
       </button>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={!canOpenLogs(target.row)}
+        className="block h-9 w-full px-3 text-left hover:bg-raised disabled:text-muted disabled:opacity-40"
+        onClick={() => {
+          onClose();
+          onOpenLogs(target.row);
+        }}
+      >
+        查看进程日志
+      </button>
     </div>,
     document.body,
   );
@@ -702,7 +721,8 @@ export function AppsPage({ host }: { host: string }) {
   const [shutdownBusy, setShutdownBusy] = useState(false);
 
   const [chartsOpen, setChartsOpen] = useState(false);
-  const [chartMenu, setChartMenu] = useState<AppChartMenuTarget | null>(null);
+  const [chartMenu, setChartMenu] = useState<AppMenuTarget | null>(null);
+  const [logTarget, setLogTarget] = useState<{ host: string; row: InstRow } | null>(null);
   const [selectedService, setSelectedService] = useState("");
   const [jarPts, setJarPts] = useState<agentapi.JarRangePoint[]>([]);
   const [hostPts, setHostPts] = useState<agentapi.RangePoint[]>([]);
@@ -963,6 +983,7 @@ export function AppsPage({ host }: { host: string }) {
     setSelectedService("");
     setChartsOpen(false);
     setChartMenu(null);
+    setLogTarget(null);
     setJarPts([]);
     setHostPts([]);
     setEvents([]);
@@ -1006,10 +1027,22 @@ export function AppsPage({ host }: { host: string }) {
       )}
 
       {chartMenu ? (
-        <AppChartMenu
+        <AppMenu
           target={chartMenu}
           onClose={() => setChartMenu(null)}
           onOpen={openCharts}
+          onOpenLogs={(row) => {
+            if (canOpenLogs(row)) setLogTarget({ host, row });
+          }}
+        />
+      ) : null}
+
+      {logTarget?.host === host ? (
+        <AppLogDialog
+          key={`${host}-${logTarget.row.pid}-${logTarget.row.jarPath}`}
+          host={host}
+          row={logTarget.row}
+          onClose={() => setLogTarget(null)}
         />
       ) : null}
 

@@ -46,6 +46,8 @@ export type {
     AddHostInput,
     AgentBatchResult,
     AppInfo,
+    AppLogRequest,
+    AppLogResult,
     BackupPreview,
     BoardHTTPConfig,
     CertPairCheck,
