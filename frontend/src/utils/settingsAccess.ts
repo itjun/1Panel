@@ -38,14 +38,6 @@ export function settingsAccess() {
         (host) => (settings.hostAppNotifySubs[host] || []).length > 0,
       );
     },
-    isCertNotifySubscribed(host: string) {
-      return settings.hostCertNotifySubs[host] === true;
-    },
-    hostsWithCertNotifySubs() {
-      return Object.keys(settings.hostCertNotifySubs).filter(
-        (host) => settings.hostCertNotifySubs[host] === true,
-      );
-    },
     effectiveWecomWebhook() {
       if (!settings.notifyEnabled) return "";
       return settings.wecomWebhook.trim();
