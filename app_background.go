@@ -165,6 +165,20 @@ func (a *App) installBackgroundTray(app *application.App) {
 		(*System)(a).FocusMainWindow()
 	})
 	menu.AddSeparator()
+	checkUpdate := menu.Add("检查更新")
+	checkUpdate.OnClick(func(*application.Context) {
+		checkUpdate.SetEnabled(false).SetLabel("正在检查更新…")
+		go func() {
+			defer func() {
+				checkUpdate.SetLabel("检查更新").SetEnabled(true)
+			}()
+			a.checkUpdateFromTray()
+		}()
+	})
+	menu.AddSeparator()
+	menu.Add("重新启动").OnClick(func(*application.Context) {
+		a.restartApp()
+	})
 	menu.Add("退出应用").OnClick(func(*application.Context) {
 		a.quitForReal()
 	})

@@ -545,6 +545,36 @@ func (c *updateController) setAutoCheck(on bool) {
 	c.emitState()
 }
 
+// checkUpdateFromTray 复用手动检查；没有新版本或检查失败时也给出可见反馈。
+func (a *App) checkUpdateFromTray() {
+	state, err := a.updates.check(true)
+	(*System)(a).FocusMainWindow()
+	if err == nil && state.HasUpdate {
+		a.updates.announce()
+		return
+	}
+
+	title, message := "检查更新", "当前已是最新版本："+state.Current
+	if err != nil {
+		title, message = "无法检查更新", err.Error()
+	} else {
+		switch state.Status {
+		case updateChecking:
+			message = "正在检查更新，请稍后再试。"
+		case updateDownloading:
+			message = "正在下载新版本，请稍候。"
+		case updateInstalling:
+			message = "正在安装新版本，完成后将自动重启。"
+		}
+	}
+	dialog := a.app.Dialog.Info().SetTitle(title).SetMessage(message)
+	dialog.AddButton("确定")
+	if a.mainWindow != nil {
+		dialog.AttachToWindow(a.mainWindow)
+	}
+	dialog.Show()
+}
+
 // ============ 前端绑定 ============
 
 // GetUpdateState 返回当前更新状态。
