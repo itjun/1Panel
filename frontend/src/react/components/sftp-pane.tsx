@@ -3,8 +3,10 @@ import type { monitor } from "@/api";
 import { cn } from "@/react/lib/utils";
 import { formatBytes } from "@/utils/format";
 import { isTextFileName } from "@/utils/textFile";
+import { FileTypeIcon } from "@/react/components/file-type-icon";
 
 const DRAG_TYPE = "application/x-1pannel-sftp";
+const fileNameCollator = new Intl.Collator("zh", { numeric: true, sensitivity: "base" });
 
 export type SftpDeleteItem = {
   path: string;
@@ -50,7 +52,7 @@ export function SftpPane(props: Props) {
   const [showHidden, setShowHidden] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [anchor, setAnchor] = useState(-1);
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortKey, setSortKey] = useState<SortKey>("kind");
   const [sortAsc, setSortAsc] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -78,7 +80,10 @@ export function SftpPane(props: Props) {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
       if (sortKey === "size") return (a.size - b.size) * dir;
       if (sortKey === "time") return a.modTime.localeCompare(b.modTime) * dir;
-      if (sortKey === "kind") return kindOf(a).localeCompare(kindOf(b)) * dir;
+      if (sortKey === "kind") {
+        const typeOrder = kindOf(a).localeCompare(kindOf(b));
+        return typeOrder * dir || fileNameCollator.compare(a.name, b.name);
+      }
       return a.name.localeCompare(b.name, "zh") * dir;
     });
   }, [filter, props.entries, showHidden, sortAsc, sortKey]);
@@ -542,7 +547,7 @@ export function SftpPane(props: Props) {
               }}
             >
               <div className="flex min-w-0 items-center gap-2">
-                {entry.isDir ? <FolderIcon /> : <FileIcon />}
+                <FileTypeIcon name={entry.name} isDir={entry.isDir} />
                 <div className="min-w-0">
                   <div className={cn("truncate", entry.name.startsWith(".") && !selected.includes(entry.path) && "text-muted")}>{entry.name}</div>
                   {entry.mode ? (
@@ -713,15 +718,6 @@ function FolderIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
       <path fill="#4C8DFF" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
-    </svg>
-  );
-}
-
-function FileIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" aria-hidden="true">
-      <path fill="#F7F8FA" stroke="#C5CDD6" strokeWidth="1.2" d="M14 2.6H6.2A1.8 1.8 0 0 0 4.4 4.4v15.2a1.8 1.8 0 0 0 1.8 1.8h11.6a1.8 1.8 0 0 0 1.8-1.8V8.2L14 2.6z" />
-      <path fill="#E4E9EE" d="M14 2.6v5.6h5.6" />
     </svg>
   );
 }

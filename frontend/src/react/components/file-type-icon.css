@@ -1,0 +1,3 @@
+.file-type-icon-dark { display: none; }
+html.dark .file-type-icon-light { display: none; }
+html.dark .file-type-icon-dark { display: block; }
