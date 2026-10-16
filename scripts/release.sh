@@ -52,7 +52,8 @@ go run ./cmd/agentversion check
 echo "上一个版本：${PREV:-无}，待发布：${VERSION}（$(git rev-parse --short HEAD)）"
 
 step "打附注 tag 并推送"
-git tag -a "$VERSION" ${TAG_ARGS[@]+"${TAG_ARGS[@]}"}
+# verbatim：说明里的 Markdown 标题以 # 开头，默认清理会把这些行当成注释删掉。
+git tag -a "$VERSION" --cleanup=verbatim ${TAG_ARGS[@]+"${TAG_ARGS[@]}"}
 [ -n "$(git for-each-ref "refs/tags/$VERSION" --format='%(contents)')" ] || { git tag -d "$VERSION"; die "更新说明为空，已撤销 tag"; }
 git push origin HEAD:main "refs/tags/$VERSION"
 
