@@ -3,7 +3,7 @@
 const MAX_CHARS = 512 * 1024;
 
 const TOKEN =
-  /(\[[0-9]+(?:\.[0-9]+)?\])|(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\b)|(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)|(\b(?:EMERG|ALERT|CRIT|CRITICAL|FATAL|ERROR|ERR|WARN|WARNING|NOTICE|INFO|DEBUG)\b)|(\b(?:\d{1,3}\.){3}\d{1,3}\b)|("[^"\n]*"|'[^'\n]*')|(\b[\w.-]+=)/g;
+  /(\[[0-9]+(?:\.[0-9]+)?\])|(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\b)|(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)|(\b(?:EMERG|ALERT|CRIT|CRITICAL|FATAL|ERROR|ERR|WARN|WARNING|NOTICE|INFO|DEBUG|TRACE)\b)|(\b(?:\d{1,3}\.){3}\d{1,3}\b)|("[^"\n]*"|'[^'\n]*')|(\b[\w.-]+=)/g;
 
 function escapeHtml(s: string): string {
   return s
@@ -30,7 +30,7 @@ function levelClass(word: string): string {
     return "hljs-keyword";
   }
   if (upper === "WARN" || upper === "WARNING") return "log-warn";
-  if (upper === "DEBUG") return "hljs-comment";
+  if (upper === "DEBUG" || upper === "TRACE") return "hljs-comment";
   return "hljs-type";
 }
 

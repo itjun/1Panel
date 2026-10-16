@@ -13,6 +13,7 @@ import {
 } from "@/react/components/ui/dialog";
 import { Select } from "@/react/components/ui/select";
 import { formatErr } from "@/utils/format";
+import { APP_LOG_LEVELS, filterAppLogRecords, parseAppLogRecords, type AppLogLevel } from "@/utils/appLogFilter";
 import { logHighlightHtml } from "@/utils/logHighlight";
 
 export function AppLogDialog({
@@ -26,6 +27,7 @@ export function AppLogDialog({
 }) {
   const [lines, setLines] = useState(500);
   const [search, setSearch] = useState("");
+  const [levels, setLevels] = useState<AppLogLevel[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const processStart = useRef("");
   const query = useQuery({
@@ -48,13 +50,11 @@ export function AppLogDialog({
     refetchInterval: (current) => autoRefresh && !current.state.error ? 5000 : false,
   });
 
-  const text = useMemo(() => {
-    const raw = query.isError ? "" : query.data?.content || "";
-    const term = search.trim().toLowerCase();
-    return term
-      ? raw.split("\n").filter((line) => line.toLowerCase().includes(term)).join("\n")
-      : raw;
-  }, [query.data, query.isError, search]);
+  const records = useMemo(
+    () => parseAppLogRecords(query.isError ? "" : query.data?.content || ""),
+    [query.data?.content, query.isError],
+  );
+  const text = useMemo(() => filterAppLogRecords(records, levels, search), [records, levels, search]);
   const html = useMemo(() => logHighlightHtml(text), [text]);
 
   return (
@@ -86,6 +86,24 @@ export function AppLogDialog({
             {query.isFetching ? "读取中…" : "刷新"}
           </Button>
         </div>
+        <div role="group" aria-label="日志级别筛选" className="flex shrink-0 flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">日志级别</span>
+          <Button size="sm" variant={levels.length ? "secondary" : "primary"} aria-pressed={!levels.length} onClick={() => setLevels([])}>
+            全部
+          </Button>
+          {APP_LOG_LEVELS.map((level) => (
+            <Button
+              key={level}
+              size="sm"
+              variant={levels.includes(level) ? "primary" : "secondary"}
+              aria-pressed={levels.includes(level)}
+              onClick={() => setLevels((current) => current.includes(level) ? current.filter((item) => item !== level) : [...current, level])}
+            >
+              {level === "OTHER" ? "其他" : level.charAt(0) + level.slice(1).toLowerCase()}
+            </Button>
+          ))}
+          <span className="text-xs text-muted">可多选 · 保留异常堆栈</span>
+        </div>
         {query.error ? <Notice text={formatErr(query.error)} /> : null}
         {query.data?.source ? (
           <p className="m-0 shrink-0 break-all font-mono text-xs text-muted">来源 {query.data.source}</p>
@@ -95,12 +113,13 @@ export function AppLogDialog({
             <HighlightPane html={html} text={text} pinBottom wrap />
           ) : (
             <p className="p-4 text-sm text-muted">
-              {query.isPending ? "正在读取进程日志…" : query.isError ? "日志读取失败" : search.trim() ? "当前日志中没有匹配内容" : "该实例日志暂为空"}
+              {query.isPending ? "正在读取进程日志…" : query.isError ? "日志读取失败" : search.trim() || levels.length ? "当前日志中没有匹配内容" : "该实例日志暂为空"}
             </p>
           )}
         </div>
         <p className="m-0 shrink-0 text-xs text-muted">
           只读实例控制台日志，单次最多读取末尾 512 KiB。
+          筛选仅作用于当前已读取的日志。
           {query.data?.truncated ? " 当前显示日志末尾片段。" : ""}
         </p>
       </DialogContent>
