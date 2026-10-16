@@ -1,9 +1,13 @@
 import { BoardAppList } from "./board-app-list";
 import { BoardHostIdentity, BoardTrendButton, BoardUsageCell } from "./board-host-fields";
 import type { BoardHostsProps } from "./host-board-table";
+import { BoardHostTrends } from "./board-host-trends";
+import type { BoardHistory } from "@/utils/boardHistory";
 import { isCpuAlert, isDiskFull, isLoadAlert, isMemAlert, summarizeDisks } from "@/utils/alerts";
 
-export function HostBoardGrid({ hosts, cards, selectedHost, now, onSelect, onApps }: BoardHostsProps) {
+export function HostBoardGrid({ hosts, cards, selectedHost, now, onSelect, onApps, histories, onRetry }: BoardHostsProps & {
+  histories?: Record<string, BoardHistory>; onRetry: (host: string) => void;
+}) {
   return <div className="board-rack" role="list" aria-label="主机实时总览">
     {hosts.map((host) => {
       const card = cards[host.name] || { loading: true };
@@ -24,6 +28,8 @@ export function HostBoardGrid({ hosts, cards, selectedHost, now, onSelect, onApp
         <div className="board-rack__apps"><span className="board-rack__label">应用订阅</span>
           <BoardAppList host={host.name} items={card.appSubItems} loading={card.appSubLoading} onExpand={() => onApps(host.name)} />
         </div>
+        {histories ? <BoardHostTrends compact host={host.name} card={card} history={histories[host.name]}
+          onRetry={() => onRetry(host.name)} /> : null}
       </section>;
     })}
   </div>;

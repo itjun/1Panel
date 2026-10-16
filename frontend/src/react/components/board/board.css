@@ -75,7 +75,6 @@ html.board-http #app {
 .board-mode__content,.board-fleet { display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; }
 .board-fleet__frame { position:relative; flex:1; min-height:0; min-width:0; }
 .board-fleet__viewport { position:absolute; inset:0; overflow:auto; scrollbar-width:thin; scrollbar-color:var(--color-line-strong) transparent; }
-.board-fleet__footer { flex-shrink:0; padding-top:10px; color:var(--color-muted); font-size:calc(14px * var(--board-scale)); }
 .board-table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; background:var(--color-surface); }
 .board-table__host-col { width:21%; }
 .board-table__cpu-col { width:11%; }
@@ -151,6 +150,25 @@ html.board-http #app {
 .board-trends__plot { flex:1; min-height:120px; margin-top:8px; }
 .board-trends__empty { height:100%; min-height:120px; display:flex; align-items:center; justify-content:center; color:var(--color-muted); font-size:var(--board-text); }
 .board-trends__notice { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-top:8px; color:var(--color-warn); font-size:var(--board-small); overflow-wrap:anywhere; }
+
+/* Enough room for every host: spend the remaining height on actual histories. */
+.board-fleet[data-layout="trends"] .board-rack__host { justify-content:flex-start; container:board-host / size; }
+.board-trends--compact { padding-top:0; min-height:0; }
+.board-trends--compact .board-trends__charts { flex:1; padding-top:0; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.board-trends--compact .board-trends__panel { padding-right:calc(8px * var(--board-scale)); }
+.board-trends--compact .board-trends__panel+.board-trends__panel { padding-left:calc(8px * var(--board-scale)); padding-right:0; }
+.board-trends--compact .board-trends__label { font-size:calc(13px * var(--board-scale)); }
+.board-trends--compact .board-trends__plot { min-height:0; margin-top:0; }
+.board-trends--compact .board-trends__empty { min-height:0; font-size:calc(13px * var(--board-scale)); text-align:center; }
+.board-trends--compact .board-trends__notice { padding:0; gap:8px; font-size:calc(12px * var(--board-scale)); }
+.board-trends--compact .board-trends__notice>span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.board-trends--compact .board-trends__notice button { flex-shrink:0; }
+/* Tall host panels (typically two or three hosts) give each curve a wide time axis. */
+@container board-host (min-height:540px) and (max-aspect-ratio:4/3) {
+ .board-trends--compact .board-trends__charts { grid-template-columns:1fr; grid-template-rows:repeat(2,minmax(0,1fr)); gap:calc(8px * var(--board-scale)); }
+ .board-trends--compact .board-trends__panel { padding:0; }
+ .board-trends--compact .board-trends__panel+.board-trends__panel { padding:calc(8px * var(--board-scale)) 0 0; border-left:0; border-top:1px solid var(--color-line); }
+}
 
 @media(min-width:1501px) {
  .board-host__name { font-size:calc(22px * var(--board-scale)); }

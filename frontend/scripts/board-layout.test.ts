@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { pickBoardLayout } from "../src/utils/boardLayout";
 
 describe("overview layout follows usable screen space", () => {
-  test("the same eight hosts use a table on a large screen and a grid in a small window", () => {
+  test("the same eight hosts show histories on a large screen and compact cards in a small window", () => {
     const large = pickBoardLayout({ width: 1840, height: 860, hostCount: 8 });
     const small = pickBoardLayout({ width: 1224, height: 480, hostCount: 8 });
-    expect(large.mode).toBe("table");
+    expect(large.mode).toBe("trends");
+    expect(large.columns).toBe(4);
+    expect(large.rows).toBe(2);
     expect(large.overflow).toBe(false);
     expect(small.mode).toBe("grid");
     expect(small.columns).toBe(3);
@@ -41,11 +43,39 @@ describe("overview layout follows usable screen space", () => {
   });
 
   test("spare height increases spacing without changing the capacity decision", () => {
-    const table = pickBoardLayout({ width: 1880, height: 920, hostCount: 8 });
-    expect(table.tableRowHeight).toBe(108);
+    const trends = pickBoardLayout({ width: 1880, height: 920, hostCount: 8 });
+    expect(trends.cardHeight).toBe(451);
     const grid = pickBoardLayout({ width: 1880, height: 920, hostCount: 12 });
     expect(grid.cardHeight).toBe(216);
     expect(grid.rows * grid.cardHeight + (grid.rows - 1) * grid.gap).toBeLessThanOrEqual(920);
+  });
+
+  test("one, two, three, four, five and eight hosts use deliberate readable arrangements", () => {
+    for (const [hostCount, columns, rows] of [[1, 1, 1], [2, 2, 1], [3, 3, 1], [4, 2, 2], [5, 3, 2], [8, 4, 2]]) {
+      const layout = pickBoardLayout({ width: 1880, height: 920, hostCount });
+      expect(layout.mode).toBe("trends");
+      expect(layout.columns).toBe(columns);
+      expect(layout.rows).toBe(rows);
+      expect(layout.cardHeight).toBeGreaterThanOrEqual(layout.cardMinHeight);
+    }
+  });
+
+  test("sixteen histories fit on a 4K display but fall back to overview at 1080p", () => {
+    const large = pickBoardLayout({ width: 3768, height: 1853, hostCount: 16 });
+    expect(large.mode).toBe("trends");
+    expect(large.columns).toBe(4);
+    expect(large.rows).toBe(4);
+    expect(pickBoardLayout({ width: 1880, height: 860, hostCount: 16 }).mode).toBe("grid");
+  });
+
+  test("history admission includes both axes, gaps and scaled minimum plot space", () => {
+    const fits = { width: 812, height: 588, hostCount: 4 };
+    expect(pickBoardLayout(fits).mode).toBe("trends");
+    expect(pickBoardLayout({ ...fits, width: 811 }).mode).not.toBe("trends");
+    expect(pickBoardLayout({ ...fits, height: 587 }).mode).not.toBe("trends");
+    expect(pickBoardLayout({ ...fits, scale: 1.5 }).mode).not.toBe("trends");
+    expect(pickBoardLayout({ width: 400, height: 588, hostCount: 2 }).columns).toBe(1);
+    expect(pickBoardLayout({ width: 400, height: 588, hostCount: 2 }).mode).toBe("trends");
   });
 
   test("an extremely short window preserves card size and never claims a full host is visible", () => {

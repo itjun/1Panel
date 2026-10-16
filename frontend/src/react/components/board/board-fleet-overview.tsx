@@ -1,9 +1,16 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import type { BoardHistory } from "@/utils/boardHistory";
 import { pickBoardLayout } from "@/utils/boardLayout";
 import { HostBoardGrid } from "./host-board-grid";
 import { HostBoardTable, type BoardHostsProps } from "./host-board-table";
 
-export function BoardFleetOverview(props: BoardHostsProps) {
+type Props = BoardHostsProps & {
+  histories: Record<string, BoardHistory>;
+  onInlineTrendsChange: (visible: boolean) => void;
+  onRetry: (host: string) => void;
+};
+
+export function BoardFleetOverview({ histories, onInlineTrendsChange, onRetry, ...props }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   useLayoutEffect(() => {
@@ -22,6 +29,11 @@ export function BoardFleetOverview(props: BoardHostsProps) {
     return () => observer.disconnect();
   }, []);
   const layout = useMemo(() => pickBoardLayout({ ...size, hostCount: props.hosts.length }), [size, props.hosts.length]);
+  const showTrends = size.width > 0 && layout.mode === "trends";
+  useEffect(() => {
+    onInlineTrendsChange(showTrends);
+    return () => onInlineTrendsChange(false);
+  }, [showTrends, onInlineTrendsChange]);
   const styles = {
     "--board-scale": layout.scale,
     "--board-columns": layout.columns,
@@ -33,9 +45,9 @@ export function BoardFleetOverview(props: BoardHostsProps) {
   return <section className="board-fleet" style={styles} aria-label="分组总览" data-layout={layout.mode} data-columns={layout.columns} data-capacity={layout.capacity}>
     <div className="board-fleet__frame" ref={frameRef}>
       <div className="board-fleet__viewport">
-        {size.width > 0 && (layout.mode === "table" ? <HostBoardTable {...props} /> : <HostBoardGrid {...props} />)}
+        {size.width > 0 && (layout.mode === "table" ? <HostBoardTable {...props} /> :
+          <HostBoardGrid {...props} histories={showTrends ? histories : undefined} onRetry={onRetry} />)}
       </div>
     </div>
-    <footer className="board-fleet__footer">共 {props.hosts.length} 台主机</footer>
   </section>;
 }

@@ -93,6 +93,7 @@ export function BoardPage({ groupId }: { groupId: string }) {
   );
   const [hostStates, setHostStates] = useState<Record<string, HostSnap>>({});
   const [histories, setHistories] = useState<Record<string, BoardHistory>>({});
+  const [inlineTrends, setInlineTrends] = useState(false);
   const [requestedHost, setRequestedHost] = useState("");
   const [appsHost, setAppsHost] = useState("");
   const overviewFocusRef = useRef<HTMLElement | null>(null);
@@ -316,12 +317,16 @@ export function BoardPage({ groupId }: { groupId: string }) {
     return () => clearInterval(clock);
   }, []);
 
+  const singleTrendHost = inlineTrends ? "" : selectedHost;
+  const trendHosts = useMemo(() => inlineTrends ? hosts.map((host) => host.name) : singleTrendHost ? [singleTrendHost] : [],
+    [inlineTrends, hosts, singleTrendHost]);
   useEffect(() => {
-    if (!selectedHost) return;
-    void loadRange(selectedHost);
-    const timer = setInterval(() => void loadRange(selectedHost), RANGE_POLL_MS);
+    if (!trendHosts.length) return;
+    const refresh = () => { for (const host of trendHosts) void loadRange(host); };
+    refresh();
+    const timer = setInterval(refresh, RANGE_POLL_MS);
     return () => clearInterval(timer);
-  }, [selectedHost, loadRange]);
+  }, [trendHosts, loadRange]);
 
   const retryRange = useCallback(() => void loadRange(selectedHost), [selectedHost, loadRange]);
 
@@ -431,7 +436,8 @@ export function BoardPage({ groupId }: { groupId: string }) {
       ) : hosts.length ? (
         <div className="board-mode__content">
           <BoardFleetOverview hosts={hosts} cards={cards} selectedHost={selectedHost} now={nowMs}
-            onSelect={openTrends} onApps={openApps} />
+            onSelect={openTrends} onApps={openApps} histories={histories}
+            onInlineTrendsChange={setInlineTrends} onRetry={loadRange} />
         </div>
       ) : (
         <div className="board-mode__empty" role="status"><strong>{metaLoading ? "正在读取主机分组…" : "当前分组暂无主机"}</strong></div>

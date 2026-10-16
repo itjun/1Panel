@@ -7,7 +7,7 @@ export type BoardLayoutInput = {
 };
 
 export type BoardLayout = {
-  mode: "table" | "grid";
+  mode: "table" | "grid" | "trends";
   columns: number;
   rows: number;
   capacity: number;
@@ -42,6 +42,25 @@ export function pickBoardLayout(input: BoardLayoutInput): BoardLayout {
   const cardMinWidth = Math.ceil(350 * scale);
   const sizes = { gap, scale, tableRowHeight, tableHeaderHeight, cardMinHeight, cardHeight: cardMinHeight, cardMinWidth };
   const tableCapacity = Math.max(0, Math.floor((height - tableHeaderHeight) / tableRowHeight));
+
+  // Try full, readable histories before the compact overview. Use actual CSS
+  // pixels, including large-display scaling, rather than a host-count cutoff.
+  const trendMinWidth = Math.ceil(400 * scale);
+  const trendMinHeight = Math.ceil(288 * scale);
+  const preferredColumns = hostCount <= 3 ? hostCount : hostCount <= 4 ? 2 : hostCount <= 6 ? 3 : 4;
+  const candidates = Array.from({ length: Math.min(4, hostCount) }, (_, index) => index + 1)
+    .sort((a, b) => Math.abs(a - preferredColumns) - Math.abs(b - preferredColumns));
+  for (const columns of candidates) {
+    const rows = Math.ceil(hostCount / columns);
+    const cardWidth = Math.floor((width - gap * (columns - 1)) / columns);
+    const cardHeight = Math.floor((height - gap * (rows - 1)) / rows);
+    if (cardWidth >= trendMinWidth && cardHeight >= trendMinHeight) {
+      return {
+        ...sizes, mode: "trends", columns, rows, capacity: columns * rows,
+        cardHeight, cardMinWidth: trendMinWidth, cardMinHeight: trendMinHeight, overflow: false,
+      };
+    }
+  }
 
   if (hostCount === 0 || (width >= Math.ceil(1040 * scale) && hostCount <= tableCapacity)) {
     const rowHeight = hostCount > 0
