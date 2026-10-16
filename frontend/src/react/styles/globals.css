@@ -459,6 +459,101 @@ html.dark[data-window-material="mica"] .module-rail {
   padding: var(--gap-card);
   border-radius: var(--radius-panel);
   background-color: var(--color-raised);
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard);
+}
+
+.host-home-dragging,
+.host-home-dragging * {
+  cursor: grabbing !important;
+}
+
+.host-rack-block[data-drag-source],
+.host-rack-row[data-drag-source] {
+  opacity: 0.45;
+}
+
+.host-rack-row {
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    color var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard);
+  touch-action: none;
+}
+
+.host-rack-row:focus-visible {
+  /* Keep the whole focus ring inside the animated collapse clipping area. */
+  outline-style: solid;
+  outline-offset: -2px;
+}
+
+.host-home-page [data-group-head] {
+  touch-action: none;
+}
+
+.host-rack-content {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--duration-moderate) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard);
+}
+
+.host-rack-content[data-collapsed] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.host-rack-host-insert {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--color-accent);
+  pointer-events: none;
+  animation: motion-fade-in var(--duration-base) var(--ease-out);
+}
+
+.host-rack-host-insert[data-side="before"] { top: 0; }
+.host-rack-host-insert[data-side="after"] { bottom: 0; }
+
+/* A translucent name follows the pointer without intercepting drop targets. */
+.host-drag-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 110;
+  width: max-content;
+  max-width: min(var(--host-rack-column), calc(100vw - 16px));
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+}
+
+.host-drag-label {
+  overflow: hidden;
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+  line-height: 40px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .host-rack-block,
+  .host-rack-row,
+  .host-rack-content,
+  .host-rack-new-row {
+    transition: none !important;
+    animation: none !important;
+  }
+  .host-rack-host-insert { animation: none !important; }
 }
 
 .host-rack-block[data-drop-active="true"] {

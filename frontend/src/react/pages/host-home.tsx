@@ -21,6 +21,9 @@ import {
   reconcileHostRows,
   type GroupDropMark,
 } from "@/utils/hostRows";
+import { useHostRackMotion } from "@/react/lib/use-host-rack-motion";
+import { usePointerDrag } from "@/react/lib/use-pointer-drag";
+import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
 import { DistroBadge } from "@/react/components/distro-badge";
 import { openHostSetup } from "@/react/components/host-setup-dialog";
 import { Button } from "@/react/components/ui/button";
@@ -161,6 +164,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const rackRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const groupInsertRef = useRef<GroupDropMark | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const previewPointRef = useRef({ x: 0, y: 0 });
+  const { startDrag } = usePointerDrag();
+  const [dragItem, setDragItem] = useState<HostDragItem | null>(null);
 
   const [query, setQuery] = useState("");
   const [scrolled, setScrolled] = useState(false);
@@ -454,37 +461,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   ) {
     if (event.button !== 0) return;
     if (isAdditiveSelect(event) || event.shiftKey) return;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let active = false;
-    let lastX = startX;
-    let lastY = startY;
+    let lastX = event.clientX;
+    let lastY = event.clientY;
     let stopAutoScroll: (() => void) | null = null;
-    const pointerId = event.pointerId;
-    const targetEl = event.currentTarget as HTMLElement;
-    targetEl.setPointerCapture(pointerId);
-
-    function onMove(moveEvent: PointerEvent) {
-      if (moveEvent.pointerId !== pointerId) return;
-      lastX = moveEvent.clientX;
-      lastY = moveEvent.clientY;
-      if (!active) {
-        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 6) {
-          return;
-        }
-        active = true;
-        suppressClick.current = true;
-        setDragging(true);
-        window.getSelection()?.removeAllRanges();
-        document.body.style.userSelect = "none";
-        document.body.style.cursor = "grabbing";
-        stopAutoScroll = startEdgeAutoScroll(
-          () => lastY,
-          () => updateHostTarget(lastX, lastY),
-        );
-      }
-      updateHostTarget(moveEvent.clientX, moveEvent.clientY);
-    }
 
     function updateHostTarget(clientX: number, clientY: number) {
       // 同组排序线
@@ -501,7 +480,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             const after = clientY > rect.top + rect.height / 2;
             const next = { sectionId: groupId, target, after };
             insertMarkRef.current = next;
-            setInsertMark(next);
+            setInsertMark((previous) => previous?.sectionId === next.sectionId && previous.target === next.target && previous.after === next.after ? previous : next);
             dropTargetRef.current = null;
             setDropTargetId(null);
             return;
@@ -526,43 +505,52 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       setDropTargetId(null);
     }
 
-    async function onUp(upEvent: PointerEvent) {
-      if (upEvent.pointerId !== pointerId) return;
-      targetEl.releasePointerCapture(pointerId);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      if (stopAutoScroll) stopAutoScroll();
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-      setDragging(false);
-      const mark = insertMarkRef.current;
-      const dropId = dropTargetRef.current;
-      insertMarkRef.current = null;
-      dropTargetRef.current = null;
-      setInsertMark(null);
-      setDropTargetId(null);
-      if (!active) return;
-      try {
-        if (mark && mark.sectionId === sectionId) {
-          await reorderNear(sectionId, hostName, mark.target, mark.after);
-        } else if (dropId) {
-          if (dropId === PINNED_SECTION) {
-            await pinHostByDrop(hostName);
-          } else if (dropId !== sectionId) {
-            await moveHostToGroup(hostName, dropId);
+    startDrag(event, {
+      threshold: 6,
+      onStart() {
+        closeAllMenus();
+        previewPointRef.current = { x: lastX, y: lastY };
+        suppressClick.current = true;
+        setDragging(true);
+        setDragItem({ kind: "host", name: hostName, sectionId });
+        stopAutoScroll = startEdgeAutoScroll(() => lastY, () => updateHostTarget(lastX, lastY));
+        return () => stopAutoScroll?.();
+      },
+      onMove(x, y) {
+        lastX = x;
+        lastY = y;
+        previewPointRef.current = { x, y };
+        positionHostDragPreview(previewRef.current, previewPointRef.current);
+        updateHostTarget(x, y);
+      },
+      onFinish(cancelled) {
+        stopAutoScroll?.();
+        const mark = insertMarkRef.current;
+        const dropId = dropTargetRef.current;
+        insertMarkRef.current = null;
+        dropTargetRef.current = null;
+        setInsertMark(null);
+        setDropTargetId(null);
+        setDragging(false);
+        setDragItem(null);
+        // Release click suppression independently of backend response time.
+        setTimeout(() => { suppressClick.current = false; }, 0);
+        if (cancelled) return;
+        void (async () => {
+          try {
+            if (mark && mark.sectionId === sectionId) {
+              await reorderNear(sectionId, hostName, mark.target, mark.after);
+            } else if (dropId === PINNED_SECTION) {
+              await pinHostByDrop(hostName);
+            } else if (dropId && dropId !== sectionId) {
+              await moveHostToGroup(hostName, dropId);
+            }
+          } catch (err) {
+            showError(formatErr(err));
           }
-        }
-      } catch (err) {
-        console.error(err);
-        showError(formatErr(err));
-      }
-      setTimeout(() => {
-        suppressClick.current = false;
-      }, 0);
-    }
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+        })();
+      },
+    });
   }
 
   function isSortableGroup(section: Section) {
@@ -600,19 +588,15 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     if ((event.target as HTMLElement).closest("[data-collapse-toggle]")) return;
     const rack = rackRef.current;
     if (!rack) return;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const pointerId = event.pointerId;
-    const headEl = event.currentTarget as HTMLElement;
     const draggedId = section.id;
-    let active = false;
-    let lastX = startX;
-    let lastY = startY;
+    let lastX = event.clientX;
+    let lastY = event.clientY;
     let stopAutoScroll: (() => void) | null = null;
 
     function setMark(next: GroupDropMark | null) {
+      if (next?.kind === "block" && next.target === draggedId) next = null;
       groupInsertRef.current = next;
-      setGroupInsert(next);
+      setGroupInsert((previous) => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     }
 
     // 落点判定：
@@ -623,6 +607,11 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     // 5. 否则在该排内：先按块顶部分子行（排内折行），再按 x 与块中线比较求插入点
     // 排号一律取 data-rack-row（groupRows 下标），空排不渲染，DOM 顺序与下标可能不一致
     function updateInsert(clientX: number, clientY: number) {
+      const bounds = scrollRef.current?.getBoundingClientRect();
+      if (!bounds || clientX < bounds.left || clientX > bounds.right || clientY < bounds.top || clientY > bounds.bottom) {
+        setMark(null);
+        return;
+      }
       const rowEls = Array.from(rack!.querySelectorAll<HTMLElement>("[data-rack-row]"));
       const newRowEl = rack!.querySelector<HTMLElement>("[data-rack-new-row]");
       if (newRowEl && clientY >= newRowEl.getBoundingClientRect().top) {
@@ -680,60 +669,37 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       setMark({ kind: "block", target: last.el.dataset.groupSortable || "", after: true });
     }
 
-    function onMove(moveEvent: PointerEvent) {
-      if (moveEvent.pointerId !== pointerId) return;
-      lastX = moveEvent.clientX;
-      lastY = moveEvent.clientY;
-      if (!active) {
-        const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
-        if (distance <= GROUP_DRAG_THRESHOLD) return;
-        active = true;
-        // 开始拖动后才捕获指针：未超阈值时组名按钮的 click 仍落在按钮上
-        headEl.setPointerCapture(pointerId);
+    startDrag(event, {
+      threshold: GROUP_DRAG_THRESHOLD,
+      onStart() {
+        closeAllMenus();
+        previewPointRef.current = { x: lastX, y: lastY };
         suppressClick.current = true;
         setDraggingGroupId(draggedId);
-        window.getSelection()?.removeAllRanges();
-        document.body.style.userSelect = "none";
-        document.body.style.cursor = "grabbing";
-        stopAutoScroll = startEdgeAutoScroll(
-          () => lastY,
-          () => updateInsert(lastX, lastY),
-        );
-      }
-      updateInsert(moveEvent.clientX, moveEvent.clientY);
-    }
-
-    async function onUp(upEvent: PointerEvent) {
-      if (upEvent.pointerId !== pointerId) return;
-      if (headEl.hasPointerCapture(pointerId)) {
-        headEl.releasePointerCapture(pointerId);
-      }
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      if (stopAutoScroll) stopAutoScroll();
-      const mark = groupInsertRef.current;
-      setMark(null);
-      setDraggingGroupId(null);
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-      if (!active) return;
-      active = false;
-      try {
-        if (mark) await moveGroupTo(draggedId, mark);
-      } catch (err) {
-        showError(`调整分组顺序失败: ${formatErr(err)}`);
-      }
-      setTimeout(() => {
-        suppressClick.current = false;
-      }, 0);
-    }
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+        setDragItem({ kind: "group", name: section.name, sectionId: section.id });
+        stopAutoScroll = startEdgeAutoScroll(() => lastY, () => updateInsert(lastX, lastY));
+        return () => stopAutoScroll?.();
+      },
+      onMove(x, y) {
+        lastX = x;
+        lastY = y;
+        previewPointRef.current = { x, y };
+        positionHostDragPreview(previewRef.current, previewPointRef.current);
+        updateInsert(x, y);
+      },
+      onFinish(cancelled) {
+        stopAutoScroll?.();
+        const mark = groupInsertRef.current;
+        setMark(null);
+        setDraggingGroupId(null);
+        setDragItem(null);
+        setTimeout(() => { suppressClick.current = false; }, 0);
+        if (!cancelled && mark) {
+          void moveGroupTo(draggedId, mark).catch((err) => showError(`调整分组顺序失败: ${formatErr(err)}`));
+        }
+      },
+    });
   }
-
-  insertMarkRef.current = insertMark;
-  dropTargetRef.current = dropTargetId;
 
   async function confirmDeleteHosts() {
     if (!deletingHosts?.length) return;
@@ -879,6 +845,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     if (rowSections.length > 0) visibleRows.push({ index, sections: rowSections });
   });
 
+  useHostRackMotion(
+    rackRef,
+    JSON.stringify([groupRows, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
+    !dragItem && !keyword,
+    JSON.stringify(collapsedIds),
+  );
+
   function renderSection(section: Section) {
     const collapsed = sectionCollapsed(section.id);
     const isDrop = dropTargetId === section.id;
@@ -894,7 +867,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     return (
       <section
         key={section.id}
-        className={`host-rack-block ${draggingGroupId === section.id ? "opacity-50" : ""}`}
+        className="host-rack-block"
+        data-drag-source={draggingGroupId === section.id || undefined}
         data-drop-group={section.id}
         data-drop-active={isDrop ? "true" : undefined}
         data-group-sortable={sortable ? section.id : undefined}
@@ -973,11 +947,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           </button>
         </div>
 
-        {!collapsed ? (
+        <div className="host-rack-content" data-collapsed={collapsed || undefined} inert={collapsed} aria-hidden={collapsed}>
+          <div className="min-h-0 overflow-hidden">
           <div className="flex flex-col gap-0.5">
             {section.hosts.length === 0 && !keyword ? (
               <p className="m-0 flex h-10 items-center px-2 text-muted">
-                没有主机
+                {dragging ? (isDrop ? "松开鼠标，移入此分组" : "拖拽主机到这里") : "没有主机"}
               </p>
             ) : null}
             {section.hosts.map((host) => {
@@ -993,6 +968,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 <div
                   key={`${section.id}-${host.name}`}
                   data-host-row
+                  data-drag-source={dragItem?.kind === "host" && dragItem.name === host.name && dragItem.sectionId === section.id || undefined}
                   data-host-sort={host.name}
                   data-host-group={section.id}
                   data-pin-host={section.isPinned ? host.name : undefined}
@@ -1044,10 +1020,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   }}
                 >
                   {mark === "before" ? (
-                    <div className="absolute inset-x-2 top-0 h-0.5 bg-accent" />
+                    <div className="host-rack-host-insert" data-side="before" />
                   ) : null}
                   {mark === "after" ? (
-                    <div className="absolute inset-x-2 bottom-0 h-0.5 bg-accent" />
+                    <div className="host-rack-host-insert" data-side="after" />
                   ) : null}
                   <DistroBadge boxSize={22} osRelease={session.osRelease[host.name]} />
                   <span
@@ -1087,14 +1063,25 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               );
             })}
           </div>
-        ) : null}
+          </div>
+        </div>
       </section>
     );
   }
 
+  let dragHint = "拖到分组中移动";
+  if (dragItem?.kind === "group") {
+    dragHint = groupInsert?.kind === "newRow" ? "松手后放到新的一排" : groupInsert?.kind === "block"
+      ? `放到「${sectionById.get(groupInsert.target)?.name || "分组"}」${groupInsert.after ? "右侧" : "左侧"}` : "拖动调整分组位置";
+  } else if (insertMark) {
+    dragHint = `放到 ${insertMark.target} ${insertMark.after ? "之后" : "之前"}`;
+  } else if (dropTargetId) {
+    dragHint = dropTargetId === PINNED_SECTION ? "松手后置顶显示" : `移至「${sectionById.get(dropTargetId)?.name || "未分组"}」`;
+  }
+
   return (
     <div
-      className={`flex h-full min-h-0 flex-col ${dragging ? "select-none" : ""}`}
+      className={`host-home-page flex h-full min-h-0 flex-col ${dragItem ? "host-home-dragging select-none" : ""}`}
       onContextMenu={(event) => {
         const el = (event.target as HTMLElement).closest(
           "[data-group-head], [data-host-row], .host-home-toolbar, button, input, textarea",
@@ -1223,6 +1210,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
       </div>
       </div>
+
+      {dragItem ? <HostDragPreview item={dragItem} elementRef={previewRef} pointRef={previewPointRef} /> : null}
+      <span className="sr-only" role="status" aria-live="polite">{dragItem ? `${dragItem.name}，${dragHint}，按 Escape 取消` : ""}</span>
 
       {/* 空白 / 新建快捷菜单 */}
       {blankMenu ? (
