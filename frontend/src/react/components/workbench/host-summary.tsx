@@ -11,7 +11,7 @@ import {
   isLoadAlert,
   summarizeDisks,
 } from "@/utils/alerts";
-import { formatBytes } from "@/utils/format";
+import { formatBytes, formatMemCapacity } from "@/utils/format";
 import {
   focusHost,
   readHostFocus,
@@ -70,15 +70,22 @@ export function HostWorkbenchSummary({
     focusHost(host, { processSort: "rss", pid });
     session.setTool("processes");
   };
+  const loadPercent = data?.cpuCount ? (data.load1 / data.cpuCount) * 100 : 0;
+  const loadWord = loadPercent < 30 ? "运行流畅" : loadPercent < 70 ? "运行正常" : loadPercent < 80 ? "运行缓慢" : "运行堵塞";
+  const swapText = data && data.swapTotal > 0
+    ? `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)} · ${(data.swapPercent || 0).toFixed(1)}%`
+    : "未启用";
   const items = [
     {
       label: "CPU",
+      tooltip: data ? `型号：${data.cpuModel || "—"}\n核心数：${data.cpuCount} 核\n使用率：${(data.cpuPercent || 0).toFixed(2)}%` : "等待采样",
       value: data?.cpuPercent,
       text: data ? `${data.cpuPercent.toFixed(1)}%` : "—",
       detail: data ? `${data.cpuCount} 核` : "",
     },
     {
       label: "内存",
+      tooltip: data ? `总量：${formatMemCapacity(data.memTotal)}\n已用：${formatBytes(data.memUsed)}\n可用：${formatBytes(Math.max(0, (data.memTotal || 0) - (data.memUsed || 0)))}\n使用率：${(data.memPercent || 0).toFixed(2)}%\nSwap：${swapText}` : "等待采样",
       value: data?.memPercent,
       text: data ? `${data.memPercent.toFixed(1)}%` : "—",
       detail: data
@@ -87,6 +94,7 @@ export function HostWorkbenchSummary({
     },
     {
       label: "磁盘",
+      tooltip: disk ? `范围：${disk.count} ${disk.scope === "disk" ? "块物理盘" : "个分区"}\n总量：${formatBytes(disk.total)}\n已用：${formatBytes(disk.used)}\n可用：${formatBytes(disk.avail)}` : "暂无磁盘数据",
       value: disk?.percent,
       text: disk ? `${disk.percent.toFixed(1)}%` : "—",
       detail: disk
@@ -95,6 +103,7 @@ export function HostWorkbenchSummary({
     },
     {
       label: "负载",
+      tooltip: data ? `1 分钟：${data.load1.toFixed(2)}\n5 分钟：${(data.load5 || 0).toFixed(2)}\n15 分钟：${(data.load15 || 0).toFixed(2)}\n${loadWord}` : "等待采样",
       value: data?.cpuCount ? (data.load1 / data.cpuCount) * 100 : undefined,
       text: data ? data.load1.toFixed(2) : "—",
       detail: data ? `/ ${data.cpuCount} 核` : "",
@@ -121,7 +130,7 @@ export function HostWorkbenchSummary({
       </div>
       <div className="workbench-metrics">
         {items.map((item) => (
-          <div key={item.label}>
+          <div key={item.label} tabIndex={0} data-tip={item.tooltip} aria-label={`${item.label}明细`}>
             <span>{item.label}</span>
             <p>
               <strong>{item.text}</strong>
