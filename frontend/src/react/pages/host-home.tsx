@@ -29,6 +29,7 @@ import { usePointerDrag } from "@/react/lib/use-pointer-drag";
 import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
 import { DistroBadge } from "@/react/components/distro-badge";
 import { openHostSetup } from "@/react/components/host-setup-dialog";
+import { openHostRename } from "@/react/components/host-rename-dialog";
 import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
@@ -1387,6 +1388,14 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 }}
               />
               <MenuDivider />
+              <MenuItem
+                label="重命名"
+                onClick={() => {
+                  const name = hostMenu.host;
+                  closeAllMenus();
+                  openHostRename(name);
+                }}
+              />
               <MenuItem
                 label="编辑主机"
                 onClick={() => {
