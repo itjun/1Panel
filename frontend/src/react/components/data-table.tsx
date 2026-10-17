@@ -105,6 +105,8 @@ export type InteractiveColumn<T> = {
   flex?: number;
   /** 空间不够时允许压到 minWidth（文字截断） */
   shrink?: boolean;
+  /** Keep this identity column visible while scrolling horizontally. */
+  pinned?: boolean;
   render: (row: T, index: number) => ReactNode;
 };
 
@@ -194,6 +196,7 @@ export function InteractiveDataTable<T>({
   const skipClick = useRef(false);
 
   const [available, setAvailable] = useState(0);
+  const [contentHeight, setContentHeight] = useState<number>();
   const [fonts, setFonts] = useState<TableFonts | null>(null);
   const [resizeHover, setResizeHover] = useState<string | null>(null);
   const [resizeDraft, setResizeDraft] = useState<{ key: string; width: number } | null>(null);
@@ -202,10 +205,16 @@ export function InteractiveDataTable<T>({
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const update = () => setAvailable(el.clientWidth);
+    const update = () => {
+      setAvailable(el.clientWidth);
+      // Include the native horizontal scrollbar when columns change. WebKit's
+      // intrinsic flex height can otherwise clip the last row by its thickness.
+      if (tableRef.current) setContentHeight(tableRef.current.offsetHeight + el.offsetHeight - el.clientHeight);
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
+    if (tableRef.current) observer.observe(tableRef.current);
     return () => observer.disconnect();
   }, []);
 
@@ -253,7 +262,7 @@ export function InteractiveDataTable<T>({
           : Math.max(column.minWidth ?? 48, naturals[column.key]),
         flex: column.flex,
         shrink: column.shrink,
-        manual: manual[column.key],
+        manual: manual[column.key] == null ? undefined : Math.max(column.minWidth ?? 48, manual[column.key]),
       })),
       available,
     );
@@ -351,6 +360,9 @@ export function InteractiveDataTable<T>({
 
   function onHeaderPointerDown(event: ReactPointerEvent<HTMLTableCellElement>, key: string) {
     if (event.button !== 0) return;
+    // A drag may not dispatch click after moving the captured header. Only
+    // suppress its own click, never the user's next sorting gesture.
+    skipClick.current = false;
     const startX = event.clientX;
     const startY = event.clientY;
     const pointerId = event.pointerId;
@@ -382,7 +394,7 @@ export function InteractiveDataTable<T>({
       if (active && dropTarget) {
         onColumnOrderChange(
           moveColumn(
-            ordered.map((column) => column.key),
+            columnOrder,
             key,
             dropTarget.key,
             dropTarget.after,
@@ -411,7 +423,7 @@ export function InteractiveDataTable<T>({
 
   return (
     // 外边距由页面负责（内容区安全边距），这里只管表格本身
-    <div ref={scrollRef} className="surface-float min-h-48 flex-1 overflow-auto">
+    <div ref={scrollRef} className="surface-float min-h-0 overflow-auto" style={{ flex: "0 1 auto", height: contentHeight }} tabIndex={0} role="region" aria-label="主机列表，可横向滚动">
       <div className="relative" style={{ width: tableWidth }}>
         <table
           ref={tableRef}
@@ -434,7 +446,7 @@ export function InteractiveDataTable<T>({
                       column.align === "right" && "text-right",
                       colDrag?.key === column.key ? "cursor-grabbing opacity-50" : "cursor-pointer",
                     )}
-                    style={{ width: widths[column.key] }}
+                    style={{ width: widths[column.key], ...(column.pinned ? { position: "sticky", left: 0, zIndex: 3, background: "var(--color-surface)", boxShadow: "1px 0 var(--color-line)" } : {}) }}
                     onPointerDown={(event) => onHeaderPointerDown(event, column.key)}
                     onClick={() => cycleSort(column.key)}
                   >
@@ -487,7 +499,7 @@ export function InteractiveDataTable<T>({
                         column.align === "right" && "text-right",
                         colDrag?.key === column.key && "opacity-50",
                       )}
-                      style={{ width: widths[column.key] }}
+                      style={{ width: widths[column.key], ...(column.pinned ? { position: "sticky", left: 0, zIndex: 1, background: "var(--color-surface)", boxShadow: "1px 0 var(--color-line)" } : {}) }}
                     >
                       {column.render(row, index)}
                     </td>

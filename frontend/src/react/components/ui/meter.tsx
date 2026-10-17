@@ -78,16 +78,17 @@ export function Meter({
   return (
     <span
       className={cn("meter", className)}
-      role="meter"
+      role={hasValue ? "meter" : undefined}
       aria-valuenow={hasValue ? percent : undefined}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuetext={text ?? undefined}
+      aria-valuemin={hasValue ? 0 : undefined}
+      aria-valuemax={hasValue ? 100 : undefined}
+      aria-valuetext={hasValue ? text ?? undefined : undefined}
       data-tip={title}
     >
       <span className="meter-track" aria-hidden="true">
         {cells}
       </span>
+      {!hasValue && text === null ? <span className="sr-only">暂无数据</span> : null}
       {text !== null ? (
         <span className="meter-value font-mono text-xs text-muted tabular-nums">{text}</span>
       ) : null}

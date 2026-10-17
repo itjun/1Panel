@@ -1,3 +1,5 @@
+import { ActionPopover } from "@/react/components/workbench/action-popover";
+import { currentGroupSample } from "@/utils/groupSnapshot";
 import { GroupTrends, snapshotAlerts } from "@/react/components/workbench/group-trends";
 import { RangeControls } from "@/react/components/workbench/resource-trends";
 import { focusHost, useWorkbenchState, useTrendWindow, type TrendMetric, type TrendRange } from "@/react/components/workbench/state";
@@ -46,6 +48,8 @@ import { sortRowsByGroupValue, type GroupSortValue } from "@/utils/groupTableSta
 
 const COL_WIDTHS_KEY = "1pannel-group-col-widths-v5";
 const COL_ORDER_KEY = "1pannel-group-col-order-v1";
+const COL_HIDDEN_KEY = "1pannel-group-hidden-columns-v1";
+const DEFAULT_HIDDEN = ["index", "addr", "lan", "user", "version", "spec", "load"];
 const TABLE_SORT_KEY = "1pannel-group-table-sort-v1";
 
 const GROUP_NAME_RE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
@@ -97,12 +101,12 @@ type GroupColumnFit = Pick<
 /** 列宽按内容自适应：width 只是测量前的初值；flex 列分富余空间，shrink 列不够时可截断到 minWidth */
 const GROUP_COL_FIT: Record<GroupColumnKey, GroupColumnFit> = {
   index: { width: 56, minWidth: 48 },
-  host: { extra: 24, width: 140, minWidth: 96, flex: 1, shrink: true },
-  addr: { width: 176, minWidth: 96, font: "mono", extra: IP_COPY_EXTRA, shrink: true },
-  lan: { width: 176, minWidth: 96, font: "mono", extra: IP_COPY_EXTRA, shrink: true },
+  host: { extra: 24, width: 180, minWidth: 168, flex: 1, shrink: false },
+  addr: { width: 176, minWidth: 156, font: "mono", extra: IP_COPY_EXTRA, shrink: false },
+  lan: { width: 176, minWidth: 156, font: "mono", extra: IP_COPY_EXTRA, shrink: false },
   agent: { width: 100, minWidth: 72, extra: TAG_EXTRA },
   user: { width: 64, minWidth: 56, shrink: true },
-  version: { width: 108, minWidth: 64, font: "mono", shrink: true },
+  version: { width: 128, minWidth: 120, font: "mono", shrink: false },
   spec: { width: 80, minWidth: 64 },
   load: { width: 136, minWidth: 120, font: "mono-xs", extra: METER_EXTRA, flex: 2 },
   cpu: { width: 120, minWidth: 112, font: "mono-xs", extra: METER_EXTRA, flex: 2 },
@@ -174,6 +178,17 @@ type GroupRow = {
 
 function isGroupColumnKey(value: unknown): value is GroupColumnKey {
   return typeof value === "string" && (GROUP_COL_KEYS as readonly string[]).includes(value);
+}
+
+function readHiddenColumns(): string[] {
+  try {
+    const raw = localStorage.getItem(COL_HIDDEN_KEY);
+    if (raw) {
+      const value: unknown = JSON.parse(raw);
+      if (Array.isArray(value)) return value.filter((key): key is GroupColumnKey => isGroupColumnKey(key) && key !== "host");
+    }
+  } catch { /* fall back to readable resource columns */ }
+  return [...DEFAULT_HIDDEN];
 }
 
 function readColumnOrder(): GroupColumnKey[] {
@@ -313,6 +328,11 @@ export function GroupPage({
   onCreateHost?: (groupId?: string) => void;
 } = {}) {
   const session = useSession();
+  const [hiddenColumns, setHiddenColumns] = useState(readHiddenColumns);
+  function changeHiddenColumns(next: string[]) {
+    setHiddenColumns(next);
+    localStorage.setItem(COL_HIDDEN_KEY, JSON.stringify(next));
+  }
   const queryClient = useQueryClient();
   const groupId = session.activeGroupId || UNGROUPED_ID;
   const [viewMode, setViewMode] = useWorkbenchState<"trends" | "list">(`group-view:${groupId}`, "trends");
@@ -323,7 +343,7 @@ export function GroupPage({
   const scrollRef = useRef<HTMLDivElement>(null);
   const trendWindow = useTrendWindow(range);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollTop; }, [viewMode]);
-  function openWorkbench(name: string, metric: TrendMetric = "mem") {
+  function openWorkbench(name: string, metric?: TrendMetric) {
     focusHost(name, { range, metric });
     session.openHost(name, "overview");
   }
@@ -427,12 +447,13 @@ export function GroupPage({
     () =>
       hosts.map((host) => {
         const snap = byName.get(host.name);
-        const ov = snap?.overview;
-        const diskSum = summarizeDisks(snap?.disks);
+        const sample = currentGroupSample(snap, overview.isError);
+        const ov = sample.overview;
+        const diskSum = summarizeDisks(sample.disks);
         const tag = agentTagOf(agentStatuses[host.name], latestAgentVersion);
         let agent = tag.text;
         if (snap?.notInstalled) agent = "未装";
-        else if (snap?.error && !agentStatuses[host.name]?.ok) agent = "异常";
+        else if (snap?.error || overview.isError) agent = "采集异常";
         return {
           name: host.name,
           hostName: host.hostName,
@@ -451,11 +472,11 @@ export function GroupPage({
           loadPercent: ov && ov.cpuCount > 0 ? ((ov.load1 || 0) / ov.cpuCount) * 100 : ov ? 0 : null,
           cpuAlert: isCpuAlert(ov),
           memAlert: isMemAlert(ov),
-          diskAlert: isDiskFull(snap?.disks),
+          diskAlert: isDiskFull(sample.disks),
           loadAlert: isLoadAlert(ov),
         };
       }),
-    [agentStatuses, byName, hosts, latestAgentVersion],
+    [agentStatuses, byName, hosts, latestAgentVersion, overview.isError],
   );
 
   const sortedRows = useMemo(() => {
@@ -483,6 +504,7 @@ export function GroupPage({
     () =>
       GROUP_COL_KEYS.map((key) => ({
         key,
+        pinned: key === "host",
         label: GROUP_COL_LABELS[key],
         ...GROUP_COL_FIT[key],
         measure: key === "index" ? undefined : (row: GroupRow) => groupCellText(row, key),
@@ -524,8 +546,8 @@ export function GroupPage({
               );
             }
             // 异常：Agent 探测出错且未在线（row.agent 已按此算好）
-            if (row.agent === "异常") {
-              return <Tag tone="danger">异常</Tag>;
+            if (row.agent === "采集异常") {
+              return <Tag tone="danger">采集异常</Tag>;
             }
             const tag = agentTagOf(agentStatuses[row.name], latestAgentVersion);
             if (tag.tone === "ok") {
@@ -615,11 +637,13 @@ export function GroupPage({
     setManualWidths({});
     localStorage.removeItem(COL_ORDER_KEY);
     localStorage.removeItem(COL_WIDTHS_KEY);
+    changeHiddenColumns([...DEFAULT_HIDDEN]);
   }
 
   const hasCustomLayout =
     columnOrder.some((key, index) => key !== GROUP_COL_KEYS[index]) ||
-    Object.keys(manualWidths).length > 0;
+    Object.keys(manualWidths).length > 0 ||
+    hiddenColumns.length !== DEFAULT_HIDDEN.length || hiddenColumns.some(key => !DEFAULT_HIDDEN.includes(key));
 
   async function refreshAll() {
     setRefreshing(true);
@@ -844,21 +868,34 @@ export function GroupPage({
     summaryText += ` · ${updatableCount} 台可更新`;
   }
 
-  // 有未装 / 可更新的主机时「安装 Agent」是主操作，其余一律 ghost
-  let installVariant: "primary" | "ghost" = "ghost";
-  if (needInstallCount > 0) {
-    installVariant = "primary";
-  }
+  const primaryColumns = DEFAULT_HIDDEN.length === hiddenColumns.length && DEFAULT_HIDDEN.every(key => hiddenColumns.includes(key));
 
   const alertNames = new Set(hosts.filter(h => { const snap = byName.get(h.name); return overview.isError || !!snap?.error || !!snap?.notInstalled || snapshotAlerts(snap).length > 0; }).map(h => h.name));
   const visibleNames = hosts.filter(h => !onlyAlerts || alertNames.has(h.name)).map(h => h.name);
   const visibleRows = sortedRows.filter(row => !onlyAlerts || alertNames.has(row.name));
   return (
     <Page
-      title={groupLabel}
+      title="主机分组"
       flush
-      actions={
-        <>
+      onRefresh={() => void refreshAll()}
+      refreshing={refreshing}
+    >
+      {/* 内容区四周 16px 安全边距：白色平面上直接放扁平表格 */}
+      <div className="workbench-group flex min-h-0 flex-1 flex-col gap-2 p-4">
+        <FlashNotices flash={boardFlash} />
+        <div className="workbench-group-heading">
+          <div className="min-w-0"><h1>{groupLabel}</h1><p>{summaryText}</p></div>
+          <div className="workbench-group-actions">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!hosts.length || batchBusy}
+            onClick={() => setBatchConfirmOpen(true)}
+            data-tip="为本组全部主机安装 Agent"
+          >
+            {batchBusy ? "安装中…" : "安装 Agent"}
+          </Button>
+            {(canEditGroup || hasCustomLayout) && <ActionPopover label="更多分组操作" closeOnAction>
           {canEditGroup ? (
             <>
               <Button
@@ -879,15 +916,6 @@ export function GroupPage({
               </Button>
             </>
           ) : null}
-          <Button
-            variant={installVariant}
-            size="sm"
-            disabled={!hosts.length || batchBusy}
-            onClick={() => setBatchConfirmOpen(true)}
-            data-tip="为本组全部主机安装 Agent"
-          >
-            {batchBusy ? "安装中…" : "安装 Agent"}
-          </Button>
           {canEditGroup && hosts.length >= 2 ? (
             <Button
               variant="ghost"
@@ -908,14 +936,10 @@ export function GroupPage({
               分组设置
             </Button>
           ) : null}
-        </>
-      }
-      onRefresh={() => void refreshAll()}
-      refreshing={refreshing}
-    >
-      {/* 内容区四周 16px 安全边距：白色平面上直接放扁平表格 */}
-      <div className="workbench-group flex min-h-0 flex-1 flex-col gap-2 p-4">
-        <FlashNotices flash={boardFlash} />
+            </ActionPopover>}
+          </div>
+        </div>
+
         {!hosts.length ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
             <Button variant="primary" onClick={openAddHost}>
@@ -924,18 +948,29 @@ export function GroupPage({
           </div>
         ) : (
           <>
-            <div className="workbench-group-heading"><h1>{groupLabel}</h1><p>{summaryText}</p></div>
             <div className="workbench-group-toolbar">
-              <RangeControls value={range} from={trendWindow.from} to={trendWindow.to} onChange={setRange}/><div className="flex-1"/>
               <div className="workbench-view-switch"><Button aria-pressed={viewMode === "trends"} variant={viewMode === "trends" ? "primary" : "ghost"} onClick={() => setViewMode("trends")}>趋势</Button><Button aria-pressed={viewMode === "list"} variant={viewMode === "list" ? "primary" : "ghost"} onClick={() => setViewMode("list")}>列表</Button></div>
               <Button aria-pressed={onlyAlerts} variant={onlyAlerts ? "primary" : "secondary"} onClick={() => setOnlyAlerts(!onlyAlerts)}>{onlyAlerts ? "清除告警筛选" : `查看告警 ${alertNames.size}`}</Button>
+              {viewMode === "trends" ? <RangeControls value={range} from={trendWindow.from} to={trendWindow.to} onChange={setRange}/> : <div className="workbench-column-controls">
+                <div className="workbench-view-switch" role="group" aria-label="显示列预设">
+                  <Button aria-pressed={primaryColumns} variant={primaryColumns ? "primary" : "ghost"} onClick={() => changeHiddenColumns([...DEFAULT_HIDDEN])}>主要列</Button>
+                  <Button aria-pressed={!hiddenColumns.length} variant={!hiddenColumns.length ? "primary" : "ghost"} onClick={() => changeHiddenColumns([])}>全部列</Button>
+                </div>
+                <ActionPopover label="自选列">
+                  <p className="px-2 py-1 text-xs text-muted">主机列固定，其余列可按需显示</p>
+                  {GROUP_COL_KEYS.map(key => <label key={key} className="flex min-h-8 items-center gap-2 px-2">
+                    <input type="checkbox" checked={!hiddenColumns.includes(key)} disabled={key === "host"} onChange={e => changeHiddenColumns(e.target.checked ? hiddenColumns.filter(k => k !== key) : [...hiddenColumns, key])} />{GROUP_COL_LABELS[key]}
+                  </label>)}
+                </ActionPopover>
+              </div>}
             </div>
-            {overview.isError ? <Notice text={`采集更新失败：${formatErr(overview.error)}，下方保留最后成功数据`} /> : null}
+            {viewMode === "list" && <span className="workbench-current-sample">{overview.isError ? "采集更新失败" : "当前数据"}<span>{overview.dataUpdatedAt ? `更新于 ${new Date(overview.dataUpdatedAt).toLocaleTimeString("zh-CN", { hour12: false })}` : "等待采样"}</span></span>}
+            {overview.isError ? <Notice text={`采集更新失败：${formatErr(overview.error)}，当前读数暂不可用，历史曲线仍可查看`} /> : null}
             {selectedHosts.length ? <div className="flex items-center gap-2 text-xs text-accent">已选择 {selectedHosts.filter(name => hosts.some(h => h.name === name)).length} 台<Button size="sm" variant="ghost" onClick={() => setSelectedHosts([])}>取消选择</Button></div> : null}
             {viewMode === "trends" ? <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef} onScroll={e => setScrollTop(e.currentTarget.scrollTop)}>
               {visibleNames.length ? <GroupTrends names={visibleNames} snapshots={byName} from={trendWindow.from} to={trendWindow.to} unavailable={overview.isError} sampledAt={overview.dataUpdatedAt} onOpen={openWorkbench}/> : <div className="py-12 text-center text-muted">没有符合筛选条件的主机<Button variant="ghost" onClick={() => setOnlyAlerts(false)}>清除筛选</Button></div>}
             </div> : <InteractiveDataTable
-              columns={columns}
+              columns={columns.filter(column => !hiddenColumns.includes(column.key))}
               data={visibleRows}
               columnOrder={columnOrder}
               manualWidths={manualWidths}

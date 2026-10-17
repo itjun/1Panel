@@ -1,3 +1,5 @@
+import { collectionState } from "@/utils/collectionState";
+import { Info } from "lucide-react";
 import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -352,6 +354,7 @@ function OverviewPage({ host }: { host: string }) {
   const mounts = mountDisks(disks.data);
   const physDisks = physicalDisks(disks.data);
   const agent = agentStatus.data;
+  const collection = collectionState(overview, !!agent && !agent.ok);
   const agentMissing = !!agent && !agent.ok && !!agent.notInstalled;
   const agentUpdatable =
     !!agent?.ok && !!latestVer.data && agent.version !== latestVer.data;
@@ -412,14 +415,7 @@ function OverviewPage({ host }: { host: string }) {
     hiddenIfaceCount = virtualIfaces.length;
   }
 
-  let egressText = "—";
-  if (network.data) {
-    egressText =
-      network.data.egressPublicIP || (network.data.publicIPs || []).join(", ") || "—";
-    if (network.data.egressPublicLoc) {
-      egressText = `${egressText}（${network.data.egressPublicLoc}）`;
-    }
-  }
+  const egressIP = network.data?.egressPublicIP || (network.data?.publicIPs || []).join(", ") || "暂无数据";
 
   const runningDocker = (docker.data?.containers || []).filter(
     (c) => (c.state || "").toLowerCase() === "running",
@@ -475,19 +471,22 @@ function OverviewPage({ host }: { host: string }) {
     ]);
   }
 
-  const agentErr =
-    overview.error && isAgentMissing(overview.error)
+  const collectionError = overview.error || overview.failureReason;
+  const agentErr = collection.unavailable
+    ? collectionError && isAgentMissing(collectionError)
       ? "未安装 Agent，无法采集状态"
-      : overview.error
-        ? formatErr(overview.error)
-        : "";
+      : collectionError
+        ? `采集失败：${formatErr(collectionError)}`
+        : agentMissing ? "未安装 Agent，无法采集状态" : "主机连接异常，暂时无法获取数据"
+    : "";
 
-  let dockerText = "—";
+  let dockerText = docker.isError || docker.failureCount > 0 ? "采集失败" : docker.isFetching ? "正在读取…" : "暂无数据";
   if (docker.data) {
     if (docker.data.available) {
       dockerText = `运行 ${runningDocker} / 共 ${docker.data.containers?.length ?? 0}`;
     } else {
-      dockerText = "未安装";
+      // available=false 也可能是服务不可达，不能据此断言未安装。
+      dockerText = "Docker 不可用";
     }
   }
 
@@ -512,8 +511,11 @@ function OverviewPage({ host }: { host: string }) {
           <span className="font-mono text-sm tabular-nums text-ink">
             {sshUser}@{sshAddr}:{sshPort}
           </span>
-          <Tag tone={sshTagTone}>{sshText}</Tag>
-          <Tag tone={agentTagTone}>{agentText}</Tag>
+          <div className="workbench-connection-status" role="group" aria-label="连接与采集状态">
+            <Tag tone={sshTagTone}>{sshText}</Tag>
+            <Tag tone={agentTagTone}>{agentText}</Tag>
+            <Tag tone={collection.unavailable ? "danger" : data ? "ok" : "neutral"}>{collection.label}</Tag>
+          </div>
           <Button size="sm" disabled={checkBusy} onClick={() => void runCheck()}>
             {checkBusy ? "检查中…" : "检查 Agent"}
           </Button>
@@ -533,24 +535,26 @@ function OverviewPage({ host }: { host: string }) {
       {agentErr ? <Notice text={agentErr} /> : null}
       <FlashNotices flash={flash} />
 
-      <HostWorkbenchSummary host={host} data={data} disks={disks.data} unavailable={overview.isError} sampledAt={overview.dataUpdatedAt} />
-      <details className="workbench-system"><summary>系统与资源明细</summary>
+      <HostWorkbenchSummary host={host} data={data} disks={disks.data} unavailable={collection.unavailable} sampledAt={overview.dataUpdatedAt} />
+      <details className="workbench-system" open><summary>系统与资源明细</summary>
       <div className="mt-4 flex flex-col gap-section">
         {data ? (
           <section>
             <div className="mb-3 text-sm font-semibold text-ink">系统</div>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <div className="workbench-facts">
               {data.hostname && data.hostname !== host ? (
                 <OverviewFact label="系统主机名" mono>{data.hostname}</OverviewFact>
               ) : null}
               <OverviewFact label="内核" mono>{data.kernel || "—"}</OverviewFact>
               <OverviewFact label="架构" mono>{data.arch || "—"}</OverviewFact>
               <OverviewFact label="已运行">{formatDurationLong(data.uptime)}</OverviewFact>
-              <OverviewFact label="CPU 型号" className="col-span-2">
+              <OverviewFact label="CPU 型号" className="workbench-fact-wide">
                 {data.cpuModel || "—"}
               </OverviewFact>
-              <OverviewFact label="Swap" mono>{swapText}</OverviewFact>
-              <OverviewFact label="Docker 容器" mono>{dockerText}</OverviewFact>
+            </div>
+            <div className="workbench-secondary-facts">
+              <span>Swap <span className="text-ink">{swapText}</span></span>
+              <span>Docker 容器 <span className="text-ink" title={docker.error ? formatErr(docker.error) : undefined}>{dockerText}</span></span>
             </div>
           </section>
         ) : null}
@@ -574,12 +578,14 @@ function OverviewPage({ host }: { host: string }) {
           ) : null}
           {physDisks.length ? (
             <div className="mb-4">
-              <div className="mb-1 text-xs text-muted">物理磁盘</div>
+              <div className="workbench-detail-label">物理磁盘 / 存储池
+                <button type="button" className="workbench-info" aria-label="物理盘占比：已用量除以物理盘或存储池总容量" data-tip="占比按已用量 ÷ 物理盘或存储池总容量计算。"><Info size={14} /></button>
+              </div>
               <div className="flex flex-col">
                 {physDisks.map((d) => (
                   <div
                     key={d.filesystem || d.mount}
-                    className="grid h-table-row grid-cols-[minmax(96px,160px)_96px_200px_minmax(0,1fr)] items-center gap-4 border-b border-line px-3 text-sm"
+                    className="workbench-disk-row"
                   >
                     <span className="truncate font-mono" data-tip={d.filesystem}>
                       {d.mount || d.filesystem}
@@ -601,14 +607,16 @@ function OverviewPage({ host }: { host: string }) {
           ) : null}
           {mounts.length ? (
             <div>
-              <div className="mb-1 text-xs text-muted">分区</div>
+              <div className="workbench-detail-label">挂载分区 · 文件系统口径
+                <button type="button" className="workbench-info" aria-label="文件系统使用率说明：保留空间和取整会使它与物理盘占比不同" data-tip="使用率沿用文件系统 df 口径；保留空间和取整会使它与物理盘占比不同。"><Info size={14} /></button>
+              </div>
               <OverviewTable
                 columns={[
                   { key: "mount", label: "挂载点" },
                   { key: "fs", label: "文件系统" },
                   { key: "type", label: "类型" },
                   { key: "used", label: "已用 / 总量", align: "right" },
-                  { key: "pct", label: "使用率" },
+                  { key: "pct", label: "文件系统使用率" },
                 ]}
                 rows={mounts.map((d) => ({
                   id: `${d.mount}-${d.filesystem}`,
@@ -629,21 +637,22 @@ function OverviewPage({ host }: { host: string }) {
           <div className="mb-3 text-sm font-semibold text-ink">网络</div>
           {network.data ? (
             <>
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <div className="workbench-facts workbench-network-facts">
                 <OverviewFact label="内网 IP" mono>
                   {(network.data.privateIPs || []).join(", ") || "—"}
                 </OverviewFact>
-                <OverviewFact label="出口公网">{egressText}</OverviewFact>
+                <OverviewFact label="出口公网">
+                  <span className="block font-mono">{egressIP}</span>
+                  {network.data.egressPublicLoc && <span className="block text-xs text-muted">{network.data.egressPublicLoc}</span>}
+                </OverviewFact>
                 <OverviewFact label="默认网关" mono>
                   {network.data.defaultGateway || "—"}
                 </OverviewFact>
-                <OverviewFact label="Docker 网桥" mono>
-                  {(network.data.dockerIPs || []).join(", ") || "—"}
-                </OverviewFact>
               </div>
+              <div className="workbench-secondary-facts"><span>Docker 网桥 <span className="text-ink">{(network.data.dockerIPs || []).join(", ") || "未检测到"}</span></span></div>
               {shownIfaces.length ? (
-                <div className="mt-4">
-                  <div className="mb-1 text-xs text-muted">网卡</div>
+                <details className="workbench-network-details mt-4" open>
+                  <summary>网卡明细（{allIfaces.length}）</summary>
                   <OverviewTable
                     columns={[
                       { key: "name", label: "名称" },
@@ -674,8 +683,6 @@ function OverviewPage({ host }: { host: string }) {
                       ],
                     }))}
                   />
-                </div>
-              ) : null}
               {virtualIfaces.length > VIRTUAL_IFACE_FOLD ? (
                 <Button
                   size="sm"
@@ -687,6 +694,8 @@ function OverviewPage({ host }: { host: string }) {
                     ? `显示另外 ${hiddenIfaceCount} 个虚拟网卡`
                     : "收起虚拟网卡"}
                 </Button>
+              ) : null}
+                </details>
               ) : null}
             </>
           ) : (
@@ -711,9 +720,6 @@ function OverviewPage({ host }: { host: string }) {
             ))}
           </ul>
         </DetailPanel>
-      ) : null}
-      {!data && overview.isLoading ? (
-        <p className="text-sm text-muted">加载中…</p>
       ) : null}
 
       <ConfirmDialog

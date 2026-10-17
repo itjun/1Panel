@@ -41,6 +41,7 @@ export function HostWorkbenchSummary({
   );
   const window = useTrendWindow(range);
   const disk = summarizeDisks(disks);
+  const sampleLabel = unavailable ? data ? "最后已知读数" : "暂无有效读数" : data ? "当前" : "首次采样中…";
   const events = useQuery({
     queryKey: ["workbench-events", host],
     queryFn: () => api.listAlertHistoryByHost(host, 20),
@@ -85,11 +86,11 @@ export function HostWorkbenchSummary({
     },
     {
       label: "内存",
-      tooltip: data ? `总量：${formatMemCapacity(data.memTotal)}\n已用：${formatBytes(data.memUsed)}\n可用：${formatBytes(Math.max(0, (data.memTotal || 0) - (data.memUsed || 0)))}\n使用率：${(data.memPercent || 0).toFixed(2)}%\nSwap：${swapText}` : "等待采样",
+      tooltip: data ? `标称规格（估算）：${formatMemCapacity(data.memTotal)}\n系统容量：${formatBytes(data.memTotal)}\n已用：${formatBytes(data.memUsed)}\n可用：${formatBytes(Math.max(0, (data.memTotal || 0) - (data.memUsed || 0)))}\n使用率：${(data.memPercent || 0).toFixed(2)}%\nSwap：${swapText}` : "等待采样",
       value: data?.memPercent,
       text: data ? `${data.memPercent.toFixed(1)}%` : "—",
       detail: data
-        ? `${formatBytes(data.memUsed)} / ${formatBytes(data.memTotal)}`
+        ? `已用 ${formatBytes(data.memUsed)} / 系统 ${formatBytes(data.memTotal)}`
         : "",
     },
     {
@@ -98,7 +99,7 @@ export function HostWorkbenchSummary({
       value: disk?.percent,
       text: disk ? `${disk.percent.toFixed(1)}%` : "—",
       detail: disk
-        ? `${formatBytes(disk.used)} / ${formatBytes(disk.total)}`
+        ? `${disk.scope === "disk" ? "物理盘/池" : "分区汇总"} ${formatBytes(disk.used)} / ${formatBytes(disk.total)}`
         : "",
     },
     {
@@ -121,11 +122,11 @@ export function HostWorkbenchSummary({
         </div>
       )}
       <div className="workbench-sample">
-        {unavailable ? "最后已知读数" : "当前"}
+        {sampleLabel}
         <span>
           {sampledAt
             ? new Date(sampledAt).toLocaleString("zh-CN", { hour12: false })
-            : "等待采样"}
+            : ""}
         </span>
       </div>
       <div className="workbench-metrics">
@@ -134,8 +135,8 @@ export function HostWorkbenchSummary({
             <span>{item.label}</span>
             <p>
               <strong>{item.text}</strong>
-              <small>{item.detail}</small>
             </p>
+            <small>{item.detail || "\u00a0"}</small>
             <Meter value={item.value} showValue={false} className="w-full" />
           </div>
         ))}
@@ -158,8 +159,9 @@ export function HostWorkbenchSummary({
         from={window.from}
         to={window.to}
         primary={context.metric}
+        currentAvailable={!unavailable}
       />
-      <div className="workbench-diagnostics">
+      <div className={`workbench-diagnostics${events.data?.length ? "" : " is-compact"}`}>
         <section>
           <div className="workbench-section-heading">
             <h2>当前进程</h2>
@@ -169,14 +171,14 @@ export function HostWorkbenchSummary({
               <ArrowRight size={14} />
             </Button>
           </div>
-          <p className="mb-2 text-xs text-muted">
+          {procs.dataUpdatedAt > 0 && <p className="mb-2 text-xs text-muted">
             {procs.dataUpdatedAt
               ? new Date(procs.dataUpdatedAt).toLocaleTimeString("zh-CN", {
                   hour12: false,
                 })
               : "等待采样"}{" "}
             · 当前快照，不代表历史时段
-          </p>
+          </p>}
           {unavailable || procs.isError ? (
             <p className="py-6 text-sm text-muted">
               采集不可用，无法获取当前进程
@@ -215,7 +217,7 @@ export function HostWorkbenchSummary({
               </table>
               {!list.length && (
                 <p className="py-6 text-sm text-muted">
-                  {procs.isPending ? "读取进程中…" : "暂无进程"}
+                  {!data ? "等待主机数据" : procs.isPending ? "读取进程中…" : "暂无进程"}
                 </p>
               )}
             </div>
