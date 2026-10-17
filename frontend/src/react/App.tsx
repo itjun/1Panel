@@ -1,3 +1,5 @@
+import "@/react/styles/workbench.css";
+import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
 import { SidebarSplitter } from "@/react/components/sidebar-splitter";
 import {
   ShellToolbarProvider,
@@ -162,7 +164,7 @@ function Shell() {
         <div className="pointer-events-auto relative flex h-full shrink-0 items-center">
           <WindowChrome />
         </div>
-        {hostWorkspace ? <HostToolTabs /> : null}
+        {hostWorkspace ? <span className="min-w-0 truncate px-3 text-sm text-muted">{session.activeHost}</span> : null}
         <div
           ref={setSlot}
           className="shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"
@@ -294,7 +296,9 @@ function HostWorkspace() {
     tool === "apps";
   const paneClass = heavyPane ? "motion-fade-in" : "motion-axis-x-in";
   return (
-    <div className="workspace-host flex h-full min-h-0 flex-col">
+    <div className="workspace-host flex h-full min-h-0 min-w-0 flex-col">
+      <HostWorkbenchHeader host={host} />
+      <HostToolTabs />
       <div key={`${host}:${tool}`} className={`flex min-h-0 flex-1 flex-col ${paneClass}`}>
         {fileTool ? (
           <HostFilePage host={host} tool={tool} />

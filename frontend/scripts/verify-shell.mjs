@@ -55,9 +55,9 @@ const moduleRail = fs.readFileSync(path.join(root, "src/react/components/module-
 if (!moduleRail.includes('label="主机"') || !app.includes("ModuleRail")) {
   fail("primary module rail must provide host navigation");
 }
-if (!app.includes("HostToolTabs")) fail("host tool tabs must be rendered in the toolbar");
-if (app.includes("workspace-host__header")) {
-  fail("host tool tabs are still rendered in the content header");
+if (!app.includes("HostToolTabs")) fail("host tool tabs must remain available in the host workspace");
+if (!app.includes("HostWorkbenchHeader") || (app.match(/<HostToolTabs\s*\/>/g) || []).length !== 1) {
+  fail("host workspace must have one identity header and exactly one tool tab row");
 }
 ok("React shell and workspace navigation markers present");
 

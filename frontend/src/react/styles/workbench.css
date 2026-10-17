@@ -1,0 +1,291 @@
+/* Shared workbench surfaces: all colors adapt through existing light/dark tokens. */
+.host-workbench-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px 12px;
+  flex-shrink: 0;
+  min-width: 0;
+  background: var(--color-surface);
+}
+.workbench-tabs {
+  display: flex;
+  flex-shrink: 0;
+  min-width: 0;
+  margin: 0 24px;
+  border-bottom: 1px solid var(--color-line);
+  height: 44px;
+  background: var(--color-surface);
+}
+.workbench-tab {
+  width: 64px;
+  flex-shrink: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--color-muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.workbench-tab:hover,
+.workbench-more:hover {
+  background: var(--color-raised);
+  color: var(--color-ink);
+}
+.workbench-tab.is-active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.workbench-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 76px;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.workbench-tab:focus-visible,
+.workbench-more:focus-visible,
+.resource-trends__plot[role="button"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.workbench-range {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.resource-trends {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+.resource-trends > section {
+  min-width: 0;
+}
+.resource-trends > section + section {
+  border-left: 1px solid var(--color-line);
+  padding-left: 20px;
+}
+.resource-trends__label {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  height: 28px;
+}
+.resource-trends__label strong {
+  font-size: 20px;
+  font-weight: 600;
+}
+.resource-trends__plot {
+  height: 190px;
+  min-width: 0;
+  overflow: hidden;
+}
+.resource-trends__plot[role="button"] {
+  cursor: pointer;
+}
+.resource-trends__empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.host-workbench-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.workbench-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-radius: var(--radius-panel);
+}
+.workbench-alert span {
+  flex: 1;
+  font-size: 14px;
+}
+.workbench-sample {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.workbench-sample span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+.workbench-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 8px 0 12px;
+  border-block: 1px solid var(--color-line);
+}
+.workbench-metrics > div {
+  min-width: 0;
+  padding: 0 20px;
+  border-left: 1px solid var(--color-line);
+}
+.workbench-metrics > div:first-child {
+  padding-left: 0;
+  border: 0;
+}
+.workbench-metrics > div:last-child {
+  padding-right: 0;
+}
+.workbench-metrics > div > span {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.workbench-metrics p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 6px 0 12px;
+}
+.workbench-metrics strong {
+  font-size: 26px;
+  font-weight: 600;
+}
+.workbench-metrics small {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.workbench-section-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 32px;
+}
+.workbench-section-heading h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.workbench-section-heading > .workbench-range,
+.workbench-section-heading > button {
+  margin-left: auto;
+}
+.workbench-diagnostics {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 24px;
+}
+.workbench-diagnostics > section {
+  min-width: 0;
+}
+.workbench-diagnostics > section + section {
+  padding-left: 24px;
+  border-left: 1px solid var(--color-line);
+}
+.workbench-procs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+.workbench-procs th {
+  font-weight: 400;
+  color: var(--color-muted);
+  height: 32px;
+}
+.workbench-procs td {
+  height: 36px;
+  border-top: 1px solid var(--color-line);
+  padding-right: 12px;
+}
+.workbench-procs td:first-child {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workbench-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-line);
+}
+.workbench-event > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.workbench-event time {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.workbench-event strong {
+  display: block;
+  margin: 6px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.workbench-event p {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  color: var(--color-muted);
+}
+.workbench-system {
+  border-top: 1px solid var(--color-line);
+  padding-top: 16px;
+  flex-shrink: 0;
+}
+.workbench-system summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+@media (max-width: 1100px) {
+  .workbench-diagnostics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workbench-diagnostics > section + section {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+@media (max-width: 800px) {
+  .host-workbench-heading {
+    padding: 12px 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .workbench-tabs {
+    margin-inline: 16px;
+  }
+  .resource-trends:not(.is-group) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .resource-trends:not(.is-group) > section + section {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .workbench-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 20px;
+  }
+  .workbench-metrics > div:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .workbench-metrics strong {
+    font-size: 22px;
+  }
+}
+
+.host-workbench-summary .resource-trends__plot {
+  height: 180px;
+}
