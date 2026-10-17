@@ -1,9 +1,12 @@
+import { GroupTrends, snapshotAlerts } from "@/react/components/workbench/group-trends";
+import { RangeControls } from "@/react/components/workbench/resource-trends";
+import { focusHost, useWorkbenchState, useTrendWindow, type TrendMetric, type TrendRange } from "@/react/components/workbench/state";
 /**
  * INTEGRATION: entry 的 GroupPage 改从本文件引入。
  */
 import { Events } from "@wailsio/runtime";
 import { Copy } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -94,7 +97,7 @@ type GroupColumnFit = Pick<
 /** 列宽按内容自适应：width 只是测量前的初值；flex 列分富余空间，shrink 列不够时可截断到 minWidth */
 const GROUP_COL_FIT: Record<GroupColumnKey, GroupColumnFit> = {
   index: { width: 56, minWidth: 48 },
-  host: { width: 140, minWidth: 96, flex: 1, shrink: true },
+  host: { extra: 24, width: 140, minWidth: 96, flex: 1, shrink: true },
   addr: { width: 176, minWidth: 96, font: "mono", extra: IP_COPY_EXTRA, shrink: true },
   lan: { width: 176, minWidth: 96, font: "mono", extra: IP_COPY_EXTRA, shrink: true },
   agent: { width: 100, minWidth: 72, extra: TAG_EXTRA },
@@ -310,7 +313,20 @@ export function GroupPage({
   onCreateHost?: (groupId?: string) => void;
 } = {}) {
   const session = useSession();
+  const queryClient = useQueryClient();
   const groupId = session.activeGroupId || UNGROUPED_ID;
+  const [viewMode, setViewMode] = useWorkbenchState<"trends" | "list">(`group-view:${groupId}`, "trends");
+  const [range, setRange] = useWorkbenchState<TrendRange>(`group-range:${groupId}`, { minutes: 30 });
+  const [onlyAlerts, setOnlyAlerts] = useWorkbenchState(`group-alerts:${groupId}`, false);
+  const [selectedHosts, setSelectedHosts] = useWorkbenchState<string[]>(`group-selection:${groupId}`, []);
+  const [scrollTop, setScrollTop] = useWorkbenchState(`group-scroll:${groupId}`, 0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const trendWindow = useTrendWindow(range);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollTop; }, [viewMode]);
+  function openWorkbench(name: string, metric: TrendMetric = "mem") {
+    focusHost(name, { range, metric });
+    session.openHost(name, "overview");
+  }
   const canEditGroup = groupId !== UNGROUPED_ID;
   const groupLabel = session.groupName(groupId);
   const hosts = session.hostsOf(groupId);
@@ -475,7 +491,7 @@ export function GroupPage({
         wrap: key === "agent" || key === "load" || key === "cpu" || key === "mem" || key === "disk",
         render: (row: GroupRow, index: number) => {
           if (key === "index") return <span className="tabular-nums text-muted">{index + 1}</span>;
-          if (key === "host") return row.name;
+          if (key === "host") return <div className="flex min-w-0 items-center gap-2"><input type="checkbox" aria-label={`选择 ${row.name}`} checked={selectedHosts.includes(row.name)} onDoubleClick={e => e.stopPropagation()} onChange={e => { const checked = e.target.checked; setSelectedHosts(previous => checked ? [...previous, row.name] : previous.filter(name => name !== row.name)); }}/><span className="truncate">{row.name}</span></div>;
           if (key === "addr") {
             return <IpCell ip={row.publicIP} onCopy={copyIp} />;
           }
@@ -569,7 +585,7 @@ export function GroupPage({
           return "—";
         },
       })),
-    [agentStatuses, batchRowMap, copyIp, latestAgentVersion, showBatchInTable],
+    [agentStatuses, batchRowMap, copyIp, latestAgentVersion, showBatchInTable, selectedHosts, setSelectedHosts],
   );
 
   function persistOrder(next: string[]) {
@@ -608,8 +624,7 @@ export function GroupPage({
   async function refreshAll() {
     setRefreshing(true);
     try {
-      await overview.refetch();
-      await loadAgentStatuses();
+      await Promise.all([overview.refetch(), loadAgentStatuses(), queryClient.refetchQueries({ queryKey: ["workbench-history"], type: "active" })]);
     } finally {
       setRefreshing(false);
     }
@@ -835,6 +850,9 @@ export function GroupPage({
     installVariant = "primary";
   }
 
+  const alertNames = new Set(hosts.filter(h => { const snap = byName.get(h.name); return overview.isError || !!snap?.error || !!snap?.notInstalled || snapshotAlerts(snap).length > 0; }).map(h => h.name));
+  const visibleNames = hosts.filter(h => !onlyAlerts || alertNames.has(h.name)).map(h => h.name);
+  const visibleRows = sortedRows.filter(row => !onlyAlerts || alertNames.has(row.name));
   return (
     <Page
       title={groupLabel}
@@ -896,7 +914,7 @@ export function GroupPage({
       refreshing={refreshing}
     >
       {/* 内容区四周 16px 安全边距：白色平面上直接放扁平表格 */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
+      <div className="workbench-group flex min-h-0 flex-1 flex-col gap-2 p-4">
         <FlashNotices flash={boardFlash} />
         {!hosts.length ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
@@ -906,10 +924,19 @@ export function GroupPage({
           </div>
         ) : (
           <>
-            <p className="m-0 text-xs text-muted">{summaryText}</p>
-            <InteractiveDataTable
+            <div className="workbench-group-heading"><h1>{groupLabel}</h1><p>{summaryText}</p></div>
+            <div className="workbench-group-toolbar">
+              <RangeControls value={range} from={trendWindow.from} to={trendWindow.to} onChange={setRange}/><div className="flex-1"/>
+              <div className="workbench-view-switch"><Button aria-pressed={viewMode === "trends"} variant={viewMode === "trends" ? "primary" : "ghost"} onClick={() => setViewMode("trends")}>趋势</Button><Button aria-pressed={viewMode === "list"} variant={viewMode === "list" ? "primary" : "ghost"} onClick={() => setViewMode("list")}>列表</Button></div>
+              <Button aria-pressed={onlyAlerts} variant={onlyAlerts ? "primary" : "secondary"} onClick={() => setOnlyAlerts(!onlyAlerts)}>{onlyAlerts ? "清除告警筛选" : `查看告警 ${alertNames.size}`}</Button>
+            </div>
+            {overview.isError ? <Notice text={`采集更新失败：${formatErr(overview.error)}，下方保留最后成功数据`} /> : null}
+            {selectedHosts.length ? <div className="flex items-center gap-2 text-xs text-accent">已选择 {selectedHosts.filter(name => hosts.some(h => h.name === name)).length} 台<Button size="sm" variant="ghost" onClick={() => setSelectedHosts([])}>取消选择</Button></div> : null}
+            {viewMode === "trends" ? <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef} onScroll={e => setScrollTop(e.currentTarget.scrollTop)}>
+              {visibleNames.length ? <GroupTrends names={visibleNames} snapshots={byName} from={trendWindow.from} to={trendWindow.to} unavailable={overview.isError} sampledAt={overview.dataUpdatedAt} onOpen={openWorkbench}/> : <div className="py-12 text-center text-muted">没有符合筛选条件的主机<Button variant="ghost" onClick={() => setOnlyAlerts(false)}>清除筛选</Button></div>}
+            </div> : <InteractiveDataTable
               columns={columns}
-              data={sortedRows}
+              data={visibleRows}
               columnOrder={columnOrder}
               manualWidths={manualWidths}
               sortKey={sort.key}
@@ -919,7 +946,7 @@ export function GroupPage({
               onSortChange={persistSort}
               onRowDoubleClick={(row) => session.openHost(row.name)}
               getRowId={(row) => row.name}
-            />
+            />}
           </>
         )}
       </div>
