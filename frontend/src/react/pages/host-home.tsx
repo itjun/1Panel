@@ -14,13 +14,16 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { ChevronDown, Plus, Search, X } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Search, X } from "lucide-react";
 import { api, type sshconfig } from "@/api";
 import {
-  moveGroupInRows,
-  reconcileHostRows,
-  type GroupDropMark,
-} from "@/utils/hostRows";
+  moveGroupInRacks,
+  reconcileHostRacks,
+  PINNED_RACK,
+  UNGROUPED_RACK,
+  type HostRack,
+  type RackDropMark,
+} from "@/utils/hostRacks";
 import { useHostRackMotion } from "@/react/lib/use-host-rack-motion";
 import { usePointerDrag } from "@/react/lib/use-pointer-drag";
 import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
@@ -163,7 +166,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const dropTargetRef = useRef<string | null>(null);
   const rackRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const groupInsertRef = useRef<GroupDropMark | null>(null);
+  const groupInsertRef = useRef<RackDropMark | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const previewPointRef = useRef({ x: 0, y: 0 });
   const { startDrag } = usePointerDrag();
@@ -179,7 +182,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
-  const [groupInsert, setGroupInsert] = useState<GroupDropMark | null>(null);
+  const [groupInsert, setGroupInsert] = useState<RackDropMark | null>(null);
 
   const [hostMenu, setHostMenu] = useState<HostMenuState | null>(null);
   const [groupMenu, setGroupMenu] = useState<GroupMenuState | null>(null);
@@ -192,6 +195,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     name: string;
     boardTitle: string;
   } | null>(null);
+  const [rackSettings, setRackSettings] = useState<{ id: string; name: string } | null>(null);
   const [groupSettingsBusy, setGroupSettingsBusy] = useState(false);
   const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<{
     id: string;
@@ -257,14 +261,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     [session.groups],
   );
 
-  // 用户自定义的分组排布（每排一组 group id），与当前分组对账后使用
-  const groupRows = useMemo(
-    () =>
-      reconcileHostRows(
-        settings.hostHomeRows,
-        migrateGroups.map((group) => group.id),
-      ),
-    [settings.hostHomeRows, migrateGroups],
+  const groupRacks = useMemo(
+    () => reconcileHostRacks(settings.hostHomeRacks, migrateGroups.map((group) => group.id)),
+    [settings.hostHomeRacks, migrateGroups],
   );
 
   // 概况条：直接从已有 hosts / groups 算；筛选时只报匹配数（置顶区是重复项，不计）
@@ -560,9 +559,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   }
 
   /** 布局落地：写 UI 偏好，并按「从上到下、从左到右」展开同步分组 order */
-  async function persistGroupRows(nextRows: string[][]) {
-    updateSettings({ hostHomeRows: nextRows });
-    const flat = nextRows.flat();
+  async function persistGroupRows(nextRacks: HostRack[]) {
+    updateSettings({ hostHomeRacks: nextRacks });
+    const flat = nextRacks.flatMap((rack) => rack.groups);
     const current = migrateGroups.map((group) => group.id);
     const same = flat.length === current.length && flat.every((id, i) => id === current[i]);
     if (same) return;
@@ -571,10 +570,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     await session.refresh();
   }
 
-  async function moveGroupTo(dragged: string, mark: GroupDropMark) {
-    const nextRows = moveGroupInRows(groupRows, dragged, mark);
-    if (JSON.stringify(nextRows) === JSON.stringify(groupRows)) return;
-    await persistGroupRows(nextRows);
+  async function moveGroupTo(dragged: string, mark: RackDropMark) {
+    const nextRacks = moveGroupInRacks(groupRacks, dragged, mark, crypto.randomUUID());
+    if (JSON.stringify(nextRacks) === JSON.stringify(groupRacks)) return;
+    await persistGroupRows(nextRacks);
   }
 
   function onGroupHeadPointerDown(
@@ -593,7 +592,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     let lastY = event.clientY;
     let stopAutoScroll: (() => void) | null = null;
 
-    function setMark(next: GroupDropMark | null) {
+    function setMark(next: RackDropMark | null) {
       if (next?.kind === "block" && next.target === draggedId) next = null;
       groupInsertRef.current = next;
       setGroupInsert((previous) => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
@@ -601,11 +600,11 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
     // 落点判定：
     // 1. 指针在「新建一排」落区内或其下方 → 追加新排
-    // 2. 无置顶且指针在第一排顶部之上 → 在第一排前插入新排；有置顶时第一排即最高层，按排内处理
+    // 2. 固定置顶机柜隐藏时，允许在第一个可见普通机柜前插入新排
     // 3. 否则找指针所在的排：最后一个顶部在指针上方的排（排下方空白到下一排之前都算该排）
     // 4. 指针在该排底部与下一排顶部之间的间隙 → 在两排之间插入新排
     // 5. 否则在该排内：先按块顶部分子行（排内折行），再按 x 与块中线比较求插入点
-    // 排号一律取 data-rack-row（groupRows 下标），空排不渲染，DOM 顺序与下标可能不一致
+    // 排号取 data-rack-row（groupRacks 下标）；筛选和隐藏空机柜不会改变身份
     function updateInsert(clientX: number, clientY: number) {
       const bounds = scrollRef.current?.getBoundingClientRect();
       if (!bounds || clientX < bounds.left || clientX > bounds.right || clientY < bounds.top || clientY > bounds.bottom) {
@@ -615,14 +614,14 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       const rowEls = Array.from(rack!.querySelectorAll<HTMLElement>("[data-rack-row]"));
       const newRowEl = rack!.querySelector<HTMLElement>("[data-rack-new-row]");
       if (newRowEl && clientY >= newRowEl.getBoundingClientRect().top) {
-        setMark({ kind: "newRow", beforeRow: groupRows.length });
+        setMark({ kind: "newRow", beforeRow: groupRacks.length - 1 });
         return;
       }
       if (rowEls.length === 0) {
         setMark(null);
         return;
       }
-      if (!pinnedSection && clientY < rowEls[0]!.getBoundingClientRect().top) {
+      if (Number(rowEls[0]!.dataset.rackRow) > 0 && clientY < rowEls[0]!.getBoundingClientRect().top) {
         setMark({ kind: "newRow", beforeRow: Number(rowEls[0]!.dataset.rackRow) });
         return;
       }
@@ -656,7 +655,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         if (clientY >= line.top) targetLine = line;
       }
       if (!targetLine) {
-        setMark(null);
+        setMark({ kind: "rack", rackId: groupRacks[Number(rowEl.dataset.rackRow)]!.id });
         return;
       }
       for (const block of targetLine.blocks) {
@@ -734,10 +733,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       }
       // 改名会换 id：首页排布里同步替换，分组留在原位
       if (effectiveID !== id) {
-        const rows = readSettings().hostHomeRows.map((row) =>
-          row.map((item) => (item === id ? effectiveID : item)),
-        );
-        updateSettings({ hostHomeRows: rows });
+        const racks = readSettings().hostHomeRacks.map((rack) => ({
+          ...rack, groups: rack.groups.map((item) => item === id ? effectiveID : item),
+        }));
+        updateSettings({ hostHomeRacks: racks });
       }
       const nextBoard = groupSettings.boardTitle.trim();
       const curBoard = (g?.boardTitle || "").trim();
@@ -831,23 +830,29 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 置顶单独占最上一排、未分组单独占最下一排；中间按用户排布，筛选后空排不显示
+  // 置顶归属固定机柜；筛选和拖空都不会改变机柜身份。
   const sectionById = new Map(sections.map((section) => [section.id, section]));
-  const pinnedSection = sectionById.get(PINNED_SECTION);
-  const ungroupedSection = sectionById.get(UNGROUPED_ID);
-  const visibleRows: { index: number; sections: Section[] }[] = [];
-  groupRows.forEach((ids, index) => {
-    const rowSections: Section[] = [];
-    for (const id of ids) {
-      const section = sectionById.get(id);
-      if (section) rowSections.push(section);
+  const visibleRows: { index: number; rack: HostRack; sections: Section[] }[] = [];
+  groupRacks.forEach((rack, index) => {
+    const ids = rack.id === PINNED_RACK ? [PINNED_SECTION, ...rack.groups]
+      : rack.id === UNGROUPED_RACK ? [UNGROUPED_ID] : rack.groups;
+    const rowSections = ids.map((id) => sectionById.get(id)).filter((section): section is Section => !!section);
+    if (rowSections.length || (!keyword && rack.id !== UNGROUPED_RACK && (rack.name || draggingGroupId))) {
+      visibleRows.push({ index, rack, sections: rowSections });
     }
-    if (rowSections.length > 0) visibleRows.push({ index, sections: rowSections });
   });
+
+  function saveRackName() {
+    if (!rackSettings) return;
+    updateSettings({ hostHomeRacks: groupRacks.map((rack) => rack.id === rackSettings.id
+      ? { ...rack, name: rackSettings.name.trim() } : rack) });
+    setRackSettings(null);
+    showToast("机柜名称已保存");
+  }
 
   useHostRackMotion(
     rackRef,
-    JSON.stringify([groupRows, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
+    JSON.stringify([groupRacks, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
     !dragItem && !keyword,
     JSON.stringify(collapsedIds),
   );
@@ -1069,10 +1074,33 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     );
   }
 
+  function renderRack(row: (typeof visibleRows)[number]) {
+    const showGapLine = groupInsert?.kind === "newRow" && groupInsert.beforeRow === row.index;
+    const rackName = row.rack.name || (row.rack.id === PINNED_RACK ? "置顶机柜"
+      : row.rack.id === UNGROUPED_RACK ? "未分组机柜" : `机柜 ${row.index + 1}`);
+    return (
+      <section key={row.rack.id} className="relative flex flex-col gap-2"
+        data-rack-row={row.rack.id === UNGROUPED_RACK ? undefined : row.index}
+        aria-label={rackName}>
+        {showGapLine ? <div className="host-rack-lane-insert" /> : null}
+        <button type="button"
+          className="group/rack-name flex h-7 w-fit max-w-full items-center gap-2 rounded-control px-1 text-xs text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
+          aria-label={`设置机柜名称：${rackName}`} title="设置机柜名称"
+          onClick={() => setRackSettings({ id: row.rack.id, name: row.rack.name })}>
+          <span className="truncate">{rackName}</span><Pencil size={12} className="shrink-0 opacity-0 group-hover/rack-name:opacity-100 group-focus-visible/rack-name:opacity-100" />
+        </button>
+        <div className="host-rack-lane" data-rack-active={groupInsert?.kind === "rack" && groupInsert.rackId === row.rack.id || undefined}>
+          {row.sections.map((section) => renderSection(section))}
+          {!row.sections.length ? <div className="host-rack-empty">拖动分组到此机柜</div> : null}
+        </div>
+      </section>
+    );
+  }
+
   let dragHint = "拖到分组中移动";
   if (dragItem?.kind === "group") {
     dragHint = groupInsert?.kind === "newRow" ? "松手后放到新的一排" : groupInsert?.kind === "block"
-      ? `放到「${sectionById.get(groupInsert.target)?.name || "分组"}」${groupInsert.after ? "右侧" : "左侧"}` : "拖动调整分组位置";
+      ? `放到「${sectionById.get(groupInsert.target)?.name || "分组"}」${groupInsert.after ? "右侧" : "左侧"}` : groupInsert?.kind === "rack" ? "松手后放入此机柜" : "拖动调整分组位置";
   } else if (insertMark) {
     dragHint = `放到 ${insertMark.target} ${insertMark.after ? "之后" : "之前"}`;
   } else if (dropTargetId) {
@@ -1175,27 +1203,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         ) : null}
 
         <div ref={rackRef} className="flex flex-col gap-section">
-          {/* 置顶固定在第一排最前面，不可拖、无排序标记，排内插入点只会落在它之后；没有普通排时单独一排 */}
-          {pinnedSection && visibleRows.length === 0 ? (
-            <div className="host-rack-lane">{renderSection(pinnedSection)}</div>
-          ) : null}
-          {visibleRows.map((row, visibleIndex) => {
-            const showGapLine =
-              groupInsert?.kind === "newRow" && groupInsert.beforeRow === row.index;
-            return (
-              <div key={row.index} className="host-rack-lane" data-rack-row={row.index}>
-                {showGapLine ? <div className="host-rack-lane-insert" /> : null}
-                {pinnedSection && visibleIndex === 0 ? renderSection(pinnedSection) : null}
-                {row.sections.map((section) => renderSection(section))}
-              </div>
-            );
-          })}
+          {visibleRows.filter((row) => row.rack.id !== UNGROUPED_RACK).map(renderRack)}
           {draggingGroupId ? (
             <div
               className="host-rack-new-row"
               data-rack-new-row
               data-active={
-                groupInsert?.kind === "newRow" && groupInsert.beforeRow === groupRows.length
+                groupInsert?.kind === "newRow" && groupInsert.beforeRow === groupRacks.length - 1
                   ? "true"
                   : undefined
               }
@@ -1203,9 +1217,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               拖到这里新建一排
             </div>
           ) : null}
-          {ungroupedSection ? (
-            <div className="host-rack-lane">{renderSection(ungroupedSection)}</div>
-          ) : null}
+          {visibleRows.filter((row) => row.rack.id === UNGROUPED_RACK).map(renderRack)}
         </div>
 
       </div>
@@ -1522,6 +1534,25 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           )}
         </CtxPortal>
       ) : null}
+
+      <Dialog open={!!rackSettings} onOpenChange={(open) => !open && setRackSettings(null)}>
+        <DialogContent>
+          <DialogTitle>机柜名称</DialogTitle>
+          <DialogDescription>为这一排分组设置名称，支持中文。留空恢复默认名称。</DialogDescription>
+          <form onSubmit={(event) => { event.preventDefault(); saveRackName(); }}>
+            <label htmlFor="host-rack-name" className="mt-3 block text-sm text-muted">名称</label>
+            <input id="host-rack-name" autoFocus maxLength={80}
+              className="motion-field mt-1 h-9 w-full rounded-control px-3"
+              placeholder="例如：生产环境、测试环境"
+              value={rackSettings?.name || ""}
+              onChange={(event) => setRackSettings((prev) => prev ? { ...prev, name: event.target.value } : prev)} />
+            <DialogFooter>
+              <Button type="button" onClick={() => setRackSettings(null)}>取消</Button>
+              <Button type="submit" variant="primary">保存</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!deletingHosts}
