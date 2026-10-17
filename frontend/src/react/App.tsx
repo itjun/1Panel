@@ -164,10 +164,10 @@ function Shell() {
         <div className="pointer-events-auto relative flex h-full shrink-0 items-center">
           <WindowChrome />
         </div>
-        {hostWorkspace ? <span className="min-w-0 truncate px-3 text-sm text-muted">{session.activeHost}</span> : null}
+        {hostWorkspace ? <HostToolTabs /> : null}
         <div
           ref={setSlot}
-          className="shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"
+          className={hostWorkspace ? "hidden" : "shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"}
         />
         {isMac ? null : (
           <div className="pointer-events-auto absolute top-0 right-0 flex h-full items-center pr-1">
@@ -297,8 +297,7 @@ function HostWorkspace() {
   const paneClass = heavyPane ? "motion-fade-in" : "motion-axis-x-in";
   return (
     <div className="workspace-host flex h-full min-h-0 min-w-0 flex-col">
-      <HostWorkbenchHeader host={host} />
-      <HostToolTabs />
+      {tool === "overview" ? <HostWorkbenchHeader host={host} /> : null}
       <div key={`${host}:${tool}`} className={`flex min-h-0 flex-1 flex-col ${paneClass}`}>
         {fileTool ? (
           <HostFilePage host={host} tool={tool} />
