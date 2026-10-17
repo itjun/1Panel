@@ -56,8 +56,12 @@ if (!moduleRail.includes('label="主机"') || !app.includes("ModuleRail")) {
   fail("primary module rail must provide host navigation");
 }
 if (!app.includes("HostToolTabs")) fail("host tool tabs must remain available in the host workspace");
-if (!app.includes("HostWorkbenchHeader") || (app.match(/<HostToolTabs\s*\/>/g) || []).length !== 1) {
-  fail("host workspace must have one identity header and exactly one tool tab row");
+const toolbarMarkup = app.slice(app.indexOf("<header"), app.indexOf("</header>"));
+if (!toolbarMarkup.includes("<HostToolTabs />") || (app.match(/<HostToolTabs\s*\/>/g) || []).length !== 1) {
+  fail("host tools must appear exactly once in the window toolbar");
+}
+if (!app.includes('{tool === "overview" ? <HostWorkbenchHeader host={host} /> : null}')) {
+  fail("host identity header must be limited to overview");
 }
 ok("React shell and workspace navigation markers present");
 
