@@ -1,0 +1,275 @@
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import type { EChartsOption } from "echarts";
+import { api, type monitor } from "@/api";
+import { ChartHost, lineOption } from "@/react/components/monitor/charts";
+import { Button } from "@/react/components/ui/button";
+import { Select } from "@/react/components/ui/select";
+import { DateRangePicker } from "@/react/components/ui/date-range-picker";
+import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { readThemeColor } from "@/react/lib/utils";
+import { USAGE_DANGER, usageBands } from "@/react/lib/usage-tone";
+import {
+  boardHistorySeries,
+  normalizeBoardHistory,
+  type BoardChartPoint,
+} from "@/utils/boardHistory";
+import { formatErr } from "@/utils/format";
+import type { TrendMetric, TrendRange } from "./state";
+
+export const timeText = (at: number) =>
+  new Date(at).toLocaleTimeString("zh-CN", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+const dateInput = (at: number) => {
+  const d = new Date(at);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${timeText(at)}`;
+};
+export function RangeControls({
+  value,
+  onChange,
+  from,
+  to,
+}: {
+  value: TrendRange;
+  onChange: (value: TrendRange) => void;
+  from: number;
+  to: number;
+}) {
+  return (
+    <div className="workbench-range">
+      <Select
+        aria-label="趋势时间范围"
+        value={value.custom ? "custom" : String(value.minutes)}
+        options={[
+          { value: "30", label: "近 30 分钟" },
+          { value: "60", label: "近 1 小时" },
+          { value: "360", label: "近 6 小时" },
+          { value: "custom", label: "自定义时间" },
+        ]}
+        onChange={(v) =>
+          onChange(
+            v === "custom"
+              ? {
+                  minutes: value.minutes,
+                  custom: [dateInput(from), dateInput(to)],
+                }
+              : { minutes: Number(v) },
+          )
+        }
+      />
+      {value.custom ? (
+        <DateRangePicker
+          value={value.custom}
+          onChange={(custom) => onChange({ ...value, custom })}
+        />
+      ) : (
+        <span className="text-xs text-muted">
+          {new Date(from).toLocaleDateString("zh-CN")} {timeText(from)} —{" "}
+          {timeText(to)}
+        </span>
+      )}
+    </div>
+  );
+}
+function chartOption(
+  data: BoardChartPoint[],
+  label: string,
+  from: number,
+  to: number,
+): EChartsOption {
+  const color = (name: string) => readThemeColor(name, "");
+  return {
+    ...lineOption([], [{ name: label, data: [], bands: usageBands(100) }]),
+    animation: false,
+    dataZoom: [],
+    grid: { left: 42, right: 20, top: 20, bottom: 30 },
+    tooltip: {
+      trigger: "axis",
+      confine: true,
+      renderMode: "richText",
+      backgroundColor: color("--color-surface"),
+      borderColor: color("--color-line"),
+      shadowBlur: 0,
+      textStyle: { color: color("--color-ink"), fontSize: 12 },
+      formatter: (params) => {
+        const p = Array.isArray(params) ? params[0] : params;
+        const v = Array.isArray(p?.value) ? p.value : [];
+        return `${timeText(Number(v[0]))}\n${label} ${typeof v[1] === "number" ? v[1].toFixed(1) + "%" : "缺少采样"}`;
+      },
+    },
+    xAxis: {
+      type: "time",
+      min: from,
+      max: to,
+      splitNumber: 3,
+      axisLabel: {
+        color: color("--color-muted"),
+        fontSize: 12,
+        hideOverlap: true,
+        formatter: (v: number) => timeText(v),
+      },
+      axisLine: { lineStyle: { color: color("--color-line") } },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      min: 0,
+      max: 100,
+      interval: 50,
+      axisLabel: {
+        color: color("--color-muted"),
+        fontSize: 12,
+        formatter: "{value}%",
+      },
+      splitLine: {
+        lineStyle: { color: color("--color-line"), type: "dashed" },
+      },
+    },
+    series: [
+      {
+        name: label,
+        type: "line",
+        data,
+        connectNulls: false,
+        showSymbol: data.filter((p) => p[1] !== null).length === 1,
+        symbolSize: 6,
+        lineStyle: { width: 2 },
+        areaStyle: { opacity: 0.08 },
+        markLine: data.some((p) => p[1] !== null && p[1] >= USAGE_DANGER)
+          ? {
+              silent: true,
+              symbol: "none",
+              label: {
+                formatter: `${USAGE_DANGER}%`,
+                position: "insideStartTop",
+                color: color("--color-danger"),
+              },
+              lineStyle: { color: color("--color-danger"), type: "dashed" },
+              data: [{ yAxis: USAGE_DANGER }],
+            }
+          : undefined,
+      },
+    ],
+  };
+}
+export function ResourceTrends({
+  host,
+  overview,
+  from,
+  to,
+  primary = "cpu",
+  currentAvailable = true,
+  onOpen,
+}: {
+  host: string;
+  overview?: monitor.Overview | null;
+  from: number;
+  to: number;
+  primary?: TrendMetric;
+  currentAvailable?: boolean;
+  onOpen?: (metric: TrendMetric) => void;
+}) {
+  const theme = useThemeMode();
+  const history = useQuery({
+    queryKey: ["workbench-history", host, from, to],
+    queryFn: () =>
+      api.agentRange(
+        host,
+        Math.floor(from / 1000),
+        Math.floor(to / 1000),
+        "auto",
+      ),
+    enabled: Number.isFinite(from) && Number.isFinite(to) && from < to,
+    staleTime: 15000,
+    gcTime: 60000,
+    retry: 1,
+    placeholderData: (previous, query) =>
+      query?.queryKey[1] === host &&
+      Number(query.queryKey[3]) - Number(query.queryKey[2]) === to - from
+        ? previous
+        : undefined,
+  });
+  const series = useMemo(
+    () =>
+      boardHistorySeries(
+        normalizeBoardHistory(history.data?.points || [], from, to),
+        overview?.memTotal,
+      ),
+    [history.data, from, to, overview?.memTotal],
+  );
+  const options = useMemo(
+    () => ({
+      cpu: chartOption(series.cpu, "CPU", from, to),
+      mem: chartOption(series.mem, "内存", from, to),
+    }),
+    [series, from, to, theme],
+  );
+  const metrics: TrendMetric[] =
+    primary === "cpu" ? ["cpu", "mem"] : ["mem", "cpu"];
+  return (
+    <div className={`resource-trends${onOpen ? " is-group" : ""}`}>
+      {metrics.map((metric) => {
+        const label = metric === "cpu" ? "CPU" : "内存";
+        const value = !currentAvailable
+          ? undefined
+          : metric === "cpu"
+            ? overview?.cpuPercent
+            : overview?.memPercent;
+        return (
+          <section key={metric} aria-label={`${host} ${label}趋势`}>
+            <div className="resource-trends__label">
+              <span>{label}</span>
+              {onOpen && (
+                <strong>{value == null ? "—" : `${value.toFixed(1)}%`}</strong>
+              )}
+            </div>
+            <div
+              className="resource-trends__plot"
+              role={onOpen ? "button" : "img"}
+              aria-label={`${host} ${label}曲线`}
+              tabIndex={onOpen ? 0 : undefined}
+              onClick={() => onOpen?.(metric)}
+              onKeyDown={(e) => {
+                if (onOpen && ["Enter", " "].includes(e.key)) {
+                  e.preventDefault();
+                  onOpen(metric);
+                }
+              }}
+            >
+              {series[metric].some((p) => p[1] !== null) ? (
+                <ChartHost option={options[metric]} />
+              ) : (
+                <div className="resource-trends__empty">
+                  {history.isPending
+                    ? "正在读取采样…"
+                    : history.isError
+                      ? "历史数据读取失败"
+                      : metric === "mem" && !overview?.memTotal
+                        ? "等待内存总量"
+                        : "所选时段暂无采样"}
+                </div>
+              )}
+            </div>
+            {history.isError && (
+              <div
+                className="text-xs text-danger"
+                title={formatErr(history.error)}
+              >
+                读取失败{" "}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void history.refetch()}
+                >
+                  重试
+                </Button>
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}

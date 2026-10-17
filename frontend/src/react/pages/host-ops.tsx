@@ -1,3 +1,5 @@
+import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
+import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Events } from "@wailsio/runtime";
 import type * as echarts from "echarts";
@@ -309,6 +311,7 @@ const VIRTUAL_IFACE_FOLD = 3;
 
 function OverviewPage({ host }: { host: string }) {
   const session = useSession();
+  const queryClient = useQueryClient();
   const [showAllIfaces, setShowAllIfaces] = useState(false);
   const overview = useQuery({
     queryKey: ["overview", host],
@@ -483,6 +486,9 @@ function OverviewPage({ host }: { host: string }) {
       docker.refetch(),
       network.refetch(),
       agentStatus.refetch(),
+      queryClient.refetchQueries({ queryKey: ["workbench-history", host], type: "active" }),
+      queryClient.refetchQueries({ queryKey: ["workbench-events", host], type: "active" }),
+      queryClient.refetchQueries({ queryKey: ["procs", host], type: "active" }),
     ]);
   }
 
@@ -553,7 +559,9 @@ function OverviewPage({ host }: { host: string }) {
       {agentErr ? <Notice text={agentErr} /> : null}
       <FlashNotices flash={flash} />
 
-      <div className="flex flex-col gap-section">
+      <HostWorkbenchSummary host={host} data={data} disks={disks.data} unavailable={overview.isError} sampledAt={overview.dataUpdatedAt} />
+      <details className="workbench-system"><summary>系统与资源明细</summary>
+      <div className="mt-4 flex flex-col gap-section">
         {data ? (
           <section>
             <div className="mb-3 text-sm font-semibold text-ink">系统</div>
@@ -867,6 +875,8 @@ function OverviewPage({ host }: { host: string }) {
           )}
         </section>
       </div>
+
+      </details>
 
       {checkReport ? (
         <DetailPanel title="Agent 检查" onClose={() => setCheckReport(null)}>
@@ -1498,7 +1508,7 @@ function ProcessesPage({ host }: { host: string }) {
   const qc = useQueryClient();
   const [view, setView] = useState<ProcView>("all");
   const [filter, setFilter] = useState("");
-  const [sortKey, setSortKey] = useState<"cpu" | "rss" | "">("cpu");
+  const [sortKey, setSortKey] = useState<"cpu" | "rss" | "">(() => readHostFocus(host).processSort || "cpu");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedPid, setSelectedPid] = useState<number | null>(null);
   const [detail, setDetail] = useState<monitor.JavaProcDetail | null>(null);
@@ -1558,7 +1568,7 @@ function ProcessesPage({ host }: { host: string }) {
           }))
         : runtime.data || [];
     let filtered = list.filter((p) =>
-      `${p.args} ${p.user} ${p.entry || ""}`.toLowerCase().includes(keyword),
+      `${p.pid} ${p.args} ${p.user} ${p.entry || ""}`.toLowerCase().includes(keyword),
     );
     if (sortKey) {
       const dir = sortDir === "asc" ? 1 : -1;
@@ -1570,10 +1580,15 @@ function ProcessesPage({ host }: { host: string }) {
   const selected = procRows.find((p) => p.pid === selectedPid) || null;
 
   useEffect(() => {
-    setSelectedPid(null);
+    const pid = view === "all" ? readHostFocus(host).pid : undefined;
+    setSelectedPid(pid ?? null);
     setDetail(null);
     setMenu(null);
-  }, [view]);
+    focusHost(host, { pid: undefined });
+    let active = true;
+    if (pid) void api.collectJavaDetail(host, pid).then(result => { if (active) setDetail(result); }).catch(() => {});
+    return () => { active = false; };
+  }, [view, host]);
 
   async function openDetail(pid: number) {
     setSelectedPid(pid);
