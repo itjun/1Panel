@@ -3,7 +3,7 @@ export type TrendRange = { minutes: number; custom?: [string, string] };
 export type TrendMetric = "cpu" | "mem";
 export type HostFocus = {
   range: TrendRange;
-  metric: TrendMetric;
+  metric?: TrendMetric;
   processSort?: "cpu" | "rss";
   pid?: number;
 };
@@ -12,13 +12,12 @@ export function focusHost(host: string, patch: Partial<HostFocus>) {
   if (patch.range) pageState.set(`host-range:${host}`, patch.range);
   hostFocus.set(host, {
     range: { minutes: 30 },
-    metric: "mem",
     ...hostFocus.get(host),
     ...patch,
   });
 }
 export function readHostFocus(host: string): HostFocus {
-  return hostFocus.get(host) || { range: { minutes: 30 }, metric: "mem" };
+  return hostFocus.get(host) || { range: { minutes: 30 } };
 }
 /** Per-window navigation state; no changes to saved hosts or shared preferences. */
 const pageState = new Map<string, unknown>();

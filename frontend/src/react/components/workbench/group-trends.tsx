@@ -16,6 +16,7 @@ import {
 import { NetworkRates } from "./network-rates";
 import { ResourceTrends } from "./resource-trends";
 import type { TrendMetric } from "./state";
+import { currentGroupSample } from "@/utils/groupSnapshot";
 export function snapshotAlerts(snap?: main.HostOverviewSnapshot) {
   if (!snap?.overview || snap.error || snap.notInstalled) return [];
   return [
@@ -51,9 +52,10 @@ export function GroupTrends({
       {names.map((name) => {
         const snap = snapshots.get(name);
         const bad = unavailable || !!snap?.error || !!snap?.notInstalled;
-        const ov = bad ? null : snap?.overview;
+        const sample = currentGroupSample(snap, unavailable);
+        const ov = sample.overview;
         const alerts = snapshotAlerts(snap);
-        const disk = bad ? null : summarizeDisks(snap?.disks);
+        const disk = summarizeDisks(sample.disks);
         const status = unavailable
           ? "采集更新失败"
           : snap?.notInstalled
@@ -67,6 +69,7 @@ export function GroupTrends({
                   : "运行正常";
         return (
           <article className="group-trend-host" key={name}>
+            <header className="group-trend-heading">
             <button
               type="button"
               className="group-trend-name"
@@ -87,6 +90,7 @@ export function GroupTrends({
               )}{" "}
               {status}
             </p>
+            </header>
             <ResourceTrends
               host={name}
               overview={snap?.overview}
@@ -101,9 +105,6 @@ export function GroupTrends({
                 磁盘 {disk ? `${disk.percent.toFixed(1)}%` : "—"}
               </span>
               <NetworkRates overview={ov} sampledAt={sampledAt} />
-              <button type="button" onClick={() => onOpen(name)}>
-                查看主机
-              </button>
             </footer>
           </article>
         );

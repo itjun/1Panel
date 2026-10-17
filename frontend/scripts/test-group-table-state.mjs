@@ -1,7 +1,7 @@
 import {
   compareGroupSortValues,
   moveColumn,
-  resolveResizeTarget,
+  fitColumnWidths,
   sortRowsByGroupValue,
 } from "../src/utils/groupTableState.ts";
 
@@ -10,18 +10,17 @@ function assert(condition, message) {
 }
 
 const columns = [
-  { key: "host", left: 0, right: 220, width: 220 },
-  { key: "addr", left: 220, right: 320, width: 100 },
-  { key: "agent", left: 320, right: 420, width: 100 },
+  { key: "host", natural: 190, min: 168, flex: 1 },
+  { key: "addr", natural: 176, min: 176 },
+  { key: "cpu", natural: 120, min: 112, flex: 2 },
 ];
-
-const leftBoundary = resolveResizeTarget(columns, "addr", 222, 8);
-assert(leftBoundary?.key === "host", "左边界应该调整左邻列");
-assert(leftBoundary?.startWidth === 220, "左边界应该读取左邻列的实际宽度");
-
-const rightBoundary = resolveResizeTarget(columns, "addr", 318, 8);
-assert(rightBoundary?.key === "addr", "右边界应该调整当前列");
-assert(rightBoundary?.startWidth === 100, "右边界应该读取当前列的实际宽度");
+const narrow = fitColumnWidths(columns, 300);
+assert(narrow.host >= 168 && narrow.addr >= 176 && narrow.cpu >= 112, "窄窗口不能把身份和指标压到最小宽度以下");
+assert(Object.values(narrow).reduce((sum, width) => sum + width, 0) > 300, "无法容纳时应保留可读宽度并允许横向滚动");
+const manual = fitColumnWidths(columns.map(c => c.key === "host" ? { ...c, manual: 240 } : c), 800);
+assert(manual.host === 240, "手动列宽应在容器变化后保持不变");
+const wide = fitColumnWidths(columns, 800);
+assert(Object.values(wide).reduce((sum, width) => sum + width, 0) === 800, "宽窗口应按权重分配可用空间");
 
 assert(
   JSON.stringify(moveColumn(["index", "host", "addr"], "addr", "index", false)) ===

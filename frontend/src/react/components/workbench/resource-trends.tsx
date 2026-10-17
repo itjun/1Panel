@@ -14,6 +14,7 @@ import {
   normalizeBoardHistory,
   type BoardChartPoint,
 } from "@/utils/boardHistory";
+import { collectionState } from "@/utils/collectionState";
 import { formatErr } from "@/utils/format";
 import type { TrendMetric, TrendRange } from "./state";
 
@@ -159,7 +160,7 @@ export function ResourceTrends({
   overview,
   from,
   to,
-  primary = "cpu",
+  primary,
   currentAvailable = true,
   onOpen,
 }: {
@@ -206,10 +207,19 @@ export function ResourceTrends({
     }),
     [series, from, to, theme],
   );
-  const metrics: TrendMetric[] =
-    primary === "cpu" ? ["cpu", "mem"] : ["mem", "cpu"];
+  const metrics: TrendMetric[] = ["cpu", "mem"];
+  const hasHistory = metrics.some(metric => series[metric].some(p => p[1] !== null));
+  const historyState = collectionState(history);
   return (
-    <div className={`resource-trends${onOpen ? " is-group" : ""}`}>
+    <div className={`resource-trends${onOpen ? " is-group" : ""}${!hasHistory ? " is-empty" : ""}`}>
+      {historyState.unavailable || !hasHistory ? (
+        <div className="resource-trends__notice" role="status">
+          <span title={history.error ? formatErr(history.error) : undefined}>
+            {historyState.unavailable ? hasHistory ? "历史数据更新失败，保留上次曲线" : "历史数据暂不可用" : history.isPending ? "正在读取历史采样…" : "所选时段暂无采样"}
+          </span>
+          {historyState.unavailable && <Button size="sm" variant="ghost" disabled={history.isFetching} onClick={() => void history.refetch()}>{history.isFetching ? "重试中…" : "重试"}</Button>}
+        </div>
+      ) : null}
       {metrics.map((metric) => {
         const label = metric === "cpu" ? "CPU" : "内存";
         const value = !currentAvailable
@@ -218,9 +228,10 @@ export function ResourceTrends({
             ? overview?.cpuPercent
             : overview?.memPercent;
         return (
-          <section key={metric} aria-label={`${host} ${label}趋势`}>
+          <section key={metric} aria-label={`${host} ${label}趋势`} className={primary === metric ? "is-focused" : undefined}>
             <div className="resource-trends__label">
               <span>{label}</span>
+              {primary === metric && <span className="resource-trends__focus" title="从分组曲线进入时选中的指标">来自分组选择</span>}
               {onOpen && (
                 <strong>{value == null ? "—" : `${value.toFixed(1)}%`}</strong>
               )}
@@ -242,31 +253,10 @@ export function ResourceTrends({
                 <ChartHost option={options[metric]} />
               ) : (
                 <div className="resource-trends__empty">
-                  {history.isPending
-                    ? "正在读取采样…"
-                    : history.isError
-                      ? "历史数据读取失败"
-                      : metric === "mem" && !overview?.memTotal
-                        ? "等待内存总量"
-                        : "所选时段暂无采样"}
+                  {hasHistory ? metric === "mem" && !overview?.memTotal ? "缺少内存容量，无法换算占比" : "该指标暂无采样" : null}
                 </div>
               )}
             </div>
-            {history.isError && (
-              <div
-                className="text-xs text-danger"
-                title={formatErr(history.error)}
-              >
-                读取失败{" "}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void history.refetch()}
-                >
-                  重试
-                </Button>
-              </div>
-            )}
           </section>
         );
       })}
