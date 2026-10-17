@@ -14,7 +14,6 @@ import {
 import { api } from "@/api";
 import type { agentapi, agentcli, monitor, sshconfig } from "@/api";
 import type { CertPairCheck } from "@/api";
-import { RingMeter } from "@/react/components/local/ring-meter";
 import {
   binaryAxis,
   ChartHost,
@@ -40,7 +39,6 @@ import { Meter } from "@/react/components/ui/meter";
 import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Select } from "@/react/components/ui/select";
 import { Tag, type TagTone } from "@/react/components/ui/tag";
-import { DistroBadge } from "@/react/components/distro-badge";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
@@ -51,13 +49,9 @@ import { NetworkPage } from "@/react/pages/host-network";
 import { PackagesPage } from "@/react/pages/host-packages";
 import { useSession, type Tool } from "@/react/state/session";
 import {
-  isCpuAlert,
   isDiskFull,
-  isLoadAlert,
-  isMemAlert,
   mountDisks,
   physicalDisks,
-  summarizeDisks,
 } from "@/utils/alerts";
 import {
   bytesToKBps,
@@ -355,7 +349,6 @@ function OverviewPage({ host }: { host: string }) {
   const hostConfig: sshconfig.HostConfig | null =
     (hosts.data || []).find((item) => item.name === host) || null;
   const data = overview.data;
-  const diskSummary = summarizeDisks(disks.data);
   const mounts = mountDisks(disks.data);
   const physDisks = physicalDisks(disks.data);
   const agent = agentStatus.data;
@@ -427,16 +420,6 @@ function OverviewPage({ host }: { host: string }) {
       egressText = `${egressText}（${network.data.egressPublicLoc}）`;
     }
   }
-
-  const loadPercent = data?.cpuCount ? (data.load1 / data.cpuCount) * 100 : 0;
-  const loadWord =
-    loadPercent < 30
-      ? "运行流畅"
-      : loadPercent < 70
-        ? "运行正常"
-        : loadPercent < 80
-          ? "运行缓慢"
-          : "运行堵塞";
 
   const runningDocker = (docker.data?.containers || []).filter(
     (c) => (c.state || "").toLowerCase() === "running",
@@ -513,15 +496,6 @@ function OverviewPage({ host }: { host: string }) {
     swapText = `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)}`;
   }
 
-  let diskScopeText = "";
-  if (diskSummary) {
-    if (diskSummary.scope === "disk") {
-      diskScopeText = `${diskSummary.count} 块物理盘`;
-    } else {
-      diskScopeText = `${diskSummary.count} 个分区`;
-    }
-  }
-
   const ifaceKindLabel: Record<string, string> = {
     physical: "物理",
     docker: "Docker",
@@ -565,171 +539,18 @@ function OverviewPage({ host }: { host: string }) {
         {data ? (
           <section>
             <div className="mb-3 text-sm font-semibold text-ink">系统</div>
-            <div className="flex min-w-0 items-center gap-3">
-              <DistroBadge boxSize={40} osRelease={data.osRelease} />
-              <div className="min-w-0">
-                <div className="truncate text-base font-semibold text-ink">
-                  {data.hostname || host}
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-                  <span>{data.osRelease || "未知系统"}</span>
-                  <span>
-                    内核 <span className="font-mono">{data.kernel || "—"}</span>
-                  </span>
-                  {data.arch ? <span className="font-mono">{data.arch}</span> : null}
-                  <span>已运行 {formatDurationLong(data.uptime)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+              {data.hostname && data.hostname !== host ? (
+                <OverviewFact label="系统主机名" mono>{data.hostname}</OverviewFact>
+              ) : null}
+              <OverviewFact label="内核" mono>{data.kernel || "—"}</OverviewFact>
+              <OverviewFact label="架构" mono>{data.arch || "—"}</OverviewFact>
+              <OverviewFact label="已运行">{formatDurationLong(data.uptime)}</OverviewFact>
               <OverviewFact label="CPU 型号" className="col-span-2">
                 {data.cpuModel || "—"}
               </OverviewFact>
-              <OverviewFact label="CPU 核心" mono>{`${data.cpuCount} 核`}</OverviewFact>
-              <OverviewFact label="内存" mono>{formatMemCapacity(data.memTotal)}</OverviewFact>
               <OverviewFact label="Swap" mono>{swapText}</OverviewFact>
               <OverviewFact label="Docker 容器" mono>{dockerText}</OverviewFact>
-            </div>
-          </section>
-        ) : null}
-
-        {data ? (
-          <section>
-            <div className="mb-3 text-sm font-semibold text-ink">资源</div>
-            <div className="grid grid-cols-2 gap-card md:grid-cols-4">
-              <RingMeter
-                title="负载"
-                percent={Math.min(100, loadPercent)}
-                danger={isLoadAlert(data)}
-                center={data.load1.toFixed(2)}
-                caption={
-                  <>
-                    <div className="font-mono tabular-nums">
-                      {data.load1.toFixed(2)} / {data.cpuCount} 核
-                    </div>
-                    <div>{loadWord}</div>
-                  </>
-                }
-              >
-                <div className="local-pop-row">
-                  <span>1 分钟</span>
-                  <span className="num">{data.load1.toFixed(2)}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>5 分钟</span>
-                  <span className="num">{(data.load5 || 0).toFixed(2)}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>15 分钟</span>
-                  <span className="num">{(data.load15 || 0).toFixed(2)}</span>
-                </div>
-              </RingMeter>
-
-              <RingMeter
-                title="CPU"
-                percent={data.cpuPercent || 0}
-                danger={isCpuAlert(data)}
-                center={`${(data.cpuPercent || 0).toFixed(1)}%`}
-                caption={
-                  <>
-                    <div className="font-mono tabular-nums">
-                      {(data.cpuPercent || 0).toFixed(1)}% / {data.cpuCount} 核
-                    </div>
-                    <div className="max-w-[200px] truncate">{data.cpuModel || "—"}</div>
-                  </>
-                }
-              >
-                <div className="local-pop-row">
-                  <span>型号</span>
-                  <span className="max-w-[200px] truncate">{data.cpuModel || "—"}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>核心数</span>
-                  <span className="num">{data.cpuCount} 核</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>使用率</span>
-                  <span className="num">{(data.cpuPercent || 0).toFixed(2)}%</span>
-                </div>
-              </RingMeter>
-
-              <RingMeter
-                title="内存"
-                percent={data.memPercent || 0}
-                danger={isMemAlert(data)}
-                center={`${(data.memPercent || 0).toFixed(1)}%`}
-                caption={
-                  <>
-                    <div className="font-mono tabular-nums">
-                      {formatBytes(data.memUsed)} / {formatMemCapacity(data.memTotal)}
-                    </div>
-                    <div>Swap {swapText}</div>
-                  </>
-                }
-              >
-                <div className="local-pop-row">
-                  <span>总量</span>
-                  <span className="num">{formatMemCapacity(data.memTotal)}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>已用</span>
-                  <span className="num">{formatBytes(data.memUsed)}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>可用</span>
-                  <span className="num">
-                    {formatBytes(Math.max(0, (data.memTotal || 0) - (data.memUsed || 0)))}
-                  </span>
-                </div>
-                <div className="local-pop-row">
-                  <span>使用率</span>
-                  <span className="num">{(data.memPercent || 0).toFixed(2)}%</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>Swap</span>
-                  <span className="num">
-                    {data.swapTotal > 0
-                      ? `${swapText} · ${(data.swapPercent || 0).toFixed(1)}%`
-                      : "未启用"}
-                  </span>
-                </div>
-              </RingMeter>
-
-              <RingMeter
-                title="磁盘"
-                percent={diskSummary?.percent || 0}
-                danger={isDiskFull(disks.data)}
-                center={diskSummary ? `${diskSummary.percent.toFixed(1)}%` : "—"}
-                caption={
-                  diskSummary ? (
-                    <>
-                      <div className="font-mono tabular-nums">
-                        {formatBytes(diskSummary.used)} / {formatBytes(diskSummary.total)}
-                      </div>
-                      <div>{diskScopeText}</div>
-                    </>
-                  ) : (
-                    "暂无磁盘数据"
-                  )
-                }
-              >
-                <div className="local-pop-row">
-                  <span>范围</span>
-                  <span className="num">{diskScopeText || "—"}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>总量</span>
-                  <span className="num">{formatBytes(diskSummary?.total || 0)}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>已用</span>
-                  <span className="num">{formatBytes(diskSummary?.used || 0)}</span>
-                </div>
-                <div className="local-pop-row">
-                  <span>可用</span>
-                  <span className="num">{formatBytes(diskSummary?.avail || 0)}</span>
-                </div>
-              </RingMeter>
             </div>
           </section>
         ) : null}
