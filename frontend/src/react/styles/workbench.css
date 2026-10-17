@@ -45,15 +45,102 @@
 }
 .workbench-tab:focus-visible,
 .workbench-more:focus-visible,
+.group-trend-name:focus-visible,
 .resource-trends__plot[role="button"]:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
+.workbench-group-heading {
+  padding: 8px 0 12px;
+}
+.workbench-group-heading h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+.workbench-group-heading p {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.workbench-group-toolbar,
 .workbench-range {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+.workbench-group-toolbar {
+  padding: 12px 0;
+  border-block: 1px solid var(--color-line);
+  flex-shrink: 0;
+}
+.workbench-view-switch {
+  display: flex;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+.workbench-group {
+  min-width: 0;
+  container: workbench-group / inline-size;
+}
+.group-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.group-trend-grid.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.group-trend-host {
+  min-width: 0;
+  padding: 20px 24px 20px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.group-trend-host:nth-child(even) {
+  border-left: 1px solid var(--color-line);
+  padding-left: 24px;
+  padding-right: 0;
+}
+.group-trend-name {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 19px;
+  min-height: 34px;
+  max-width: 100%;
+  text-align: left;
+}
+.group-trend-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.group-trend-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  margin: 12px 0 20px;
+}
+.group-trend-host footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-top: 14px;
+  margin-top: 14px;
+  border-top: 1px solid var(--color-line);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.group-trend-host footer span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.group-trend-host footer button {
+  margin-left: auto;
+  color: var(--color-accent);
 }
 .resource-trends {
   display: grid;
@@ -62,12 +149,21 @@
   padding-bottom: 16px;
   border-bottom: 1px solid var(--color-line);
 }
+.resource-trends.is-group {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  border: 0;
+  padding: 0;
+}
 .resource-trends > section {
   min-width: 0;
 }
 .resource-trends > section + section {
   border-left: 1px solid var(--color-line);
   padding-left: 20px;
+}
+.resource-trends.is-group > section + section {
+  padding-left: 16px;
 }
 .resource-trends__label {
   display: flex;
@@ -247,6 +343,19 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
+}
+/* The sidebar also consumes width, so size cards against their content area. */
+@container workbench-group (max-width: 900px) {
+  .group-trend-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .group-trend-host:nth-child(even) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .group-trend-host {
+    padding-right: 0;
+  }
 }
 @media (max-width: 1100px) {
   .workbench-diagnostics {
