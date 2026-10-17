@@ -621,6 +621,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       renameHostRefs: (oldName, newName) => {
         if (!oldName || !newName || oldName === newName) return;
         setEditingHostState((current) => (current === oldName ? newName : current));
+        historyRef.current = {
+          ...historyRef.current,
+          stack: historyRef.current.stack.map((view) =>
+            view.activeHost === oldName ? { ...view, activeHost: newName } : view,
+          ),
+        };
         setNav((prev) => {
           let activeHost = prev.activeHost;
           if (activeHost === oldName) {
