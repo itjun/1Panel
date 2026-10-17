@@ -16,7 +16,7 @@ import {
 } from "@/utils/lastScreen";
 import { pushView, viewSnap, type ViewSnap } from "@/react/state/nav-history";
 import { readSettings } from "@/react/state/settings";
-import { reconcileHostRows } from "@/utils/hostRows";
+import { reconcileHostRacks } from "@/utils/hostRacks";
 import type { PersistTool } from "@/utils/workspaceMigrate";
 
 export const UNGROUPED_ID = "__ungrouped__";
@@ -299,13 +299,13 @@ function writeMainFromNav(nav: Nav) {
 }
 
 /**
- * 分组顺序以首页机柜布局（hostHomeRows，从上到下、从左到右）为准：
+ * 分组顺序以首页机柜布局（hostHomeRacks，从上到下、从左到右）为准：
  * 后端 order 与布局展开不一致时写回后端，使所有页面的分组列表与首页同序。
  */
 async function alignGroupOrder(listed: groups.Group[]): Promise<groups.Group[]> {
   const byOrder = [...listed].sort((a, b) => a.order - b.order);
   const ids = byOrder.map((group) => group.id);
-  const flat = reconcileHostRows(readSettings().hostHomeRows, ids).flat();
+  const flat = reconcileHostRacks(readSettings().hostHomeRacks, ids).flatMap((rack) => rack.groups);
   const rank = new Map(flat.map((id, i) => [id, i]));
   const byLayout = (list: groups.Group[]) =>
     [...list].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));

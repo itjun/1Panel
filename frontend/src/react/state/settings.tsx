@@ -8,6 +8,8 @@ import {
   type ResourceAlertKind,
 } from "@/utils/alerts";
 
+import { hostRackRows, parseHostRacks, type HostRack } from "@/utils/hostRacks";
+
 const STORAGE_KEY = "ipannel.settings.v1";
 
 /**
@@ -57,6 +59,8 @@ export type AppSettings = {
   hostAppNotifySubs: Record<string, string[]>;
   /** 首页主机列表的分组排布：每排一组 group id，从上到下、从左到右 */
   hostHomeRows: string[][];
+  /** 有稳定身份和名称的机柜；旧版二维布局在读取时迁移。 */
+  hostHomeRacks: HostRack[];
   /** 终端打开方式：tab=最近窗口新标签页（默认），window=新窗口。只对支持该选项的终端生效 */
   terminalOpenMode: "tab" | "window";
   /** 设置页选中的终端 id，空字符串表示用本机默认项 */
@@ -90,6 +94,7 @@ export const SETTINGS_DEFAULTS: AppSettings = {
   hostResourceNotifySubs: {},
   hostAppNotifySubs: {},
   hostHomeRows: [],
+  hostHomeRacks: parseHostRacks(undefined, []),
   terminalOpenMode: "tab",
   terminalApp: "",
 };
@@ -176,6 +181,7 @@ function loadSettings(): AppSettings {
       hostResourceNotifySubs: parsed.hostResourceNotifySubs || {},
       hostAppNotifySubs: parsed.hostAppNotifySubs || {},
       hostHomeRows: parseHostHomeRows(parsed.hostHomeRows),
+      hostHomeRacks: parseHostRacks(parsed.hostHomeRacks, parseHostHomeRows(parsed.hostHomeRows)),
       terminalOpenMode:
         parsed.terminalOpenMode === "window" ? "window" : "tab",
       terminalApp: typeof parsed.terminalApp === "string" ? parsed.terminalApp : "",
@@ -334,6 +340,7 @@ function emit() {
 
 export function updateSettings(patch: Partial<AppSettings>) {
   current = { ...current, ...patch };
+  if (patch.hostHomeRacks !== undefined) current.hostHomeRows = hostRackRows(patch.hostHomeRacks);
   if (patch.appearance !== undefined) {
     current.appearance = parseAppearance(patch.appearance);
   }
@@ -343,8 +350,10 @@ export function updateSettings(patch: Partial<AppSettings>) {
 export function resetSettings() {
   // 首页分组排布属于用户整理的布局，不随「恢复默认」清空
   const hostHomeRows = current.hostHomeRows;
+  const hostHomeRacks = current.hostHomeRacks;
   current = { ...SETTINGS_DEFAULTS };
   current.hostHomeRows = hostHomeRows;
+  current.hostHomeRacks = hostHomeRacks;
   emit();
 }
 
