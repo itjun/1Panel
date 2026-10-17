@@ -248,8 +248,9 @@ jobs:
           else
             gh release create "$VERSION" dist/* \
               --draft --verify-tag \
-              --title "1Panel $VERSION" \
+              --title "$VERSION" \
               --notes-file notes.md --generate-notes
           fi
-          gh release edit "$VERSION" --draft=false "${publish[@]}"
+          # 列表里只显示版本号，不再在前面加应用名。
+          gh release edit "$VERSION" --title "$VERSION" --draft=false "${publish[@]}"
           gh release view "$VERSION"

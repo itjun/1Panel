@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/api";
 import { Notice } from "@/react/components/page";
+import { ReleaseNotes } from "@/react/components/release-notes";
 import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
@@ -95,8 +96,11 @@ export function UpdateDialog() {
           </div>
         ) : null}
 
-        <div className="mt-4 max-h-60 overflow-auto rounded-control bg-raised px-3 py-2 text-sm leading-6 break-words whitespace-pre-wrap text-ink">
-          {state.notes?.trim() || "本次更新未附说明。"}
+        <div className="mt-4 max-h-60 overflow-auto rounded-control bg-raised px-3 py-2 text-sm leading-6 break-words text-ink">
+          <ReleaseNotes
+            text={state.notes ?? ""}
+            onOpenLink={(href) => void api.openExternalURL(href)}
+          />
         </div>
 
         {busy ? (
