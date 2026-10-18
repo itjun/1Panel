@@ -1,8 +1,8 @@
 /* Approved prototype presentation, using the existing native shell and theme tokens. */
 .toolbar-device{flex:0 1 132px;min-width:48px;max-width:132px;padding:0 12px;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-ink);border-right:1px solid var(--color-line)}
 .workbench-tabs{position:relative;align-items:stretch;overflow:hidden}
-.workbench-tabs .workbench-tab{display:flex;align-items:center;justify-content:center;width:auto;min-width:52px;padding:0 12px;font-size:var(--text-sm);height:100%}
-.workbench-tabs .workbench-more{width:auto;min-width:64px;padding:0 10px;font-size:var(--text-sm);height:100%}
+.workbench-tabs .workbench-tab{display:flex;align-items:center;justify-content:center;width:auto;min-width:52px;padding:0 12px;font-size:var(--app-font-size,14px);height:100%}
+.workbench-tabs .workbench-more{width:auto;min-width:64px;padding:0 10px;font-size:var(--app-font-size,14px);height:100%}
 .workbench-tab-measure{position:absolute;visibility:hidden;pointer-events:none;display:flex;width:max-content;height:100%;inset:0 auto auto 0;contain:layout;gap:0}
 .workspace-sidebar{display:flex;min-height:0;flex-shrink:0}
 .workspace-sidebar[hidden]{display:none}
@@ -91,3 +91,6 @@
  .notify-message-detail{min-height:200px}
  .uiux-page-title+.uiux-page-actions{justify-content:flex-start;flex-basis:100%}
 }
+
+.sidebar-splitter{min-width:1px}
+.sidebar-splitter:focus-visible{outline:2px solid var(--color-accent);outline-offset:0}

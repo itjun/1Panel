@@ -55,6 +55,16 @@ export function SidebarSplitter() {
   return (
     <div
       role="separator"
+      tabIndex={0}
+      onKeyDown={event => {
+        const next = event.key === "ArrowLeft" ? sidebar.width - 10
+          : event.key === "ArrowRight" ? sidebar.width + 10
+          : event.key === "Home" ? sidebar.widthDefault
+          : event.key === "End" ? sidebar.widthMax : undefined;
+        if (next === undefined) return;
+        event.preventDefault();
+        sidebar.setWidth(next);
+      }}
       aria-orientation="vertical"
       aria-valuenow={sidebar.width}
       aria-valuemin={sidebar.widthMin}
