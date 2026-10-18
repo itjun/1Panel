@@ -497,7 +497,7 @@ export function ConfigCenterPage() {
       actions={
         <>
           {section !== "overview" ? <span className="text-sm text-muted">{statusLabel(overview.data)}</span> : null}
-          {overview.data?.drift || overview.data?.needsReview ? (
+          {section !== "diff" && (overview.data?.drift || overview.data?.needsReview) ? (
             <Button size="sm" disabled={busy} onClick={() => void previewExternalImport()}>
               导入差异
             </Button>
