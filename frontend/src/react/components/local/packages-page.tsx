@@ -238,7 +238,11 @@ export function LocalPackagesPage() {
               {rows.length === 0 ? (
                 <tr className="h-table-row border-t border-line">
                   <td className="px-3 text-muted" colSpan={showSizes ? 7 : 5}>
-                    未找到已安装软件
+                    {query.isLoading
+                      ? "正在读取已安装软件…"
+                      : keyword.trim() || source !== "all"
+                        ? "无匹配软件"
+                        : "未找到已安装软件"}
                   </td>
                 </tr>
               ) : (
