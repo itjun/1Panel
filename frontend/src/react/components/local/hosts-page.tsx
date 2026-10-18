@@ -30,6 +30,7 @@ export function LocalHostsPage() {
         <span className="font-mono text-sm text-muted">
           {pathLabel}
         </span>
+        {query.data ? <span className="text-xs text-muted">{formatSize(raw.length)}</span> : null}
         <CurrentTextRefresh onRefresh={() => void query.refetch()} refreshing={query.isFetching} />
       </>}
       onRefresh={() => void query.refetch()}
@@ -39,23 +40,15 @@ export function LocalHostsPage() {
           <Notice text={formatErr(query.error)} />
         </div>
       ) : null}
-      {/* 内容区四周 16px 安全边距，两栏间隙 gap-card */}
-      <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
-        <div className="surface-float min-h-0 overflow-auto">
-          <div className="flex h-table-row items-center justify-between bg-accent-soft px-3 font-semibold text-accent">
-            <span className="font-mono text-sm">hosts</span>
-            <span className="text-xs text-muted">{formatSize(raw.length)}</span>
-          </div>
-        </div>
-        <div className="surface-float min-h-0 overflow-hidden !bg-graphite">
-          {raw ? (
-            <HighlightPane html={html} text={raw} />
-          ) : (
-            <pre className="h-full p-4 text-sm text-muted">
-              {query.isLoading ? "加载中…" : "暂无内容"}
-            </pre>
-          )}
-        </div>
+      {/* 固定单文件直接阅读，路径与大小保留在工具行。 */}
+      <div className="surface-float m-[var(--gap-card)] min-h-0 flex-1 overflow-hidden !bg-graphite">
+        {raw ? (
+          <HighlightPane html={html} text={raw} />
+        ) : (
+          <pre className="h-full p-4 text-sm text-muted">
+            {query.isLoading ? "加载中…" : "暂无内容"}
+          </pre>
+        )}
       </div>
     </Page>
   );
