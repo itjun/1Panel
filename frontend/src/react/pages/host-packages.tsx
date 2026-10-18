@@ -33,7 +33,7 @@ function SimpleRows({
           <tr className="h-table-head border-b border-line">
             <th className="w-12 px-2 text-center font-normal">序</th>
             {headers.map((header) => (
-              <th key={header.key} className="px-3 font-normal">
+              <th key={header.key} className="whitespace-nowrap px-3 font-normal">
                 {header.label}
               </th>
             ))}
