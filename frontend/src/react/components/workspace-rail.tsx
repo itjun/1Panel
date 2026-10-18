@@ -14,7 +14,6 @@ import {
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
 import { alertDialog } from "@/react/components/ui/confirm-dialog";
-import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { cn } from "@/react/lib/utils";
 import {
   UNGROUPED_ID,
@@ -325,17 +324,6 @@ export function WorkspaceRail() {
             ))
           : null}
 
-        {listKind === "local"
-          ? LOCAL_SECTIONS.map((item) => (
-              <RailNavButton
-                key={item.id}
-                label={item.label}
-                active={session.localSection === item.id}
-                onClick={() => session.setLocalSection(item.id)}
-              />
-            ))
-          : null}
-
         {listKind === "speedtest"
           ? SPEEDTEST_SECTIONS.map((item) => (
               <RailNavButton
@@ -522,6 +510,7 @@ function RailNavButton({
   active: boolean;
   onClick: () => void;
 }) {
+  const sidebar = useSidebar();
   return (
     <button
       type="button"
@@ -529,7 +518,7 @@ function RailNavButton({
         "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
         active ? "rail-item-active" : "text-muted hover:bg-line hover:text-ink",
       )}
-      onClick={onClick}
+      onClick={() => { onClick(); sidebar.closeOverlay(); }}
     >
       <span className="truncate">{label}</span>
     </button>

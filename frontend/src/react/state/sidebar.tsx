@@ -5,6 +5,7 @@
 import {
   createContext,
   useCallback,
+  useEffect,
   useContext,
   useMemo,
   useState,
@@ -66,6 +67,8 @@ function saveSidebarWidth(width: number) {
 type SidebarValue = {
   open: boolean;
   toggle: () => void;
+  overlay: boolean;
+  closeOverlay: () => void;
   width: number;
   setWidth: (width: number) => void;
   resetWidth: () => void;
@@ -78,16 +81,27 @@ const SidebarContext = createContext<SidebarValue | null>(null);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const widthDefault = useMemo(() => defaultSidebarWidth(), []);
-  const [open, setOpen] = useState(loadSidebarOpen);
+  const [preferredOpen, setOpen] = useState(loadSidebarOpen);
+  const [overlay, setOverlay] = useState(() => window.matchMedia("(max-width: 1050px)").matches);
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1050px)");
+    const update = () => { setOverlay(media.matches); setOverlayOpen(false); };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const open = overlay ? overlayOpen : preferredOpen;
+  const closeOverlay = useCallback(() => setOverlayOpen(false), []);
   const [width, setWidthState] = useState(loadSidebarWidth);
 
   const toggle = useCallback(() => {
+    if (overlay) { setOverlayOpen(value => !value); return; }
     setOpen((prev) => {
       const next = !prev;
       saveSidebarOpen(next);
       return next;
     });
-  }, []);
+  }, [overlay]);
 
   const setWidth = useCallback((next: number) => {
     const clamped = clampWidth(next);
@@ -104,6 +118,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     () => ({
       open,
       toggle,
+      overlay,
+      closeOverlay,
       width,
       setWidth,
       resetWidth,
@@ -111,7 +127,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       widthMax: SIDEBAR_WIDTH_MAX,
       widthDefault,
     }),
-    [open, toggle, width, setWidth, resetWidth, widthDefault],
+    [open, toggle, overlay, closeOverlay, width, setWidth, resetWidth, widthDefault],
   );
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
 }

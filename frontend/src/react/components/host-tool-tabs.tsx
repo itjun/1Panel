@@ -2,23 +2,35 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Popup } from "@/react/components/ui/popup";
 import { cn } from "@/react/lib/utils";
+import { LOCAL_SECTIONS } from "@/react/pages/local";
+import { useSidebar } from "@/react/state/sidebar";
 import { HOST_TOOLS, useSession } from "@/react/state/session";
-import { visibleToolIndices } from "@/utils/toolOverflow";
+import { measuredToolIndices } from "@/utils/toolOverflow";
 
 export function useIsHostWorkspace(): boolean {
   const session = useSession();
   return (
     !session.settingsOpen &&
-    session.workspace === "remote" &&
-    !!session.activeHost
+    (session.workspace === "local" || (session.workspace === "remote" && !!session.activeHost))
   );
 }
 
 export function HostToolTabs() {
   const session = useSession();
   const frame = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const sidebar = useSidebar();
+  const local = session.workspace === "local";
+  const tools = local ? LOCAL_SECTIONS : HOST_TOOLS;
+  const selected = local ? session.localSection : session.activeTool;
+  const choose = (id: string) => {
+    if (local) session.setLocalSection(id as typeof session.localSection);
+    else session.setTool(id as typeof session.activeTool);
+    sidebar.closeOverlay(); setOpen(false);
+    requestAnimationFrame(() => frame.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus());
+  };
   const anchor = useRef<HTMLButtonElement>(null);
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({available: 0, widths: [] as number[], more: 76});
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const focusLast = useRef(false);
@@ -34,44 +46,44 @@ export function HostToolTabs() {
   useLayoutEffect(() => {
     const el = frame.current;
     if (!el) return;
-    const measure = () => setWidth(el.clientWidth);
+    const measure = () => {
+      if (!measureRef.current) return;
+      setSize({available: el.clientWidth, widths: [...measureRef.current.querySelectorAll<HTMLElement>('[data-tool-size]')].map(node => node.getBoundingClientRect().width), more: measureRef.current.querySelector<HTMLElement>('[data-more-size]')?.getBoundingClientRect().width || 76});
+    };
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(el);
+    observer.observe(el); if (measureRef.current) observer.observe(measureRef.current);
     return () => observer.disconnect();
-  }, []);
-  const visible = visibleToolIndices(
-    HOST_TOOLS.length,
-    width,
-    HOST_TOOLS.findIndex((t) => t.id === session.activeTool),
-  );
-  const hidden = HOST_TOOLS.filter((_, i) => !visible.includes(i));
+  }, [local]);
+  const visible = size.widths.length === tools.length ? measuredToolIndices(size.widths, size.available, tools.findIndex(tool => tool.id === selected), size.more) : [Math.max(0, tools.findIndex(tool => tool.id === selected))];
+  const hidden = tools.filter((_, i) => !visible.includes(i));
   useEffect(() => {
     if (!hidden.length) setOpen(false);
   }, [hidden.length]);
+  useEffect(() => setOpen(false), [session.activeHost, local, selected]);
+  useEffect(() => { if (sidebar.open && sidebar.overlay) setOpen(false); }, [sidebar.open, sidebar.overlay]);
   return (
     <div ref={frame} className="workbench-tabs">
       <div
         role="tablist"
-        aria-label="主机功能"
+        aria-label={local ? "本机功能" : "主机功能"}
         className="flex min-w-0 items-stretch"
       >
         {visible.map((i) => {
-          const tool = HOST_TOOLS[i];
+          const tool = tools[i];
           return (
             <button
               key={tool.id}
               type="button"
               role="tab"
-              aria-selected={session.activeTool === tool.id}
-              tabIndex={session.activeTool === tool.id ? 0 : -1}
+              aria-selected={selected === tool.id}
+              tabIndex={selected === tool.id ? 0 : -1}
               className={cn(
                 "workbench-tab",
-                session.activeTool === tool.id && "is-active",
+                selected === tool.id && "is-active",
               )}
               onClick={() => {
-                setOpen(false);
-                session.setTool(tool.id);
+                choose(tool.id);
               }}
               onKeyDown={(e) => {
                 if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
@@ -87,8 +99,8 @@ export function HostToolTabs() {
                           (e.key === "ArrowRight" ? 1 : -1) +
                           visible.length) %
                         visible.length;
-                const target = HOST_TOOLS[visible[next]];
-                session.setTool(target.id);
+                const target = tools[visible[next]];
+                choose(target.id);
                 (
                   e.currentTarget.parentElement?.children[next] as HTMLElement
                 )?.focus();
@@ -104,18 +116,18 @@ export function HostToolTabs() {
           ref={anchor}
           type="button"
           className="workbench-more"
-          aria-label="更多主机工具"
+          aria-label={local ? "更多本机工具" : "更多主机工具"}
           aria-expanded={open}
           aria-haspopup="menu"
           onClick={() => {
             focusLast.current = false;
-            setOpen(!open);
+            sidebar.closeOverlay(); setOpen(!open);
           }}
           onKeyDown={(e) => {
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
             e.preventDefault();
             focusLast.current = e.key === "ArrowUp";
-            setOpen(true);
+            sidebar.closeOverlay(); setOpen(true);
           }}
         >
           更多
@@ -131,7 +143,7 @@ export function HostToolTabs() {
         <div
           ref={menu}
           role="menu"
-          aria-label="更多主机工具"
+          aria-label={local ? "更多本机工具" : "更多主机工具"}
           onKeyDown={(e) => {
             if (e.key === "Tab") {
               setOpen(false);
@@ -166,8 +178,7 @@ export function HostToolTabs() {
               key={tool.id}
               className="flex h-8 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised focus-visible:bg-accent-soft"
               onClick={() => {
-                session.setTool(tool.id);
-                setOpen(false);
+                choose(tool.id);
                 requestAnimationFrame(() =>
                   frame.current
                     ?.querySelector<HTMLButtonElement>('[aria-selected="true"]')
@@ -180,6 +191,10 @@ export function HostToolTabs() {
           ))}
         </div>
       </Popup>
+      <div ref={measureRef} className="workbench-tab-measure" aria-hidden="true">
+        {tools.map(tool => <span data-tool-size className="workbench-tab" key={tool.id}>{tool.label}</span>)}
+        <span data-more-size className="workbench-more">更多<ChevronDown size={14}/></span>
+      </div>
     </div>
   );
 }
