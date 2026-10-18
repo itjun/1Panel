@@ -153,7 +153,7 @@ export function HistoryView() {
             <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
               <tr className="h-table-head border-b border-line">
                 {head.map((h, i) => (
-                  <th key={i} className="px-3 font-normal">
+                  <th key={i} className="whitespace-nowrap px-3 font-normal">
                     {h}
                   </th>
                 ))}
@@ -177,7 +177,7 @@ export function HistoryView() {
                     )}
                   >
                     <td className="whitespace-nowrap px-3 tabular-nums text-muted">{formatTime(it.createdAt)}</td>
-                    <td className="px-3">{KIND_LABEL[it.kind] || it.kind}</td>
+                    <td className="whitespace-nowrap px-3">{KIND_LABEL[it.kind] || it.kind}</td>
                     <td className="max-w-[260px] truncate px-3 text-ink">
                       {it.kind === "pair"
                         ? `${endpointLabel(it.a || "")} ⇄ ${endpointLabel(it.b || "")}`
