@@ -40,6 +40,7 @@ export function OverviewTable({
   rows: { id: string; cells: ReactNode[] }[];
 }) {
   return (
+    <div className="overview-table-scroll min-w-0 overflow-auto">
     <table className="w-full border-collapse text-left text-sm">
       <thead className="text-xs text-muted">
         <tr className="h-table-head border-b border-line">
@@ -70,6 +71,7 @@ export function OverviewTable({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
