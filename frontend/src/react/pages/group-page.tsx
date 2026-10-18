@@ -876,6 +876,7 @@ export function GroupPage({
   return (
     <Page
       title="主机分组"
+      heading={false}
       flush
       onRefresh={() => void refreshAll()}
       refreshing={refreshing}

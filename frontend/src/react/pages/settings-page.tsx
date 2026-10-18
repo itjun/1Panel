@@ -94,6 +94,7 @@ export function SettingsPage() {
   return (
     <Page
       title="设置"
+      heading={{look:"外观",session:"会话",board:"看板",app:"应用",shortcuts:"快捷键",about:"关于"}[section]}
       actions={
         section === "look" || section === "session" ? (
           <Button
@@ -116,7 +117,7 @@ export function SettingsPage() {
       }
     >
       {/* 外层 Page 已给 16px 安全边距，这里只负责居中与分区间距（8 点网格） */}
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-section">
+      <div className="settings-content flex w-full max-w-4xl flex-col gap-section">
         <FlashNotices flash={flash} />
         <HostBackupRestoreDialog
           path={restorePath}
@@ -127,7 +128,6 @@ export function SettingsPage() {
 
         {section === "look" ? (
           <section className="flex flex-col">
-            <h2 className="mb-2 text-sm font-semibold text-ink">外观</h2>
             <SettingRow label="窗口材质" hint="自动按系统能力选择；手动选择会保存在本机，改完立刻生效">
               <div className="flex flex-col items-start gap-2">
                 <RadioGroup<WindowMaterial>
@@ -205,7 +205,6 @@ export function SettingsPage() {
 
         {section === "session" ? (
           <section className="flex flex-col">
-            <h2 className="mb-2 text-sm font-semibold text-ink">会话</h2>
             <SettingRow label="启动时打开">
               <RadioGroup
                 aria-label="启动时打开"
@@ -222,7 +221,6 @@ export function SettingsPage() {
 
         {section === "board" ? (
           <section className="flex flex-col">
-            <h2 className="mb-2 text-sm font-semibold text-ink">看板</h2>
             <SettingRow
               label="内网看板"
               hint="仅私网 IPv4 可访问；浏览器打开 http://内网IP:端口/分组名"
@@ -283,7 +281,6 @@ export function SettingsPage() {
 
         {section === "app" ? (
           <section className="flex flex-col">
-            <h2 className="mb-2 text-sm font-semibold text-ink">应用</h2>
             <SettingRow label="本机出口" hint="公网 IP，来自 myip.ipip.net">
               <span>{egress.data?.ip || (egress.isLoading ? "检测中…" : "未知")}</span>
               {egress.data?.location ? (
@@ -345,7 +342,6 @@ export function SettingsPage() {
 
         {section === "shortcuts" ? (
           <section className="flex flex-col">
-            <h2 className="mb-2 text-sm font-semibold text-ink">快捷键</h2>
             <div className="overflow-hidden">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -392,7 +388,6 @@ function AboutSection() {
   );
   return (
     <section className="flex flex-col">
-      <h2 className="mb-2 text-sm font-semibold text-ink">关于</h2>
       <SettingRow label="应用" hint={info?.description}>
         <img
           src={appIcon}
@@ -580,13 +575,13 @@ function SettingRow({
   below?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-14 flex-wrap items-center justify-between gap-4 border-b border-line py-3 last:border-b-0">
+    <div className="settings-row min-h-14 border-b border-line py-4 last:border-b-0">
       <div className="min-w-0">
         <div className="text-sm text-ink">{label}</div>
         {hint ? <div className="mt-0.5 text-xs text-muted">{hint}</div> : null}
       </div>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
-      {below ? <div className="basis-full">{below}</div> : null}
+      <div className="settings-row-controls flex min-w-0 flex-wrap items-center gap-2">{children}</div>
+      {below ? <div className="settings-row-below">{below}</div> : null}
     </div>
   );
 }

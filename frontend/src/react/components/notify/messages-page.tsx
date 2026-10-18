@@ -288,9 +288,9 @@ export function MessagesPage({
           <Notice text={formatErr(query.error)} />
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1">
+      <div className="notify-message-layout flex min-h-0 flex-1">
         <div
-          className="flex w-[360px] shrink-0 flex-col overflow-y-auto border-r border-line"
+          className="notify-message-list flex shrink-0 flex-col overflow-y-auto border-r border-line"
           onKeyDown={onListKeyDown}
         >
           {groups.length === 0 ? (
@@ -325,7 +325,7 @@ export function MessagesPage({
             ))
           )}
         </div>
-        <div className="min-w-0 flex-1 overflow-y-auto">
+        <div className="notify-message-detail min-w-0 flex-1 overflow-y-auto">
           {selected ? (
             <IncidentDetail
               incident={selected}

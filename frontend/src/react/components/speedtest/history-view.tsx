@@ -149,7 +149,7 @@ export function HistoryView() {
       <FlashNotices flash={flash} />
       <div className="flex flex-col gap-section">
         <div className="surface-float overflow-auto">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className="min-w-[720px] w-full border-collapse text-left text-sm">
             <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
               <tr className="h-table-head border-b border-line">
                 {head.map((h, i) => (
