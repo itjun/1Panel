@@ -574,13 +574,13 @@ export function LocalAppsPage() {
         >
           {Number(row.cpu || 0).toFixed(1)}
         </td>
-        <td className="px-2 text-right font-mono text-sm tabular-nums">
+        <td className="whitespace-nowrap px-2 text-right font-mono text-sm tabular-nums">
           {formatBytes(row.rss || 0)}
         </td>
-        <td className="px-2 text-right font-mono text-sm tabular-nums">
+        <td className="whitespace-nowrap px-2 text-right font-mono text-sm tabular-nums">
           {formatIoPair(row, "disk")}
         </td>
-        <td className="px-2 text-right font-mono text-sm tabular-nums">
+        <td className="whitespace-nowrap px-2 text-right font-mono text-sm tabular-nums">
           {formatIoPair(row, "net")}
         </td>
         <td className="px-2 text-sm">
@@ -640,6 +640,7 @@ export function LocalAppsPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* 表格直接铺在内容平面上，吸顶表头用 surface 底遮挡滚动内容 */}
         <div className="surface-float min-h-48 flex-1 overflow-auto">
+          <div className="min-w-[1280px]">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="h-table-head border-b border-line bg-surface text-xs font-normal text-muted">
@@ -720,9 +721,11 @@ export function LocalAppsPage() {
               {flatRows.length === 0 ? (
                 <tr className="h-table-row border-t border-line">
                   <td className="px-3 text-muted" colSpan={10}>
-                    {keyword.trim() || runtime !== "all"
-                      ? "无匹配应用"
-                      : "未发现本机开发运行时或监听服务"}
+                    {query.isLoading
+                      ? "正在读取本机进程…"
+                      : keyword.trim() || runtime !== "all"
+                        ? "无匹配应用"
+                        : "未发现本机开发运行时或监听服务"}
                   </td>
                 </tr>
               ) : (
@@ -730,6 +733,7 @@ export function LocalAppsPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
       </div>
@@ -857,7 +861,7 @@ export function LocalAppsPage() {
                       {(resourcesQuery.data?.resources || []).length ? (
                         <table className="w-full min-w-[560px] text-left text-xs">
                           {/* 详情弹窗内的资源 / 线程子表：数据量大且嵌在弹窗里，按 DESIGN.md §9 超高密特例用 32px 行 */}
-                          <thead className="sticky top-0 z-10 bg-surface font-normal text-muted">
+                          <thead className="sticky top-0 z-10 whitespace-nowrap bg-surface font-normal text-muted">
                             <tr className="h-8 border-b border-line">
                               <th className="w-10 px-2 text-center">序</th>
                               <th className="px-2">FD</th>
