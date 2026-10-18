@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	windowMinW = 1100
+	windowMinW = 900
 	windowMinH = 700
 )
 

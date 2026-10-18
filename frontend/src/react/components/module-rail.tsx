@@ -101,6 +101,13 @@ export function ModuleRail() {
         <RailModule icon={Server} label="主机" active={open && ws === "remote"} onClick={() => session.goHome()} />
         <RailModule icon={Laptop} label="本机" active={open && ws === "local"} onClick={() => session.setWorkspace("local")} />
         <RailModule
+          icon={FileCog}
+          label="配置"
+          active={open && ws === "config"}
+          statusDot={configNeedsAttention}
+          onClick={() => session.setWorkspace("config")}
+        />
+        <RailModule
           icon={Bell}
           label="通知"
           active={open && ws === "notify"}
@@ -110,13 +117,6 @@ export function ModuleRail() {
         <RailModule icon={Gauge} label="测速" active={open && ws === "speedtest"} onClick={() => session.setWorkspace("speedtest")} />
         <div className="flex-1" />
         <RailModule icon={ScanSearch} label="巡检" active={open && ws === "inspect"} onClick={() => session.setWorkspace("inspect")} />
-        <RailModule
-          icon={FileCog}
-          label="配置"
-          active={open && ws === "config"}
-          statusDot={configNeedsAttention}
-          onClick={() => session.setWorkspace("config")}
-        />
         <RailModule icon={Settings} label="设置" active={session.settingsOpen} onClick={() => session.openSettings(true)} />
       </nav>
     </aside>

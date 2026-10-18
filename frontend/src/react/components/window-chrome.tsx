@@ -88,6 +88,7 @@ export function WindowChrome() {
   const { open, toggle } = useSidebar();
   const session = useSession();
   const pageRefresh = usePageRefresh();
+  const hasSidebar = session.workspace !== "local" || session.settingsOpen;
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -127,7 +128,7 @@ export function WindowChrome() {
       if (event.altKey || event.shiftKey) return;
       if (event.code === "Backslash" || event.code === "KeyB") {
         event.preventDefault();
-        toggle();
+        if (hasSidebar) toggle();
         return;
       }
       if (event.code === "Comma") {
@@ -137,12 +138,12 @@ export function WindowChrome() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goBack, goForward, toggle, session]);
+  }, [goBack, goForward, toggle, session, hasSidebar]);
 
   return (
     <div className="flex h-full items-center">
       {/* Firefox（MPL 2.0）导航图标为 16×16，侧栏保持相近的视觉尺寸、描边粗细。 */}
-      <ChromeButton label={open ? "收起侧栏" : "展开侧栏"} expanded={open} onClick={toggle}>
+      {hasSidebar ? <ChromeButton label={open ? "收起侧栏" : "展开侧栏"} expanded={open} onClick={toggle}>
         <g fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
           <rect x={1.75} y={1.75} width={12.5} height={12.5} rx={1.25} />
           <path d="M5.75 1.75V14.25" strokeLinecap="butt" />
@@ -150,7 +151,7 @@ export function WindowChrome() {
             d={open ? "M11.5 5.25 8.75 8l2.75 2.75" : "M8.75 5.25 11.5 8l-2.75 2.75"}
           />
         </g>
-      </ChromeButton>
+      </ChromeButton> : null}
       <ChromeButton label="后退" disabled={!canBack} onClick={goBack}>
         <path d="M6.69 2.25 1.22 7.72a.75.75 0 0 0 0 1.06l5.47 5.47 1.06-1.061L3.56 9H15V7.5H3.56l4.19-4.19-1.06-1.06z" />
       </ChromeButton>

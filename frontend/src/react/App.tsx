@@ -1,4 +1,5 @@
 import "@/react/styles/workbench.css";
+import "@/react/styles/uiux.css";
 import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
 import { SidebarSplitter } from "@/react/components/sidebar-splitter";
 import {
@@ -165,7 +166,7 @@ function Shell() {
         <div className="pointer-events-auto relative flex h-full shrink-0 items-center">
           <WindowChrome />
         </div>
-        {hostWorkspace ? <HostToolTabs /> : null}
+        {hostWorkspace ? <><div className="toolbar-device" aria-label={`当前设备 ${session.workspace === "local" ? "本机" : session.activeHost}`} title={session.workspace === "local" ? "本机" : session.activeHost}>{session.workspace === "local" ? "本机" : session.activeHost}</div><HostToolTabs /></> : null}
         <div
           ref={setSlot}
           className={hostWorkspace ? "hidden" : "shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"}
@@ -178,13 +179,8 @@ function Shell() {
       </header>
 
       <div className="relative flex min-h-0 min-w-0 flex-1">
-        {sidebar.open ? (
-          <>
-            <WorkspaceRail />
-            <SidebarSplitter />
-          </>
-        ) : null}
-        <main className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
+        <SidebarLayer />
+        <main inert={sidebar.overlay && sidebar.open && (session.workspace !== "local" || session.settingsOpen) ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
           <div className="relative min-h-0 min-w-0 flex-1">
             {session.settingsOpen ? (
               <div key="settings" className="motion-fade-in h-full min-h-0">
@@ -236,6 +232,36 @@ function Shell() {
       <UpdateCheckFailDialog />
     </div>
   );
+}
+
+/** Keep navigation mounted so auto-hiding never clears selections or drag order. */
+function SidebarLayer() {
+  const sidebar = useSidebar();
+  const session = useSession();
+  const ref = useRef<HTMLDivElement>(null);
+  const enabled = session.workspace !== "local" || session.settingsOpen;
+  const visible = enabled && sidebar.open;
+  useEffect(() => { sidebar.closeOverlay(); }, [session.workspace, session.settingsOpen, sidebar.closeOverlay]);
+  useEffect(() => {
+    if (!visible || !sidebar.overlay) return;
+    ref.current?.querySelector<HTMLElement>('[aria-current="page"], button')?.focus();
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) return;
+      event.preventDefault(); sidebar.closeOverlay();
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('.shell-app-toolbar [aria-label="展开侧栏"]')?.focus());
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [visible, sidebar.overlay, sidebar.closeOverlay]);
+  return <>
+    {visible && sidebar.overlay ? <button className="workspace-sidebar-backdrop" aria-label="关闭侧栏遮罩" onClick={sidebar.closeOverlay}/> : null}
+    <div ref={ref} hidden={!visible} inert={!visible ? true : undefined} className={sidebar.overlay ? "workspace-sidebar is-overlay" : "workspace-sidebar"}
+      onClick={event => { if (sidebar.overlay && !event.metaKey && !event.ctrlKey && !event.shiftKey && (event.target as Element).closest('[data-rail-key]')) sidebar.closeOverlay(); }}>
+      {sidebar.overlay ? <button className="sidebar-close" aria-label="关闭侧栏" onClick={sidebar.closeOverlay}>关闭</button> : null}
+      <WorkspaceRail />
+      {!sidebar.overlay ? <SidebarSplitter /> : null}
+    </div>
+  </>;
 }
 
 function workspaceKey(session: ReturnType<typeof useSession>): string {
