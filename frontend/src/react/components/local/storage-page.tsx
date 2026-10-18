@@ -271,6 +271,8 @@ export function LocalStoragePage() {
         ) : (
           <>
             {tab === "apps" ? (
+              <div className="max-w-full overflow-x-auto">
+                <div className="min-w-[800px]">
                 <table className="w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className={THEAD_ROW_CLASS}>
@@ -313,13 +315,13 @@ export function LocalStoragePage() {
                               <td className="px-3">
                                 {app.name || app.bundleId || "—"}
                               </td>
-                              <td className="px-3 text-right font-mono">
+                              <td className="whitespace-nowrap px-3 text-right font-mono">
                                 {formatBytesSI(app.bundleSize || 0)}
                               </td>
-                              <td className="px-3 text-right font-mono">
+                              <td className="whitespace-nowrap px-3 text-right font-mono">
                                 {formatBytesSI(app.dataSize || 0)}
                               </td>
-                              <td className="px-3 text-right font-mono">
+                              <td className="whitespace-nowrap px-3 text-right font-mono">
                                 {formatBytesSI(app.total || 0)}
                               </td>
                               <td className="max-w-[240px] truncate px-3 font-mono text-muted">
@@ -378,6 +380,8 @@ export function LocalStoragePage() {
                     )}
                   </tbody>
                 </table>
+                </div>
+              </div>
             ) : null}
 
             {tab === "tree" ? (
