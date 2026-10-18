@@ -199,7 +199,9 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
                   }
                   onClick={() => setSelected(file.path)}
                 >
-                  {file.name}
+                  <span className="min-w-0 truncate" data-tip={file.name} data-tip-overflow="">
+                    {file.name}
+                  </span>
                 </button>
               ))}
               {!listing.isLoading && !(listing.data?.files || []).length ? (
