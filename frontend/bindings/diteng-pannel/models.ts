@@ -95,6 +95,28 @@ export interface AppLogResult {
 }
 
 /**
+ * ApplicationBackup describes a full snapshot without exposing its secrets.
+ */
+export interface ApplicationBackup {
+    "path": string;
+    "name": string;
+    "createdAt": number;
+    "sourceOS": string;
+    "hosts": number;
+    "groups": number;
+    "dataFiles": number;
+    "sshFiles": number;
+    "preferences": number;
+    "size": number;
+    "fingerprint": string;
+}
+
+export interface ApplicationPreferences {
+    "id": string;
+    "values": { [_ in string]?: string } | null;
+}
+
+/**
  * BackupPreview 恢复前的预览信息
  */
 export interface BackupPreview {

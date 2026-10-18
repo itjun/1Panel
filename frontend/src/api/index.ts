@@ -657,6 +657,16 @@ const apiImpl = {
   },
 
   // ============ 跨平台迁移（主机配置 .zip） ============
+  pickAndBackupApplicationData: (preferences: Record<string, string>) => Backup.PickAndBackupApplicationData(preferences),
+  listApplicationBackups: () => arr(Backup.ListApplicationBackups()),
+  pickApplicationBackup: () => str(Backup.PickApplicationBackup()),
+  previewApplicationBackup: (path: string) => must(Backup.PreviewApplicationBackup(path)),
+  restoreApplicationData: async (path: string, fingerprint: string, preferences: Record<string, string>) => {
+    await Backup.RestoreApplicationData(path, fingerprint, preferences);
+  },
+  restoredApplicationPreferences: () => Backup.RestoredApplicationPreferences(),
+  acknowledgeApplicationPreferences: async (id: string) => { await Backup.AcknowledgeApplicationPreferences(id); },
+  applicationRestoreError: () => str(Backup.ApplicationRestoreError()),
   /** 弹出系统保存框，由用户选择位置后导出；取消时返回空字符串 */
   pickAndExportBackup: (): Promise<string> => str(Backup.PickAndExportBackup()),
   /** 导出迁移包到 path，返回摘要文案 */

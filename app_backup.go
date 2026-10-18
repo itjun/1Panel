@@ -19,8 +19,7 @@ import (
 	"diteng-pannel/internal/sshconfig"
 )
 
-// Backup 跨平台主机配置迁移：主机（含密码）、分组、图标、私钥与 known_hosts
-// 打包为单个 .zip，在 macOS / Windows / Linux 之间导出与恢复。
+// Backup 提供完整应用数据备份与恢复，并保留旧版跨平台主机迁移接口。
 type Backup App
 
 // maxKeyFileSize 超过该大小的 IdentityFile 视为非密钥文件，不打包

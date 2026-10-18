@@ -47,29 +47,31 @@ const macInvisibleTitleBarHeight = 0
 // （Hosts / Groups / Overview / Monitor / Files / Certs / Icons / System / Backup），
 // 每个 Service 都是 App 的 defined type（字段共享，方法隔离）。
 type App struct {
-	sshMgr          *sshd.Manager
-	collector       *monitor.Collector
-	agentPool       *agentcli.Pool
-	installer       *agentinstall.Installer
-	groups          *groups.Store
-	panelStore      *panelstore.Store
-	hostIcons       *hosticon.Store
-	hostMeta        *hostmeta.Store
-	alertHistory    *alerthistory.Store
-	appSessions     *appsession.Store
-	appSessionStop  chan struct{}
-	appSessionOnce  sync.Once
-	notifySubs      *notifysubs.Store
-	certNotify      *certnotify.Store
-	menuCheck       *menucheck.Watcher
-	menuCheckStore  *menucheck.Store
-	speedTest       *speedtest.Service
-	updates         *updateController
-	panelConfigMu   sync.Mutex
-	panelConfigStop chan struct{}
-	panelPreviews   map[string]panelConfigPreviewRecord
-	zshSetupMu      sync.Mutex
-	zshSetups       map[string]*ZshSetupTask
+	sshMgr                  *sshd.Manager
+	collector               *monitor.Collector
+	agentPool               *agentcli.Pool
+	installer               *agentinstall.Installer
+	groups                  *groups.Store
+	panelStore              *panelstore.Store
+	hostIcons               *hosticon.Store
+	hostMeta                *hostmeta.Store
+	alertHistory            *alerthistory.Store
+	appSessions             *appsession.Store
+	appSessionStop          chan struct{}
+	appSessionOnce          sync.Once
+	notifySubs              *notifysubs.Store
+	certNotify              *certnotify.Store
+	menuCheck               *menucheck.Watcher
+	menuCheckStore          *menucheck.Store
+	speedTest               *speedtest.Service
+	updates                 *updateController
+	panelConfigMu           sync.Mutex
+	panelConfigStop         chan struct{}
+	panelPreviews           map[string]panelConfigPreviewRecord
+	applicationRestoreError string
+	applicationDataMu       sync.Mutex
+	zshSetupMu              sync.Mutex
+	zshSetups               map[string]*ZshSetupTask
 
 	app        *application.App
 	mainWindow *application.WebviewWindow
@@ -120,17 +122,6 @@ func NewApp() *application.App {
 		panelPreviews: make(map[string]panelConfigPreviewRecord),
 		notifier:      ns,
 	}
-	core.windowTheme = newWindowThemeManager(windowThemePath(), windowmaterial.Automatic(), windowmaterial.Capability, func(material string) error {
-		return windowmaterial.Apply(core.mainWindow, material)
-	})
-	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
-		return core.connectOptionFor(host)
-	})
-	core.speedTest = core.newSpeedTest()
-	core.updates = newUpdateController(core)
-	desktop.SetService(ns)
-	initAskBeforeQuit()
-
 	app := application.New(application.Options{
 		// 用户可见名称保持 1Panel。Wails 会把 Name 洗成 org.wails.1panel 当作 GTK
 		// application id，该 id 不合法；Linux 上在 gtk_app_id_linux.go 里替换。
@@ -188,6 +179,22 @@ func NewApp() *application.App {
 		Icon:       appIcon(),
 	})
 	core.app = app
+	// Single-instance ownership is established before a pending restore touches
+	// disk. No store, cache or background writer may load before this point.
+	if err := applyPendingApplicationRestore(); err != nil {
+		core.applicationRestoreError = "应用数据恢复失败，可使用恢复前的自动备份重试：" + err.Error()
+		app.Logger.Error("恢复应用数据失败", "error", err)
+	}
+	core.windowTheme = newWindowThemeManager(windowThemePath(), windowmaterial.Automatic(), windowmaterial.Capability, func(material string) error {
+		return windowmaterial.Apply(core.mainWindow, material)
+	})
+	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
+		return core.connectOptionFor(host)
+	})
+	core.speedTest = core.newSpeedTest()
+	core.updates = newUpdateController(core)
+	desktop.SetService(ns)
+	initAskBeforeQuit()
 
 	// 主窗口等待材质和颜色就绪；1.5 秒后仍未就绪则显示经典骨架。
 	winW, winH := 1280, 800
