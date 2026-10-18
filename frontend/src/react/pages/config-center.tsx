@@ -7,7 +7,7 @@
  */
 import { Events } from "@wailsio/runtime";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type main } from "@/api";
 import {
   HostBackupRestoreDialog,
@@ -27,7 +27,7 @@ import {
 } from "@/react/components/ui/dialog";
 import { Select } from "@/react/components/ui/select";
 import { Tag } from "@/react/components/ui/tag";
-import { FlashNotices, Page } from "@/react/components/page";
+import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { ConfigConflictsPanel, conflictChoiceOptions } from "@/react/pages/config-conflicts";
 import { ConfigSshFilesPanel } from "@/react/pages/config-ssh";
@@ -81,6 +81,14 @@ function kindDotClass(type: string) {
 export function ConfigCenterPage() {
   const session = useSession();
   const section = session.configSection;
+  const sectionTitle = {overview: "配置概览", json: "Panel JSON", files: "SSH 文件", diff: "差异与冲突", backups: "备份与恢复"}[section];
+  const backupListRef = useRef<HTMLDivElement>(null);
+  const [sshFocusRequest, setSshFocusRequest] = useState<{path: string; nonce: number} | null>(null);
+  function openSshConfig() {
+    const file = files.data?.find(item => item.absolutePath === overview.data?.sshConfigPath);
+    setSshFocusRequest({path: file?.path || "config", nonce: Date.now()});
+    session.setConfigSection("files");
+  }
 
   const flash = useFlashMessage();
   const [busy, setBusy] = useState(false);
@@ -94,6 +102,7 @@ export function ConfigCenterPage() {
   // 备份
   const [selectedBackupId, setSelectedBackupId] = useState("");
   const [backupDetail, setBackupDetail] = useState<main.PanelBackup | null>(null);
+  const [backupDetailError, setBackupDetailError] = useState("");
   const [restoreOpen, setRestoreOpen] = useState(false);
 
   // 提交前预览（JSON / 导入差异）
@@ -164,7 +173,7 @@ export function ConfigCenterPage() {
   // 进入 JSON 分区时加载脱敏草稿（有未保存草稿则不覆盖）
   useEffect(() => {
     if (section !== "json") return;
-    if (jsonDirty && jsonText) return;
+    if (jsonDirty) return;
     void loadJson(false);
     // 仅在切换到 json 时触发；脏标记保护草稿
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,11 +192,25 @@ export function ConfigCenterPage() {
         ? selectedBackupId
         : list[0]!.id;
     if (id !== selectedBackupId) setSelectedBackupId(id);
-    void api
-      .getPanelBackup(id)
-      .then(setBackupDetail)
-      .catch((err) => flash.showError(formatErr(err)));
+    let active = true;
+    setBackupDetail(null);
+    setBackupDetailError("");
+    void api.getPanelBackup(id)
+      .then(detail => { if (active) setBackupDetail(detail); })
+      .catch(err => { if (active) setBackupDetailError(formatErr(err)); });
+    return () => { active = false; };
   }, [backups.data, section, selectedBackupId]);
+
+  useLayoutEffect(() => {
+    if (section !== "backups") return;
+    const list = backupListRef.current;
+    if (!list) return;
+    const reveal = () => list.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
+    reveal();
+    const observer = new ResizeObserver(reveal);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [section, selectedBackupId]);
 
   // 预览冲突默认选项
   useEffect(() => {
@@ -383,7 +406,7 @@ export function ConfigCenterPage() {
   }
 
   async function restoreSelected() {
-    if (!backupDetail) return;
+    if (!backupDetail || backupDetail.summary.id !== selectedBackupId) return;
     setBusy(true);
     flash.clearError();
     try {
@@ -469,10 +492,11 @@ export function ConfigCenterPage() {
   return (
     <Page
       title="配置中心"
+      heading={sectionTitle}
       flush={section === "json" || section === "files" || section === "diff"}
       actions={
         <>
-          <span className="text-sm text-muted">{statusLabel(overview.data)}</span>
+          {section !== "overview" ? <span className="text-sm text-muted">{statusLabel(overview.data)}</span> : null}
           {overview.data?.drift || overview.data?.needsReview ? (
             <Button size="sm" disabled={busy} onClick={() => void previewExternalImport()}>
               导入差异
@@ -484,35 +508,26 @@ export function ConfigCenterPage() {
       refreshing={busy}
     >
       <FlashNotices flash={flash} />
+      {overview.error ? <Notice text={formatErr(overview.error)} /> : null}
+      {section === "backups" && backups.error ? <Notice text={formatErr(backups.error)} /> : null}
 
       {section === "overview" ? (
         <div className="flex flex-col gap-section">
-          <div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="primary" onClick={() => session.setConfigSection("json")}>
-                编辑 Panel JSON
-              </Button>
-              <Button onClick={() => session.setConfigSection("files")}>查看 SSH 文件</Button>
-              <Button onClick={() => session.setConfigSection("diff")}>差异与冲突</Button>
-              <Button onClick={() => session.setConfigSection("backups")}>备份与恢复</Button>
-            </div>
-          </div>
-
-          <div className="gap-card grid md:grid-cols-2 xl:grid-cols-4">
+          <div className="config-overview-metrics gap-card grid md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-control bg-raised p-5">
               <div className="text-sm text-muted">Panel 主机</div>
-              <div className="text-2xl">{overview.data?.hostCount ?? 0}</div>
-              <div className="text-xs text-muted">Revision {overview.data?.revision ?? 0}</div>
+              <div className="text-2xl">{overview.data?.hostCount ?? "—"}</div>
+              <div className="text-xs text-muted">Revision {overview.data?.revision ?? "—"}</div>
             </div>
             <div className="rounded-control bg-raised p-5">
               <div className="text-sm text-muted">分组</div>
-              <div className="text-2xl">{overview.data?.groupCount ?? 0}</div>
+              <div className="text-2xl">{overview.data?.groupCount ?? "—"}</div>
             </div>
             <div className="rounded-control bg-raised p-5">
               <div className="text-sm text-muted">SSH 文件</div>
-              <div className="text-2xl">{overview.data?.configFileCount ?? 0}</div>
+              <div className="text-2xl">{overview.data?.configFileCount ?? "—"}</div>
               <div className="text-xs text-muted">
-                {overview.data?.includeCount ?? 0} 个 Include 文件
+                {overview.data?.includeCount ?? "—"} 个 Include 文件
               </div>
             </div>
             <div
@@ -557,7 +572,7 @@ export function ConfigCenterPage() {
                 <code className="truncate font-mono text-xs" data-tip={overview.data?.sshConfigPath} data-tip-overflow="">
                   {compactPath(overview.data?.sshConfigPath)}
                 </code>
-                <Button size="sm" variant="ghost" onClick={() => session.setConfigSection("files")}>
+                <Button size="sm" variant="ghost" onClick={openSshConfig}>
                   查看
                 </Button>
               </div>
@@ -690,10 +705,10 @@ export function ConfigCenterPage() {
         </div>
       ) : null}
 
-      {section === "files" ? (
-        <div className="m-[var(--gap-card)] min-h-0 flex-1">
+      <div hidden={section !== "files"} className="config-files-section m-[var(--gap-card)] min-h-0 flex-1">
           <div className="surface-float flex h-full min-h-0 flex-col overflow-hidden">
             <ConfigSshFilesPanel
+              focusRequest={sshFocusRequest}
               onOpenPanelJson={() => session.setConfigSection("json")}
               onCommitted={async () => {
                 setPreview(null);
@@ -704,7 +719,6 @@ export function ConfigCenterPage() {
             />
           </div>
         </div>
-      ) : null}
 
       {section === "diff" ? (
         <div className="m-[var(--gap-card)] min-h-0 flex-1">
@@ -726,7 +740,7 @@ export function ConfigCenterPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-ink">备份与恢复</h2>
+              <p className="text-xs text-muted">配置快照 · Panel JSON、SSH 文件与引用密钥</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy} onClick={() => void exportPortable()}>
@@ -743,12 +757,13 @@ export function ConfigCenterPage() {
               </Button>
             </div>
           </div>
-          <div className="grid min-h-0 flex-1 md:grid-cols-[280px_1fr]">
-            <div className="min-h-0 overflow-auto border-r border-line bg-surface">
+          <div className="config-backup-layout grid min-h-0 flex-1">
+            <div ref={backupListRef} className="config-backup-list min-h-0 overflow-auto border-r border-line bg-surface" aria-label="配置快照时间线">
               {(backups.data || []).map((backup) => (
                 <button
                   key={backup.id}
                   type="button"
+                  aria-current={selectedBackupId === backup.id ? "true" : undefined}
                   className={`block w-full border-b border-line px-3 py-3 text-left hover:bg-raised ${
                     selectedBackupId === backup.id
                       ? "bg-accent-soft font-semibold text-accent"
@@ -763,12 +778,12 @@ export function ConfigCenterPage() {
                   </div>
                 </button>
               ))}
-              {(backups.data || []).length === 0 ? (
+              {!backups.isFetching && (backups.data || []).length === 0 ? (
                 <p className="p-4 text-sm text-muted">暂无自动备份</p>
               ) : null}
             </div>
             <Card>
-              {backupDetail ? (
+              {backupDetail && backupDetail.summary.id === selectedBackupId ? (
                 <>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -812,7 +827,7 @@ export function ConfigCenterPage() {
                   </p>
                 </>
               ) : (
-                <p className="text-muted">选择左侧备份查看详情</p>
+                backupDetailError ? <Notice text={backupDetailError} /> : <p className="text-muted">{selectedBackupId ? "正在读取所选快照…" : "选择配置快照查看详情"}</p>
               )}
             </Card>
           </div>
@@ -1015,7 +1030,7 @@ export function ConfigCenterPage() {
           </DialogDescription>
           <DialogFooter>
             <Button onClick={() => setRestoreOpen(false)}>取消</Button>
-            <Button variant="primary" disabled={busy} onClick={() => void restoreSelected()}>
+            <Button variant="primary" disabled={busy || !backupDetail || backupDetail.summary.id !== selectedBackupId} onClick={() => void restoreSelected()}>
               恢复
             </Button>
           </DialogFooter>
