@@ -224,8 +224,7 @@ export function ConfigConflictsPanel({ onOpenSshFiles, onCommitted }: Props) {
       ) : null}
 
       <section>
-        <h2 className="text-sm font-semibold text-ink">差异与冲突</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           {overview.data?.drift || overview.data?.needsReview ? (
             <Button disabled={busy} onClick={() => void previewExternalImport()}>
               预览外部导入
