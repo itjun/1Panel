@@ -18,6 +18,7 @@ import { formatBytes, formatErr } from "@/utils/format";
 
 type Props = {
   onOpenPanelJson: () => void;
+  focusRequest?: {path: string; nonce: number} | null;
   onCommitted?: () => void | Promise<void>;
 };
 
@@ -49,7 +50,7 @@ function diffKindLabel(kind: string) {
  * 配置中心「SSH 文件」分区：文件树、每文件草稿、脏/外部标记、校验预览与提交。
  * 预览窗内可逐项解决冲突并提交，不必只跳到差异页。
  */
-export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
+export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted, focusRequest }: Props) {
   const filesQuery = useQuery({
     queryKey: ["config-files"],
     queryFn: () => api.getPanelConfigTree(),
@@ -77,6 +78,10 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
       configFiles.find((file) => !file.panelJson)?.path || configFiles[0]!.path;
     setSelectedPath(firstSsh);
   }, [configFiles, selectedPath]);
+
+  useEffect(() => {
+    if (focusRequest?.path) setSelectedPath(focusRequest.path);
+  }, [focusRequest]);
 
   // 有未保存草稿时，外部导入事件不自动刷新盖掉编辑
   useEffect(() => {
@@ -258,7 +263,7 @@ export function ConfigSshFilesPanel({ onOpenPanelJson, onCommitted }: Props) {
         </div>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
+      <div className="config-editor-layout grid min-h-0 flex-1">
         <aside className="flex min-h-0 flex-col overflow-hidden border-r border-line bg-surface">
           <div className="flex items-center justify-between border-b border-line px-3 py-2">
             <div>

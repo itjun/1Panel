@@ -53,3 +53,21 @@
 .uiux-file-local[hidden]{display:none}
 .uiux-file-panes.is-transfer{grid-template-columns:repeat(2,minmax(0,1fr))}
 @container file-workspace (max-width:1100px){.uiux-file-panes.is-transfer{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(2,minmax(260px,1fr));overflow:auto}}
+
+/* Config sections share the original drafts and write preview; only visibility changes. */
+.config-files-section[hidden]{display:none}
+.config-overview-metrics{gap:0;border-block:1px solid var(--color-line)}
+.config-overview-metrics>div{background:transparent;padding:16px;border-radius:0;border-right:1px solid var(--color-line)}
+.config-overview-metrics>div:last-child{border-right:0}
+.config-overview-metrics>div.bg-danger-soft{background:var(--color-danger-soft)}
+.config-backup-layout{grid-template-columns:clamp(190px,28%,260px) minmax(0,1fr);margin-top:16px;border-top:1px solid var(--color-line)}
+.config-backup-list button[aria-current="true"]{box-shadow:inset 3px 0 var(--color-accent)}
+.config-backup-layout>.surface-float{min-width:0;overflow:auto}
+.config-editor-layout{grid-template-columns:clamp(180px,28%,260px) minmax(0,1fr)}
+@container page-content (max-width:640px){
+ .config-backup-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:112px minmax(0,1fr)}
+ .config-backup-list{display:flex;border-right:0;border-bottom:1px solid var(--color-line);overflow:auto}
+ .config-backup-list>button{flex:0 0 210px;border-right:1px solid var(--color-line);border-bottom:0}
+ .config-editor-layout{grid-template-columns:180px minmax(0,1fr)}
+ .config-overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
