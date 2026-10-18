@@ -477,7 +477,7 @@ function AppsTable({
         </Tag>
       </div>
       <div className="overflow-auto">
-        <table className="w-full table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[1200px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             {APP_COLUMNS.map((col) => (
               <col
