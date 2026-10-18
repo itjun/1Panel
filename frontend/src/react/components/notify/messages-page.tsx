@@ -288,7 +288,7 @@ export function MessagesPage({
           <Notice text={formatErr(query.error)} />
         </div>
       ) : null}
-      <div className="notify-message-layout flex min-h-0 flex-1">
+      <div className={cn("notify-message-layout flex min-h-0 flex-1", !selected && "is-empty")}>
         <div
           className="notify-message-list flex shrink-0 flex-col overflow-y-auto border-r border-line"
           onKeyDown={onListKeyDown}
@@ -325,8 +325,8 @@ export function MessagesPage({
             ))
           )}
         </div>
-        <div className="notify-message-detail min-w-0 flex-1 overflow-y-auto">
-          {selected ? (
+        {selected ? (
+          <div className="notify-message-detail min-w-0 flex-1 overflow-y-auto">
             <IncidentDetail
               incident={selected}
               all={pageIncidents}
@@ -336,12 +336,8 @@ export function MessagesPage({
               onOpenSubs={() => session.setNotifySection(appPage ? "appSubs" : "metricSubs")}
               onDelete={() => void onDeleteIncident(selected)}
             />
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted">
-              在左侧选择一条消息查看详情
-            </div>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </Page>
   );
