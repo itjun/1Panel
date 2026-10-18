@@ -1,1109 +1,169 @@
-/**
- * INTEGRATION: 让 entry.tsx 改为使用本文件的 ConfigCenterPage，
- * 替换 `export function ConfigCenterPage`（或改为 re-export）。
- * App.tsx 已从 entry 导入；切到本文件后即可启用完整配置中心。
- *
- * 本页对照 Vue ConfigCenterView：概览 / Panel JSON / SSH / 差异 / 备份。
- */
 import { Events } from "@wailsio/runtime";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api, type main } from "@/api";
-import {
-  HostBackupRestoreDialog,
-  exportHostBackup,
-  pickHostBackupFile,
-} from "@/react/components/backup/host-backup";
-import { CodeSurface } from "@/react/components/code-surface";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
-import { confirmDialog } from "@/react/components/ui/confirm-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogTitle,
-} from "@/react/components/ui/dialog";
-import { Select } from "@/react/components/ui/select";
-import { Tag } from "@/react/components/ui/tag";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/react/components/ui/dialog";
 import { FlashNotices, Notice, Page } from "@/react/components/page";
+import { applicationPreferences } from "@/react/lib/application-data";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
-import { ConfigConflictsPanel, conflictChoiceOptions } from "@/react/pages/config-conflicts";
-import { ConfigSshFilesPanel } from "@/react/pages/config-ssh";
-import { useSession } from "@/react/state/session";
-import { formatBytes, formatErr } from "@/utils/format";
+import { formatErr } from "@/utils/format";
+import "@/react/styles/config-data.css";
 
-type ConflictChoice = "panel" | "external" | "manual";
-
-function statusLabel(status?: {
-  needsReview?: boolean;
-  configStale?: boolean;
-  drift?: boolean;
-}) {
-  if (!status) return "检测中";
-  if (status.needsReview) return "需人工解决";
-  if (status.configStale) return "配置待生成";
-  if (status.drift) return "外部有修改";
-  return "正常";
-}
-
-function diffKindLabel(kind: string) {
-  if (kind === "added") return "新增";
-  if (kind === "removed") return "删除";
-  if (kind === "changed") return "变化";
-  return kind || "结构";
-}
-
-function formatUnixTime(value?: number) {
-  if (!value) return "—";
-  return new Date(value * (value < 1e12 ? 1000 : 1)).toLocaleString();
+function time(value: number) {
+  return new Date(value).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function compactPath(path?: string) {
-  if (!path) return "—";
-  if (path.length > 62) return `…${path.slice(-59)}`;
-  return path.replace(/^\/Users\/[^/]+/, "~");
-}
-
-function shortHash(value?: string) {
-  if (!value) return "—";
-  return value.slice(0, 8);
-}
-
-function kindDotClass(type: string) {
-  if (type === "added") return "bg-success";
-  if (type === "removed" || type === "danger") return "bg-danger";
-  if (type === "changed") return "bg-info";
-  return "bg-info";
+  return path?.replace(/^\/Users\/[^/]+|^\/home\/[^/]+|^[A-Za-z]:\\Users\\[^\\]+/, "~") || "—";
 }
 
 export function ConfigCenterPage() {
-  const session = useSession();
-  const section = session.configSection;
-  const sectionTitle = {overview: "配置概览", json: "Panel JSON", files: "SSH 文件", diff: "差异与冲突", backups: "备份与恢复"}[section];
-  const backupListRef = useRef<HTMLDivElement>(null);
-  const [sshFocusRequest, setSshFocusRequest] = useState<{path: string; nonce: number} | null>(null);
-  function openSshConfig() {
-    const file = files.data?.find(item => item.absolutePath === overview.data?.sshConfigPath);
-    setSshFocusRequest({path: file?.path || "config", nonce: Date.now()});
-    session.setConfigSection("files");
-  }
-
+  const queryClient = useQueryClient();
   const flash = useFlashMessage();
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<main.ApplicationBackup | null>(null);
+  const [viewer, setViewer] = useState<"app" | "ssh" | null>(null);
+  const [selectedSSH, setSelectedSSH] = useState("");
+  const overview = useQuery({ queryKey: ["config-overview"], queryFn: () => api.getPanelConfigOverview() });
+  const backups = useQuery({ queryKey: ["application-backups"], queryFn: () => api.listApplicationBackups() });
+  const restoreError = useQuery({ queryKey: ["application-restore-error"], queryFn: () => api.applicationRestoreError() });
+  const files = useQuery({ queryKey: ["config-files"], queryFn: () => api.getPanelConfigTree(), enabled: viewer === "ssh" });
+  const appConfig = useQuery({ queryKey: ["config-readonly-state"], queryFn: () => api.getEditablePanelState(), enabled: viewer === "app" });
+  const sshFiles = (files.data || []).filter(file => !file.panelJson);
+  const currentFile = sshFiles.find(file => file.path === selectedSSH) || sshFiles.find(file => file.absolutePath === overview.data?.sshConfigPath) || sshFiles[0];
 
-  // Panel JSON 草稿
-  const [jsonText, setJsonText] = useState("");
-  const [jsonDirty, setJsonDirty] = useState(false);
-  const [passwordVisible, setPasswordVisible] = useState(false);
-
-  // 备份
-  const [selectedBackupId, setSelectedBackupId] = useState("");
-  const [backupDetail, setBackupDetail] = useState<main.PanelBackup | null>(null);
-  const [backupDetailError, setBackupDetailError] = useState("");
-  const [restoreOpen, setRestoreOpen] = useState(false);
-
-  // 提交前预览（JSON / 导入差异）
-  const [preview, setPreview] = useState<main.PanelConfigPreview | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewFilePath, setPreviewFilePath] = useState("");
-  const [choices, setChoices] = useState<Record<string, ConflictChoice>>({});
-  const [manualTexts, setManualTexts] = useState<Record<string, string>>({});
-
-  // 跨平台迁移包恢复
-  const [restorePath, setRestorePath] = useState<string | null>(null);
-
-  // 系统编辑器选择
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorLoading, setEditorLoading] = useState(false);
-  const [editorTargetPath, setEditorTargetPath] = useState("");
-  const [systemEditors, setSystemEditors] = useState<main.PanelSystemEditor[]>([]);
-  const [launchingEditorId, setLaunchingEditorId] = useState("");
-
-  const overview = useQuery({
-    queryKey: ["config-overview"],
-    queryFn: () => api.getPanelConfigOverview(),
-  });
-  const files = useQuery({
-    queryKey: ["config-files"],
-    queryFn: () => api.getPanelConfigTree(),
-    enabled: section === "files" || section === "diff" || section === "overview" || section === "json",
-  });
-  const backups = useQuery({
-    queryKey: ["config-backups"],
-    queryFn: () => api.listPanelBackups(),
-    enabled: section === "backups" || section === "overview",
-  });
-
-  const diff = overview.data?.diff;
-
-  // 影响摘要：按类型分别计数
-  const impactItems = useMemo(() => {
-    if (!diff) return [];
-    return [
-      { key: "added", label: "新增主机", count: (diff.addedHosts || []).length, type: "added" },
-      { key: "removed", label: "删除主机", count: (diff.removedHosts || []).length, type: "removed" },
-      { key: "changed", label: "主机字段变化", count: (diff.changedHosts || []).length, type: "changed" },
-      { key: "files", label: "文件变化", count: (diff.changedFiles || []).length, type: "changed" },
-      {
-        key: "conflicts",
-        label: "待解决冲突",
-        count: (diff.conflicts || []).length,
-        type: "danger",
-      },
-    ].filter((item) => item.count > 0);
-  }, [diff]);
-
-  const previewFile = useMemo(() => {
-    if (!preview?.fileDiff?.length) return null;
-    return (
-      preview.fileDiff.find((file) => file.path === previewFilePath) ||
-      preview.fileDiff[0] ||
-      null
-    );
-  }, [preview, previewFilePath]);
-
-  const panelJsonFile = useMemo(
-    () => (files.data || []).find((file) => file.panelJson) || null,
-    [files.data],
-  );
-
-  // 进入 JSON 分区时加载脱敏草稿（有未保存草稿则不覆盖）
-  useEffect(() => {
-    if (section !== "json") return;
-    if (jsonDirty) return;
-    void loadJson(false);
-    // 仅在切换到 json 时触发；脏标记保护草稿
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section]);
+  async function refresh() {
+    await Promise.all([overview.refetch(), backups.refetch(), ...(viewer === "ssh" ? [files.refetch()] : []), ...(viewer === "app" ? [appConfig.refetch()] : [])]);
+  }
 
   useEffect(() => {
-    if (section !== "backups") return;
-    const list = backups.data || [];
-    if (!list.length) {
-      setSelectedBackupId("");
-      setBackupDetail(null);
-      return;
-    }
-    const id =
-      selectedBackupId && list.some((item) => item.id === selectedBackupId)
-        ? selectedBackupId
-        : list[0]!.id;
-    if (id !== selectedBackupId) setSelectedBackupId(id);
-    let active = true;
-    setBackupDetail(null);
-    setBackupDetailError("");
-    void api.getPanelBackup(id)
-      .then(detail => { if (active) setBackupDetail(detail); })
-      .catch(err => { if (active) setBackupDetailError(formatErr(err)); });
-    return () => { active = false; };
-  }, [backups.data, section, selectedBackupId]);
+    const off = ["panel-config-imported", "panel-config-needs-review"].map(name => Events.On(name, () => {
+      for (const key of ["config-overview", "config-files", "config-readonly-state"]) void queryClient.invalidateQueries({ queryKey: [key] });
+    }));
+    return () => off.forEach(dispose => dispose());
+  }, [queryClient]);
 
-  useLayoutEffect(() => {
-    if (section !== "backups") return;
-    const list = backupListRef.current;
-    if (!list) return;
-    const reveal = () => list.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
-    reveal();
-    const observer = new ResizeObserver(reveal);
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [section, selectedBackupId]);
+  async function backup() {
+    setBusy(true); flash.clear();
+    try {
+      const result = await api.pickAndBackupApplicationData(applicationPreferences());
+      if (result) { await backups.refetch(); flash.showToast("应用数据已备份，并保留了一份本地副本。"); }
+    } catch (error) { flash.showError(formatErr(error)); }
+    finally { setBusy(false); }
+  }
 
-  // 预览冲突默认选项
-  useEffect(() => {
+  async function showPreview(path: string) {
+    setBusy(true); flash.clear();
+    try { setPreview(await api.previewApplicationBackup(path)); }
+    catch (error) { flash.showError(formatErr(error)); }
+    finally { setBusy(false); }
+  }
+
+  async function chooseRestore() {
+    setBusy(true); flash.clear();
+    try { const path = await api.pickApplicationBackup(); if (path) setPreview(await api.previewApplicationBackup(path)); }
+    catch (error) { flash.showError(formatErr(error)); }
+    finally { setBusy(false); }
+  }
+
+  async function restore() {
     if (!preview) return;
-    setChoices((prev) => {
-      const next = { ...prev };
-      for (const conflict of preview.conflicts || []) {
-        if (!next[conflict.id]) next[conflict.id] = "panel";
-      }
-      return next;
-    });
-    setManualTexts((prev) => {
-      const next = { ...prev };
-      for (const conflict of preview.conflicts || []) {
-        if (next[conflict.id] === undefined) {
-          next[conflict.id] = conflict.external || "";
-        }
-      }
-      return next;
-    });
-  }, [preview]);
-
-  // 外部配置变化：有未保存草稿时不自动盖掉
-  useEffect(() => {
-    const offImported = Events.On("panel-config-imported", () => {
-      if (jsonDirty) {
-        flash.showWarn("检测到外部配置变化；当前草稿已暂停自动覆盖，请先处理差异。");
-        return;
-      }
-      void refreshAll();
-    });
-    const offReview = Events.On("panel-config-needs-review", () => {
-      void refreshAll();
-    });
-    const offError = Events.On("panel-config-import-error", () => {
-      void refreshAll();
-    });
-    return () => {
-      offImported();
-      offReview();
-      offError();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jsonDirty]);
-
-  async function refreshAll() {
-    flash.clearError();
-    await Promise.all([
-      overview.refetch(),
-      files.refetch(),
-      section === "backups" || section === "overview"
-        ? backups.refetch()
-        : Promise.resolve(),
-    ]);
-    // JSON 分区且草稿干净时才重载
-    if (section === "json" && !jsonDirty) {
-      await loadJson(passwordVisible);
-    }
-  }
-
-  async function loadJson(reveal: boolean) {
-    setBusy(true);
-    flash.clearError();
+    setBusy(true); flash.clear();
     try {
-      const state = reveal
-        ? await api.getEditablePanelStateSensitive()
-        : await api.getEditablePanelState();
-      setJsonText(JSON.stringify(state, null, 2));
-      setJsonDirty(false);
-      setPasswordVisible(reveal);
-    } catch (err) {
-      flash.showError(formatErr(err));
-    } finally {
-      setBusy(false);
-    }
+      await api.restoreApplicationData(preview.path, preview.fingerprint, applicationPreferences());
+      flash.showToast("当前数据已自动备份，正在重新启动应用以完成恢复…");
+    } catch (error) { flash.showError(formatErr(error)); setBusy(false); }
   }
 
-  async function togglePasswords() {
-    if (passwordVisible) {
-      if (jsonDirty) {
-        const ok = await confirmDialog({
-          theme: "warning",
-          title: "重新加载脱敏 JSON",
-          body: "隐藏敏感字段会重新加载当前 JSON 草稿，未提交的编辑会丢失。",
-          confirmText: "重新加载",
-        });
-        if (!ok) return;
-      }
-      await loadJson(false);
-      return;
-    }
-    await loadJson(true);
+  const viewerText = viewer === "app" ? (appConfig.data ? JSON.stringify(appConfig.data, null, 2) : "") : currentFile?.content || "";
+  const viewerError = viewer === "app" ? appConfig.error : files.error;
+  const viewerLoading = viewer === "app" ? appConfig.isPending : files.isPending;
+  const previewIsLocal = (backups.data || []).some(item => item.path === preview?.path);
+
+  function restorePreview(item: main.ApplicationBackup) {
+    return <div className="config-data-restore" aria-label="恢复预览">
+      <div className="min-w-0 flex-1">
+        <h3 className="font-semibold">恢复预览</h3>
+        <p className="mt-2">{item.hosts} 台主机 · {item.groups} 个分组 · 应用设置与布局 · 通知和历史记录 · SSH 配置及凭据</p>
+        <p className="mt-2 text-sm text-muted">将覆盖当前应用数据，恢复前会自动保存当前数据，随后重新启动应用。</p>
+      </div>
+      <div className="flex shrink-0 gap-2 self-end">
+        <Button disabled={busy} onClick={() => setPreview(null)}>取消</Button>
+        <Button variant="primary" disabled={busy} onClick={() => void restore()}>{busy ? "恢复中…" : "确认恢复"}</Button>
+      </div>
+    </div>;
   }
 
-  function showPreview(value: main.PanelConfigPreview) {
-    setPreview(value);
-    setPreviewFilePath(value.fileDiff?.[0]?.path || "");
-    setPreviewOpen(true);
-  }
-
-  /** 工具栏「导入差异」：打开完整预览窗，不只出一句提示 */
-  async function previewExternalImport() {
-    setBusy(true);
-    flash.clearError();
-    flash.clearToast();
-    try {
-      const tree = await api.getPanelConfigTree();
-      const draftFiles = tree
-        .filter((file) => !file.panelJson)
-        .map((file) => ({
-          path: file.path,
-          content: file.content,
-          mode: file.mode,
-          sha256: file.sha256,
-        }));
-      const next = await api.previewConfigDraft({ files: draftFiles });
-      showPreview(next);
-      if (next.valid) flash.showToast("已生成差异预览，确认后可提交。");
-      else flash.showWarn("预览存在冲突，请逐项选择处理方式后再提交。");
-    } catch (err) {
-      flash.showError(formatErr(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function previewJson() {
-    setBusy(true);
-    flash.clearError();
-    flash.clearToast();
-    try {
-      const parsed = JSON.parse(jsonText) as main.PanelStateDraft;
-      if (!parsed || !Array.isArray(parsed.hosts) || !Array.isArray(parsed.groups)) {
-        throw new Error("必须包含 hosts 和 groups 数组");
-      }
-      const next = await api.previewPanelState(parsed);
-      showPreview(next);
-      if (next.valid) flash.showToast("Panel JSON 预览已生成。");
-      else flash.showWarn("预览存在冲突或无效，请处理后提交。");
-    } catch (err) {
-      flash.showError(formatErr(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function resolveConflicts() {
-    if (!preview?.previewId) return;
-    const conflicts = preview.conflicts || [];
-    if (!conflicts.length) return;
-    setBusy(true);
-    flash.clearError();
-    try {
-      const resolutions: main.PanelConfigResolution[] = conflicts.map((conflict) => ({
-        id: conflict.id,
-        choice: choices[conflict.id] || "panel",
-        manual: manualTexts[conflict.id] || "",
-      }));
-      const next = await api.resolveConfigConflicts(preview.previewId, resolutions);
-      showPreview(next);
-      if (next.valid) flash.showToast("冲突已应用，预览可提交。");
-      else flash.showWarn("已重新预览，若仍有冲突请继续处理。");
-    } catch (err) {
-      flash.showError(formatErr(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function commitPreview() {
-    if (!preview?.valid || !preview.previewId) return;
-    setBusy(true);
-    flash.clearError();
-    try {
-      await api.commitPanelPreview(preview.previewId);
-      setPreviewOpen(false);
-      setPreview(null);
-      setChoices({});
-      setManualTexts({});
-      setJsonDirty(false);
-      flash.showToast("已备份并提交 Panel JSON 与 SSH 配置。");
-      await refreshAll();
-      await session.refresh();
-    } catch (err) {
-      flash.showError(formatErr(err));
-      await refreshAll();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function restoreSelected() {
-    if (!backupDetail || backupDetail.summary.id !== selectedBackupId) return;
-    setBusy(true);
-    flash.clearError();
-    try {
-      await api.restorePanelBackup(backupDetail.summary.id);
-      setRestoreOpen(false);
-      flash.showToast("配置快照已恢复。");
-      await refreshAll();
-      await backups.refetch();
-      await session.refresh();
-    } catch (err) {
-      flash.showError(formatErr(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /** 概览与备份共用：跨平台迁移包导出 / 导入 */
-  async function exportPortable() {
-    flash.clearError();
-    setBusy(true);
-    try {
-      const msg = await exportHostBackup();
-      if (msg) flash.showToast(msg);
-    } catch (err) {
-      flash.showError(formatErr(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function beginPortableRestore() {
-    flash.clearError();
-    try {
-      const path = await pickHostBackupFile();
-      if (path) setRestorePath(path);
-    } catch (err) {
-      flash.showError(formatErr(err));
-    }
-  }
-
-  async function openEditorPicker(path: string) {
-    if (!path) return;
-    setEditorTargetPath(path);
-    setEditorOpen(true);
-    setEditorLoading(true);
-    try {
-      setSystemEditors(await api.listSystemEditors());
-    } catch (err) {
-      setEditorOpen(false);
-      flash.showError(formatErr(err));
-    } finally {
-      setEditorLoading(false);
-    }
-  }
-
-  async function launchEditor(editor: main.PanelSystemEditor) {
-    if (!editorTargetPath || launchingEditorId) return;
-    setLaunchingEditorId(editor.id);
-    try {
-      await api.openPanelPathWithEditor(editorTargetPath, editor.id);
-      setEditorOpen(false);
-      try {
-        localStorage.setItem("1pannel.config.editor", editor.id);
-      } catch {
-        // 忽略本地存储失败
-      }
-    } catch (err) {
-      flash.showError(formatErr(err));
-    } finally {
-      setLaunchingEditorId("");
-    }
-  }
-
-  async function revealPath(path: string) {
-    if (!path) return;
-    try {
-      await api.revealPanelPath(path);
-    } catch (err) {
-      flash.showError(formatErr(err));
-    }
-  }
-
-  return (
-    <Page
-      title="配置中心"
-      heading={sectionTitle}
-      flush={section === "json" || section === "files" || section === "diff"}
-      actions={
-        <>
-          {section !== "overview" ? <span className="text-sm text-muted">{statusLabel(overview.data)}</span> : null}
-          {section !== "diff" && (overview.data?.drift || overview.data?.needsReview) ? (
-            <Button size="sm" disabled={busy} onClick={() => void previewExternalImport()}>
-              导入差异
-            </Button>
-          ) : null}
-        </>
-      }
-      onRefresh={() => void refreshAll()}
-      refreshing={busy}
-    >
-      <FlashNotices flash={flash} />
+  return <Page title="配置与数据" heading={false} flush onRefresh={refresh} refreshing={busy}>
+    <FlashNotices flash={flash} />
+    <div className="config-data-page">
+      <header className="config-data-header">
+        <div><h1>配置与数据</h1><p className="mt-2 text-muted">查看当前配置，保存一份完整备份。</p></div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" disabled={busy} onClick={() => void backup()}>备份应用数据</Button>
+          <Button disabled={busy} onClick={() => void chooseRestore()}>恢复应用数据</Button>
+        </div>
+      </header>
       {overview.error ? <Notice text={formatErr(overview.error)} /> : null}
-      {section === "backups" && backups.error ? <Notice text={formatErr(backups.error)} /> : null}
-
-      {section === "overview" ? (
-        <div className="flex flex-col gap-section">
-          <div className="config-overview-metrics gap-card grid md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-control bg-raised p-5">
-              <div className="text-sm text-muted">Panel 主机</div>
-              <div className="text-2xl">{overview.data?.hostCount ?? "—"}</div>
-              <div className="text-xs text-muted">Revision {overview.data?.revision ?? "—"}</div>
+      {restoreError.data ? <Notice text={restoreError.data} /> : null}
+      <section className="config-data-section" aria-labelledby="application-backups-title">
+        <h2 id="application-backups-title">备份与恢复</h2>
+        <p className="mt-3 text-sm text-muted">备份包含主机、分组、应用设置与布局、通知和历史记录、SSH 配置及连接凭据。</p>
+        <p className="mt-1 text-xs text-muted">备份含密码和密钥，请妥善保管。</p>
+        {backups.error ? <Notice text={formatErr(backups.error)} /> : null}
+        <div className="config-data-backups">
+          <div className="config-data-backup-row config-data-table-head"><span>备份文件</span><span>时间</span><span>操作</span></div>
+          {backups.isPending ? <p className="config-data-empty" role="status">正在读取备份…</p> : null}
+          {!backups.isPending && !backups.error && !backups.data?.length ? <p className="config-data-empty">还没有应用数据备份。点击右上方「备份应用数据」保存第一份。</p> : null}
+          {(backups.data || []).map(item => <div key={item.path}>
+            <div className="config-data-backup-row">
+              <button className="config-data-filename" aria-expanded={preview?.path === item.path} disabled={busy} onClick={() => preview?.path === item.path ? setPreview(null) : void showPreview(item.path)}>
+                {preview?.path === item.path ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <span className="truncate" title={item.name}>{item.name}</span>
+              </button>
+              <span className="text-sm tabular-nums">{time(item.createdAt)}</span>
+              <Button variant="ghost" className="justify-start text-accent" disabled={busy} onClick={() => void showPreview(item.path)}>查看内容</Button>
             </div>
-            <div className="rounded-control bg-raised p-5">
-              <div className="text-sm text-muted">分组</div>
-              <div className="text-2xl">{overview.data?.groupCount ?? "—"}</div>
-            </div>
-            <div className="rounded-control bg-raised p-5">
-              <div className="text-sm text-muted">SSH 文件</div>
-              <div className="text-2xl">{overview.data?.configFileCount ?? "—"}</div>
-              <div className="text-xs text-muted">
-                {overview.data?.includeCount ?? "—"} 个 Include 文件
-              </div>
-            </div>
-            <div
-              className={
-                overview.data?.configStale || overview.data?.drift
-                  ? "rounded-control bg-danger-soft p-5"
-                  : "rounded-control bg-raised p-5"
-              }
-            >
-              <div className="text-sm text-muted">配置状态</div>
-              <div className="text-base">{statusLabel(overview.data)}</div>
-              <div className="text-xs text-muted">
-                上次生成 {formatUnixTime(overview.data?.lastGenerated)}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-section md:grid-cols-2">
-            <section>
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text-ink">配置位置</h2>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => void revealPath(overview.data?.panelPath || "")}
-                >
-                  定位 Panel
-                </Button>
-              </div>
-              <div className="grid grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 border-b border-line py-2 text-sm">
-                <span className="text-muted">Panel JSON</span>
-                <code className="truncate font-mono text-xs" data-tip={overview.data?.panelPath} data-tip-overflow="">
-                  {compactPath(overview.data?.panelPath)}
-                </code>
-                <Button size="sm" variant="ghost" onClick={() => session.setConfigSection("json")}>
-                  查看
-                </Button>
-              </div>
-              <div className="grid grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 border-b border-line py-2 text-sm">
-                <span className="text-muted">SSH config</span>
-                <code className="truncate font-mono text-xs" data-tip={overview.data?.sshConfigPath} data-tip-overflow="">
-                  {compactPath(overview.data?.sshConfigPath)}
-                </code>
-                <Button size="sm" variant="ghost" onClick={openSshConfig}>
-                  查看
-                </Button>
-              </div>
-              <div className="grid grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 py-2 text-sm">
-                <span className="text-muted">Include</span>
-                <code className="truncate font-mono text-xs text-muted">
-                  ~/.ssh/config.d/*.conf
-                </code>
-                <Button size="sm" variant="ghost" onClick={() => void revealPath("config.d")}>
-                  定位
-                </Button>
-              </div>
-            </section>
-
-            <section>
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text-ink">影响摘要</h2>
-                </div>
-                <Button size="sm" onClick={() => session.setConfigSection("diff")}>
-                  查看全部
-                </Button>
-              </div>
-              {impactItems.length > 0 ? (
-                <div className="space-y-2">
-                  {impactItems.map((item) => (
-                    <div
-                      key={item.key}
-                      className="flex items-center gap-2 text-sm text-muted"
-                    >
-                      <span
-                        className={`inline-block h-1.5 w-1.5 rounded-full ${kindDotClass(item.type)}`}
-                      />
-                      <span>{item.label}</span>
-                      <strong className="ml-auto text-ink">{item.count}</strong>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted">当前没有待处理差异</p>
-              )}
-            </section>
-          </div>
-
-          <section>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-ink">最近备份</h2>
-                {overview.data?.lastBackup ? (
-                  <p className="mt-1 text-sm text-muted">
-                    {formatUnixTime(overview.data.lastBackup.createdAt)} ·{" "}
-                    {overview.data.lastBackup.hostCount} 台主机 ·{" "}
-                    {overview.data.lastBackup.fileCount} 个配置文件
-                  </p>
-                ) : (
-                  <p className="mt-1 text-sm text-muted">尚未生成自动备份</p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => session.setConfigSection("backups")}>备份与恢复</Button>
-                <Button disabled={busy} onClick={() => void exportPortable()}>
-                  导出迁移包
-                </Button>
-                <Button disabled={busy} onClick={() => void beginPortableRestore()}>
-                  导入迁移包
-                </Button>
-              </div>
-            </div>
-          </section>
+            {preview?.path === item.path ? restorePreview(preview) : null}
+          </div>)}
         </div>
-      ) : null}
-
-      {section === "json" ? (
-        <div className="surface-float m-[var(--gap-card)] flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold text-ink">Panel 状态草稿</h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button disabled={busy} onClick={() => void togglePasswords()}>
-                {passwordVisible ? "隐藏敏感字段" : "显示敏感字段"}
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  const path = panelJsonFile?.absolutePath || overview.data?.panelPath || "";
-                  void openEditorPicker(path);
-                }}
-              >
-                系统编辑器
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  const path = panelJsonFile?.absolutePath || overview.data?.panelPath || "";
-                  void revealPath(path);
-                }}
-              >
-                定位
-              </Button>
-              <Button disabled={busy} onClick={() => void loadJson(passwordVisible)}>
-                重新加载
-              </Button>
-              <Button variant="primary" disabled={busy} onClick={() => void previewJson()}>
-                校验并预览
-              </Button>
-            </div>
+        {preview && !previewIsLocal ? <div className="mt-4"><p className="mb-2 truncate text-sm text-muted" title={preview.path}>{preview.name} · {time(preview.createdAt)}</p>{restorePreview(preview)}</div> : null}
+      </section>
+      <section className="config-data-section" aria-labelledby="application-config-title">
+        <h2 id="application-config-title">当前配置</h2>
+        <div className="config-data-current">
+          <div className="config-data-config-row">
+            <span className="font-semibold">应用配置</span>
+            <div className="min-w-0"><p>{overview.isPending ? "读取中…" : `${overview.data?.hostCount ?? "—"} 台主机 · ${overview.data?.groupCount ?? "—"} 个分组`}</p><p className="mt-1 truncate font-mono text-xs text-muted" title={overview.data?.panelPath}>{compactPath(overview.data?.panelPath)}</p></div>
+            <Button variant="ghost" className="text-accent" onClick={() => setViewer("app")}>查看配置</Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden border-t border-line">
-            <CodeSurface
-              value={jsonText}
-              language="json"
-              readOnly={false}
-              onChange={(value) => {
-                setJsonText(value);
-                setJsonDirty(true);
-              }}
-            />
-          </div>
-          <div
-            className={`flex flex-wrap justify-between gap-2 px-4 py-2 text-xs ${
-              jsonDirty ? "text-danger" : "text-muted"
-            }`}
-          >
-            <span>
-              {jsonDirty ? "草稿未保存" : "当前草稿与已加载的 Panel 状态一致"}
-            </span>
+          <div className="config-data-config-row">
+            <span className="font-semibold">SSH 配置</span>
+            <p className="min-w-0 truncate text-sm"><span className="font-mono">{compactPath(overview.data?.sshConfigPath)}</span><span className="ml-3 text-muted">{overview.data?.configFileCount ?? "—"} 个配置文件</span></p>
+            <Button variant="ghost" className="text-accent" onClick={() => { setSelectedSSH(""); setViewer("ssh"); }}>查看 SSH</Button>
           </div>
         </div>
-      ) : null}
-
-      <div hidden={section !== "files"} className="config-files-section m-[var(--gap-card)] min-h-0 flex-1">
-          <div className="surface-float flex h-full min-h-0 flex-col overflow-hidden">
-            <ConfigSshFilesPanel
-              focusRequest={sshFocusRequest}
-              onOpenPanelJson={() => session.setConfigSection("json")}
-              onCommitted={async () => {
-                setPreview(null);
-                setJsonDirty(false);
-                await refreshAll();
-                await session.refresh();
-              }}
-            />
-          </div>
-        </div>
-
-      {section === "diff" ? (
-        <div className="m-[var(--gap-card)] min-h-0 flex-1">
-          <div className="surface-float flex h-full min-h-0 flex-col overflow-auto">
-            <ConfigConflictsPanel
-              onOpenSshFiles={() => session.setConfigSection("files")}
-              onCommitted={async () => {
-                setPreview(null);
-                setJsonDirty(false);
-                await refreshAll();
-                await session.refresh();
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {section === "backups" ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs text-muted">配置快照 · Panel JSON、SSH 文件与引用密钥</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button disabled={busy} onClick={() => void exportPortable()}>
-                导出迁移包
-              </Button>
-              <Button disabled={busy} onClick={() => void beginPortableRestore()}>
-                导入迁移包
-              </Button>
-              <Button
-                disabled={busy || backups.isFetching}
-                onClick={() => void backups.refetch()}
-              >
-                刷新时间线
-              </Button>
-            </div>
-          </div>
-          <div className="config-backup-layout grid min-h-0 flex-1">
-            <div ref={backupListRef} className="config-backup-list min-h-0 overflow-auto border-r border-line bg-surface" aria-label="配置快照时间线">
-              {(backups.data || []).map((backup) => (
-                <button
-                  key={backup.id}
-                  type="button"
-                  aria-current={selectedBackupId === backup.id ? "true" : undefined}
-                  className={`block w-full border-b border-line px-3 py-3 text-left hover:bg-raised ${
-                    selectedBackupId === backup.id
-                      ? "bg-accent-soft font-semibold text-accent"
-                      : ""
-                  }`}
-                  onClick={() => setSelectedBackupId(backup.id)}
-                >
-                  <div className="text-sm">{formatUnixTime(backup.createdAt)}</div>
-                  <div className="font-semibold">Revision {backup.revision}</div>
-                  <div className="text-xs text-muted">
-                    {backup.hostCount} 台 · {backup.fileCount} 文件 · {formatBytes(backup.size)}
-                  </div>
-                </button>
-              ))}
-              {!backups.isFetching && (backups.data || []).length === 0 ? (
-                <p className="p-4 text-sm text-muted">暂无自动备份</p>
-              ) : null}
-            </div>
-            <Card>
-              {backupDetail && backupDetail.summary.id === selectedBackupId ? (
-                <>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 max-w-full">
-                      <div className="text-xs text-muted">SNAPSHOT</div>
-                      <h3 className="text-base font-semibold">
-                        {formatUnixTime(backupDetail.summary.createdAt)}
-                      </h3>
-                      <div className="mt-1 text-sm text-muted">
-                        Revision {backupDetail.summary.revision} ·{" "}
-                        {formatBytes(backupDetail.summary.size)}
-                      </div>
-                      <div className="mt-1 break-all font-mono text-xs text-muted">
-                        {backupDetail.summary.path}
-                      </div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      disabled={busy}
-                      onClick={() => setRestoreOpen(true)}
-                    >
-                      恢复此快照
-                    </Button>
-                  </div>
-                  <div className="mt-4 max-h-[48vh] overflow-auto border-t border-line">
-                    {(backupDetail.files || []).map((file) => (
-                      <div
-                        key={file.path}
-                        className="flex items-center justify-between border-b border-line px-3 py-2 text-sm"
-                      >
-                        <span className="truncate font-mono">
-                          {file.displayPath || file.path}
-                        </span>
-                        <span className="text-muted">
-                          {shortHash(file.sha256)} · {formatBytes(file.size)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-3 text-sm text-muted">
-                    恢复会同时回滚 Panel JSON 与 SSH 文件树，恢复前会先创建当前状态快照；不要求远程主机在线。
-                  </p>
-                </>
-              ) : (
-                backupDetailError ? <Notice text={backupDetailError} /> : <p className="text-muted">{selectedBackupId ? "正在读取所选快照…" : "选择配置快照查看详情"}</p>
-              )}
-            </Card>
-          </div>
-        </div>
-      ) : null}
-
-      {/* 提交前完整预览：连接测试、冲突逐项选择、确认提交 */}
-      <Dialog
-        open={previewOpen}
-        onOpenChange={(open) => {
-          if (!open) setPreviewOpen(false);
-        }}
-      >
-        <DialogContent className="flex max-h-[min(88vh,820px)] w-[min(1120px,calc(100%-32px))] flex-col overflow-hidden p-0">
-          <div className="border-b border-line px-5 py-4">
-            <DialogTitle>提交前预览</DialogTitle>
-            <DialogDescription className="mt-1">
-              基于 Revision {preview?.baseRevision ?? "—"}
-              {preview?.expiresAt ? ` · ${formatUnixTime(preview.expiresAt)} 过期` : ""}
-            </DialogDescription>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
-            {preview ? (
-              <>
-                <div
-                  className={`mb-3 rounded-control px-3 py-2 ${
-                    preview.valid
-                      ? "bg-success-soft text-success-text"
-                      : "bg-danger-soft text-danger"
-                  }`}
-                >
-                  <div className="font-semibold">
-                    {preview.valid ? "可以提交" : "需要处理后才能提交"}
-                  </div>
-                  {preview.error ? <div className="mt-1 text-sm">{preview.error}</div> : null}
-                </div>
-
-                <section className="mb-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">连接测试</h3>
-                    <span className="text-xs text-muted">
-                      {(preview.affectedHosts || []).length} 台受影响主机
-                    </span>
-                  </div>
-                  {(preview.connectionTests || []).length ? (
-                    <div>
-                      {(preview.connectionTests || []).map((test) => (
-                        <div
-                          key={test.alias}
-                          className="flex flex-wrap items-center gap-2 border-b border-line px-2 py-1.5 text-sm last:border-b-0"
-                        >
-                          <Tag tone={test.success ? "ok" : "danger"}>
-                            {test.success ? "通过" : "失败"}
-                          </Tag>
-                          <strong>{test.alias}</strong>
-                          <span className="text-muted">
-                            {test.success ? test.message || "" : test.error || ""}
-                          </span>
-                          <span className="ml-auto font-mono text-xs text-muted">
-                            {test.durationMs} ms
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted">
-                      仅修改布局、备注或注释，无需远程连通性测试。
-                    </p>
-                  )}
-                </section>
-
-                {(preview.conflicts || []).length > 0 ? (
-                  <section className="mb-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold">逐项解决冲突</h3>
-                      <span className="text-xs text-muted">全部解决后才可提交</span>
-                    </div>
-                    <div className="space-y-3">
-                      {(preview.conflicts || []).map((conflict) => {
-                        const choice = choices[conflict.id] || "panel";
-                        return (
-                          <div
-                            key={conflict.id}
-                            className="rounded-control bg-danger-soft px-3 py-3"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="font-semibold text-ink">
-                                  {conflict.alias || conflict.file || "配置项"}
-                                </div>
-                                <div className="mt-0.5 text-sm text-danger">
-                                  {conflict.summary}
-                                </div>
-                              </div>
-                              <Select<ConflictChoice>
-                                aria-label="冲突处理方式"
-                                className="shrink-0"
-                                value={choice}
-                                onChange={(value) => {
-                                  setChoices((prev) => ({ ...prev, [conflict.id]: value }));
-                                }}
-                                options={conflictChoiceOptions(Boolean(conflict.file))}
-                              />
-                            </div>
-                            {choice === "manual" && conflict.file ? (
-                              <textarea
-                                className="motion-field mt-2 w-full rounded-control px-2 py-2 font-mono text-xs"
-                                rows={6}
-                                placeholder="输入最终文件内容"
-                                value={manualTexts[conflict.id] || ""}
-                                onChange={(event) => {
-                                  const value = event.target.value;
-                                  setManualTexts((prev) => ({
-                                    ...prev,
-                                    [conflict.id]: value,
-                                  }));
-                                }}
-                              />
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3">
-                      <Button disabled={busy} onClick={() => void resolveConflicts()}>
-                        应用冲突选择并重新预览
-                      </Button>
-                    </div>
-                  </section>
-                ) : null}
-
-                <section>
-                  <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">文件与主机影响</h3>
-                    <span className="text-xs text-muted">
-                      {(preview.fileDiff || []).length} 个文件 ·{" "}
-                      {(preview.hostDiff || []).length} 台主机
-                    </span>
-                  </div>
-                  <div className="mb-2 flex flex-wrap gap-1">
-                    {(preview.fileDiff || []).map((file) => (
-                      <button
-                        key={file.path}
-                        type="button"
-                        className={`rounded-control px-2 py-1 text-xs ${
-                          previewFile?.path === file.path
-                            ? "bg-accent-soft font-semibold text-accent"
-                            : "bg-raised hover:bg-line"
-                        }`}
-                        onClick={() => setPreviewFilePath(file.path)}
-                      >
-                        {diffKindLabel(file.kind)} · {file.path}
-                      </button>
-                    ))}
-                  </div>
-                  {previewFile ? (
-                    <div className="mb-3 grid max-h-64 gap-2 overflow-auto md:grid-cols-3">
-                      <DiffPane title="Panel 快照" text={previewFile.panelContent || ""} />
-                      <DiffPane title="当前磁盘" text={previewFile.externalContent || ""} />
-                      <DiffPane title="待生成结果" text={previewFile.generatedContent || ""} />
-                    </div>
-                  ) : null}
-                  {(preview.hostDiff || []).map((host) => (
-                    <div
-                      key={host.alias}
-                      className="mt-1 flex flex-wrap items-center gap-2 border-t border-line py-2 text-sm"
-                    >
-                      <Tag tone="neutral">{diffKindLabel(host.kind)}</Tag>
-                      <strong>{host.alias}</strong>
-                      <span className="text-muted">
-                        {(host.fields || []).join(" · ") || "结构变化"}
-                      </span>
-                    </div>
-                  ))}
-                </section>
-              </>
-            ) : null}
-          </div>
-
-          <DialogFooter className="mt-0 border-t border-line px-5 py-3">
-            <Button onClick={() => setPreviewOpen(false)}>取消</Button>
-            <Button
-              variant="primary"
-              disabled={busy || !preview?.valid}
-              onClick={() => void commitPreview()}
-            >
-              确认备份并提交
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
-        <DialogContent>
-          <DialogTitle>恢复配置快照</DialogTitle>
-          <DialogDescription>
-            将恢复 {formatUnixTime(backupDetail?.summary.createdAt)} 的 Panel JSON 与 SSH
-            文件树。当前状态会先自动备份。
-          </DialogDescription>
-          <DialogFooter>
-            <Button onClick={() => setRestoreOpen(false)}>取消</Button>
-            <Button variant="primary" disabled={busy || !backupDetail || backupDetail.summary.id !== selectedBackupId} onClick={() => void restoreSelected()}>
-              恢复
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <HostBackupRestoreDialog
-        path={restorePath}
-        onClose={() => setRestorePath(null)}
-        onRestored={(message) => {
-          flash.showToast(message);
-          void refreshAll();
-          void backups.refetch();
-        }}
-        onError={(message) => flash.showError(message)}
-      />
-
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent>
-          <DialogTitle>选择系统编辑器</DialogTitle>
-          <DialogDescription>
-            选择一个已安装的应用打开当前配置文件。
-          </DialogDescription>
-          <p className="mt-1 truncate font-mono text-xs text-muted" data-tip={editorTargetPath} data-tip-overflow="">
-            {compactPath(editorTargetPath)}
-          </p>
-          <div className="mt-3 max-h-72 space-y-2 overflow-auto">
-            {editorLoading ? (
-              <p className="text-sm text-muted">正在扫描系统编辑器…</p>
-            ) : systemEditors.length ? (
-              systemEditors.map((editor) => (
-                <button
-                  key={editor.id}
-                  type="button"
-                  disabled={!!launchingEditorId}
-                  className="flex w-full items-center gap-3 rounded-control bg-raised px-3 py-2 text-left hover:bg-line"
-                  onClick={() => void launchEditor(editor)}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold">
-                      {editor.name}
-                      {editor.systemDefault ? (
-                        <Tag tone="neutral" className="ml-2">
-                          默认
-                        </Tag>
-                      ) : null}
-                    </div>
-                    <div className="truncate font-mono text-xs text-muted">
-                      {editor.path}
-                    </div>
-                  </div>
-                  {launchingEditorId === editor.id ? (
-                    <span className="text-xs text-muted">打开中…</span>
-                  ) : null}
-                </button>
-              ))
-            ) : (
-              <p className="text-sm text-muted">没有发现可用的系统编辑器</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setEditorOpen(false)}>取消</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Page>
-  );
-}
-
-function DiffPane({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="flex min-h-[180px] min-w-0 flex-col overflow-hidden">
-      <div className="pb-1.5 text-xs text-muted">
-        {title}
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <CodeSurface value={text || ""} language="ssh" readOnly />
-      </div>
+        {overview.data?.needsReview || overview.data?.drift || overview.data?.configStale ? <p className="mt-3 text-sm text-muted">SSH 配置与应用数据存在差异，可在「查看 SSH」中检查当前内容。</p> : null}
+      </section>
     </div>
-  );
+    <Dialog open={!!viewer} onOpenChange={open => !open && setViewer(null)}>
+      <DialogContent className="flex h-[min(680px,calc(100vh-64px))] w-[min(1000px,calc(100vw-48px))] flex-col overflow-hidden">
+        <div className="flex items-start justify-between gap-4">
+          <div><DialogTitle>{viewer === "ssh" ? "当前 SSH 配置" : "当前应用配置"}</DialogTitle><DialogDescription>{viewer === "ssh" ? "只读查看本机现有的 SSH 配置文件。" : "只读查看当前配置，密码已隐藏。主机和连接信息可在主机页面修改。"}</DialogDescription></div>
+          <Button onClick={() => setViewer(null)}>关闭</Button>
+        </div>
+        {viewerError ? <Notice text={formatErr(viewerError)} /> : null}
+        {viewerLoading ? <p className="mt-6 text-sm text-muted" role="status">读取配置中…</p> :
+          <div className="config-data-viewer mt-5 min-h-0 flex-1">
+            {viewer === "ssh" ? <nav aria-label="SSH 配置文件" className="config-data-file-list">{sshFiles.map(file => <button key={file.path} className={file === currentFile ? "is-selected" : ""} aria-current={file === currentFile ? "true" : undefined} onClick={() => setSelectedSSH(file.path)} title={file.displayPath}>{file.path}</button>)}{!sshFiles.length ? <p className="p-3 text-sm text-muted">暂无 SSH 配置文件</p> : null}</nav> : null}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <p className="mb-3 break-all font-mono text-xs text-muted">{viewer === "ssh" ? currentFile?.displayPath : compactPath(overview.data?.panelPath)}</p>
+              <pre tabIndex={0} aria-label={viewer === "ssh" ? "SSH 配置内容，只读" : "应用配置内容，只读"} className="config-data-code">{viewerText || (viewerError ? "读取失败" : "暂无配置内容")}</pre>
+            </div>
+          </div>}
+      </DialogContent>
+    </Dialog>
+  </Page>;
 }

@@ -88,7 +88,7 @@ export function WindowChrome() {
   const { open, toggle } = useSidebar();
   const session = useSession();
   const pageRefresh = usePageRefresh();
-  const hasSidebar = session.workspace !== "local" || session.settingsOpen;
+  const hasSidebar = !["local", "config"].includes(session.workspace) || session.settingsOpen;
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

@@ -180,7 +180,7 @@ function Shell() {
 
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <SidebarLayer />
-        <main inert={sidebar.overlay && sidebar.open && (session.workspace !== "local" || session.settingsOpen) ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
+        <main inert={sidebar.overlay && sidebar.open && (!["local", "config"].includes(session.workspace) || session.settingsOpen) ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
           <div className="relative min-h-0 min-w-0 flex-1">
             {session.settingsOpen ? (
               <div key="settings" className="motion-fade-in h-full min-h-0">
@@ -239,7 +239,7 @@ function SidebarLayer() {
   const sidebar = useSidebar();
   const session = useSession();
   const ref = useRef<HTMLDivElement>(null);
-  const enabled = session.workspace !== "local" || session.settingsOpen;
+  const enabled = !["local", "config"].includes(session.workspace) || session.settingsOpen;
   const visible = enabled && sidebar.open;
   useEffect(() => { sidebar.closeOverlay(); }, [session.workspace, session.settingsOpen, sidebar.closeOverlay]);
   useEffect(() => {
