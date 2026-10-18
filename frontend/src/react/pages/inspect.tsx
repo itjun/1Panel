@@ -246,9 +246,6 @@ export function InspectPage() {
             <p className="text-sm text-muted">
               还没有巡检项。添加一个 HTTP 请求，设置断言和定时规则，失败时会发送系统通知和应用内消息。
             </p>
-            <Button variant="primary" onClick={openCreate}>
-              新建巡检
-            </Button>
           </div>
         </Card>
       ) : (
