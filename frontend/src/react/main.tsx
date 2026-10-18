@@ -1,6 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { App } from "@/react/App";
-import { BoardPage } from "@/react/pages/board";
+import { hasDesktopBridge, restoreApplicationPreferences } from "@/react/lib/application-data";
 import { TooltipLayer } from "@/react/components/ui/tooltip";
 import { applySavedFont } from "@/react/lib/utils";
 import { boardGroupFromPath } from "@/api/board-http";
@@ -15,13 +14,16 @@ document.addEventListener(
 );
 
 const rootEl = document.getElementById("app");
-if (rootEl) {
+async function start() {
+  if (!rootEl) return;
+  const boardGroup = boardGroupFromPath(location.pathname);
+  if (!boardGroup && hasDesktopBridge()) await restoreApplicationPreferences();
   applySavedFont();
   rootEl.replaceChildren();
   rootEl.classList.add("react-root");
   const root = createRoot(rootEl);
-  const boardGroup = boardGroupFromPath(location.pathname);
   if (boardGroup) {
+    const { BoardPage } = await import("@/react/pages/board");
     document.documentElement.classList.add("board-http");
     root.render(
       <>
@@ -30,6 +32,7 @@ if (rootEl) {
       </>,
     );
   } else {
+    const { App } = await import("@/react/App");
     root.render(
       <>
         <App />
@@ -38,3 +41,12 @@ if (rootEl) {
     );
   }
 }
+void start().catch((error: unknown) => {
+  if (!rootEl) return;
+  const message = document.createElement("p");
+  message.textContent = `应用数据加载失败：${error instanceof Error ? error.message : String(error)}`;
+  const retry = document.createElement("button");
+  retry.textContent = "重新加载";
+  retry.onclick = () => location.reload();
+  rootEl.replaceChildren(message, retry);
+});
