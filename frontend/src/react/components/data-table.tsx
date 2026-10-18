@@ -41,7 +41,7 @@ export function DataTable<T extends Record<string, unknown>>({
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="surface-float overflow-hidden">
+    <div className="uiux-data-table surface-float min-w-0 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
         {/* 表头无底色，只留下方 1px line（DESIGN.md §4.4） */}
         <thead className="text-xs font-normal text-muted">

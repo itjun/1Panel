@@ -14,9 +14,13 @@ import { formatErr } from "@/utils/format";
 import { registerFileDrop } from "@/utils/fileDrop";
 import { getSftpLocation, saveSftpLocation, type SftpLocationState } from "@/utils/sftpLocationState";
 
+const transferViews = new Map<string, boolean>();
+
 type ConflictChoice = "overwrite" | "rename" | "cancel";
 
 export function SftpPage({ host }: { host: string }) {
+  const [transferOpen, setTransferOpen] = useState(() => transferViews.get(host) || false);
+  useEffect(() => { transferViews.set(host, transferOpen); }, [host, transferOpen]);
   const loc = useRef<SftpLocationState>(getSftpLocation(host));
   const hostRef = useRef(host);
   hostRef.current = host;
@@ -460,9 +464,16 @@ export function SftpPage({ host }: { host: string }) {
   void tick;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="content-float gap-card relative grid min-w-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] p-[var(--gap-card)]">
-      <div className="surface-float h-full min-h-0 overflow-hidden">
+    <div className="uiux-files flex h-full min-h-0 flex-col">
+      <div className="uiux-page-tools flex shrink-0 flex-wrap items-center gap-3 px-4 pt-4 pb-3">
+        <h1 className="uiux-page-title">文件</h1>
+        <div className="uiux-page-actions">
+          <span className="min-w-0 truncate font-mono text-xs text-muted" title={place.localCwd}>本机对端：{place.localCwd || "正在读取…"}</span>
+          <Button aria-expanded={transferOpen} aria-controls="file-transfer-panes" disabled={locked} onClick={() => setTransferOpen(value => !value)}>{transferOpen ? "收起传输" : "展开传输"}</Button>
+        </div>
+      </div>
+      <div id="file-transfer-panes" className={`uiux-file-panes content-float gap-card relative grid min-w-0 flex-1 p-[var(--gap-card)]${transferOpen ? " is-transfer" : ""}`}>
+      <div hidden={!transferOpen} className="uiux-file-local surface-float h-full min-h-0 overflow-hidden">
         <SftpPane
           side="local"
           title="本机"
@@ -483,7 +494,7 @@ export function SftpPage({ host }: { host: string }) {
           onBack={() => goBack("local")}
           onForward={() => goForward("local")}
           onRefresh={() => void loadLocalAt(place.localCwd, false)}
-          onSend={(paths) => void uploadTo(paths, place.remoteCwd)}
+          onSend={(paths) => { setTransferOpen(true); void uploadTo(paths, place.remoteCwd); }}
           onReceive={(dir) => void downloadTo(takeDragPaths(), dir || place.localCwd)}
           onDragBegin={(paths) => onDragBegin("local", paths)}
           onDragEnd={onDragEnd}
@@ -511,9 +522,9 @@ export function SftpPage({ host }: { host: string }) {
           onBack={() => goBack("remote")}
           onForward={() => goForward("remote")}
           onRefresh={() => void loadRemoteAt(place.remoteCwd, false)}
-          onSend={(paths) => void downloadTo(paths, place.localCwd)}
+          onSend={(paths) => { setTransferOpen(true); void downloadTo(paths, place.localCwd); }}
           onReceive={(dir) => void uploadTo(takeDragPaths(), dir || remoteHover || place.remoteCwd)}
-          onDragBegin={(paths) => onDragBegin("remote", paths)}
+          onDragBegin={(paths) => { setTransferOpen(true); onDragBegin("remote", paths); }}
           onDragEnd={onDragEnd}
           onRemove={askDelete}
           onCreate={openCreate}

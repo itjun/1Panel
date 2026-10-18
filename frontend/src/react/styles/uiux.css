@@ -34,3 +34,22 @@
 .local-metric:hover .local-metric__details,.local-metric:focus-within .local-metric__details{display:block}
 .local-metric:focus-visible{outline:2px solid var(--color-accent);outline-offset:4px}
 @container local-overview (max-width:700px){.local-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.local-metric:nth-child(3){padding-left:0;border-left:0}}
+
+/* Shared device page hierarchy. Actions remain in the content plane. */
+.uiux-page-content{container:page-content / inline-size}
+.uiux-page-tools{min-width:0}
+.uiux-page-title{font-size:20px;font-weight:600;line-height:1.4;flex-shrink:0}
+.uiux-page-actions{display:flex;align-items:center;flex:1;min-width:0;flex-wrap:wrap;gap:8px}
+.uiux-page-title+.uiux-page-actions{justify-content:flex-end}
+.uiux-page[data-device] .uiux-page-tools{padding-bottom:12px;border-bottom:1px solid var(--color-line)}
+.uiux-data-table>table{min-width:560px}
+.uiux-data-table tbody:has(td[colspan]) td{height:96px;text-align:center}
+@container page-content (max-width:720px){
+  .uiux-page-content>.grid.bg-line{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;flex:none}
+  .uiux-page-content>.grid.bg-line>div{grid-column:auto}
+}
+.uiux-files{container:file-workspace / inline-size;background:var(--color-surface)}
+.uiux-file-panes{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-height:0}
+.uiux-file-local[hidden]{display:none}
+.uiux-file-panes.is-transfer{grid-template-columns:repeat(2,minmax(0,1fr))}
+@container file-workspace (max-width:1100px){.uiux-file-panes.is-transfer{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(2,minmax(260px,1fr));overflow:auto}}
