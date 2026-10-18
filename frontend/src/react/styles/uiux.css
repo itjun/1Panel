@@ -78,6 +78,7 @@
 .settings-row-below{grid-column:1/-1;min-width:0}
 .speedtest-section+.speedtest-section{padding-top:20px;border-top:1px solid var(--color-line)}
 .notify-message-list{width:clamp(240px,34%,360px)}
+.notify-message-layout.is-empty>.notify-message-list{width:auto;max-height:none;flex:1;border:0}
 .inspect-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .inspect-grid>[role="button"]:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
 .uiux-page:not([data-device]) .uiux-page-tools{padding-bottom:12px;border-bottom:1px solid var(--color-line)}
