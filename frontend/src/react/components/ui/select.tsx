@@ -211,7 +211,11 @@ export function Select<T extends string | number = string>({
         aria-controls={open ? listId : undefined}
         aria-label={ariaLabel}
         disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={(event) => {
+          // macOS WebKit 不会在鼠标点击按钮时自动聚焦；菜单键盘事件需要留在触发器上。
+          event.currentTarget.focus();
+          setOpen((prev) => !prev);
+        }}
         onKeyDown={onKeyDown}
         className={cn(fieldClass, "disabled:cursor-not-allowed disabled:text-muted")}
       >
