@@ -482,6 +482,8 @@ export function LocalStoragePage() {
             ) : null}
 
             {tab === "large" ? (
+              <div className="max-w-full overflow-x-auto">
+                <div className="min-w-[900px]">
                 <table className="w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className={THEAD_ROW_CLASS}>
@@ -508,10 +510,10 @@ export function LocalStoragePage() {
                           <td className="max-w-[480px] truncate px-3 font-mono">
                             {file.path}
                           </td>
-                          <td className="px-3 text-right font-mono">
+                          <td className="whitespace-nowrap px-3 text-right font-mono">
                             {formatBytesSI(file.size || 0)}
                           </td>
-                          <td className="px-3 text-sm text-muted">
+                          <td className="whitespace-nowrap px-3 text-sm text-muted">
                             {formatModTime(file.modTime || 0)}
                           </td>
                           <td className="px-2 text-center">
@@ -528,6 +530,8 @@ export function LocalStoragePage() {
                     )}
                   </tbody>
                 </table>
+                </div>
+              </div>
             ) : null}
           </>
         )}
