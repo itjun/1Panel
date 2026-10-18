@@ -57,6 +57,7 @@ export function SidebarSplitter() {
       role="separator"
       tabIndex={0}
       onKeyDown={event => {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
         const next = event.key === "ArrowLeft" ? sidebar.width - 10
           : event.key === "ArrowRight" ? sidebar.width + 10
           : event.key === "Home" ? sidebar.widthDefault
