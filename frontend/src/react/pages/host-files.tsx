@@ -186,8 +186,8 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
               <Notice tone="warn" text="仅支持 apt（Debian / Ubuntu）" />
             </div>
           ) : null}
-          <div className="gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_1fr]">
-            <div className="surface-float min-h-0 overflow-auto">
+          <div className={`gap-card m-[var(--gap-card)] grid min-h-0 flex-1 grid-cols-1 ${kind !== "hosts" ? "md:grid-cols-[260px_1fr]" : ""}`}>
+            {kind !== "hosts" ? <div className="surface-float min-h-0 overflow-auto">
               {(listing.data?.files || []).map((file) => (
                 <button
                   key={file.path}
@@ -207,7 +207,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
               {!listing.isLoading && !(listing.data?.files || []).length ? (
                 <p className="px-3 py-4 text-sm text-muted">目录为空</p>
               ) : null}
-            </div>
+            </div> : null}
             <div className="surface-float min-h-0 overflow-hidden !bg-graphite">
               {isFileBodyNeeded && body.isLoading && !loadedText ? (
                 <pre className="p-4 font-mono text-sm text-graphite-text">加载中…</pre>
