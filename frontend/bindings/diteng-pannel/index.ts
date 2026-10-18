@@ -48,6 +48,8 @@ export type {
     AppInfo,
     AppLogRequest,
     AppLogResult,
+    ApplicationBackup,
+    ApplicationPreferences,
     BackupPreview,
     BoardHTTPConfig,
     CertPairCheck,
