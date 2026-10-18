@@ -252,7 +252,7 @@ export function InspectPage() {
           </div>
         </Card>
       ) : (
-        <div className="gap-card grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+        <div className="inspect-grid gap-card grid">
           {rows.map((item) => {
             const checked = item.checkedAt > 0;
             const isBusy = busyId === item.id;
@@ -266,6 +266,15 @@ export function InspectPage() {
             return (
               <div
                 key={item.id}
+                role="button"
+                tabIndex={isBusy || checkingAll ? -1 : 0}
+                aria-label={`检查 ${item.label || item.title || item.id}`}
+                aria-busy={isBusy}
+                onKeyDown={event => {
+                  if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+                  event.preventDefault();
+                  if (!isBusy && !checkingAll) void checkOne(item.id, true);
+                }}
                 className={
                   isBusy
                     ? "cursor-wait bg-raised p-4 text-ink opacity-80"

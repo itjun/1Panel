@@ -75,8 +75,8 @@ function defaultSelection(r: speedtest.PathReport): speedtest.Candidate | null {
 
 export function Section({ title, extra, children }: { title: string; extra?: ReactNode; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+    <section className="speedtest-section flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold text-ink">{title}</h3>
         {extra}
       </div>
