@@ -369,6 +369,7 @@ export function WorkspaceRail() {
               >
                 <RailSessionRow
                   entryKey={group.key}
+                  onActivate={() => { clearHostSelection(); session.openGroup(group.id); }}
                   label={session.groupName(group.id) || group.id}
                   prefix="组"
                   active={
@@ -401,6 +402,7 @@ export function WorkspaceRail() {
                   <RailSessionRow
                     key={name}
                     entryKey={name}
+                    onActivate={() => { setSelectedHostNames([name]); hostAnchorRef.current = name; session.openHost(name); }}
                     label={name}
                     indented
                     active={session.activeHost === name}
@@ -518,6 +520,7 @@ function RailNavButton({
         "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
         active ? "rail-item-active" : "text-muted hover:bg-line hover:text-ink",
       )}
+      aria-current={active ? "page" : undefined}
       onClick={() => { onClick(); sidebar.closeOverlay(); }}
     >
       <span className="truncate">{label}</span>
@@ -537,6 +540,7 @@ function RailSessionRow({
   dragging,
   dropEdge,
   onPointerDown,
+  onActivate,
   onContextMenu,
   onDragStart,
   onDragOver,
@@ -554,6 +558,7 @@ function RailSessionRow({
   dragging: boolean;
   dropEdge: "before" | "after" | null;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onActivate: () => void;
   onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
   onDragOver: (event: DragEvent<HTMLButtonElement>) => void;
@@ -574,6 +579,9 @@ function RailSessionRow({
       type="button"
       draggable
       data-rail-key={entryKey}
+      aria-current={active ? "page" : undefined}
+      aria-pressed={selected}
+      onClick={event => { if (event.detail === 0) onActivate(); }}
       className={cn(
         "rail-item relative flex h-10 shrink-0 cursor-grab select-none items-center gap-1.5 truncate pr-3 text-left active:cursor-grabbing",
         indented ? "pl-7" : "pl-3",
