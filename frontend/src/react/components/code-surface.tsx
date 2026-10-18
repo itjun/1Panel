@@ -1,4 +1,4 @@
-import { EditorState } from "@codemirror/state";
+import { Annotation, EditorState } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { json } from "@codemirror/lang-json";
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
@@ -92,6 +92,9 @@ const theme = EditorView.theme(
   { dark: true },
 );
 
+// Controlled value updates are loads, not edits made in the editor.
+const valueSync = Annotation.define<boolean>();
+
 export function CodeSurface({
   value,
   language = "ssh",
@@ -131,7 +134,9 @@ export function CodeSurface({
           }),
           theme,
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
+            if (update.docChanged && update.transactions.some((tr) => tr.docChanged && !tr.annotation(valueSync))) {
+              onChangeRef.current?.(update.state.doc.toString());
+            }
           }),
         ],
       }),
@@ -149,6 +154,7 @@ export function CodeSurface({
     if (current === value) return;
     editor.dispatch({
       changes: { from: 0, to: current.length, insert: value },
+      annotations: valueSync.of(true),
     });
   }, [value]);
 

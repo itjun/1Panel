@@ -97,7 +97,6 @@ export function ConfigCenterPage() {
   const [jsonText, setJsonText] = useState("");
   const [jsonDirty, setJsonDirty] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [hydratingJson, setHydratingJson] = useState(false);
 
   // 备份
   const [selectedBackupId, setSelectedBackupId] = useState("");
@@ -278,12 +277,9 @@ export function ConfigCenterPage() {
       const state = reveal
         ? await api.getEditablePanelStateSensitive()
         : await api.getEditablePanelState();
-      setHydratingJson(true);
       setJsonText(JSON.stringify(state, null, 2));
       setJsonDirty(false);
       setPasswordVisible(reveal);
-      // 下一帧再允许标记脏，避免设置文本本身触发 onChange
-      requestAnimationFrame(() => setHydratingJson(false));
     } catch (err) {
       flash.showError(formatErr(err));
     } finally {
@@ -687,7 +683,6 @@ export function ConfigCenterPage() {
               language="json"
               readOnly={false}
               onChange={(value) => {
-                if (hydratingJson) return;
                 setJsonText(value);
                 setJsonDirty(true);
               }}
@@ -786,7 +781,7 @@ export function ConfigCenterPage() {
               {backupDetail && backupDetail.summary.id === selectedBackupId ? (
                 <>
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 max-w-full">
                       <div className="text-xs text-muted">SNAPSHOT</div>
                       <h3 className="text-base font-semibold">
                         {formatUnixTime(backupDetail.summary.createdAt)}
@@ -795,7 +790,7 @@ export function ConfigCenterPage() {
                         Revision {backupDetail.summary.revision} ·{" "}
                         {formatBytes(backupDetail.summary.size)}
                       </div>
-                      <div className="mt-1 truncate font-mono text-xs text-muted">
+                      <div className="mt-1 break-all font-mono text-xs text-muted">
                         {backupDetail.summary.path}
                       </div>
                     </div>
