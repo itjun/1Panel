@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Meter } from "@/react/components/ui/meter";
 import { usageTone, type UsageTone } from "@/react/lib/usage-tone";
 import "./local.css";
 
@@ -17,6 +18,7 @@ export function RingMeter({
   children,
   center,
   showTitle = true,
+  compact = false,
 }: {
   title: string;
   percent: number;
@@ -27,6 +29,8 @@ export function RingMeter({
   center?: string;
   /** 卡片标题已在外面时，环内不再重复标题。 */
   showTitle?: boolean;
+  /** 工作台摘要使用紧凑数值，保留原有资源明细。 */
+  compact?: boolean;
 }) {
   const pct = Math.max(0, Math.min(100, Number(percent) || 0));
   const r = 42;
@@ -39,6 +43,15 @@ export function RingMeter({
   const centerFill = tone === "danger" ? "var(--color-danger)" : "var(--color-ink)";
   const centerText = center ?? `${pct.toFixed(0)}%`;
 
+  if (compact) {
+    return <div className="local-metric" tabIndex={0} aria-label={`${title}明细`}>
+      <span className="text-xs text-muted">{title}</span>
+      <strong className={tone === "danger" ? "text-danger" : "text-ink"}>{centerText}</strong>
+      <div className="local-metric__caption">{caption}</div>
+      <Meter value={Number.isFinite(percent) ? percent : undefined} tone={tone} showValue={false} />
+      {children ? <div className="local-metric__details">{children}</div> : null}
+    </div>;
+  }
   return (
     <div className="local-ring">
       <div className="local-ring__wrap group relative">

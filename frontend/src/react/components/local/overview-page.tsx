@@ -145,14 +145,8 @@ export function LocalOverviewPage() {
   }
 
   return (
-    <Page title="概览" onRefresh={() => refreshAll()} refreshing={refreshing}>
-      {error && !data ? <Notice text={formatErr(error)} /> : null}
-
-      <div className="flex flex-col gap-section">
-        {data ? (
-          <section>
-            <div className="mb-3 text-sm font-semibold text-ink">系统</div>
-            <div className="min-w-0">
+    <Page title="系统概览" onRefresh={() => refreshAll()} refreshing={refreshing}>
+      {data ? <header className="local-overview-identity"><div className="min-w-0">
               <div className="truncate text-base font-semibold text-ink">
                 {data.hostname || "本机"}
               </div>
@@ -164,7 +158,13 @@ export function LocalOverviewPage() {
                 {data.arch ? <span className="font-mono">{data.arch}</span> : null}
                 <span>已运行 {formatDurationLong(data.uptime)}</span>
               </div>
-            </div>
+            </div></header> : null}
+      {error ? <Notice tone={data ? "warning" : "error"} text={`${data ? "采集更新失败，以下为最后已知读数：" : ""}${formatErr(error)}`} /> : null}
+
+      <div className="local-overview-sections flex flex-col gap-section">
+        {data ? (
+          <section className="local-overview-system">
+            <div className="mb-3 text-sm font-semibold text-ink">系统明细</div>
             <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               <OverviewFact label="CPU 型号" className="col-span-2">
                 {data.cpuModel || "—"}
@@ -181,8 +181,8 @@ export function LocalOverviewPage() {
         {data ? (
           <section>
             <div className="mb-3 text-sm font-semibold text-ink">资源</div>
-            <div className="grid grid-cols-2 gap-card md:grid-cols-4">
-              <RingMeter
+            <div className="local-metrics">
+              <RingMeter compact
                 title="负载"
                 percent={loadPercent}
                 danger={loadPercent > 80}
@@ -190,7 +190,7 @@ export function LocalOverviewPage() {
                 caption={
                   <>
                     <div className="font-mono tabular-nums">
-                      {(data.load1 || 0).toFixed(2)} / {data.cpuCount} 核
+                      {data.cpuCount} 核
                     </div>
                     <div>{loadWord(loadPercent)}</div>
                   </>
@@ -210,7 +210,7 @@ export function LocalOverviewPage() {
                 </div>
               </RingMeter>
 
-              <RingMeter
+              <RingMeter compact
                 title="CPU"
                 percent={data.cpuPercent || 0}
                 danger={(data.cpuPercent || 0) > 85}
@@ -218,7 +218,7 @@ export function LocalOverviewPage() {
                 caption={
                   <>
                     <div className="font-mono tabular-nums">
-                      {(data.cpuPercent || 0).toFixed(1)}% / {data.cpuCount} 核
+                      {data.cpuCount} 核
                     </div>
                     <div className="max-w-[200px] truncate">{data.cpuModel || "—"}</div>
                   </>
@@ -250,7 +250,7 @@ export function LocalOverviewPage() {
                 ) : null}
               </RingMeter>
 
-              <RingMeter
+              <RingMeter compact
                 title="内存"
                 percent={data.memPercent || 0}
                 danger={(data.memPercent || 0) > 90}
@@ -292,9 +292,9 @@ export function LocalOverviewPage() {
                 </div>
               </RingMeter>
 
-              <RingMeter
+              <RingMeter compact
                 title="磁盘"
-                percent={diskSummary?.percent || 0}
+                percent={diskSummary?.percent ?? Number.NaN}
                 danger={(diskSummary?.percent || 0) > 90}
                 center={diskSummary ? `${diskSummary.percent.toFixed(1)}%` : "—"}
                 caption={
