@@ -36,9 +36,11 @@ import { formatErr } from "@/utils/format";
 import { setWindowMaterial, useWindowTheme, type WindowMaterial } from "@/react/state/window-theme";
 
 import { detectAppOs } from "@/react/lib/platform";
-import { PLATFORM_SETTINGS, SETTINGS_SECTIONS, settingsShortcuts, showWindowMaterial } from "@/react/lib/settings-model";
+import { SETTINGS_SECTIONS, settingsShortcuts, showWindowMaterial } from "@/react/lib/settings-model";
 import { useSettingsScroll } from "@/react/lib/use-settings-scroll";
 import { AppearancePreviews } from "@/react/components/settings-appearance";
+import { SettingsDataSections } from "@/react/components/settings-data-sections";
+import { requestSettingsSection } from "@/react/state/settings-navigation";
 import type { SettingsSection } from "@/react/state/session";
 import "@/react/styles/settings.css";
 
@@ -46,7 +48,6 @@ export function SettingsPage() {
   const session = useSession();
   const settings = useSettings();
   const os = detectAppOs();
-  const platform = PLATFORM_SETTINGS[os];
   const documentRef = useRef<HTMLDivElement>(null);
   useSettingsScroll(documentRef, session.settingsSection);
   const windowTheme = useWindowTheme();
@@ -55,6 +56,7 @@ export function SettingsPage() {
   const [boardEnabled, setBoardEnabled] = useState(true);
   const [boardPort, setBoardPort] = useState(8888);
   const [restorePath, setRestorePath] = useState<string | null>(null);
+  const [dataBusy, setDataBusy] = useState(false);
   const queryClient = useQueryClient();
   const launchAtLogin = useQuery({
     queryKey: ["launch-at-login"],
@@ -147,14 +149,12 @@ export function SettingsPage() {
   );
 
   return (
-    <Page title="设置" heading={false} flush scrollLabel="设置内容">
+    <Page title="设置" heading={false} flush scrollLabel="设置内容" refreshing={dataBusy} onRefresh={async () => {
+      await Promise.all(["config-overview", "application-backups", "application-restore-error", "config-files", "config-readonly-state", "panel-config-status"].map(key => queryClient.invalidateQueries({ queryKey: [key] })));
+    }}>
       <div ref={documentRef} className="settings-document">
         <header className="settings-header">
-          <div className="flex flex-wrap items-baseline gap-3">
-            <h1>设置</h1>
-            <span className="text-xs text-muted">当前设备：{platform.name}</span>
-          </div>
-          <span className="text-xs text-muted">更改即时生效</span>
+          <h1>设置</h1>
         </header>
         <FlashNotices flash={flash} />
         <HostBackupRestoreDialog
@@ -165,7 +165,7 @@ export function SettingsPage() {
         />
 
         <SettingsSectionBlock id="look" actions={resetButton}>
-            {materialVisible ? <SettingRow label="窗口材质" hint="按本机能力选择，立即生效">
+            {materialVisible ? <SettingRow label="窗口材质">
               <div className="flex flex-col items-start gap-2">
                 <RadioGroup<WindowMaterial>
                   aria-label="窗口材质"
@@ -184,7 +184,6 @@ export function SettingsPage() {
                   当前生效：{windowTheme.theme.effective === "mica" ? "云母" : "经典"}
                   {windowTheme.theme.reason ? ` · ${windowTheme.theme.reason}` : ""}
                 </p>
-                <p className="m-0 text-xs text-muted">云母在 Windows 11 上随壁纸轻微着色并指示窗口焦点。材质用于顶部和侧栏，内容区保持实色。</p>
               </div>
             </SettingRow> : null}
             <SettingRow label="主题外观">
@@ -192,22 +191,17 @@ export function SettingsPage() {
             </SettingRow>
             <FontSettingRow
               label="界面字体"
-              hint={`界面文字 · ${platform.sans}，选择仅保存在本机`}
               kind="sans"
               value={settings.fontFamily}
               onChange={(value) => updateSettings({ fontFamily: value })}
             />
             <FontSettingRow
               label="等宽字体"
-              hint={`IP、路径、日志与配置编辑器 · ${platform.mono}`}
               kind="mono"
               value={settings.monoFontFamily}
               onChange={(value) => updateSettings({ monoFontFamily: value })}
             />
-            <SettingRow
-              label="界面字号"
-              hint={`${settings.fontSize} px · 界面上的所有文字；配置编辑器固定 14px`}
-            >
+            <SettingRow label="界面字号">
               <Slider
                 aria-label="界面字号"
                 min={11}
@@ -216,6 +210,7 @@ export function SettingsPage() {
                 formatTip={(size) => `${size} px`}
                 onChange={(fontSize) => updateSettings({ fontSize })}
               />
+              <span className="text-sm tabular-nums">{settings.fontSize} px</span>
             </SettingRow>
             <SettingRow label="字体预览"><div className="settings-font-preview"><SansFontPreview /><MonoFontPreview /></div></SettingRow>
         </SettingsSectionBlock>
@@ -235,10 +230,7 @@ export function SettingsPage() {
         </SettingsSectionBlock>
 
         <SettingsSectionBlock id="board">
-            <SettingRow
-              label="内网看板"
-              hint="仅私网 IPv4 可访问；浏览器打开 http://内网IP:端口/分组名"
-            >
+            <SettingRow label="内网看板">
               <Switch
                 className="mr-3"
                 aria-label="内网看板"
@@ -272,7 +264,7 @@ export function SettingsPage() {
                 />
               </label>
             </SettingRow>
-            <SettingRow label="示例链接" hint="本机私网地址">
+            <SettingRow label="示例链接">
               <div className="flex flex-col gap-1 text-sm">
                 {(boardUrls.data || []).length ? (
                   (boardUrls.data || []).map((url) => (
@@ -295,7 +287,7 @@ export function SettingsPage() {
         <SettingsSectionBlock id="app">
             <SettingRow
               label="开机启动"
-              hint={launchAtLogin.error ? formatErr(launchAtLogin.error) : launchAtLogin.data?.reason || "默认开启，登录系统后自动启动 1Panel"}
+              hint={launchAtLogin.error ? formatErr(launchAtLogin.error) : launchAtLogin.data?.reason || undefined}
             >
               <Switch
                 aria-label="允许应用开机启动"
@@ -310,17 +302,14 @@ export function SettingsPage() {
                 </Button>
               ) : null}
             </SettingRow>
-            <SettingRow label="本机出口" hint="公网 IP，来自 myip.ipip.net">
+            <SettingRow label="本机出口">
               <span>{egress.data?.ip || (egress.isLoading ? "检测中…" : "未知")}</span>
               {egress.data?.location ? (
                 <span className="text-muted">{egress.data.location}</span>
               ) : null}
               <Button onClick={() => void egress.refetch()}>刷新</Button>
             </SettingRow>
-            <SettingRow
-              label="主机配置"
-              hint="打包为 .zip（明文含密码与私钥），可在 macOS / Windows / Linux 间迁移"
-            >
+            <SettingRow label="主机配置">
               <Button
                 onClick={() => {
                   void exportHostBackup()
@@ -351,7 +340,7 @@ export function SettingsPage() {
             </SettingRow>
             <SettingRow label="SSH 配置同步">
               <span>{statusLabel(status.data)}</span>
-              <Button onClick={() => session.setConfigSection("overview")}>打开配置中心</Button>
+              <Button onClick={() => { session.setSettingsSection("config"); requestSettingsSection("config"); }}>查看当前配置</Button>
             </SettingRow>
             <TerminalOpenSettings />
             <SettingRow label="退出前询问">
@@ -366,13 +355,15 @@ export function SettingsPage() {
             </SettingRow>
         </SettingsSectionBlock>
 
+        <SettingsDataSections onBusyChange={setDataBusy} />
+
         <SettingsSectionBlock id="shortcuts">
             <div className="overflow-hidden">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="h-table-head border-b border-line text-xs text-muted">
                     <th className="px-3 font-normal">功能</th>
-                    <th className="px-3 font-normal">{platform.name} 快捷键</th>
+                    <th className="px-3 font-normal">快捷键</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -400,7 +391,6 @@ function SettingsSectionBlock({ id, actions, children }: { id: SettingsSection; 
   return <section id={`settings-${id}`} data-settings-section={id} aria-labelledby={`settings-${id}-title`} className="settings-section">
     <header className="settings-section-heading">
       <h2 id={`settings-${id}-title`}>{section.label}</h2>
-      <p>{section.hint}</p>
       {actions ? <div className="settings-section-actions">{actions}</div> : null}
     </header>
     <div className="settings-section-body">{children}</div>
@@ -422,7 +412,7 @@ function AboutSection() {
   );
   return (
     <section className="flex flex-col">
-      <SettingRow label="应用" hint={info?.description}>
+      <SettingRow label="应用">
         <img
           src={appIcon}
           alt="1Panel"
@@ -439,7 +429,7 @@ function AboutSection() {
       {row("编译工具链", info?.goVersion)}
       {row("内置 Agent", info?.agentVer ? `v${info.agentVer}` : undefined)}
       <UpdateSettingRows />
-      <SettingRow label="链接" hint="用系统浏览器打开">
+      <SettingRow label="链接">
         <Button size="sm" onClick={() => void api.openExternalURL(info?.repoUrl || "")}>
           源码仓库
         </Button>
@@ -510,7 +500,7 @@ function UpdateSettingRows() {
           {checking ? "检查中…" : "检查更新"}
         </Button>
       </SettingRow>
-      <SettingRow label="自动检查更新" hint="启动时及每 6 小时检查一次；强制更新不受此开关影响">
+      <SettingRow label="自动检查更新">
         <Switch
           checked={state?.autoCheck ?? true}
           disabled={!state?.enabled}
@@ -560,7 +550,7 @@ function TerminalOpenSettings() {
   return (
     <>
       {showPicker && effective ? (
-        <SettingRow label="终端" hint="「终端打开」主机时使用这个终端。只列出本机可用的。">
+        <SettingRow label="终端">
           <RadioGroup
             aria-label="终端"
             value={effective.id}
@@ -572,7 +562,6 @@ function TerminalOpenSettings() {
       {showMode ? (
         <SettingRow
           label={showPicker ? "打开方式" : "终端打开方式"}
-          hint="在已有窗口新建标签页，或另开一个窗口"
         >
           <RadioGroup
             aria-label="终端打开方式"
@@ -622,13 +611,11 @@ const CUSTOM_FONT_OPTION = "__custom__";
  */
 function FontSettingRow({
   label,
-  hint,
   kind,
   value,
   onChange,
 }: {
   label: string;
-  hint: string;
   kind: FontKind;
   value: string;
   onChange: (value: string) => void;
@@ -672,7 +659,6 @@ function FontSettingRow({
   return (
     <SettingRow
       label={label}
-      hint={hint}
       below={customMode && panelOpen ? (
             <div className="motion-axis-y-in">
               <FontListPanel

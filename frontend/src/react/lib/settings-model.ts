@@ -1,14 +1,26 @@
+import { sectionReadingPosition } from "@/react/lib/section-scroll";
 import type { AppOs } from "@/react/lib/platform";
-import type { SettingsSection } from "@/react/state/session";
+import type { ConfigSection, SettingsSection } from "@/react/state/session";
 
-export const SETTINGS_SECTIONS: { id: SettingsSection; label: string; hint: string }[] = [
-  { id: "look", label: "外观", hint: "调整主题与字体" },
-  { id: "session", label: "会话", hint: "控制启动后的打开内容" },
-  { id: "board", label: "看板", hint: "配置内网看板访问" },
-  { id: "app", label: "应用", hint: "管理本机与应用行为" },
-  { id: "shortcuts", label: "快捷键", hint: "查看当前系统的常用快捷键" },
-  { id: "about", label: "关于", hint: "版本、更新与相关链接" },
+export const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
+  { id: "look", label: "外观" },
+  { id: "session", label: "会话" },
+  { id: "board", label: "看板" },
+  { id: "app", label: "应用" },
+  { id: "backups", label: "备份" },
+  { id: "config", label: "配置" },
+  { id: "shortcuts", label: "热键" },
+  { id: "about", label: "关于" },
 ];
+
+/** Preserve the selected destination when restoring a retired configuration page. */
+export function configSettingsRoute(section: ConfigSection, currentSettingsSection?: SettingsSection) {
+  return {
+    workspace: "remote" as const,
+    settingsOpen: true,
+    settingsSection: currentSettingsSection ?? (section === "backups" ? "backups" : "config"),
+  };
+}
 
 export const PLATFORM_SETTINGS = {
   mac: { name: "macOS", sans: "SF Pro / 苹方", mono: "SF Mono / Menlo" },
@@ -38,16 +50,5 @@ export function settingsReadingSection(
   scrollHeight: number,
   pointerOffset: number | null,
 ): SettingsSection {
-  // Keyboard/touch reading should reach the final section at the scroll limit;
-  // an actual pointer still identifies its own module anywhere in the viewport.
-  if (pointerOffset === null && scrollHeight > viewportHeight + 2 && scrollTop + viewportHeight >= scrollHeight - 2) {
-    return sections[sections.length - 1]?.id ?? "look";
-  }
-  const readingLine = scrollTop + Math.max(0, Math.min(pointerOffset ?? 96, viewportHeight - 1));
-  let current: SettingsSection = "look";
-  for (const section of sections) {
-    if (section.top > readingLine) break;
-    current = section.id;
-  }
-  return current;
+  return sectionReadingPosition(sections, scrollTop, viewportHeight, scrollHeight, pointerOffset, "look");
 }

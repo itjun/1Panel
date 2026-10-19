@@ -16,7 +16,6 @@ import { HostRenameDialogHost } from "@/react/components/host-rename-dialog";
 import { UpdateCheckFailDialog, UpdateDialog } from "@/react/components/update-dialog";
 import { detectAppOs } from "@/react/lib/platform";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
-import { ConfigCenterPage } from "@/react/pages/config-center";
 import { GroupPage } from "@/react/pages/group-page";
 import { HostCreateForm, HostEditForm } from "@/react/pages/host-form";
 import { HostFilePage } from "@/react/pages/host-files";
@@ -186,7 +185,7 @@ function Shell() {
 
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <SidebarLayer />
-        <main inert={sidebar.overlay && sidebar.open && (session.workspace !== "config" || session.settingsOpen) ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
+        <main inert={sidebar.overlay && sidebar.open ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
           <div className="relative min-h-0 min-w-0 flex-1">
             {session.settingsOpen ? (
               <div key="settings" className="motion-fade-in h-full min-h-0">
@@ -245,8 +244,7 @@ function SidebarLayer() {
   const sidebar = useSidebar();
   const session = useSession();
   const ref = useRef<HTMLDivElement>(null);
-  const enabled = session.workspace !== "config" || session.settingsOpen;
-  const visible = enabled && sidebar.open;
+  const visible = sidebar.open;
   useEffect(() => { sidebar.closeOverlay(); }, [session.workspace, session.settingsOpen, sidebar.closeOverlay]);
   useEffect(() => {
     if (!visible || !sidebar.overlay) return;
@@ -272,7 +270,6 @@ function SidebarLayer() {
 
 function workspaceKey(session: ReturnType<typeof useSession>): string {
   if (session.workspace === "notify") return "notify";
-  if (session.workspace === "config") return "config";
   if (session.workspace === "local") return "local";
   if (session.workspace === "inspect") return "inspect";
   if (session.workspace === "speedtest") return "speedtest";
@@ -292,7 +289,6 @@ function WorkspaceBody({
   const key = workspaceKey(session);
   let body: ReactNode;
   if (session.workspace === "notify") body = <NotifyPage />;
-  else if (session.workspace === "config") body = <ConfigCenterPage />;
   else if (session.workspace === "local") body = <LocalPage />;
   else if (session.workspace === "inspect") body = <InspectPage />;
   else if (session.workspace === "speedtest") body = <SpeedtestPage />;

@@ -8,6 +8,7 @@ export function SettingsNavigation() {
   return <nav className="settings-navigation" aria-label="设置目录">
     {SETTINGS_SECTIONS.map((item) => <button
       type="button" key={item.id}
+      data-rail-key={`settings:${item.id}`}
       aria-current={active === item.id ? "location" : undefined}
       aria-controls={`settings-${item.id}`}
       onClick={() => {

@@ -16,6 +16,7 @@ import {
 } from "@/utils/lastScreen";
 import { pushView, viewSnap, type ViewSnap } from "@/react/state/nav-history";
 import { readSettings } from "@/react/state/settings";
+import { configSettingsRoute } from "@/react/lib/settings-model";
 import { reconcileHostRacks } from "@/utils/hostRacks";
 import type { PersistTool } from "@/utils/workspaceMigrate";
 
@@ -75,7 +76,7 @@ export type InspectSection = "menuCheck";
 export type SpeedtestSection = "pair" | "group" | "history";
 /** 从主机右键 / 分组页跳进测速时的预填 */
 export type SpeedtestPrefill = { a?: string; b?: string; groupId?: string; nonce: number };
-export type SettingsSection = "look" | "session" | "board" | "app" | "shortcuts" | "about";
+export type SettingsSection = "look" | "session" | "board" | "app" | "backups" | "config" | "shortcuts" | "about";
 export type HomeView = "home" | "group";
 
 export type OpenedHost = {
@@ -139,7 +140,7 @@ const defaultNav = (): Nav => ({
   settingsOpen: false,
   localSection: "overview",
   notifySection: "metricMessages",
-  configSection: "overview",
+  configSection: "backups",
   inspectSection: "menuCheck",
   speedtestSection: "pair",
   settingsSection: "look",
@@ -221,9 +222,12 @@ function loadNav(): Nav {
     if (merged.homeView !== "home" && merged.homeView !== "group") {
       merged.homeView = "home";
     }
-    const settingsSections = new Set(["look", "session", "board", "app", "shortcuts", "about"]);
+    const settingsSections = new Set(["look", "session", "board", "app", "backups", "config", "shortcuts", "about"]);
     if (!settingsSections.has(merged.settingsSection as string)) {
       merged.settingsSection = "look";
+    }
+    if (merged.workspace === "config") {
+      Object.assign(merged, configSettingsRoute(merged.configSection, merged.settingsOpen ? merged.settingsSection : undefined));
     }
     return merged;
   } catch {
@@ -478,7 +482,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       osRelease,
       loading,
       refresh,
-      setWorkspace: (workspace) => patch({ workspace, settingsOpen: false }),
+      setWorkspace: (workspace) => patch(workspace === "config" ? configSettingsRoute(nav.configSection) : { workspace, settingsOpen: false }),
       openSettings: (open = true) =>
         patch(open ? { settingsOpen: true } : { settingsOpen: false }),
       setLocalSection: (localSection) =>
@@ -486,7 +490,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setNotifySection: (notifySection) =>
         patch({ notifySection, workspace: "notify", settingsOpen: false }),
       setConfigSection: (configSection) =>
-        patch({ configSection, workspace: "config", settingsOpen: false }),
+        patch({ configSection, ...configSettingsRoute(configSection) }),
       setInspectSection: (inspectSection) =>
         patch({ inspectSection, workspace: "inspect", settingsOpen: false }),
       setSpeedtestSection: (speedtestSection) =>
@@ -692,6 +696,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         activeHost: snap.activeHost,
         activeTool: snap.activeTool,
         openedHosts,
+        ...(snap.workspace === "config" ? configSettingsRoute(snap.configSection, snap.settingsOpen ? snap.settingsSection : undefined) : {}),
       };
       writeMainFromNav(next);
       return next;

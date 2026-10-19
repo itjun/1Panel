@@ -20,7 +20,6 @@ import { cn } from "@/react/lib/utils";
 import {
   UNGROUPED_ID,
   useSession,
-  type ConfigSection,
   type SpeedtestSection,
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
@@ -38,14 +37,6 @@ import {
 const RAIL_ORDER_KEY = "1pannel-rail-order";
 const VISITED_GROUPS_KEY = "1pannel-visited-groups";
 const RAIL_ENTRY_MIME = "application/x-rail-entry";
-
-const CONFIG_SECTIONS: { id: ConfigSection; label: string }[] = [
-  { id: "overview", label: "概览" },
-  { id: "json", label: "Panel JSON" },
-  { id: "files", label: "SSH 文件" },
-  { id: "diff", label: "差异与冲突" },
-  { id: "backups", label: "备份" },
-];
 
 const SPEEDTEST_SECTIONS: { id: SpeedtestSection; label: string }[] = [
   { id: "pair", label: "两机测速" },
@@ -244,9 +235,7 @@ export function WorkspaceRail() {
 
   const listKind = session.settingsOpen
     ? "settings"
-    : session.workspace === "config"
-      ? "config"
-      : session.workspace === "notify"
+    : session.workspace === "notify"
         ? "notify"
         : session.workspace === "local"
           ? "local"
@@ -283,17 +272,6 @@ export function WorkspaceRail() {
                 label={item.label}
                 active={session.localSection === item.id}
                 onClick={() => session.setLocalSection(item.id)}
-              />
-            ))
-          : null}
-
-        {listKind === "config"
-          ? CONFIG_SECTIONS.map((item) => (
-              <RailNavButton
-                key={item.id}
-                label={item.label}
-                active={session.configSection === item.id}
-                onClick={() => session.setConfigSection(item.id)}
               />
             ))
           : null}
