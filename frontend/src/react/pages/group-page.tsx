@@ -958,7 +958,6 @@ export function GroupPage({
                   <Button aria-pressed={!hiddenColumns.length} variant={!hiddenColumns.length ? "primary" : "ghost"} onClick={() => changeHiddenColumns([])}>全部列</Button>
                 </div>
                 <ActionPopover label="自选列">
-                  <p className="px-2 py-1 text-xs text-muted">主机列固定，其余列可按需显示</p>
                   {GROUP_COL_KEYS.map(key => <label key={key} className="flex min-h-8 items-center gap-2 px-2">
                     <input type="checkbox" checked={!hiddenColumns.includes(key)} disabled={key === "host"} onChange={e => changeHiddenColumns(e.target.checked ? hiddenColumns.filter(k => k !== key) : [...hiddenColumns, key])} />{GROUP_COL_LABELS[key]}
                   </label>)}

@@ -4,7 +4,6 @@ import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
@@ -73,9 +72,8 @@ function HostRenameDialog({ host }: { host: string }) {
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saving.current) closeHostRename(); }}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogTitle>重命名主机</DialogTitle>
-        <DialogDescription>修改主机名称，并同步本地配置中的相关引用。</DialogDescription>
         <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
           <label className="mt-5 block text-sm" htmlFor="host-rename-name">主机名称</label>
           <input

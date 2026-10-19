@@ -6,7 +6,6 @@ import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
@@ -112,11 +111,8 @@ export function HostBackupRestoreDialog({
   const droppedOptions = data?.droppedOptions ?? [];
   return (
     <Dialog open={!!path} onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent className="w-[min(560px,calc(100vw-32px))]">
+      <DialogContent aria-describedby={undefined} className="w-[min(560px,calc(100vw-32px))]">
         <DialogTitle>恢复主机配置</DialogTitle>
-        <DialogDescription>
-          恢复前会自动快照当前配置；恢复后无需逐台测试连接。
-        </DialogDescription>
         <p className="mt-2 truncate font-mono text-xs text-muted" data-tip={path ?? ""} data-tip-overflow="">
           {path}
         </p>

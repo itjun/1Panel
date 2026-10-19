@@ -588,9 +588,6 @@ function OverviewPage({ host }: { host: string }) {
                   </div>
                 ))}
               </div>
-              {physDisks.length > 1 && physDisks[0]!.fsType === "disk" ? (
-                <p className="mt-2 text-xs text-muted">多块盘时已用量按容量比例估算</p>
-              ) : null}
             </div>
           ) : null}
           {mounts.length ? (

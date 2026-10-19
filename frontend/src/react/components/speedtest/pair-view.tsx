@@ -277,7 +277,7 @@ export function PairView() {
             <PathCards report={report} selected={selected} onSelect={setSelected} disabled={running} />
           ) : (
             <p className="text-sm text-muted">
-              {detecting ? "识别中，首次会把 iperf3 上传到远端，稍等几秒。" : "选好 A、B 两端后自动识别局域网 / 广域网路径。"}
+              {detecting ? "识别中…" : "请选择 A、B 两端"}
             </p>
           )}
         </Section>

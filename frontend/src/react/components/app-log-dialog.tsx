@@ -102,7 +102,6 @@ export function AppLogDialog({
               {level === "OTHER" ? "其他" : level.charAt(0) + level.slice(1).toLowerCase()}
             </Button>
           ))}
-          <span className="text-xs text-muted">可多选 · 保留异常堆栈</span>
         </div>
         {query.error ? <Notice text={formatErr(query.error)} /> : null}
         {query.data?.source ? (
@@ -117,11 +116,7 @@ export function AppLogDialog({
             </p>
           )}
         </div>
-        <p className="m-0 shrink-0 text-xs text-muted">
-          只读实例控制台日志，单次最多读取末尾 512 KiB。
-          筛选仅作用于当前已读取的日志。
-          {query.data?.truncated ? " 当前显示日志末尾片段。" : ""}
-        </p>
+        {query.data?.truncated ? <p className="m-0 shrink-0 text-xs text-muted">当前显示日志末尾片段</p> : null}
       </DialogContent>
     </Dialog>
   );

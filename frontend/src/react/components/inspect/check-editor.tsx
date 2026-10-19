@@ -11,7 +11,6 @@ import { Checkbox } from "@/react/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
@@ -156,11 +155,8 @@ export function CheckEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(840px,calc(100vw-32px))]">
+      <DialogContent aria-describedby={undefined} className="w-[min(840px,calc(100vw-32px))]">
         <DialogTitle>{draft.id ? "编辑巡检" : "新建巡检"}</DialogTitle>
-        <DialogDescription>
-          配置只保存在本机，不会写入项目代码。
-        </DialogDescription>
 
         <div className="mt-4 grid gap-4">
           <label className="grid gap-1.5">
@@ -256,9 +252,6 @@ export function CheckEditorDialog({
                   value={draft.body}
                   onChange={(e) => patch({ body: e.target.value })}
                 />
-                <span className="text-xs text-muted">
-                  Content-Type 请在 Headers 里填写，例如 application/json。
-                </span>
               </div>
             ) : null}
             {tab === "assert" ? (
@@ -272,9 +265,6 @@ export function CheckEditorDialog({
                       value={draft.expectStatus}
                       onChange={(e) => patch({ expectStatus: e.target.value })}
                     />
-                    <span className="text-xs text-muted">
-                      示例：200、2xx、200,204；留空表示 2xx 或 3xx 都算正常
-                    </span>
                   </div>
                   <span className="text-sm text-muted">超时（秒）</span>
                   <InputNumber
@@ -316,11 +306,8 @@ export function CheckEditorDialog({
                 <Switch
                   checked={draft.scheduleEnabled}
                   onChange={(scheduleEnabled) => patch({ scheduleEnabled })}
-                >
-                  <span className="text-xs text-muted">
-                    失败时发送系统通知和应用内消息，每次失败都会提醒
-                  </span>
-                </Switch>
+                  aria-label="定时检查"
+                />
                 <span className="text-sm text-muted">间隔（分钟）</span>
                 <InputNumber
                   className="w-36"

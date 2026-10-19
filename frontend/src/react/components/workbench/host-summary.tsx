@@ -169,7 +169,6 @@ export function HostWorkbenchSummary({
         <section>
           <div className="workbench-section-heading">
             <h2>当前进程</h2>
-            <span className="text-xs text-muted">按内存排序</span>
             <Button variant="ghost" size="sm" onClick={() => openProcesses()}>
               全部进程
               <ArrowRight size={14} />
@@ -181,7 +180,6 @@ export function HostWorkbenchSummary({
                   hour12: false,
                 })
               : "等待采样"}{" "}
-            · 当前快照，不代表历史时段
           </p>}
           {unavailable || procs.isError ? (
             <p className="py-6 text-sm text-muted">

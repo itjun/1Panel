@@ -7,7 +7,6 @@ import { Button } from "@/react/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
@@ -135,12 +134,9 @@ function HostSetupDialog({ host }: { host: string }) {
         if (!open) closeHostSetup();
       }}
     >
-      <DialogContent className="w-[min(600px,calc(100vw-32px))]">
+      <DialogContent aria-describedby={undefined} className="w-[min(600px,calc(100vw-32px))]">
         <FlashNotices flash={flash} />
         <DialogTitle>初始化主机 · {host}</DialogTitle>
-        <DialogDescription>
-          安装基础软件和 Shell 增强功能，默认使用 ys 主题。
-        </DialogDescription>
         <div className="mt-4 space-y-4 text-sm">
           <div className="text-xs text-muted" aria-live="polite">
             {env
@@ -158,10 +154,6 @@ function HostSetupDialog({ host }: { host: string }) {
             <dt className="text-muted">增强功能</dt>
             <dd>命令高亮、历史建议；拼写纠错默认关闭</dd>
           </dl>
-          <p className="text-xs leading-5 text-muted">
-            沿用系统软件源，启用 SSH
-            开机启动；保留个人配置并创建备份。重新登录后生效。
-          </p>
           {issue ? <Notice tone="error" text={issue} /> : null}
           {job?.state === "success" && !busy && !issue ? (
             <Notice
@@ -206,9 +198,6 @@ function HostSetupDialog({ host }: { host: string }) {
               >
                 {logs.length ? logs.join("\n") : "正在连接目标主机…"}
               </pre>
-              <p className="mt-2 text-xs text-muted">
-                关闭窗口后任务继续运行；右键同一主机可查看进度。
-              </p>
             </div>
           ) : null}
         </div>

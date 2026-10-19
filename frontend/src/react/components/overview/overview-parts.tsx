@@ -97,9 +97,6 @@ export function PhysicalDiskRows({ disks }: { disks: monitor.DiskInfo[] }) {
           </div>
         ))}
       </div>
-      {disks.length > 1 && disks[0]!.fsType === "disk" ? (
-        <p className="mt-2 text-xs text-muted">多块盘时已用量按容量比例估算</p>
-      ) : null}
     </div>
   );
 }

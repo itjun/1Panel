@@ -184,12 +184,6 @@ export function GroupView() {
             ) : null}
             {actions}
           </div>
-          <p className="text-xs text-muted">
-            {mode === "star"
-              ? "星型：中心机依次和每台主机双向测一轮，适合看「这台机器到其它机器」的带宽。"
-              : "矩阵：每两台之间各测一次 A→B，结果是一张发送方 × 接收方的表，测试轮数是主机数的平方级。"}
-            分组测速只走局域网，内网不通的组合会标出原因并跳过；不包含本机。
-          </p>
           {allHosts.length ? (
             <div className="flex flex-wrap gap-x-4 gap-y-2">
               {allHosts.map((h) => (
@@ -204,10 +198,10 @@ export function GroupView() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted">{groupId ? "该分组没有主机" : "还没有分组，先在主机列表里建分组"}</p>
+            <p className="text-sm text-muted">{groupId ? "该分组没有主机" : "暂无分组"}</p>
           )}
           <p className="text-xs text-muted tabular-nums">
-            已选 {hosts.length} 台，共 {pairCount} 轮，预计约 {Math.ceil(estimate / 60)} 分钟（不含首次上传 iperf3）
+            已选 {hosts.length} 台，共 {pairCount} 轮，预计约 {Math.ceil(estimate / 60)} 分钟
           </p>
         </Section>
 

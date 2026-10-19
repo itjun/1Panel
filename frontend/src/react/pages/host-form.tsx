@@ -223,9 +223,6 @@ export function HostCreateForm({
         <div className="mb-6 flex items-start gap-4">
           <div className="min-w-0 flex-1">
             <div className="text-lg font-semibold leading-tight text-ink">{title}</div>
-            {kind === "group" ? (
-              <div className="mt-0.5 text-xs text-muted">如 04-new-group</div>
-            ) : null}
           </div>
           <DockCloseButton onClick={onClose} />
         </div>

@@ -1546,9 +1546,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       ) : null}
 
       <Dialog open={!!rackSettings} onOpenChange={(open) => !open && setRackSettings(null)}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogTitle>机柜名称</DialogTitle>
-          <DialogDescription>为这一排分组设置名称，支持中文。留空恢复默认名称。</DialogDescription>
           <form onSubmit={(event) => { event.preventDefault(); saveRackName(); }}>
             <label htmlFor="host-rack-name" className="mt-3 block text-sm text-muted">名称</label>
             <input id="host-rack-name" autoFocus maxLength={80}

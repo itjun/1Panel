@@ -244,7 +244,7 @@ export function InspectPage() {
         <Card>
           <div className="grid justify-items-start gap-3">
             <p className="text-sm text-muted">
-              还没有巡检项。添加一个 HTTP 请求，设置断言和定时规则，失败时会发送系统通知和应用内消息。
+              暂无巡检项
             </p>
           </div>
         </Card>

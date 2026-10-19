@@ -149,9 +149,6 @@ export function DiskPage({ host }: { host: string }) {
               <span className="font-mono text-sm text-muted">{selectedMount}</span>
             ) : null}
           </div>
-          {!selectedMount ? (
-            <p className="text-sm text-muted">在上方分区列表点「扫描大文件」，找出该挂载点下最大的文件。</p>
-          ) : null}
           {selectedError ? (
             <div className="mb-3">
               <Notice text={selectedError} />

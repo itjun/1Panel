@@ -502,13 +502,6 @@ function formatMonthDay(sec: number): string {
   return `${mm}-${dd}`;
 }
 
-function formatHourMinute(sec: number): string {
-  const d = new Date(sec * 1000);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mi}`;
-}
-
 function TrafficUsage({ host }: { host: string }) {
   const query = useQuery({
     queryKey: ["traffic-usage", host],
@@ -693,10 +686,6 @@ function TrafficUsage({ host }: { host: string }) {
       <div className="mt-4 h-[220px] min-w-0">
         <ChartHost option={chartOption} />
       </div>
-      <p className="mt-2 text-xs text-muted">
-        近 {TRAFFIC_CHART_DAYS} 天每日流量；今天未满一天，用虚线段表示；日期标橙表示当天比例偏离平时，标红表示严重偏离。按 agent 5 分钟聚合统计
-        {usage.latestEnd ? `，截至 ${formatHourMinute(usage.latestEnd)}` : ""}
-      </p>
     </>
   );
 }

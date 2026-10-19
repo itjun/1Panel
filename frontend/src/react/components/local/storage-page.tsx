@@ -267,7 +267,7 @@ export function LocalStoragePage() {
           </div>
 
         {idleNoRecord ? (
-          <p className="text-sm text-muted">还没扫描，点上方「开始扫描」开始</p>
+          <p className="text-sm text-muted">尚未扫描</p>
         ) : (
           <>
             {tab === "apps" ? (

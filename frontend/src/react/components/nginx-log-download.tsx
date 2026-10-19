@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { api } from "@/api";
 import { Button } from "@/react/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/react/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/react/components/ui/dialog";
 import { FlashNotices, Notice } from "@/react/components/page";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { formatErr } from "@/utils/format";
@@ -142,13 +142,10 @@ export function NginxLogDownload({ host }: { host: string }) {
         <Download className="size-4" />下载日志
       </Button>
       <Dialog open={open} onOpenChange={(value) => { if (!requestID.current) setOpen(value); }}>
-        <DialogContent ref={dialog} className={`w-[min(560px,calc(100vw-32px))] ${busy ? "overflow-hidden" : ""}`} aria-busy={busy}
+        <DialogContent aria-describedby={undefined} ref={dialog} className={`w-[min(560px,calc(100vw-32px))] ${busy ? "overflow-hidden" : ""}`} aria-busy={busy}
           onEscapeKeyDown={(event) => { if (requestID.current) event.preventDefault(); }}
           onPointerDownOutside={(event) => { if (requestID.current) event.preventDefault(); }}>
           <DialogTitle>下载 Nginx 日志</DialogTitle>
-          <DialogDescription>
-            按远程主机当天的文件修改日期，选择 access.log、error.log 及其数字轮转文件（如 access.log.1），整文件打包为一个 .tar.zst 下载。
-          </DialogDescription>
           <div inert={busy} aria-hidden={busy || undefined}>
             <div className="mt-4 flex flex-col gap-4 text-sm">
               <label className="flex flex-col gap-2">
@@ -159,10 +156,6 @@ export function NginxLogDownload({ host }: { host: string }) {
                 <span>远程压缩临时目录</span>
                 <input className="motion-field h-9 w-full rounded-control px-3 font-mono text-sm text-ink disabled:text-muted" value={temporaryDir} disabled={busy} onChange={(event) => { setTemporaryDir(event.target.value); setChecked(null); setMessage(null); }} />
               </label>
-              <p className="text-muted">
-                压缩前检查磁盘空间，并预留至少 1 GiB 或容量的 10%。只读取开始时已有的内容，不修改日志、不重启或重载 Nginx。完成或取消后自动清理临时包。
-              </p>
-              <p className="text-xs text-muted">使用 zstd 默认参数，不逐行筛选。选中文件的历史记录和无时间戳内容也会保留；不包含 .gz 等压缩包、备份或子目录。</p>
               {checked ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
                   <dt className="text-muted">文件修改日期</dt><dd>{checked.date}（主机时间）</dd>
