@@ -26,6 +26,7 @@ func TestApplicationBackupRestoresCompleteData(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(root, "update", "download"), "CACHE", 0600)
 	writeTestFile(t, filepath.Join(root, "writing.tmp"), "TEMP", 0600)
+	writeTestFile(t, filepath.Join(root, "launch-at-login.initialized"), "", 0600)
 	writeTestFile(t, filepath.Join(home, ".ssh", "config"), "Include config.d/*.conf\n", 0600)
 	writeTestFile(t, filepath.Join(home, ".ssh", "config.d", "prod.conf"), "Host web\n HostName 192.0.2.10\n IdentityFile ~/.ssh/id_work\n", 0600)
 	writeTestFile(t, filepath.Join(home, ".ssh", "id_work"), "PRIVATE-KEY", 0600)
@@ -48,6 +49,9 @@ func TestApplicationBackupRestoresCompleteData(t *testing.T) {
 	}
 	if _, ok := snap.Files["data/writing.tmp"]; ok {
 		t.Fatal("temporary write packed")
+	}
+	if _, ok := snap.Files["data/launch-at-login.initialized"]; ok {
+		t.Fatal("device-local login registration marker packed")
 	}
 	if _, ok := snap.Files["data/backups/previous.json"]; !ok {
 		t.Fatal("historical configuration snapshot omitted")
@@ -81,6 +85,9 @@ func TestApplicationBackupRestoresCompleteData(t *testing.T) {
 	}
 	if err := appbackup.Apply(pending, root, home); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "launch-at-login.initialized")); err != nil {
+		t.Fatalf("restore removed local startup initialization: %v", err)
 	}
 	for name, content := range data {
 		b, err := os.ReadFile(filepath.Join(root, name))

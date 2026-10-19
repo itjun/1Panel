@@ -58,11 +58,12 @@ func validPath(p string) bool {
 }
 
 // Excluded contains only generated/downloaded binaries, temporary writes and
-// this feature's own archives/staging. Historical configuration snapshots stay.
+// this feature's own archives/staging, and device-local login registration state.
+// Historical configuration snapshots stay.
 func Excluded(rel string) bool {
 	first := strings.Split(filepath.ToSlash(rel), "/")[0]
 	return first == "application-backups" || first == ".application-restore" ||
-		first == "update" || first == "iperf3" || strings.HasSuffix(rel, ".tmp")
+		first == "update" || first == "iperf3" || first == "launch-at-login.initialized" || strings.HasSuffix(rel, ".tmp")
 }
 
 func (s *Snapshot) Add(p string, b []byte, mode os.FileMode, text bool) error {
