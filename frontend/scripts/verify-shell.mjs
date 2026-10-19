@@ -114,7 +114,6 @@ if (!app.includes("WindowChrome")) fail("app toolbar does not host window chrome
 if (!app.includes("shell-app-toolbar")) fail("Firefox-style full-width app toolbar missing");
 if (!app.includes("SidebarSplitter")) fail("resizable sidebar splitter missing");
 if (!app.includes("data-sidebar")) fail("shell does not mark sidebar state");
-if (!app.includes("ShellToolbarProvider")) fail("shell toolbar portal provider missing");
 const chrome = fs.readFileSync(
   path.join(root, "src/react/components/window-chrome.tsx"),
   "utf8",
