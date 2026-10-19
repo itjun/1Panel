@@ -236,7 +236,9 @@ func NewApp(resources Resources) *application.App {
 			InvisibleTitleBarHeight: macInvisibleTitleBarHeight,
 			Backdrop:                application.MacBackdropNormal,
 		},
-		URL: "/",
+		// 每次启动重新读取入口 HTML，避免 WebView 沿用上次安装的旧页面；
+		// JS/CSS 仍使用 Vite 的内容哈希，设置与消息数据的存储 origin 不变。
+		URL: fmt.Sprintf("/?launch=%d", time.Now().UnixNano()),
 	}
 	// Windows/Linux：无系统标题栏/菜单，窗口按钮画在应用内标题栏。
 	// macOS 继续隐藏系统标题栏、保留左上红绿灯（不走 Frameless，否则红绿灯会被藏掉）。
