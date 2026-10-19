@@ -2,7 +2,9 @@ import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { ChartHost, lineOption } from "@/react/components/monitor/charts";
 import { Button } from "@/react/components/ui/button";
+import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
 import { readThemeColor } from "@/react/lib/utils";
+import { useThemeMode } from "@/react/lib/use-theme-mode";
 import { usageBands, usageTone } from "@/react/lib/usage-tone";
 import { boardHistorySeries, type BoardChartPoint, type BoardHistory } from "@/utils/boardHistory";
 import type { BoardHostCard } from "@/utils/boardModel";
@@ -27,6 +29,7 @@ function trendOption(data: BoardChartPoint[], label: string, from: number, to: n
     dataZoom: [],
     grid: { left: compact ? 0 : 8, right: fontSize * 2, top: compact ? Math.ceil(fontSize / 2) + 2 : 16, bottom: compact ? 0 : 8, containLabel: true },
     tooltip: {
+      ...trendTooltip(),
       trigger: "axis", confine: true, renderMode: "richText",
       backgroundColor: readThemeColor("--color-surface", ""), borderColor: line,
       borderWidth: 1, shadowBlur: 0, padding: [8, 12],
@@ -42,7 +45,7 @@ function trendOption(data: BoardChartPoint[], label: string, from: number, to: n
     },
     xAxis: {
       type: "time", min: from, max: to, splitNumber: compact ? 2 : 4,
-      axisLabel: { color: muted, fontSize, hideOverlap: true, formatter: (value: number) => timeLabel(value) },
+      axisLabel: { color: muted, fontSize, hideOverlap: true, alignMinLabel: "left", alignMaxLabel: "right", formatter: (value: number) => timeLabel(value) },
       axisLine: { lineStyle: { color: line } }, axisTick: { show: false },
       splitLine: { show: false },
     },
@@ -52,9 +55,9 @@ function trendOption(data: BoardChartPoint[], label: string, from: number, to: n
       splitLine: { lineStyle: { color: line, type: "dashed" } },
     },
     series: [{
-      name: label, type: "line", data, showSymbol: data.filter((p) => p[1] !== null).length === 1,
-      symbolSize: 6, smooth: false, connectNulls: false,
-      lineStyle: { width: Math.max(2, fontSize / 8) }, areaStyle: { opacity: 0.08 },
+      ...trendLineStyle({ color: readThemeColor("--meter-ok", ""), values: data.map(p => p[1]), bands: usageBands(100) }),
+      name: label, data,
+      lineStyle: { width: Math.max(2.25, fontSize / 8) },
     }],
   };
 }
@@ -76,7 +79,8 @@ const TrendPanel = memo(function TrendPanel({ label, host, value, detail, data, 
     observer.observe(container);
     return () => observer.disconnect();
   }, [compact]);
-  const option = useMemo(() => trendOption(data, label, from, to, fontSize, compact), [data, label, from, to, fontSize, compact]);
+  const theme = useThemeMode();
+  const option = useMemo(() => trendOption(data, label, from, to, fontSize, compact), [data, label, from, to, fontSize, compact, theme]);
   const hasData = data.some((p) => p[1] !== null);
   return (
     <section className="board-trends__panel" aria-label={`${host} ${label}`}>

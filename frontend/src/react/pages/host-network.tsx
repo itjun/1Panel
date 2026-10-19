@@ -10,6 +10,8 @@ import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { useFlashMessage, type FlashMessage } from "@/react/lib/use-flash-message";
 import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { ChartHost, RX_TIP, TX_TIP } from "@/react/components/monitor/charts";
+import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
+import { useThemeMode } from "@/react/lib/use-theme-mode";
 import type * as echarts from "echarts";
 import { copyText } from "@/utils/clipboard";
 import { bytesToKBps, formatBytes, formatErr, formatRateKBps } from "@/utils/format";
@@ -628,9 +630,10 @@ function TrafficUsage({ host }: { host: string }) {
     };
   }, [query.data]);
 
+  const themeMode = useThemeMode();
   const chartOption = useMemo(
     () => buildDailyTrafficOption(usage.dayLabels, usage.dayRx, usage.dayTx, usage.dayMarks),
-    [usage],
+    [usage, themeMode],
   );
 
   let weekChangeText = "";
@@ -713,8 +716,6 @@ function buildDailyTrafficOption(
   };
   const muted = readThemeColor("--color-muted", "#636a76");
   const line = readThemeColor("--color-line", "#e5e7eb");
-  const ink = readThemeColor("--color-ink", "#1f2937");
-  const surface = readThemeColor("--color-surface", "#ffffff");
   const [rxColor, txColor] = seriesColorList(["流入", "流出"]);
 
   const last = labels.length - 1;
@@ -728,32 +729,24 @@ function buildDailyTrafficOption(
   // 同名系列在图例里一起开关：实线段与今天的虚线段共用「流入」「流出」两个名字
   const lineSeries = (name: string, color: string, data: (number | null)[]) => [
     {
+      ...trendLineStyle({ color, values: fullDays(data) }),
       name,
-      type: "line" as const,
       data: fullDays(data),
       color,
-      symbol: "circle",
-      symbolSize: 6,
-      lineStyle: { width: 2 },
     },
     {
+      ...trendLineStyle({ color, values: todaySegment(data), fill: false }),
       name,
-      type: "line" as const,
       data: todaySegment(data),
       color,
-      symbol: "circle",
-      symbolSize: 6,
-      lineStyle: { width: 2, type: "dashed" as const },
+      lineStyle: { width: 2.25, type: "dashed" as const },
     },
   ];
 
   return {
     grid: { left: 8, right: 24, top: 28, bottom: 8, containLabel: true },
     tooltip: {
-      trigger: "axis",
-      backgroundColor: surface,
-      borderColor: line,
-      textStyle: { color: ink, fontSize: 12 },
+      ...trendTooltip(),
       formatter: (params) => {
         const list = Array.isArray(params) ? params : [params];
         const i = list[0]?.dataIndex ?? 0;
@@ -785,6 +778,9 @@ function buildDailyTrafficOption(
       data: labels,
       axisLabel: {
         fontSize: 12,
+        hideOverlap: true,
+        alignMinLabel: "left",
+        alignMaxLabel: "right",
         color: (_value?: string | number, index?: number) => {
           return markColor(marks[index ?? -1]) || muted;
         },
@@ -795,6 +791,7 @@ function buildDailyTrafficOption(
     },
     yAxis: {
       type: "value",
+      min: 0,
       axisLabel: { fontSize: 12, color: muted, formatter: (v: number) => formatBytes(v, 0) },
       splitLine: { lineStyle: { color: line } },
     },

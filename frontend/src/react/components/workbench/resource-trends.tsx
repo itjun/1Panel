@@ -7,6 +7,7 @@ import { Button } from "@/react/components/ui/button";
 import { Select } from "@/react/components/ui/select";
 import { DateRangePicker } from "@/react/components/ui/date-range-picker";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
 import { readThemeColor } from "@/react/lib/utils";
 import { USAGE_DANGER, usageBands } from "@/react/lib/usage-tone";
 import {
@@ -88,6 +89,7 @@ function chartOption(
     dataZoom: [],
     grid: { left: 42, right: 20, top: 20, bottom: 30 },
     tooltip: {
+      ...trendTooltip(),
       trigger: "axis",
       confine: true,
       renderMode: "richText",
@@ -110,6 +112,8 @@ function chartOption(
         color: color("--color-muted"),
         fontSize: 12,
         hideOverlap: true,
+        alignMinLabel: "left",
+        alignMaxLabel: "right",
         formatter: (v: number) => timeText(v),
       },
       axisLine: { lineStyle: { color: color("--color-line") } },
@@ -130,14 +134,10 @@ function chartOption(
     },
     series: [
       {
+        ...trendLineStyle({ color: color("--meter-ok"), values: data.map(p => p[1]), bands: usageBands(100) }),
         name: label,
-        type: "line",
         data,
         connectNulls: false,
-        showSymbol: data.filter((p) => p[1] !== null).length === 1,
-        symbolSize: 6,
-        lineStyle: { width: 2 },
-        areaStyle: { opacity: 0.08 },
         markLine: data.some((p) => p[1] !== null && p[1] >= USAGE_DANGER)
           ? {
               silent: true,

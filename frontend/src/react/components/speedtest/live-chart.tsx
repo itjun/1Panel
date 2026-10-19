@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import type { speedtest } from "@/api";
 import { ChartHost, lineOption } from "@/react/components/monitor/charts";
+import { trendLineStyle } from "@/react/lib/chart-style";
+import { useThemeMode } from "@/react/lib/use-theme-mode";
 import { readThemeColor } from "@/react/lib/utils";
 import { formatBps, formatMs, pickBpsScale } from "./format";
 
@@ -17,6 +19,7 @@ export function LiveChart({
   streams?: boolean;
   height?: number;
 }) {
+  const theme = useThemeMode();
   const option = useMemo(() => {
     // -O 预热段结束后 iperf3 从 0 重新计时，预热点与正式点混画会出现重复时刻
     const live = all.filter((s) => !s.omitted);
@@ -59,17 +62,14 @@ export function LiveChart({
       animation: false,
       color: list.map((s) => s.color),
       series: list.map((s) => ({
+        ...trendLineStyle({ color: s.color, values: s.data, muted: s.thin, fill: !s.thin }),
         name: s.name,
-        type: "line" as const,
-        showSymbol: false,
-        smooth: true,
         data: s.data,
-        lineStyle: s.thin ? { width: 1, opacity: 0.35 } : { width: 1.75 },
-        areaStyle: !s.thin && list.length <= 2 ? { opacity: 0.06 } : undefined,
+        lineStyle: s.thin ? { width: 1, opacity: 0.35 } : { width: 2.25 },
         z: s.thin ? 1 : 2,
       })),
     };
-  }, [all, streams]);
+  }, [all, streams, theme]);
 
   return (
     <div style={{ height }} className="w-full">

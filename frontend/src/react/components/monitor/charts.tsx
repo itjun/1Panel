@@ -2,13 +2,46 @@ import * as echarts from "echarts";
 import { useEffect, useRef, type ReactNode } from "react";
 import { bandTone, type UsageBands, type UsageTone } from "@/react/lib/usage-tone";
 import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
+import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
+
+/** 分档面积锚定真实纵轴坐标，横向缩放后不能把新的可见峰值误涂成危险档。 */
+function anchorUsageAreas(chart: echarts.EChartsType) {
+  const current = chart.getOption() as {
+    series?: echarts.LineSeriesOption[];
+    visualMap?: { seriesIndex?: number }[];
+  };
+  const indices = new Set((current.visualMap || []).map(map => map.seriesIndex));
+  if (!indices.size) return;
+  const series = (current.series || []).map((item, index): echarts.LineSeriesOption => {
+    if (!indices.has(index)) return {};
+    const color = item.areaStyle?.color;
+    if (!color || typeof color !== "object" || !("colorStops" in color)) return {};
+    let peak = 0;
+    for (const entry of item.data || []) {
+      const value = entry && typeof entry === "object" && "value" in entry ? entry.value : entry;
+      const y = Array.isArray(value) ? value[1] : value;
+      if (typeof y === "number" && Number.isFinite(y)) peak = Math.max(peak, y);
+    }
+    if (!peak) return {};
+    const axis = { yAxisIndex: item.yAxisIndex || 0 };
+    const top = chart.convertToPixel(axis, peak);
+    const bottom = chart.convertToPixel(axis, 0);
+    if (typeof top !== "number" || typeof bottom !== "number" || !Number.isFinite(top) || !Number.isFinite(bottom)) return {};
+    return { areaStyle: { color: new echarts.graphic.LinearGradient(0, top, 0, bottom, color.colorStops, true) } };
+  });
+  chart.setOption({ series }, { silent: true });
+}
 
 export function ChartHost({
   option,
   connectGroup,
+  height,
+  className,
 }: {
   option: echarts.EChartsOption;
   connectGroup?: string;
+  height?: number;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.EChartsType | null>(null);
@@ -22,8 +55,12 @@ export function ChartHost({
       echarts.connect(connectGroup);
     }
     // 侧栏拖宽、窗口缩放都会改容器宽度，跟着容器而不是窗口
-    const observer = new ResizeObserver(() => chart.resize());
+    const observer = new ResizeObserver(() => {
+      chart.resize();
+      anchorUsageAreas(chart);
+    });
     observer.observe(ref.current);
+    chart.on("datazoom", () => anchorUsageAreas(chart));
     return () => {
       observer.disconnect();
       chart.dispose();
@@ -35,14 +72,16 @@ export function ChartHost({
     chartRef.current?.setOption(
       {
         animationDuration: 240,
+        animationDurationUpdate: 0,
         animationEasing: "cubicOut",
         ...option,
       },
       { notMerge: true },
     );
+    if (chartRef.current) anchorUsageAreas(chartRef.current);
   }, [option]);
 
-  return <div ref={ref} className="h-full w-full" />;
+  return <div ref={ref} style={height == null ? undefined : { height }} className={cn("h-full w-full min-h-0 min-w-0", className)} />;
 }
 
 /**
@@ -103,8 +142,6 @@ export function lineOption(
   const axisFormatter = opts?.axisFormatter || opts?.yFormatter;
   const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
   const line = readThemeColor("--color-line", "#e5e7eb");
-  const surface = readThemeColor("--color-surface", "#ffffff");
-  const ink = readThemeColor("--color-ink", "#1f2937");
   const meterOk = readThemeColor("--meter-ok", "#2ba471");
   const meterWarn = readThemeColor("--meter-warn", "#f08a24");
   const meterDanger = readThemeColor("--meter-danger", "#d54941");
@@ -129,18 +166,13 @@ export function lineOption(
     });
   });
   return {
+    textStyle: { fontFamily: readThemeColor("--app-font-family", readThemeColor("--font-sans", "sans-serif")) },
     color: colors,
     visualMap: visualMap.length ? visualMap : undefined,
-    grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
+    grid: { left: 8, right: 16, top: 16, bottom: 8, containLabel: true },
     // 扁平浮层：surface 底 + 1px line 描边，无阴影（docs/design/specification.md §8.1）
     tooltip: {
-      trigger: "axis",
-      backgroundColor: surface,
-      borderColor: line,
-      borderWidth: 1,
-      padding: [6, 8],
-      textStyle: { fontSize: 12, color: ink },
-      extraCssText: "box-shadow: none; border-radius: 6px;",
+      ...trendTooltip(),
       valueFormatter: (v) => {
         const n = typeof v === "number" ? v : Number(v);
         if (!Number.isFinite(n)) return String(v ?? "");
@@ -163,11 +195,15 @@ export function lineOption(
     xAxis: {
       type: "category",
       data: xData,
-      axisLabel: { fontSize: 12, color: muted },
+      boundaryGap: false,
+      axisTick: { show: false },
+      axisLabel: { fontSize: 12, color: muted, hideOverlap: true, margin: 8, alignMinLabel: "left", alignMaxLabel: "right" },
       axisLine: { lineStyle: { color: line } },
     },
     yAxis: {
       type: "value",
+      min: 0,
+      splitNumber: 5,
       max: opts?.yMax,
       interval: opts?.yInterval,
       axisLabel: {
@@ -178,13 +214,9 @@ export function lineOption(
       splitLine: { lineStyle: { color: line } },
     },
     series: series.map((s, idx) => ({
+      ...trendLineStyle({ color: colors[idx]!, values: s.data, bands: s.bands, muted: s.muted }),
       name: s.name,
-      type: "line" as const,
-      showSymbol: false,
-      smooth: true,
       data: s.data,
-      lineStyle: s.muted ? { width: 1.25, type: "dashed" as const } : { width: 1.75 },
-      areaStyle: series.length === 1 && idx === 0 ? { opacity: 0.08 } : undefined,
     })),
   };
 }

@@ -18,6 +18,9 @@ import {
 import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { Tag } from "@/react/components/ui/tag";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
+import { ChartHost } from "@/react/components/monitor/charts";
+import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
+import { useThemeMode } from "@/react/lib/use-theme-mode";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
@@ -206,54 +209,6 @@ function buildTableRows(
   return rows;
 }
 
-function ChartHost({
-  option,
-  height,
-  className,
-}: {
-  option: echarts.EChartsOption;
-  height?: number;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.EChartsType | null>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const chart = echarts.init(ref.current);
-    chartRef.current = chart;
-    const onResize = () => chart.resize();
-    window.addEventListener("resize", onResize);
-    const ro = new ResizeObserver(onResize);
-    ro.observe(ref.current);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      ro.disconnect();
-      chart.dispose();
-      chartRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    chartRef.current?.setOption(
-      {
-        animationDuration: 240,
-        animationEasing: "cubicOut",
-        ...option,
-      },
-      { notMerge: true },
-    );
-  }, [option]);
-
-  return (
-    <div
-      ref={ref}
-      style={height != null ? { height } : undefined}
-      className={`w-full min-h-0 min-w-0 ${className || ""}`}
-    />
-  );
-}
-
 function bytesAxisFormatter(values: number[]) {
   const max = Math.max(0, ...values);
   const scale = pickByteScale(max || 1);
@@ -285,12 +240,13 @@ function lineOption(opts: {
   const yAxes: echarts.YAXisComponentOption[] = [
     {
       type: "value",
+      min: 0,
       axisLabel: {
         fontSize: 12,
         color: muted,
         formatter: bytesFmt ? (v: number) => bytesFmt.formatter(v) : undefined,
       },
-      name: bytesFmt?.name,
+      name: bytesFmt?.name || opts.formatStr,
       nameTextStyle: { fontSize: 12, color: muted },
       splitLine: { lineStyle: { color: line } },
     },
@@ -301,6 +257,7 @@ function lineOption(opts: {
     const rightFmt = bytesAxisFormatter(rightSeries?.data || [0]);
     yAxes.push({
       type: "value",
+      min: 0,
       axisLabel: {
         fontSize: 12,
         color: muted,
@@ -315,11 +272,13 @@ function lineOption(opts: {
     });
   }
 
+  const colors = seriesColorList(opts.series.map((s) => s.name));
   return {
-    color: seriesColorList(opts.series.map((s) => s.name)),
+    textStyle: { fontFamily: readThemeColor("--app-font-family", readThemeColor("--font-sans", "sans-serif")) },
+    color: colors,
     grid: { left: 8, right: 16, top: 28, bottom: 28, containLabel: true },
     tooltip: {
-      trigger: "axis",
+      ...trendTooltip(),
       formatter: (params) => {
         const items = Array.isArray(params) ? params : [params];
         if (!items.length) return "";
@@ -340,7 +299,9 @@ function lineOption(opts: {
           ) {
             text = formatBytes(raw);
           } else if (name.includes("CPU")) {
-            text = raw.toFixed(2);
+            text = `${raw.toFixed(2)}%`;
+          } else if (name === "GC pause") {
+            text = `${raw.toFixed(2)} ms`;
           } else if (Number.isInteger(raw)) {
             text = String(raw);
           } else {
@@ -356,19 +317,17 @@ function lineOption(opts: {
     xAxis: {
       type: "category",
       data: opts.xData,
-      axisLabel: { fontSize: 12, color: muted },
+      boundaryGap: false,
+      axisTick: { show: false },
+      axisLabel: { fontSize: 12, color: muted, hideOverlap: true, alignMinLabel: "left", alignMaxLabel: "right" },
       axisLine: { lineStyle: { color: line } },
     },
     yAxis: yAxes,
     series: opts.series.map((s, index) => ({
+      ...trendLineStyle({ color: colors[index]!, values: s.data }),
       name: s.name,
-      type: "line" as const,
-      showSymbol: false,
-      smooth: true,
       data: s.data,
       yAxisIndex: s.yAxisIndex || 0,
-      lineStyle: { width: 1.75 },
-      areaStyle: index === 0 ? { opacity: 0.08 } : undefined,
       markLine:
         index === 0 && markLineData.length
           ? {
@@ -811,6 +770,7 @@ export function AppsPage({ host }: { host: string }) {
   const jarX = useMemo(() => jarPts.map((p) => timeLabel(p.ts)), [jarPts]);
   const hostX = useMemo(() => hostPts.map((p) => timeLabel(p.ts)), [hostPts]);
 
+  const chartTheme = useThemeMode();
   const heapOption = useMemo(
     () =>
       lineOption({
@@ -822,7 +782,7 @@ export function AppsPage({ host }: { host: string }) {
         unit: "bytes",
         markLines: marks,
       }),
-    [jarX, jarPts, marks],
+    [jarX, jarPts, marks, chartTheme],
   );
 
   const rssOption = useMemo(
@@ -833,7 +793,7 @@ export function AppsPage({ host }: { host: string }) {
         unit: "bytes",
         markLines: marks,
       }),
-    [jarX, jarPts, marks],
+    [jarX, jarPts, marks, chartTheme],
   );
 
   const gcOption = useMemo(
@@ -847,7 +807,7 @@ export function AppsPage({ host }: { host: string }) {
         formatStr: "ms / %",
         unit: "raw",
       }),
-    [jarX, jarPts],
+    [jarX, jarPts, chartTheme],
   );
 
   const cpuOption = useMemo(
@@ -860,7 +820,7 @@ export function AppsPage({ host }: { host: string }) {
         formatStr: "%",
         unit: "raw",
       }),
-    [jarX, jarPts],
+    [jarX, jarPts, chartTheme],
   );
 
   const hostOption = useMemo(
@@ -879,7 +839,7 @@ export function AppsPage({ host }: { host: string }) {
         unit: "raw",
         dualBytesOnRight: true,
       }),
-    [hostX, hostPts],
+    [hostX, hostPts, chartTheme],
   );
 
   async function loadDetail(service: string) {
