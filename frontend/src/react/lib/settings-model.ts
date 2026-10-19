@@ -38,7 +38,9 @@ export function settingsReadingSection(
   scrollHeight: number,
   pointerOffset: number | null,
 ): SettingsSection {
-  if (scrollHeight > viewportHeight + 2 && scrollTop + viewportHeight >= scrollHeight - 2) {
+  // Keyboard/touch reading should reach the final section at the scroll limit;
+  // an actual pointer still identifies its own module anywhere in the viewport.
+  if (pointerOffset === null && scrollHeight > viewportHeight + 2 && scrollTop + viewportHeight >= scrollHeight - 2) {
     return sections[sections.length - 1]?.id ?? "look";
   }
   const readingLine = scrollTop + Math.max(0, Math.min(pointerOffset ?? 96, viewportHeight - 1));
