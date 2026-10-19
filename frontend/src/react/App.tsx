@@ -166,7 +166,14 @@ function Shell() {
         <div className="pointer-events-auto relative flex h-full shrink-0 items-center">
           <WindowChrome />
         </div>
-        {hostWorkspace ? <><div className="toolbar-device" aria-label={`当前设备 ${session.workspace === "local" ? "本机" : session.activeHost}`} title={session.workspace === "local" ? "本机" : session.activeHost}>{session.workspace === "local" ? "本机" : session.activeHost}</div><HostToolTabs /></> : null}
+        {hostWorkspace ? (
+          <>
+            {session.workspace === "local" ? (
+              <div className="toolbar-device" aria-label="当前设备 本机" title="本机">本机</div>
+            ) : null}
+            <HostToolTabs />
+          </>
+        ) : null}
         <div
           ref={setSlot}
           className={hostWorkspace ? "hidden" : "shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"}
