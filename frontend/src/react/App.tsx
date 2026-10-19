@@ -167,12 +167,11 @@ function Shell() {
           <WindowChrome />
         </div>
         {hostWorkspace ? (
-          <>
-            {session.workspace === "local" ? (
-              <div className="toolbar-device" aria-label="当前设备 本机" title="本机">本机</div>
-            ) : null}
+          session.workspace === "local" ? (
+            <div className="toolbar-device" aria-label="当前设备 本机" title="本机">本机</div>
+          ) : (
             <HostToolTabs />
-          </>
+          )
         ) : null}
         <div
           ref={setSlot}
@@ -187,7 +186,7 @@ function Shell() {
 
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <SidebarLayer />
-        <main inert={sidebar.overlay && sidebar.open && (!["local", "config"].includes(session.workspace) || session.settingsOpen) ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
+        <main inert={sidebar.overlay && sidebar.open && (session.workspace !== "config" || session.settingsOpen) ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
           <div className="relative min-h-0 min-w-0 flex-1">
             {session.settingsOpen ? (
               <div key="settings" className="motion-fade-in h-full min-h-0">
@@ -246,7 +245,7 @@ function SidebarLayer() {
   const sidebar = useSidebar();
   const session = useSession();
   const ref = useRef<HTMLDivElement>(null);
-  const enabled = !["local", "config"].includes(session.workspace) || session.settingsOpen;
+  const enabled = session.workspace !== "config" || session.settingsOpen;
   const visible = enabled && sidebar.open;
   useEffect(() => { sidebar.closeOverlay(); }, [session.workspace, session.settingsOpen, sidebar.closeOverlay]);
   useEffect(() => {

@@ -25,6 +25,7 @@ import {
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
 import { useSidebar } from "@/react/state/sidebar";
+import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import {
   buildRailGroups,
@@ -274,6 +275,17 @@ export function WorkspaceRail() {
         }}
       >
         {listKind === "notify" ? <NotifyNavigation /> : null}
+
+        {listKind === "local"
+          ? LOCAL_SECTIONS.map((item) => (
+              <RailNavButton
+                key={item.id}
+                label={item.label}
+                active={session.localSection === item.id}
+                onClick={() => session.setLocalSection(item.id)}
+              />
+            ))
+          : null}
 
         {listKind === "config"
           ? CONFIG_SECTIONS.map((item) => (
