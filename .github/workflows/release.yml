@@ -131,6 +131,22 @@ jobs:
         shell: bash
         run: task darwin:package ARCH=arm64
 
+      - name: Verify macOS bundle version
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED="${RELEASE_TAG#v}"
+          EXPECTED="${EXPECTED%%[-+]*}"
+          PLIST="bin/1Panel.app/Contents/Info.plist"
+          for KEY in CFBundleShortVersionString CFBundleVersion; do
+            ACTUAL=$(/usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST")
+            test "$ACTUAL" = "$EXPECTED" || { echo "$KEY=$ACTUAL，预期 $EXPECTED" >&2; exit 1; }
+          done
+          codesign --verify --deep --strict bin/1Panel.app
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+
       - name: Build Windows exe
         if: runner.os == 'Windows'
         shell: bash

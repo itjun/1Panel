@@ -4,6 +4,9 @@ includes:
   common: ../Taskfile.yml
 
 vars:
+  # 应用内版本与 macOS bundle 元数据共享 Git 版本来源。
+  APP_VERSION:
+    sh: 'git describe --tags --always 2>/dev/null || echo dev'
   # Docker image for cross-compilation (used when building on non-macOS)
   CROSS_IMAGE: wails-cross
   # 本机只认这一份；仓库 bin/*.app 会进 Launch Services / 本地网络权限列表
@@ -46,9 +49,6 @@ tasks:
     cmds:
       - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o "{{.OUTPUT}}"'
     vars:
-      # 应用版本（「关于」页显示）：tag 优先，无 tag 用提交短 SHA
-      APP_VERSION:
-        sh: 'git describe --tags --always 2>/dev/null || echo dev'
       # 应用内更新清单基地址（CI 从仓库变量注入；为空时客户端不检查更新）
       UPDATE_BASE_URL: '{{.UPDATE_BASE_URL | default ""}}'
       BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -X diteng-pannel/internal/agentres.AgentVersion={{.VERSION | default "dev"}} -X diteng-pannel/internal/app.buildVersion={{.APP_VERSION}} -X diteng-pannel/internal/app.updateBaseURL={{.UPDATE_BASE_URL}}"{{end}}'
@@ -175,8 +175,17 @@ tasks:
         fi
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
       - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents"
+      - task: set:bundle:version
+        vars:
+          PLIST: '{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Info.plist'
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
       - task: '{{if eq OS "darwin"}}unregister:repo:apps{{else}}codesign:skip{{end}}'
+
+  set:bundle:version:
+    summary: 从应用 Git 版本写入 macOS 系统版本字段（必须在签名前执行）
+    internal: true
+    cmds:
+      - python3 scripts/macos-bundle-version.py "{{.PLIST}}" "{{.APP_VERSION}}"
 
   unregister:repo:apps:
     summary: 把仓库里的 .app 从 Launch Services 注销，避免「本地网络」里堆出多份 1Panel
@@ -227,6 +236,9 @@ tasks:
         fi
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.INSTALL_APP}}/Contents/MacOS"
       - cp "build/darwin/Info.dev.plist" "{{.INSTALL_APP}}/Contents/Info.plist"
+      - task: set:bundle:version
+        vars:
+          PLIST: '{{.INSTALL_APP}}/Contents/Info.plist'
       - codesign --force --deep --sign - "{{.INSTALL_APP}}"
       - task: unregister:repo:apps
       - rm -rf "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
