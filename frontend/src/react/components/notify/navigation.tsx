@@ -9,6 +9,11 @@ import { NOTIFY_SOURCE, type NotifySource } from "@/react/lib/notify-model";
 import { useNotificationHistory } from "@/react/lib/use-notification-history";
 import { cn } from "@/react/lib/utils";
 import { useSession, type NotifySection } from "@/react/state/session";
+import {
+  CHANNEL_SECTIONS,
+  requestChannelSection,
+  useChannelReadingSection,
+} from "@/react/state/notify-channels-navigation";
 
 const groups: { source: NotifySource; icon: LucideIcon }[] = [
   { source: "metric", icon: Server },
@@ -19,6 +24,7 @@ const groups: { source: NotifySource; icon: LucideIcon }[] = [
 export function NotifyNavigation() {
   const session = useSession();
   const { unread } = useNotificationHistory();
+  const channelSection = useChannelReadingSection();
   function entry(section: NotifySection, label: string, count?: number) {
     const active = session.notifySection === section;
     return (
@@ -34,7 +40,7 @@ export function NotifyNavigation() {
         onClick={() => session.setNotifySection(section)}
       >
         <span>{label}</span>
-        {count !== undefined ? (
+        {count !== undefined && count > 0 ? (
           <span className={cn("notify-nav-count", count > 0 && "text-accent")}>
             {count > 99 ? "99+" : count}
           </span>
@@ -68,14 +74,31 @@ export function NotifyNavigation() {
           session.notifySection === "setup" && "rail-item-active",
         )}
         aria-current={session.notifySection === "setup" ? "page" : undefined}
-        onClick={() => session.setNotifySection("setup")}
+        onClick={() => {
+          session.setNotifySection("setup");
+          requestChannelSection("channels");
+        }}
       >
         <span>
           <SlidersHorizontal size={20} strokeWidth={1.5} aria-hidden />
           发送渠道
         </span>
-        <small>桌面通知 · 应用内 · 企业微信</small>
       </button>
+      {session.notifySection === "setup" ? (
+        <div className="notify-channel-navigation" role="group" aria-label="发送渠道目录">
+          {CHANNEL_SECTIONS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-current={channelSection === item.id || (item.id === "preview" && channelSection.startsWith("preview-")) ? "location" : undefined}
+              aria-controls={`notify-channel-${item.id}`}
+              onClick={() => requestChannelSection(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </nav>
   );
 }

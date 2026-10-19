@@ -1,19 +1,27 @@
 import { Copy } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import {
   PreviewMatrix,
   type PreviewRow,
 } from "@/react/components/notify/channel-preview";
 import { NotifyPageHeader } from "@/react/components/notify/page-header";
+import { NotifyPreviewNavigation } from "@/react/components/notify/preview-navigation";
 import { lastMessageSource } from "@/react/components/notify/view-state";
-import { Select } from "@/react/components/ui/select";
 import { FlashNotices, Page } from "@/react/components/page";
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
-import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Switch } from "@/react/components/ui/switch";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
+import { useSectionScroll } from "@/react/lib/use-section-scroll";
+import {
+  CHANNEL_SECTIONS,
+  PREVIEW_CATEGORIES,
+  PREVIEW_STATES,
+  previewSection,
+  channelScroll,
+  type ChannelSection,
+} from "@/react/state/notify-channels-navigation";
 import { useSession } from "@/react/state/session";
 import {
   updateSettings,
@@ -23,11 +31,7 @@ import {
 } from "@/react/state/settings";
 import {
   ALERT_KIND_LABEL,
-  ALERT_RULES,
-  alertRuleText,
   alertThresholdText,
-  LEVEL_LABEL,
-  levelPercent,
   normalizeAlertLevels,
   type AlertCondition,
   type AlertStartLevel,
@@ -40,6 +44,7 @@ import {
   buildNotifyMessage,
   type NotifyTextParts,
 } from "@/utils/notifyMessage";
+import "@/react/styles/settings.css";
 
 const WECOM_WEBHOOK_PREFIX =
   "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=";
@@ -56,17 +61,10 @@ const CHANNELS = [
   {
     key: "systemNotifyEnabled",
     label: "桌面通知",
-    desc: "弹出系统通知横幅，点开直接定位到这条消息",
   },
   {
     key: "inAppNotifyEnabled",
     label: "应用内消息",
-    desc: "记录到通知中心并显示未读数",
-  },
-  {
-    key: "notifyEnabled",
-    label: "企业微信",
-    desc: "发到企业微信群机器人，需要下方的地址",
   },
 ] as const;
 
@@ -84,16 +82,6 @@ const FIELD_ORDER: NotifyContentField[] = [
   "service",
   "value",
   "threshold",
-];
-
-type SampleKind = ResourceAlertKind | "app";
-
-const SAMPLE_OPTIONS: { value: SampleKind; label: string }[] = [
-  ...ALERT_RULES.map((rule) => ({
-    value: rule.kind as SampleKind,
-    label: rule.name,
-  })),
-  { value: "app", label: "应用探活" },
 ];
 
 type SampleReading = { text: string; condition?: AlertCondition };
@@ -144,13 +132,13 @@ function sampleReadings(
 }
 
 export function SetupPage() {
+  const documentRef = useRef<HTMLDivElement>(null);
+  useSectionScroll(documentRef, "channels", channelScroll);
   const settings = useSettings();
   const session = useSession();
   const flash = useFlashMessage();
   const [webhookDraft, setWebhookDraft] = useState(settings.wecomWebhook);
   const [saving, setSaving] = useState(false);
-  const [sampleKind, setSampleKind] = useState<SampleKind>("mem");
-  const [sampleState, setSampleState] = useState<"down" | "up">("down");
 
   // 设置里地址被别处改过时，同步草稿
   useEffect(() => {
@@ -164,7 +152,7 @@ export function SetupPage() {
   async function testAndSave() {
     if (!draftExpanded) {
       updateSettings({ wecomWebhook: "" });
-      flash.showToast("已清除企业微信地址");
+      flash.showToast("已清除通知回调");
       return;
     }
     setSaving(true);
@@ -189,16 +177,16 @@ export function SetupPage() {
 
   const previewRows = useMemo<PreviewRow[]>(() => {
     const rows: PreviewRow[] = [];
-    for (const option of SAMPLE_OPTIONS) {
+    for (const option of PREVIEW_CATEGORIES) {
       const contentKind: AlertContentKind =
-        option.value === "app" ? "app" : option.value;
+        option.id === "app" ? "app" : option.id;
       const kindOff = !settings.alertContentKinds.includes(contentKind);
-      for (const state of ["down", "up"] as const) {
+      for (const { id: state } of PREVIEW_STATES) {
         const up = state === "up";
         let muted = "";
         if (kindOff) muted = "未勾选，不会发送";
         else if (up && !settings.notifyRecoverEnabled) muted = "「恢复」未勾选";
-        if (option.value === "app") {
+        if (option.id === "app") {
           const parts: NotifyTextParts = {
             hostName: sampleHost,
             service: "im",
@@ -221,7 +209,7 @@ export function SetupPage() {
           });
           continue;
         }
-        const kind = option.value;
+        const kind = option.id;
         const levels = normalizeAlertLevels(settings.alertLevels[kind]);
         const start = levels[0];
         const sample = sampleReadings(kind, settings.alertLoadWindow);
@@ -320,191 +308,173 @@ export function SetupPage() {
     updateSettings({ notifyContentFields: next });
   }
 
-  const selectedPreview = previewRows.find(
-    (row) =>
-      (sampleKind === "app"
-        ? row.kind.startsWith("app:")
-        : row.kind === sampleKind) && row.state === sampleState,
-  );
+  const previewChannels = {
+    system: settings.systemNotifyEnabled,
+    inApp: settings.inAppNotifyEnabled,
+    wecom: settings.notifyEnabled,
+    wecomMissingWebhook: !savedExpanded,
+  };
   return (
-    <Page heading={false} flush>
+    <Page heading={false} flush scrollLabel="发送渠道内容">
       <FlashNotices flash={flash} />
-      <div className="notify-workspace">
+      <div ref={documentRef} className="settings-document notify-channel-document">
         <NotifyPageHeader
           title="发送渠道"
-          description="所有消息来源共用，订阅与规则在各自分类中管理"
           source={lastMessageSource()}
         />
-        <div className="notify-settings-body">
-          <div className="notify-channel-layout">
-            <div className="notify-channel-settings">
-              <section>
-                <h2>接收渠道</h2>
-                <div className="notify-channel-rows">
-                  {CHANNELS.map((channel) => (
-                    <div key={channel.key}>
-                      <div>
-                        <strong>{channel.label}</strong>
-                        <p>{channel.desc}</p>
-                      </div>
-                      <Switch
-                        checked={settings[channel.key]}
-                        onChange={(checked) =>
-                          updateSettings({ [channel.key]: checked })
-                        }
-                        aria-label={channel.label}
-                      >
-                        {channel.label}
-                      </Switch>
-                    </div>
-                  ))}
-                </div>
-                <p className="notify-description">开关更改自动保存。</p>
-              </section>
-              <section className="notify-separated">
-                <h2>企业微信地址</h2>
-                <div className="mt-3 flex min-w-0 flex-wrap gap-2">
-                  <div className="relative min-w-0 flex-1">
-                    <input
-                      className="motion-field h-8 w-full rounded-control pr-9 pl-3 disabled:opacity-50"
-                      value={webhookDraft}
-                      disabled={!settings.notifyEnabled}
-                      placeholder="粘贴完整 Webhook 地址，或只填 key"
-                      aria-label="企业微信 Webhook 地址"
-                      onChange={(event) => setWebhookDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && webhookDirty && !saving)
-                          void testAndSave();
-                      }}
-                    />
-                    <button
-                      type="button"
-                      aria-label="复制完整地址"
-                      disabled={!settings.notifyEnabled || !draftExpanded}
-                      className="absolute top-1 right-1 flex size-6 items-center justify-center text-muted disabled:opacity-50"
-                      onClick={() => {
-                        void copyText(draftExpanded)
-                          .then(() => flash.showToast("已复制完整地址"))
-                          .catch(() => flash.showError("复制失败"));
-                      }}
-                    >
-                      <Copy size={16} strokeWidth={1.5} aria-hidden />
-                    </button>
-                  </div>
-                  <Button
-                    variant="primary"
-                    disabled={
-                      !settings.notifyEnabled || !webhookDirty || saving
-                    }
-                    onClick={() => void testAndSave()}
-                  >
-                    {draftExpanded || !savedExpanded
-                      ? "测试并保存"
-                      : "清除地址"}
-                  </Button>
-                </div>
-                <p className="notify-description">
-                  {!settings.notifyEnabled
-                    ? "开启企业微信后可填写。"
-                    : webhookDirty
-                      ? "地址尚未保存。"
-                      : savedExpanded
-                        ? "地址已保存。"
-                        : "尚未填写地址，不会发送企业微信消息。"}
-                </p>
-                <p className="notify-description">
-                  测试会向群内发送 1 条消息，成功后才保存地址。
-                </p>
-              </section>
-              <section className="notify-separated">
-                <h2>通用提醒</h2>
-                <div className="mt-3">
+        <ChannelSectionBlock id="channels">
+          <div className="notify-channel-rows">
+            {CHANNELS.map((channel) => (
+              <div key={channel.key}>
+                <div className="notify-channel-row">
+                  <strong>{channel.label}</strong>
                   <Switch
-                    checked={settings.notifyRecoverEnabled}
-                    onChange={(notifyRecoverEnabled) =>
-                      updateSettings({ notifyRecoverEnabled })
-                    }
+                    checked={settings[channel.key]}
+                    onChange={(checked) => updateSettings({ [channel.key]: checked })}
+                    aria-label={channel.label}
                   >
-                    恢复时通知
+                    {channel.label}
                   </Switch>
                 </div>
-                <p className="notify-description">
-                  主机回落、应用恢复、证书续期共用此开关。
-                </p>
-              </section>
-              <section className="notify-separated">
-                <h2>消息内容</h2>
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-3">
-                  {FIELD_ORDER.map((field) => (
-                    <Checkbox
-                      key={field}
-                      checked={settings.notifyContentFields.includes(field)}
-                      onChange={(checked) => toggleField(field, checked)}
-                    >
-                      {FIELD_LABEL[field]}
-                    </Checkbox>
-                  ))}
-                </div>
-                <p className="notify-description">
-                  字段更改同步更新预览，不会发送消息。
-                </p>
-              </section>
-            </div>
-            <details className="notify-channel-preview" open>
-              <summary>
-                消息预览 <span>示例，不会发送</span>
-              </summary>
-              <div className="notify-preview-controls">
-                <Select
-                  aria-label="选择预览指标或服务"
-                  value={sampleKind}
-                  onChange={setSampleKind}
-                  options={SAMPLE_OPTIONS}
-                  className="min-w-0 flex-1"
-                />
-                <RadioGroup
-                  aria-label="预览消息状态"
-                  value={sampleState}
-                  onChange={setSampleState}
-                  options={[
-                    { value: "down", label: "告警" },
-                    { value: "up", label: "恢复" },
-                  ]}
-                />
               </div>
-              <PreviewMatrix
-                rows={selectedPreview ? [selectedPreview] : []}
-                stacked
-                channels={{
-                  system: settings.systemNotifyEnabled,
-                  inApp: settings.inAppNotifyEnabled,
-                  wecom: settings.notifyEnabled,
-                  wecomMissingWebhook: !savedExpanded,
-                }}
-              />
-              <details className="mt-6">
-                <summary className="cursor-pointer text-sm text-muted">
-                  查看全部消息示例
-                </summary>
-                <div className="mt-4 overflow-auto">
-                  <PreviewMatrix
-                    rows={previewRows}
-                    channels={{
-                      system: settings.systemNotifyEnabled,
-                      inApp: settings.inAppNotifyEnabled,
-                      wecom: settings.notifyEnabled,
-                      wecomMissingWebhook: !savedExpanded,
-                    }}
-                  />
-                </div>
-              </details>
-            </details>
+            ))}
           </div>
-          <p className="notify-description mt-6">
-            常规设置自动保存；Webhook 地址需测试后保存。
-          </p>
-        </div>
+        </ChannelSectionBlock>
+        <ChannelSectionBlock id="wecom">
+          <div className="notify-callback-provider">
+            <div className="notify-channel-row">
+              <strong>企业微信</strong>
+              <Switch
+                checked={settings.notifyEnabled}
+                onChange={(notifyEnabled) => updateSettings({ notifyEnabled })}
+                aria-label="企业微信"
+              >企业微信</Switch>
+            </div>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <div className="relative min-w-0 flex-1">
+                <input
+                  id="notify-callback-url"
+                  className="motion-field h-8 w-full rounded-control pr-9 pl-3 disabled:opacity-50"
+                  value={webhookDraft}
+                  disabled={!settings.notifyEnabled}
+                  placeholder="粘贴完整 Webhook 地址，或只填 key"
+                  aria-label="通知回调"
+                  onChange={(event) => setWebhookDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && webhookDirty && !saving)
+                      void testAndSave();
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label="复制完整地址"
+                  disabled={!settings.notifyEnabled || !draftExpanded}
+                  className="absolute top-1 right-1 flex size-6 items-center justify-center text-muted disabled:opacity-50"
+                  onClick={() => {
+                    void copyText(draftExpanded)
+                      .then(() => flash.showToast("已复制完整地址"))
+                      .catch(() => flash.showError("复制失败"));
+                  }}
+                >
+                  <Copy size={16} strokeWidth={1.5} aria-hidden />
+                </button>
+              </div>
+              <Button
+                variant="primary"
+                disabled={
+                  !settings.notifyEnabled || !webhookDirty || saving
+                }
+                onClick={() => void testAndSave()}
+              >
+                {draftExpanded || !savedExpanded
+                  ? "测试并保存"
+                  : "清除地址"}
+              </Button>
+            </div>
+          </div>
+        </ChannelSectionBlock>
+        <ChannelSectionBlock id="recovery">
+          <div>
+            <Switch
+              checked={settings.notifyRecoverEnabled}
+              onChange={(notifyRecoverEnabled) =>
+                updateSettings({ notifyRecoverEnabled })
+              }
+            >
+              恢复时通知
+            </Switch>
+          </div>
+        </ChannelSectionBlock>
+        <ChannelSectionBlock id="content">
+          <div className="flex flex-wrap gap-x-5 gap-y-3">
+            {FIELD_ORDER.map((field) => (
+              <Checkbox
+                key={field}
+                checked={settings.notifyContentFields.includes(field)}
+                onChange={(checked) => toggleField(field, checked)}
+              >
+                {FIELD_LABEL[field]}
+              </Checkbox>
+            ))}
+          </div>
+        </ChannelSectionBlock>
+        <ChannelSectionBlock id="preview" navigation={<NotifyPreviewNavigation />}>
+          <div className="notify-preview-groups">
+            {PREVIEW_STATES.map((state) => {
+              const section = previewSection(state.id);
+              return (
+                <section
+                  key={state.id}
+                  id={`notify-channel-${section}`}
+                  data-channel-section={section}
+                  className="notify-preview-group"
+                  aria-labelledby={`${section}-title`}
+                >
+                  <h3 id={`${section}-title`}>{state.label}</h3>
+                  <div className="notify-preview-group-body">
+                    {PREVIEW_CATEGORIES.map((category) => {
+                      const target = previewSection(state.id, category.id);
+                      const rows = previewRows.filter((row) => row.state === state.id && (category.id === "app" ? row.kind.startsWith("app:") : row.kind === category.id));
+                      return (
+                        <section
+                          key={category.id}
+                          id={`notify-channel-${target}`}
+                          data-channel-section={target}
+                          className="notify-preview-category"
+                          aria-labelledby={`${target}-title`}
+                        >
+                          <h4 id={`${target}-title`}>{category.label}</h4>
+                          <div className="notify-preview-category-body">
+                            <PreviewMatrix rows={rows} channels={previewChannels} />
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </ChannelSectionBlock>
       </div>
     </Page>
+  );
+}
+
+function ChannelSectionBlock({ id, children, navigation }: { id: ChannelSection; children: ReactNode; navigation?: ReactNode }) {
+  const section = CHANNEL_SECTIONS.find((item) => item.id === id)!;
+  return (
+    <section
+      id={`notify-channel-${id}`}
+      data-channel-section={id}
+      aria-labelledby={`notify-channel-${id}-title`}
+      className="settings-section"
+    >
+      <header className={navigation ? "settings-section-heading notify-preview-heading" : "settings-section-heading"}>
+        <h2 id={`notify-channel-${id}-title`}>{section.label}</h2>
+        {navigation}
+      </header>
+      <div className="settings-section-body">{children}</div>
+    </section>
   );
 }

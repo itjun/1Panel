@@ -8,7 +8,6 @@ export const NOTIFY_SOURCE = {
   metric: {
     label: "主机系统",
     title: "主机系统消息",
-    description: "CPU、内存、磁盘、负载等资源告警",
     messages: "metricMessages",
     subscriptions: "metricSubs",
     rules: "metricRules",
@@ -17,7 +16,6 @@ export const NOTIFY_SOURCE = {
   app: {
     label: "应用服务",
     title: "应用服务消息",
-    description: "服务探活异常与恢复记录",
     messages: "appMessages",
     subscriptions: "appSubs",
     rules: "appRules",
@@ -26,7 +24,6 @@ export const NOTIFY_SOURCE = {
   cert: {
     label: "证书提醒",
     title: "证书提醒消息",
-    description: "证书到期、过期与续期记录",
     messages: "certMessages",
     subscriptions: "certRules",
     rules: "certRules",

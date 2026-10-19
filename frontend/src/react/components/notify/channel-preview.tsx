@@ -30,99 +30,45 @@ export type PreviewRow = {
   muted?: string;
 };
 
-/**
- * 全部展开的预览矩阵：行 = 消息类型 × 告警 / 恢复，列 = 三个渠道。
- * 文案都来自同一份 NotifyMessage；企业微信格渲染后端 PreviewHostAlertMarkdown 原文，
- * 与真实发送同一个函数。
- */
+/** A category's alert or recovery examples, with the three delivery channels side by side. */
 export function PreviewMatrix({
   rows,
   channels,
-  stacked = false,
 }: {
   rows: PreviewRow[];
   channels: PreviewChannelState;
-  stacked?: boolean;
 }) {
   const columns = [
     { key: "system", title: "桌面通知", off: !channels.system },
     { key: "inApp", title: "应用内消息", off: !channels.inApp },
-    {
-      key: "wecom",
-      title: "企业微信",
-      off: !channels.wecom,
-      extra: channels.wecomMissingWebhook ? (
-        <Tag tone="warn">未填写地址</Tag>
-      ) : null,
-    },
+    { key: "wecom", title: "企业微信", off: !channels.wecom },
   ];
-  if (stacked)
-    return (
-      <div className="notify-preview-stack">
-        {columns.map((column, index) => (
-          <section key={column.key}>
-            <header>
-              <h3>{column.title}</h3>
-              <span>{column.off ? "未开启，不会发送" : "已开启"}</span>
-              {column.extra}
-            </header>
-            {rows.map((row) => (
-              <div key={row.key}>
-                {row.muted ? (
-                  <p className="mb-2 text-xs text-muted">{row.muted}</p>
-                ) : null}
-                <Cell off={!!row.muted || column.off}>
-                  {index === 0 ? (
-                    <SystemCard message={row.message} />
-                  ) : index === 1 ? (
-                    <InAppCard row={row} />
-                  ) : (
-                    <WecomCard row={row} />
-                  )}
-                </Cell>
-              </div>
-            ))}
-          </section>
-        ))}
-      </div>
-    );
   return (
-    <div className="grid grid-cols-[88px_repeat(3,minmax(0,1fr))] gap-x-4 gap-y-3">
-      <span />
-      {columns.map((col) => (
-        <div
-          key={col.key}
-          className="sticky top-0 z-[1] flex h-8 items-center gap-2 bg-surface"
-        >
-          <h3 className="text-xs text-muted">{col.title}</h3>
-          {col.off ? <Tag>未开启，不会发送</Tag> : col.extra}
-        </div>
-      ))}
-      {rows.map((row) => {
-        const rowOff = !!row.muted;
-        return (
-          <Fragment key={row.key}>
-            <div className="flex flex-col pt-2">
-              <span className="text-sm text-ink">{row.name}</span>
-              <span className="text-xs text-muted">
-                {row.stage || (row.state === "up" ? "恢复" : "告警")}
-              </span>
-              {row.muted ? (
-                <span className="mt-1 text-xs text-warn">{row.muted}</span>
-              ) : null}
+    <div className="notify-preview-examples">
+      {rows.map((row) => (
+        <article key={row.key} aria-label={`${row.name} · ${row.stage || (row.state === "up" ? "恢复" : "告警")}`}>
+          {row.stage || row.muted ? (
+            <div className="notify-preview-example-heading">
+              {row.stage ? <h5>{row.stage}</h5> : null}
+              {row.muted ? <span>{row.muted}</span> : null}
             </div>
-            <Cell off={rowOff || columns[0].off}>
-              <SystemCard message={row.message} />
-            </Cell>
-            <Cell off={rowOff || columns[1].off}>
-              <InAppCard row={row} />
-            </Cell>
-            <Cell off={rowOff || columns[2].off}>
-              <WecomCard row={row} />
-            </Cell>
-          </Fragment>
-        );
-      })}
+          ) : null}
+          <div className="notify-preview-channels">
+            {columns.map((column, index) => (
+              <section key={column.key} aria-label={column.title}>
+                <header>
+                  <h5>{column.title}</h5>
+                  <span>{column.off ? "未开启" : "已开启"}</span>
+                  {column.key === "wecom" && channels.wecomMissingWebhook ? <Tag tone="warn">未填写地址</Tag> : null}
+                </header>
+                <Cell off={!!row.muted || column.off}>
+                  {index === 0 ? <SystemCard message={row.message} /> : index === 1 ? <InAppCard row={row} /> : <WecomCard row={row} />}
+                </Cell>
+              </section>
+            ))}
+          </div>
+        </article>
+      ))}
     </div>
   );
 }

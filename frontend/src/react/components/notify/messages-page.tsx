@@ -373,7 +373,7 @@ export function MessagesPage({
     >
       <FlashNotices flash={flash} />
       <div className="notify-workspace">
-        <NotifyPageHeader title={info.title} description={info.description}>
+        <NotifyPageHeader title={info.title}>
           <Button onClick={() => openSubscriptions()}>
             <SlidersHorizontal size={16} strokeWidth={1.5} aria-hidden />
             {info.subscriptionLabel}

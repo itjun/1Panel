@@ -6,12 +6,10 @@ import { useSession } from "@/react/state/session";
 
 export function NotifyPageHeader({
   title,
-  description,
   source,
   children,
 }: {
   title: string;
-  description: string;
   source?: NotifySource;
   children?: ReactNode;
 }) {
@@ -20,7 +18,6 @@ export function NotifyPageHeader({
     <header className="notify-page-header">
       <div className="min-w-0">
         <h1>{title}</h1>
-        <p>{description}</p>
       </div>
       <div className="notify-header-actions">
         {children}

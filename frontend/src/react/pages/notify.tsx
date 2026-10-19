@@ -241,11 +241,6 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
           title={
             source === "metric" ? "主机系统 · 主机订阅" : "应用服务 · 应用订阅"
           }
-          description={
-            source === "metric"
-              ? "按主机选择需要接收告警的指标"
-              : "按主机选择需要接收探活通知的服务"
-          }
           source={source}
         />
         <div className="notify-sub-toolbar">
@@ -259,7 +254,6 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             }))}
             className="w-44"
           />
-          <span className="text-xs text-muted">更改自动保存</span>
         </div>
         {focus ? (
           <div className="notify-sub-focus">
@@ -425,9 +419,6 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             </tbody>
           </table>
         </div>
-        <p className="notify-sub-footer">
-          勾选按主机生效，触发条件在侧栏「告警规则」中查看与设置。
-        </p>
       </div>
     </Page>
   );
