@@ -19,6 +19,7 @@ import appMenuLogoUrl from "@/assets/1panel-menu-logo.svg";
 import { Tag } from "@/react/components/ui/tag";
 import { detectAppOs } from "@/react/lib/platform";
 import { useSession } from "@/react/state/session";
+import { useNotificationHistory } from "@/react/lib/use-notification-history";
 
 function formatCount(n: number): string {
   return n > 99 ? "99+" : String(n);
@@ -27,30 +28,9 @@ function formatCount(n: number): string {
 export function ModuleRail() {
   const session = useSession();
   const isMac = detectAppOs() === "mac";
-  const [unread, setUnread] = useState(0);
+  const { unread: unreadBySource } = useNotificationHistory(true);
+  const unread = unreadBySource.metric + unreadBySource.app + unreadBySource.cert;
   const [configNeedsAttention, setConfigNeedsAttention] = useState(false);
-
-  // 通知未读数
-  useEffect(() => {
-    let cancelled = false;
-    async function tick() {
-      try {
-        const n = await api.unreadAlertCount();
-        if (!cancelled) setUnread(Number(n) || 0);
-      } catch {
-        /* 轮询失败时保持上次数字 */
-      }
-    }
-    void tick();
-    const timer = window.setInterval(() => void tick(), 15000);
-    const onChanged = () => void tick();
-    window.addEventListener("alerts-changed", onChanged);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener("alerts-changed", onChanged);
-    };
-  }, []);
 
   // 配置红点
   useEffect(() => {

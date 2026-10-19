@@ -1,14 +1,22 @@
 import { Events } from "@wailsio/runtime";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
 import { TH_STICKY_LINE } from "@/react/components/data-table";
 import { MessagesPage } from "@/react/components/notify/messages-page";
 import { SetupPage } from "@/react/components/notify/setup-page";
 import { Page } from "@/react/components/page";
 import { Button } from "@/react/components/ui/button";
-import { Card } from "@/react/components/ui/card";
 import { Checkbox } from "@/react/components/ui/checkbox";
-import { isAppKind } from "@/react/lib/alert-incidents";
+import { messageSectionOf, type NotifySource } from "@/react/lib/notify-model";
+import { NotifyRulesPage } from "@/react/components/notify/rules-page";
+import { NotifyPageHeader } from "@/react/components/notify/page-header";
+import {
+  subscriptionFocus,
+  setSubscriptionFocus,
+  useNotifyView,
+} from "@/react/components/notify/view-state";
+import { Select } from "@/react/components/ui/select";
+import "@/react/styles/notify.css";
 import { cn } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
@@ -48,7 +56,7 @@ export function NotifyPage() {
       const host = (payload.host || "").trim();
       let events: Awaited<ReturnType<typeof api.listAlertHistory>> = [];
       try {
-        events = await api.listAlertHistory(500);
+        events = await api.listAlertHistory(0);
       } catch {
         /* 列表失败仍尽量用 payload 里的 id */
       }
@@ -63,8 +71,7 @@ export function NotifyPage() {
       if (!focusId) return;
 
       const ev = events.find((e) => e.id === focusId);
-      const appEv = ev ? isAppKind(ev.kind || "") : false;
-      setNotifySection(appEv ? "appMessages" : "metricMessages");
+      setNotifySection(ev ? messageSectionOf(ev.kind || "") : "metricMessages");
       setFocusAlertId(focusId);
       try {
         sessionStorage.removeItem(FOCUS_ALERT_STORAGE_KEY);
@@ -75,7 +82,9 @@ export function NotifyPage() {
 
     // 挂载时消费 App 预先写入的 id（从其它工作区点进来）
     try {
-      const pending = (sessionStorage.getItem(FOCUS_ALERT_STORAGE_KEY) || "").trim();
+      const pending = (
+        sessionStorage.getItem(FOCUS_ALERT_STORAGE_KEY) || ""
+      ).trim();
       if (pending) void applyFocus({ eventId: pending });
     } catch {
       /* ignore */
@@ -102,11 +111,30 @@ export function NotifyPage() {
   }, [setNotifySection]);
 
   if (session.notifySection === "setup") return <SetupPage />;
-  if (session.notifySection === "metricSubs" || session.notifySection === "appSubs") {
-    return <SubsPage kind={session.notifySection} />;
+  if (
+    session.notifySection === "metricRules" ||
+    session.notifySection === "appRules" ||
+    session.notifySection === "certRules"
+  ) {
+    const source =
+      session.notifySection === "metricRules"
+        ? "metric"
+        : session.notifySection === "appRules"
+          ? "app"
+          : "cert";
+    return <NotifyRulesPage key={source} source={source} />;
+  }
+  if (
+    session.notifySection === "metricSubs" ||
+    session.notifySection === "appSubs"
+  ) {
+    return (
+      <SubsPage key={session.notifySection} kind={session.notifySection} />
+    );
   }
   return (
     <MessagesPage
+      key={session.notifySection}
       kind={session.notifySection}
       focusAlertId={focusAlertId}
       onFocusConsumed={() => setFocusAlertId("")}
@@ -123,7 +151,48 @@ function serviceLabel(name: WatchServiceName): string {
 function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
   const session = useSession();
   const settings = useSettings();
-  const [groupFilter, setGroupFilter] = useState("all");
+  const source: NotifySource = kind === "metricSubs" ? "metric" : "app";
+  const [view, setView] = useNotifyView(kind, {
+    groupFilter: "all",
+    scrollTop: 0,
+  });
+  const [focus, setFocus] = useState(() => subscriptionFocus(source));
+  const tableRef = useRef<HTMLDivElement>(null);
+  const groupFilter = focus ? "all" : view.groupFilter;
+  function setGroupFilter(groupFilter: string) {
+    setFocus(undefined);
+    setSubscriptionFocus(source);
+    setView({ ...view, groupFilter, scrollTop: 0 });
+  }
+  useEffect(() => {
+    const node = tableRef.current;
+    if (!node) return;
+    if (focus) {
+      const row = [
+        ...node.querySelectorAll<HTMLElement>("[data-notify-host]"),
+      ].find((item) => item.dataset.notifyHost === focus.host);
+      // 只滚动矩阵，避免 scrollIntoView 同时移动外层内容并藏起页头。
+      if (row) {
+        const bounds = node.getBoundingClientRect();
+        const target = row.getBoundingClientRect();
+        node.scrollTop += target.top - bounds.top - (node.clientHeight - target.height) / 2;
+      }
+      const input = [
+        ...(row?.querySelectorAll<HTMLInputElement>("input") || []),
+      ].find(
+        (item) =>
+          item.getAttribute("aria-label") === `${focus.host} ${focus.field}`,
+      );
+      if (input) {
+        const bounds = node.getBoundingClientRect();
+        const target = input.getBoundingClientRect();
+        const frozenEnd = node.querySelector("th:nth-child(2)")?.getBoundingClientRect().right || bounds.left;
+        if (target.right > bounds.right - 16) node.scrollLeft += target.right - bounds.right + 16;
+        else if (target.left < frozenEnd + 16) node.scrollLeft += target.left - frozenEnd - 16;
+        input.focus({ preventScroll: true });
+      }
+    } else node.scrollTop = view.scrollTop;
+  }, [focus, session.orderedHosts, groupFilter]);
 
   // 主机名 → 分组显示名（未分组统一「未分组」）
   const hostGroupLabel = useMemo(() => {
@@ -132,7 +201,10 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
       const name = host.name || "";
       if (!name) continue;
       const gid = session.groupIdOf(name);
-      map.set(name, gid ? session.groupName(gid) : session.groupName(UNGROUPED_ID));
+      map.set(
+        name,
+        gid ? session.groupName(gid) : session.groupName(UNGROUPED_ID),
+      );
     }
     return map;
   }, [session]);
@@ -163,26 +235,62 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
   }, [groupFilter, hostGroupLabel, session.orderedHosts]);
 
   return (
-    <Page
-      title={kind === "metricSubs" ? "指标订阅" : "应用订阅"}
-      actions={
-        <>
-          {groupButtons.map((item) => (
+    <Page heading={false} flush>
+      <div className="notify-workspace">
+        <NotifyPageHeader
+          title={
+            source === "metric" ? "主机系统 · 主机订阅" : "应用服务 · 应用订阅"
+          }
+          description={
+            source === "metric"
+              ? "按主机选择需要接收告警的指标"
+              : "按主机选择需要接收探活通知的服务"
+          }
+          source={source}
+        />
+        <div className="notify-sub-toolbar">
+          <Select
+            aria-label="按主机分组筛选"
+            value={groupFilter}
+            onChange={setGroupFilter}
+            options={groupButtons.map((item) => ({
+              ...item,
+              label: item.value === "all" ? "全部分组" : item.label,
+            }))}
+            className="w-44"
+          />
+          <span className="text-xs text-muted">更改自动保存</span>
+        </div>
+        {focus ? (
+          <div className="notify-sub-focus">
+            <span>
+              当前定位：{focus.host} /{" "}
+              {source === "metric"
+                ? ALERT_RULES.find((rule) => rule.kind === focus.field)?.name ||
+                  focus.field
+                : focus.field}
+            </span>
             <Button
-              key={item.value}
               size="sm"
-              variant={groupFilter === item.value ? "primary" : "secondary"}
-              onClick={() => setGroupFilter(item.value)}
+              variant="ghost"
+              onClick={() => {
+                setFocus(undefined);
+                setSubscriptionFocus(source);
+              }}
             >
-              {item.label}
+              取消定位
             </Button>
-          ))}
-        </>
-      }
-    >
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full border-collapse text-left text-sm">
+          </div>
+        ) : null}
+        <div
+          ref={tableRef}
+          className="notify-sub-table"
+          onScroll={(event) => {
+            if (!focus)
+              setView({ ...view, scrollTop: event.currentTarget.scrollTop });
+          }}
+        >
+          <table className="w-full min-w-[680px] border-collapse text-left text-sm">
             {/* z-20 压过主机列 body 单元格的 z-10，纵向滚动时表头盖住吸左列 */}
             <thead className="sticky top-0 z-20 bg-surface text-xs font-normal text-muted">
               <tr className="h-table-head">
@@ -207,20 +315,23 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                     {ALERT_RULES.map((rule) => (
                       <th
                         key={rule.kind}
-                        className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}
+                        className={cn(
+                          "relative px-3 text-center font-normal",
+                          TH_STICKY_LINE,
+                        )}
                       >
                         {rule.name}
                       </th>
                     ))}
-                    <th className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}>
-                      证书
-                    </th>
                   </>
                 ) : (
                   WATCH_SERVICE_ORDER.map((svc) => (
                     <th
                       key={svc}
-                      className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}
+                      className={cn(
+                        "relative px-3 text-center font-normal",
+                        TH_STICKY_LINE,
+                      )}
                     >
                       {serviceLabel(svc)}
                     </th>
@@ -233,18 +344,38 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                 <tr className="h-table-row border-t border-line">
                   <td
                     className="px-3 text-muted"
-                    colSpan={kind === "metricSubs" ? ALERT_RULES.length + 3 : WATCH_SERVICE_ORDER.length + 2}
+                    colSpan={
+                      kind === "metricSubs"
+                        ? ALERT_RULES.length + 2
+                        : WATCH_SERVICE_ORDER.length + 2
+                    }
                   >
                     没有匹配的主机
                   </td>
                 </tr>
               ) : (
                 hosts.map((host, index) => (
-                  <tr key={host} className="h-table-row border-t border-line">
+                  <tr
+                    key={host}
+                    data-notify-host={host}
+                    className={cn(
+                      "h-table-row border-t border-line",
+                      focus?.host === host && "bg-accent-soft",
+                    )}
+                  >
                     <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
                       {index + 1}
                     </td>
-                    <td className="sticky left-0 z-10 bg-surface px-3">{host}</td>
+                    <td
+                      className={cn(
+                        "sticky left-0 z-10 px-3",
+                        focus?.host === host
+                          ? "bg-accent-soft text-accent"
+                          : "bg-surface",
+                      )}
+                    >
+                      {host}
+                    </td>
                     {kind === "metricSubs" ? (
                       <>
                         {ALERT_RULES.map((rule) => (
@@ -252,9 +383,9 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                             <Checkbox
                               className="sub-check"
                               aria-label={`${host} ${rule.kind}`}
-                              checked={(settings.hostResourceNotifySubs[host] || []).includes(
-                                rule.kind,
-                              )}
+                              checked={(
+                                settings.hostResourceNotifySubs[host] || []
+                              ).includes(rule.kind)}
                               onChange={(checked) =>
                                 toggleResource(
                                   host,
@@ -266,11 +397,6 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                             />
                           </td>
                         ))}
-                        <td className="p-0">
-                          <span className="block text-center text-xs text-muted" data-tip="所有主机自动检测证书，剩余不足 30 天及已过期时每天提醒">
-                            默认开启
-                          </span>
-                        </td>
                       </>
                     ) : (
                       WATCH_SERVICE_ORDER.map((svc) => (
@@ -278,7 +404,9 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                           <Checkbox
                             className="sub-check"
                             aria-label={`${host} ${svc}`}
-                            checked={(settings.hostAppNotifySubs[host] || []).includes(svc)}
+                            checked={(
+                              settings.hostAppNotifySubs[host] || []
+                            ).includes(svc)}
                             onChange={(checked) =>
                               toggleAppService(
                                 host,
@@ -297,7 +425,10 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             </tbody>
           </table>
         </div>
-      </Card>
+        <p className="notify-sub-footer">
+          勾选按主机生效，触发条件在侧栏「告警规则」中查看与设置。
+        </p>
+      </div>
     </Page>
   );
 }

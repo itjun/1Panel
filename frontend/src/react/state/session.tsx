@@ -64,6 +64,10 @@ export type NotifySection =
   | "appMessages"
   | "metricSubs"
   | "appSubs"
+  | "metricRules"
+  | "appRules"
+  | "certMessages"
+  | "certRules"
   | "setup";
 
 export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";

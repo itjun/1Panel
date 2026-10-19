@@ -14,13 +14,13 @@ import {
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
 import { SettingsNavigation } from "@/react/components/settings-navigation";
+import { NotifyNavigation } from "@/react/components/notify/navigation";
 import { alertDialog } from "@/react/components/ui/confirm-dialog";
 import { cn } from "@/react/lib/utils";
 import {
   UNGROUPED_ID,
   useSession,
   type ConfigSection,
-  type NotifySection,
   type SpeedtestSection,
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
@@ -37,14 +37,6 @@ import {
 const RAIL_ORDER_KEY = "1pannel-rail-order";
 const VISITED_GROUPS_KEY = "1pannel-visited-groups";
 const RAIL_ENTRY_MIME = "application/x-rail-entry";
-
-const NOTIFY_SECTIONS: { id: NotifySection; label: string }[] = [
-  { id: "metricMessages", label: "指标消息" },
-  { id: "appMessages", label: "应用消息" },
-  { id: "metricSubs", label: "指标订阅" },
-  { id: "appSubs", label: "应用订阅" },
-  { id: "setup", label: "通知设置" },
-];
 
 const CONFIG_SECTIONS: { id: ConfigSection; label: string }[] = [
   { id: "overview", label: "概览" },
@@ -281,16 +273,7 @@ export function WorkspaceRail() {
           hostAnchorRef.current = "";
         }}
       >
-        {listKind === "notify"
-          ? NOTIFY_SECTIONS.map((item) => (
-              <RailNavButton
-                key={item.id}
-                label={item.label}
-                active={session.notifySection === item.id}
-                onClick={() => session.setNotifySection(item.id)}
-              />
-            ))
-          : null}
+        {listKind === "notify" ? <NotifyNavigation /> : null}
 
         {listKind === "config"
           ? CONFIG_SECTIONS.map((item) => (
