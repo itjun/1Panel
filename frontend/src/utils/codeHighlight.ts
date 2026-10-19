@@ -27,6 +27,20 @@ import yaml from "highlight.js/lib/languages/yaml";
 import { hostsHighlightHtml } from "@/utils/hostsHighlight";
 import { plainCodeHtml } from "@/utils/plainCode";
 
+const sshconfig: typeof python = (hljs) => ({
+  name: "OpenSSH Config",
+  case_insensitive: true,
+  contains: [
+    hljs.HASH_COMMENT_MODE,
+    hljs.QUOTE_STRING_MODE,
+    hljs.APOS_STRING_MODE,
+    { scope: "keyword", begin: /^\s*(?:Host|Match|Include)\b/ },
+    { scope: "attr", begin: /^\s*[a-z][a-z0-9]*/i },
+    { scope: "literal", begin: /\b(?:yes|no|ask|auto|none)\b/i },
+    hljs.NUMBER_MODE,
+  ],
+});
+
 // 按需注册常用语言，禁止全量 import "highlight.js"
 const langs: Record<string, typeof python> = {
   bash,
@@ -51,6 +65,7 @@ const langs: Record<string, typeof python> = {
   ruby,
   rust,
   sql,
+  sshconfig,
   typescript,
   xml,
   yaml,
@@ -180,14 +195,14 @@ function langFromShebang(text: string): string | null {
 }
 
 /**
- * 按文件名 / shebang 高亮，每行包 .ng-line。
+ * 按指定语言 / 文件名 / shebang 高亮，每行包 .ng-line。
  * hosts 走专用解析；无法识别或超大文件降级纯文本。
  */
-export function highlightFileHtml(text: string, path: string): string {
+export function highlightFileHtml(text: string, path: string, language?: "sshconfig"): string {
   if (!text) return "";
   if (text.length > HIGHLIGHT_MAX_CHARS) return plainCodeHtml(text);
 
-  const lang = langFromPath(path) || langFromShebang(text);
+  const lang = language || langFromPath(path) || langFromShebang(text);
   if (lang === "hosts") return hostsHighlightHtml(text);
   if (!lang || !langs[lang]) return plainCodeHtml(text);
 

@@ -8,12 +8,14 @@ export function HighlightPane({
   text,
   pinBottom = false,
   wrap = false,
+  label,
 }: {
   html: string;
   text: string;
   /** 内容更新后滚到最底，日志用 */
   pinBottom?: boolean;
   wrap?: boolean;
+  label?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
@@ -50,11 +52,12 @@ export function HighlightPane({
         <pre
           ref={preRef}
           className={wrap ? "local-code-pre is-wrap" : "local-code-pre"}
-          tabIndex={-1}
+          tabIndex={label ? 0 : -1}
+          aria-label={label}
           dangerouslySetInnerHTML={{ __html: html }}
         />
       ) : (
-        <pre className="local-code-pre muted">暂无内容</pre>
+        <pre className="local-code-pre muted" tabIndex={label ? 0 : undefined} aria-label={label}>暂无内容</pre>
       )}
     </div>
   );
