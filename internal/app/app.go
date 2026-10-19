@@ -262,7 +262,7 @@ func NewApp(resources Resources) *application.App {
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		core.markReady()
 		core.startWindowTheme()
-		core.restoreMainWindowPosition()
+		core.restoreMainWindowGeometry()
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
 		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
@@ -471,11 +471,19 @@ func (a *App) saveMainWindowGeom() {
 	saveMainWindowBounds(windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
 }
 
-func (a *App) restoreMainWindowPosition() {
-	if !a.mainBoundsOK || a.mainWindow == nil {
+func (a *App) restoreMainWindowGeometry() {
+	if a.mainWindow == nil {
 		return
 	}
-	a.mainWindow.SetPosition(a.mainBounds.X, a.mainBounds.Y)
+	// Wails v3 beta.14 的 macOS 构造器将宽高各减 1；原生窗口就绪后，
+	// 在显示前用 SetSize 恢复准确尺寸，避免每次重开继续缩小。
+	// 先恢复尺寸再恢复左上角位置，避免调整高度改变窗口的位置。
+	if goruntime.GOOS == "darwin" && validWindowBounds(a.mainBounds) {
+		a.mainWindow.SetSize(a.mainBounds.Width, a.mainBounds.Height)
+	}
+	if a.mainBoundsOK {
+		a.mainWindow.SetPosition(a.mainBounds.X, a.mainBounds.Y)
+	}
 }
 
 // maybeShowMainWindow 等尺寸、运行态和主题初始化完成后显示。
