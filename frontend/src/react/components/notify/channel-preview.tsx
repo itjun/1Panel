@@ -38,25 +38,62 @@ export type PreviewRow = {
 export function PreviewMatrix({
   rows,
   channels,
+  stacked = false,
 }: {
   rows: PreviewRow[];
   channels: PreviewChannelState;
+  stacked?: boolean;
 }) {
   const columns = [
-    { key: "system", title: "系统通知", off: !channels.system },
-    { key: "inApp", title: "应用内", off: !channels.inApp },
+    { key: "system", title: "桌面通知", off: !channels.system },
+    { key: "inApp", title: "应用内消息", off: !channels.inApp },
     {
       key: "wecom",
       title: "企业微信",
       off: !channels.wecom,
-      extra: channels.wecomMissingWebhook ? <Tag tone="warn">未填写地址</Tag> : null,
+      extra: channels.wecomMissingWebhook ? (
+        <Tag tone="warn">未填写地址</Tag>
+      ) : null,
     },
   ];
+  if (stacked)
+    return (
+      <div className="notify-preview-stack">
+        {columns.map((column, index) => (
+          <section key={column.key}>
+            <header>
+              <h3>{column.title}</h3>
+              <span>{column.off ? "未开启，不会发送" : "已开启"}</span>
+              {column.extra}
+            </header>
+            {rows.map((row) => (
+              <div key={row.key}>
+                {row.muted ? (
+                  <p className="mb-2 text-xs text-muted">{row.muted}</p>
+                ) : null}
+                <Cell off={!!row.muted || column.off}>
+                  {index === 0 ? (
+                    <SystemCard message={row.message} />
+                  ) : index === 1 ? (
+                    <InAppCard row={row} />
+                  ) : (
+                    <WecomCard row={row} />
+                  )}
+                </Cell>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+    );
   return (
     <div className="grid grid-cols-[88px_repeat(3,minmax(0,1fr))] gap-x-4 gap-y-3">
       <span />
       {columns.map((col) => (
-        <div key={col.key} className="sticky top-0 z-[1] flex h-8 items-center gap-2 bg-surface">
+        <div
+          key={col.key}
+          className="sticky top-0 z-[1] flex h-8 items-center gap-2 bg-surface"
+        >
           <h3 className="text-xs text-muted">{col.title}</h3>
           {col.off ? <Tag>未开启，不会发送</Tag> : col.extra}
         </div>
@@ -67,8 +104,12 @@ export function PreviewMatrix({
           <Fragment key={row.key}>
             <div className="flex flex-col pt-2">
               <span className="text-sm text-ink">{row.name}</span>
-              <span className="text-xs text-muted">{row.stage || (row.state === "up" ? "恢复" : "告警")}</span>
-              {row.muted ? <span className="mt-1 text-xs text-warn">{row.muted}</span> : null}
+              <span className="text-xs text-muted">
+                {row.stage || (row.state === "up" ? "恢复" : "告警")}
+              </span>
+              {row.muted ? (
+                <span className="mt-1 text-xs text-warn">{row.muted}</span>
+              ) : null}
             </div>
             <Cell off={rowOff || columns[0].off}>
               <SystemCard message={row.message} />
@@ -97,7 +138,9 @@ function SystemCard({ message }: { message: NotifyMessage }) {
         <Bell size={16} strokeWidth={1.5} aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold leading-5 text-ink">{message.title}</p>
+        <p className="text-sm font-semibold leading-5 text-ink">
+          {message.title}
+        </p>
         <p className="text-xs leading-5 text-ink">{message.body}</p>
       </div>
     </div>
@@ -122,14 +165,18 @@ function InAppCard({ row }: { row: PreviewRow }) {
     <div className="flex h-full flex-col gap-1 rounded-panel bg-raised p-3">
       <div className="flex items-start gap-2">
         <Tag tone={statusTone(row)}>{statusWord(row)}</Tag>
-        <span className="min-w-0 text-sm font-semibold leading-5 text-ink">{message.title}</span>
+        <span className="min-w-0 text-sm font-semibold leading-5 text-ink">
+          {message.title}
+        </span>
       </div>
       {message.lines.length ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 text-xs leading-5">
           {message.lines.map((line) => (
             <Fragment key={line.label}>
               <dt className="text-muted">{line.label}</dt>
-              <dd className="min-w-0 font-mono tabular-nums text-ink">{line.value}</dd>
+              <dd className="min-w-0 font-mono tabular-nums text-ink">
+                {line.value}
+              </dd>
             </Fragment>
           ))}
         </dl>
@@ -176,7 +223,10 @@ function WecomMarkdown({ text }: { text: string }) {
       {rows.map((row, index) => {
         if (row.startsWith("### ")) {
           return (
-            <p key={index} className="mb-0.5 text-sm font-semibold leading-5 text-ink">
+            <p
+              key={index}
+              className="mb-0.5 text-sm font-semibold leading-5 text-ink"
+            >
               <FontText text={row.slice(4)} />
             </p>
           );
@@ -185,10 +235,14 @@ function WecomMarkdown({ text }: { text: string }) {
           const body = row.slice(1);
           const colon = body.indexOf(": ");
           return (
-            <p key={index} className="border-l-2 border-line-strong pl-2 break-all text-muted">
+            <p
+              key={index}
+              className="border-l-2 border-line-strong pl-2 break-all text-muted"
+            >
               {colon > 0 ? (
                 <>
-                  {body.slice(0, colon)}：<span className="text-ink">{body.slice(colon + 2)}</span>
+                  {body.slice(0, colon)}：
+                  <span className="text-ink">{body.slice(colon + 2)}</span>
                 </>
               ) : (
                 body

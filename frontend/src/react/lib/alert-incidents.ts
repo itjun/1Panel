@@ -158,7 +158,7 @@ export function statusLabel(inc: Incident): string {
     case "resolved":
       return app ? "已恢复" : "已回落";
     case "unclosed":
-      return "未记录回落";
+      return "未记录恢复";
     default:
       if (inc.kind === "cert") return inc.up ? "已续期" : "到期提醒";
       return "异常";
