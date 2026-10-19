@@ -47,7 +47,7 @@ Windows 实机验收应依次检查：自动选云母；手动经典／云母切
 | 检查 | 结果 |
 | --- | --- |
 | Go 全量测试 | `go test ./...` 通过 |
-| Go 材质逻辑与竞态 | `go test -race . -run 'TestWindowTheme\|TestWindowMaterial'` 通过 |
+| Go 材质逻辑与竞态 | `go test -race ./internal/app -run 'TestWindowTheme\|TestWindowMaterial'` 通过 |
 | 首次／旧配置／空值／损坏／无效配置 | 默认自动；测试通过 |
 | 手动优先／系统禁止／原生失败／超时恢复／恢复默认 | 测试通过；失败时保留请求偏好 |
 | 保存失败／无效输入 | 不改选择、不触发新的原生切换；测试通过 |
@@ -80,7 +80,7 @@ Windows 实机验收应依次检查：自动选云母；手动经典／云母切
 
 ```sh
 CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 go test ./...
-CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 go test -race . -run 'TestWindowTheme|TestWindowMaterial'
+CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 go test -race ./internal/app -run 'TestWindowTheme|TestWindowMaterial'
 CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 go test -race ./internal/windowmaterial
 python3 scripts/test-window-material-native.py
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/OnePanel-theme-windows.exe .

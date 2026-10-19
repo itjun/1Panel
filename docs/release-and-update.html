@@ -238,7 +238,7 @@ flowchart TB
     </div>
     <table>
       <tr><th style="width:22%">环节</th><th>要点</th></tr>
-      <tr><td>版本号注入</td><td>三个平台的 Taskfile 都以 <code>-ldflags -X main.buildVersion=$(git describe --tags)</code> 写入版本，<code>-X main.updateBaseURL</code> 写入更新源 <code>https://github.com/&lt;repo&gt;/releases/latest/download</code>。</td></tr>
+      <tr><td>版本号注入</td><td>三个平台的 Taskfile 都以 <code>-ldflags -X diteng-pannel/internal/app.buildVersion=$(git describe --tags)</code> 写入版本，<code>-X diteng-pannel/internal/app.updateBaseURL</code> 写入更新源 <code>https://github.com/&lt;repo&gt;/releases/latest/download</code>。</td></tr>
       <tr><td>内嵌产物</td><td>spanel-agent 与 iperf3 被 gitignore，统一在 Linux 上构建一次再分发，三个包内嵌版本一致；不依赖 Windows 上的 shell 工具。</td></tr>
       <tr><td>发布顺序</td><td>先以草稿上传安装包与清单，再一次性公开并标为 latest。<code>releases/latest</code> 不包含草稿和预发布，客户端读到新清单时安装包一定已就绪。</td></tr>
       <tr><td>签名复核</td><td>上传前用客户端内置公钥再校验一次，防止 Secret 里的私钥与代码中的公钥不配对。</td></tr>

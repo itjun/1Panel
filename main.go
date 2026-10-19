@@ -1,14 +1,12 @@
 package main
 
 import (
-	"embed"
 	"log"
 	"os"
 	"time"
-)
 
-//go:embed all:frontend/dist
-var assets embed.FS
+	"diteng-pannel/internal/app"
+)
 
 func main() {
 	// 重启接力：上实例拉起新进程后立即退出，本进程稍候待其（及 WebView2
@@ -17,9 +15,8 @@ func main() {
 		os.Unsetenv("1PANNEL_RESTARTED")
 		time.Sleep(1500 * time.Millisecond)
 	}
-	app := NewApp()
-	if err := app.Run(); err != nil {
+	desktop := app.NewApp(embeddedResources())
+	if err := desktop.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
-

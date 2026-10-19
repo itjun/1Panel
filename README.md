@@ -113,11 +113,13 @@ task darwin:package
 ```
 .
 ├── main.go                       # Wails v3 应用入口
-├── app.go                        # 应用核心（窗口/菜单/拖放/服务装配）
-├── groups.go                     # Groups 服务（分组增删改查/分配）
-├── group_overview.go             # Overview 服务（分组概览并发采集）
-├── helpers.go                    # CopyIDInput 等辅助类型
+├── assets.go                     # 嵌入前端、图标、初始化脚本与安装包，传入应用层
 ├── internal/
+│   ├── app/                      # 桌面应用层及对应测试（package app）
+│   │   ├── app.go                # 共享状态、窗口/菜单/拖放/功能装配
+│   │   ├── app_hosts.go           # 主机管理等前端调用接口
+│   │   ├── resources.go           # 入口传入的内嵌资源
+│   │   └── *_test.go              # 应用层测试，与实现同包
 │   ├── sshconfig/                # ~/.ssh/config 解析与回写
 │   ├── groups/                   # 分组本地存储（~/Library/Application Support/ServerPanel/groups.json）
 │   ├── sshd/                     # SSH 长连接管理
@@ -129,8 +131,12 @@ task darwin:package
 │       ├── react/                # React 前端（pages / components / state / lib）
 │       ├── api/index.ts          # Wails v3 绑定统一封装（bindings/ 自动生成）
 │       └── utils/                # 格式化、剪贴板、echarts 按需注册
-└── build/bin/                    # 构建产物
+└── bin/                          # 构建产物
 ```
+
+根目录只负责启动和资源嵌入。应用层通过 `app.NewApp(resources)` 接收编译期资源，不依赖启动时的工作目录；底层功能继续放在 `internal/` 对应模块中。Wails 绑定从 `./internal/app` 生成到 `frontend/bindings/diteng-pannel/internal/app/`，前端统一通过 `frontend/src/api/index.ts` 调用。
+
+在项目根目录运行 `go test ./...` 验证全部 Go 包，运行 `go test ./internal/app` 单独验证应用层；macOS 桌面构建运行 `wails3 task darwin:build`。
 
 ## 限制
 
@@ -174,7 +180,7 @@ ssh user@host 'sh -s -- --inspect' < scripts/bootstrap-zsh.sh
 真机联调需要显式指定主机，普通 `go test` 不会连接或修改远程主机：
 
 ```bash
-ONEPANEL_ZSH_LIVE_HOST=template go test . -run TestZshLiveHost -v -count=1 -timeout 45m
+ONEPANEL_ZSH_LIVE_HOST=template go test ./internal/app -run TestZshLiveHost -v -count=1 -timeout 45m
 ssh -T template 'python3 -' < scripts/verify-zsh-pty.py
 ```
 

@@ -2,25 +2,25 @@
  * Wails v3 绑定封装
  * 所有后端调用统一走 wails3 generate bindings 生成的强类型绑定（frontend/bindings/）
  */
-import * as Hosts from "../../bindings/diteng-pannel/hosts";
-import * as Groups from "../../bindings/diteng-pannel/groups";
-import * as Overview from "../../bindings/diteng-pannel/overview";
-import * as Monitor from "../../bindings/diteng-pannel/monitor";
-import * as Agent from "../../bindings/diteng-pannel/agent";
-import * as Files from "../../bindings/diteng-pannel/files";
-import * as Certs from "../../bindings/diteng-pannel/certs";
-import * as Icons from "../../bindings/diteng-pannel/icons";
-import * as System from "../../bindings/diteng-pannel/system";
-import * as Backup from "../../bindings/diteng-pannel/backup";
-import * as AlertHistory from "../../bindings/diteng-pannel/alerthistory";
-import * as NotifySubs from "../../bindings/diteng-pannel/notifysubs";
-import * as CertNotify from "../../bindings/diteng-pannel/certnotify";
-import * as LocalApps from "../../bindings/diteng-pannel/localapps";
-import * as LocalSys from "../../bindings/diteng-pannel/localsys";
-import * as PanelConfig from "../../bindings/diteng-pannel/panelconfig";
-import * as SpeedTest from "../../bindings/diteng-pannel/speedtest";
-import * as AppUpdate from "../../bindings/diteng-pannel/appupdate";
-import * as AppSession from "../../bindings/diteng-pannel/appsession";
+import * as Hosts from "../../bindings/diteng-pannel/internal/app/hosts";
+import * as Groups from "../../bindings/diteng-pannel/internal/app/groups";
+import * as Overview from "../../bindings/diteng-pannel/internal/app/overview";
+import * as Monitor from "../../bindings/diteng-pannel/internal/app/monitor";
+import * as Agent from "../../bindings/diteng-pannel/internal/app/agent";
+import * as Files from "../../bindings/diteng-pannel/internal/app/files";
+import * as Certs from "../../bindings/diteng-pannel/internal/app/certs";
+import * as Icons from "../../bindings/diteng-pannel/internal/app/icons";
+import * as System from "../../bindings/diteng-pannel/internal/app/system";
+import * as Backup from "../../bindings/diteng-pannel/internal/app/backup";
+import * as AlertHistory from "../../bindings/diteng-pannel/internal/app/alerthistory";
+import * as NotifySubs from "../../bindings/diteng-pannel/internal/app/notifysubs";
+import * as CertNotify from "../../bindings/diteng-pannel/internal/app/certnotify";
+import * as LocalApps from "../../bindings/diteng-pannel/internal/app/localapps";
+import * as LocalSys from "../../bindings/diteng-pannel/internal/app/localsys";
+import * as PanelConfig from "../../bindings/diteng-pannel/internal/app/panelconfig";
+import * as SpeedTest from "../../bindings/diteng-pannel/internal/app/speedtest";
+import * as AppUpdate from "../../bindings/diteng-pannel/internal/app/appupdate";
+import * as AppSession from "../../bindings/diteng-pannel/internal/app/appsession";
 
 // 模型类型命名空间（与 v2 的 @wailsjs/go/models 对应）
 export * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
@@ -40,7 +40,8 @@ export * as localsys from "../../bindings/diteng-pannel/internal/localsys/models
 export * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
 export * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 export * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
-export * as main from "../../bindings/diteng-pannel/models";
+// 保留 main 类型别名供现有前端使用；模型实际来自 Go 的 internal/app 包。
+export * as main from "../../bindings/diteng-pannel/internal/app/models";
 export * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
 export * as menucheck from "../../bindings/diteng-pannel/internal/menucheck/models";
 
@@ -56,7 +57,7 @@ import type * as filetext from "../../bindings/diteng-pannel/internal/filetext/m
 import type * as groups from "../../bindings/diteng-pannel/internal/groups/models";
 import type * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
 import type * as localsys from "../../bindings/diteng-pannel/internal/localsys/models";
-import type * as main from "../../bindings/diteng-pannel/models";
+import type * as main from "../../bindings/diteng-pannel/internal/app/models";
 import type * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
 import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 import type * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";

@@ -46,7 +46,7 @@ final result: passed
 - `bun test scripts/settings-model.test.ts`：7 项通过（含原生实测发现的滚动底部鼠标定位回归）。
 - `bun test scripts/window-theme.test.ts`：5 项通过。
 - `bun test scripts/system-appearance.test.ts`：2 项通过。
-- `go test . -run 'WindowTheme|WindowMaterial' -count=1`：通过。
+- `go test ./internal/app -run 'WindowTheme|WindowMaterial' -count=1`：通过。
 - `go test ./internal/windowmaterial -count=1`：通过。保留本机现有 SDK/链接版本提示。
 - 设置相关 diff 的空白检查通过；开发验证脚本未进入生产 dist，六张正式预览素材均已包含。
 
