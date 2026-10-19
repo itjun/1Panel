@@ -14,6 +14,7 @@ Object.defineProperty(navigator, "userAgent", { configurable: true, value: os ==
 localStorage.setItem("1pannel-react-nav", JSON.stringify({ workspace: "remote", settingsOpen: true, settingsSection: params.get("section") || "look" }));
 let board = { enabled: true, port: 8888 };
 let ask = true;
+let launchAtLogin = params.get("startup") !== "off";
 let operation = "尚无原生写入";
 const record = (value: string) => { operation = value; window.dispatchEvent(new Event("settings-qa-operation")); };
 Object.assign(api, {
@@ -24,6 +25,13 @@ Object.assign(api, {
   getPanelConfigStatus: async () => ({ needsReview: false }),
   getAskBeforeQuit: async () => ask,
   setAskBeforeQuit: async (value: boolean) => { ask = value; record(`退出前询问：${value}`); },
+  getLaunchAtLoginState: async () => ({ enabled: launchAtLogin, supported: true, reason: "" }),
+  setLaunchAtLogin: async (value: boolean) => {
+    if (params.has("startup-error")) throw new Error("系统拒绝更改开机启动");
+    launchAtLogin = value;
+    record(`开机启动：${value}`);
+    return { enabled: launchAtLogin, supported: true, reason: "" };
+  },
   getBoardHTTPConfig: async () => ({ ...board }),
   setBoardHTTPConfig: async (value: typeof board) => { board = { ...value }; record(`内网看板：${board.enabled} / ${board.port}`); },
   listBoardURLs: async () => board.enabled ? [`http://192.168.1.8:${board.port}`] : [],

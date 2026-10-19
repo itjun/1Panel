@@ -1,6 +1,6 @@
 // INTEGRATION: entry 改为使用本文件的 SettingsPage。
 import { Events } from "@wailsio/runtime";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import appIcon from "@/react/assets/appicon.png";
@@ -55,6 +55,29 @@ export function SettingsPage() {
   const [boardEnabled, setBoardEnabled] = useState(true);
   const [boardPort, setBoardPort] = useState(8888);
   const [restorePath, setRestorePath] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const launchAtLogin = useQuery({
+    queryKey: ["launch-at-login"],
+    queryFn: () => api.getLaunchAtLoginState(),
+    refetchOnWindowFocus: "always",
+    retry: false,
+  });
+  const setLaunchAtLogin = useMutation({
+    mutationFn: (enabled: boolean) => api.setLaunchAtLogin(enabled),
+    onMutate: () => queryClient.cancelQueries({ queryKey: ["launch-at-login"] }),
+    onSuccess: (state) => {
+      queryClient.setQueryData(["launch-at-login"], state);
+      if (state.reason) flash.showError(state.reason);
+      else flash.showToast(state.enabled ? "已允许开机启动" : "已关闭开机启动");
+    },
+    onError: (error) => flash.showError(formatErr(error)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["launch-at-login"] }),
+  });
+  useEffect(() => {
+    const refresh = () => { void queryClient.invalidateQueries({ queryKey: ["launch-at-login"] }); };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [queryClient]);
   const egress = useQuery({
     queryKey: ["egress"],
     queryFn: () => api.getMyEgress(),
@@ -97,13 +120,14 @@ export function SettingsPage() {
     settings.monoFontFamily !== SETTINGS_DEFAULTS.monoFontFamily ||
     settings.fontSize !== SETTINGS_DEFAULTS.fontSize ||
     settings.startupPage !== SETTINGS_DEFAULTS.startupPage ||
+    (launchAtLogin.data?.supported && !launchAtLogin.data.enabled) ||
     !ask;
 
   const materialVisible = showWindowMaterial(os, windowTheme.desktop, windowTheme.theme.supported);
   const resetButton = (
           <Button
             size="sm"
-            disabled={!changed || windowTheme.pending}
+            disabled={!changed || windowTheme.pending || setLaunchAtLogin.isPending}
             onClick={() => {
               void (async () => {
                 try {
@@ -111,6 +135,9 @@ export function SettingsPage() {
                   resetSettings();
                   await api.setAskBeforeQuit(true);
                   setAsk(true);
+                  if (launchAtLogin.data?.supported && !launchAtLogin.data.enabled) {
+                    await setLaunchAtLogin.mutateAsync(true);
+                  }
                 } catch (error) { flash.showError(formatErr(error)); }
               })();
             }}
@@ -266,6 +293,23 @@ export function SettingsPage() {
         </SettingsSectionBlock>
 
         <SettingsSectionBlock id="app">
+            <SettingRow
+              label="开机启动"
+              hint={launchAtLogin.error ? formatErr(launchAtLogin.error) : launchAtLogin.data?.reason || "默认开启，登录系统后自动启动 1Panel"}
+            >
+              <Switch
+                aria-label="允许应用开机启动"
+                checked={launchAtLogin.data?.enabled ?? true}
+                disabled={!launchAtLogin.data?.supported || launchAtLogin.isError}
+                loading={launchAtLogin.isPending || setLaunchAtLogin.isPending}
+                onChange={(enabled) => setLaunchAtLogin.mutate(enabled)}
+              />
+              {launchAtLogin.isError || (launchAtLogin.data?.supported && launchAtLogin.data.reason) ? (
+                <Button size="sm" disabled={launchAtLogin.isFetching || setLaunchAtLogin.isPending} onClick={() => void launchAtLogin.refetch()}>
+                  刷新状态
+                </Button>
+              ) : null}
+            </SettingRow>
             <SettingRow label="本机出口" hint="公网 IP，来自 myip.ipip.net">
               <span>{egress.data?.ip || (egress.isLoading ? "检测中…" : "未知")}</span>
               {egress.data?.location ? (

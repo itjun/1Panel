@@ -587,6 +587,8 @@ const apiImpl = {
   setAskBeforeQuit: async (ask: boolean): Promise<void> => {
     await System.SetAskBeforeQuit(ask);
   },
+  getLaunchAtLoginState: (): Promise<main.LaunchAtLoginState> => must(System.GetLaunchAtLoginState()),
+  setLaunchAtLogin: (enabled: boolean): Promise<main.LaunchAtLoginState> => must(System.SetLaunchAtLogin(enabled)),
   /** 同步原生窗口外观 light/dark/auto */
   setThemeAppearance: async (mode: string): Promise<void> => {
     await System.SetThemeAppearance(mode);
