@@ -1,7 +1,7 @@
 // INTEGRATION: entry 改为使用本文件的 SettingsPage。
 import { Events } from "@wailsio/runtime";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import appIcon from "@/react/assets/appicon.png";
 import {
@@ -9,7 +9,6 @@ import {
   exportHostBackup,
   pickHostBackupFile,
 } from "@/react/components/backup/host-backup";
-import { DistroBadge } from "@/react/components/distro-badge";
 import { Button } from "@/react/components/ui/button";
 import { InputNumber } from "@/react/components/ui/input-number";
 import { RadioGroup } from "@/react/components/ui/radio-group";
@@ -36,9 +35,20 @@ import { openUpdateDialog, setUpdateState, useAppUpdate } from "@/react/state/ap
 import { formatErr } from "@/utils/format";
 import { setWindowMaterial, useWindowTheme, type WindowMaterial } from "@/react/state/window-theme";
 
+import { detectAppOs } from "@/react/lib/platform";
+import { PLATFORM_SETTINGS, SETTINGS_SECTIONS, settingsShortcuts, showWindowMaterial } from "@/react/lib/settings-model";
+import { useSettingsScroll } from "@/react/lib/use-settings-scroll";
+import { AppearancePreviews } from "@/react/components/settings-appearance";
+import type { SettingsSection } from "@/react/state/session";
+import "@/react/styles/settings.css";
+
 export function SettingsPage() {
   const session = useSession();
   const settings = useSettings();
+  const os = detectAppOs();
+  const platform = PLATFORM_SETTINGS[os];
+  const documentRef = useRef<HTMLDivElement>(null);
+  useSettingsScroll(documentRef, session.settingsSection);
   const windowTheme = useWindowTheme();
   const [ask, setAsk] = useState(true);
   const flash = useFlashMessage();
@@ -89,14 +99,8 @@ export function SettingsPage() {
     settings.startupPage !== SETTINGS_DEFAULTS.startupPage ||
     !ask;
 
-  const section = session.settingsSection;
-
-  return (
-    <Page
-      title="设置"
-      heading={{look:"外观",session:"会话",board:"看板",app:"应用",shortcuts:"快捷键",about:"关于"}[section]}
-      actions={
-        section === "look" || section === "session" ? (
+  const materialVisible = showWindowMaterial(os, windowTheme.desktop, windowTheme.theme.supported);
+  const resetButton = (
           <Button
             size="sm"
             disabled={!changed || windowTheme.pending}
@@ -113,11 +117,18 @@ export function SettingsPage() {
           >
             恢复默认值
           </Button>
-        ) : undefined
-      }
-    >
-      {/* 外层 Page 已给 16px 安全边距，这里只负责居中与分区间距（8 点网格） */}
-      <div className="settings-content flex w-full max-w-4xl flex-col gap-section">
+  );
+
+  return (
+    <Page title="设置" heading={false} flush scrollLabel="设置内容">
+      <div ref={documentRef} className="settings-document">
+        <header className="settings-header">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <h1>设置</h1>
+            <span className="text-xs text-muted">当前设备：{platform.name}</span>
+          </div>
+          <span className="text-xs text-muted">更改即时生效</span>
+        </header>
         <FlashNotices flash={flash} />
         <HostBackupRestoreDialog
           path={restorePath}
@@ -126,9 +137,8 @@ export function SettingsPage() {
           onError={(message) => flash.showError(message)}
         />
 
-        {section === "look" ? (
-          <section className="flex flex-col">
-            <SettingRow label="窗口材质" hint="自动按系统能力选择；手动选择会保存在本机，改完立刻生效">
+        <SettingsSectionBlock id="look" actions={resetButton}>
+            {materialVisible ? <SettingRow label="窗口材质" hint="按本机能力选择，立即生效">
               <div className="flex flex-col items-start gap-2">
                 <RadioGroup<WindowMaterial>
                   aria-label="窗口材质"
@@ -149,43 +159,23 @@ export function SettingsPage() {
                 </p>
                 <p className="m-0 text-xs text-muted">云母在 Windows 11 上随壁纸轻微着色并指示窗口焦点。材质用于顶部和侧栏，内容区保持实色。</p>
               </div>
+            </SettingRow> : null}
+            <SettingRow label="主题外观">
+              <AppearancePreviews os={os} value={settings.appearance} onChange={(appearance) => updateSettings({ appearance })} />
             </SettingRow>
-            <SettingRow label="颜色模式" hint="改完立刻生效，与窗口材质独立">
-              <RadioGroup
-                aria-label="颜色模式"
-                value={settings.appearance}
-                onChange={(appearance) => updateSettings({ appearance })}
-                options={[
-                  { value: "light", label: "白色" },
-                  { value: "dark", label: "黑色" },
-                  { value: "system", label: "跟随系统" },
-                ]}
-              />
-            </SettingRow>
-          </section>
-        ) : null}
-
-        {section === "look" ? (
-          <section className="flex flex-col">
-            <h2 className="mb-1 text-sm font-semibold text-ink">字体</h2>
-            <p className="m-0 mb-2 text-xs text-muted">
-              默认使用系统字体（Mac 为 SF + 苹方）；选择只保存在本机，不同电脑可以各自设置。改完立刻生效。
-            </p>
             <FontSettingRow
               label="界面字体"
-              hint="用在菜单和侧栏、按钮、主机名和分组名、表格里的普通文字、提示条、弹窗"
+              hint={`界面文字 · ${platform.sans}，选择仅保存在本机`}
               kind="sans"
               value={settings.fontFamily}
               onChange={(value) => updateSettings({ fontFamily: value })}
-              preview={<SansFontPreview />}
             />
             <FontSettingRow
               label="等宽字体"
-              hint="用在 IP 地址和端口、版本号、CPU / 内存等数值、文件路径和大小、日志、配置编辑器（SSH 配置、JSON）"
+              hint={`IP、路径、日志与配置编辑器 · ${platform.mono}`}
               kind="mono"
               value={settings.monoFontFamily}
               onChange={(value) => updateSettings({ monoFontFamily: value })}
-              preview={<MonoFontPreview />}
             />
             <SettingRow
               label="界面字号"
@@ -200,11 +190,10 @@ export function SettingsPage() {
                 onChange={(fontSize) => updateSettings({ fontSize })}
               />
             </SettingRow>
-          </section>
-        ) : null}
+            <SettingRow label="字体预览"><div className="settings-font-preview"><SansFontPreview /><MonoFontPreview /></div></SettingRow>
+        </SettingsSectionBlock>
 
-        {section === "session" ? (
-          <section className="flex flex-col">
+        <SettingsSectionBlock id="session">
             <SettingRow label="启动时打开">
               <RadioGroup
                 aria-label="启动时打开"
@@ -216,11 +205,9 @@ export function SettingsPage() {
                 ]}
               />
             </SettingRow>
-          </section>
-        ) : null}
+        </SettingsSectionBlock>
 
-        {section === "board" ? (
-          <section className="flex flex-col">
+        <SettingsSectionBlock id="board">
             <SettingRow
               label="内网看板"
               hint="仅私网 IPv4 可访问；浏览器打开 http://内网IP:端口/分组名"
@@ -276,11 +263,9 @@ export function SettingsPage() {
                 刷新
               </Button>
             </SettingRow>
-          </section>
-        ) : null}
+        </SettingsSectionBlock>
 
-        {section === "app" ? (
-          <section className="flex flex-col">
+        <SettingsSectionBlock id="app">
             <SettingRow label="本机出口" hint="公网 IP，来自 myip.ipip.net">
               <span>{egress.data?.ip || (egress.isLoading ? "检测中…" : "未知")}</span>
               {egress.data?.location ? (
@@ -335,42 +320,47 @@ export function SettingsPage() {
                 }}
               />
             </SettingRow>
-          </section>
-        ) : null}
+        </SettingsSectionBlock>
 
-        {section === "about" ? <AboutSection /> : null}
-
-        {section === "shortcuts" ? (
-          <section className="flex flex-col">
+        <SettingsSectionBlock id="shortcuts">
             <div className="overflow-hidden">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="h-table-head border-b border-line text-xs text-muted">
                     <th className="px-3 font-normal">功能</th>
-                    <th className="px-3 font-normal">Windows</th>
-                    <th className="px-3 font-normal">Mac</th>
+                    <th className="px-3 font-normal">{platform.name} 快捷键</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {SHORTCUT_ROWS.map((row) => (
+                  {settingsShortcuts(os).map((row) => (
                     <tr key={row.label} className="h-table-row border-b border-line last:border-b-0">
                       <td className="px-3 text-ink">{row.label}</td>
                       <td className="px-3">
-                        <ShortcutKeys keys={row.win} />
-                      </td>
-                      <td className="px-3">
-                        <ShortcutKeys keys={row.mac} />
+                        <ShortcutKeys keys={row.keys} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </section>
-        ) : null}
+        </SettingsSectionBlock>
+
+        <SettingsSectionBlock id="about"><AboutSection /></SettingsSectionBlock>
       </div>
     </Page>
   );
+}
+
+function SettingsSectionBlock({ id, actions, children }: { id: SettingsSection; actions?: ReactNode; children: ReactNode }) {
+  const section = SETTINGS_SECTIONS.find((item) => item.id === id)!;
+  return <section id={`settings-${id}`} data-settings-section={id} aria-labelledby={`settings-${id}-title`} className="settings-section">
+    <header className="settings-section-heading">
+      <h2 id={`settings-${id}-title`}>{section.label}</h2>
+      <p>{section.hint}</p>
+      {actions ? <div className="settings-section-actions">{actions}</div> : null}
+    </header>
+    <div className="settings-section-body">{children}</div>
+  </section>;
 }
 
 /** 「关于」分区：应用名、版本与提交、运行环境、内置 Agent 与仓库链接。 */
@@ -507,13 +497,6 @@ function statusLabel(status?: {
   return "已同步";
 }
 
-const SHORTCUT_ROWS: { label: string; win: string[]; mac: string[] }[] = [
-  { label: "展开 / 收起侧栏", win: ["Ctrl+B", "Ctrl+\\"], mac: ["⌘+B", "⌘+\\"] },
-  { label: "打开设置", win: ["Ctrl+,"], mac: ["⌘+,"] },
-  { label: "后退", win: ["Alt+←"], mac: ["⌘+[", "⌘+←"] },
-  { label: "前进", win: ["Alt+→"], mac: ["⌘+]", "⌘+→"] },
-];
-
 function TerminalOpenSettings() {
   const settings = useSettings();
   const terminals = useQuery({
@@ -576,11 +559,11 @@ function SettingRow({
 }) {
   return (
     <div className="settings-row min-h-14 border-b border-line py-4 last:border-b-0">
-      <div className="min-w-0">
-        <div className="text-sm text-ink">{label}</div>
-        {hint ? <div className="mt-0.5 text-xs text-muted">{hint}</div> : null}
+      <div className="settings-row-label text-sm text-ink">{label}</div>
+      <div className="settings-row-controls flex min-w-0 flex-wrap items-center gap-2">
+        {children}
+        {hint ? <span className="settings-row-hint text-xs text-muted">{hint}</span> : null}
       </div>
-      <div className="settings-row-controls flex min-w-0 flex-wrap items-center gap-2">{children}</div>
       {below ? <div className="settings-row-below">{below}</div> : null}
     </div>
   );
@@ -599,14 +582,12 @@ function FontSettingRow({
   kind,
   value,
   onChange,
-  preview,
 }: {
   label: string;
   hint: string;
   kind: FontKind;
   value: string;
   onChange: (value: string) => void;
-  preview: ReactNode;
 }) {
   const options = fontOptions(kind);
   const [customMode, setCustomMode] = useState(() => !isPresetFont(value, kind));
@@ -648,9 +629,7 @@ function FontSettingRow({
     <SettingRow
       label={label}
       hint={hint}
-      below={
-        <>
-          {customMode && panelOpen ? (
+      below={customMode && panelOpen ? (
             <div className="motion-axis-y-in">
               <FontListPanel
                 kind={kind}
@@ -660,9 +639,6 @@ function FontSettingRow({
               />
             </div>
           ) : null}
-          {preview}
-        </>
-      }
     >
       <Select
         aria-label={label}
@@ -707,58 +683,13 @@ function FontSettingRow({
   );
 }
 
-/**
- * 界面字体场景预览：一个迷你侧栏项 + 一个机柜分组的主机行。
- * 纯展示，不可点、不参与 Tab 聚焦；直接继承页面当前字体，选什么就显示什么。
- */
+/** Live text inherits the selected UI and monospace font settings. */
 function SansFontPreview() {
-  return (
-    <div
-      className="flex flex-wrap items-center gap-4 rounded-control bg-raised p-3 select-none"
-      aria-hidden="true"
-    >
-      <div className="rail-item-active flex h-10 w-32 items-center rounded-control px-3 text-sm">
-        主机
-      </div>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <div className="flex h-9 items-center gap-2 px-1">
-          <span className="text-sm font-semibold text-ink">01-cdcp-main</span>
-          <span className="text-xs tabular-nums text-muted">7</span>
-        </div>
-        <div className="flex h-10 items-center gap-2.5 rounded-control bg-surface px-2">
-          <DistroBadge boxSize={22} osRelease="Ubuntu 22.04.5 LTS" />
-          <span className="text-ink">cdcp-main</span>
-        </div>
-      </div>
-    </div>
-  );
+  return <span className="settings-font-sans">示例文字 Aa 123</span>;
 }
 
-/**
- * 等宽字体场景预览：两行迷你表格（IP:端口 / 版本 / CPU / 路径）看数字是否对齐，
- * 外加两行配置片段看路径与符号是否清楚。走 font-mono，跟随 --app-font-mono。
- */
 function MonoFontPreview() {
-  return (
-    <div
-      className="flex flex-col gap-3 rounded-control bg-raised p-3 select-none"
-      aria-hidden="true"
-    >
-      <div className="grid grid-cols-[auto_auto_auto_1fr] gap-x-4 gap-y-1 font-mono text-sm text-ink tabular-nums">
-        <span>192.168.10.34:22</span>
-        <span>22.04.5 LTS</span>
-        <span className="text-right">CPU 12.5%</span>
-        <span className="truncate text-muted">/etc/nginx/nginx.conf</span>
-        <span>10.0.80.17:2222</span>
-        <span>12.9</span>
-        <span className="text-right">CPU 3.8%</span>
-        <span className="truncate text-muted">/var/log/nginx/access.log</span>
-      </div>
-      <pre className="m-0 rounded-control bg-graphite p-2 font-mono text-sm text-graphite-text">
-        {"Host cdcp-main\n  HostName 192.168.10.34"}
-      </pre>
-    </div>
-  );
+  return <span className="font-mono">127.0.0.1:22 · /etc/nginx/nginx.conf</span>;
 }
 
 function ShortcutKeys({ keys }: { keys: string[] }) {
