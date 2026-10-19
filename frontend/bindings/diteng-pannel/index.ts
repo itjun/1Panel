@@ -63,6 +63,7 @@ export type {
     HostIcon,
     HostOverviewSnapshot,
     ImportResult,
+    LaunchAtLoginState,
     LocalTextCheck,
     MenuCheckResult,
     PanelBackup,

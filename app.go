@@ -65,6 +65,7 @@ type App struct {
 	menuCheckStore          *menucheck.Store
 	speedTest               *speedtest.Service
 	updates                 *updateController
+	launchAtLogin           *launchAtLoginManager
 	panelConfigMu           sync.Mutex
 	panelConfigStop         chan struct{}
 	panelPreviews           map[string]panelConfigPreviewRecord
@@ -193,6 +194,18 @@ func NewApp() *application.App {
 	})
 	core.speedTest = core.newSpeedTest()
 	core.updates = newUpdateController(core)
+	core.launchAtLogin = &launchAtLoginManager{path: launchAtLoginPath()}
+	switch {
+	case !application.System.IsDesktop():
+		core.launchAtLogin.reason = "当前运行环境不支持开机启动"
+	case app.Env.Info().Debug:
+		core.launchAtLogin.reason = "开发预览不注册开机启动，请在正式应用中设置"
+	default:
+		core.launchAtLogin.startup = app.Autostart
+		if err := core.launchAtLogin.initialize(); err != nil {
+			app.Logger.Error("初始化开机启动失败", "error", err)
+		}
+	}
 	desktop.SetService(ns)
 	initAskBeforeQuit()
 

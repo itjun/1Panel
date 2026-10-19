@@ -68,6 +68,10 @@ export function GetBoardHTTPConfig(): $CancellablePromise<$models.BoardHTTPConfi
     return $Call.ByID(2985159029);
 }
 
+export function GetLaunchAtLoginState(): $CancellablePromise<$models.LaunchAtLoginState> {
+    return $Call.ByID(1768464929);
+}
+
 /**
  * GetMyEgress 查询本机出口公网 IP 与归属地（来自 myip.ipip.net）
  * 用于设置页本机信息。不依赖任何主机。
@@ -191,6 +195,10 @@ export function SetAskBeforeQuit(ask: boolean): $CancellablePromise<void> {
  */
 export function SetBoardHTTPConfig(cfg: $models.BoardHTTPConfig): $CancellablePromise<void> {
     return $Call.ByID(919152713, cfg);
+}
+
+export function SetLaunchAtLogin(enabled: boolean): $CancellablePromise<$models.LaunchAtLoginState> {
+    return $Call.ByID(1144711392, enabled);
 }
 
 /**

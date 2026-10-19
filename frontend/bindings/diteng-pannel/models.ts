@@ -387,6 +387,12 @@ export interface ImportResult {
     "droppedOptions": string[] | null;
 }
 
+export interface LaunchAtLoginState {
+    "enabled": boolean;
+    "supported": boolean;
+    "reason": string;
+}
+
 /**
  * LocalTextCheck 单个本地文件的编码检测结果（上传前编码检查弹窗用）
  */
