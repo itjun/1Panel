@@ -25,6 +25,13 @@
   - macOS：设置里可选择本机已安装的 1Agent、官方 Ghostty、官方 Otty 或系统「终端」。只有一个可用时固定使用它。1Agent 经 `oneagent://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
   - Windows：可选择已安装的 Windows Terminal 或 PowerShell；只有一个可用时固定使用它。Windows Terminal 支持最近窗口新标签页或新窗口，由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；OpenSSH 缺失时给出安装指引
 
+## 文档
+
+- [完整文档索引](docs/README.md)
+- [项目术语](docs/glossary.md)
+- [视觉与交互规范](docs/design/specification.md) 与 [各功能验收记录](docs/design/README.md)
+- [发布与应用更新](docs/release-and-update.html)
+
 ## 开发
 
 依赖：Go 1.27+、Node 22+（Vite 8 要求）、Wails v3 CLI 与 task CLI。
@@ -37,13 +44,16 @@ go install github.com/go-task/task/v3/cmd/task@latest
 # 开发模式（热重载）
 task dev
 
+# 一键重新构建、打包、安装并启动（在仓库根目录运行）
+python3 build.py
+
 # 构建 + 打包 .app（macOS 只发布 arm64）
 task darwin:package
 ```
 
 > **版本对齐**：Wails CLI（`wails3`）、`go.mod` 中的 `github.com/wailsapp/wails/v3`、前端 `@wailsio/runtime` 必须同一版本（当前以 `go.mod` 为准）。不要自行升 beta；漂移时用 `task wails:check` 检查。
 
-构建产物：`build/bin/1Panel.app`（macOS）/ `build/bin/1Panel.exe`（Windows）。
+构建产物：`bin/1Panel.app`（macOS）/ `bin/1Panel.exe`（Windows）/ `bin/1Panel`（Linux）。
 
 ## 分发
 
@@ -114,6 +124,11 @@ task darwin:package
 .
 ├── main.go                       # Wails v3 应用入口
 ├── assets.go                     # 嵌入前端、图标、初始化脚本与安装包，传入应用层
+├── build.py                      # 一键构建、打包、安装并启动
+├── docs/
+│   ├── README.md                 # 完整文档索引
+│   ├── glossary.md               # 项目术语
+│   └── design/                   # 设计规范及按功能归档的验收记录
 ├── internal/
 │   ├── app/                      # 桌面应用层及对应测试（package app）
 │   │   ├── app.go                # 共享状态、窗口/菜单/拖放/功能装配

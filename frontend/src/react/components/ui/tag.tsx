@@ -2,7 +2,7 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { cn } from "@/react/lib/utils";
 
 /**
- * 小标签 / 状态胶囊（DESIGN.md §8.2）：--radius-tag 3px、高 20px、12px 字，
+ * 小标签 / 状态胶囊（docs/design/specification.md §8.2）：--radius-tag 3px、高 20px、12px 字，
  * 浅底 + 对应功能文字色，无描边。颜色只表达状态，装饰性用途一律 neutral。
  */
 

@@ -1,5 +1,5 @@
 /**
- * 平台判断的唯一出口（DESIGN.md §8.2 / §10.4）。
+ * 平台判断的唯一出口（docs/design/specification.md §8.2 / §10.4）。
  * 业务代码禁止再直接读 navigator.platform / userAgent，统一从这里引入。
  */
 

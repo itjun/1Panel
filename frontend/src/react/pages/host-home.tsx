@@ -1190,7 +1190,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         <span className="ml-auto truncate text-xs text-muted tabular-nums">{summaryText}</span>
       </div>
 
-      {/* 内容区左右下 16px 安全边距（顶部由工具行下内边距承担）；分组为机柜式块，按用户自定义的排纵向堆叠（DESIGN.md §9）。
+      {/* 内容区左右下 16px 安全边距（顶部由工具行下内边距承担）；分组为机柜式块，按用户自定义的排纵向堆叠（docs/design/specification.md §9）。
           整块禁选：拖动超过阈值前浏览器已开始划选文字，事后再禁选清不掉选区 */}
       <div
         ref={scrollRef}
@@ -1350,7 +1350,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               for (const name of hosts) session.openHost(name);
             }}
           />
-          {/* 「打开」沿用当前横向标签（DESIGN.md §4.6 功能维度全局），文件 / 监控为指定标签的快捷入口 */}
+          {/* 「打开」沿用当前横向标签（docs/design/specification.md §4.6 功能维度全局），文件 / 监控为指定标签的快捷入口 */}
           <MenuItem
             label="打开文件"
             onClick={() => {

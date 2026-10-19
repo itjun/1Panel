@@ -1,8 +1,8 @@
-# Diteng Panel
+# 1Panel 术语
 
 桌面端主机管理面板：按分组管理 SSH 主机，采集概览指标，并支持投屏向的看板展示。
 
-## Language
+## 术语
 
 ### 主机与分组
 
@@ -41,7 +41,7 @@ _Avoid_: 全局通知、默认全开
 _Avoid_: 当成连接失败
 
 **Agent 运行方式**:
-安装时按目标主机自动选择：PID 1 为 systemd 时用 systemd 方式（unit + cgroup 硬限制）；否则用守护进程方式（`spanel-agent-ctl` 守护循环，SSH 断开不停、退出自动重启，无硬资源限制）。详见 `docs/agent-deployment.md`。
+安装时按目标主机自动选择：PID 1 为 systemd 时用 systemd 方式（unit + cgroup 硬限制）；否则用守护进程方式（`spanel-agent-ctl` 守护循环，SSH 断开不停、退出自动重启，无硬资源限制）。详见 [Agent 部署说明](agent-deployment.md)。
 _Avoid_: 「容器不支持」、nohup 模式（口语）
 
 **监控**:

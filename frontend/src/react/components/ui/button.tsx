@@ -8,7 +8,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        /* 主操作才用 primary，字重 600；其余 400（DESIGN.md §3.3 只用 400 / 600） */
+        /* 主操作才用 primary，字重 600；其余 400（docs/design/specification.md §3.3 只用 400 / 600） */
         primary:
           "bg-accent font-semibold text-white hover:bg-accent-hover active:bg-accent-active",
         secondary: "bg-raised text-ink hover:bg-line",

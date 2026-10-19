@@ -2,18 +2,20 @@
 
 final result: passed
 
+相关记录：[设计规范](../specification.md)、[完整备份与恢复原生实测](backup-restore-verification.md)。
+
 ## 视觉目标与实现
 
-- 用户选择的第 3 张效果图：[reference.png](docs/design/config-data/reference.png)。
-- 实现截图：[implementation.png](docs/design/config-data/implementation.png)。
-- 完整并排比较：[comparison-final.png](docs/design/config-data/comparison-final.png)，左侧为设计，右侧为实现。
-- 局部比较：[comparison-detail.png](docs/design/config-data/comparison-detail.png)，上方为设计，下方为实现。
+- 用户选择的第 3 张效果图：[reference.png](reference.png)。
+- 实现截图：[implementation.png](implementation.png)。
+- 完整并排比较：[comparison-final.png](comparison-final.png)，左侧为设计，右侧为实现。
+- 局部比较：[comparison-detail.png](comparison-detail.png)，上方为设计，下方为实现。
 - 参考像素：1583 × 994。最终浏览器视口与截图：1583 × 994 CSS/图像像素，密度 1。最初截图为 1583 × 995，比较时仅将高度归一化到 994。
 - 状态：浅色、配置模块、首条备份展开恢复预览。浏览器使用可控模拟数据；磁盘备份与恢复由 Go 集成测试独立验证。
 
 ## 比较历史
 
-1. 第一轮：[comparison-initial.png](docs/design/config-data/comparison-initial.png)。发现 P2：标题、操作按钮及正文偏小，整体左边距偏窄，信息显得过密。调整为 36px 主标题、24px 分区标题、16px 主体文字，放大备份操作按钮并调整内容边距。删除恢复预览中无须始终展示的文件计数。
+1. 第一轮：[comparison-initial.png](comparison-initial.png)。发现 P2：标题、操作按钮及正文偏小，整体左边距偏窄，信息显得过密。调整为 36px 主标题、24px 分区标题、16px 主体文字，放大备份操作按钮并调整内容边距。删除恢复预览中无须始终展示的文件计数。
 2. 第二轮：恢复确认按钮仍偏小，已调整为至少 112 × 38px。重新捕获最终实现并完成全幅与恢复预览局部比较。
 3. 最终比较：无未解决的 P0/P1/P2 差异。
 
@@ -30,9 +32,9 @@ final result: passed
 - 新备份成功后列表刷新；取消操作不会提交恢复。
 - 本地备份展开/收起；选择外部文件后先展示恢复预览。
 - 确认恢复提交备份路径、预览校验值及完整应用偏好，进入忙碌状态，阻止重复提交。
-- SSH 查看器可以在主配置与关联文件间切换；可编辑 input/textarea/contenteditable 控件数量为 0。[SSH 截图](docs/design/config-data/ssh-readonly.png)。
+- SSH 查看器可以在主配置与关联文件间切换；可编辑 input/textarea/contenteditable 控件数量为 0。[SSH 截图](ssh-readonly.png)。
 - 当前应用配置只读显示，密码为掩码。
-- [窄窗口截图](docs/design/config-data/narrow.png)：文字换行、按钮可达，保持纵向滚动。
+- [窄窗口截图](narrow.png)：文字换行、按钮可达，保持纵向滚动。
 - 浏览器控制台没有应用错误。原生系统文件对话框与真实进程重启未在浏览器中冒充执行。
 
 ## 数据验证
@@ -62,20 +64,3 @@ final result: passed
 ## 后续微调
 
 无阻塞项。浏览器不显示 macOS 原生红绿灯，一级导航尺寸沿用仓库现有应用外壳，这是运行环境与既有规范的有意差异。
-
-## 通知中心独立侧栏页面（2026-10-19）
-
-final result: passed
-
-主机系统采用“消息记录 / 主机订阅 / 告警规则”，应用服务采用“消息记录 / 应用订阅 / 告警规则”。证书提醒与共享发送渠道分别保留独立入口。订阅与规则没有标签页，也没有并排编辑区。
-
-完整证据与验证边界见 [通知中心验收记录](docs/design/notification-center/design-qa.md)。[最终订阅对照](docs/design/notification-center/comparison-subscriptions-final.png) 和 [规则局部对照](docs/design/notification-center/comparison-focused.png) 已打开比较，修正选中文字颜色及长列表定位卷走页头两个 P2 问题。原生应用验证、900×700 窄窗与暗色隔离验证、类型检查、通知分类及证书测试、构建和壳层检查通过。Windows/Linux 实机及企业微信真实发送未在本轮执行。
-
-
-## 2026-10-19 设置页实现验收
-
-- final result: passed
-- 详细记录：[设置页设计验收](docs/design/settings/design-qa.md)。
-- 确认稿与实现组合证据：[完整对照](docs/design/settings/comparison.png)、[外观与字体对照](docs/design/settings/appearance-comparison.png)。
-- 保留原有设置功能，按运行系统显示快捷键、字体与材质能力；六个模块连续滚动，目录按阅读位置跟随。
-- 类型检查、生产构建、壳检查、13 项前端针对性测试与窗口材质相关 Go 测试通过。Windows/Linux 已验证前端分支，原生实机外观尚未验证。

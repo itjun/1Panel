@@ -1,5 +1,5 @@
 /**
- * 首页机柜分组排布的纯逻辑（DESIGN.md §9）：
+ * 首页机柜分组排布的纯逻辑（docs/design/specification.md §9）：
  * 布局是「每排若干分组 id」的二维数组，持久化在 UI 偏好 hostHomeRows。
  */
 

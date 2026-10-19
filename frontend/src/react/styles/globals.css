@@ -3,8 +3,8 @@
 /* static：Tailwind 4 默认只输出被工具类引用到的变量，这里的 token 还会被
    JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
 @theme static {
-  /* 机柜面板规范 DESIGN.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态与健康档占用（Meter 正常段 / 占用曲线正常档） */
-  /* 一级图标栏（DESIGN.md §4.1）：比 canvas 深一档；12px muted 文字在上面 4.57:1 */
+  /* 机柜面板规范 docs/design/specification.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态与健康档占用（Meter 正常段 / 占用曲线正常档） */
+  /* 一级图标栏（docs/design/specification.md §4.1）：比 canvas 深一档；12px muted 文字在上面 4.57:1 */
   --color-rail: #eaebee;
   --color-canvas: #f2f3f5;
   --color-surface: #ffffff;
@@ -38,7 +38,7 @@
      不分明暗模式，始终半透明黑，明暗共用此值。一律用 bg-scrim，
      禁止黑色加透明度修饰符（会生成 color-mix） */
   --color-scrim: rgba(0, 0, 0, 0.6);
-  /* 文字提示（Tooltip，DESIGN.md §8.2）：亮色下深底浅字，暗色下反过来 */
+  /* 文字提示（Tooltip，docs/design/specification.md §8.2）：亮色下深底浅字，暗色下反过来 */
   --color-tooltip: #1f2937;
   --color-tooltip-text: #ffffff;
   /* 功能色：danger / warn / info 为可作正文的加深档，surface 上 ≥4.5；
@@ -60,29 +60,29 @@
   --color-io-write: #f08a24;
   --color-chart-2: #1d8cf8;
   --color-chart-3: #f08a24;
-  /* LED 分段条（DESIGN.md §4.7）：正常 / ≥60% / ≥85% / 未亮格；正常档健康绿与 --color-success 同源，
+  /* LED 分段条（docs/design/specification.md §4.7）：正常 / ≥60% / ≥85% / 未亮格；正常档健康绿与 --color-success 同源，
      三档对齐行业监控惯例（Grafana / htop：正常绿、警告橙、危险红），2026-10-03 定案 */
   --meter-ok: #2ba471;
   --meter-warn: #f08a24;
   --meter-danger: #d54941;
   --meter-off: #e5e7eb;
-  /* 圆角四档（DESIGN.md §4.3）：浮层 6 / 表面 0（扁平化）/ 控件 4 / 标签 3 */
+  /* 圆角四档（docs/design/specification.md §4.3）：浮层 6 / 表面 0（扁平化）/ 控件 4 / 标签 3 */
   --radius-panel: 6px;
   --radius-surface: 0;
   --radius-control: 4px;
   --radius-tag: 3px;
   /* 网格内同类单元之间（监控图表、巡检格、左右分栏） */
   --gap-card: 8px;
-  /* 首页主机列表机柜式分组的最小列宽（DESIGN.md §9） */
+  /* 首页主机列表机柜式分组的最小列宽（docs/design/specification.md §9） */
   --host-rack-column: 280px;
-  /* 区块与区块之间（DESIGN.md §4.1）：Tailwind gap-section / space-y-section */
+  /* 区块与区块之间（docs/design/specification.md §4.1）：Tailwind gap-section / space-y-section */
   --spacing-section: 24px;
   --gap-section: 24px;
-  /* 表格行高 / 表头高（DESIGN.md §4.4）：h-table-row / h-table-head，
+  /* 表格行高 / 表头高（docs/design/specification.md §4.4）：h-table-row / h-table-head，
      业务里的虚拟表常量须与此同源 */
   --spacing-table-row: 40px;
   --spacing-table-head: 36px;
-  /* 系统字体栈（DESIGN.md §3.1）：Mac 排最前，英文 / 数字走 SF、中文落到苹方；
+  /* 系统字体栈（docs/design/specification.md §3.1）：Mac 排最前，英文 / 数字走 SF、中文落到苹方；
      Windows 走 Segoe UI + 微软雅黑，Linux 走 Noto Sans CJK / 文泉驿。三端字形不同是有意为之。 */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
     "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", "WenQuanYi Micro Hei",
@@ -100,7 +100,7 @@
     "Noto Sans Mono CJK SC",
     monospace
   );
-  /* 动效（DESIGN.md §5）· 桌面端固定时值与缓动 */
+  /* 动效（docs/design/specification.md §5）· 桌面端固定时值与缓动 */
   --duration-base: 200ms;
   --duration-moderate: 240ms;
   --duration-slow: 280ms;
@@ -109,14 +109,14 @@
   --ease-in: cubic-bezier(0.82, 0, 1, 0.9);
 }
 
-/* 零阴影（DESIGN.md §2.5）：清空 Tailwind 阴影命名空间，shadow-sm / shadow-lg 等类不再生成 */
+/* 零阴影（docs/design/specification.md §2.5）：清空 Tailwind 阴影命名空间，shadow-sm / shadow-lg 等类不再生成 */
 @theme {
   --shadow-*: initial;
   --inset-shadow-*: initial;
   --drop-shadow-*: initial;
 }
 
-/* 机柜面板规范 DESIGN.md §2.2 暗色：同一块面板关灯后的样子，层级与亮色一致。
+/* 机柜面板规范 docs/design/specification.md §2.2 暗色：同一块面板关灯后的样子，层级与亮色一致。
    灰阶保留原有蓝黑调，不随亮色壳层中性化（2026-09-30 定案） */
 html.dark {
   --color-rail: #0d1017;
@@ -212,7 +212,7 @@ html.dark {
     color: var(--color-ink);
   }
 
-  /* 三端统一 8px 细滚动条（DESIGN.md §4.5）：轨道透明、滑块 line、hover 加深到 muted。
+  /* 三端统一 8px 细滚动条（docs/design/specification.md §4.5）：轨道透明、滑块 line、hover 加深到 muted。
      xterm 有自己的滚动条实现，整棵子树排除。 */
   :is(.react-root, .react-popup) *:not(.xterm):not(.xterm *) {
     scrollbar-width: thin;
@@ -237,7 +237,7 @@ html.dark {
     background: var(--color-muted);
   }
 
-  /* Linux frameless 无系统阴影，窗口外补 1px line 描边区分桌面（DESIGN.md §4.1）。
+  /* Linux frameless 无系统阴影，窗口外补 1px line 描边区分桌面（docs/design/specification.md §4.1）。
      用 outline 而非 inset box-shadow：outline 画在子元素之上，顶栏 / 侧栏的实色底盖不住它。 */
   .react-root[data-os="linux"] {
     outline: 1px solid var(--color-line);
@@ -290,7 +290,7 @@ pre,
   -webkit-user-select: auto;
 }
 
-/* 壳 chrome（DESIGN.md §4.1）：顶栏 + 侧栏是一整片 canvas 外框，内容区是一整块 surface 平面，
+/* 壳 chrome（docs/design/specification.md §4.1）：顶栏 + 侧栏是一整片 canvas 外框，内容区是一整块 surface 平面，
    两者之间不画分隔线，只靠色块区分。经典模式为实色，云母仅改变壳层背景。
    用 background-color，不要用 background 简写。 */
 .glass-chrome,
@@ -398,7 +398,7 @@ html.dark[data-window-material="mica"] .module-rail {
   overscroll-behavior: contain;
 }
 
-/* 区块表面（DESIGN.md §8.1）：扁平化后与内容平面同色，无描边、无圆角、无阴影，卡片自然消失。
+/* 区块表面（docs/design/specification.md §8.1）：扁平化后与内容平面同色，无描边、无圆角、无阴影，卡片自然消失。
    需要裁切内容时再加 overflow-hidden（表格/列表）。 */
 .surface-float {
   border-radius: var(--radius-surface);
@@ -409,7 +409,7 @@ html.dark[data-window-material="mica"] .module-rail {
   gap: var(--gap-card);
 }
 
-/* 首页主机列表「机柜式分组」（DESIGN.md §9）：用户自定义的若干排纵向堆叠（排间 gap-section），
+/* 首页主机列表「机柜式分组」（docs/design/specification.md §9）：用户自定义的若干排纵向堆叠（排间 gap-section），
    排内分组块定宽、从左到右、顶部对齐，过多时排内折行，绝不横向滚动 */
 .host-rack-lane {
   position: relative;
@@ -657,7 +657,7 @@ html.dark[data-window-material="mica"] .module-rail {
   font-weight: 600;
 }
 
-/* 一级图标栏（DESIGN.md §4.1 / §8.2）：72px 通顶，比 canvas 深一档 */
+/* 一级图标栏（docs/design/specification.md §4.1 / §8.2）：72px 通顶，比 canvas 深一档 */
 .module-rail {
   width: 72px;
   min-width: 72px;
@@ -759,7 +759,7 @@ html.dark[data-window-material="mica"] .module-rail {
   -webkit-user-select: auto;
 }
 
-/* ---------- 动效工具类（机柜面板规范 DESIGN.md §5） ---------- */
+/* ---------- 动效工具类（机柜面板规范 docs/design/specification.md §5） ---------- */
 
 @keyframes motion-fade-in {
   from {
@@ -958,7 +958,7 @@ html.dark[data-window-material="mica"] .module-rail {
     opacity var(--duration-base) var(--ease-standard);
 }
 
-/* 输入框（填充式，DESIGN.md §8.2）：平时 raised 底 + 透明边框；
+/* 输入框（填充式，docs/design/specification.md §8.2）：平时 raised 底 + 透明边框；
    悬停显 line 边，聚焦换主色边、铺 surface 底并加 2px 焦点环。 */
 .motion-field {
   position: relative;
@@ -1097,7 +1097,7 @@ html.dark[data-window-material="mica"] .module-rail {
   }
 }
 
-/* ---------- LED 分段条 Meter（DESIGN.md §4.7，组件 components/ui/meter.tsx） ----------
+/* ---------- LED 分段条 Meter（docs/design/specification.md §4.7，组件 components/ui/meter.tsx） ----------
    格 4px 高（--meter-cell-h）、间隔 2px、圆角 1px；颜色由组件按 --meter-* 内联写入。
    不做逐格点亮 / 呼吸等动画，只允许亮格颜色在数值变化时用 --duration-base 过渡。 */
 .meter {

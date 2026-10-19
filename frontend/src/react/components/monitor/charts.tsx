@@ -132,7 +132,7 @@ export function lineOption(
     color: colors,
     visualMap: visualMap.length ? visualMap : undefined,
     grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
-    // 扁平浮层：surface 底 + 1px line 描边，无阴影（DESIGN.md §8.1）
+    // 扁平浮层：surface 底 + 1px line 描边，无阴影（docs/design/specification.md §8.1）
     tooltip: {
       trigger: "axis",
       backgroundColor: surface,

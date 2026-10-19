@@ -143,7 +143,7 @@ export function useAnchorPosition(
  *
  * - 挂到 document.body，按触发器位置定位在下方 4px；下方空间不够时翻到上方。
  * - 点浮层外部、按 Esc 关闭；关闭后焦点还给触发器。
- * - 外观按 DESIGN.md §8.1：surface 底 + 1px line 描边 + panel 圆角，无阴影。
+ * - 外观按 docs/design/specification.md §8.1：surface 底 + 1px line 描边 + panel 圆角，无阴影。
  */
 export function Popup({
   open,

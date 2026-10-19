@@ -98,7 +98,7 @@ function ListenScopeTag({ scope }: { scope: ListenScope }) {
 type ColumnHeader = {
   key: string;
   label: string;
-  /** 数值列右对齐（DESIGN.md §4.4） */
+  /** 数值列右对齐（docs/design/specification.md §4.4） */
   align?: "right";
   /** 地址、MAC 等需要纵向对齐的列用等宽字体 */
   mono?: boolean;

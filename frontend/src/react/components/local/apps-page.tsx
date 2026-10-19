@@ -860,7 +860,7 @@ export function LocalAppsPage() {
                     <div className="max-h-[min(46vh,560px)] overflow-auto">
                       {(resourcesQuery.data?.resources || []).length ? (
                         <table className="w-full min-w-[560px] text-left text-xs">
-                          {/* 详情弹窗内的资源 / 线程子表：数据量大且嵌在弹窗里，按 DESIGN.md §9 超高密特例用 32px 行 */}
+                          {/* 详情弹窗内的资源 / 线程子表：数据量大且嵌在弹窗里，按 docs/design/specification.md §9 超高密特例用 32px 行 */}
                           <thead className="sticky top-0 z-10 whitespace-nowrap bg-surface font-normal text-muted">
                             <tr className="h-8 border-b border-line">
                               <th className="w-10 px-2 text-center">序</th>

@@ -38,7 +38,7 @@ export function Page({
 }) {
   useRegisterPageRefresh(onRefresh, refreshing);
   // 主机页：通栏被功能标签占用，标题由标签高亮代替；其余页标题仍上通栏。
-  // 操作按钮全站一律下沉为内容区顶部的页内工具行，不上通栏（DESIGN.md §4.6，2026-10-05 起本机等非主机页同规则）
+  // 操作按钮全站一律下沉为内容区顶部的页内工具行，不上通栏（docs/design/specification.md §4.6，2026-10-05 起本机等非主机页同规则）
   const hostWorkspace = useIsHostWorkspace();
   const session = useSession();
   const workspaceLabel = session.settingsOpen ? "设置" : ({remote: "主机", local: "本机", config: "配置", notify: "通知", speedtest: "测速", inspect: "巡检"} as const)[session.workspace];
@@ -77,7 +77,7 @@ export function Page({
         className={cn(
           "uiux-page-content content-float flex min-w-0 flex-1 flex-col",
           dark && "bg-graphite text-graphite-text",
-          /* 默认内容区四周 16px 安全边距，子元素间隙走 --gap-card；区块分段由页面用 gap-section（DESIGN.md §4.1 / §4.2） */
+          /* 默认内容区四周 16px 安全边距，子元素间隙走 --gap-card；区块分段由页面用 gap-section（docs/design/specification.md §4.1 / §4.2） */
           padded && "gap-card p-4",
           scrollLabel && "outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
         )}
@@ -135,7 +135,7 @@ function NoticeIcon({ tone }: { tone: NoticeTone }) {
   );
 }
 
-/** 页面提示条，视觉按 TDesign Alert（DESIGN.md §8.2）。
+/** 页面提示条，视觉按 TDesign Alert（docs/design/specification.md §8.2）。
  *  warning 只用于常驻的状态说明（如「未检测到…」）或需用户处理的事项；操作结果用 FlashNotices。 */
 export function Notice({
   text,
@@ -202,7 +202,7 @@ function useToolbarBottom(): number {
 
 /**
  * 渲染 useFlashMessage 的错误 / 待处理 / 成功提示条；三者互斥，同一时刻最多一条。
- * 浮层不占位，层级压过对话框遮罩（DESIGN.md §9「操作提示条浮层」）。
+ * 浮层不占位，层级压过对话框遮罩（docs/design/specification.md §9「操作提示条浮层」）。
  */
 export function FlashNotices({ flash }: { flash: FlashMessage }) {
   const top = useToolbarBottom();

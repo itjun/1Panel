@@ -1,5 +1,5 @@
 /**
- * ModuleRail — 一级图标栏（DESIGN.md §4.1 / §8.2）：72px 通顶，图标 + 下方小字，设置置底。
+ * ModuleRail — 一级图标栏（docs/design/specification.md §4.1 / §8.2）：72px 通顶，图标 + 下方小字，设置置底。
  */
 
 import { Events } from "@wailsio/runtime";

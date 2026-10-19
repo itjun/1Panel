@@ -530,7 +530,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (!hostName) return;
         setNav((prev) => {
           const existing = prev.openedHosts.find((item) => item.name === hostName);
-          // 功能维度全局：切主机沿用当前功能，不回跳到该主机上次的功能（DESIGN.md §4.6）
+          // 功能维度全局：切主机沿用当前功能，不回跳到该主机上次的功能（docs/design/specification.md §4.6）
           const nextTool = tool || prev.activeTool || "overview";
           let openedHosts: OpenedHost[];
           if (existing) {

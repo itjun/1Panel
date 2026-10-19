@@ -1,4 +1,4 @@
-/** 资源占用三档阈值（DESIGN.md §4.7）：<60 ok，60–85 warn，≥85 danger。圆环、Meter、监控曲线共用 */
+/** 资源占用三档阈值（docs/design/specification.md §4.7）：<60 ok，60–85 warn，≥85 danger。圆环、Meter、监控曲线共用 */
 export const USAGE_WARN = 60;
 export const USAGE_DANGER = 85;
 

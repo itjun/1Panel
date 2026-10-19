@@ -2,7 +2,7 @@ import { usageTone, type UsageTone } from "@/react/lib/usage-tone";
 import { cn } from "@/react/lib/utils";
 
 /**
- * LED 分段条（DESIGN.md §4.7）：所有「资源占比」统一用它，不再用细线进度条。
+ * LED 分段条（docs/design/specification.md §4.7）：所有「资源占比」统一用它，不再用细线进度条。
  * 8 格 4px 高、间隔 2px、圆角 1px；亮格颜色只走 --meter-ok / warn / danger，
  * 未亮格 --meter-off。无动画（颜色过渡走 .meter-cell 的 motion token）。
  */

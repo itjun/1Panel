@@ -43,7 +43,7 @@ export function DataTable<T extends Record<string, unknown>>({
   return (
     <div className="uiux-data-table surface-float min-w-0 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
-        {/* 表头无底色，只留下方 1px line（DESIGN.md §4.4） */}
+        {/* 表头无底色，只留下方 1px line（docs/design/specification.md §4.4） */}
         <thead className="text-xs font-normal text-muted">
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id} className="h-table-head border-b border-line">

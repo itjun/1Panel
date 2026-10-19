@@ -54,7 +54,7 @@ const highlighting = HighlightStyle.define([
   { tag: [tags.punctuation, tags.operator], color: "#f8f8f2" },
 ]);
 
-/* 代码区走独立石墨面（DESIGN.md §8.1），底色 / 文字读 graphite token；
+/* 代码区走独立石墨面（docs/design/specification.md §8.1），底色 / 文字读 graphite token；
    行号、当前行等编辑器主题色按规范例外保留硬编码。 */
 const theme = EditorView.theme(
   {

@@ -1,6 +1,6 @@
 /* 本机页共享样式：环图、高亮代码。分区占比一律走共享 <Meter>，不再有细线进度条 */
 
-/* 环图直接落在内容平面上，不再垫 raised 色块：远程概览里它本身就在卡片中，再垫一层就成了卡片套卡片（DESIGN.md §2.5） */
+/* 环图直接落在内容平面上，不再垫 raised 色块：远程概览里它本身就在卡片中，再垫一层就成了卡片套卡片（docs/design/specification.md §2.5） */
 .local-ring {
   display: flex;
   flex-direction: column;
@@ -169,7 +169,7 @@
 }
 
 /* Monokai 语法高亮：固定深底配色，不随浅色主题切换。
-   属 DESIGN.md §2.5 / §8.1 允许的「编辑器主题」例外，色值不走 token */
+   属 docs/design/specification.md §2.5 / §8.1 允许的「编辑器主题」例外，色值不走 token */
 .local-code-pre .hljs-comment,
 .local-code-pre .hljs-quote {
   color: #75715e;

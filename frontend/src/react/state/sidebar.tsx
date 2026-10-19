@@ -15,7 +15,7 @@ import {
 const SIDEBAR_OPEN_KEY = "1pannel-sidebar-open";
 const SIDEBAR_WIDTH_KEY = "1pannel-sidebar-width";
 
-/** 二级栏默认宽度：三端统一 200px（DESIGN.md §4.1 / §9），不含左侧 72px 一级图标栏。 */
+/** 二级栏默认宽度：三端统一 200px（docs/design/specification.md §4.1 / §9），不含左侧 72px 一级图标栏。 */
 export function defaultSidebarWidth(): number {
   return 200;
 }

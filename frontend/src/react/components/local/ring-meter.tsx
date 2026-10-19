@@ -3,7 +3,7 @@ import { Meter } from "@/react/components/ui/meter";
 import { usageTone, type UsageTone } from "@/react/lib/usage-tone";
 import "./local.css";
 
-/** 环色档位与 Meter 同阈值（DESIGN.md §4.7）；danger 入参强制危险档 */
+/** 环色档位与 Meter 同阈值（docs/design/specification.md §4.7）；danger 入参强制危险档 */
 function ringTone(pct: number, danger: boolean): UsageTone {
   if (danger) return "danger";
   return usageTone(pct);

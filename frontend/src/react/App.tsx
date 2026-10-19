@@ -158,7 +158,7 @@ function Shell() {
       data-os={appOs}
       data-edit={dockMounted ? "open" : undefined}
     >
-      {/* 三段式（DESIGN.md §4.1）：72px 一级图标栏通顶，Mac 红绿灯 / Win·Linux 应用图标落在它顶部 */}
+      {/* 三段式（docs/design/specification.md §4.1）：72px 一级图标栏通顶，Mac 红绿灯 / Win·Linux 应用图标落在它顶部 */}
       <ModuleRail />
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       {/* 顶栏从图标栏右缘开始，导航钮贴着图标栏，标题/操作挂到右侧槽 */}

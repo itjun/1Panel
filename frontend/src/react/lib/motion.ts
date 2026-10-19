@@ -7,7 +7,7 @@ export const MOTION_MS = {
   slow: 280,
 } as const;
 
-/** 操作成功提示条停留时长（毫秒），到点后用 MOTION_MS.base 淡出（DESIGN.md §5.2）。 */
+/** 操作成功提示条停留时长（毫秒），到点后用 MOTION_MS.base 淡出（docs/design/specification.md §5.2）。 */
 export const TOAST_DISMISS_MS = 3000;
 
 /**

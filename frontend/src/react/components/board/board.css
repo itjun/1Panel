@@ -1,4 +1,4 @@
-/* 看板独立窗口皮肤；不作用于主窗口（机柜面板规范 DESIGN.md §8.1 / §9）
+/* 看板独立窗口皮肤；不作用于主窗口（机柜面板规范 docs/design/specification.md §8.1 / §9）
    看板深色专用面：投到大屏，亮色主题下也保持深色，所以在根元素上本地覆写一组
    --color-* 为 §2.2 暗色值（与 globals.css html.dark 同值），内部一律只引用变量。
    内容优先，品牌蓝与状态色负责活力，无装饰网格与发光。 */
@@ -6,7 +6,7 @@
 html.board-http,
 .board-mode,
 .board-dialog {
-  /* 看板深色专用面，值同 DESIGN.md §2.2 */
+  /* 看板深色专用面，值同 docs/design/specification.md §2.2 */
   --color-canvas: #12161f;
   --color-surface: #1a1f2b;
   --color-raised: #232a38;

@@ -2,6 +2,8 @@
 
 final result: passed
 
+相关记录：[设计规范](../specification.md)、[设计文档索引](../README.md)。
+
 ## 对照依据
 
 - 确认稿：`approved.png`，1583 × 994 像素。

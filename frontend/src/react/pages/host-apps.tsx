@@ -351,7 +351,7 @@ function lineOption(opts: {
         return [head, ...lines].join("<br/>");
       },
     },
-    // 图表文字同样遵守桌面端最小 12px（DESIGN.md §3.2）
+    // 图表文字同样遵守桌面端最小 12px（docs/design/specification.md §3.2）
     legend: { top: 0, right: 0, textStyle: { fontSize: 12, color: muted } },
     xAxis: {
       type: "category",
@@ -423,7 +423,7 @@ function cellPadClass(index: number) {
   return "px-3";
 }
 
-/* 服务名识别色（DESIGN.md §6 / §9）：色相跳过 70–170 绿色段 */
+/* 服务名识别色（docs/design/specification.md §6 / §9）：色相跳过 70–170 绿色段 */
 const SERVICE_HUES = [212, 18, 272, 346, 196, 32, 236, 312, 54, 290, 0, 250];
 
 function serviceNameColors(rows: { service: string }[]): Map<string, string> {

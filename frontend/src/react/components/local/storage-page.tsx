@@ -11,7 +11,7 @@ import { Notice, Page } from "@/react/components/page";
 import { formatBytesSI, formatErr } from "@/utils/format";
 import "./local.css";
 
-/* 表头统一：36px、12px 次文字、无底色 + 下方 1px line（DESIGN.md §4.4） */
+/* 表头统一：36px、12px 次文字、无底色 + 下方 1px line（docs/design/specification.md §4.4） */
 const THEAD_ROW_CLASS = "h-table-head border-b border-line text-xs font-normal text-muted";
 
 type TabId = "apps" | "tree" | "large";

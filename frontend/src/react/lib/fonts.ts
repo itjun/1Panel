@@ -1,5 +1,5 @@
 /**
- * 字体选项（DESIGN.md §3.1）：应用不再自带字体，默认用系统字体栈；
+ * 字体选项（docs/design/specification.md §3.1）：应用不再自带字体，默认用系统字体栈；
  * 设置页按当前系统（lib/platform.ts detectAppOs）只列出这个系统上有的字体。
  *
  * 值的约定：
