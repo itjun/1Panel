@@ -1,0 +1,58 @@
+{
+  "result": "passed",
+  "method": "native UI export, isolated data loss, native UI restore and automatic process restart",
+  "originalHosts": 31,
+  "originalGroups": 12,
+  "testFixtureHosts": 2,
+  "testFixtureGroups": 1,
+  "applicationFilesChecked": 744,
+  "sshFilesChecked": 18,
+  "originalSSHFilesRestored": 16,
+  "savedPreferenceKeys": 21,
+  "stablePreferencesRestored": 20,
+  "performanceTelemetryResumed": true,
+  "history": {
+    "speedtest_history.json": {
+      "same": true,
+      "records": 27,
+      "shape": "list"
+    },
+    "alert_history.v2.json": {
+      "same": true,
+      "records": 24,
+      "shape": "list"
+    },
+    "net_history.json": {
+      "same": true,
+      "records": 15,
+      "shape": "object"
+    }
+  },
+  "keyAuthentication": "passed on a loopback-only SSH fixture",
+  "passwordAuthentication": "passed on a loopback-only SSH fixture",
+  "safetyBackup": "verified empty target and changed dark settings were saved before restore",
+  "restoreAppliedBeforeStoreStartup": true,
+  "nativePreferencesAcknowledged": true,
+  "liveOriginalData": {
+    "filesChecked": 746,
+    "unchangedFiles": 745,
+    "onlyRuntimeHeartbeatChanged": true,
+    "sshFilesUnchanged": 93,
+    "settingsUnchanged": true,
+    "installedBinaryUnchanged": true,
+    "noPendingRestore": true,
+    "testSessionRemoved": true,
+    "windowDataRestored": true
+  },
+  "expectedPostRestartChanges": [
+    "panel revision/updatedAt",
+    "one new application session",
+    "window dimensions"
+  ],
+  "testSourceAdjustments": [
+    "separate bundle and single instance identities",
+    "test-only window title",
+    "isolated launcher preserving HOME and OS write guard across restart"
+  ],
+  "cleanupIncident": "Window tooling relaunched the test app once after it exited; it was stopped, its temporary session was removed by the original app heartbeat, and the window file was restored from the pretest snapshot. Final integrity checks passed."
+}
