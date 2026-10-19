@@ -195,3 +195,11 @@ final result: passed
 ### 边界与后续
 
 本轮完成本地源码和真实只读数据预览；未部署到远端、未修改服务器或数据库。Windows/Linux 原生 WebView 未现场验证。仓库原有其他改动保留，DESIGN.md 仅更新看板条目，本报告追加本节。
+
+## 2026-10-19 设置页实现验收
+
+- final result: passed
+- 详细记录：[设置页设计验收](docs/design/settings/design-qa.md)。
+- 确认稿与实现组合证据：[完整对照](docs/design/settings/comparison.png)、[外观与字体对照](docs/design/settings/appearance-comparison.png)。
+- 保留原有设置功能，按运行系统显示快捷键、字体与材质能力；六个模块连续滚动，目录按阅读位置跟随。
+- 类型检查、生产构建、壳检查、13 项前端针对性测试与窗口材质相关 Go 测试通过。Windows/Linux 已验证前端分支，原生实机外观尚未验证。
