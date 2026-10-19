@@ -2,10 +2,8 @@ import { X } from "lucide-react";
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useIsHostWorkspace } from "@/react/components/host-tool-tabs";
-import { ShellToolbarPortal } from "@/react/components/shell-toolbar";
 import type { FlashMessage } from "@/react/lib/use-flash-message";
 import { cn } from "@/react/lib/utils";
-import { useSession } from "@/react/state/session";
 import { useRegisterPageRefresh } from "@/react/state/page-refresh";
 
 export function Page({
@@ -37,11 +35,9 @@ export function Page({
   scrollLabel?: string;
 }) {
   useRegisterPageRefresh(onRefresh, refreshing);
-  // 主机页：通栏被功能标签占用，标题由标签高亮代替；其余页标题仍上通栏。
+  // 模块由侧栏高亮标识，标题只在内容区显示，不挂到窗口通栏。
   // 操作按钮全站一律下沉为内容区顶部的页内工具行，不上通栏（docs/design/specification.md §4.6，2026-10-05 起本机等非主机页同规则）
   const hostWorkspace = useIsHostWorkspace();
-  const session = useSession();
-  const workspaceLabel = session.settingsOpen ? "设置" : ({remote: "主机", local: "本机", config: "配置", notify: "通知", speedtest: "测速", inspect: "巡检"} as const)[session.workspace];
   const padded = !flush && !dark;
   const inlineTitle = heading === false ? undefined : heading || (title !== "概览" ? title : undefined);
 
@@ -62,13 +58,6 @@ export function Page({
 
   return (
     <div className="uiux-page flex h-full min-h-0 min-w-0 flex-col text-ink" data-device={hostWorkspace || undefined}>
-      {hostWorkspace ? null : (
-        <ShellToolbarPortal>
-          <div className="flex h-full w-full items-center gap-3 px-[var(--gap-card)]">
-            <span className="text-sm text-muted">{workspaceLabel}</span>
-          </div>
-        </ShellToolbarPortal>
-      )}
       {padded ? null : inlineToolbar}
       <div
         role={scrollLabel ? "region" : undefined}

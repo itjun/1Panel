@@ -734,14 +734,10 @@ html.dark[data-window-material="mica"] .module-rail {
 }
 
 /* Windows/Linux：Frameless 窗口无系统按钮，右上角由前端自绘
-   （最小化/最大化/关闭）。通栏右侧槽让出按钮宽度。
+   （最小化/最大化/关闭）。工具标签让出按钮宽度。
    data-os 区分真实平台；窗控让位对 win/linux 都生效。 */
 .react-root:is([data-os="win"], [data-os="linux"]) {
   --window-controls-inset: 124px;
-}
-
-.react-root:is([data-os="win"], [data-os="linux"]) .shell-app-toolbar-slot {
-  padding-right: var(--window-controls-inset);
 }
 
 /* 整窗通栏承担拖拽；交互控件显式 no-drag。 */

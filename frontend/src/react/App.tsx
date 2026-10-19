@@ -2,10 +2,6 @@ import "@/react/styles/workbench.css";
 import "@/react/styles/uiux.css";
 import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
 import { SidebarSplitter } from "@/react/components/sidebar-splitter";
-import {
-  ShellToolbarProvider,
-  useShellToolbarSlot,
-} from "@/react/components/shell-toolbar";
 import { HostToolTabs, useIsHostWorkspace } from "@/react/components/host-tool-tabs";
 import { useToolbarDoubleClickMaximize, WindowChrome, WindowControls } from "@/react/components/window-chrome";
 import { ModuleRail } from "@/react/components/module-rail";
@@ -51,9 +47,7 @@ export function App() {
       <SessionProvider>
         <PageRefreshProvider>
           <SidebarProvider>
-            <ShellToolbarProvider>
-              <Shell />
-            </ShellToolbarProvider>
+            <Shell />
           </SidebarProvider>
         </PageRefreshProvider>
       </SessionProvider>
@@ -67,7 +61,6 @@ function Shell() {
   const sidebar = useSidebar();
   const appOs = detectAppOs();
   const isMac = appOs === "mac";
-  const { setSlot } = useShellToolbarSlot();
   const hostWorkspace = useIsHostWorkspace();
   useToolbarDoubleClickMaximize(appOs === "linux");
   const [creating, setCreating] = useState<CreatingState | null>(null);
@@ -160,22 +153,12 @@ function Shell() {
       {/* 三段式（docs/design/specification.md §4.1）：72px 一级图标栏通顶，Mac 红绿灯 / Win·Linux 应用图标落在它顶部 */}
       <ModuleRail />
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* 顶栏从图标栏右缘开始，导航钮贴着图标栏，标题/操作挂到右侧槽 */}
+      {/* 顶栏从图标栏右缘开始，只放导航按钮、主机工具标签与窗口按钮。 */}
       <header className="shell-app-toolbar shell-toolbar drag-region relative z-30 flex shrink-0 items-center">
         <div className="pointer-events-auto relative flex h-full shrink-0 items-center">
           <WindowChrome />
         </div>
-        {hostWorkspace ? (
-          session.workspace === "local" ? (
-            <div className="toolbar-device" aria-label="当前设备 本机" title="本机">本机</div>
-          ) : (
-            <HostToolTabs />
-          )
-        ) : null}
-        <div
-          ref={setSlot}
-          className={hostWorkspace ? "hidden" : "shell-app-toolbar-slot pointer-events-auto flex h-full min-w-0 flex-1 items-center"}
-        />
+        {hostWorkspace && session.workspace !== "local" ? <HostToolTabs /> : null}
         {isMac ? null : (
           <div className="pointer-events-auto absolute top-0 right-0 flex h-full items-center pr-1">
             <WindowControls />
