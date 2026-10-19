@@ -41,6 +41,11 @@ describe("continuous settings reading position", () => {
   test("selects the final section at the scroll limit even when too short to reach the top", () => {
     expect(settingsReadingSection(sections, 1300, 700, 2000, null)).toBe("about");
   });
+  test("keeps the hovered module selected at the scroll limit", () => {
+    expect(settingsReadingSection(sections, 1300, 700, 2000, 80)).toBe("app");
+    expect(settingsReadingSection(sections, 1300, 700, 2000, 200)).toBe("shortcuts");
+    expect(settingsReadingSection(sections, 1300, 700, 2000, 500)).toBe("about");
+  });
   test("an unscrollable document uses its reading line instead of incorrectly selecting the last section", () => {
     expect(settingsReadingSection(sections, 0, 2400, 2000, null)).toBe("look");
   });
