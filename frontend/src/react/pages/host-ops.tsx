@@ -303,12 +303,9 @@ function historyTimeLabel(ts: number): string {
 
 /* ---------- 概览 ---------- */
 
-const VIRTUAL_IFACE_FOLD = 3;
-
 function OverviewPage({ host }: { host: string }) {
   const session = useSession();
   const queryClient = useQueryClient();
-  const [showAllIfaces, setShowAllIfaces] = useState(false);
   const overview = useQuery({
     queryKey: ["overview", host],
     queryFn: () => api.collectOverview(host),
@@ -394,26 +391,18 @@ function OverviewPage({ host }: { host: string }) {
   const sshAddr = hostConfig?.hostName || data?.ipAddress || "—";
   const sshPort = hostConfig?.port || "22";
 
-  const allIfaces = (network.data?.interfaces || []).filter(
-    (iface) => iface.kind !== "loopback",
-  );
-  const mainIfaces = allIfaces
-    .filter((iface) => iface.kind !== "docker" && iface.kind !== "virtual")
+  const shownIfaces = (network.data?.interfaces || [])
+    .filter((iface) => iface.kind !== "loopback")
     .sort((a, b) => {
       if (a.kind === b.kind) return 0;
       if (a.kind === "physical") return -1;
       if (b.kind === "physical") return 1;
-      return 0;
+      const aVirtual = a.kind === "docker" || a.kind === "virtual";
+      const bVirtual = b.kind === "docker" || b.kind === "virtual";
+      if (aVirtual === bVirtual) return 0;
+      if (aVirtual) return 1;
+      return -1;
     });
-  const virtualIfaces = allIfaces.filter(
-    (iface) => iface.kind === "docker" || iface.kind === "virtual",
-  );
-  let shownIfaces = [...mainIfaces, ...virtualIfaces];
-  let hiddenIfaceCount = 0;
-  if (virtualIfaces.length > VIRTUAL_IFACE_FOLD && !showAllIfaces) {
-    shownIfaces = mainIfaces;
-    hiddenIfaceCount = virtualIfaces.length;
-  }
 
   const egressIP = network.data?.egressPublicIP || (network.data?.publicIPs || []).join(", ") || "暂无数据";
 
@@ -535,9 +524,8 @@ function OverviewPage({ host }: { host: string }) {
       {agentErr ? <Notice text={agentErr} /> : null}
       <FlashNotices flash={flash} />
 
-      <HostWorkbenchSummary host={host} data={data} disks={disks.data} unavailable={collection.unavailable} sampledAt={overview.dataUpdatedAt} />
-      <details className="workbench-system" open><summary>系统与资源明细</summary>
-      <div className="mt-4 flex flex-col gap-section">
+      <HostWorkbenchSummary host={host} data={data} disks={disks.data} unavailable={collection.unavailable} sampledAt={overview.dataUpdatedAt}>
+      <div className="workbench-system">
         {data ? (
           <section>
             <div className="mb-3 text-sm font-semibold text-ink">系统</div>
@@ -637,10 +625,7 @@ function OverviewPage({ host }: { host: string }) {
           <div className="mb-3 text-sm font-semibold text-ink">网络</div>
           {network.data ? (
             <>
-              <div className="workbench-facts workbench-network-facts">
-                <OverviewFact label="内网 IP" mono>
-                  {(network.data.privateIPs || []).join(", ") || "—"}
-                </OverviewFact>
+              <div className="workbench-facts">
                 <OverviewFact label="出口公网">
                   <span className="block font-mono">{egressIP}</span>
                   {network.data.egressPublicLoc && <span className="block text-xs text-muted">{network.data.egressPublicLoc}</span>}
@@ -649,10 +634,12 @@ function OverviewPage({ host }: { host: string }) {
                   {network.data.defaultGateway || "—"}
                 </OverviewFact>
               </div>
-              <div className="workbench-secondary-facts"><span>Docker 网桥 <span className="text-ink">{(network.data.dockerIPs || []).join(", ") || "未检测到"}</span></span></div>
+              {(network.data.dockerIPs || []).length ? null : (
+                <div className="workbench-secondary-facts"><span>Docker 网桥 <span className="text-ink">未检测到</span></span></div>
+              )}
               {shownIfaces.length ? (
-                <details className="workbench-network-details mt-4" open>
-                  <summary>网卡明细（{allIfaces.length}）</summary>
+                <div className="mt-4">
+                  <div className="workbench-detail-label">网卡</div>
                   <OverviewTable
                     columns={[
                       { key: "name", label: "名称" },
@@ -683,19 +670,7 @@ function OverviewPage({ host }: { host: string }) {
                       ],
                     }))}
                   />
-              {virtualIfaces.length > VIRTUAL_IFACE_FOLD ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="mt-2"
-                  onClick={() => setShowAllIfaces((prev) => !prev)}
-                >
-                  {hiddenIfaceCount > 0
-                    ? `显示另外 ${hiddenIfaceCount} 个虚拟网卡`
-                    : "收起虚拟网卡"}
-                </Button>
-              ) : null}
-                </details>
+                </div>
               ) : null}
             </>
           ) : (
@@ -705,8 +680,7 @@ function OverviewPage({ host }: { host: string }) {
           )}
         </section>
       </div>
-
-      </details>
+      </HostWorkbenchSummary>
 
       {checkReport ? (
         <DetailPanel title="Agent 检查" onClose={() => setCheckReport(null)}>

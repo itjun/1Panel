@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { api, type monitor } from "@/api";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
@@ -26,12 +27,14 @@ export function HostWorkbenchSummary({
   disks,
   unavailable,
   sampledAt,
+  children,
 }: {
   host: string;
   data?: monitor.Overview;
   disks?: monitor.DiskInfo[];
   unavailable: boolean;
   sampledAt: number;
+  children?: ReactNode;
 }) {
   const session = useSession();
   const context = readHostFocus(host);
@@ -141,6 +144,7 @@ export function HostWorkbenchSummary({
           </div>
         ))}
       </div>
+      {children}
       <div className="workbench-section-heading">
         <h2>资源趋势</h2>
         <RangeControls
