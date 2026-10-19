@@ -109,3 +109,8 @@ internal/iperfres/bin/win64/
 # 应用内更新签名私钥：只放发布者本机与 GitHub Secret，禁止进仓库
 *.key
 update_sign.key
+
+# 通知中心本地验收资料：截图、验收记录及隔离测试入口不入库
+/docs/design/notification-center/
+/frontend/scripts/notify-qa.html
+/frontend/scripts/notify-qa.tsx
