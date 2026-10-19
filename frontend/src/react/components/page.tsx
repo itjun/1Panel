@@ -18,6 +18,7 @@ export function Page({
   onRefresh,
   refreshing = false,
   heading,
+  scrollLabel,
 }: {
   title?: string;
   actions?: ReactNode;
@@ -32,6 +33,8 @@ export function Page({
   refreshing?: boolean;
   /** 全局模块可指定内容标题；设备页默认使用工具名称。 */
   heading?: string | false;
+  /** 可选的可聚焦滚动区域，让长文档支持 PageUp / PageDown 等原生键盘滚动。 */
+  scrollLabel?: string;
 }) {
   useRegisterPageRefresh(onRefresh, refreshing);
   // 主机页：通栏被功能标签占用，标题由标签高亮代替；其余页标题仍上通栏。
@@ -68,11 +71,15 @@ export function Page({
       )}
       {padded ? null : inlineToolbar}
       <div
+        role={scrollLabel ? "region" : undefined}
+        aria-label={scrollLabel}
+        tabIndex={scrollLabel ? 0 : undefined}
         className={cn(
           "uiux-page-content content-float flex min-w-0 flex-1 flex-col",
           dark && "bg-graphite text-graphite-text",
           /* 默认内容区四周 16px 安全边距，子元素间隙走 --gap-card；区块分段由页面用 gap-section（DESIGN.md §4.1 / §4.2） */
           padded && "gap-card p-4",
+          scrollLabel && "outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
         )}
       >
         {padded ? inlineToolbar : null}

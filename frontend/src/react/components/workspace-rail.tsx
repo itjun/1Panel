@@ -13,6 +13,7 @@ import {
 } from "react";
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
+import { SettingsNavigation } from "@/react/components/settings-navigation";
 import { alertDialog } from "@/react/components/ui/confirm-dialog";
 import { cn } from "@/react/lib/utils";
 import {
@@ -20,7 +21,6 @@ import {
   useSession,
   type ConfigSection,
   type NotifySection,
-  type SettingsSection,
   type SpeedtestSection,
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
@@ -58,16 +58,6 @@ const SPEEDTEST_SECTIONS: { id: SpeedtestSection; label: string }[] = [
   { id: "pair", label: "两机测速" },
   { id: "group", label: "分组测速" },
   { id: "history", label: "历史记录" },
-];
-
-/** 设置页分区，与 SettingsPage 内区块一一对应。 */
-const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
-  { id: "look", label: "外观" },
-  { id: "session", label: "会话" },
-  { id: "board", label: "看板" },
-  { id: "app", label: "应用" },
-  { id: "shortcuts", label: "快捷键" },
-  { id: "about", label: "关于" },
 ];
 
 type GroupMenu = { id: string; x: number; y: number };
@@ -313,16 +303,7 @@ export function WorkspaceRail() {
             ))
           : null}
 
-        {listKind === "settings"
-          ? SETTINGS_SECTIONS.map((item) => (
-              <RailNavButton
-                key={item.id}
-                label={item.label}
-                active={session.settingsSection === item.id}
-                onClick={() => session.setSettingsSection(item.id)}
-              />
-            ))
-          : null}
+        {listKind === "settings" ? <SettingsNavigation /> : null}
 
         {listKind === "speedtest"
           ? SPEEDTEST_SECTIONS.map((item) => (
