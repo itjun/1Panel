@@ -263,6 +263,7 @@ func NewApp(resources Resources) *application.App {
 		core.markReady()
 		core.startWindowTheme()
 		core.restoreMainWindowGeometry()
+		macui.InstallDisplayRecovery(win)
 		core.fitWindowToPrimaryScreen()
 		core.maybeShowMainWindow()
 		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
