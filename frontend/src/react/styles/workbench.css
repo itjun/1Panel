@@ -19,7 +19,6 @@
 .workbench-tab {
   width: 64px;
   flex-shrink: 0;
-  border-bottom: 2px solid transparent;
   color: var(--color-muted);
   font-size: 14px;
   white-space: nowrap;
@@ -29,8 +28,8 @@
   background: var(--color-raised);
   color: var(--color-ink);
 }
-.workbench-tab.is-active {
-  border-bottom-color: var(--color-accent);
+.workbench-tab.is-active,
+.workbench-tab.is-active:hover {
   color: var(--color-accent);
 }
 .workbench-more {
