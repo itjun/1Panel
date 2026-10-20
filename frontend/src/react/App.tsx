@@ -12,6 +12,7 @@ import { HostRenameDialogHost } from "@/react/components/host-rename-dialog";
 import { UpdateCheckFailDialog, UpdateDialog } from "@/react/components/update-dialog";
 import { detectAppOs } from "@/react/lib/platform";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
+import { usePaintGate } from "@/react/lib/use-paint-gate";
 import { GroupPage } from "@/react/pages/group-page";
 import { HostCreateForm, HostEditForm } from "@/react/pages/host-form";
 import { HostFilePage } from "@/react/pages/host-files";
@@ -141,6 +142,26 @@ function Shell() {
     };
   }, []);
 
+  // Radix Dialog 异常卸载可能留下 body pointer-events:none，导航时清掉假死
+  useEffect(() => {
+    function clearStuckPointerEvents() {
+      if (document.body.style.pointerEvents !== "none") return;
+      const openDialog = document.querySelector(
+        '[role="dialog"][data-state="open"], [data-radix-dialog-content][data-state="open"]',
+      );
+      if (!openDialog) document.body.style.pointerEvents = "";
+    }
+    clearStuckPointerEvents();
+    const id = requestAnimationFrame(clearStuckPointerEvents);
+    return () => cancelAnimationFrame(id);
+  }, [
+    session.activeHost,
+    session.activeTool,
+    session.workspace,
+    session.settingsOpen,
+    session.homeView,
+  ]);
+
   const dockMounted = createPresence.mounted || editPresence.mounted;
 
   return (
@@ -256,7 +277,8 @@ function workspaceKey(session: ReturnType<typeof useSession>): string {
   if (session.workspace === "local") return "local";
   if (session.workspace === "inspect") return "inspect";
   if (session.workspace === "speedtest") return "speedtest";
-  if (session.activeHost) return `host:${session.activeHost}`;
+  // 主机工作区键稳定：切主机只换内容区，不整树卸载（避免应用等重页同步重挂卡死）
+  if (session.activeHost) return "host";
   if (session.homeView === "group") return `group:${session.activeGroupId || ""}`;
   return "home";
 }
@@ -308,11 +330,18 @@ function HostWorkspace() {
     tool === "monitor" ||
     tool === "apps";
   const paneClass = heavyPane ? "motion-fade-in" : "motion-axis-x-in";
+  const paneKey = `${host}:${tool}`;
+  // 先画壳再挂重页：侧栏 / 通栏标签在闸门打开前仍可点
+  const isPaneReady = usePaintGate(paneKey);
   return (
     <div className="workspace-host flex h-full min-h-0 min-w-0 flex-col">
       {tool === "overview" ? <HostWorkbenchHeader host={host} /> : null}
-      <div key={`${host}:${tool}`} className={`flex min-h-0 flex-1 flex-col ${paneClass}`}>
-        {fileTool ? (
+      <div key={paneKey} className={`flex min-h-0 flex-1 flex-col ${paneClass}`}>
+        {!isPaneReady ? (
+          <div className="py-8 text-center text-sm text-muted" role="status">
+            加载中…
+          </div>
+        ) : fileTool ? (
           <HostFilePage host={host} tool={tool} />
         ) : (
           <HostToolPage host={host} tool={tool} />

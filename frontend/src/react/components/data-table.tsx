@@ -12,6 +12,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { useProgressiveList } from "@/react/lib/use-progressive-list";
 import { cn } from "@/react/lib/utils";
 import { fitColumnWidths, moveColumn } from "@/utils/groupTableState";
 
@@ -39,6 +40,8 @@ export function DataTable<T extends Record<string, unknown>>({
 }) {
   const table = useTable({ features, columns, data });
   const rows = table.getRowModel().rows;
+  const listKey = `${rows.length}:${rows[0]?.id || ""}:${rows[rows.length - 1]?.id || ""}`;
+  const visibleRows = useProgressiveList(rows, listKey);
 
   return (
     <div className="uiux-data-table surface-float min-w-0 overflow-auto">
@@ -68,7 +71,7 @@ export function DataTable<T extends Record<string, unknown>>({
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
+            visibleRows.map((row) => (
               <tr key={row.id} className="h-table-row border-b border-line hover:bg-raised">
                 {row.getAllCells().map((cell) => (
                   <td key={cell.id} className={cn("px-3 text-ink")}>

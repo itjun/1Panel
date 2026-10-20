@@ -372,13 +372,19 @@ html.dark[data-window-material="mica"] .module-rail {
   background-color: var(--color-line);
 }
 
-/* Firefox 式侧栏分割条：平时细命中区，悬停显 accent-focus 竖线，拖动时换成 accent */
+/* Firefox 式侧栏分割条：平时细命中区，悬停显 accent-focus 竖线，键盘聚焦一条 accent 竖线，拖动时加粗 */
 .sidebar-splitter-line {
   background-color: transparent;
 }
 
 .sidebar-splitter:hover .sidebar-splitter-line {
   background-color: var(--color-accent-focus);
+  width: 2px;
+  left: -1px;
+}
+
+.sidebar-splitter:focus-visible .sidebar-splitter-line {
+  background-color: var(--color-accent);
   width: 2px;
   left: -1px;
 }

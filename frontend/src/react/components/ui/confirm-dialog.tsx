@@ -103,50 +103,52 @@ export function DialogHost() {
     setCurrent(queue.shift() ?? null);
   }
 
-  if (!current) return null;
-
+  const open = !!current;
   let Icon = AlertCircle;
-  if (current.theme === "info") {
+  if (current?.theme === "info") {
     Icon = Info;
   }
 
   let confirmVariant: "primary" | "danger" = "primary";
-  if (current.theme === "danger" && current.kind === "confirm") {
+  if (current?.theme === "danger" && current.kind === "confirm") {
     confirmVariant = "danger";
   }
 
+  // 受控 open：关闭时保留 Dialog 根节点，避免 Radix 卸载后留下 body pointer-events:none
   return (
     <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) close(false);
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) close(false);
       }}
     >
-      <DialogContent className="w-[min(420px,calc(100vw-32px))]">
-        <div className="flex gap-3">
-          <Icon
-            aria-hidden
-            className={cn("mt-0.5 size-5 shrink-0", THEME_ICON_CLASS[current.theme])}
-            strokeWidth={1.5}
-          />
-          <div className="min-w-0 flex-1">
-            <DialogTitle>{current.title}</DialogTitle>
-            {current.body ? (
-              <DialogDescription className="mt-2 text-sm break-words whitespace-pre-line text-muted">
-                {current.body}
-              </DialogDescription>
-            ) : null}
+      {current ? (
+        <DialogContent className="w-[min(420px,calc(100vw-32px))]">
+          <div className="flex gap-3">
+            <Icon
+              aria-hidden
+              className={cn("mt-0.5 size-5 shrink-0", THEME_ICON_CLASS[current.theme])}
+              strokeWidth={1.5}
+            />
+            <div className="min-w-0 flex-1">
+              <DialogTitle>{current.title}</DialogTitle>
+              {current.body ? (
+                <DialogDescription className="mt-2 text-sm break-words whitespace-pre-line text-muted">
+                  {current.body}
+                </DialogDescription>
+              ) : null}
+            </div>
           </div>
-        </div>
-        <DialogFooter>
-          {current.kind === "confirm" ? (
-            <Button onClick={() => close(false)}>{current.cancelText}</Button>
-          ) : null}
-          <Button variant={confirmVariant} autoFocus onClick={() => close(true)}>
-            {current.confirmText}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <DialogFooter>
+            {current.kind === "confirm" ? (
+              <Button onClick={() => close(false)}>{current.cancelText}</Button>
+            ) : null}
+            <Button variant={confirmVariant} autoFocus onClick={() => close(true)}>
+              {current.confirmText}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }

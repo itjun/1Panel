@@ -94,4 +94,4 @@
 }
 
 .sidebar-splitter{min-width:1px}
-.sidebar-splitter:focus-visible{outline:2px solid var(--color-accent);outline-offset:0}
+.sidebar-splitter:focus-visible{outline:none}

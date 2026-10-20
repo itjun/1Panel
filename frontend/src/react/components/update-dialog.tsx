@@ -32,16 +32,15 @@ export function UpdateDialog() {
   const [actionError, setActionError] = useState("");
 
   const forced = !!state?.hasUpdate && !!state.mandatory;
-  const open = forced || (dialogOpen && !!state?.hasUpdate);
+  // 受控 open：关闭时不要整棵 Dialog 卸载，否则 Radix 可能留下 body pointer-events:none
+  const open = !!state && (forced || (dialogOpen && !!state.hasUpdate));
 
   useEffect(() => {
     if (!open) setActionError("");
   }, [open]);
 
-  if (!state || !open) return null;
-
-  const busy = state.status === "downloading" || state.status === "installing";
-  const failed = state.status === "error";
+  const busy = !!state && (state.status === "downloading" || state.status === "installing");
+  const failed = !!state && state.status === "error";
 
   async function run(action: () => Promise<void>, close = false) {
     setActionError("");
@@ -58,99 +57,103 @@ export function UpdateDialog() {
     closeUpdateDialog();
   }
 
-  const meta = [
-    `当前版本 ${state.current || "—"}`,
-    state.releasedAt ? `发布于 ${formatDate(state.releasedAt)}` : "",
-    state.size > 0 ? `安装包 ${formatBytes(state.size)}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const meta = state
+    ? [
+        `当前版本 ${state.current || "—"}`,
+        state.releasedAt ? `发布于 ${formatDate(state.releasedAt)}` : "",
+        state.size > 0 ? `安装包 ${formatBytes(state.size)}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(next) => {
         if (!next) dismiss();
       }}
     >
-      <DialogContent
-        className="w-[min(520px,calc(100vw-32px))]"
-        onEscapeKeyDown={(e) => {
-          if (forced) e.preventDefault();
-        }}
-        onInteractOutside={(e) => {
-          if (forced || busy) e.preventDefault();
-        }}
-      >
-        <DialogTitle>
-          {forced ? `需要更新到 ${state.latest}` : `发现新版本 ${state.latest}`}
-        </DialogTitle>
-        <DialogDescription className="mt-1 text-sm text-muted tabular-nums">{meta}</DialogDescription>
+      {state ? (
+        <DialogContent
+          className="w-[min(520px,calc(100vw-32px))]"
+          onEscapeKeyDown={(e) => {
+            if (forced) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (forced || busy) e.preventDefault();
+          }}
+        >
+          <DialogTitle>
+            {forced ? `需要更新到 ${state.latest}` : `发现新版本 ${state.latest}`}
+          </DialogTitle>
+          <DialogDescription className="mt-1 text-sm text-muted tabular-nums">{meta}</DialogDescription>
 
-        {forced ? (
-          <div className="mt-4">
-            <Notice
-              tone="warning"
-              text={`当前版本已停止支持（最低支持 ${state.minSupported}），更新后才能继续使用。`}
+          {forced ? (
+            <div className="mt-4">
+              <Notice
+                tone="warning"
+                text={`当前版本已停止支持（最低支持 ${state.minSupported}），更新后才能继续使用。`}
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-4 max-h-60 overflow-auto rounded-control bg-raised px-3 py-2 text-sm leading-6 break-words text-ink">
+            <ReleaseNotes
+              text={state.notes ?? ""}
+              onOpenLink={(href) => void api.openExternalURL(href)}
             />
           </div>
-        ) : null}
 
-        <div className="mt-4 max-h-60 overflow-auto rounded-control bg-raised px-3 py-2 text-sm leading-6 break-words text-ink">
-          <ReleaseNotes
-            text={state.notes ?? ""}
-            onOpenLink={(href) => void api.openExternalURL(href)}
-          />
-        </div>
-
-        {busy ? (
-          <div className="mt-4 flex items-center gap-2 text-sm text-ink tabular-nums">
-            <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-muted" strokeWidth={1.5} />
-            {state.status === "installing" ? (
-              <span>正在安装，完成后自动重启…</span>
-            ) : (
-              <span>{progressText(state.downloaded, state.total)}</span>
-            )}
-          </div>
-        ) : null}
-
-        {failed || actionError ? (
-          <div className="mt-4">
-            <Notice tone="error" text={`更新失败：${actionError || state.error}`} />
-          </div>
-        ) : null}
-
-        <DialogFooter>
           {busy ? (
-            <Button
-              disabled={state.status === "installing"}
-              onClick={() => void run(() => api.cancelUpdate())}
-            >
-              取消下载
-            </Button>
-          ) : forced ? (
-            <>
-              <Button onClick={() => void Events.Emit("app-quit-for-real")}>退出应用</Button>
-              <Button variant="primary" autoFocus onClick={() => void run(() => api.startUpdate())}>
-                {failed ? "重试" : "立即更新"}
-              </Button>
-            </>
-          ) : (
-            <>
+            <div className="mt-4 flex items-center gap-2 text-sm text-ink tabular-nums">
+              <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-muted" strokeWidth={1.5} />
+              {state.status === "installing" ? (
+                <span>正在安装，完成后自动重启…</span>
+              ) : (
+                <span>{progressText(state.downloaded, state.total)}</span>
+              )}
+            </div>
+          ) : null}
+
+          {failed || actionError ? (
+            <div className="mt-4">
+              <Notice tone="error" text={`更新失败：${actionError || state.error}`} />
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            {busy ? (
               <Button
-                variant="ghost"
-                onClick={() => void run(() => api.skipUpdateVersion(state.latest), true)}
+                disabled={state.status === "installing"}
+                onClick={() => void run(() => api.cancelUpdate())}
               >
-                跳过此版本
+                取消下载
               </Button>
-              <Button onClick={() => void run(() => api.remindUpdateLater(), true)}>稍后提醒</Button>
-              <Button variant="primary" autoFocus onClick={() => void run(() => api.startUpdate())}>
-                {failed ? "重试" : "立即更新"}
-              </Button>
-            </>
-          )}
-        </DialogFooter>
-      </DialogContent>
+            ) : forced ? (
+              <>
+                <Button onClick={() => void Events.Emit("app-quit-for-real")}>退出应用</Button>
+                <Button variant="primary" autoFocus onClick={() => void run(() => api.startUpdate())}>
+                  {failed ? "重试" : "立即更新"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => void run(() => api.skipUpdateVersion(state.latest), true)}
+                >
+                  跳过此版本
+                </Button>
+                <Button onClick={() => void run(() => api.remindUpdateLater(), true)}>稍后提醒</Button>
+                <Button variant="primary" autoFocus onClick={() => void run(() => api.startUpdate())}>
+                  {failed ? "重试" : "立即更新"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }
@@ -161,42 +164,47 @@ export function UpdateDialog() {
 */
 export function UpdateCheckFailDialog() {
   const { state, failOpen } = useAppUpdate();
-  const open = failOpen && !!state?.checkFailed && !state.hasUpdate;
-  if (!state || !open) return null;
+  // 受控 open：点「关闭」只改 failOpen，让 Radix 走 open=false 清理遮罩与 body 样式
+  const open = !!state && failOpen && !!state.checkFailed && !state.hasUpdate;
 
   return (
-    <Dialog open onOpenChange={(next) => {
-      if (!next) closeCheckFailDialog();
-    }}>
-      <DialogContent className="w-[min(460px,calc(100vw-32px))]">
-        <DialogTitle>无法检查应用更新</DialogTitle>
-        <DialogDescription className="mt-1 text-sm text-muted">
-          连接更新服务器失败，暂时无法确认是否有新版本。
-        </DialogDescription>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) closeCheckFailDialog();
+      }}
+    >
+      {state ? (
+        <DialogContent className="w-[min(460px,calc(100vw-32px))]">
+          <DialogTitle>无法检查应用更新</DialogTitle>
+          <DialogDescription className="mt-1 text-sm text-muted">
+            连接更新服务器失败，暂时无法确认是否有新版本。
+          </DialogDescription>
 
-        {state.error ? (
-          <div className="mt-4">
-            <Notice tone="error" text={state.error} />
-          </div>
-        ) : null}
-
-        <div className="mt-4 text-sm text-ink">
-          可以打开发布页，用系统浏览器手动下载最新版本的安装包。
-        </div>
-
-        <DialogFooter>
-          <Button onClick={closeCheckFailDialog}>关闭</Button>
-          {state.releaseUrl ? (
-            <Button
-              variant="primary"
-              autoFocus
-              onClick={() => void api.openExternalURL(state.releaseUrl)}
-            >
-              打开发布页
-            </Button>
+          {state.error ? (
+            <div className="mt-4">
+              <Notice tone="error" text={state.error} />
+            </div>
           ) : null}
-        </DialogFooter>
-      </DialogContent>
+
+          <div className="mt-4 text-sm text-ink">
+            可以打开发布页，用系统浏览器手动下载最新版本的安装包。
+          </div>
+
+          <DialogFooter>
+            <Button onClick={closeCheckFailDialog}>关闭</Button>
+            {state.releaseUrl ? (
+              <Button
+                variant="primary"
+                autoFocus
+                onClick={() => void api.openExternalURL(state.releaseUrl)}
+              >
+                打开发布页
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }

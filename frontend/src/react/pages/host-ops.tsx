@@ -42,6 +42,7 @@ import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Select } from "@/react/components/ui/select";
 import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
+import { useProgressiveList } from "@/react/lib/use-progressive-list";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
 import { USAGE_DANGER, usageBands } from "@/react/lib/usage-tone";
@@ -186,6 +187,8 @@ function SimpleRows({
   indexOffset?: number;
 }) {
   const colCount = headers.length + 1;
+  const listKey = `${rows.length}:${rows[0]?.id || ""}:${rows[rows.length - 1]?.id || ""}`;
+  const visibleRows = useProgressiveList(rows, listKey);
   return (
     <div className="surface-float min-h-48 flex-1 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
@@ -207,7 +210,7 @@ function SimpleRows({
               </td>
             </tr>
           ) : (
-            rows.map((row, rowIndex) => (
+            visibleRows.map((row, rowIndex) => (
               <tr
                 key={row.id}
                 className={

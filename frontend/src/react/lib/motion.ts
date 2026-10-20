@@ -23,10 +23,14 @@ export function usePresence(open: boolean, durationMs: number = MOTION_MS.slow) 
     if (open) {
       setMounted(true);
       setVisible(false);
-      const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => setVisible(true));
+      let innerId = 0;
+      const outerId = requestAnimationFrame(() => {
+        innerId = requestAnimationFrame(() => setVisible(true));
       });
-      return () => cancelAnimationFrame(id);
+      return () => {
+        cancelAnimationFrame(outerId);
+        cancelAnimationFrame(innerId);
+      };
     }
     setVisible(false);
     const timer = window.setTimeout(() => setMounted(false), durationMs);

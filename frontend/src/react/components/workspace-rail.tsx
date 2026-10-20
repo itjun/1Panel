@@ -356,7 +356,12 @@ export function WorkspaceRail() {
                   <RailSessionRow
                     key={name}
                     entryKey={name}
-                    onActivate={() => { setSelectedHostNames([name]); hostAnchorRef.current = name; session.openHost(name); }}
+                    onActivate={() => {
+                      setHostMenu(null);
+                      setSelectedHostNames([name]);
+                      hostAnchorRef.current = name;
+                      session.openHost(name);
+                    }}
                     label={name}
                     indented
                     active={session.activeHost === name}
@@ -388,6 +393,7 @@ export function WorkspaceRail() {
                         setSelectedHostNames(visibleHostNames.slice(lo, hi + 1));
                         return;
                       }
+                      setHostMenu(null);
                       setSelectedHostNames([name]);
                       hostAnchorRef.current = name;
                       session.openHost(name);

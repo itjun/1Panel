@@ -20,6 +20,7 @@ import { Tag } from "@/react/components/ui/tag";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { ChartHost } from "@/react/components/monitor/charts";
 import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
+import { useProgressiveList } from "@/react/lib/use-progressive-list";
 import { useThemeMode } from "@/react/lib/use-theme-mode";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
@@ -418,6 +419,11 @@ function AppsTable({
   onShutdown: (row: InstRow) => void;
 }) {
   const onlineCount = rows.filter((r) => isOnline(r)).length;
+  // 分帧挂行：多段服务表一次挂满会堵死主线程
+  const visibleRows = useProgressiveList(
+    rows,
+    `${title}:${rows.length}:${rows[0]?.service || ""}:${rows[rows.length - 1]?.service || ""}`,
+  );
 
   // 全部在线 ok，部分在线 warn，无在线 neutral
   let countTone: "ok" | "warn" | "neutral" = "neutral";
@@ -461,7 +467,7 @@ function AppsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx) => {
+            {visibleRows.map((row, idx) => {
               const latest = latestDeployVerForRow(row, latestByService);
               const latestHit = isLatestDeploy(row.deployVer || "", latest);
               const chartsAvailable = canOpenCharts(row);
@@ -771,76 +777,69 @@ export function AppsPage({ host }: { host: string }) {
   const hostX = useMemo(() => hostPts.map((p) => timeLabel(p.ts)), [hostPts]);
 
   const chartTheme = useThemeMode();
-  const heapOption = useMemo(
-    () =>
-      lineOption({
-        xData: jarX,
-        series: [
-          { name: "堆已用", data: jarPts.map((p) => p.heapUsed || 0) },
-          { name: "RSS", data: jarPts.map((p) => p.rss || 0) },
-        ],
-        unit: "bytes",
-        markLines: marks,
-      }),
-    [jarX, jarPts, marks, chartTheme],
-  );
+  const heapOption = useMemo(() => {
+    if (!chartsOpen) return {};
+    return lineOption({
+      xData: jarX,
+      series: [
+        { name: "堆已用", data: jarPts.map((p) => p.heapUsed || 0) },
+        { name: "RSS", data: jarPts.map((p) => p.rss || 0) },
+      ],
+      unit: "bytes",
+      markLines: marks,
+    });
+  }, [chartsOpen, jarX, jarPts, marks, chartTheme]);
 
-  const rssOption = useMemo(
-    () =>
-      lineOption({
-        xData: jarX,
-        series: [{ name: "RSS", data: jarPts.map((p) => p.rss || 0) }],
-        unit: "bytes",
-        markLines: marks,
-      }),
-    [jarX, jarPts, marks, chartTheme],
-  );
+  const rssOption = useMemo(() => {
+    if (!chartsOpen) return {};
+    return lineOption({
+      xData: jarX,
+      series: [{ name: "RSS", data: jarPts.map((p) => p.rss || 0) }],
+      unit: "bytes",
+      markLines: marks,
+    });
+  }, [chartsOpen, jarX, jarPts, marks, chartTheme]);
 
-  const gcOption = useMemo(
-    () =>
-      lineOption({
-        xData: jarX,
-        series: [
-          { name: "GC pause", data: jarPts.map((p) => p.gcPauseMs || 0) },
-          { name: "进程 CPU%", data: jarPts.map((p) => p.cpuPercent || 0) },
-        ],
-        formatStr: "ms / %",
-        unit: "raw",
-      }),
-    [jarX, jarPts, chartTheme],
-  );
+  const gcOption = useMemo(() => {
+    if (!chartsOpen) return {};
+    return lineOption({
+      xData: jarX,
+      series: [
+        { name: "GC pause", data: jarPts.map((p) => p.gcPauseMs || 0) },
+        { name: "进程 CPU%", data: jarPts.map((p) => p.cpuPercent || 0) },
+      ],
+      formatStr: "ms / %",
+      unit: "raw",
+    });
+  }, [chartsOpen, jarX, jarPts, chartTheme]);
 
-  const cpuOption = useMemo(
-    () =>
-      lineOption({
-        xData: jarX,
-        series: [
-          { name: "进程 CPU%", data: jarPts.map((p) => p.cpuPercent || 0) },
-        ],
-        formatStr: "%",
-        unit: "raw",
-      }),
-    [jarX, jarPts, chartTheme],
-  );
+  const cpuOption = useMemo(() => {
+    if (!chartsOpen) return {};
+    return lineOption({
+      xData: jarX,
+      series: [{ name: "进程 CPU%", data: jarPts.map((p) => p.cpuPercent || 0) }],
+      formatStr: "%",
+      unit: "raw",
+    });
+  }, [chartsOpen, jarX, jarPts, chartTheme]);
 
-  const hostOption = useMemo(
-    () =>
-      lineOption({
-        xData: hostX,
-        series: [
-          { name: "主机 CPU%", data: hostPts.map((p) => p.cpuPercent || 0) },
-          {
-            name: "主机内存",
-            data: hostPts.map((p) => p.memUsed || 0),
-            yAxisIndex: 1,
-          },
-        ],
-        formatStr: "%",
-        unit: "raw",
-        dualBytesOnRight: true,
-      }),
-    [hostX, hostPts, chartTheme],
-  );
+  const hostOption = useMemo(() => {
+    if (!chartsOpen) return {};
+    return lineOption({
+      xData: hostX,
+      series: [
+        { name: "主机 CPU%", data: hostPts.map((p) => p.cpuPercent || 0) },
+        {
+          name: "主机内存",
+          data: hostPts.map((p) => p.memUsed || 0),
+          yAxisIndex: 1,
+        },
+      ],
+      formatStr: "%",
+      unit: "raw",
+      dualBytesOnRight: true,
+    });
+  }, [chartsOpen, hostX, hostPts, chartTheme]);
 
   async function loadDetail(service: string) {
     if (!service) return;
@@ -967,7 +966,11 @@ export function AppsPage({ host }: { host: string }) {
       {status.error ? <Notice text={formatErr(status.error)} /> : null}
       <FlashNotices flash={flash} />
 
-      {sections.length === 0 && !instances.isLoading ? (
+      {instances.isLoading ? (
+        <div className="py-8 text-center text-sm text-muted" role="status">
+          加载中…
+        </div>
+      ) : sections.length === 0 ? (
         <div className="py-8 text-center text-sm text-muted">暂无监视实例</div>
       ) : (
         <div className="flex flex-col gap-section">

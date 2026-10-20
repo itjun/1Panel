@@ -75,14 +75,17 @@ export function HostContextMenu({
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-[60]"
-        onMouseDown={onClose}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          onClose();
-        }}
-      />
+      {/* 只在菜单真正打开时挡点击；离场动画阶段不要留下透明全屏遮罩 */}
+      {menu ? (
+        <div
+          className="fixed inset-0 z-[60]"
+          onMouseDown={onClose}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onClose();
+          }}
+        />
+      ) : null}
       <div
         ref={elRef}
         role="menu"
