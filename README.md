@@ -1,8 +1,23 @@
 # 1Panel
 
-一个 macOS/Windows 原生的运维管理面板，基于 Wails v3（Go + React 19 + TypeScript）。
+[中文](#中文) · [English](#english)
 
-读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）；同时提供本机工作区（系统概览 / 应用进程 / 软件列表 / 磁盘空间 / 网络信息 / Hosts，macOS 另有 Nginx 页）。
+[![Release](https://github.com/itjun/1Panel/actions/workflows/release.yml/badge.svg)](https://github.com/itjun/1Panel/actions/workflows/release.yml)
+[![MIT License](https://img.shields.io/github/license/itjun/1Panel)](LICENSE)
+
+macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.com/itjun/1Agent) 共用本机 OpenSSH。
+
+## 中文
+
+远程 SSH 连上之后，目标主机的状态仍然不好看：CPU、内存、磁盘和进程要再单独敲命令才能知道。另一边，打开终端时，现有收费软件往往不能马上打开，也留不下可用的会话记录。
+
+1Panel 和 1Agent 的做法是只使用通用 OpenSSH。两个应用都读取本机 `~/.ssh/config`，沿用已经配好的密钥、端口和跳板机，尽快把主机会话建起来。
+
+1Panel 负责看主机。它把 SSH 配置里的主机分组，直接显示 CPU、内存、磁盘、负载、进程、Java、Docker、服务、定时任务和软件包，不用为了看一眼再去敲命令；同时也提供本机工作区。[1Agent](https://github.com/itjun/1Agent) 负责 macOS 终端：快速打开会话，并保留可恢复的终端历史。两个项目可以单独使用。装在同一台 Mac 上时，1Panel 通过 `oneagent://open` 把当前主机交给 1Agent。Windows 和 Linux 上打开终端时，1Panel 改用本机已安装的终端。
+
+面板基于 Wails v3（Go + React 19 + TypeScript）。读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）；同时提供本机工作区（系统概览 / 应用进程 / 软件列表 / 磁盘空间 / 网络信息 / Hosts，macOS 另有 Nginx 页）。
+
+[Release](https://github.com/itjun/1Panel/actions/workflows/release.yml) 在推送 `v*` 版本标签时构建 macOS arm64、Windows x64 和 Linux amd64，并发布到 GitHub Releases。
 
 ## 功能
 
@@ -22,7 +37,7 @@
   - 应用进程：按运行时（Java / Go / Node / Python…）归并的本机进程树，CPU/内存/IO 速率、监听端口、进程详情与结束
   - 软件列表、磁盘空间（目录树 / 大文件 / 应用占用）、网络信息（网卡 / 网关）、Hosts
 - **终端打开**：
-  - macOS：设置里可选择本机已安装的 1Agent、官方 Ghostty、官方 Otty 或系统「终端」。只有一个可用时固定使用它。1Agent 经 `oneagent://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
+  - macOS：设置里可选择本机已安装的 [1Agent](https://github.com/itjun/1Agent)、官方 Ghostty、官方 Otty 或系统「终端」。只有一个可用时固定使用它。1Agent 经 `oneagent://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
   - Windows：可选择已安装的 Windows Terminal 或 PowerShell；只有一个可用时固定使用它。Windows Terminal 支持最近窗口新标签页或新窗口，由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；OpenSSH 缺失时给出安装指引
 
 ## 文档
@@ -212,3 +227,15 @@ Copyright (c) 2026 黄荣君 (itjun)
 本项目的灵感来自 [1Panel](https://1panel.cn/)——一款优秀的开源 Linux 服务器运维管理面板。
 
 感谢 1Panel 团队和社区的开源贡献，为本项目带来了大量启发。
+
+## English
+
+A remote SSH connection still leaves the host state hard to see. CPU, memory, disk, and processes each need another command. Opening the terminal has the same kind of friction: paid apps currently on the market often cannot open a session immediately, and they do not keep a usable record of it.
+
+1Panel and 1Agent stay on ordinary OpenSSH. Both read the local `~/.ssh/config`, reuse the keys, ports, and jump hosts already configured there, and bring the host session up quickly.
+
+1Panel is for seeing the host. It groups the hosts from the SSH config and shows CPU, memory, disk, load, processes, Java, Docker, services, scheduled tasks, and packages directly, along with a workspace for the machine running the app. [1Agent](https://github.com/itjun/1Agent) is the macOS terminal: it opens a session quickly and keeps terminal history that can be restored. Each project works on its own. On the same Mac, 1Panel hands the current host to 1Agent through `oneagent://open`. On Windows and Linux, 1Panel opens the host in a terminal already installed on that machine.
+
+The panel is built with Wails v3 (Go, React 19, and TypeScript). It reads `~/.ssh/config`, groups SSH hosts, and provides a group overview (cards, distribution logos, and red/green warning colors), host details (CPU, memory, disk, load, processes, Java, Docker, services, scheduled tasks, packages, and a terminal), and a local workspace (system overview, application processes, installed software, disk space, network information, and Hosts; Nginx is also available on macOS).
+
+The [Release workflow](https://github.com/itjun/1Panel/actions/workflows/release.yml) builds macOS arm64, Windows x64, and Linux amd64 when a `v*` tag is pushed, then publishes the packages to GitHub Releases. The [Chinese section](#中文) above has the complete feature list, development commands, and installation steps.
