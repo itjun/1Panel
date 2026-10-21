@@ -141,6 +141,39 @@ func jsonEqual(a, b []byte) bool {
 	return string(aa) == string(bb)
 }
 
+func TestApplicationRestoreAcceptsForeignOperatingSystem(t *testing.T) {
+	home := t.TempDir()
+	a := newBackupTestApp(t, home)
+	if err := a.panelStore.Replace(panelstore.State{}); err != nil {
+		t.Fatal(err)
+	}
+	service := (*Backup)(a)
+	out := filepath.Join(t.TempDir(), "full.zip")
+	if _, err := service.BackupApplicationData(out, map[string]string{}); err != nil {
+		t.Fatal(err)
+	}
+	snap, _, err := appbackup.Read(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := "windows"
+	if snap.Manifest.SourceOS == "windows" {
+		foreign = "linux"
+	}
+	snap.Manifest.SourceOS = foreign
+	stamped := filepath.Join(t.TempDir(), "foreign.zip")
+	if err := appbackup.Write(stamped, snap); err != nil {
+		t.Fatal(err)
+	}
+	preview, err := service.PreviewApplicationBackup(stamped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RestoreApplicationData(stamped, preview.Fingerprint, map[string]string{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestApplicationRestoreRejectsChangedPreviewAndLegacyBackup(t *testing.T) {
 	home := t.TempDir()
 	a := newBackupTestApp(t, home)

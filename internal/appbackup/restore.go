@@ -11,16 +11,17 @@ import (
 	"strings"
 
 	"diteng-pannel/internal/panelstore"
+	"diteng-pannel/internal/portable"
 )
 
 // Files and preferences are applied before any application store opens. The
 // pending archive remains until success, allowing an interrupted apply to be
 // completed on the next startup; normal I/O failures roll back every write.
 func Apply(s *Snapshot, root, home string) (err error) {
-	return apply(s, root, home, atomicWrite)
+	return apply(s, root, home, currentOS(), atomicWrite)
 }
 
-func apply(s *Snapshot, root, home string, write func(string, []byte, fs.FileMode) error) (err error) {
+func apply(s *Snapshot, root, home, targetOS string, write func(string, []byte, fs.FileMode) error) (err error) {
 	if err := s.Validate(); err != nil {
 		return err
 	}
@@ -32,32 +33,7 @@ func apply(s *Snapshot, root, home string, write func(string, []byte, fs.FileMod
 	if p, e := filepath.EvalSymlinks(home); e == nil {
 		home = p
 	}
-	if s.Manifest.SourceOS != currentOS() {
-		return fmt.Errorf("完整应用备份来自 %s，请在相同操作系统恢复", s.Manifest.SourceOS)
-	}
-	replacements := map[string]string{}
-	if s.Manifest.SourceHome != "" && s.Manifest.SourceHome != home {
-		replacements[s.Manifest.SourceHome] = home
-	}
-	if s.Manifest.SourceDataDir != "" && s.Manifest.SourceDataDir != root {
-		replacements[s.Manifest.SourceDataDir] = root
-	}
-	for old, dst := range s.Manifest.Relocations {
-		if s.Manifest.SourceHome != "" {
-			dst = strings.ReplaceAll(dst, s.Manifest.SourceHome, home)
-		}
-		replacements[old] = dst
-	}
-	keys := make([]string, 0, len(replacements))
-	for k := range replacements {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
-	pairs := []string{}
-	for _, k := range keys {
-		pairs = append(pairs, k, replacements[k])
-	}
-	replace := strings.NewReplacer(pairs...)
+	rules := pathRules(s.Manifest, root, home)
 	remapJSON := func(b []byte) ([]byte, error) {
 		var value any
 		if err := json.Unmarshal(b, &value); err != nil {
@@ -67,7 +43,7 @@ func apply(s *Snapshot, root, home string, write func(string, []byte, fs.FileMod
 		visit = func(v any) any {
 			switch x := v.(type) {
 			case string:
-				return replace.Replace(x)
+				return rewritePathText(x, rules)
 			case []any:
 				for i := range x {
 					x[i] = visit(x[i])
@@ -98,7 +74,16 @@ func apply(s *Snapshot, root, home string, write func(string, []byte, fs.FileMod
 				return fmt.Errorf("应用文件无效 %s: %w", e.Path, err)
 			}
 		} else if e.Text {
-			b = []byte(replace.Replace(string(b)))
+			text := string(b)
+			if strings.Contains(text, "\r") {
+				text = strings.ReplaceAll(text, "\r\n", "\n")
+				text = strings.ReplaceAll(text, "\r", "\n")
+			}
+			text = rewritePathText(text, rules)
+			if strings.HasPrefix(e.Path, "ssh/") && s.Manifest.SourceOS != targetOS {
+				text = dropIncompatibleSSH(text, targetOS)
+			}
+			b = []byte(text)
 		}
 		desired[p] = b
 	}
@@ -106,6 +91,21 @@ func apply(s *Snapshot, root, home string, write func(string, []byte, fs.FileMod
 	var primary panelstore.State
 	if err := json.Unmarshal(desired[filepath.Join(root, "panel.json")], &primary); err != nil {
 		return err
+	}
+	if s.Manifest.SourceOS != targetOS {
+		for i := range primary.Hosts {
+			adapted, _ := portable.AdaptHostForOS(primary.Hosts[i], targetOS)
+			primary.Hosts[i] = adapted
+		}
+		kept := make([]panelstore.SSHOption, 0, len(primary.ExtraOptions))
+		for _, opt := range primary.ExtraOptions {
+			probe, _ := portable.AdaptHostForOS(panelstore.PanelHost{ExtraOptions: []panelstore.SSHOption{opt}}, targetOS)
+			kept = append(kept, probe.ExtraOptions...)
+		}
+		primary.ExtraOptions = kept
+		for i := range primary.ConfigLayout.Files {
+			primary.ConfigLayout.Files[i].Content = dropIncompatibleSSH(primary.ConfigLayout.Files[i].Content, targetOS)
+		}
 	}
 	for i := range primary.ConfigLayout.Files {
 		primary.ConfigLayout.Files[i].SHA256 = Hash([]byte(primary.ConfigLayout.Files[i].Content))
@@ -127,7 +127,7 @@ func apply(s *Snapshot, root, home string, write func(string, []byte, fs.FileMod
 			}
 			preferences[k] = string(b)
 		} else {
-			preferences[k] = replace.Replace(v)
+			preferences[k] = rewritePathText(v, rules)
 		}
 	}
 	marker := filepath.Join(root, ".application-restore", "preferences.json")
@@ -278,6 +278,225 @@ func apply(s *Snapshot, root, home string, write func(string, []byte, fs.FileMod
 		}
 	}
 	return nil
+}
+
+type pathRule struct {
+	from     string
+	to       string
+	caseless bool
+}
+
+// pathRules 把来源机器上的绝对路径改写到当前主目录和数据目录。
+// Windows 反斜杠和盘符大小写都按同一路径处理，避免只换前缀后留下 \.ssh\id。
+func pathRules(m Manifest, root, home string) []pathRule {
+	caseless := m.SourceOS == "windows"
+	var rules []pathRule
+	add := func(from, to string) {
+		from = slashPath(from)
+		to = slashPath(to)
+		from = strings.TrimRight(from, "/")
+		if len(from) < 2 {
+			return
+		}
+		ruleCaseless := caseless || hasDriveLetter(from)
+		if samePath(from, strings.TrimRight(to, "/"), ruleCaseless) {
+			return
+		}
+		rules = append(rules, pathRule{from: from, to: to, caseless: ruleCaseless})
+	}
+	add(m.SourceDataDir, root)
+	add(m.SourceHome, home)
+	for old, dst := range m.Relocations {
+		add(old, swapKnownPrefix(dst, m, home, root))
+	}
+	sort.Slice(rules, func(i, j int) bool { return len(rules[i].from) > len(rules[j].from) })
+	return rules
+}
+
+func swapKnownPrefix(p string, m Manifest, home, root string) string {
+	n := slashPath(p)
+	caseless := m.SourceOS == "windows"
+	data := strings.TrimRight(slashPath(m.SourceDataDir), "/")
+	srcHome := strings.TrimRight(slashPath(m.SourceHome), "/")
+	if suffix, ok := trimPathPrefix(n, data, caseless || hasDriveLetter(data)); ok {
+		return slashPath(root) + suffix
+	}
+	if suffix, ok := trimPathPrefix(n, srcHome, caseless || hasDriveLetter(srcHome)); ok {
+		return slashPath(home) + suffix
+	}
+	return n
+}
+
+func trimPathPrefix(p, prefix string, caseless bool) (string, bool) {
+	if prefix == "" || len(p) < len(prefix) {
+		return "", false
+	}
+	head := p[:len(prefix)]
+	match := head == prefix
+	if !match && caseless {
+		match = strings.EqualFold(head, prefix)
+	}
+	if !match || !pathBoundary(p, len(prefix)) {
+		return "", false
+	}
+	return p[len(prefix):], true
+}
+
+func rewritePathText(s string, rules []pathRule) string {
+	if s == "" || (len(rules) == 0 && !strings.Contains(s, `\`)) {
+		return s
+	}
+	folded := slashPath(s)
+	var b strings.Builder
+	i := 0
+	for i < len(s) {
+		if isTildePath(folded, i) {
+			b.WriteByte('~')
+			i++
+			i = writePathRemainder(&b, folded, i, false)
+			continue
+		}
+		matched := false
+		for _, rule := range rules {
+			n := len(rule.from)
+			if n == 0 || i+n > len(folded) {
+				continue
+			}
+			head := folded[i : i+n]
+			ok := head == rule.from
+			if !ok && rule.caseless {
+				ok = strings.EqualFold(head, rule.from)
+			}
+			if !ok || !pathBoundary(folded, i+n) {
+				continue
+			}
+			b.WriteString(rule.to)
+			if i == 0 && !strings.ContainsAny(s, "\n\"") {
+				b.WriteString(folded[i+n:])
+				return b.String()
+			}
+			quoted := i > 0 && (s[i-1] == '"' || s[i-1] == '\'')
+			i = writePathRemainder(&b, folded, i+n, quoted)
+			matched = true
+			break
+		}
+		if !matched {
+			b.WriteByte(s[i])
+			i++
+		}
+	}
+	return b.String()
+}
+
+func pathBoundary(p string, index int) bool {
+	if index >= len(p) {
+		return true
+	}
+	next := p[index]
+	return next == '/' || !isPathChar(next)
+}
+
+func isPathChar(c byte) bool {
+	if c <= ' ' || c == '"' || c == '\'' || c == '<' || c == '>' || c == '|' || c == '*' || c == '?' {
+		return false
+	}
+	return true
+}
+
+func isTildePath(folded string, i int) bool {
+	if i >= len(folded) || folded[i] != '~' || i+1 >= len(folded) || folded[i+1] != '/' {
+		return false
+	}
+	if i == 0 {
+		return true
+	}
+	switch folded[i-1] {
+	case ' ', '\t', '"', '\'', '=':
+		return true
+	default:
+		return false
+	}
+}
+
+func writePathRemainder(b *strings.Builder, folded string, i int, quoted bool) int {
+	for i < len(folded) {
+		if quoted && (folded[i] == '"' || folded[i] == '\'') {
+			return i
+		}
+		if !quoted && !isPathChar(folded[i]) {
+			return i
+		}
+		b.WriteByte(folded[i])
+		i++
+	}
+	return i
+}
+
+func slashPath(p string) string { return strings.ReplaceAll(p, `\`, `/`) }
+
+func samePath(a, b string, caseless bool) bool {
+	if caseless {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+func hasDriveLetter(p string) bool {
+	return len(p) >= 2 && p[1] == ':' && ((p[0] >= 'a' && p[0] <= 'z') || (p[0] >= 'A' && p[0] <= 'Z'))
+}
+
+func dropIncompatibleSSH(content, targetOS string) string {
+	if targetOS == "" || content == "" {
+		return content
+	}
+	lines := strings.Split(content, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if incompatibleSSHLine(line, targetOS) {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+func incompatibleSSHLine(line, targetOS string) bool {
+	key, value, ok := sshDirective(line)
+	if !ok {
+		return false
+	}
+	if key == "usekeychain" && targetOS != "darwin" {
+		return true
+	}
+	if targetOS == "windows" && (key == "controlmaster" || key == "controlpath" || key == "controlpersist") {
+		return true
+	}
+	if key == "identityagent" && targetOS != "darwin" {
+		agent := slashPath(value)
+		if strings.Contains(agent, "/Library/") || strings.Contains(agent, "com.apple") {
+			return true
+		}
+	}
+	return false
+}
+
+func sshDirective(line string) (string, string, bool) {
+	trim := strings.TrimSpace(line)
+	if trim == "" || strings.HasPrefix(trim, "#") {
+		return "", "", false
+	}
+	if i := strings.IndexByte(trim, '='); i > 0 && !strings.ContainsAny(trim[:i], " \t") {
+		return strings.ToLower(strings.TrimSpace(trim[:i])), strings.Trim(strings.TrimSpace(trim[i+1:]), `"'`), true
+	}
+	fields := strings.Fields(trim)
+	if len(fields) == 0 {
+		return "", "", false
+	}
+	value := ""
+	if len(fields) > 1 {
+		value = strings.Trim(strings.Join(fields[1:], " "), `"'`)
+	}
+	return strings.ToLower(fields[0]), value, true
 }
 
 func safeTarget(p string) error {

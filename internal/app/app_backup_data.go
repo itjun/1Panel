@@ -360,9 +360,6 @@ func (s *Backup) RestoreApplicationData(path, fingerprint string, preferences ma
 	if fingerprint == "" || hash != fingerprint {
 		return fmt.Errorf("备份文件已变化，请重新查看内容后恢复")
 	}
-	if snap.Manifest.SourceOS != runtime.GOOS {
-		return fmt.Errorf("完整应用备份来自 %s，请在相同操作系统恢复", snap.Manifest.SourceOS)
-	}
 	current, root, err := s.snapshotApplication(preferences)
 	if err != nil {
 		return err
