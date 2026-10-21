@@ -71,17 +71,18 @@ func (s *Backup) PickAndExportBackup() (string, error) {
 	if info, err := os.Stat(start); err != nil || !info.IsDir() {
 		start = home
 	}
+	filename := defaultMigrationFilename()
 	dialog := a.app.Dialog.SaveFile().
 		SetMessage("选择迁移包的保存位置").
 		SetDirectory(start).
-		SetFilename(defaultMigrationFilename()).
+		SetFilename(filename).
 		SetButtonText("存储").
 		CanCreateDirectories(true).
 		AddFilter("1Panel 迁移包 (*.zip)", "*.zip")
 	if a.mainWindow != nil {
 		dialog.AttachToWindow(a.mainWindow)
 	}
-	path, err := dialog.PromptForSingleSelection()
+	path, err := promptSaveFile(dialog, filename)
 	if err != nil {
 		return "", fmt.Errorf("无法打开保存对话框: %w", err)
 	}

@@ -262,11 +262,12 @@ func (s *Backup) PickAndBackupApplicationData(preferences map[string]string) (*A
 	if err != nil {
 		return nil, err
 	}
-	d := s.app.Dialog.SaveFile().SetMessage("选择应用数据备份的保存位置").SetDirectory(home).SetFilename("1panel-data-"+time.Now().Format("20060102-150405")+".zip").SetButtonText("备份").CanCreateDirectories(true).AddFilter("1Panel 应用数据备份 (*.zip)", "*.zip")
+	filename := "1panel-data-" + time.Now().Format("20060102-150405") + ".zip"
+	d := s.app.Dialog.SaveFile().SetMessage("选择应用数据备份的保存位置").SetDirectory(home).SetFilename(filename).SetButtonText("备份").CanCreateDirectories(true).AddFilter("1Panel 应用数据备份 (*.zip)", "*.zip")
 	if s.mainWindow != nil {
 		d.AttachToWindow(s.mainWindow)
 	}
-	dst, err := d.PromptForSingleSelection()
+	dst, err := promptSaveFile(d, filename)
 	if err != nil {
 		return nil, err
 	}
