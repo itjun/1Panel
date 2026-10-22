@@ -7,10 +7,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -191,6 +193,81 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(c.Dir, "download", "bad.zip")); !os.IsNotExist(err) {
 		t.Fatal("校验失败的文件不应留下")
+	}
+}
+
+func TestDownloadKeepsPartialAndResumes(t *testing.T) {
+	payload := []byte("0123456789abcdef")
+	sum := sha256.Sum256(payload)
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(payload[:8])
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			return
+		}
+		if r.Header.Get("Range") != "bytes=8-" {
+			http.Error(w, "range "+r.Header.Get("Range"), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes 8-%d/%d", len(payload)-1, len(payload)))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(payload[8:])
+	}))
+	defer srv.Close()
+
+	c := &Client{Dir: t.TempDir()}
+	a := Asset{Name: "pkg.zip", URL: srv.URL + "/pkg.zip", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(payload))}
+	if _, err := c.Download(context.Background(), a, nil); err == nil {
+		t.Fatal("第一次应因连接断开失败")
+	}
+	part := filepath.Join(c.Dir, "download", "pkg.zip.part")
+	got, err := os.ReadFile(part)
+	if err != nil || string(got) != string(payload[:8]) {
+		t.Fatalf("应保留已下载的 8 字节：%q %v", got, err)
+	}
+	p, err := c.Download(context.Background(), a, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(p)
+	if err != nil || string(b) != string(payload) {
+		t.Fatalf("续传内容不符：%q %v", b, err)
+	}
+	if calls != 2 {
+		t.Fatalf("应请求两次：%d", calls)
+	}
+}
+
+func TestDownloadRestartsWhenRangeIgnored(t *testing.T) {
+	payload := []byte("0123456789abcdef")
+	sum := sha256.Sum256(payload)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(payload)
+	}))
+	defer srv.Close()
+
+	c := &Client{Dir: t.TempDir()}
+	part := filepath.Join(c.Dir, "download", "pkg.zip.part")
+	if err := os.MkdirAll(filepath.Dir(part), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(part, []byte("XXXX"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := Asset{Name: "pkg.zip", URL: srv.URL + "/pkg.zip", SHA256: hex.EncodeToString(sum[:]), Size: int64(len(payload))}
+	p, err := c.Download(context.Background(), a, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(p)
+	if err != nil || string(b) != string(payload) {
+		t.Fatalf("不支持断点时应整包重下：%q %v", b, err)
 	}
 }
 

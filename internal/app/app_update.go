@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -27,9 +29,14 @@ const (
 	updateRemindLater     = 24 * time.Hour
 	updateFetchTimeout    = 20 * time.Second
 	updatePokeMinInterval = 10 * time.Minute
+	updateDownloadRetries = 5
 )
 
-// 更新状态机：idle → checking → idle；idle → downloading → installing →（重启）；任一步失败 → error。
+// updateRetryDelay 两次下载尝试之间的等待基数，第 n 次重试等待 n 倍，最长 10 秒。
+var updateRetryDelay = 2 * time.Second
+
+// 更新状态机：idle → checking → idle；idle → downloading → installing →（重启）。
+// 下载因网络中断失败时保留断点，自动再试 updateDownloadRetries 次；仍失败或校验失败 → error。
 const (
 	updateIdle        = "idle"
 	updateChecking    = "checking"
@@ -366,6 +373,31 @@ func (c *updateController) announceCheckFailed(st UpdateState) {
 	})
 }
 
+// isRetryableUpdateErr 下载是否因网络中断、超时或临时的服务端错误失败。
+// 用户取消、校验失败和明确的 HTTP 4xx 不重试。
+func isRetryableUpdateErr(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	msg := err.Error()
+	if strings.HasPrefix(msg, "下载中断") {
+		return true
+	}
+	if strings.Contains(msg, "HTTP 408") || strings.Contains(msg, "HTTP 429") ||
+		strings.Contains(msg, "HTTP 500") || strings.Contains(msg, "HTTP 502") ||
+		strings.Contains(msg, "HTTP 503") || strings.Contains(msg, "HTTP 504") {
+		return true
+	}
+	return false
+}
+
 // isFetchUnreachable 判定失败是否属于「连不上更新源」（超时 / 连接失败 / DNS
 // 等网络错误）。HTTP 状态码异常或验签失败是源配置问题，不引导手动下载。
 func isFetchUnreachable(err error) bool {
@@ -462,12 +494,44 @@ func (c *updateController) startUpdate() error {
 }
 
 func (c *updateController) runUpdate(ctx context.Context, asset updater.Asset) {
-	path, err := c.client.Download(ctx, asset, func(done, total int64) {
-		c.mu.Lock()
-		c.state.Downloaded, c.state.Total = done, total
-		c.mu.Unlock()
-		c.emitState()
-	})
+	var path string
+	var err error
+	for attempt := 0; ; attempt++ {
+		if attempt > 0 {
+			c.mu.Lock()
+			c.state.Error = fmt.Sprintf("网络中断，正在重试（%d/%d）…", attempt, updateDownloadRetries)
+			c.mu.Unlock()
+			c.emitState()
+			delay := time.Duration(attempt) * updateRetryDelay
+			if delay > 10*time.Second {
+				delay = 10 * time.Second
+			}
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				err = ctx.Err()
+			case <-timer.C:
+				err = nil
+			}
+			if err != nil {
+				break
+			}
+		}
+		path, err = c.client.Download(ctx, asset, func(done, total int64) {
+			c.mu.Lock()
+			c.state.Downloaded, c.state.Total = done, total
+			c.state.Error = ""
+			c.mu.Unlock()
+			c.emitState()
+		})
+		if err == nil || errors.Is(err, context.Canceled) || !isRetryableUpdateErr(err) || attempt >= updateDownloadRetries {
+			break
+		}
+	}
+	if err != nil && !errors.Is(err, context.Canceled) && isRetryableUpdateErr(err) {
+		err = fmt.Errorf("%w（已自动重试 %d 次）", err, updateDownloadRetries)
+	}
 	if err == nil {
 		c.client.PruneDownloads(filepath.Base(path))
 		c.mu.Lock()

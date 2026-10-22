@@ -111,7 +111,10 @@ export function UpdateDialog() {
               {state.status === "installing" ? (
                 <span>正在安装，完成后自动重启…</span>
               ) : (
-                <span>{progressText(state.downloaded, state.total)}</span>
+                <span>
+                  {progressText(state.downloaded, state.total)}
+                  {state.error ? ` · ${state.error}` : ""}
+                </span>
               )}
             </div>
           ) : null}

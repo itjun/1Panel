@@ -124,7 +124,8 @@ func (c *Client) get(ctx context.Context, rawURL string) ([]byte, error) {
 type Progress func(done, total int64)
 
 // Download 下载安装包到 Dir/download，校验大小与 sha256 后返回本地路径。
-// 已存在且校验一致的文件直接复用。
+// 已存在且校验一致的文件直接复用。传输中断时保留 .part，下次请求用 Range 从断点续传；
+// 服务端不支持断点（仍返回 200）时整包重下。
 func (c *Client) Download(ctx context.Context, a Asset, progress Progress) (string, error) {
 	if c.Dir == "" {
 		return "", errors.New("未设置下载目录")
@@ -145,46 +146,107 @@ func (c *Client) Download(ctx context.Context, a Asset, progress Progress) (stri
 		return final, nil
 	}
 
+	part := final + ".part"
+	offset := int64(0)
+	if info, err := os.Stat(part); err == nil {
+		offset = info.Size()
+	}
+	if a.Size > 0 && offset > a.Size {
+		_ = os.Remove(part)
+		offset = 0
+	}
+	if a.Size > 0 && offset == a.Size {
+		if sum, size, err := hashFile(part); err == nil && strings.EqualFold(sum, a.SHA256) {
+			if err := os.Rename(part, final); err != nil {
+				return "", err
+			}
+			if progress != nil {
+				progress(size, size)
+			}
+			return final, nil
+		}
+		_ = os.Remove(part)
+		offset = 0
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.URL, nil)
 	if err != nil {
 		return "", err
+	}
+	if offset > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}
 	resp, err := c.httpClient().Do(req)
 	if err != nil {
 		return "", fmt.Errorf("下载失败：%w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+
+	resume := false
+	switch resp.StatusCode {
+	case http.StatusOK:
+		offset = 0
+	case http.StatusPartialContent:
+		if offset <= 0 {
+			return "", fmt.Errorf("下载失败：HTTP %d", resp.StatusCode)
+		}
+		resume = true
+	case http.StatusRequestedRangeNotSatisfiable:
+		_ = os.Remove(part)
+		return "", errors.New("下载中断：断点已失效")
+	default:
 		return "", fmt.Errorf("下载失败：HTTP %d", resp.StatusCode)
 	}
+
 	total := a.Size
 	if total <= 0 {
 		total = resp.ContentLength
+		if resume && resp.ContentLength > 0 {
+			total = offset + resp.ContentLength
+		}
 	}
 
-	part := final + ".part"
-	f, err := os.Create(part)
+	h := sha256.New()
+	if resume {
+		existing, openErr := os.Open(part)
+		if openErr != nil {
+			return "", openErr
+		}
+		_, hashErr := io.Copy(h, existing)
+		existing.Close()
+		if hashErr != nil {
+			_ = os.Remove(part)
+			return "", fmt.Errorf("下载中断：%w", hashErr)
+		}
+	}
+
+	var f *os.File
+	if resume {
+		f, err = os.OpenFile(part, os.O_WRONLY|os.O_APPEND, 0o644)
+	} else {
+		f, err = os.Create(part)
+	}
 	if err != nil {
 		return "", err
 	}
-	h := sha256.New()
-	pr := &progressReader{r: resp.Body, total: total, fn: progress}
+	pr := &progressReader{r: resp.Body, total: total, done: offset, fn: progress}
 	n, copyErr := io.Copy(io.MultiWriter(f, h), pr)
 	closeErr := f.Close()
 	pr.report(true)
 	if copyErr == nil {
 		copyErr = closeErr
 	}
+	written := offset + n
 	if copyErr != nil {
-		_ = os.Remove(part)
+		// 保留 .part，下次从断点续传；用户取消同样留下，便于再次更新时接着下。
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
 		return "", fmt.Errorf("下载中断：%w", copyErr)
 	}
-	if a.Size > 0 && n != a.Size {
+	if a.Size > 0 && written != a.Size {
 		_ = os.Remove(part)
-		return "", fmt.Errorf("安装包大小不符：期望 %d，实际 %d", a.Size, n)
+		return "", fmt.Errorf("安装包大小不符：期望 %d，实际 %d", a.Size, written)
 	}
 	if got := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(got, a.SHA256) {
 		_ = os.Remove(part)
