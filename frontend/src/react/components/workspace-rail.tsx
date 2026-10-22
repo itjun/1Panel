@@ -146,23 +146,23 @@ export function WorkspaceRail() {
     }
   }
 
-  const railGroups = buildRailGroups({
+  const railItems = buildRailGroups({
     openedHosts: session.openedHosts.map((host) => host.name),
     visitedGroupIds,
     railOrder,
     groupIdOf: session.groupIdOf,
     ungroupedId: UNGROUPED_ID,
   });
-  const visibleHostNames = railGroups.flatMap((group) => group.hosts);
+  const visibleHostNames = railItems.flatMap((item) => item.kind === "group" ? item.hosts : [item.name]);
 
   function moveRailEntry(sourceKey: string, drop: RailDrop) {
-    const next = reorderRailGroups(railGroups, sourceKey, drop);
+    const next = reorderRailGroups(railItems, sourceKey, drop);
     if (!next) return;
     const keys = railOrderOf(next);
     setRailOrder(keys);
     saveStringList(RAIL_ORDER_KEY, keys);
     // 主机顺序同步进 session（分组顺序只存在本组件）
-    const hostNames = next.flatMap((group) => group.hosts);
+    const hostNames = next.flatMap((item) => item.kind === "group" ? item.hosts : [item.name]);
     if (hostNames.length > 0) session.reorderOpenedHosts(hostNames);
   }
 
@@ -174,7 +174,7 @@ export function WorkspaceRail() {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData(RAIL_ENTRY_MIME, key);
     event.dataTransfer.setData("text/plain", key);
-    if (railGroups.some((group) => group.key === key)) {
+    if (railItems.some((item) => item.kind === "group" && item.key === key)) {
       const block = event.currentTarget.closest<HTMLElement>("[data-rail-group]");
       if (block) {
         const rect = block.getBoundingClientRect();
@@ -184,12 +184,13 @@ export function WorkspaceRail() {
   }
 
   function dropAt(event: DragEvent<HTMLButtonElement>, targetKey: string, sourceKey: string) {
-    const movingGroup = railGroups.some((group) => group.key === sourceKey);
-    const target = movingGroup
-      ? event.currentTarget.closest<HTMLElement>("[data-rail-group]")!
-      : event.currentTarget;
+    const sourceIsTopLevel = railItems.some((item) =>
+      (item.kind === "group" && item.key === sourceKey) || (item.kind === "host" && item.name === sourceKey),
+    );
+    const block = event.currentTarget.closest<HTMLElement>("[data-rail-group]");
+    const target = sourceIsTopLevel && block ? block : event.currentTarget;
     const rect = target.getBoundingClientRect();
-    return resolveRailDrop(railGroups, sourceKey, targetKey, event.clientY < rect.top + rect.height / 2);
+    return resolveRailDrop(railItems, sourceKey, targetKey, event.clientY < rect.top + rect.height / 2);
   }
 
   function overRailEntry(event: DragEvent<HTMLButtonElement>, key: string) {
@@ -244,6 +245,66 @@ export function WorkspaceRail() {
             : session.workspace === "speedtest"
               ? "speedtest"
               : "hosts";
+
+  function hostRow(name: string, indented: boolean) {
+    return (
+      <RailSessionRow
+        key={name}
+        entryKey={name}
+        onActivate={() => {
+          setHostMenu(null);
+          setSelectedHostNames([name]);
+          hostAnchorRef.current = name;
+          session.openHost(name);
+        }}
+        label={name}
+        indented={indented}
+        active={session.activeHost === name}
+        selected={!!session.activeHost && selectedHostNames.includes(name)}
+        hovered={hoverKey === name}
+        onHover={() => setHoverKey(name)}
+        dragging={railDragKey === name}
+        dropEdge={railDrop?.key === name ? (railDrop.before ? "before" : "after") : null}
+        onPointerDown={(e) => {
+          if (e.button !== 0 || suppressHostClickRef.current) return;
+          if (e.metaKey || e.ctrlKey) {
+            e.preventDefault();
+            setSelectedHostNames((prev) => {
+              const next = new Set(prev);
+              if (next.has(name)) next.delete(name);
+              else next.add(name);
+              return [...next];
+            });
+            hostAnchorRef.current = name;
+            return;
+          }
+          if (e.shiftKey && hostAnchorRef.current) {
+            e.preventDefault();
+            const from = visibleHostNames.indexOf(hostAnchorRef.current);
+            const to = visibleHostNames.indexOf(name);
+            if (from < 0 || to < 0) return;
+            const lo = Math.min(from, to);
+            const hi = Math.max(from, to);
+            setSelectedHostNames(visibleHostNames.slice(lo, hi + 1));
+            return;
+          }
+          setHostMenu(null);
+          setSelectedHostNames([name]);
+          hostAnchorRef.current = name;
+          session.openHost(name);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openHostMenu(name, e.clientX, e.clientY);
+        }}
+        onDragStart={(e) => startRailDrag(e, name)}
+        onDragOver={(e) => overRailEntry(e, name)}
+        onDrop={(e) => dropRailEntry(e, name)}
+        onDragEnd={endRailDrag}
+      />
+    );
+  }
 
   return (
       <aside
@@ -311,105 +372,51 @@ export function WorkspaceRail() {
                 session.goHome();
               }}
             />
-            {railGroups.length > 0 ? <div className="h-2 shrink-0" /> : null}
-            {railGroups.map((group) => (
+            {railItems.length > 0 ? <div className="h-2 shrink-0" /> : null}
+            {railItems.map((item) => {
+              if (item.kind === "host") return hostRow(item.name, false);
+              return (
               <div
-                key={group.key}
-                data-rail-group={group.key}
+                key={item.key}
+                data-rail-group={item.key}
                 className={cn(
                   "relative flex shrink-0 flex-col",
-                  railDragKey === group.key && "opacity-40",
+                  railDragKey === item.key && "opacity-40",
                 )}
               >
                 <RailSessionRow
-                  entryKey={group.key}
-                  onActivate={() => { clearHostSelection(); session.openGroup(group.id); }}
-                  label={session.groupName(group.id) || group.id}
+                  entryKey={item.key}
+                  onActivate={() => { clearHostSelection(); session.openGroup(item.id); }}
+                  label={session.groupName(item.id) || item.id}
                   prefix="组"
                   active={
                     !session.settingsOpen &&
                     session.homeView === "group" &&
                     !session.activeHost &&
-                    session.activeGroupId === group.id
+                    session.activeGroupId === item.id
                   }
                   selected={false}
-                  hovered={hoverKey === group.key}
-                  onHover={() => setHoverKey(group.key)}
+                  hovered={hoverKey === item.key}
+                  onHover={() => setHoverKey(item.key)}
                   dragging={false}
                   dropEdge={null}
                   onPointerDown={(e) => {
                     if (e.button !== 0 || suppressHostClickRef.current) return;
                     clearHostSelection();
-                    session.openGroup(group.id);
+                    session.openGroup(item.id);
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     const pos = clampContextMenuPos(e.clientX, e.clientY, 180, 96);
-                    setGroupMenu({ id: group.id, x: pos.x, y: pos.y });
+                    setGroupMenu({ id: item.id, x: pos.x, y: pos.y });
                   }}
-                  onDragStart={(e) => startRailDrag(e, group.key)}
-                  onDragOver={(e) => overRailEntry(e, group.key)}
-                  onDrop={(e) => dropRailEntry(e, group.key)}
+                  onDragStart={(e) => startRailDrag(e, item.key)}
+                  onDragOver={(e) => overRailEntry(e, item.key)}
+                  onDrop={(e) => dropRailEntry(e, item.key)}
                   onDragEnd={endRailDrag}
                 />
-                {group.hosts.map((name) => (
-                  <RailSessionRow
-                    key={name}
-                    entryKey={name}
-                    onActivate={() => {
-                      setHostMenu(null);
-                      setSelectedHostNames([name]);
-                      hostAnchorRef.current = name;
-                      session.openHost(name);
-                    }}
-                    label={name}
-                    indented
-                    active={session.activeHost === name}
-                    selected={!!session.activeHost && selectedHostNames.includes(name)}
-                    hovered={hoverKey === name}
-                    onHover={() => setHoverKey(name)}
-                    dragging={railDragKey === name}
-                    dropEdge={railDrop?.key === name ? (railDrop.before ? "before" : "after") : null}
-                    onPointerDown={(e) => {
-                      if (e.button !== 0 || suppressHostClickRef.current) return;
-                      if (e.metaKey || e.ctrlKey) {
-                        e.preventDefault();
-                        setSelectedHostNames((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(name)) next.delete(name);
-                          else next.add(name);
-                          return [...next];
-                        });
-                        hostAnchorRef.current = name;
-                        return;
-                      }
-                      if (e.shiftKey && hostAnchorRef.current) {
-                        e.preventDefault();
-                        const from = visibleHostNames.indexOf(hostAnchorRef.current);
-                        const to = visibleHostNames.indexOf(name);
-                        if (from < 0 || to < 0) return;
-                        const lo = Math.min(from, to);
-                        const hi = Math.max(from, to);
-                        setSelectedHostNames(visibleHostNames.slice(lo, hi + 1));
-                        return;
-                      }
-                      setHostMenu(null);
-                      setSelectedHostNames([name]);
-                      hostAnchorRef.current = name;
-                      session.openHost(name);
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      openHostMenu(name, e.clientX, e.clientY);
-                    }}
-                    onDragStart={(e) => startRailDrag(e, name)}
-                    onDragOver={(e) => overRailEntry(e, name)}
-                    onDrop={(e) => dropRailEntry(e, name)}
-                    onDragEnd={endRailDrag}
-                  />
-                ))}
-                {railDrop?.key === group.key ? (
+                {item.hosts.map((name) => hostRow(name, true))}
+                {railDrop?.key === item.key ? (
                   <span
                     className={cn(
                       "pointer-events-none absolute inset-x-0 h-[3px] bg-accent",
@@ -418,7 +425,8 @@ export function WorkspaceRail() {
                   />
                 ) : null}
               </div>
-            ))}
+              );
+            })}
           </>
         ) : null}
       </div>

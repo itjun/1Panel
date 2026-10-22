@@ -414,7 +414,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 环图（`RingMeter`）直接落在内容平面上，不再垫 raised 色块（环图所在区块本身就是平面，再垫一层即卡片套卡片）。
 - 二级栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；二级栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；行高 40px，左右内缩 8px。
 - 一级图标栏（`components/module-rail.tsx`，`.module-rail-item`）：每项 **56×52** 方块（`--radius-control`），20px lucide 线性图标（描边 1.5）+ 下方 4px + 12px 文字，项间距 4px；第一项顶边紧贴顶栏下沿（y = 40px），与二级栏第一行、内容区白色平面的顶边在同一条线上，栏底留 8px；顶部依次为主机 / 本机 / 通知 / 测速，底部依次为巡检 / 配置 / 设置；图标：主机 `Server`、本机 `Laptop`、巡检 `ScanSearch`、通知 `Bell`、测速 `Gauge`、配置 `FileCog`、设置 `Settings`。静止 `text-muted` 无底；hover `bg-line` + `text-ink`；选中底色 `--color-canvas`（与二级栏同色，读作向右打开到二级栏）+ 图标与文字 `--color-accent`、文字 600，无指示条；通知未读数是图标右上角的 accent 小 Tag（等宽数字，>99 显示 99+），配置待处理是图标右上角 6px `--color-danger` 圆点；键盘焦点 2px `--color-accent-focus` 外环。图标与名称始终同时显示，不提供隐藏名称的开关，图标栏无右键菜单。
-- 二级栏结构：只列当前一级模块的标签，不再有模块区与横线；第一行顶边紧贴顶栏下沿，不留上内边距；主机模块顶部固定一行「全部主机」（回首页，首页时为选中态），其下 8px 留白再列已打开的主机与分组（可拖拽排序、右键菜单）；巡检即使只有一项也照常显示二级栏，避免切模块时版面跳动；整栏独立滚动。图标栏与二级栏各自有一处选中色块，属正常。
+- 二级栏结构：只列当前一级模块的标签，不再有模块区与横线；第一行顶边紧贴顶栏下沿，不留上内边距；主机模块顶部固定一行「全部主机」（回首页，首页时为选中态），其下 8px 留白再列已打开的主机与分组（可拖拽排序、右键菜单）。从全部主机打开主机时，侧栏只加入这台主机，不自动打开所属分组；分组要单独打开才出现在侧栏，其下仍列出该组里已打开的主机。巡检即使只有一项也照常显示二级栏，避免切模块时版面跳动；整栏独立滚动。图标栏与二级栏各自有一处选中色块，属正常。
 - 页面提示条（`Notice` / `FlashNotices` + `useFlashMessage`），视觉按 TDesign Alert：
   - 四种 theme：success（`--color-success` / `success-soft`，绿，同 TDesign）、info（`info` / `info-soft`）、warning（`warn` / `warn-soft`，组件里旧名 `warn` 等价）、error（`danger` / `danger-soft`）。
   - 结构：左侧 16px 实心圆状态图标（圆面 = 主题色，符号用 `--color-surface`；success ✓、info i、warning / error !）+ 8px 间距 + 正文（`text-sm`、行高 24px、`--color-ink`，不用主题色）+ 右侧可选关闭 ×（16px、描边 1.5，`--color-muted`，hover / 聚焦变 `--color-ink`，`aria-label="关闭提示"`，可键盘聚焦）。

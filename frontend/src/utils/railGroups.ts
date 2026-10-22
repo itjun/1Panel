@@ -1,9 +1,15 @@
-/** 侧栏分组是不可拆开的排序块；主机归属始终以当前配置为准。 */
-export type RailGroup = { id: string; key: string; hosts: string[] };
+/** 手动打开的分组是不可拆开的排序块；只打开主机时不带出分组。主机归属以当前配置为准。 */
+export type RailGroup = { kind: "group"; id: string; key: string; hosts: string[] };
+export type RailHost = { kind: "host"; name: string };
+export type RailItem = RailGroup | RailHost;
 export type RailDrop = { key: string; before: boolean };
 
 const GROUP_KEY_PREFIX = "group:";
 export const groupRailKey = (id: string) => GROUP_KEY_PREFIX + id;
+
+function itemKey(item: RailItem): string {
+  return item.kind === "group" ? item.key : item.name;
+}
 
 export function buildRailGroups({
   openedHosts,
@@ -17,81 +23,121 @@ export function buildRailGroups({
   railOrder: string[];
   groupIdOf: (host: string) => string;
   ungroupedId: string;
-}): RailGroup[] {
+}): RailItem[] {
   const hostGroups = new Map(
     openedHosts.map((name) => [name, groupIdOf(name) || ungroupedId]),
   );
-  const groupIds = new Set([...visitedGroupIds, ...hostGroups.values()]);
+  const visited = new Set(visitedGroupIds.filter((id) => id));
   const groupIdFromKey = (key: string) => {
     if (key.startsWith(GROUP_KEY_PREFIX)) {
       const id = key.slice(GROUP_KEY_PREFIX.length);
-      if (groupIds.has(id)) return id;
+      return visited.has(id) ? id : "";
     }
     // 兼容旧版无前缀的分组键；同名主机优先按主机解释。
-    return !hostGroups.has(key) && groupIds.has(key) ? key : "";
+    return !hostGroups.has(key) && visited.has(key) ? key : "";
   };
-  const explicitlyOrdered = new Set(railOrder.map(groupIdFromKey).filter(Boolean));
-  const orderedGroupIds = new Set<string>();
-  const orderedHosts = new Set<string>();
+
+  const items: RailItem[] = [];
+  const placedGroups = new Map<string, RailGroup>();
+  const placedHosts = new Set<string>();
+
+  function placeGroup(id: string) {
+    const existing = placedGroups.get(id);
+    if (existing) return existing;
+    if (!visited.has(id)) return null;
+    const block: RailGroup = { kind: "group", id, key: groupRailKey(id), hosts: [] };
+    placedGroups.set(id, block);
+    items.push(block);
+    return block;
+  }
+
+  function placeHost(name: string) {
+    if (placedHosts.has(name) || !hostGroups.has(name)) return;
+    placedHosts.add(name);
+    const groupId = hostGroups.get(name)!;
+    if (visited.has(groupId)) {
+      placeGroup(groupId)!.hosts.push(name);
+      return;
+    }
+    items.push({ kind: "host", name });
+  }
+
   for (const key of railOrder) {
     const id = groupIdFromKey(key);
-    if (id) orderedGroupIds.add(id);
-    if (!hostGroups.has(key)) continue;
-    orderedHosts.add(key);
-    const hostGroup = hostGroups.get(key)!;
-    if (!explicitlyOrdered.has(hostGroup)) orderedGroupIds.add(hostGroup);
+    if (id) {
+      placeGroup(id);
+      continue;
+    }
+    placeHost(key);
   }
-  for (const id of groupIds) orderedGroupIds.add(id);
-  for (const name of openedHosts) orderedHosts.add(name);
-
-  const blocks = new Map(
-    [...orderedGroupIds].map((id) => [id, { id, key: groupRailKey(id), hosts: [] as string[] }]),
-  );
-  for (const name of orderedHosts) blocks.get(hostGroups.get(name)!)!.hosts.push(name);
-  return [...blocks.values()];
+  for (const id of visited) placeGroup(id);
+  for (const name of openedHosts) placeHost(name);
+  return items;
 }
 
-export function railOrderOf(groups: RailGroup[]): string[] {
-  return groups.flatMap((group) => [group.key, ...group.hosts]);
+export function railOrderOf(items: RailItem[]): string[] {
+  return items.flatMap((item) => item.kind === "group" ? [item.key, ...item.hosts] : [item.name]);
 }
 
-/** 拖分组落在整组边界；拖主机仅调整所属组内的顺序。 */
+/** 拖分组或未归组的主机时移动整行；拖组内主机只调整该组内的顺序。 */
 export function resolveRailDrop(
-  groups: RailGroup[],
+  items: RailItem[],
   sourceKey: string,
   targetKey: string,
   before: boolean,
 ): RailDrop | null {
-  const source = groups.find((group) => group.key === sourceKey || group.hosts.includes(sourceKey));
-  const target = groups.find((group) => group.key === targetKey || group.hosts.includes(targetKey));
-  if (!source || !target || sourceKey === targetKey) return null;
-  if (source.key === sourceKey) {
-    return source === target ? null : { key: target.key, before };
+  if (sourceKey === targetKey) return null;
+  const sourceGroup = items.find((item) => item.kind === "group" && (item.key === sourceKey || item.hosts.includes(sourceKey)));
+  if (sourceGroup && sourceGroup.kind === "group" && sourceGroup.hosts.includes(sourceKey)) {
+    if (sourceGroup.key === targetKey) {
+      const firstHost = sourceGroup.hosts[0];
+      return firstHost === sourceKey ? null : { key: firstHost, before: true };
+    }
+    if (!sourceGroup.hosts.includes(targetKey)) return null;
+    return { key: targetKey, before };
   }
-  if (source !== target) return null;
-  if (target.key === targetKey) {
-    const firstHost = target.hosts[0];
-    return firstHost === sourceKey ? null : { key: firstHost, before: true };
+
+  const loose = items.find((item) => item.kind === "host" && item.name === sourceKey);
+  const movingGroup = sourceGroup && sourceGroup.kind === "group" && sourceGroup.key === sourceKey;
+  if (!loose && !movingGroup) return null;
+  let topKey = targetKey;
+  for (const item of items) {
+    if (item.kind === "group" && (item.key === targetKey || item.hosts.includes(targetKey))) {
+      topKey = item.key;
+      break;
+    }
   }
-  return { key: targetKey, before };
+  let sourceTop = "";
+  if (movingGroup && sourceGroup.kind === "group") {
+    sourceTop = sourceGroup.key;
+  } else if (loose && loose.kind === "host") {
+    sourceTop = loose.name;
+  }
+  if (topKey === sourceTop) return null;
+  if (!items.some((item) => itemKey(item) === topKey)) return null;
+  return { key: topKey, before };
 }
 
 export function reorderRailGroups(
-  groups: RailGroup[],
+  items: RailItem[],
   sourceKey: string,
   drop: RailDrop,
-): RailGroup[] | null {
-  const target = resolveRailDrop(groups, sourceKey, drop.key, drop.before);
+): RailItem[] | null {
+  const target = resolveRailDrop(items, sourceKey, drop.key, drop.before);
   if (!target) return null;
-  const sourceGroup = groups.find((group) => group.key === sourceKey || group.hosts.includes(sourceKey))!;
-  if (sourceGroup.key === sourceKey) {
-    const next = groups.filter((group) => group !== sourceGroup);
-    const index = next.findIndex((group) => group.key === target.key);
-    next.splice(index + (target.before ? 0 : 1), 0, sourceGroup);
-    return next;
+  const sourceGroup = items.find((item) => item.kind === "group" && item.hosts.includes(sourceKey));
+  if (sourceGroup && sourceGroup.kind === "group") {
+    const hosts = sourceGroup.hosts.filter((name) => name !== sourceKey);
+    const index = hosts.indexOf(target.key);
+    if (index < 0) return null;
+    hosts.splice(index + (target.before ? 0 : 1), 0, sourceKey);
+    return items.map((item) => item === sourceGroup ? { ...item, hosts } : item);
   }
-  const hosts = sourceGroup.hosts.filter((name) => name !== sourceKey);
-  const index = hosts.indexOf(target.key);
-  hosts.splice(index + (target.before ? 0 : 1), 0, sourceKey);
-  return groups.map((group) => group === sourceGroup ? { ...group, hosts } : group);
+  const moving = items.find((item) => itemKey(item) === sourceKey);
+  if (!moving) return null;
+  const next = items.filter((item) => item !== moving);
+  const index = next.findIndex((item) => itemKey(item) === target.key);
+  if (index < 0) return null;
+  next.splice(index + (target.before ? 0 : 1), 0, moving);
+  return next;
 }

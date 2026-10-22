@@ -13,9 +13,9 @@ const membership: Record<string, string> = { a1: "A", a2: "A", b1: "B", b2: "B",
 const build = (openedHosts: string[], visitedGroupIds: string[] = [], railOrder: string[] = []) =>
   buildRailGroups({ openedHosts, visitedGroupIds, railOrder, groupIdOf: (name) => membership[name] || "", ungroupedId });
 const blocks: RailGroup[] = [
-  { id: "A", key: groupRailKey("A"), hosts: ["a1", "a2"] },
-  { id: "B", key: groupRailKey("B"), hosts: ["b1", "b2"] },
-  { id: "empty", key: groupRailKey("empty"), hosts: [] },
+  { kind: "group", id: "A", key: groupRailKey("A"), hosts: ["a1", "a2"] },
+  { kind: "group", id: "B", key: groupRailKey("B"), hosts: ["b1", "b2"] },
+  { kind: "group", id: "empty", key: groupRailKey("empty"), hosts: [] },
 ];
 
 describe("侧栏打开内容跟随分组", () => {
@@ -24,9 +24,11 @@ describe("侧栏打开内容跟随分组", () => {
       .toEqual(["group:B", "b1", "group:A", "a1", "a2"]);
   });
 
-  test("打开主机自动显示所属分组；新主机直接接在同组内容后", () => {
+  test("从全部主机打开主机时不带出分组，主机单独列出", () => {
     expect(railOrderOf(build(["a1", "b1", "a2", "free"], [], ["group:A", "a1", "group:B", "b1"])))
-      .toEqual(["group:A", "a1", "a2", "group:B", "b1", "group:__ungrouped__", "free"]);
+      .toEqual(["a1", "b1", "a2", "free"]);
+    expect(railOrderOf(build(["a1", "b1", "a2"], ["A"], ["a1", "b1"])))
+      .toEqual(["group:A", "a1", "a2", "b1"]);
   });
 
   test("兼容旧分组键，去掉重复条目和已关闭的主机", () => {
@@ -49,8 +51,8 @@ describe("侧栏打开内容跟随分组", () => {
   });
 
   test("关闭分组页保留仍在打开的主机，空分组页可以关闭", () => {
-    expect(build(["a1"], [])).toEqual([{ id: "A", key: "group:A", hosts: ["a1"] }]);
-    expect(build([], ["A"])).toEqual([{ id: "A", key: "group:A", hosts: [] }]);
+    expect(build(["a1"], [])).toEqual([{ kind: "host", name: "a1" }]);
+    expect(build([], ["A"])).toEqual([{ kind: "group", id: "A", key: "group:A", hosts: [] }]);
     expect(build([], [])).toEqual([]);
   });
 });
