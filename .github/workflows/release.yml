@@ -56,7 +56,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: 1Panel-${{ github.ref_name }}-mac-arm64.zip
+            artifact: 1Panel-${{ github.ref_name }}-mac-arm64.dmg
           - os: windows-latest
             artifact: 1Panel-${{ github.ref_name }}-win-amd64.zip
           # 24.04 起官方源提供 webkitgtk-6.0（Wails v3 默认的 GTK4 后端）
@@ -157,10 +157,17 @@ jobs:
         shell: bash
         run: task linux:build
 
+      # 根目录放 1Panel.app 和「应用程序」替身，方便手动拖入；自动更新挂载后只取 .app
       - name: Package macOS app
         if: runner.os == 'macOS'
         shell: bash
-        run: cd bin && zip -r -y "$ARTIFACT" 1Panel.app
+        run: |
+          set -euo pipefail
+          stage="$(mktemp -d)"
+          cp -R bin/1Panel.app "$stage/1Panel.app"
+          ln -s /Applications "$stage/Applications"
+          hdiutil create -volname "1Panel" -srcfolder "$stage" -ov -format UDZO "bin/$ARTIFACT"
+          rm -rf "$stage"
         env:
           ARTIFACT: ${{ matrix.artifact }}
 
@@ -230,15 +237,15 @@ jobs:
           git fetch --force --tags
           # 更新说明：取附注 tag 的说明；轻量 tag 为空时客户端只显示版本号
           git for-each-ref "refs/tags/$VERSION" --format='%(contents)' > notes.md
-          # darwin-universal 与 darwin-arm64 是同一份 arm64 包。
-          # v1.1.0 客户端只认 darwin-universal，保留别名才能继续自动更新。
+          # darwin-universal 与 darwin-arm64 是同一份 arm64 磁盘映像。
+          # v1.1.0 客户端只认 darwin-universal，保留别名才能继续找到安装包。
           go run ./cmd/releasetool manifest \
             -version "$VERSION" \
             -base-url "https://github.com/$GH_REPO/releases/download" \
             -policy release/update-policy.json \
             -notes-file notes.md \
-            -asset "darwin-arm64=dist/1Panel-$VERSION-mac-arm64.zip" \
-            -asset "darwin-universal=dist/1Panel-$VERSION-mac-arm64.zip" \
+            -asset "darwin-arm64=dist/1Panel-$VERSION-mac-arm64.dmg" \
+            -asset "darwin-universal=dist/1Panel-$VERSION-mac-arm64.dmg" \
             -asset "windows-amd64=dist/1Panel-$VERSION-win-amd64.zip" \
             -asset "linux-amd64=dist/1Panel-$VERSION-linux-amd64.tar.gz" \
             -out dist/latest.json

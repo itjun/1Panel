@@ -31,3 +31,28 @@ func TestExtractAppWithDitto(t *testing.T) {
 		t.Fatalf("符号链接应保留：%q %v", target, err)
 	}
 }
+
+func TestExtractAppFromDMG(t *testing.T) {
+	src := t.TempDir()
+	app := filepath.Join(src, "1Panel.app")
+	if err := os.MkdirAll(filepath.Join(app, "Contents", "MacOS"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(app, "Contents", "MacOS", "1Panel"), []byte("bin"), 0o755)
+	archive := filepath.Join(t.TempDir(), "pkg.dmg")
+	if out, err := exec.Command("/usr/bin/hdiutil", "create", "-volname", "1Panel", "-srcfolder", src, "-ov", "-format", "UDZO", archive).CombinedOutput(); err != nil {
+		t.Fatalf("制作 dmg 失败：%v %s", err, out)
+	}
+
+	got, err := extractApp(archive, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(got) != "1Panel.app" {
+		t.Fatalf("解出路径不符：%s", got)
+	}
+	body, err := os.ReadFile(filepath.Join(got, "Contents", "MacOS", "1Panel"))
+	if err != nil || string(body) != "bin" {
+		t.Fatalf("应用内容不符：%q %v", body, err)
+	}
+}

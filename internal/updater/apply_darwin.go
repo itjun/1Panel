@@ -35,8 +35,8 @@ func Supported() (bool, string) {
 	return true, ""
 }
 
-// Apply 解压安装包并替换正在运行的 .app。
-// 优先在 .app 同目录（同一卷）解压后改名替换；目录不可写时请求管理员授权。
+// Apply 从 zip 或 dmg 取出新的 .app 并替换正在运行的应用。
+// 优先在 .app 同目录（同一卷）解出后改名替换；目录不可写时请求管理员授权。
 func Apply(archive string) error {
 	bundle, err := currentBundle()
 	if err != nil {
@@ -63,11 +63,49 @@ func Apply(archive string) error {
 	return nil
 }
 
-// extractApp 用 ditto 解压（保留符号链接、权限与签名），返回解出的 .app 路径。
+// extractApp 从 zip 或 dmg 取出 .app（保留符号链接、权限与签名）。
 func extractApp(archive, dir string) (string, error) {
+	if strings.EqualFold(filepath.Ext(archive), ".dmg") {
+		return extractAppFromDMG(archive, dir)
+	}
 	if out, err := exec.Command("/usr/bin/ditto", "-x", "-k", archive, dir).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("解压安装包失败：%v %s", err, strings.TrimSpace(string(out)))
 	}
+	app, err := findApp(dir)
+	if err != nil {
+		return "", err
+	}
+	clearQuarantine(app)
+	return app, nil
+}
+
+// extractAppFromDMG 只读挂载磁盘映像，把其中的 .app 复制出来后再卸载。
+func extractAppFromDMG(archive, dir string) (string, error) {
+	mount, err := os.MkdirTemp("", "1panel-dmg-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(mount)
+	// 浏览器下载的映像可能带隔离属性，挂载前清掉，避免系统弹窗拦住自动更新
+	_ = exec.Command("/usr/bin/xattr", "-d", "com.apple.quarantine", archive).Run()
+	if out, err := exec.Command("/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mount, archive).CombinedOutput(); err != nil {
+		return "", fmt.Errorf("挂载磁盘映像失败：%v %s", err, strings.TrimSpace(string(out)))
+	}
+	defer exec.Command("/usr/bin/hdiutil", "detach", mount, "-force").Run()
+
+	src, err := findApp(mount)
+	if err != nil {
+		return "", err
+	}
+	dst := filepath.Join(dir, filepath.Base(src))
+	if out, err := exec.Command("/usr/bin/ditto", src, dst).CombinedOutput(); err != nil {
+		return "", fmt.Errorf("复制应用失败：%v %s", err, strings.TrimSpace(string(out)))
+	}
+	clearQuarantine(dst)
+	return dst, nil
+}
+
+func findApp(dir string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
@@ -77,14 +115,17 @@ func extractApp(archive, dir string) (string, error) {
 			continue
 		}
 		app := filepath.Join(dir, e.Name())
-		if st, err := os.Stat(filepath.Join(app, "Contents", "MacOS")); err != nil || !st.IsDir() {
+		st, err := os.Stat(filepath.Join(app, "Contents", "MacOS"))
+		if err != nil || !st.IsDir() {
 			return "", errors.New("安装包内的应用结构不完整")
 		}
-		// Go 下载的文件本不带隔离属性，这里兜底清除，避免 Gatekeeper 拦截启动
-		_ = exec.Command("/usr/bin/xattr", "-dr", "com.apple.quarantine", app).Run()
 		return app, nil
 	}
 	return "", errors.New("安装包内没有 .app")
+}
+
+func clearQuarantine(path string) {
+	_ = exec.Command("/usr/bin/xattr", "-dr", "com.apple.quarantine", path).Run()
 }
 
 // applyPrivileged 通过系统授权框以管理员身份替换；路径经 argv 传入并用 quoted form 转义。

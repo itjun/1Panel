@@ -76,7 +76,7 @@ task darwin:package
 
 日常发版执行 `scripts/publish.sh`。它取最新正式版，把补丁号加一，用这段提交标题写成更新说明，再交给 `scripts/release.sh`（打附注 tag → 推送 → `gh run watch` 等 CI → 校验清单）。要指定版本或改说明时用 `scripts/release.sh vX.Y.Z -F notes.md`（或 `-m "说明"`）。GitHub Actions 构建三个平台并用 `gh` 发布到 **GitHub Releases**（页面右侧 Releases）。Release 同时是应用内更新源，客户端读取最新正式版里的签名清单 `latest.json`：
 
-- `1Panel-v<版本>-mac-arm64.zip` —— macOS arm64 包（Apple 芯片，含 `1Panel.app`）
+- `1Panel-v<版本>-mac-arm64.dmg` —— macOS arm64 磁盘映像（Apple 芯片，含 `1Panel.app`；应用内更新挂载这份映像替换本机应用）
 - `1Panel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Panel.exe`）
 - `1Panel-v<版本>-linux-amd64.tar.gz` —— Linux 64 位包
 - `latest.json` / `latest.json.sig` —— 应用内更新清单及 ed25519 签名
@@ -85,8 +85,8 @@ task darwin:package
 
 ### macOS 同事侧使用步骤
 
-1. **解压 zip**：双击解压出 `1Panel.app`
-2. **拖入 `/Applications`**：把 `1Panel.app` 拖到「应用程序」文件夹
+1. **打开 dmg**：双击磁盘映像
+2. **拖入「应用程序」**：把 `1Panel.app` 拖到窗口里的「应用程序」替身
 3. **首次打开**：右键 → 打开（macOS Gatekeeper 会拦未签名应用，普通双击会被拒；右键打开后选「仍要打开」即可，只需做一次）
 4. **配置 SSH**：应用读取的是同事本机的 `~/.ssh/config`，请确保：
    - 已生成密钥：`ssh-keygen -t ed25519`（一路回车）
