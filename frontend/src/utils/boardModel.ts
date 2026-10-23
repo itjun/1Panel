@@ -59,7 +59,7 @@ export function buildBoardAppSubItems(
       processes = new Map();
       byService.set(service, processes);
     }
-    const healthy = row.status === "UP" && row.healthUp && (!row.ingressOn || row.ingressUp);
+    const healthy = row.status === "UP" && row.healthUp;
     // 同一进程只计一次；重复记录中只要存在异常，就不能标为正常。
     processes.set(row.pid, (processes.get(row.pid) ?? true) && healthy);
   }

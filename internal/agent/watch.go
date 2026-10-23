@@ -191,15 +191,6 @@ func (w *Watcher) tick() {
 			w.applyLayer(cfg, svc.Name, layerHealth, healthAny,
 				fmt.Sprintf("%s 本机探活：健康实例 %v", svc.Name, healthAny))
 		}
-
-		if svc.Ingress.Enabled && svc.Ingress.URL != "" {
-			ok, code, err := w.probeIngress(cfg, svc.Ingress)
-			msg := fmt.Sprintf("%s 入口层 HTTP %d", svc.Name, code)
-			if err != nil {
-				msg = fmt.Sprintf("%s 入口层失败: %v", svc.Name, err)
-			}
-			w.applyLayer(cfg, svc.Name, layerIngress, ok, msg)
-		}
 	}
 	w.rebuildInstances(cfg, procs, instHealth)
 }
@@ -313,30 +304,6 @@ func (w *Watcher) metricValueFloat(cfg WatchConfig, url, stat string) float64 {
 		}
 	}
 	return 0
-}
-
-func (w *Watcher) probeIngress(cfg WatchConfig, in IngressProbe) (bool, int, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.probeTimeout())
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, in.URL, nil)
-	if err != nil {
-		return false, 0, err
-	}
-	if in.HostHeader != "" {
-		req.Host = in.HostHeader
-		req.Header.Set("Host", in.HostHeader)
-	}
-	resp, err := w.http.Do(req)
-	if err != nil {
-		return false, 0, err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
-	code := resp.StatusCode
-	if code >= 200 && code < 500 {
-		return true, code, nil
-	}
-	return false, code, fmt.Errorf("HTTP %d", code)
 }
 
 func (w *Watcher) applyLayer(cfg WatchConfig, service, layer string, up bool, detail string) {

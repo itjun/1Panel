@@ -28,7 +28,6 @@ let lastTickAt = 0;
 
 function serviceOk(st: agentcli.WatchStatus): boolean {
   if (!st.processUp || !st.healthUp) return false;
-  if (st.ingressOn && !st.ingressUp) return false;
   return true;
 }
 
@@ -37,7 +36,6 @@ function detailOf(st: agentcli.WatchStatus, ok: boolean): string {
   const parts: string[] = [];
   if (!st.processUp) parts.push("进程异常");
   if (!st.healthUp) parts.push("健康检查失败");
-  if (st.ingressOn && !st.ingressUp) parts.push("入口异常");
   return parts.length ? parts.join(" · ") : "探活异常";
 }
 
