@@ -55,9 +55,9 @@ services:
     healthPath: /actuator/health
     scrapeMetrics: true
     ingress:
-      enabled: true
+      enabled: false
       url: http://127.0.0.1/
-      hostHeader: beta-erp.example.com
+      hostHeader: ""
   - name: csp
     jarContains: diteng-csp
     portFrom: 8201
@@ -67,7 +67,7 @@ services:
     ingress:
       enabled: false
       url: http://127.0.0.1/
-      hostHeader: beta-erp.example.com
+      hostHeader: ""
   - name: std
     jarContains: diteng-std
     portFrom: 8301
@@ -77,7 +77,7 @@ services:
     ingress:
       enabled: false
       url: http://127.0.0.1/
-      hostHeader: beta-erp.example.com
+      hostHeader: ""
   - name: fpl
     jarContains: custom-fpl
     portFrom: 8401
@@ -87,7 +87,7 @@ services:
     ingress:
       enabled: false
       url: http://127.0.0.1/
-      hostHeader: beta-erp.example.com
+      hostHeader: ""
   - name: zhetai
     jarContains: custom-zhetai
     portFrom: 8501
@@ -97,7 +97,7 @@ services:
     ingress:
       enabled: false
       url: http://127.0.0.1/
-      hostHeader: beta-erp.example.com
+      hostHeader: ""
   - name: im
     runtime: java
     jarContains: diteng-im-server
@@ -106,9 +106,9 @@ services:
     healthPath: /actuator/health
     scrapeMetrics: true
     ingress:
-      enabled: true
+      enabled: false
       url: http://127.0.0.1/
-      hostHeader: beta.example.com
+      hostHeader: ""
   - name: ai-agent
     runtime: bun
     jarContains: ai-agent

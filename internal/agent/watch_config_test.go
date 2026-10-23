@@ -48,8 +48,8 @@ func TestParseDefaultWatchYAML(t *testing.T) {
 	if sapi.Runtime != "java" || !sapi.ScrapeMetrics || sapi.HealthPath != "/actuator/health" {
 		t.Fatalf("sapi-agent 应为 java: %+v", sapi)
 	}
-	if c.Services[0].Name != "oss" || !c.Services[0].Ingress.Enabled {
-		t.Fatalf("oss 入口层应默认开启: %+v", c.Services[0])
+	if c.Services[0].Name != "oss" || c.Services[0].Ingress.Enabled || c.Services[0].Ingress.HostHeader != "" {
+		t.Fatalf("oss 入口层应默认关闭且不带外部域名: %+v", c.Services[0])
 	}
 	if c.IntervalSec != 15 || c.FailStreak != 2 {
 		t.Fatalf("默认间隔/失败次数: %+v", c)
