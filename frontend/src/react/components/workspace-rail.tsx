@@ -16,6 +16,7 @@ import { HostContextMenu, type HostContextMenuState } from "@/react/components/h
 import { SettingsNavigation } from "@/react/components/settings-navigation";
 import { NotifyNavigation } from "@/react/components/notify/navigation";
 import { alertDialog } from "@/react/components/ui/confirm-dialog";
+import { CONFIG_SECTIONS } from "@/react/lib/config-model";
 import { cn } from "@/react/lib/utils";
 import {
   UNGROUPED_ID,
@@ -236,6 +237,8 @@ export function WorkspaceRail() {
 
   const listKind = session.settingsOpen
     ? "settings"
+    : session.workspace === "config"
+      ? "config"
     : session.workspace === "notify"
         ? "notify"
         : session.workspace === "local"
@@ -338,6 +341,17 @@ export function WorkspaceRail() {
           : null}
 
         {listKind === "settings" ? <SettingsNavigation /> : null}
+
+        {listKind === "config"
+          ? CONFIG_SECTIONS.map((item) => (
+              <RailNavButton
+                key={item.id}
+                label={item.label}
+                active={session.configSection === item.id}
+                onClick={() => session.setConfigSection(item.id)}
+              />
+            ))
+          : null}
 
         {listKind === "speedtest"
           ? SPEEDTEST_SECTIONS.map((item) => (

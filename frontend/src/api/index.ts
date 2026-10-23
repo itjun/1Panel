@@ -662,6 +662,8 @@ const apiImpl = {
   // ============ 跨平台迁移（主机配置 .zip） ============
   pickAndBackupApplicationData: (preferences: Record<string, string>) => Backup.PickAndBackupApplicationData(preferences),
   listApplicationBackups: () => arr(Backup.ListApplicationBackups()),
+  deleteApplicationBackup: async (path: string) => { await Backup.DeleteApplicationBackup(path); },
+  openApplicationBackupDirectory: async () => { await Backup.OpenApplicationBackupDirectory(); },
   pickApplicationBackup: () => str(Backup.PickApplicationBackup()),
   previewApplicationBackup: (path: string) => must(Backup.PreviewApplicationBackup(path)),
   restoreApplicationData: async (path: string, fingerprint: string, preferences: Record<string, string>) => {

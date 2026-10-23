@@ -17,7 +17,10 @@ import {
 } from "@/utils/lastScreen";
 import { pushView, viewSnap, type ViewSnap } from "@/react/state/nav-history";
 import { readSettings } from "@/react/state/settings";
-import { configSettingsRoute } from "@/react/lib/settings-model";
+import {
+  configSectionFromLegacySettings,
+  normalizeConfigSection,
+} from "@/react/lib/config-model";
 import { reconcileHostRacks } from "@/utils/hostRacks";
 import type { PersistTool } from "@/utils/workspaceMigrate";
 
@@ -72,12 +75,12 @@ export type NotifySection =
   | "certRules"
   | "setup";
 
-export type ConfigSection = "overview" | "json" | "files" | "diff" | "backups";
+export type ConfigSection = "backups" | "json" | "ssh";
 export type InspectSection = "menuCheck";
 export type SpeedtestSection = "pair" | "group" | "history";
 /** 从主机右键 / 分组页跳进测速时的预填 */
 export type SpeedtestPrefill = { a?: string; b?: string; groupId?: string; nonce: number };
-export type SettingsSection = "look" | "session" | "board" | "app" | "backups" | "config" | "shortcuts" | "about";
+export type SettingsSection = "look" | "session" | "board" | "app" | "shortcuts" | "about";
 export type HomeView = "home" | "group";
 
 export type OpenedHost = {
@@ -223,12 +226,21 @@ function loadNav(): Nav {
     if (merged.homeView !== "home" && merged.homeView !== "group") {
       merged.homeView = "home";
     }
-    const settingsSections = new Set(["look", "session", "board", "app", "backups", "config", "shortcuts", "about"]);
+    const legacyConfigSection = merged.settingsOpen
+      ? configSectionFromLegacySettings(merged.settingsSection)
+      : null;
+    if (legacyConfigSection) {
+      merged.settingsOpen = false;
+      merged.workspace = "config";
+      merged.configSection = legacyConfigSection;
+    }
+    const settingsSections = new Set(["look", "session", "board", "app", "shortcuts", "about"]);
     if (!settingsSections.has(merged.settingsSection as string)) {
       merged.settingsSection = "look";
     }
     if (merged.workspace === "config") {
-      Object.assign(merged, configSettingsRoute(merged.configSection, merged.settingsOpen ? merged.settingsSection : undefined));
+      merged.settingsOpen = false;
+      merged.configSection = normalizeConfigSection(merged.configSection);
     }
     return merged;
   } catch {
@@ -266,7 +278,7 @@ function restoreNav(): Nav {
     return nav;
   }
 
-  // 本机 / 通知 / 巡检 / 配置 / 设置沿用 loadNav 里记下的工作区与分区
+  // 本机 / 配置 / 通知 / 巡检 / 设置沿用 loadNav 里记下的工作区与分区
   const activeId = screen?.activeHostSessionId?.trim() || "";
   const active = openedHosts.find((item) => item.name === activeId);
   if (active) {
@@ -483,7 +495,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       osRelease,
       loading,
       refresh,
-      setWorkspace: (workspace) => patch(workspace === "config" ? configSettingsRoute(nav.configSection) : { workspace, settingsOpen: false }),
+      setWorkspace: (workspace) => patch({ workspace, settingsOpen: false }),
       openSettings: (open = true) =>
         patch(open ? { settingsOpen: true } : { settingsOpen: false }),
       setLocalSection: (localSection) =>
@@ -491,7 +503,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setNotifySection: (notifySection) =>
         patch({ notifySection, workspace: "notify", settingsOpen: false }),
       setConfigSection: (configSection) =>
-        patch({ configSection, ...configSettingsRoute(configSection) }),
+        patch({ configSection, workspace: "config", settingsOpen: false }),
       setInspectSection: (inspectSection) =>
         patch({ inspectSection, workspace: "inspect", settingsOpen: false }),
       setSpeedtestSection: (speedtestSection) =>
@@ -703,7 +715,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         activeHost: snap.activeHost,
         activeTool: snap.activeTool,
         openedHosts,
-        ...(snap.workspace === "config" ? configSettingsRoute(snap.configSection, snap.settingsOpen ? snap.settingsSection : undefined) : {}),
       };
       writeMainFromNav(next);
       return next;

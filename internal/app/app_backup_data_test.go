@@ -237,3 +237,35 @@ func TestApplicationSnapshotIncludesExternalReferencedKey(t *testing.T) {
 		t.Fatalf("key reference not remapped: %s %v", panel, err)
 	}
 }
+
+func TestDeleteApplicationBackupOnlyRemovesLocalZip(t *testing.T) {
+	home := t.TempDir()
+	a := newBackupTestApp(t, home)
+	service := (*Backup)(a)
+	root := filepath.Dir(a.panelStore.Path())
+	dir := filepath.Join(root, "application-backups")
+	target := filepath.Join(dir, "1panel-data-test.zip")
+	outside := filepath.Join(root, "keep.zip")
+	nested := filepath.Join(dir, "nested", "escape.zip")
+	writeTestFile(t, target, "zip", 0600)
+	writeTestFile(t, outside, "zip", 0600)
+	writeTestFile(t, nested, "zip", 0600)
+	if err := service.DeleteApplicationBackup(outside); err == nil {
+		t.Fatal("deleted a file outside the backup directory")
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteApplicationBackup(nested); err == nil {
+		t.Fatal("deleted a backup outside the top-level directory")
+	}
+	if _, err := os.Stat(nested); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteApplicationBackup(target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("backup file still exists: %v", err)
+	}
+}

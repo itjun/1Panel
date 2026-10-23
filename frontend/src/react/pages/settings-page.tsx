@@ -39,8 +39,6 @@ import { detectAppOs } from "@/react/lib/platform";
 import { SETTINGS_SECTIONS, settingsShortcuts, showWindowMaterial } from "@/react/lib/settings-model";
 import { useSettingsScroll } from "@/react/lib/use-settings-scroll";
 import { AppearancePreviews } from "@/react/components/settings-appearance";
-import { SettingsDataSections } from "@/react/components/settings-data-sections";
-import { requestSettingsSection } from "@/react/state/settings-navigation";
 import type { SettingsSection } from "@/react/state/session";
 import "@/react/styles/settings.css";
 
@@ -56,7 +54,6 @@ export function SettingsPage() {
   const [boardEnabled, setBoardEnabled] = useState(true);
   const [boardPort, setBoardPort] = useState(8888);
   const [restorePath, setRestorePath] = useState<string | null>(null);
-  const [dataBusy, setDataBusy] = useState(false);
   const queryClient = useQueryClient();
   const launchAtLogin = useQuery({
     queryKey: ["launch-at-login"],
@@ -149,9 +146,7 @@ export function SettingsPage() {
   );
 
   return (
-    <Page title="设置" heading={false} flush scrollLabel="设置内容" refreshing={dataBusy} onRefresh={async () => {
-      await Promise.all(["config-overview", "application-backups", "application-restore-error", "config-files", "config-readonly-state", "panel-config-status"].map(key => queryClient.invalidateQueries({ queryKey: [key] })));
-    }}>
+    <Page title="设置" heading={false} flush scrollLabel="设置内容">
       <div ref={documentRef} className="settings-document">
         <header className="settings-header">
           <h1>设置</h1>
@@ -340,7 +335,7 @@ export function SettingsPage() {
             </SettingRow>
             <SettingRow label="SSH 配置同步">
               <span>{statusLabel(status.data)}</span>
-              <Button onClick={() => { session.setSettingsSection("config"); requestSettingsSection("config"); }}>查看当前配置</Button>
+              <Button onClick={() => session.setConfigSection("ssh")}>查看 SSH 配置</Button>
             </SettingRow>
             <TerminalOpenSettings />
             <SettingRow label="退出前询问">
@@ -354,8 +349,6 @@ export function SettingsPage() {
               />
             </SettingRow>
         </SettingsSectionBlock>
-
-        <SettingsDataSections onBusyChange={setDataBusy} />
 
         <SettingsSectionBlock id="shortcuts">
             <div className="overflow-hidden">

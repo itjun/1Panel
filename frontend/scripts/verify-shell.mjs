@@ -55,6 +55,9 @@ const moduleRail = fs.readFileSync(path.join(root, "src/react/components/module-
 if (!moduleRail.includes('label="主机"') || !app.includes("ModuleRail")) {
   fail("primary module rail must provide host navigation");
 }
+if (!moduleRail.includes('label="配置"') || !app.includes("ConfigDataPage")) {
+  fail("config workspace must remain available from the primary module rail");
+}
 if (!app.includes("HostToolTabs")) fail("host tool tabs must remain available in the host workspace");
 const toolbarMarkup = app.slice(app.indexOf("<header"), app.indexOf("</header>"));
 if (!toolbarMarkup.includes("<HostToolTabs />") || (app.match(/<HostToolTabs\s*\/>/g) || []).length !== 1) {

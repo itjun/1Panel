@@ -1,26 +1,15 @@
 import { sectionReadingPosition } from "@/react/lib/section-scroll";
 import type { AppOs } from "@/react/lib/platform";
-import type { ConfigSection, SettingsSection } from "@/react/state/session";
+import type { SettingsSection } from "@/react/state/session";
 
 export const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "look", label: "外观" },
   { id: "session", label: "会话" },
   { id: "board", label: "看板" },
   { id: "app", label: "应用" },
-  { id: "backups", label: "备份" },
-  { id: "config", label: "配置" },
   { id: "shortcuts", label: "热键" },
   { id: "about", label: "关于" },
 ];
-
-/** Preserve the selected destination when restoring a retired configuration page. */
-export function configSettingsRoute(section: ConfigSection, currentSettingsSection?: SettingsSection) {
-  return {
-    workspace: "remote" as const,
-    settingsOpen: true,
-    settingsSection: currentSettingsSection ?? (section === "backups" ? "backups" : "config"),
-  };
-}
 
 export const PLATFORM_SETTINGS = {
   mac: { name: "macOS", sans: "SF Pro / 苹方", mono: "SF Mono / Menlo" },

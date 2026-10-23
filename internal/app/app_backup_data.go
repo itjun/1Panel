@@ -328,6 +328,52 @@ func (s *Backup) ListApplicationBackups() ([]ApplicationBackup, error) {
 	return out, nil
 }
 
+// DeleteApplicationBackup 删除本地备份目录中的一份压缩包。只接受该目录下的普通 .zip 文件。
+func (s *Backup) DeleteApplicationBackup(path string) error {
+	s.applicationDataMu.Lock()
+	defer s.applicationDataMu.Unlock()
+	root, err := s.applicationDataRoot()
+	if err != nil {
+		return err
+	}
+	dir, err := filepath.Abs(filepath.Join(root, "application-backups"))
+	if err != nil {
+		return err
+	}
+	cleaned := filepath.Clean(strings.TrimSpace(path))
+	if cleaned == "" || cleaned == "." {
+		return fmt.Errorf("请选择要删除的备份")
+	}
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return err
+	}
+	if filepath.Dir(abs) != dir || !strings.EqualFold(filepath.Ext(abs), ".zip") {
+		return fmt.Errorf("只能删除本地备份目录中的压缩包")
+	}
+	info, err := os.Lstat(abs)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("只能删除备份文件")
+	}
+	return os.Remove(abs)
+}
+
+// OpenApplicationBackupDirectory 在系统文件管理器中打开本地备份目录。
+func (s *Backup) OpenApplicationBackupDirectory() error {
+	root, err := s.applicationDataRoot()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(root, "application-backups")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("无法打开备份目录: %w", err)
+	}
+	return openPanelPath(dir, false)
+}
+
 func (s *Backup) PickApplicationBackup() (string, error) {
 	if s.app == nil {
 		return "", fmt.Errorf("应用未初始化")

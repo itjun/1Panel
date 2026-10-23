@@ -29,10 +29,9 @@
 .settings-font-preview{display:flex;align-items:center;flex-wrap:wrap;gap:12px 24px;width:100%;max-width:640px;min-width:0;padding:12px;background:var(--color-raised);border-radius:var(--radius-control);font-size:14px;line-height:20px;overflow-wrap:anywhere}
 .settings-font-sans{flex:1 1 160px}
 .settings-navigation{display:flex;flex-direction:column;gap:2px;padding:0 8px;width:100%}
-.settings-navigation button{position:relative;text-align:left;min-height:40px;padding:8px 12px;font-size:14px;line-height:24px;border-radius:var(--radius-control);color:var(--color-muted);cursor:pointer}
+.settings-navigation button{text-align:left;min-height:40px;padding:8px 12px;font-size:14px;line-height:24px;border-radius:var(--radius-control);color:var(--color-muted);cursor:pointer}
 .settings-navigation button:hover{background:var(--color-raised);color:var(--color-ink)}
 .settings-navigation button[aria-current]{color:var(--color-accent);background:var(--color-accent-soft);font-weight:600}
-.settings-navigation button[aria-current]:before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;background:var(--color-accent);border-radius:var(--radius-control)}
 .settings-navigation button:focus-visible{outline:2px solid var(--color-accent);outline-offset:-2px}
 @container settings (max-width:900px){
  .settings-section{grid-template-columns:140px minmax(0,1fr);gap:16px}

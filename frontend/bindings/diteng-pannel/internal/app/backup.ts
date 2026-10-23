@@ -27,6 +27,13 @@ export function BackupApplicationData(dst: string, preferences: { [_ in string]?
 }
 
 /**
+ * DeleteApplicationBackup 删除本地备份目录中的一份压缩包。只接受该目录下的普通 .zip 文件。
+ */
+export function DeleteApplicationBackup(path: string): $CancellablePromise<void> {
+    return $Call.ByID(1887726020, path);
+}
+
+/**
  * ExportBackup 导出迁移包到 path（无 .zip 后缀时自动补上），返回摘要文案
  */
 export function ExportBackup(path: string): $CancellablePromise<string> {
@@ -35,6 +42,13 @@ export function ExportBackup(path: string): $CancellablePromise<string> {
 
 export function ListApplicationBackups(): $CancellablePromise<$models.ApplicationBackup[] | null> {
     return $Call.ByID(2599976578);
+}
+
+/**
+ * OpenApplicationBackupDirectory 在系统文件管理器中打开本地备份目录。
+ */
+export function OpenApplicationBackupDirectory(): $CancellablePromise<void> {
+    return $Call.ByID(3872377164);
 }
 
 /**
