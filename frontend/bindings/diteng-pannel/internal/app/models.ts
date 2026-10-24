@@ -302,6 +302,35 @@ export interface HostAlertNotify {
 }
 
 /**
+ * HostCardSnapshot 首页只读快照；连接、Agent 与各项读数独立表达，失败不返回零值指标。
+ */
+export interface HostCardSnapshot {
+    "name": string;
+
+    /**
+     * online / failed / unknown
+     */
+    "connection": string;
+
+    /**
+     * running / missing / stopped / unknown
+     */
+    "agentState": string;
+    "agentVersion": string;
+    "overview": monitor$0.Overview | null;
+
+    /**
+     * Agent 原始采样时间（Unix 秒）
+     */
+    "sampledAt": number;
+    "disks": monitor$0.DiskInfo[] | null;
+    "error": string;
+    "overviewError": string;
+    "diskError": string;
+    "detailsIncluded": boolean;
+}
+
+/**
  * HostConnNotify 面板侧主机连接告警（停机 / 恢复）入参
  */
 export interface HostConnNotify {

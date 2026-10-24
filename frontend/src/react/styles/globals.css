@@ -73,8 +73,10 @@
   --radius-tag: 3px;
   /* 网格内同类单元之间（监控图表、巡检格、左右分栏） */
   --gap-card: 8px;
-  /* 首页主机列表机柜式分组的最小列宽（docs/design/specification.md §9） */
+  /* 首页拖拽预览和空机柜的参考宽度（docs/design/specification.md §9） */
   --host-rack-column: 280px;
+  /* 首页横向网格的主机卡最小列宽，列数由内容区宽度计算。 */
+  --host-rack-card-min: 240px;
   /* 区块与区块之间（docs/design/specification.md §4.1）：Tailwind gap-section / space-y-section */
   --spacing-section: 24px;
   --gap-section: 24px;
@@ -415,13 +417,12 @@ html.dark[data-window-material="mica"] .module-rail {
   gap: var(--gap-card);
 }
 
-/* 首页主机列表「机柜式分组」（docs/design/specification.md §9）：用户自定义的若干排纵向堆叠（排间 gap-section），
-   排内分组块定宽、从左到右、顶部对齐，过多时排内折行，绝不横向滚动 */
+/* 首页横向机柜（docs/design/specification.md §9）：机柜纵向堆叠，组内主机横向排列。
+   分组按主机数跨列，按已有顺序自然换行，不密集回填；列数由实际内容宽度计算。 */
 .host-rack-lane {
   position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  align-items: start;
   gap: var(--gap-card);
 }
 
@@ -478,8 +479,7 @@ html.dark[data-window-material="mica"] .module-rail {
 
 .host-rack-block {
   position: relative;
-  flex: 0 0 var(--host-rack-column);
-  width: var(--host-rack-column);
+  min-width: 0;
   max-width: 100%;
   padding: var(--gap-card);
   border-radius: var(--radius-panel);

@@ -194,6 +194,8 @@ const apiImpl = {
   subtreeHostNames: (id: string) => arr(Groups.SubtreeHostNames(id)),
 
   listGroupOverview: () => arr(Overview.ListGroupOverview()),
+  getHostCardSnapshot: (host: string, isDetailsIncluded: boolean): Promise<main.HostCardSnapshot> =>
+    must(Overview.GetHostCardSnapshot(host, isDetailsIncluded)),
   listOneGroupOverview: (groupID: string): Promise<main.GroupOverview> =>
     must(Overview.ListOneGroupOverview(groupID)),
 

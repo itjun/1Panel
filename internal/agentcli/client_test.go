@@ -1,10 +1,35 @@
 package agentcli
 
 import (
+	"errors"
 	"testing"
 
 	"diteng-pannel/internal/sshd"
 )
+
+func TestTokenReadPreservesFailureReason(t *testing.T) {
+	for _, tc := range []struct {
+		name, output string
+		err, want    error
+	}{
+		{"文件缺失", "__spanel_agent_missing__", nil, ErrNotInstalled},
+		{"SSH 断线", "", errors.New("handshake failed"), ErrSSHConnection},
+		{"无提权权限", "", sshd.ErrNoRoot, sshd.ErrNoRoot},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tokenFromRead([]byte(tc.output), tc.err)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("期望 %v，得到 %v", tc.want, err)
+			}
+		})
+	}
+	if _, err := tokenFromRead(nil, nil); err == nil || errors.Is(err, ErrNotInstalled) {
+		t.Fatal("空 token 应报错，不得误报未安装")
+	}
+	if token, err := tokenFromRead([]byte("sudo notice\ntest-token\n"), nil); err != nil || token != "test-token" {
+		t.Fatal("应正确读取最后一行 token")
+	}
+}
 
 func TestSameConnectOpt(t *testing.T) {
 	base := sshd.ConnectOption{

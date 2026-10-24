@@ -15,6 +15,14 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
+ * GetHostCardSnapshot 只读健康和指标，不调用 Status / tryHeal，不启动或安装远端服务。
+ * isDetailsIncluded 由首页按 30 秒节奏传入，普通轮询只读最新指标。
+ */
+export function GetHostCardSnapshot(host: string, isDetailsIncluded: boolean): $CancellablePromise<$models.HostCardSnapshot> {
+    return $Call.ByID(838334504, host, isDetailsIncluded);
+}
+
+/**
  * ListGroupOverview 采集所有分组的所有主机概览（较慢，慎用）
  * 并发上限 5；单台失败不拖垮其它主机
  */

@@ -36,6 +36,10 @@ var ErrAgentUnreachable = errors.New("agent 不可达（未安装或未运行）
 // ErrNotInstalled token 文件不存在，视为未安装
 var ErrNotInstalled = errors.New("agent 未安装")
 
+// 保留传输与响应边界，首页不能把 SSH 失败误报成 Agent 未安装。
+var ErrSSHConnection = errors.New("SSH 连接失败")
+var ErrAgentResponse = errors.New("agent 响应异常")
+
 // HTTP JSON 契约类型定义在 internal/agentapi；别名保持 Wails 绑定名不变。
 
 type Health = agentapi.Health
@@ -290,7 +294,7 @@ func dialViaSSH(ctx context.Context, mgr *sshd.Manager, host string, opt sshd.Co
 			if strings.Contains(r.err.Error(), "connect failed") {
 				return nil, fmt.Errorf("%w: %v", ErrAgentUnreachable, r.err)
 			}
-			return nil, r.err
+			return nil, fmt.Errorf("%w: %v", ErrSSHConnection, r.err)
 		}
 		return r.conn, nil
 	case <-ctx.Done():
@@ -315,7 +319,7 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	ch := make(chan result, 1)
 	go func() {
 		// 数据目录为 root 700，普通用户需经 sudo 读取
-		out, err := c.mgr.RunAsRoot(c.host, c.opt, "cat /var/lib/spanel-agent/token 2>/dev/null")
+		out, err := c.mgr.RunAsRoot(c.host, c.opt, "if [ ! -e /var/lib/spanel-agent/token ]; then printf '__spanel_agent_missing__'; else cat /var/lib/spanel-agent/token; fi", sshd.RunOptions{Timeout: fastTimeout})
 		ch <- result{out, err}
 	}()
 	var r result
@@ -324,16 +328,30 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
-	if errors.Is(r.err, sshd.ErrNoRoot) {
-		return "", r.err
-	}
-	tok := lastLine(string(r.out))
-	if r.err != nil || tok == "" {
-		return "", ErrNotInstalled
+	tok, err := tokenFromRead(r.out, r.err)
+	if err != nil {
+		return "", err
 	}
 	c.mu.Lock()
 	c.token = tok
 	c.mu.Unlock()
+	return tok, nil
+}
+
+func tokenFromRead(out []byte, err error) (string, error) {
+	if errors.Is(err, sshd.ErrNoRoot) {
+		return "", err
+	}
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrSSHConnection, err)
+	}
+	tok := lastLine(string(out))
+	if tok == "__spanel_agent_missing__" {
+		return "", ErrNotInstalled
+	}
+	if tok == "" {
+		return "", errors.New("Agent token 文件为空")
+	}
 	return tok, nil
 }
 
@@ -450,9 +468,9 @@ func (c *Client) do(req *http.Request, out any) error {
 			Error string `json:"error"`
 		}
 		if json.Unmarshal(body, &e) == nil && e.Error != "" {
-			return fmt.Errorf("agent: %s", e.Error)
+			return fmt.Errorf("%w: %s", ErrAgentResponse, e.Error)
 		}
-		return fmt.Errorf("agent HTTP %d", resp.StatusCode)
+		return fmt.Errorf("%w: HTTP %d", ErrAgentResponse, resp.StatusCode)
 	}
 	if out == nil {
 		return nil

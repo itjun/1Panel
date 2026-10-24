@@ -1,0 +1,48 @@
+/* 横向机柜保留分组顺序，以主机数决定分组占列。 */
+.host-home-page { --gap-card: 24px; --gap-section: 24px; --spacing-section: 24px; }
+.host-home-page .host-rack-block { padding: 0; background: transparent; }
+.host-home-page .host-rack-block[data-drop-active="true"] { background: var(--color-accent-soft); }
+.host-card-stack { display: grid; gap: 12px; }
+.host-card {
+  position: relative; display: flex; flex-direction: column; gap: 6px;
+  min-width: 0; min-height: 160px; padding: 12px;
+  border: 0.5px solid var(--color-line); border-radius: var(--radius-panel);
+  background: var(--color-raised); color: var(--color-ink); cursor: grab;
+  outline: none;
+}
+.host-card:hover { border-color: var(--color-line-strong); }
+.host-card.is-selected { background: var(--color-accent-soft); border-color: var(--color-accent); }
+.host-card.is-selected .host-card-name { color: var(--color-accent); }
+.host-card:active { cursor: grabbing; }
+.host-card:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.host-card-identity { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 22px; }
+.host-card-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; line-height: 22px; font-weight: 600; }
+.host-card-edit { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: var(--radius-control); color: var(--color-muted); opacity: 0; visibility: hidden; cursor: pointer; }
+.host-card:hover .host-card-edit, .host-card:focus-within .host-card-edit { opacity: 1; visibility: visible; }
+.host-card-edit:hover { color: var(--color-ink); background: var(--color-line); }
+.host-card-edit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.host-card-status-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 18px; min-width: 0; font-size: 12px; line-height: 18px; color: var(--color-muted); }
+.host-card-status { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.host-card-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-muted); flex-shrink: 0; }
+.host-card-status[data-tone="ok"] .host-card-status-dot { background: var(--meter-ok); }
+.host-card-status[data-tone="warn"] .host-card-status-dot { background: var(--meter-warn); }
+.host-card-status[data-tone="danger"] { color: var(--color-danger); }
+.host-card-status[data-tone="danger"] .host-card-status-dot { background: var(--meter-danger); }
+.host-card-agent { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.host-card-agent[data-state="missing"], .host-card-agent[data-state="stopped"] { color: var(--color-warn); }
+.host-card-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: auto; }
+.host-card-metric { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.host-card-metric .resource-ring { width: 52px; height: 52px; }
+.host-card-metric .resource-ring-center strong { font-size: 16px; line-height: 20px; }
+.host-card-percent { font-size: 10px; margin-left: 1px; font-weight: 400; }
+.host-card-metric[data-tone="danger"] strong { color: var(--color-danger); }
+.host-card-metric-label { font-size: 12px; line-height: 18px; color: var(--color-muted); }
+.host-home-fleet-status { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; line-height: 18px; color: var(--color-muted); }
+.host-home-fleet-status span { white-space: nowrap; }
+.host-home-fleet-status [data-tone="warn"] { color: var(--color-warn); }
+.host-home-fleet-status [data-tone="ok"] { color: var(--color-success-text); }
+.host-group-attention { margin-left: auto; flex-shrink: 0; font-size: 12px; font-weight: 400; color: var(--color-warn); }
+.host-group-count { flex-shrink: 0; }
+[data-host-axis="x"] > .host-rack-host-insert { top: 8px; bottom: 8px; left: auto; right: auto; width: 2px; height: auto; }
+[data-host-axis="x"] > .host-rack-host-insert[data-side="before"] { left: 0; }
+[data-host-axis="x"] > .host-rack-host-insert[data-side="after"] { right: 0; }

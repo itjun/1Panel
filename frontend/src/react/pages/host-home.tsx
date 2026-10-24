@@ -25,9 +25,13 @@ import {
   type RackDropMark,
 } from "@/utils/hostRacks";
 import { useHostRackMotion } from "@/react/lib/use-host-rack-motion";
+import { useHostRackColumns } from "@/react/lib/use-host-rack-columns";
+import { hostRackGroupColumns } from "@/utils/hostRackLayout";
 import { usePointerDrag } from "@/react/lib/use-pointer-drag";
 import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
-import { DistroBadge } from "@/react/components/distro-badge";
+import { HostCardContent } from "@/react/components/host-card";
+import { useHostCards } from "@/react/lib/use-host-cards";
+import { summarizeHostCards } from "@/utils/hostCardModel";
 import { openHostSetup } from "@/react/components/host-setup-dialog";
 import { openHostRename } from "@/react/components/host-rename-dialog";
 import { Button } from "@/react/components/ui/button";
@@ -161,11 +165,13 @@ function MenuDivider() {
 export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps = {}) {
   const session = useSession();
   const settings = useSettings();
+  const hostCards = useHostCards(session.hosts.map(host => host.name));
   const searchRef = useRef<HTMLInputElement>(null);
   const suppressClick = useRef(false);
   const insertMarkRef = useRef<InsertMark | null>(null);
   const dropTargetRef = useRef<string | null>(null);
   const rackRef = useRef<HTMLDivElement>(null);
+  const rackColumns = useHostRackColumns(rackRef);
   const scrollRef = useRef<HTMLDivElement>(null);
   const groupInsertRef = useRef<RackDropMark | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -477,7 +483,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           // 未分组不支持组内排序
           if (groupId !== UNGROUPED_ID) {
             const rect = sortNode.getBoundingClientRect();
-            const after = clientY > rect.top + rect.height / 2;
+            const after = clientX > rect.left + rect.width / 2;
             const next = { sectionId: groupId, target, after };
             insertMarkRef.current = next;
             setInsertMark((previous) => previous?.sectionId === next.sectionId && previous.target === next.target && previous.after === next.after ? previous : next);
@@ -853,13 +859,15 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
   useHostRackMotion(
     rackRef,
-    JSON.stringify([groupRacks, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
+    JSON.stringify([rackColumns, groupRacks, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
     !dragItem && !keyword,
     JSON.stringify(collapsedIds),
   );
 
   function renderSection(section: Section) {
+    const status = summarizeHostCards(section.hosts.map(host => host.name), hostCards.entries, hostCards.now);
     const collapsed = sectionCollapsed(section.id);
+    const columns = hostRackGroupColumns(section.hosts.length, rackColumns, collapsed);
     const isDrop = dropTargetId === section.id;
     const sortable = !keyword && isSortableGroup(section);
     let insertSide: string | null = null;
@@ -874,6 +882,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       <section
         key={section.id}
         className="host-rack-block"
+        style={{ gridColumn: `span ${columns}` }}
         data-drag-source={draggingGroupId === section.id || undefined}
         data-drop-group={section.id}
         data-drop-active={isDrop ? "true" : undefined}
@@ -944,18 +953,19 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               setSelectionSection(null);
             }}
           >
-            <span className="truncate text-sm font-semibold text-ink">
+            <span className="truncate text-sm font-semibold text-ink" data-tip={section.name} data-tip-overflow="">
               {section.name}
             </span>
-            <span className="text-xs tabular-nums text-muted">
-              {section.hosts.length}
+            <span className="host-group-count text-xs tabular-nums text-muted">
+              {section.hosts.length} 台
             </span>
+            {status.attention > 0 ? <span className="host-group-attention">{status.attention} 异常</span> : null}
           </button>
         </div>
 
         <div className="host-rack-content" data-collapsed={collapsed || undefined} inert={collapsed} aria-hidden={collapsed}>
           <div className="min-h-0 overflow-hidden">
-          <div className="flex flex-col gap-0.5">
+          <div className="host-card-stack" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
             {section.hosts.length === 0 && !keyword ? (
               <p className="m-0 flex h-10 items-center px-2 text-muted">
                 {dragging ? (isDrop ? "松开鼠标，移入此分组" : "拖拽主机到这里") : "没有主机"}
@@ -978,11 +988,11 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   data-host-sort={host.name}
                   data-host-group={section.id}
                   data-pin-host={section.isPinned ? host.name : undefined}
-                  data-host-axis="y"
+                  data-host-axis="x"
                   tabIndex={0}
-                  className={`host-rack-row motion-colors relative flex h-10 cursor-grab items-center gap-2.5 rounded-control px-2 outline-none focus-visible:outline-2 focus-visible:outline-accent-focus active:cursor-grabbing ${
-                    selectedRow ? "bg-accent-soft" : "hover:bg-surface"
-                  }`}
+                  role="group"
+                  aria-label={`${host.name} 主机`}
+                  className={`host-rack-row host-card${selectedRow ? " is-selected" : ""}`}
                   onPointerDown={(event) =>
                     onHostPointerDown(event, section.id, host.name)
                   }
@@ -1031,40 +1041,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   {mark === "after" ? (
                     <div className="host-rack-host-insert" data-side="after" />
                   ) : null}
-                  <DistroBadge boxSize={22} osRelease={session.osRelease[host.name]} />
-                  <span
-                    data-tip={host.name} data-tip-overflow=""
-                    className={`min-w-0 flex-1 truncate ${
-                      selectedRow ? "text-accent" : "text-ink"
-                    }`}
-                  >
-                    {host.name}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="编辑主机"
-                    className="host-rack-edit inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-control text-muted hover:bg-line hover:text-ink"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      session.setEditingHost(host.name);
-                    }}
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M12 20h9" />
-                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                    </svg>
-                  </button>
+                  <HostCardContent name={host.name} entry={hostCards.entries[host.name]} now={hostCards.now}
+                    osRelease={session.osRelease[host.name]} onEdit={() => session.setEditingHost(host.name)} />
                 </div>
               );
             })}
@@ -1085,18 +1063,24 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         aria-label={rackName}>
         {showGapLine ? <div className="host-rack-lane-insert" /> : null}
         <button type="button"
-          className="group/rack-name flex h-7 w-fit max-w-full items-center gap-2 rounded-control px-1 text-xs text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
+          className="group/rack-name flex h-6 w-fit max-w-full items-center gap-2 rounded-control px-1 text-xs text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
           aria-label={`设置机柜名称：${rackName}`} title="设置机柜名称"
           onClick={() => setRackSettings({ id: row.rack.id, name: row.rack.name })}>
           <span className="truncate">{rackName}</span><Pencil size={12} className="shrink-0 opacity-0 group-hover/rack-name:opacity-100 group-focus-visible/rack-name:opacity-100" />
         </button>
-        <div className="host-rack-lane" data-rack-active={groupInsert?.kind === "rack" && groupInsert.rackId === row.rack.id || undefined}>
+        <div className="host-rack-lane" style={{ gridTemplateColumns: `repeat(${rackColumns}, minmax(0, 1fr))` }}
+          data-rack-active={groupInsert?.kind === "rack" && groupInsert.rackId === row.rack.id || undefined}>
           {row.sections.map((section) => renderSection(section))}
           {!row.sections.length ? <div className="host-rack-empty">拖动分组到此机柜</div> : null}
         </div>
       </section>
     );
   }
+
+  const fleetNames = keyword
+    ? sections.filter(section => !section.isPinned).flatMap(section => section.hosts.map(host => host.name))
+    : session.hosts.map(host => host.name);
+  const fleetStatus = summarizeHostCards(fleetNames, hostCards.entries, hostCards.now);
 
   let dragHint = "拖到分组中移动";
   if (dragItem?.kind === "group") {
@@ -1187,7 +1171,14 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           新建
           <ChevronDown size={14} className="text-muted" aria-hidden="true" />
         </Button>
-        <span className="ml-auto truncate text-xs text-muted tabular-nums">{summaryText}</span>
+        <div className="ml-auto flex flex-col items-end gap-1">
+          <span className="text-xs text-muted tabular-nums">{summaryText}</span>
+          <div className="host-home-fleet-status" aria-label="主机状态汇总">
+            <span data-tone="ok">正常 {fleetStatus.normal}</span>
+            <span data-tone="warn">需关注 {fleetStatus.attention}</span>
+            {fleetStatus.unknown > 0 ? <span>待确认 {fleetStatus.unknown}</span> : null}
+          </div>
+        </div>
       </div>
 
       {/* 内容区左右下 16px 安全边距（顶部由工具行下内边距承担）；分组为机柜式块，按用户自定义的排纵向堆叠（docs/design/specification.md §9）。

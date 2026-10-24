@@ -1,0 +1,6 @@
+.resource-ring { position: relative; flex-shrink: 0; width: 144px; height: 144px; }
+.resource-ring > svg { display: block; width: 100%; height: 100%; }
+.resource-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.resource-ring-center strong { font-size: 32px; font-weight: 600; line-height: 40px; font-variant-numeric: tabular-nums; }
+.resource-ring-unit { margin-left: 2px; font-size: 12px; font-weight: 400; }
+.resource-ring-center > span { font-size: 14px; color: var(--color-muted); }

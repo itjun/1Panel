@@ -59,6 +59,7 @@ export type {
     DesktopNotify,
     GroupOverview,
     HostAlertNotify,
+    HostCardSnapshot,
     HostConnNotify,
     HostIcon,
     HostOverviewSnapshot,
