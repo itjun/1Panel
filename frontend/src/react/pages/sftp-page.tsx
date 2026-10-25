@@ -544,7 +544,7 @@ export function SftpPage({ host }: { host: string }) {
       />
 
       {xfer ? (
-        <div className={`absolute bottom-4 left-1/2 z-[6] -translate-x-1/2 rounded-panel border px-3.5 py-2 text-sm font-semibold ${xferBad ? "border-danger bg-danger text-white" : "border-line bg-surface text-ink"}`}>
+        <div className={`absolute bottom-4 left-1/2 z-[6] -translate-x-1/2 rounded-panel border px-3.5 py-2 text-sm font-semibold ${xferBad ? "border-danger bg-danger text-on-danger" : "border-line bg-surface text-ink"}`}>
           {xfer}
         </div>
       ) : null}

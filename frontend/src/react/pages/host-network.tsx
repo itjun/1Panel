@@ -11,7 +11,7 @@ import { useFlashMessage, type FlashMessage } from "@/react/lib/use-flash-messag
 import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { ChartHost, RX_TIP, TX_TIP } from "@/react/components/monitor/charts";
 import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
-import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import type * as echarts from "echarts";
 import { copyText } from "@/utils/clipboard";
 import { bytesToKBps, formatBytes, formatErr, formatRateKBps } from "@/utils/format";
@@ -623,7 +623,7 @@ function TrafficUsage({ host }: { host: string }) {
     };
   }, [query.data]);
 
-  const themeMode = useThemeMode();
+  const themeMode = useThemeSignature();
   const chartOption = useMemo(
     () => buildDailyTrafficOption(usage.dayLabels, usage.dayRx, usage.dayTx, usage.dayMarks),
     [usage, themeMode],

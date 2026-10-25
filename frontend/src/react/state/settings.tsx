@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { api } from "@/api";
+import { applyColorPalette, parseColorPalette, type ColorPaletteId } from "@/react/lib/color-palettes";
 import {
   ALL_ALERT_KINDS,
   normalizeAlertLevels,
@@ -34,6 +35,7 @@ export type NotifyContentField =
 
 export type AppSettings = {
   appearance: AppearancePref;
+  colorPalette: ColorPaletteId;
   /** 界面字体：菜单、侧栏、按钮、主机名、表格普通文字等；空串 = 系统默认 */
   fontFamily: string;
   /** 等宽字体：IP、版本号、数值、路径、日志、配置编辑器；空串 = 系统默认 */
@@ -69,6 +71,7 @@ export type AppSettings = {
 
 export const SETTINGS_DEFAULTS: AppSettings = {
   appearance: "system",
+  colorPalette: "classic",
   fontFamily: "",
   monoFontFamily: "",
   fontSize: 14,
@@ -166,6 +169,7 @@ function loadSettings(): AppSettings {
       fontFamily,
       monoFontFamily,
       appearance: parseAppearance(parsed.appearance),
+      colorPalette: parseColorPalette(parsed.colorPalette),
       alertContentKinds:
         parsed.alertContentKinds || SETTINGS_DEFAULTS.alertContentKinds,
       notifyContentFields:
@@ -223,6 +227,7 @@ export function applyAppearanceToDocument(
   root.classList.remove("light", "dark");
   root.classList.add(resolved);
   root.style.colorScheme = resolved;
+  applyColorPalette(root, current.colorPalette, resolved);
   root.style.background = root.dataset.windowMaterial === "mica" ? "transparent" : "var(--color-canvas)";
   if (typeof fontFamily === "string") {
     if (fontFamily) {
@@ -343,6 +348,9 @@ export function updateSettings(patch: Partial<AppSettings>) {
   if (patch.hostHomeRacks !== undefined) current.hostHomeRows = hostRackRows(patch.hostHomeRacks);
   if (patch.appearance !== undefined) {
     current.appearance = parseAppearance(patch.appearance);
+  }
+  if (patch.colorPalette !== undefined) {
+    current.colorPalette = parseColorPalette(patch.colorPalette);
   }
   emit();
 }

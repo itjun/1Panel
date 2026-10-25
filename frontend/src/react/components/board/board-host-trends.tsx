@@ -4,7 +4,7 @@ import { ChartHost, lineOption } from "@/react/components/monitor/charts";
 import { Button } from "@/react/components/ui/button";
 import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
 import { readThemeColor } from "@/react/lib/utils";
-import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import { usageBands, usageTone } from "@/react/lib/usage-tone";
 import { boardHistorySeries, type BoardChartPoint, type BoardHistory } from "@/utils/boardHistory";
 import type { BoardHostCard } from "@/utils/boardModel";
@@ -19,9 +19,9 @@ function timeLabel(at: number, seconds = false): string {
 }
 
 function trendOption(data: BoardChartPoint[], label: string, from: number, to: number, fontSize: number, compact: boolean): EChartsOption {
-  const base = lineOption([], [{ name: label, data: [], bands: usageBands(100) }]);
-  const muted = readThemeColor("--color-muted", "");
-  const line = readThemeColor("--color-line", "");
+  const base = lineOption([], [{ name: label, data: [], bands: usageBands(100) }], { colorMode: "dark" });
+  const muted = readThemeColor("--color-muted", "", "dark");
+  const line = readThemeColor("--color-line", "", "dark");
   return {
     ...base,
     animation: false,
@@ -29,11 +29,11 @@ function trendOption(data: BoardChartPoint[], label: string, from: number, to: n
     dataZoom: [],
     grid: { left: compact ? 0 : 8, right: fontSize * 2, top: compact ? Math.ceil(fontSize / 2) + 2 : 16, bottom: compact ? 0 : 8, containLabel: true },
     tooltip: {
-      ...trendTooltip(),
+      ...trendTooltip("dark"),
       trigger: "axis", confine: true, renderMode: "richText",
-      backgroundColor: readThemeColor("--color-surface", ""), borderColor: line,
+      backgroundColor: readThemeColor("--color-surface", "", "dark"), borderColor: line,
       borderWidth: 1, shadowBlur: 0, padding: [8, 12],
-      textStyle: { color: readThemeColor("--color-ink", ""), fontSize },
+      textStyle: { color: readThemeColor("--color-ink", "", "dark"), fontSize },
       axisPointer: { type: "line", lineStyle: { color: muted, type: "dashed" } },
       formatter: (params) => {
         const point = Array.isArray(params) ? params[0] : params;
@@ -55,7 +55,7 @@ function trendOption(data: BoardChartPoint[], label: string, from: number, to: n
       splitLine: { lineStyle: { color: line, type: "dashed" } },
     },
     series: [{
-      ...trendLineStyle({ color: readThemeColor("--meter-ok", ""), values: data.map(p => p[1]), bands: usageBands(100) }),
+      ...trendLineStyle({ mode: "dark", color: readThemeColor("--meter-ok", "", "dark"), values: data.map(p => p[1]), bands: usageBands(100) }),
       name: label, data,
       lineStyle: { width: Math.max(2.25, fontSize / 8) },
     }],
@@ -79,7 +79,7 @@ const TrendPanel = memo(function TrendPanel({ label, host, value, detail, data, 
     observer.observe(container);
     return () => observer.disconnect();
   }, [compact]);
-  const theme = useThemeMode();
+  const theme = useThemeSignature();
   const option = useMemo(() => trendOption(data, label, from, to, fontSize, compact), [data, label, from, to, fontSize, compact, theme]);
   const hasData = data.some((p) => p[1] !== null);
   return (

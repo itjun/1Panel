@@ -320,7 +320,7 @@ function CalendarPanel({
             cellClass = "bg-accent-soft text-accent";
           }
           if (isEndpoint) {
-            cellClass = "bg-accent text-white";
+            cellClass = "bg-accent text-on-accent";
           }
 
           return (

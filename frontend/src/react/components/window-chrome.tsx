@@ -191,7 +191,7 @@ function CaptionButton({
       aria-label={label}
       className={`no-drag grid h-7 w-[38px] shrink-0 place-items-center rounded-control leading-none text-ink ${
         danger
-          ? "hover:bg-danger hover:text-white"
+          ? "hover:bg-danger hover:text-on-danger"
           : "hover:bg-line"
       }`}
       onClick={onClick}

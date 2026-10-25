@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { speedtest } from "@/api";
 import { ChartHost, lineOption } from "@/react/components/monitor/charts";
 import { trendLineStyle } from "@/react/lib/chart-style";
-import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import { readThemeColor } from "@/react/lib/utils";
 import { formatBps, formatMs, pickBpsScale } from "./format";
 
@@ -19,7 +19,7 @@ export function LiveChart({
   streams?: boolean;
   height?: number;
 }) {
-  const theme = useThemeMode();
+  const theme = useThemeSignature();
   const option = useMemo(() => {
     // -O 预热段结束后 iperf3 从 0 重新计时，预热点与正式点混画会出现重复时刻
     const live = all.filter((s) => !s.omitted);

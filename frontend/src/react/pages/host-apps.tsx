@@ -21,7 +21,7 @@ import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { ChartHost } from "@/react/components/monitor/charts";
 import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
 import { useProgressiveList } from "@/react/lib/use-progressive-list";
-import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import { readThemeColor, seriesColorList } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
@@ -776,7 +776,7 @@ export function AppsPage({ host }: { host: string }) {
   const jarX = useMemo(() => jarPts.map((p) => timeLabel(p.ts)), [jarPts]);
   const hostX = useMemo(() => hostPts.map((p) => timeLabel(p.ts)), [hostPts]);
 
-  const chartTheme = useThemeMode();
+  const chartTheme = useThemeSignature();
   const heapOption = useMemo(() => {
     if (!chartsOpen) return {};
     return lineOption({

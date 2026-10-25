@@ -10,7 +10,7 @@ import {
   TX_TIP,
   type MonitorReadout,
 } from "@/react/components/monitor/charts";
-import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import { usageBands } from "@/react/lib/usage-tone";
 import { formatBytes, formatErr, formatMemCapacity, formatRateKBps } from "@/utils/format";
 import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
@@ -33,7 +33,7 @@ export function LocalMonitorPage() {
     netSeries,
     ioSeries,
   } = useLocalMetrics();
-  const themeMode = useThemeMode();
+  const themeMode = useThemeSignature();
 
   const cpuValues = cpuSeries.map((p) => p.value);
   const loadValues = loadSeries.map((p) => p.value);

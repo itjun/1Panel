@@ -6,7 +6,7 @@ import { ChartHost, lineOption } from "@/react/components/monitor/charts";
 import { Button } from "@/react/components/ui/button";
 import { Select } from "@/react/components/ui/select";
 import { DateRangePicker } from "@/react/components/ui/date-range-picker";
-import { useThemeMode } from "@/react/lib/use-theme-mode";
+import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
 import { readThemeColor } from "@/react/lib/utils";
 import { USAGE_DANGER, usageBands } from "@/react/lib/usage-tone";
@@ -172,7 +172,7 @@ export function ResourceTrends({
   currentAvailable?: boolean;
   onOpen?: (metric: TrendMetric) => void;
 }) {
-  const theme = useThemeMode();
+  const theme = useThemeSignature();
   const history = useQuery({
     queryKey: ["workbench-history", host, from, to],
     queryFn: () =>

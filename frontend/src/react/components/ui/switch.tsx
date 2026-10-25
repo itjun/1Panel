@@ -47,8 +47,8 @@ export function Switch({
       <span
         aria-hidden
         className={cn(
-          "motion-switch-knob absolute top-0.5 left-0.5 flex size-4 items-center justify-center rounded-full bg-white",
-          checked && "translate-x-4",
+          "motion-switch-knob absolute top-0.5 left-0.5 flex size-4 items-center justify-center rounded-full",
+          checked ? "translate-x-4 bg-on-accent" : "bg-surface",
         )}
       >
         {loading ? (

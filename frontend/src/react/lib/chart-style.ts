@@ -1,24 +1,25 @@
 import * as echarts from "echarts";
+import type { PaletteMode } from "./color-palettes";
 import { bandTone, type UsageBands } from "./usage-tone";
 import { readThemeColor } from "./utils";
 
 /** DESGIN.md：所有趋势图共用的笔触、面积填充与浮层。每次构建 option 时重读主题。 */
-export function chartPalette() {
+export function chartPalette(mode?: PaletteMode) {
   return {
-    surface: readThemeColor("--color-surface", "#ffffff"),
-    ink: readThemeColor("--color-ink", "#1f2937"),
-    muted: readThemeColor("--color-muted", "#636a76"),
-    line: readThemeColor("--color-line", "#e5e7eb"),
-    pointer: readThemeColor("--color-line-strong", "#9ca3af"),
-    ok: readThemeColor("--meter-ok", "#2ba471"),
-    warn: readThemeColor("--meter-warn", "#f08a24"),
-    danger: readThemeColor("--meter-danger", "#d54941"),
+    surface: readThemeColor("--color-surface", "#ffffff", mode),
+    ink: readThemeColor("--color-ink", "#1f2937", mode),
+    muted: readThemeColor("--color-muted", "#636a76", mode),
+    line: readThemeColor("--color-line", "#e5e7eb", mode),
+    pointer: readThemeColor("--color-line-strong", "#9ca3af", mode),
+    ok: readThemeColor("--meter-ok", "#2ba471", mode),
+    warn: readThemeColor("--meter-warn", "#f08a24", mode),
+    danger: readThemeColor("--meter-danger", "#d54941", mode),
   };
 }
 
 /** 渐变相对曲线实际面积；阈值位置按真实数值换算，不改变数据和纵轴。 */
-export function trendArea(color: string, peak = 0, bands?: UsageBands) {
-  const palette = chartPalette();
+export function trendArea(color: string, peak = 0, bands?: UsageBands, mode?: PaletteMode) {
+  const palette = chartPalette(mode);
   const alpha = (value: string, opacity: number) => echarts.color.modifyAlpha(value, opacity);
   const toneColor = (value: number) => bands ? palette[bandTone(value, bands)] : color;
   const stops = [{ offset: 0, color: alpha(toneColor(peak), 0.28) }];
@@ -36,12 +37,13 @@ export function trendArea(color: string, peak = 0, bands?: UsageBands) {
   return { opacity: 1, color: new echarts.graphic.LinearGradient(0, 0, 0, 1, stops) };
 }
 
-export function trendLineStyle({ color, values, bands, muted = false, fill = true }: {
+export function trendLineStyle({ color, values, bands, muted = false, fill = true, mode }: {
   color: string;
   values: readonly (number | null)[];
   bands?: UsageBands;
   muted?: boolean;
   fill?: boolean;
+  mode?: PaletteMode;
 }): echarts.LineSeriesOption {
   let peak = 0;
   let count = 0;
@@ -59,15 +61,15 @@ export function trendLineStyle({ color, values, bands, muted = false, fill = tru
     showAllSymbol: false,
     symbol: "circle",
     symbolSize: count === 1 ? 6 : 3,
-    itemStyle: { borderColor: chartPalette().surface, borderWidth: 1 },
+    itemStyle: { borderColor: chartPalette(mode).surface, borderWidth: 1 },
     lineStyle: { width: muted ? 1.25 : 2.25, type: muted ? "dashed" : "solid", cap: "round", join: "round" },
-    areaStyle: fill && !muted ? trendArea(color, peak, bands) : undefined,
+    areaStyle: fill && !muted ? trendArea(color, peak, bands, mode) : undefined,
     emphasis: { scale: 1.8, lineStyle: { width: muted ? 1.25 : 2.25 } },
   };
 }
 
-export function trendTooltip(): echarts.TooltipComponentOption {
-  const palette = chartPalette();
+export function trendTooltip(mode?: PaletteMode): echarts.TooltipComponentOption {
+  const palette = chartPalette(mode);
   return {
     trigger: "axis",
     confine: true,

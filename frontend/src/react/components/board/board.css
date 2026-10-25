@@ -6,37 +6,43 @@
 html.board-http,
 .board-mode,
 .board-dialog {
-  /* 看板深色专用面，值同 docs/design/specification.md §2.2 */
-  --color-canvas: #12161f;
-  --color-surface: #1a1f2b;
-  --color-raised: #232a38;
-  --color-line: #2c3445;
-  --color-line-strong: #5a6478;
-  --color-ink: #e6ebf3;
-  --color-muted: #94a1b5;
-  --color-accent: #4c8dff;
-  --color-accent-hover: #6fa3ff;
-  --color-accent-active: #3a78e8;
-  --color-accent-soft: #1a2c52;
-  --color-accent-focus: #22407a;
-  --color-success: #56c08d;
-  --color-success-text: #56c08d;
-  --color-danger: #f06c63;
-  --color-warn: #f29a4a;
-  --color-info: #4fb0ff;
-  --color-success-soft: #1a3a2b;
-  --color-danger-soft: #43201e;
-  --color-warn-soft: #40280f;
-  --color-info-soft: #15304a;
-  --color-chart-1: #4c8dff;
-  --color-io-read: #4fb0ff;
-  --color-io-write: #f29a4a;
-  --color-chart-2: #4fb0ff;
-  --color-chart-3: #f29a4a;
-  --meter-ok: #56c08d;
-  --meter-warn: #f29a4a;
-  --meter-danger: #f06c63;
-  --meter-off: #2c3445;
+  /* 看板深色专用面，应用取所选色系，独立 HTTP 看板取经典蓝灰；缺少偏好时保留原始深色回退 */
+  --color-canvas: var(--board-color-canvas, #12161f);
+  --color-surface: var(--board-color-surface, #1a1f2b);
+  --color-raised: var(--board-color-raised, #232a38);
+  --color-line: var(--board-color-line, #2c3445);
+  --color-line-strong: var(--board-color-line-strong, #5a6478);
+  --color-ink: var(--board-color-ink, #e6ebf3);
+  --color-muted: var(--board-color-muted, #94a1b5);
+  --color-on-accent: var(--board-color-on-accent, #15151a);
+  --color-on-danger: var(--board-color-on-danger, #15151a);
+  --color-accent-tint: var(--board-color-accent-tint, #172440);
+  --color-selection: var(--board-color-selection, #274a8c);
+  --color-tooltip: var(--board-color-tooltip, #dfe5ee);
+  --color-tooltip-text: var(--board-color-tooltip-text, #1b2433);
+  --color-accent: var(--board-color-accent, #4c8dff);
+  --color-accent-hover: var(--board-color-accent-hover, #6fa3ff);
+  --color-accent-active: var(--board-color-accent-active, #3a78e8);
+  --color-accent-soft: var(--board-color-accent-soft, #1a2c52);
+  --color-accent-focus: var(--board-color-accent-focus, #22407a);
+  --color-success: var(--board-color-success, #56c08d);
+  --color-success-text: var(--board-color-success-text, #56c08d);
+  --color-danger: var(--board-color-danger, #f06c63);
+  --color-warn: var(--board-color-warn, #f29a4a);
+  --color-info: var(--board-color-info, #4fb0ff);
+  --color-success-soft: var(--board-color-success-soft, #1a3a2b);
+  --color-danger-soft: var(--board-color-danger-soft, #43201e);
+  --color-warn-soft: var(--board-color-warn-soft, #40280f);
+  --color-info-soft: var(--board-color-info-soft, #15304a);
+  --color-chart-1: var(--board-color-chart-1, #4c8dff);
+  --color-io-read: var(--board-color-io-read, #4fb0ff);
+  --color-io-write: var(--board-color-io-write, #f29a4a);
+  --color-chart-2: var(--board-color-chart-2, #4fb0ff);
+  --color-chart-3: var(--board-color-chart-3, #f29a4a);
+  --meter-ok: var(--board-meter-ok, #56c08d);
+  --meter-warn: var(--board-meter-warn, #f29a4a);
+  --meter-danger: var(--board-meter-danger, #f06c63);
+  --meter-off: var(--board-meter-off, #2c3445);
 }
 
 html.board-http,

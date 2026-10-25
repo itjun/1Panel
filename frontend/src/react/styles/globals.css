@@ -18,6 +18,8 @@
   --color-line-strong: #9ca3af;
   /* 主色「品牌蓝」：hover / active / 选中浅底 */
   --color-accent: #0052d9;
+  --color-on-accent: #ffffff;
+  --color-on-danger: #ffffff;
   --color-accent-hover: #366ef4;
   --color-accent-active: #003cab;
   --color-accent-soft: #e8efff;
@@ -130,6 +132,8 @@ html.dark {
   --color-line: #2c3445;
   --color-line-strong: #5a6478;
   --color-accent: #4c8dff;
+  --color-on-accent: #15151a;
+  --color-on-danger: #15151a;
   --color-accent-hover: #6fa3ff;
   --color-accent-active: #3a78e8;
   --color-accent-soft: #1a2c52;
@@ -350,6 +354,14 @@ html[data-window-material="mica"] .module-rail {
 }
 html.dark[data-window-material="mica"] .module-rail {
   background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。 */
+html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .shell-app-toolbar) {
+  background-color: var(--color-canvas);
+}
+html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
+  background-color: var(--color-rail);
 }
 
 /* 内容平面左上 6px 圆角：白色平面嵌在灰框里，整套设计唯一的圆角装饰。

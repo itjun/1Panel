@@ -38,7 +38,7 @@ import { setWindowMaterial, useWindowTheme, type WindowMaterial } from "@/react/
 import { detectAppOs } from "@/react/lib/platform";
 import { SETTINGS_SECTIONS, settingsShortcuts, showWindowMaterial } from "@/react/lib/settings-model";
 import { useSettingsScroll } from "@/react/lib/use-settings-scroll";
-import { AppearancePreviews } from "@/react/components/settings-appearance";
+import { AppearancePreviews, PalettePreviews } from "@/react/components/settings-appearance";
 import type { SettingsSection } from "@/react/state/session";
 import "@/react/styles/settings.css";
 
@@ -115,6 +115,7 @@ export function SettingsPage() {
   const changed =
     windowTheme.theme.preference !== "auto" ||
     settings.appearance !== SETTINGS_DEFAULTS.appearance ||
+    settings.colorPalette !== SETTINGS_DEFAULTS.colorPalette ||
     settings.fontFamily !== SETTINGS_DEFAULTS.fontFamily ||
     settings.monoFontFamily !== SETTINGS_DEFAULTS.monoFontFamily ||
     settings.fontSize !== SETTINGS_DEFAULTS.fontSize ||
@@ -181,9 +182,13 @@ export function SettingsPage() {
                 </p>
               </div>
             </SettingRow> : null}
-            <SettingRow label="主题外观">
+            <SettingRow label="明暗模式">
               <AppearancePreviews os={os} value={settings.appearance} onChange={(appearance) => updateSettings({ appearance })} />
             </SettingRow>
+            <div className="settings-palette-section">
+              <h3>配色风格</h3>
+              <PalettePreviews value={settings.colorPalette} onChange={(colorPalette) => updateSettings({ colorPalette })} />
+            </div>
             <FontSettingRow
               label="界面字体"
               kind="sans"

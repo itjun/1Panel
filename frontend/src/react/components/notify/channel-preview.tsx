@@ -80,7 +80,7 @@ function Cell({ off, children }: { off: boolean; children: ReactNode }) {
 function SystemCard({ message }: { message: NotifyMessage }) {
   return (
     <div className="flex h-full gap-2 rounded-panel bg-raised p-3">
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-control bg-accent text-white">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-control bg-accent text-on-accent">
         <Bell size={16} strokeWidth={1.5} aria-hidden />
       </span>
       <div className="min-w-0 flex-1">

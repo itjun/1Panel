@@ -34,7 +34,7 @@ export function Checkbox({
 
   let boxClass = "border-line-strong bg-surface group-hover:border-accent";
   if (filled) {
-    boxClass = "border-accent bg-accent text-white";
+    boxClass = "border-accent bg-accent text-on-accent";
   }
 
   return (

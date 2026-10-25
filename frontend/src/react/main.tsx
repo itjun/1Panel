@@ -18,7 +18,7 @@ async function start() {
   if (!rootEl) return;
   const boardGroup = boardGroupFromPath(location.pathname);
   if (!boardGroup && hasDesktopBridge()) await restoreApplicationPreferences();
-  applySavedFont();
+  applySavedFont(!!boardGroup);
   rootEl.replaceChildren();
   rootEl.classList.add("react-root");
   const root = createRoot(rootEl);

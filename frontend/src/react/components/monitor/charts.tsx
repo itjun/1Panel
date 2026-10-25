@@ -1,4 +1,5 @@
 import * as echarts from "echarts";
+import type { PaletteMode } from "@/react/lib/color-palettes";
 import { useEffect, useRef, type ReactNode } from "react";
 import { bandTone, type UsageBands, type UsageTone } from "@/react/lib/usage-tone";
 import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
@@ -127,6 +128,7 @@ export function readoutTone(value: number | undefined, bands: UsageBands | undef
 }
 
 export type LineOptionOpts = {
+  colorMode?: PaletteMode;
   yMax?: number;
   yInterval?: number;
   yFormatter?: (v: number) => string;
@@ -139,13 +141,14 @@ export function lineOption(
   series: LineSeries[],
   opts?: LineOptionOpts,
 ): echarts.EChartsOption {
+  const mode = opts?.colorMode;
   const axisFormatter = opts?.axisFormatter || opts?.yFormatter;
-  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#e5e7eb");
-  const meterOk = readThemeColor("--meter-ok", "#2ba471");
-  const meterWarn = readThemeColor("--meter-warn", "#f08a24");
-  const meterDanger = readThemeColor("--meter-danger", "#d54941");
-  const colors = seriesColorList(series.map((s) => s.name)).map((c, idx) => {
+  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)", mode);
+  const line = readThemeColor("--color-line", "#e5e7eb", mode);
+  const meterOk = readThemeColor("--meter-ok", "#2ba471", mode);
+  const meterWarn = readThemeColor("--meter-warn", "#f08a24", mode);
+  const meterDanger = readThemeColor("--meter-danger", "#d54941", mode);
+  const colors = seriesColorList(series.map((s) => s.name), mode).map((c, idx) => {
     if (series[idx]?.muted) return muted;
     if (series[idx]?.bands) return meterOk;
     return c;
@@ -166,13 +169,13 @@ export function lineOption(
     });
   });
   return {
-    textStyle: { fontFamily: readThemeColor("--app-font-family", readThemeColor("--font-sans", "sans-serif")) },
+    textStyle: { fontFamily: readThemeColor("--app-font-family", readThemeColor("--font-sans", "sans-serif", mode)) },
     color: colors,
     visualMap: visualMap.length ? visualMap : undefined,
     grid: { left: 8, right: 16, top: 16, bottom: 8, containLabel: true },
     // 扁平浮层：surface 底 + 1px line 描边，无阴影（docs/design/specification.md §8.1）
     tooltip: {
-      ...trendTooltip(),
+      ...trendTooltip(mode),
       valueFormatter: (v) => {
         const n = typeof v === "number" ? v : Number(v);
         if (!Number.isFinite(n)) return String(v ?? "");
@@ -214,7 +217,7 @@ export function lineOption(
       splitLine: { lineStyle: { color: line } },
     },
     series: series.map((s, idx) => ({
-      ...trendLineStyle({ color: colors[idx]!, values: s.data, bands: s.bands, muted: s.muted }),
+      ...trendLineStyle({ mode, color: colors[idx]!, values: s.data, bands: s.bands, muted: s.muted }),
       name: s.name,
       data: s.data,
     })),
