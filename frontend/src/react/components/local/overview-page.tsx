@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, type localsys, type monitor } from "@/api";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
@@ -57,6 +57,7 @@ export function LocalOverviewPage() {
   const session = useSession();
   const [showAllIfaces, setShowAllIfaces] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const isRefreshPending = useRef(false);
   const { overview: data, error } = useLocalMetrics();
   // 与网络页共用缓存键，切页不重复请求
   const network = useQuery({
@@ -115,7 +116,7 @@ export function LocalOverviewPage() {
   if (data) {
     coresText = `${data.cpuCount} 核`;
     if ((data.perfCores || 0) > 0 || (data.effCores || 0) > 0) {
-      coresText = `${data.cpuCount} 核（性能 ${data.perfCores || 0} · 能效 ${data.effCores || 0}）`;
+      coresText = `${data.cpuCount} 核（性能 ${data.perfCores || 0}，能效 ${data.effCores || 0}）`;
     }
   }
 
@@ -136,20 +137,23 @@ export function LocalOverviewPage() {
   }
 
   async function refreshAll() {
+    if (isRefreshPending.current) return;
+    isRefreshPending.current = true;
     setRefreshing(true);
     try {
       await Promise.all([refreshLocalMetrics(), network.refetch()]);
     } finally {
+      isRefreshPending.current = false;
       setRefreshing(false);
     }
   }
 
   return (
-    <Page title="系统概览" onRefresh={() => refreshAll()} refreshing={refreshing}>
+    <Page heading={false} onRefresh={() => refreshAll()} refreshing={refreshing}>
       {data ? <header className="local-overview-identity"><div className="min-w-0">
-              <div className="truncate text-base font-semibold text-ink">
+              <h1 className="truncate text-xl font-semibold text-ink">
                 {data.hostname || "本机"}
-              </div>
+              </h1>
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
                 <span>{osText}</span>
                 <span>
@@ -163,9 +167,8 @@ export function LocalOverviewPage() {
 
       <div className="local-overview-sections flex flex-col gap-section">
         {data ? (
-          <section className="local-overview-system">
-            <div className="mb-3 text-sm font-semibold text-ink">系统明细</div>
-            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          <section className="local-overview-system" aria-label="系统明细">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               <OverviewFact label="CPU 型号" className="col-span-2">
                 {data.cpuModel || "—"}
               </OverviewFact>
@@ -179,8 +182,7 @@ export function LocalOverviewPage() {
         ) : null}
 
         {data ? (
-          <section>
-            <div className="mb-3 text-sm font-semibold text-ink">资源</div>
+          <section aria-label="资源">
             <div className="local-metrics">
               <RingMeter compact
                 title="负载"
@@ -220,7 +222,6 @@ export function LocalOverviewPage() {
                     <div className="font-mono tabular-nums">
                       {data.cpuCount} 核
                     </div>
-                    <div className="max-w-[200px] truncate">{data.cpuModel || "—"}</div>
                   </>
                 }
               >
@@ -260,7 +261,6 @@ export function LocalOverviewPage() {
                     <div className="font-mono tabular-nums">
                       {formatBytes(data.memUsed || 0)} / {formatMemCapacity(data.memTotal || 0)}
                     </div>
-                    <div>Swap {swapText}</div>
                   </>
                 }
               >
@@ -286,7 +286,7 @@ export function LocalOverviewPage() {
                   <span>Swap</span>
                   <span className="num">
                     {(data.swapTotal || 0) > 0
-                      ? `${swapText} · ${(data.swapPercent || 0).toFixed(1)}%`
+                      ? `${swapText}，${(data.swapPercent || 0).toFixed(1)}%`
                       : "未启用"}
                   </span>
                 </div>
@@ -349,8 +349,7 @@ export function LocalOverviewPage() {
               </div>
             ) : null}
             {partitions.length ? (
-              <div>
-                <div className="mb-1 text-xs text-muted">分区</div>
+              <div role="group" aria-label="分区">
                 <OverviewTable
                   columns={[
                     { key: "mount", label: "挂载点" },
@@ -401,8 +400,7 @@ export function LocalOverviewPage() {
                 <OverviewFact label="主网卡" mono>{network.data.primaryIface || "—"}</OverviewFact>
               </div>
               {shownIfaces.length ? (
-                <div className="mt-4">
-                  <div className="mb-1 text-xs text-muted">网卡</div>
+                <div className="mt-4" role="group" aria-label="网卡">
                   <OverviewTable
                     columns={[
                       { key: "name", label: "名称" },

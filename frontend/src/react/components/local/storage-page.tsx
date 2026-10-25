@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { api, type localsys, type monitor } from "@/api";
-import { PhysicalDiskRows } from "@/react/components/overview/overview-parts";
+import { OverviewTable, PhysicalDiskRows } from "@/react/components/overview/overview-parts";
 import { isMacPlatform } from "@/react/lib/platform";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
 import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
-import { formatBytesSI, formatErr } from "@/utils/format";
+import { formatBytes, formatBytesSI, formatErr } from "@/utils/format";
+import { diskMountPercent, diskPhysicalLabel } from "./disk-utils";
+import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
 import "./local.css";
 
 /* 表头统一：36px、12px 次文字、无底色 + 下方 1px line（docs/design/specification.md §4.4） */
@@ -33,6 +35,7 @@ function formatModTime(sec: number) {
 }
 
 export function LocalStoragePage() {
+  const { overview: device, error: metricsError } = useLocalMetrics();
   const [tab, setTab] = useState<TabId>("apps");
   const [keyword, setKeyword] = useState("");
   const [treePath, setTreePath] = useState("");
@@ -148,21 +151,31 @@ export function LocalStoragePage() {
 
   const idleNoRecord = status?.state === "idle" && !hasRecord;
 
-  const containerTotal = status?.containerTotal || 0;
-  const containerUsed = status?.containerUsed || 0;
-  const containerDisks: monitor.DiskInfo[] = [];
-  if (containerTotal > 0) {
-    containerDisks.push({
-      filesystem: "系统容器",
-      fsType: "",
-      mount: "/",
-      total: containerTotal,
-      used: containerUsed,
-      avail: status?.containerAvail || 0,
-      percent: Math.min(100, Math.round((containerUsed / containerTotal) * 100)),
-      kind: "disk",
-    });
-  }
+  const physicalDisks: monitor.DiskInfo[] = useMemo(
+    () => (device?.disks || [])
+      .filter((disk) => disk.kind === "disk" && (disk.total || 0) > 0)
+      .map((disk) => ({
+        filesystem: disk.filesystem || disk.device || disk.mount,
+        fsType: disk.fsType || "",
+        mount: diskPhysicalLabel(disk),
+        total: disk.total,
+        used: disk.used || 0,
+        avail: disk.avail || disk.free || 0,
+        percent: ((disk.used || 0) / disk.total) * 100,
+        kind: "disk",
+      })),
+    [device?.disks],
+  );
+  const partitions = useMemo(
+    () => (device?.disks || [])
+      .filter((disk) => disk.kind !== "disk")
+      .sort((a, b) => {
+        if (a.mount === "/") return -1;
+        if (b.mount === "/") return 1;
+        return Number(!!a.external) - Number(!!b.external) || (a.mount || "").localeCompare(b.mount || "");
+      }),
+    [device?.disks],
+  );
 
   return (
     <Page
@@ -184,21 +197,55 @@ export function LocalStoragePage() {
           ) : null}
         </>
       }
-      onRefresh={() => void statusQuery.refetch()}
+      onRefresh={async () => { await Promise.all([statusQuery.refetch(), refreshLocalMetrics()]); }}
     >
+      {metricsError ? <Notice tone={device ? "warning" : "error"} text={`${device ? "磁盘更新失败，显示上次读数：" : "磁盘采集失败："}${formatErr(metricsError)}`} /> : null}
       {statusQuery.error ? <Notice text={formatErr(statusQuery.error)} /> : null}
       {status?.error ? <Notice text={status.error} /> : null}
 
       <div className="gap-section flex flex-col">
         <section>
-          <div className="mb-3 text-sm font-semibold text-ink">容量</div>
-          {containerDisks.length ? (
-            <PhysicalDiskRows disks={containerDisks} />
+          <div className="mb-3 text-sm font-semibold text-ink">物理磁盘</div>
+          {physicalDisks.length ? (
+            <PhysicalDiskRows disks={physicalDisks} />
           ) : (
             <p className="text-sm text-muted">
-              {statusQuery.isLoading ? "加载中…" : "未获取到容器容量"}
+              {!device && !metricsError ? "加载中…" : "未采集到物理磁盘"}
             </p>
           )}
+        </section>
+
+        <section>
+          <div className="mb-3 text-sm font-semibold text-ink">分区</div>
+          {partitions.length ? (
+            <OverviewTable
+              columns={[
+                { key: "mount", label: "挂载点" },
+                { key: "fs", label: "设备" },
+                { key: "type", label: "类型" },
+                { key: "used", label: "已用 / 总量", align: "right" },
+                { key: "pct", label: "使用率" },
+              ]}
+              rows={partitions.map((disk) => ({
+                id: `${disk.mount}-${disk.device || disk.filesystem}`,
+                cells: [
+                  <span key="mount" className="font-mono">
+                    {disk.name ? <>{disk.name} <span className="text-muted">{disk.mount}</span></> : disk.mount || "—"}
+                  </span>,
+                  <span key="fs" className="font-mono">{disk.device || disk.filesystem || "—"}</span>,
+                  disk.fsType || "—",
+                  `${formatBytes(disk.used || 0)} / ${formatBytes(disk.total || 0)}`,
+                  <Meter key="pct" value={diskMountPercent(disk)} className="w-full whitespace-nowrap" />,
+                ],
+              }))}
+            />
+          ) : (
+            <p className="text-sm text-muted">{!device && !metricsError ? "加载中…" : "暂无分区数据"}</p>
+          )}
+        </section>
+
+        <section>
+          <div className="mb-3 text-sm font-semibold text-ink">扫描状态</div>
           <p className="mt-2 text-xs text-muted">
             {status?.state === "idle" && !status?.finishedAt ? (
               <span>尚未扫描</span>

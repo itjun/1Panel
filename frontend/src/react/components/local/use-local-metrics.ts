@@ -8,9 +8,9 @@ const CHART_GRAIN_SEC = 5;
 const WINDOW = 100;
 
 /** 单值曲线点：CPU 为百分比，负载为 load1 */
-export type ValuePoint = { time: string; value: number };
+export type ValuePoint = { time: string; at: number; value: number };
 /** 内存曲线点：已用与交换已用，单位字节 */
-export type MemPoint = { time: string; used: number; swap: number };
+export type MemPoint = { time: string; at: number; used: number; swap: number };
 /** 读写速率，单位 KB/s（与远端监控一致，配 formatRateKBps / binaryAxis(-1)） */
 export type IOPoint = { time: string; read: number; write: number };
 /** 网络收发速率，单位 KB/s */
@@ -19,6 +19,7 @@ export type NetPoint = { time: string; rx: number; tx: number };
 export type LocalMetricsState = {
   overview: localsys.Overview | null;
   error: string | null;
+  sampledAt: number;
   cpuSeries: ValuePoint[];
   loadSeries: ValuePoint[];
   memSeries: MemPoint[];
@@ -42,6 +43,7 @@ function liveTimeLabel(ms: number): string {
 let state: LocalMetricsState = {
   overview: null,
   error: null,
+  sampledAt: 0,
   cpuSeries: [],
   loadSeries: [],
   memSeries: [],
@@ -100,7 +102,7 @@ function ingest(data: localsys.Overview) {
   const now = Date.now();
   const needAppend = lastChartAt === 0 || now - lastChartAt >= CHART_GRAIN_SEC * 1000;
   if (!needAppend) {
-    setState({ overview: data, error: null });
+    setState({ overview: data, error: null, sampledAt: now });
     return;
   }
   lastChartAt = now;
@@ -108,10 +110,12 @@ function ingest(data: localsys.Overview) {
   setState({
     overview: data,
     error: null,
-    cpuSeries: appendPoint(state.cpuSeries, { time, value: Number(data.cpuPercent) || 0 }),
-    loadSeries: appendPoint(state.loadSeries, { time, value: Number(data.load1) || 0 }),
+    sampledAt: now,
+    cpuSeries: appendPoint(state.cpuSeries, { time, at: now, value: Number(data.cpuPercent) || 0 }),
+    loadSeries: appendPoint(state.loadSeries, { time, at: now, value: Number(data.load1) || 0 }),
     memSeries: appendPoint(state.memSeries, {
       time,
+      at: now,
       used: Number(data.memUsed) || 0,
       swap: Number(data.swapUsed) || 0,
     }),

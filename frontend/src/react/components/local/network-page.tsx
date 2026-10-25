@@ -10,6 +10,7 @@ import {
   type OverviewColumn,
 } from "@/react/components/overview/overview-parts";
 import { formatBytes, formatErr } from "@/utils/format";
+import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
 
 const KIND_LABEL: Record<string, string> = {
   wifi: "无线",
@@ -40,6 +41,7 @@ function isUp(ifc: localsys.NetInterface): boolean {
 }
 
 export function LocalNetworkPage() {
+  const { overview: device, error: metricsError } = useLocalMetrics();
   const [showDown, setShowDown] = useState(false);
   const query = useQuery({
     queryKey: ["local-net"],
@@ -87,16 +89,18 @@ export function LocalNetworkPage() {
   }, [snap, primaryName]);
 
   return (
-    <Page title="网络信息" onRefresh={() => void query.refetch()}>
+    <Page title="网络信息" onRefresh={async () => { await Promise.all([query.refetch(), refreshLocalMetrics()]); }}>
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
+      {metricsError ? <Notice tone="warning" text={`公网信息更新失败：${formatErr(metricsError)}`} /> : null}
       {snap ? (
         <div className="gap-section flex flex-col">
           <section>
             <div className="mb-3 text-sm font-semibold text-ink">概况</div>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
               <OverviewFact label="内网 IP" mono>
                 {privateIPText}
               </OverviewFact>
+              <OverviewFact label="出口公网" mono>{device?.publicIP || "—"}</OverviewFact>
               <OverviewFact label="出口网卡">{primaryIfaceText}</OverviewFact>
               <OverviewFact label="默认网关" mono>
                 {snap.defaultGateway || "—"}
