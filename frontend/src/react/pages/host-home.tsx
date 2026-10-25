@@ -32,6 +32,7 @@ import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/r
 import { HostCardContent } from "@/react/components/host-card";
 import { useHostCards } from "@/react/lib/use-host-cards";
 import { summarizeHostCards } from "@/utils/hostCardModel";
+import { openAgentInstall } from "@/react/state/agent-install";
 import { openHostSetup } from "@/react/components/host-setup-dialog";
 import { openHostRename } from "@/react/components/host-rename-dialog";
 import { Button } from "@/react/components/ui/button";
@@ -209,8 +210,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     name: string;
     detail: string;
   } | null>(null);
-  const [installConfirm, setInstallConfirm] = useState<string | null>(null);
-  const [agentBusy, setAgentBusy] = useState(false);
   const [checkOpen, setCheckOpen] = useState(false);
   const [checkHost, setCheckHost] = useState("");
   const [checkText, setCheckText] = useState("");
@@ -781,19 +780,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       showToast(`已删除分组 ${name}`);
     } catch (err) {
       showError(`删除失败: ${formatErr(err)}`);
-    }
-  }
-
-  async function runInstallAgent(host: string) {
-    setAgentBusy(true);
-    try {
-      await api.installAgent(host);
-      setInstallConfirm(null);
-      showToast(`${host}：Agent 安装/更新已完成`);
-    } catch (err) {
-      showError(`安装失败: ${formatErr(err)}`);
-    } finally {
-      setAgentBusy(false);
     }
   }
 
@@ -1497,7 +1483,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 onClick={() => {
                   const name = hostMenu.host;
                   closeAllMenus();
-                  setInstallConfirm(name);
+                  openAgentInstall([name]);
                 }}
               />
               <MenuItem
@@ -1625,28 +1611,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             <Button onClick={() => setDeleteGroupConfirm(null)}>取消</Button>
             <Button variant="danger" onClick={() => void confirmDeleteGroup()}>
               删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!installConfirm}
-        onOpenChange={(open) => !open && setInstallConfirm(null)}
-      >
-        <DialogContent>
-          <DialogTitle>安装 Agent</DialogTitle>
-          <DialogDescription>
-            将向 {installConfirm} 部署 spanel-agent（约 10MB，自动选择 systemd 或守护进程，断开后保持运行）。已安装时更新到面板内置版本，历史数据保留。
-          </DialogDescription>
-          <DialogFooter>
-            <Button onClick={() => setInstallConfirm(null)}>取消</Button>
-            <Button
-              variant="primary"
-              disabled={agentBusy}
-              onClick={() => installConfirm && void runInstallAgent(installConfirm)}
-            >
-              {agentBusy ? "安装中…" : "安装"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3,7 +3,7 @@ import { Info } from "lucide-react";
 import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Events } from "@wailsio/runtime";
+import { openAgentInstall, useAgentInstall } from "@/react/state/agent-install";
 import type * as echarts from "echarts";
 import {
   useCallback,
@@ -343,9 +343,8 @@ function OverviewPage({ host }: { host: string }) {
   });
   const [checkReport, setCheckReport] = useState<agentcli.CheckReport | null>(null);
   const [checkBusy, setCheckBusy] = useState(false);
-  const [installBusy, setInstallBusy] = useState(false);
-  const [installConfirm, setInstallConfirm] = useState(false);
-  const [installProgress, setInstallProgress] = useState("");
+  const installTask = useAgentInstall();
+  const isInstalling = installTask.phase === "running";
   const flash = useFlashMessage();
 
   const hostConfig: sshconfig.HostConfig | null =
@@ -425,31 +424,6 @@ function OverviewPage({ host }: { host: string }) {
     }
   }
 
-  async function runInstall() {
-    setInstallBusy(true);
-    setInstallProgress("准备安装…");
-    flash.clear();
-    const off = Events.On(
-      "agent-install-progress",
-      (ev: { data?: { host?: string; text?: string } }) => {
-        if (ev?.data?.host === host && ev.data.text) setInstallProgress(ev.data.text);
-      },
-    );
-    try {
-      await api.installAgent(host);
-      setInstallConfirm(false);
-      await agentStatus.refetch();
-      flash.showToast("Agent 安装/更新已完成");
-    } catch (e) {
-      setInstallConfirm(false);
-      flash.showError(`安装失败: ${formatErr(e)}`);
-    } finally {
-      off();
-      setInstallBusy(false);
-      setInstallProgress("");
-    }
-  }
-
   async function refreshAll() {
     await Promise.all([
       overview.refetch(),
@@ -508,15 +482,15 @@ function OverviewPage({ host }: { host: string }) {
             <Tag tone={agentTagTone}>{agentText}</Tag>
             <Tag tone={collection.unavailable ? "danger" : data ? "ok" : "neutral"}>{collection.label}</Tag>
           </div>
-          <Button size="sm" disabled={checkBusy} onClick={() => void runCheck()}>
+          <Button size="sm" disabled={checkBusy || isInstalling} onClick={() => void runCheck()}>
             {checkBusy ? "检查中…" : "检查 Agent"}
           </Button>
           {agentMissing || agentUpdatable ? (
             <Button
               size="sm"
               variant="primary"
-              disabled={installBusy}
-              onClick={() => setInstallConfirm(true)}
+              disabled={isInstalling || checkBusy}
+              onClick={() => openAgentInstall([host])}
             >
               {agentMissing ? "安装 Agent" : `更新到 ${latestVer.data}`}
             </Button>
@@ -696,19 +670,6 @@ function OverviewPage({ host }: { host: string }) {
         </DetailPanel>
       ) : null}
 
-      <ConfirmDialog
-        open={installConfirm}
-        title={agentMissing ? "安装 Agent" : "更新 Agent"}
-        description={
-          installBusy && installProgress
-            ? `正在${agentMissing ? "安装" : "更新"}：${installProgress}`
-            : `将向 ${host} ${agentMissing ? "部署" : "更新"} spanel-agent（自动选择 systemd 或守护进程，断开后保持运行）。已落库的监控历史保留。`
-        }
-        confirmLabel={installBusy ? `${agentMissing ? "安装" : "更新"}中…` : agentMissing ? "安装" : "更新"}
-        busy={installBusy}
-        onClose={() => setInstallConfirm(false)}
-        onConfirm={() => void runInstall()}
-      />
     </Page>
   );
 }

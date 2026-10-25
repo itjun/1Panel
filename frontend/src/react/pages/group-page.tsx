@@ -6,7 +6,8 @@ import { focusHost, useWorkbenchState, useTrendWindow, type TrendMetric, type Tr
 /**
  * INTEGRATION: entry 的 GroupPage 改从本文件引入。
  */
-import { Events } from "@wailsio/runtime";
+import { openAgentInstall, useAgentInstall } from "@/react/state/agent-install";
+import { AgentInstallProgress } from "@/react/components/agent-install-progress";
 import { Copy } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,7 +29,6 @@ import { Tag } from "@/react/components/ui/tag";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogTitle,
 } from "@/react/components/ui/dialog";
@@ -132,27 +132,6 @@ function groupCellText(row: GroupRow, key: GroupColumnKey): string {
   if (key === "disk") return meterText(row.disk);
   return "";
 }
-
-const BATCH_STEP_LABEL: Record<string, string> = {
-  probe: "探测主机状态",
-  upload: "上传 Agent",
-  replace: "替换二进制",
-  start: "启动服务",
-  verify: "验证版本",
-  done: "完成",
-  error: "失败",
-};
-
-type BatchRowState = "pending" | "running" | "done" | "error";
-
-type BatchRow = {
-  host: string;
-  state: BatchRowState;
-  step: string;
-  percent: number;
-  error?: string;
-  version?: string;
-};
 
 type GroupRow = {
   name: string;
@@ -261,18 +240,6 @@ function osVersion(osRelease: string): string {
   return text;
 }
 
-function batchRowLabel(row: BatchRow): string {
-  if (row.state === "pending") return "排队中";
-  if (row.state === "done") {
-    if (row.version) return `已是最新 v${row.version}`;
-    return "完成";
-  }
-  if (row.state === "error") return row.error ? `失败：${row.error}` : "失败";
-  const step = BATCH_STEP_LABEL[row.step] || row.step || "安装中";
-  if (row.step === "upload" && row.percent >= 0) return `${step} ${row.percent}%`;
-  return step;
-}
-
 function agentTagOf(
   status: agentcli.Status | undefined,
   latest: string,
@@ -379,14 +346,8 @@ export function GroupPage({
   groupIdRef.current = groupId;
   hostsRef.current = hosts;
 
-  const [batchBusy, setBatchBusy] = useState(false);
-  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
-  const [batchDone, setBatchDone] = useState(false);
-  const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
-  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
-  const batchRowsRef = useRef(batchRows);
-  batchRowsRef.current = batchRows;
-
+  const installTask = useAgentInstall();
+  const isInstalling = installTask.phase === "running";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsName, setSettingsName] = useState("");
@@ -438,6 +399,10 @@ export function GroupPage({
   }, [groupId, hostNamesKey, loadAgentStatuses]);
 
   useEffect(() => {
+    if (installTask.phase === "done") void loadAgentStatuses();
+  }, [installTask.phase, loadAgentStatuses]);
+
+  useEffect(() => {
     return () => {
       aliveRef.current = false;
     };
@@ -484,13 +449,7 @@ export function GroupPage({
     return sortRowsByGroupValue(rows, (row) => groupRowSortValue(row, sort.key!), sort.order);
   }, [rows, sort]);
 
-  const batchRowMap = useMemo(() => {
-    const map = new Map<string, BatchRow>();
-    for (const row of batchRows) map.set(row.host, row);
-    return map;
-  }, [batchRows]);
-
-  const showBatchInTable = batchBusy || (batchDialogOpen && !batchDone);
+  const installRows = useMemo(() => new Map(installTask.rows.map(row => [row.host, row])), [installTask.rows]);
 
   const boardFlashRef = useRef(boardFlash);
   boardFlashRef.current = boardFlash;
@@ -519,8 +478,8 @@ export function GroupPage({
           }
           if (key === "lan") return <IpCell ip={row.privateIP} onCopy={copyIp} />;
           if (key === "agent") {
-            const progress = batchRowMap.get(row.name);
-            if (showBatchInTable && progress) {
+            const progress = installRows.get(row.name);
+            if (isInstalling && progress) {
               return (
                 <div className="flex min-w-0 flex-col gap-1">
                   <span
@@ -532,16 +491,9 @@ export function GroupPage({
                           : "truncate text-xs text-muted"
                     }
                   >
-                    {batchRowLabel(progress)}
+                    {progress.text}
                   </span>
-                  {progress.state === "running" && progress.percent >= 0 ? (
-                    <Meter
-                      value={progress.percent}
-                      showValue={false}
-                      tone="ok"
-                      className="w-full"
-                    />
-                  ) : null}
+                  <AgentInstallProgress row={progress} isCompact />
                 </div>
               );
             }
@@ -607,7 +559,7 @@ export function GroupPage({
           return "—";
         },
       })),
-    [agentStatuses, batchRowMap, copyIp, latestAgentVersion, showBatchInTable, selectedHosts, setSelectedHosts],
+    [agentStatuses, installRows, copyIp, latestAgentVersion, isInstalling, selectedHosts, setSelectedHosts],
   );
 
   function persistOrder(next: string[]) {
@@ -724,137 +676,9 @@ export function GroupPage({
     }
   }
 
-  function applyBatchProgress(d: {
-    host?: string;
-    step?: string;
-    percent?: number;
-    text?: string;
-  }) {
-    if (!d.host) return;
-    setBatchRows((prev) => {
-      const idx = prev.findIndex((r) => r.host === d.host);
-      if (idx < 0) return prev;
-      const next = prev.slice();
-      const row = { ...next[idx]! };
-      const step = d.step || "";
-      if (step === "done") {
-        row.state = "done";
-        row.step = "done";
-        row.percent = 100;
-        if (d.text) {
-          const m = d.text.match(/v?(\d+\.\d+\.\d+)/);
-          if (m) row.version = m[1];
-        }
-      } else if (step === "error") {
-        row.state = "error";
-        row.step = "error";
-        row.error = d.text || "安装失败";
-      } else {
-        row.state = "running";
-        row.step = step;
-        if (typeof d.percent === "number") row.percent = d.percent;
-      }
-      next[idx] = row;
-      return next;
-    });
-  }
-
-  async function runBatchInstall() {
-    setBatchConfirmOpen(false);
-    if (batchBusy) return;
-    const targets = hosts.map((h) => h.name);
-    if (!targets.length) return;
-
-    const needInstall = targets.filter(
-      (n) => agentTagOf(agentStatuses[n], latestAgentVersion).tone !== "ok",
-    );
-    const alreadyOk = targets.filter(
-      (n) => agentTagOf(agentStatuses[n], latestAgentVersion).tone === "ok",
-    );
-
-    setBatchRows([
-      ...alreadyOk.map((host) => ({
-        host,
-        state: "done" as const,
-        step: "done",
-        percent: 100,
-        version: latestAgentVersion || agentStatuses[host]?.version || "",
-      })),
-      ...needInstall.map((host) => ({
-        host,
-        state: "pending" as const,
-        step: "",
-        percent: -1,
-      })),
-    ]);
-    setBatchDone(needInstall.length === 0);
-    setBatchDialogOpen(true);
-    if (needInstall.length === 0) return;
-
-    setBatchBusy(true);
-    const off = Events.On(
-      "agent-install-progress",
-      (ev: { data?: { host?: string; step?: string; percent?: number; text?: string } }) => {
-        if (ev?.data) applyBatchProgress(ev.data);
-      },
-    );
-
-    try {
-      const results = await api.batchInstallAgent(needInstall);
-      setBatchRows((prev) => {
-        const map = new Map(prev.map((r) => [r.host, { ...r }]));
-        for (const r of results) {
-          const row = map.get(r.host);
-          if (!row) continue;
-          if (r.ok) {
-            row.state = "done";
-            row.step = "done";
-            row.version = r.version || row.version;
-            row.percent = 100;
-          } else {
-            row.state = "error";
-            row.step = "error";
-            row.error = r.error || "失败";
-          }
-          map.set(r.host, row);
-        }
-        return Array.from(map.values());
-      });
-      setBatchDone(true);
-      await loadAgentStatuses();
-      void overview.refetch();
-    } catch (e) {
-      setBatchDone(true);
-      setBatchRows((prev) =>
-        prev.map((row) =>
-          row.state === "pending" || row.state === "running"
-            ? { ...row, state: "error", step: "error", error: formatErr(e) }
-            : row,
-        ),
-      );
-    } finally {
-      setBatchBusy(false);
-      off?.();
-    }
-  }
-
   function openAddHost() {
     onCreateHost?.(canEditGroup ? groupId : undefined);
   }
-
-  const batchSummaryText = useMemo(() => {
-    const total = batchRows.length;
-    const done = batchRows.filter((r) => r.state === "done").length;
-    const err = batchRows.filter((r) => r.state === "error").length;
-    if (!batchDone) return `进行中 ${done + err}/${total} · 全部主机并行`;
-    if (err > 0) return `完成 ${done}/${total} · ${err} 台失败`;
-    return `全部 ${total} 台安装完成`;
-  }, [batchDone, batchRows]);
-
-  const needInstallCount = hosts.filter(
-    (h) => agentTagOf(agentStatuses[h.name], latestAgentVersion).tone !== "ok",
-  ).length;
-  const alreadyOkCount = hosts.length - needInstallCount;
 
   // 概况条：直接从 hosts + Agent 状态算，不走新接口
   const installedCount = hosts.filter(
@@ -890,11 +714,11 @@ export function GroupPage({
           <Button
             variant="secondary"
             size="sm"
-            disabled={!hosts.length || batchBusy}
-            onClick={() => setBatchConfirmOpen(true)}
+            disabled={!hosts.length || isInstalling}
+            onClick={() => openAgentInstall(hosts.map(host => host.name))}
             data-tip="为本组全部主机安装 Agent"
           >
-            {batchBusy ? "安装中…" : "安装 Agent"}
+            {isInstalling ? "安装中…" : "安装 Agent"}
           </Button>
             {(canEditGroup || hasCustomLayout) && <ActionPopover label="更多分组操作" closeOnAction>
           {canEditGroup ? (
@@ -985,91 +809,6 @@ export function GroupPage({
           </>
         )}
       </div>
-
-      <Dialog open={batchConfirmOpen} onOpenChange={setBatchConfirmOpen}>
-        <DialogContent className="w-[min(480px,calc(100%-32px))]">
-          <DialogTitle>安装 Agent</DialogTitle>
-          <DialogDescription className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted">
-            {`将向本组全部 ${hosts.length} 台主机安装 spanel-agent（内置 v${latestAgentVersion || "?"}，历史数据保留）。其中 ${needInstallCount} 台未装或可更新${alreadyOkCount ? `，${alreadyOkCount} 台已是最新将跳过` : ""}。全部并行，可在进度窗口查看各主机状态。`}
-          </DialogDescription>
-          <DialogFooter>
-            <Button onClick={() => setBatchConfirmOpen(false)}>取消</Button>
-            <Button variant="primary" onClick={() => void runBatchInstall()}>
-              开始
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={batchDialogOpen}
-        onOpenChange={(open) => {
-          if (!open && !batchBusy) {
-            setBatchDialogOpen(false);
-            setBatchRows([]);
-            setBatchDone(false);
-          }
-        }}
-      >
-        <DialogContent
-          className="w-[min(560px,calc(100%-32px))]"
-          onEscapeKeyDown={(e) => {
-            if (!batchDone) e.preventDefault();
-          }}
-          onPointerDownOutside={(e) => {
-            if (!batchDone) e.preventDefault();
-          }}
-        >
-          <DialogTitle>安装 Agent</DialogTitle>
-          {batchRows.length ? (
-            <p className="mt-3 text-sm text-muted">
-              {batchSummaryText}
-            </p>
-          ) : null}
-          <div className="mt-3 flex max-h-[min(52vh,420px)] flex-col overflow-auto pr-0.5">
-            {batchRows.map((r) => (
-              <div
-                key={r.host}
-                className="flex items-start gap-4 border-b border-line py-3"
-              >
-                <div className="mt-0.5 w-5 shrink-0 text-center text-sm" aria-hidden="true">
-                  {r.state === "running" ? "…" : r.state === "done" ? "✓" : r.state === "error" ? "✕" : "·"}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <div className="flex min-w-0 items-start justify-between gap-4">
-                    <span className="min-w-0 truncate font-semibold text-ink">{r.host}</span>
-                    <span
-                      className={
-                        r.state === "error"
-                          ? "max-w-[52%] shrink-0 text-right text-xs text-danger"
-                          : r.state === "running" || r.state === "done"
-                            ? "max-w-[52%] shrink-0 text-right text-xs text-accent"
-                            : "max-w-[52%] shrink-0 text-right text-xs text-muted"
-                      }
-                    >
-                      {batchRowLabel(r)}
-                    </span>
-                  </div>
-                  {r.state === "running" && r.percent >= 0 ? (
-                    <Meter value={r.percent} showValue={false} tone="ok" className="w-full" />
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            {!batchDone ? (
-              <p className="m-0 mr-auto text-left text-sm text-muted">
-                正在安装，请稍候…（全部主机并行）
-              </p>
-            ) : (
-              <Button variant="primary" onClick={() => setBatchDialogOpen(false)}>
-                完成
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent>
