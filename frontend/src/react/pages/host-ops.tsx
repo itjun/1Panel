@@ -3,6 +3,7 @@ import { Info } from "lucide-react";
 import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
 import { openAgentInstall, useAgentInstall } from "@/react/state/agent-install";
 import type * as echarts from "echarts";
 import {
@@ -14,7 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "@/api";
-import type { agentapi, agentcli, monitor, sshconfig } from "@/api";
+import type { agentapi, monitor, sshconfig } from "@/api";
 import type { CertPairCheck } from "@/api";
 import {
   binaryAxis,
@@ -341,11 +342,9 @@ function OverviewPage({ host }: { host: string }) {
     queryKey: ["hosts-list"],
     queryFn: () => api.listHosts(),
   });
-  const [checkReport, setCheckReport] = useState<agentcli.CheckReport | null>(null);
-  const [checkBusy, setCheckBusy] = useState(false);
+  const [checkHost, setCheckHost] = useState("");
   const installTask = useAgentInstall();
   const isInstalling = installTask.phase === "running";
-  const flash = useFlashMessage();
 
   const hostConfig: sshconfig.HostConfig | null =
     (hosts.data || []).find((item) => item.name === host) || null;
@@ -412,18 +411,6 @@ function OverviewPage({ host }: { host: string }) {
     (c) => (c.state || "").toLowerCase() === "running",
   ).length;
 
-  async function runCheck() {
-    setCheckBusy(true);
-    flash.clear();
-    try {
-      setCheckReport(await api.checkAgent(host));
-    } catch (e) {
-      flash.showError(formatErr(e));
-    } finally {
-      setCheckBusy(false);
-    }
-  }
-
   async function refreshAll() {
     await Promise.all([
       overview.refetch(),
@@ -482,14 +469,14 @@ function OverviewPage({ host }: { host: string }) {
             <Tag tone={agentTagTone}>{agentText}</Tag>
             <Tag tone={collection.unavailable ? "danger" : data ? "ok" : "neutral"}>{collection.label}</Tag>
           </div>
-          <Button size="sm" disabled={checkBusy || isInstalling} onClick={() => void runCheck()}>
-            {checkBusy ? "检查中…" : "检查 Agent"}
+          <Button size="sm" disabled={isInstalling} onClick={() => setCheckHost(host)}>
+            检查 Agent
           </Button>
           {agentMissing || agentUpdatable ? (
             <Button
               size="sm"
               variant="primary"
-              disabled={isInstalling || checkBusy}
+              disabled={isInstalling}
               onClick={() => openAgentInstall([host])}
             >
               {agentMissing ? "安装 Agent" : `更新到 ${latestVer.data}`}
@@ -499,7 +486,6 @@ function OverviewPage({ host }: { host: string }) {
       }
     >
       {agentErr ? <Notice text={agentErr} /> : null}
-      <FlashNotices flash={flash} />
 
       <HostWorkbenchSummary host={host} data={data} disks={disks.data} unavailable={collection.unavailable} sampledAt={overview.dataUpdatedAt}>
       <div className="workbench-system">
@@ -656,20 +642,7 @@ function OverviewPage({ host }: { host: string }) {
       </div>
       </HostWorkbenchSummary>
 
-      {checkReport ? (
-        <DetailPanel title="Agent 检查" onClose={() => setCheckReport(null)}>
-          <p className="text-muted">{checkReport.summary}</p>
-          <ul className="space-y-1">
-            {(checkReport.items || []).map((item) => (
-              <li key={item.key} className={item.ok ? "text-ink" : "text-danger"}>
-                {item.ok ? "✓" : "✗"} {item.name}
-                {item.detail ? `：${item.detail}` : ""}
-              </li>
-            ))}
-          </ul>
-        </DetailPanel>
-      ) : null}
-
+      <AgentCheckDialog host={checkHost} onClose={() => setCheckHost("")} />
     </Page>
   );
 }

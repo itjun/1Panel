@@ -32,6 +32,7 @@ import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/r
 import { HostCardContent } from "@/react/components/host-card";
 import { useHostCards } from "@/react/lib/use-host-cards";
 import { summarizeHostCards } from "@/utils/hostCardModel";
+import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
 import { openAgentInstall } from "@/react/state/agent-install";
 import { openHostSetup } from "@/react/components/host-setup-dialog";
 import { openHostRename } from "@/react/components/host-rename-dialog";
@@ -210,10 +211,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     name: string;
     detail: string;
   } | null>(null);
-  const [checkOpen, setCheckOpen] = useState(false);
   const [checkHost, setCheckHost] = useState("");
-  const [checkText, setCheckText] = useState("");
-  const [checkBusy, setCheckBusy] = useState(false);
   const flash = useFlashMessage();
   const { showToast, showError } = flash;
 
@@ -780,26 +778,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       showToast(`已删除分组 ${name}`);
     } catch (err) {
       showError(`删除失败: ${formatErr(err)}`);
-    }
-  }
-
-  async function runCheckAgent(host: string) {
-    setCheckHost(host);
-    setCheckOpen(true);
-    setCheckBusy(true);
-    setCheckText("检查中…");
-    try {
-      const report = await api.checkAgent(host);
-      const lines: string[] = [];
-      for (const [key, value] of Object.entries(report as unknown as Record<string, unknown>)) {
-        if (value === undefined || value === null || value === "") continue;
-        lines.push(`${key}: ${String(value)}`);
-      }
-      setCheckText(lines.length > 0 ? lines.join("\n") : JSON.stringify(report, null, 2));
-    } catch (err) {
-      setCheckText(`检查失败: ${formatErr(err)}`);
-    } finally {
-      setCheckBusy(false);
     }
   }
 
@@ -1491,7 +1469,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 onClick={() => {
                   const name = hostMenu.host;
                   closeAllMenus();
-                  void runCheckAgent(name);
+                  setCheckHost(name);
                 }}
               />
               <MenuDivider />
@@ -1616,17 +1594,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={checkOpen} onOpenChange={(open) => !open && setCheckOpen(false)}>
-        <DialogContent className="w-[min(520px,calc(100%-32px))]">
-          <DialogTitle>检查 Agent · {checkHost}</DialogTitle>
-          <pre className="mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-control bg-raised p-3 text-xs text-ink">
-            {checkBusy ? "检查中…" : checkText}
-          </pre>
-          <DialogFooter>
-            <Button onClick={() => setCheckOpen(false)}>关闭</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AgentCheckDialog host={checkHost} onClose={() => setCheckHost("")} />
     </div>
   );
 }
