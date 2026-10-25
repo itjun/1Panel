@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "verify:shell": "bun scripts/verify-shell.mjs",
     "test:helpers": "bun scripts/test-helpers.mjs",
+    "test": "bun test --isolate scripts/",
     "test:cron": "bun test scripts/cron.test.ts",
     "test:host-rows": "bun scripts/test-host-rows.mjs",
     "test:group-table-state": "bun scripts/test-group-table-state.mjs",
