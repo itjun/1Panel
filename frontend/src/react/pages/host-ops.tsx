@@ -1,5 +1,7 @@
 import { collectionState } from "@/utils/collectionState";
-import { Info } from "lucide-react";
+import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
+import { OverviewConnections, OverviewDetails } from "@/react/components/overview/device-overview";
+import { HostOverviewTrend } from "@/react/components/overview/overview-trend";
 import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +29,7 @@ import {
   TX_TIP,
   type MonitorReadout,
 } from "@/react/components/monitor/charts";
-import { OverviewFact, OverviewTable } from "@/react/components/overview/overview-parts";
+import { OverviewFact } from "@/react/components/overview/overview-parts";
 import { Button } from "@/react/components/ui/button";
 import { DateRangePicker } from "@/react/components/ui/date-range-picker";
 import {
@@ -45,18 +47,13 @@ import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { useProgressiveList } from "@/react/lib/use-progressive-list";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
-import { useThemeMode } from "@/react/lib/use-theme-mode";
-import { USAGE_DANGER, usageBands } from "@/react/lib/usage-tone";
+import { useThemeSignature } from "@/react/lib/use-theme-mode";
+import { usageBands } from "@/react/lib/usage-tone";
 import { AppsPage } from "@/react/pages/host-apps";
 import { DiskPage } from "@/react/pages/host-disk";
 import { NetworkPage } from "@/react/pages/host-network";
 import { PackagesPage } from "@/react/pages/host-packages";
-import { useSession, type Tool } from "@/react/state/session";
-import {
-  isDiskFull,
-  mountDisks,
-  physicalDisks,
-} from "@/utils/alerts";
+import type { Tool } from "@/react/state/session";
 import {
   bytesToKBps,
   formatBytes,
@@ -136,6 +133,7 @@ function ConfirmDialog({
   open,
   title,
   description,
+  children,
   confirmLabel,
   danger,
   busy,
@@ -145,6 +143,7 @@ function ConfirmDialog({
   open: boolean;
   title: string;
   description: string;
+  children?: ReactNode;
   confirmLabel: string;
   danger?: boolean;
   busy?: boolean;
@@ -156,6 +155,7 @@ function ConfirmDialog({
       <DialogContent>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription className="whitespace-pre-wrap">{description}</DialogDescription>
+        {children}
         <DialogFooter>
           <Button onClick={onClose}>取消</Button>
           <Button
@@ -308,7 +308,6 @@ function historyTimeLabel(ts: number): string {
 /* ---------- 概览 ---------- */
 
 function OverviewPage({ host }: { host: string }) {
-  const session = useSession();
   const queryClient = useQueryClient();
   const overview = useQuery({
     queryKey: ["overview", host],
@@ -320,13 +319,8 @@ function OverviewPage({ host }: { host: string }) {
     queryFn: () => api.collectDisks(host),
     refetchInterval: 15000,
   });
-  const docker = useQuery({
-    queryKey: ["docker-overview", host],
-    queryFn: () => api.collectDocker(host),
-    refetchInterval: 15000,
-  });
   const network = useQuery({
-    queryKey: ["net-overview", host],
+    queryKey: ["net", host],
     queryFn: () => api.collectNetwork(host),
     refetchInterval: 20000,
   });
@@ -349,25 +343,11 @@ function OverviewPage({ host }: { host: string }) {
   const hostConfig: sshconfig.HostConfig | null =
     (hosts.data || []).find((item) => item.name === host) || null;
   const data = overview.data;
-  const mounts = mountDisks(disks.data);
-  const physDisks = physicalDisks(disks.data);
   const agent = agentStatus.data;
   const collection = collectionState(overview, !!agent && !agent.ok);
   const agentMissing = !!agent && !agent.ok && !!agent.notInstalled;
   const agentUpdatable =
     !!agent?.ok && !!latestVer.data && agent.version !== latestVer.data;
-
-  let sshText = "SSH 检测中";
-  let sshTagTone: TagTone = "neutral";
-  if (agent) {
-    if (agent.ok || agent.notInstalled) {
-      sshText = "SSH 已连通";
-      sshTagTone = "ok";
-    } else {
-      sshText = "SSH 连接异常";
-      sshTagTone = "danger";
-    }
-  }
 
   let agentText = "Agent 检测中";
   let agentTagTone: TagTone = "neutral";
@@ -392,36 +372,24 @@ function OverviewPage({ host }: { host: string }) {
   const sshAddr = hostConfig?.hostName || data?.ipAddress || "—";
   const sshPort = hostConfig?.port || "22";
 
-  const shownIfaces = (network.data?.interfaces || [])
-    .filter((iface) => iface.kind !== "loopback")
-    .sort((a, b) => {
-      if (a.kind === b.kind) return 0;
-      if (a.kind === "physical") return -1;
-      if (b.kind === "physical") return 1;
-      const aVirtual = a.kind === "docker" || a.kind === "virtual";
-      const bVirtual = b.kind === "docker" || b.kind === "virtual";
-      if (aVirtual === bVirtual) return 0;
-      if (aVirtual) return 1;
-      return -1;
-    });
-
-  const egressIP = network.data?.egressPublicIP || (network.data?.publicIPs || []).join(", ") || "暂无数据";
-
-  const runningDocker = (docker.data?.containers || []).filter(
-    (c) => (c.state || "").toLowerCase() === "running",
-  ).length;
+  const privateIP = network.data?.privateIPs?.join(", ") || data?.ipAddress;
+  const publicIP = network.data?.egressPublicIP || network.data?.publicIPs?.join(", ");
+  const diskCollection = collectionState(disks);
+  const networkCollection = collectionState(network);
+  const isRefreshPending = useRef(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function refreshAll() {
-    await Promise.all([
-      overview.refetch(),
-      disks.refetch(),
-      docker.refetch(),
-      network.refetch(),
-      agentStatus.refetch(),
-      queryClient.refetchQueries({ queryKey: ["workbench-history", host], type: "active" }),
-      queryClient.refetchQueries({ queryKey: ["workbench-events", host], type: "active" }),
-      queryClient.refetchQueries({ queryKey: ["procs", host], type: "active" }),
-    ]);
+    if (isRefreshPending.current) return;
+    isRefreshPending.current = true;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([overview.refetch(), disks.refetch(), network.refetch(), agentStatus.refetch(),
+        queryClient.refetchQueries({ queryKey: ["overview-history", host], type: "active" })]);
+    } finally {
+      isRefreshPending.current = false;
+      setIsRefreshing(false);
+    }
   }
 
   const collectionError = overview.error || overview.failureReason;
@@ -433,214 +401,48 @@ function OverviewPage({ host }: { host: string }) {
         : agentMissing ? "未安装 Agent，无法采集状态" : "主机连接异常，暂时无法获取数据"
     : "";
 
-  let dockerText = docker.isError || docker.failureCount > 0 ? "采集失败" : docker.isFetching ? "正在读取…" : "暂无数据";
-  if (docker.data) {
-    if (docker.data.available) {
-      dockerText = `运行 ${runningDocker} / 共 ${docker.data.containers?.length ?? 0}`;
-    } else {
-      // available=false 也可能是服务不可达，不能据此断言未安装。
-      dockerText = "Docker 不可用";
-    }
-  }
-
   let swapText = "未启用";
   if (data && data.swapTotal > 0) {
     swapText = `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)}`;
   }
 
-  const ifaceKindLabel: Record<string, string> = {
-    physical: "物理",
-    docker: "Docker",
-    virtual: "虚拟",
-    other: "其他",
-  };
-
   return (
-    <Page
-      title="概览"
-      onRefresh={() => void refreshAll()}
-      actions={
-        <>
-          <span className="font-mono text-sm tabular-nums text-ink">
-            {sshUser}@{sshAddr}:{sshPort}
-          </span>
-          <div className="workbench-connection-status" role="group" aria-label="连接与采集状态">
-            <Tag tone={sshTagTone}>{sshText}</Tag>
+    <Page heading={false} onRefresh={refreshAll} refreshing={isRefreshing}>
+      <div className="device-overview">
+        <HostWorkbenchHeader host={host}
+          metadata={<>
+            <span className="device-overview-agent-address">{sshUser}@{sshAddr}:{sshPort}</span>
             <Tag tone={agentTagTone}>{agentText}</Tag>
-            <Tag tone={collection.unavailable ? "danger" : data ? "ok" : "neutral"}>{collection.label}</Tag>
-          </div>
-          <Button size="sm" disabled={isInstalling} onClick={() => setCheckHost(host)}>
-            检查 Agent
-          </Button>
-          {agentMissing || agentUpdatable ? (
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={isInstalling}
-              onClick={() => openAgentInstall([host])}
-            >
-              {agentMissing ? "安装 Agent" : `更新到 ${latestVer.data}`}
+            {overview.dataUpdatedAt > 0 ? <span>{collection.unavailable ? "上次采样" : "采样于"} {new Date(overview.dataUpdatedAt).toLocaleString("zh-CN", { hour12: false })}</span> : null}
+          </>}
+          actions={<>
+            <Button size="sm" disabled={isInstalling} onClick={() => setCheckHost(host)}>
+              检查 Agent
             </Button>
-          ) : null}
-        </>
-      }
-    >
-      {agentErr ? <Notice text={agentErr} /> : null}
-
-      <HostWorkbenchSummary host={host} data={data} disks={disks.data} unavailable={collection.unavailable} sampledAt={overview.dataUpdatedAt}>
-      <div className="workbench-system">
-        {data ? (
-          <section>
-            <div className="mb-3 text-sm font-semibold text-ink">系统</div>
-            <div className="workbench-facts">
-              {data.hostname && data.hostname !== host ? (
-                <OverviewFact label="系统主机名" mono>{data.hostname}</OverviewFact>
-              ) : null}
-              <OverviewFact label="内核" mono>{data.kernel || "—"}</OverviewFact>
-              <OverviewFact label="架构" mono>{data.arch || "—"}</OverviewFact>
-              <OverviewFact label="已运行">{formatDurationLong(data.uptime)}</OverviewFact>
-              <OverviewFact label="CPU 型号" className="workbench-fact-wide">
-                {data.cpuModel || "—"}
-              </OverviewFact>
-            </div>
-            <div className="workbench-secondary-facts">
-              <span>Swap <span className="text-ink">{swapText}</span></span>
-              <span>Docker 容器 <span className="text-ink" title={docker.error ? formatErr(docker.error) : undefined}>{dockerText}</span></span>
-            </div>
-          </section>
-        ) : null}
-
-        <section>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="text-sm font-semibold text-ink">磁盘</span>
-            <Button size="sm" variant="ghost" onClick={() => session.setTool("disk")}>
-              分析大文件
-            </Button>
+            {agentMissing || agentUpdatable ? (
+              <Button size="sm" variant="primary" disabled={isInstalling} onClick={() => openAgentInstall([host])}>
+                {agentMissing ? "安装 Agent" : `更新到 ${latestVer.data}`}
+              </Button>
+            ) : null}
+          </>} />
+        {agentErr ? <Notice text={agentErr} /> : null}
+        <HostWorkbenchSummary data={data} disks={disks.data} isUnavailable={collection.unavailable} isDiskUnavailable={diskCollection.unavailable} />
+        <div className="device-overview-lower">
+        <HostOverviewTrend host={host} memTotal={data?.memTotal} cpuCount={data?.cpuCount}
+          isAvailable={!!agent?.ok && !collection.unavailable} />
+        <OverviewDetails>
+          <div className="device-overview-facts">
+            {data?.hostname && data.hostname !== host ? <OverviewFact label="系统主机名" mono>{data.hostname}</OverviewFact> : null}
+            <OverviewFact label="CPU 型号">{data?.cpuModel || "—"}</OverviewFact>
+            <OverviewFact label="CPU 核心" mono>{data ? `${data.cpuCount} 核` : "—"}</OverviewFact>
+            <OverviewFact label="内核" mono>{data?.kernel || "—"}</OverviewFact>
+            <OverviewFact label="架构" mono>{data?.arch || "—"}</OverviewFact>
+            <OverviewFact label="Swap" mono>{data ? swapText : "—"}</OverviewFact>
           </div>
-          {isDiskFull(disks.data) ? (
-            <div className="mb-3">
-              <Notice text={`有分区使用率达到危险档（≥ ${USAGE_DANGER}%）`} tone="warning" />
-            </div>
-          ) : null}
-          {!physDisks.length && !mounts.length ? (
-            <p className="text-sm text-muted">
-              {disks.isLoading ? "加载中…" : "暂无磁盘数据"}
-            </p>
-          ) : null}
-          {physDisks.length ? (
-            <div className="mb-4">
-              <div className="workbench-detail-label">物理磁盘 / 存储池
-                <button type="button" className="workbench-info" aria-label="物理盘占比：已用量除以物理盘或存储池总容量" data-tip="占比按已用量 ÷ 物理盘或存储池总容量计算。"><Info size={14} /></button>
-              </div>
-              <div className="flex flex-col">
-                {physDisks.map((d) => (
-                  <div
-                    key={d.filesystem || d.mount}
-                    className="workbench-disk-row"
-                  >
-                    <span className="truncate font-mono" data-tip={d.filesystem}>
-                      {d.mount || d.filesystem}
-                    </span>
-                    <span className="text-right font-mono tabular-nums">
-                      {formatBytes(d.total)}
-                    </span>
-                    <Meter value={d.percent || 0} className="w-full" />
-                    <span className="truncate font-mono text-xs tabular-nums text-muted">
-                      已用 {formatBytes(d.used)}，可用 {formatBytes(d.avail)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {mounts.length ? (
-            <div>
-              <div className="workbench-detail-label">挂载分区 · 文件系统口径
-                <button type="button" className="workbench-info" aria-label="文件系统使用率说明：保留空间和取整会使它与物理盘占比不同" data-tip="使用率沿用文件系统 df 口径；保留空间和取整会使它与物理盘占比不同。"><Info size={14} /></button>
-              </div>
-              <OverviewTable
-                columns={[
-                  { key: "mount", label: "挂载点" },
-                  { key: "fs", label: "文件系统" },
-                  { key: "type", label: "类型" },
-                  { key: "used", label: "已用 / 总量", align: "right" },
-                  { key: "pct", label: "文件系统使用率" },
-                ]}
-                rows={mounts.map((d) => ({
-                  id: `${d.mount}-${d.filesystem}`,
-                  cells: [
-                    <span key="mount" className="font-mono">{d.mount || "—"}</span>,
-                    <span key="fs" className="font-mono">{d.filesystem || "—"}</span>,
-                    d.fsType || "—",
-                    `${formatBytes(d.used)} / ${formatBytes(d.total)}`,
-                    <Meter key="pct" value={d.percent || 0} className="w-full whitespace-nowrap" />,
-                  ],
-                }))}
-              />
-            </div>
-          ) : null}
-        </section>
-
-        <section>
-          <div className="mb-3 text-sm font-semibold text-ink">网络</div>
-          {network.data ? (
-            <>
-              <div className="workbench-facts">
-                <OverviewFact label="出口公网">
-                  <span className="block font-mono">{egressIP}</span>
-                  {network.data.egressPublicLoc && <span className="block text-xs text-muted">{network.data.egressPublicLoc}</span>}
-                </OverviewFact>
-                <OverviewFact label="默认网关" mono>
-                  {network.data.defaultGateway || "—"}
-                </OverviewFact>
-              </div>
-              {(network.data.dockerIPs || []).length ? null : (
-                <div className="workbench-secondary-facts"><span>Docker 网桥 <span className="text-ink">未检测到</span></span></div>
-              )}
-              {shownIfaces.length ? (
-                <div className="mt-4">
-                  <div className="workbench-detail-label">网卡</div>
-                  <OverviewTable
-                    columns={[
-                      { key: "name", label: "名称" },
-                      { key: "kind", label: "类型" },
-                      { key: "state", label: "状态" },
-                      { key: "ipv4", label: "IPv4" },
-                      { key: "mac", label: "MAC" },
-                      { key: "rx", label: "接收", align: "right" },
-                      { key: "tx", label: "发送", align: "right" },
-                    ]}
-                    rows={shownIfaces.map((iface) => ({
-                      id: iface.name,
-                      cells: [
-                        <span key="name" className="font-mono">{iface.name}</span>,
-                        ifaceKindLabel[iface.kind] || iface.kind || "—",
-                        <Tag
-                          key="state"
-                          tone={(iface.state || "").toUpperCase() === "UP" ? "ok" : "neutral"}
-                        >
-                          {iface.state || "—"}
-                        </Tag>,
-                        <span key="ipv4" className="font-mono">
-                          {(iface.ipv4 || []).join(", ") || "—"}
-                        </span>,
-                        <span key="mac" className="font-mono">{iface.mac || "—"}</span>,
-                        formatBytes(iface.rxBytes),
-                        formatBytes(iface.txBytes),
-                      ],
-                    }))}
-                  />
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm text-muted">
-              {network.isLoading ? "加载中…" : "暂无网络数据"}
-            </p>
-          )}
-        </section>
+        </OverviewDetails>
+        </div>
+        <OverviewConnections privateIP={privateIP} publicIP={publicIP} isUnavailable={networkCollection.unavailable} />
       </div>
-      </HostWorkbenchSummary>
 
       <AgentCheckDialog host={checkHost} onClose={() => setCheckHost("")} />
     </Page>
@@ -931,7 +733,7 @@ function MonitorPage({ host }: { host: string }) {
   const loadWord =
     loadPct < 30 ? "运行流畅" : loadPct < 70 ? "运行正常" : loadPct < 80 ? "运行缓慢" : "运行堵塞";
 
-  const themeMode = useThemeMode();
+  const themeMode = useThemeSignature();
   const memAxis = useMemo(() => {
     if (isLive) return binaryAxis(memSeries.map((p) => p.value), 0);
     return binaryAxis(history.map((p) => p.memUsed), 0);

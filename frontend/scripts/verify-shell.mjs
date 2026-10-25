@@ -63,7 +63,12 @@ const toolbarMarkup = app.slice(app.indexOf("<header"), app.indexOf("</header>")
 if (!toolbarMarkup.includes("<HostToolTabs />") || (app.match(/<HostToolTabs\s*\/>/g) || []).length !== 1) {
   fail("host tools must appear exactly once in the window toolbar");
 }
-if (!app.includes('{tool === "overview" ? <HostWorkbenchHeader host={host} /> : null}')) {
+const hostOps = fs.readFileSync(path.join(root, "src/react/pages/host-ops.tsx"), "utf8");
+const overviewPage = hostOps.slice(hostOps.indexOf("function OverviewPage("), hostOps.indexOf("/* ---------- 监控 ---------- */"));
+if (app.includes("<HostWorkbenchHeader") ||
+    !hostOps.includes('if (tool === "overview") return <OverviewPage host={host} />;') ||
+    (hostOps.match(/<HostWorkbenchHeader\b/g) || []).length !== 1 ||
+    !overviewPage.includes("<HostWorkbenchHeader host={host}")) {
   fail("host identity header must be limited to overview");
 }
 ok("React shell and workspace navigation markers present");
@@ -87,6 +92,11 @@ if (!/background-color:\s*var\(--color-surface\)/.test(shellStyles)) {
 if (!/\.glass-chrome-main\s*\{[^}]*var\(--color-surface\)/s.test(shellStyles)) {
   fail("content must retain the opaque surface background in every material mode");
 }
+const overviewStyles = fs.readFileSync(path.join(root, "src/react/components/overview/device-overview.css"), "utf8");
+if (overviewStyles.includes("--color-canvas")) {
+  fail("overview must inherit the surface content plane; canvas is reserved for window chrome");
+}
+ok("overview retains the shared content surface");
 if (!/\.content-float\s*\{[^}]*overflow:\s*auto/s.test(shellStyles)) {
   fail("content-float must be a flush scroll region");
 }

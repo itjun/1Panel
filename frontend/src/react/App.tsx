@@ -1,6 +1,5 @@
 import "@/react/styles/workbench.css";
 import "@/react/styles/uiux.css";
-import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
 import { SidebarSplitter } from "@/react/components/sidebar-splitter";
 import { HostToolTabs, useIsHostWorkspace } from "@/react/components/host-tool-tabs";
 import { useToolbarDoubleClickMaximize, WindowChrome, WindowControls } from "@/react/components/window-chrome";
@@ -340,7 +339,6 @@ function HostWorkspace() {
   const isPaneReady = usePaintGate(paneKey);
   return (
     <div className="workspace-host flex h-full min-h-0 min-w-0 flex-col">
-      {tool === "overview" ? <HostWorkbenchHeader host={host} /> : null}
       <div key={paneKey} className={`flex min-h-0 flex-1 flex-col ${paneClass}`}>
         {!isPaneReady ? (
           <div className="py-8 text-center text-sm text-muted" role="status">

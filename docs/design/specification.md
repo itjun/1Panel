@@ -291,9 +291,9 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 主机与本机功能标签固定在整窗通栏导航按钮右侧，仅保留一排；按实际可用宽度自动收纳到“更多”，当前工具始终可见，宽度足够时按原顺序展示全部工具（2026-10-17 用户确认方案 A）。2026-10-17 用户复核后确认标签恢复通栏，主机身份信息仅在概览页集中展示，其他工具页不重复占用身份栏高度；**所有页面**（主机页、本机页、测速 / 通知 / 设置等）自己的操作（时间范围、恢复默认、路径提示、双栏文件标题条、筛选 / 搜索簇等）放内容区顶部的页内工具行，左对齐，不上通栏。
 - 功能维度全局：侧栏只选主机，通栏标签只选功能；切换主机沿用当前功能，不回跳到该主机上次停留的功能。
 
-### 4.7 唯一的视觉亮点：LED 分段条（Meter）
+### 4.7 资源仪表（Meter / ResourceRing）
 
-负载 / CPU / 内存 / 磁盘 / 网络占比等所有「资源占比」显示，统一使用共享 `Meter` 组件（`components/ui/`）：
+负载 / CPU / 内存 / 磁盘 / 网络占比等「资源占比」默认使用共享 `Meter` 组件（`components/ui/`）；远程概览按 §9 使用共享 `ResourceRing`，以连续圆弧表达占比；本机概览恢复独立 `RingMeter compact` 和原有悬浮明细，使用分段 Meter 表达占比，状态色与阈值仍遵循本节：
 
 | 项 | 规定 |
 |---|---|
@@ -307,7 +307,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 
 - ❌ 禁止再用「细线进度条 + 粗体数字」的老写法。
 - ❌ 禁止在 Meter 上加渐变、发光、动画（数值变化用 `--duration-base` 颜色过渡即可）。
-- 除 Meter 外，**不再加任何其他装饰性视觉元素**。
+- 除 Meter / ResourceRing 外，**不再加任何其他装饰性视觉元素**。
 - **告警与 Meter 同一套分档，全局固定、不可调**：所有资源告警都折成占比后按上表判定（警告 ≥ 60%、危险 ≥ 85%），统一走 `utils/alerts.ts` 的 `alertReading`。CPU / 内存取使用率；负载取设置的窗口（load1 / 5 / 15）÷ 核数；磁盘取容量大于 10 GB 的分区使用率，容量 ≥ 100 GB 的分区另判可用空间（≤ 20 GB 警告、≤ 10 GB 危险），两者取更差的一档；网络收发按 1 Gbps（125 MB/s）、磁盘读写按 200 MB/s 折算。看板、分组、主机页圆环标红仍只看 `resourceReading` 的危险档。
 
 ---
@@ -387,7 +387,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 新手 / 任务引导 | 阻断（Dialog）vs 非阻断（气泡 / 提示） |
 | 数据导入 | 单文件快速 vs 批量确认 |
 | 状态流转 | 须看详情再改 vs 列表摘要即可改 |
-| 资源占比展示 | 一律 Meter（§4.7）；列表内用 Meter 单行，详情页可配第二字阶大数字 |
+| 资源占比展示 | 默认 Meter（§4.7）；概览使用连续圆环，列表内用 Meter 单行 |
 
 本产品中：主机列表多选、进程操作、文件上传、配置导入等，均应对号入座，避免「按钮到处都是、反馈却不统一」。
 
@@ -446,7 +446,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 消息页（通知 → 指标消息 / 应用消息）：一次「告警 + 回落」按 `incidentId` 合并为一条事件；`Page flush` 左右分栏，左列表宽 360px、右边 1px `--color-line` 分隔，按日期分组（组标题 32px 吸顶、`text-xs text-muted`），每条两行（主机 + 类型 + 时间 / 峰值 + 持续时长），未读主机名 600 字重 + 6px accent 方点，选中 `accent-soft`，上下方向键切换；右侧详情内边距 24px、区块间 `gap-section`，唯一的大数字是峰值（`text-2xl` 等宽 600，危险档 `text-danger`）配 `Meter`。筛选收拢为顶栏 `Select` + `RadioGroup` + `Switch`，不再堆按钮组。
 - 网络测速（测速 → 两机测速 / 分组测速 / 历史记录，`components/speedtest/`）：路径卡片左右两块（局域网 / 广域网），可用 `bg-raised` + 6px `--color-success` 状态灯 + 「可连通 · RTT」，选中 `accent-soft` 底 + accent 标题，不可用 `opacity-60` + `line-strong` 灯 + 原因文字，只有可用卡可点；卡下列出 A、B 两端网段 Tag（公网 warn、虚拟内网 info），读到网卡协商速率时在 Tag 内追加「 · 2.5G」；局域网候选行在 RTT 前用 muted 等宽数字写「上限 1G」（两端协商速率较小者），选中该路径时 UDP 目标带宽自动填为此上限，并在字段旁用 muted 小字说明来源。测速完成后在指标条上方放「结论」块（`bg-raised` + `--radius-panel` + 16px 内边距，无描边无阴影）：20px semibold 等级字（很快 `success-text` / 正常 `info` / 偏慢 `warn` / 很差 `danger`）+ 14px 一句换算（每秒多少 MB/GB、10 GB 文件几秒传完），下列逐条大白话解释，每条前 6px 同语义色圆点；分组星型表加「评价」列（同色 Tag），矩阵格在吞吐下方用 12px 同色字写等级。「开始测速 / 停止」放在各自操作行末尾（两机：端点行「重新识别」后；分组：分组与方式行末），不放页头。实时曲线 A→B（A 发送）用 `--color-io-write`、B→A 用 `--color-io-read`，与监控「发送 / 接收」同义，单位按峰值在 Kbps / Mbps / Gbps 间切换，「分流」开关叠加同色 35% 不透明细线；指标条全部等宽数字。矩阵热力格只用三档已有 token：`bg-raised` / `bg-accent-tint` / `bg-accent-soft` + accent 字，不引入新色。
 - 通知预览矩阵（通知设置「正文带上」正下方，`components/notify/channel-preview.tsx`）：**全部展开、不做下拉 / 切换**——行 = 消息类型（CPU / 内存 / 磁盘 / 负载 / 应用探活）× 告警 / 升级（警告、危险两档都订时）/ 重复（开了重复提醒时）/ 恢复，列 = 系统通知 / 应用内 / 企业微信，列头 32px 吸顶。每格一张预览卡，模拟对应渠道的消息外观：`bg-raised` + `--radius-panel` + 12px 内边距，无描边无阴影（模拟的是浮出的通知，故用浮层圆角）；渠道关闭整列 `opacity-50`、列头标「未开启，不会发送」；类型或「恢复」未勾选整行 `opacity-50`，行头用 `text-warn` 写原因。企业微信卡渲染后端 `PreviewHostAlertMarkdown` 原文：`<font color>` 映射 red→`danger`、warning→`warn`、info→`success-text`、comment→`muted`，引用行左侧 2px `line-strong` 竖线。
--- Meter：见 §4.7，唯一允许的「装饰级」组件。
+- Meter / ResourceRing：见 §4.7，用于表达实际资源占比。
 - 窗口壳层：顶栏、侧栏、Win/Linux 窗口按钮全部走共享组件，平台判断只从 `lib/platform.ts` 引入。
 
 ### 8.3 技术栈约束
