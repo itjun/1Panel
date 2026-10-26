@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="1Panel 安装指南，包含 macOS、Windows、Linux 的下载安装步骤、首次打开说明与运行依赖。">
+  <link rel="canonical" href="https://itjun.github.io/1Panel/install.html">
+  <link rel="icon" href="assets/appicon.png" type="image/png">
+  <link rel="stylesheet" href="site.css">
+  <script src="site.js" defer></script>
+  <title>安装 1Panel｜macOS、Windows 与 Linux</title>
+</head>
+<body>
+  <a class="skip" href="#main">跳到安装步骤</a>
+  <header class="header"><div class="container header-inner">
+    <a class="brand" href="./" aria-label="1Panel 首页"><img src="assets/appicon.png" alt="" width="36" height="36">1Panel</a>
+    <nav aria-label="主导航"><a href="./#features">功能</a><a href="./#download">下载</a><a href="install.html" aria-current="page">安装指南</a><a href="https://github.com/itjun/1Panel">GitHub</a></nav>
+  </div></header>
+  <main class="container installation" id="main">
+    <h1>安装 1Panel</h1>
+    <p class="installation-lead">选择电脑对应的平台，下载已打包的应用。所有安装包均来自 <a href="https://github.com/itjun/1Panel/releases/latest">GitHub 官方发布页</a>，<span data-version>最新正式版</span>。</p>
+    <nav class="platform-nav" aria-label="选择安装平台"><a href="#macos">macOS</a><a href="#windows">Windows</a><a href="#linux">Linux</a></nav>
+
+    <section class="install-platform" id="macos" aria-labelledby="macos-title">
+      <div class="install-platform-heading"><div><h2 id="macos-title">macOS</h2><p>Apple 芯片 M 系列 · macOS 13 Ventura 或更高</p></div><a class="button primary" data-download="-mac-arm64.dmg" href="https://github.com/itjun/1Panel/releases/latest">下载 DMG</a></div>
+      <ol class="install-steps">
+        <li><strong>打开安装包。</strong> 下载名称以 <code>mac-arm64.dmg</code> 结尾的文件，双击打开。</li>
+        <li><strong>拖入应用程序。</strong> 将 <code>1Panel.app</code> 拖到 <code>Applications</code> 文件夹，等待复制完成。</li>
+        <li><strong>确认首次打开。</strong> 从“应用程序”双击 1Panel。若提示无法验证开发者，关闭提示后，进入“系统设置 → 隐私与安全性”，找到 1Panel 并点“仍要打开”，按提示确认。</li>
+        <li><strong>正常启动。</strong> 完成确认后，可从“应用程序”打开 1Panel，并推出磁盘映像。</li>
+      </ol>
+      <div class="install-tip"><h3>也可以使用终端命令</h3><p>先将应用拖入“应用程序”并退出 1Panel，再按命令说明清理下载隔离属性；需要重置签名时，可覆盖为本地签名并校验后启动。</p><a href="macos-install.html#commands">查看清理隔离属性与重置签名命令</a></div>
+      <p class="install-help">当前免费分发版本尚未经过 Apple 公证。完整操作图解、命令和常见问题见 <a href="macos-install.html">macOS 详细安装指南</a>。Intel Mac 暂无对应安装包。</p>
+    </section>
+
+    <section class="install-platform" id="windows" aria-labelledby="windows-title">
+      <div class="install-platform-heading"><div><h2 id="windows-title">Windows</h2><p>Windows 10 / 11 · x64</p></div><a class="button primary" data-download="-win-amd64.zip" href="https://github.com/itjun/1Panel/releases/latest">下载 ZIP</a></div>
+      <ol class="install-steps">
+        <li><strong>下载并解压。</strong> 下载名称以 <code>win-amd64.zip</code> 结尾的文件，右键选择“全部解压缩”，将文件放到你准备长期保留的目录。</li>
+        <li><strong>运行应用。</strong> 在解压后的目录中双击 <code>1Panel.exe</code>。</li>
+        <li><strong>处理首次提示。</strong> 如果 SmartScreen 显示“Windows 已保护你的电脑”，确认来自官方发布页后，点“更多信息 → 仍要运行”。受公司策略管理的电脑可能需要管理员处理。</li>
+        <li><strong>开始使用。</strong> 打开本机工作区，或使用已有 SSH 配置连接远程主机。可为 <code>1Panel.exe</code> 创建桌面快捷方式。</li>
+      </ol>
+      <details class="install-question"><summary>提示缺少 WebView2 Runtime</summary><p>从 <a href="https://developer.microsoft.com/microsoft-edge/webview2/">微软 WebView2 官方下载页</a> 安装 Evergreen Runtime（x64），完成后重新打开 1Panel。安装普通 Edge 浏览器不等同于安装 WebView2 Runtime。</p></details>
+      <details class="install-question"><summary>远程主机或系统终端不可用</summary><p>应用读取当前用户的 <code>%USERPROFILE%\.ssh\config</code>。打开系统终端时需安装 Windows OpenSSH 客户端，可在“设置 → 应用 → 可选功能”中添加。Windows Terminal 为可选终端，具体配置见 <a href="https://github.com/itjun/1Panel#分发">项目说明</a>。</p></details>
+      <p class="install-help">更新时先退出应用，再替换为新版本的 <code>1Panel.exe</code>；也可以使用应用内更新。</p>
+    </section>
+
+    <section class="install-platform" id="linux" aria-labelledby="linux-title">
+      <div class="install-platform-heading"><div><h2 id="linux-title">Linux</h2><p>amd64 桌面环境 · Debian 13 已验证</p></div><a class="button primary" data-download="-linux-amd64.tar.gz" href="https://github.com/itjun/1Panel/releases/latest">下载 tar.gz</a></div>
+      <ol class="install-steps">
+        <li><strong>准备桌面运行环境。</strong> 当前桌面版使用 GTK 4 和 WebKitGTK 6.0。Debian 13 可在终端执行以下命令安装运行库。</li>
+      </ol>
+      <pre class="install-command"><code>sudo apt-get update &amp;&amp;
+sudo apt-get install -y libgtk-4-1 libwebkitgtk-6.0-4</code></pre>
+      <ol class="install-steps" start="2">
+        <li><strong>下载并解压。</strong> 下载名称以 <code>linux-amd64.tar.gz</code> 结尾的文件，在文件管理器中解压。进入其中包含 <code>1Panel</code> 可执行文件的目录。</li>
+        <li><strong>启动应用。</strong> 在该目录中打开终端，执行：</li>
+      </ol>
+      <pre class="install-command"><code>chmod +x ./1Panel &amp;&amp;
+./1Panel</code></pre>
+      <details class="install-question"><summary>可选：放到固定的用户目录</summary><p>在解压目录执行以下命令，将主程序复制到用户目录，然后从固定位置启动。</p><pre class="install-command"><code>install -Dm755 ./1Panel "$HOME/.local/bin/1Panel" &amp;&amp;
+"$HOME/.local/bin/1Panel"</code></pre><p>此步骤只安装主程序；原压缩包还附有桌面入口文件和图标，可按桌面环境需要配置。</p></details>
+      <details class="install-question"><summary>提示缺少动态库，或没有可用显示器</summary><p>请在已登录的桌面环境中运行。其他发行版需要提供匹配的 GTK 4、WebKitGTK 6.0 及兼容的系统运行库。若提示 <code>GLIBC_… not found</code>，请使用兼容的发行版版本；不要直接替换系统 glibc。反馈问题时请附发行版、架构和完整终端输出。</p></details>
+      <p class="install-help">依赖信息可参考 <a href="https://packages.debian.org/trixie/libwebkitgtk-6.0-4">Debian 官方 WebKitGTK 运行库说明</a>。当前 Release 提供 tar.gz，仓库中的 deb / rpm / AppImage 任务属于开发构建入口。</p>
+    </section>
+
+    <section class="install-platform install-next" aria-labelledby="next-title"><h2 id="next-title">装好后，先打开本机工作区</h2><p>查看当前电脑无需配置远程主机。已有 SSH 配置会自动加载，也可在应用中添加主机。下载的是完整安装包，正常安装无需拉取代码或自行编译。</p><p><a href="https://github.com/itjun/1Panel#中文">阅读项目文档</a> · <a href="https://github.com/itjun/1Panel/issues">反馈安装问题</a></p></section>
+  </main>
+  <footer class="container footer"><div class="footer-product"><strong>1Panel</strong><span>macOS、Windows 与 Linux 安装指南</span></div><nav aria-label="页脚导航"><a href="./">项目官网</a><a href="./#download">下载安装包</a><a href="https://github.com/itjun/1Panel/issues">反馈问题</a></nav></footer>
+</body>
+</html>

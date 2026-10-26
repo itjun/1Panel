@@ -95,6 +95,29 @@ h3 { font-size: 18px; line-height: 1.5; margin: 0 0 10px; }
 .footer { padding-block: 30px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .footer-product { display: grid; gap: 2px; }
 .footer-product span { color: var(--muted); font-size: 12px; }
+.installation { max-width: 960px; padding-block: 52px 0; }
+.installation h1 { font-size: 40px; letter-spacing: -1px; margin-bottom: 16px; }
+.installation-lead { color: var(--muted); max-width: 44em; margin: 0; }
+.platform-nav { gap: 12px; flex-wrap: wrap; margin: 26px 0 36px; }
+.platform-nav a { color: var(--accent); background: var(--accent-soft); padding: 8px 20px; border-radius: 6px; font-weight: 600; font-size: 15px; }
+.install-platform { border-top: 1px solid var(--line); padding: 38px 0; }
+.install-platform-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
+.install-platform h2 { margin: 0 0 6px; font-size: 28px; line-height: 1.4; }
+.install-platform-heading p { color: var(--muted); font-size: 14px; margin: 0; }
+.install-steps { padding-left: 24px; margin: 16px 0; max-width: 50em; }
+.install-steps li { padding-left: 6px; margin: 12px 0; }
+.installation code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; overflow-wrap: anywhere; }
+.install-command { background: var(--raised); border: 1px solid var(--line); border-radius: 6px; margin: 18px 0 24px; padding: 18px 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.install-command code { font-size: 13px; }
+.install-tip { background: var(--accent-soft); border-radius: 6px; padding: 20px 24px; margin-top: 22px; }
+.install-tip h3 { font-size: 16px; margin-bottom: 6px; }
+.install-tip p { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
+.install-tip a { font-size: 14px; font-weight: 600; }
+.install-help { font-size: 14px; color: var(--muted); margin: 20px 0 0; max-width: 50em; }
+.install-question { border-top: 1px solid var(--line); padding: 16px 0; }
+.install-question summary { font-weight: 600; cursor: pointer; }
+.install-question p { color: var(--muted); font-size: 14px; margin: 12px 0 0; max-width: 50em; }
+.install-next p { color: var(--muted); max-width: 50em; }
 @media (prefers-color-scheme: dark) {
   :root { --canvas: #12161f; --surface: #1a1f2b; --raised: #232a38; --rail: #0d1017; --ink: #e6ebf3; --muted: #94a1b5; --line: #2c3445; --accent: #4c8dff; --accent-soft: #1a2c52; --on-accent: #12161f; --success: #56c08d; }
 }
@@ -129,6 +152,12 @@ h3 { font-size: 18px; line-height: 1.5; margin: 0 0 10px; }
   .mac-notice { flex-direction: column; align-items: flex-start; gap: 16px; padding: 22px; }
   .start-inner { flex-direction: column; align-items: flex-start; gap: 22px; }
   .footer { flex-direction: column; align-items: flex-start; gap: 18px; }
+  .installation { padding-top: 34px; }
+  .installation h1 { font-size: 32px; }
+  .install-platform-heading { align-items: flex-start; flex-direction: column; gap: 16px; }
+  .install-platform { padding-block: 30px; }
+  .install-tip { padding: 18px; }
+  .install-command { padding: 14px; }
 }
 @media (max-width: 400px) {
   nav { gap: 12px; }

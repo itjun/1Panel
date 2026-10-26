@@ -5,7 +5,7 @@
 [![Release](https://github.com/itjun/1Panel/actions/workflows/release.yml/badge.svg)](https://github.com/itjun/1Panel/actions/workflows/release.yml)
 [![MIT License](https://img.shields.io/github/license/itjun/1Panel)](LICENSE)
 
-[项目官网](https://itjun.github.io/1Panel/) · [下载安装包](https://itjun.github.io/1Panel/#download) · [macOS 安装指南](https://itjun.github.io/1Panel/macos-install.html)
+[项目官网](https://itjun.github.io/1Panel/) · [下载安装包](https://itjun.github.io/1Panel/#download) · [全平台安装指南](https://itjun.github.io/1Panel/install.html)
 
 macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.com/itjun/1Agent) 共用本机 OpenSSH。
 
@@ -45,6 +45,7 @@ macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.c
 ## 文档
 
 - [项目官网与下载](https://itjun.github.io/1Panel/)
+- [macOS、Windows 与 Linux 安装指南](https://itjun.github.io/1Panel/install.html)
 - [完整文档索引](docs/README.md)
 - [项目术语](docs/glossary.md)
 - [视觉与交互规范](docs/design/specification.md) 与 [各功能验收记录](docs/design/README.md)
@@ -92,7 +93,7 @@ task darwin:package:dmg ARCH=arm64
 
 ### macOS 安装与首次打开
 
-完整图文引导请查看 **[官网 macOS 安装指南](https://itjun.github.io/1Panel/macos-install.html)**。
+完整图文引导请查看 **[官网安装指南的 macOS 章节](https://itjun.github.io/1Panel/install.html#macos)**；终端方式见 **[清理隔离属性与重置签名命令](https://itjun.github.io/1Panel/macos-install.html#commands)**。
 
 适用于 **Apple 芯片（M 系列）、macOS 13 Ventura 或更高版本**。正常安装无需删除签名、运行终端命令或自行编译。
 
@@ -102,7 +103,7 @@ task darwin:package:dmg ARCH=arm64
 4. **手动确认**：确认安装包来自上述官方发布页后，打开「系统设置 → 隐私与安全性」，向下找到「安全性」区域，确认应用名为 1Panel，再点「仍要打开」。按系统提示验证身份，最后点「打开」。指南也提供打开此设置页的按钮。
 5. **开始使用**：系统保存该应用的例外后，可正常双击启动；磁盘映像可以推出。安装后可先使用本机工作区；重新下载其他版本时，macOS 可能再次要求确认。
 
-当前采用免费分发方式：应用保留 ad-hoc 签名以校验完整性，**尚未经过 Apple 公证**。首次打开步骤以 [Apple 官方说明](https://support.apple.com/zh-cn/102445) 为准，不依赖右键「打开」。
+当前采用免费分发方式：应用保留 ad-hoc 签名以校验完整性，**尚未经过 Apple 公证**。图形界面的首次打开步骤以 [Apple 官方说明](https://support.apple.com/zh-cn/102445) 为准，也可选择指南中的终端方式。
 
 - **找不到「仍要打开」**：先从「应用程序」尝试启动一次，再回到设置。该按钮通常在尝试打开后约一小时内可用；超过时间重新尝试打开应用。公司或学校管理的 Mac 可能需要管理员放行。
 - **提示「已损坏」或「会损害你的电脑」**：停止安装，从官方发布页重新下载；仍有问题时，请在 [Issues](https://github.com/itjun/1Panel/issues) 提供安装包文件名、芯片、macOS 版本及完整提示。这类提示不按普通首次放行处理。
@@ -118,6 +119,8 @@ task darwin:package:dmg ARCH=arm64
 
 ### Windows 同事侧使用步骤
 
+完整说明见 [官网安装指南的 Windows 章节](https://itjun.github.io/1Panel/install.html#windows)，包含 ZIP 解压、SmartScreen 和 WebView2 Runtime 处理。
+
 1. **解压 zip**：解压出 `1Panel.exe`
 2. **运行**：双击 `1Panel.exe`；首次运行 SmartScreen 会提示「Windows 已保护你的电脑」（未签名应用），点「更多信息」→「仍要运行」即可
 3. **配置 SSH**：与 macOS 相同，读取本机 `%USERPROFILE%\.ssh\config`，确保已有目标主机配置与密钥
@@ -125,6 +128,10 @@ task darwin:package:dmg ARCH=arm64
 5. **「终端打开」依赖**（可选，仅影响终端打开，不影响面板内监控）：
    - **OpenSSH 客户端**（Win10 1809+ / Win11 一般已内置）：确认 `%SystemRoot%\System32\OpenSSH\ssh.exe` 存在；缺失时到 设置 → 应用 → 可选功能 → 添加功能 →「OpenSSH 客户端」
    - **Windows Terminal**（推荐）：Microsoft Store 搜索「Windows Terminal」安装；未安装时面板会自动降级为在 PowerShell 窗口中连接
+
+### Linux 桌面安装
+
+完整说明见 [官网安装指南的 Linux 章节](https://itjun.github.io/1Panel/install.html#linux)。当前 Release 提供 amd64 的 tar.gz 包，使用 GTK 4 与 WebKitGTK 6.0，Debian 13 已验证。安装运行库后解压，从包内的 `1Panel` 可执行文件启动。
 
 ### 安全说明
 
@@ -252,7 +259,7 @@ Copyright (c) 2026 黄荣君 (itjun)
 
 ## English
 
-[Website & downloads](https://itjun.github.io/1Panel/) · [macOS installation guide (Chinese)](https://itjun.github.io/1Panel/macos-install.html)
+[Website & downloads](https://itjun.github.io/1Panel/) · [Installation guide for macOS, Windows and Linux (Chinese)](https://itjun.github.io/1Panel/install.html)
 
 A remote SSH connection still leaves the host state hard to see. CPU, memory, disk, and processes each need another command. Opening the terminal has the same kind of friction: paid apps currently on the market often cannot open a session immediately, and they do not keep a usable record of it.
 

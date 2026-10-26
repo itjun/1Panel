@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="1Panel macOS 安装指南：下载 DMG、拖入应用程序，并在隐私与安全性中确认首次打开。">
+  <meta name="description" content="1Panel macOS 安装指南：下载 DMG、首次手动放行，以及清理下载隔离属性、重置本地签名的终端命令。">
   <title>安装 1Panel｜macOS 安装指南</title>
   <style>
     :root {
@@ -75,6 +75,12 @@
     .notice strong { color: var(--warn); }
     .faq { margin-top: 18px; }
     .faq h2 { margin-bottom: 16px; }
+    .commands { margin-top: 24px; padding-top: 28px; border-top: 1px solid var(--line); }
+    .commands h3 { font-size: 17px; margin: 24px 0 10px; }
+    .commands p { max-width: 46em; font-size: 15px; }
+    .commands code { font-family: "SFMono-Regular", Consolas, monospace; font-size: .88em; }
+    .command { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--raised); padding: 18px; border: 1px solid var(--line); border-radius: 6px; margin: 16px 0; }
+    .command code { font-size: 13px; }
     details { border-top: 1px solid var(--line); padding: 16px 0; }
     summary { cursor: pointer; font-weight: 600; padding-right: 8px; }
     details p { color: var(--muted); margin: 12px 0 0; max-width: 44em; font-size: 15px; }
@@ -178,6 +184,26 @@
         </li>
       </ol>
 
+      <section class="commands" id="commands" aria-labelledby="commands-title">
+        <h2 id="commands-title">可选：用终端命令处理首次打开</h2>
+        <p>先确认安装包来自官方发布页，将 1Panel 拖入“应用程序”，并退出正在运行的 1Panel。打开 macOS 的“终端”，按需要复制下面一组命令执行。所有路径均限定为 <code>/Applications/1Panel.app</code>。</p>
+
+        <h3>只清理下载隔离属性</h3>
+        <p>应用签名完整时，先校验签名，再清理下载附带的隔离属性并打开。<code>xattr</code> 处理的是下载隔离标记，应用原有代码签名会保留。</p>
+        <pre class="command" data-command="macos-quarantine"><code>/usr/bin/codesign --verify --deep --strict "/Applications/1Panel.app" &amp;&amp;
+/usr/bin/xattr -dr com.apple.quarantine "/Applications/1Panel.app" &amp;&amp;
+/usr/bin/open "/Applications/1Panel.app"</code></pre>
+
+        <h3>清理并重置旧签名</h3>
+        <p>确需重置本机应用的签名时，以下命令用本地 ad-hoc 签名覆盖旧签名，重新校验，再清理隔离属性并启动。Apple 芯片上的原生应用需要有效代码签名，因此重置过程会重新签名。该操作不会使应用获得 Apple 公证。</p>
+        <pre class="command" data-command="macos-resign"><code>/usr/bin/codesign --force --deep --sign - "/Applications/1Panel.app" &amp;&amp;
+/usr/bin/codesign --verify --deep --strict "/Applications/1Panel.app" &amp;&amp;
+/usr/bin/xattr -dr com.apple.quarantine "/Applications/1Panel.app" &amp;&amp;
+/usr/bin/open "/Applications/1Panel.app"</code></pre>
+        <p class="hint">命令通过 <code>&amp;&amp;</code> 连接，前一步失败就停止。若提示 <code>No such file</code>，请确认已拖入“应用程序”；若提示 <code>Permission denied</code>，可在需要写入应用的那条命令前加 <code>sudo</code>，并按提示输入本机管理员密码。重新签名后，系统可能再次询问应用权限。</p>
+        <p class="hint">如果系统提示“会损害你的电脑”，请按下方问题说明停止安装并反馈，不使用这些命令处理该提示。</p>
+      </section>
+
       <section class="faq" aria-labelledby="faq-title">
         <h2 id="faq-title">遇到问题</h2>
         <details>
@@ -190,7 +216,7 @@
         </details>
         <details>
           <summary>需要执行终端命令或自行编译吗？</summary>
-          <p>正常安装使用已打包的 DMG，按上面的系统操作确认即可，无需删除签名、运行终端命令或编译源码。重新下载其他版本时，macOS 可能要求再次确认。</p>
+          <p>正常安装使用已打包的 DMG，可以按上面的图形界面步骤确认，也可以选择终端命令方式；两种方式都无需编译源码。重新下载其他版本时，macOS 可能要求再次确认。</p>
         </details>
         <details>
           <summary>Intel Mac 可以安装吗？</summary>
@@ -204,7 +230,7 @@
     </main>
     <footer>
       <span>1Panel macOS 安装指南</span>
-      <span><a href="https://itjun.github.io/1Panel/">1Panel 官网</a> · <a href="https://support.apple.com/zh-cn/102445">Apple 首次打开说明</a> · <a href="https://github.com/itjun/1Panel/issues">反馈安装问题</a></span>
+      <span><a href="https://itjun.github.io/1Panel/install.html">所有平台安装指南</a> · <a href="https://support.apple.com/zh-cn/102445">Apple 首次打开说明</a> · <a href="https://github.com/itjun/1Panel/issues">反馈安装问题</a></span>
     </footer>
   </div>
 </body>
