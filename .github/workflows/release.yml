@@ -107,7 +107,10 @@ jobs:
         shell: bash
         run: |
           WAILS_VER="$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
-          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VER}"
+          # 从已校验的锁定源码安装，避免额外查询上游 latest 的撤回/弃用元数据。
+          go mod download "github.com/wailsapp/wails/v3@${WAILS_VER}"
+          WAILS_DIR="$(go list -m -f '{{.Dir}}' github.com/wailsapp/wails/v3)"
+          go install -C "$WAILS_DIR" ./cmd/wails3
 
       # v3 构建体系基于 Taskfile
       - name: Install task
