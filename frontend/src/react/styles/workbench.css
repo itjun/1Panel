@@ -21,7 +21,10 @@
 }
 .workbench-tab.is-active,
 .workbench-tab.is-active:hover {
+  background-color: var(--color-surface);
   color: var(--color-accent);
+  font-weight: 600;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
 }
 .workbench-more {
   display: flex;
