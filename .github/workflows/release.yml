@@ -266,6 +266,7 @@ jobs:
           ### macOS 安装
 
           下载 DMG 后，将 1Panel 拖入“应用程序”；首次打开被拦截时，在“系统设置 → 隐私与安全性”中确认“仍要打开”。
+          [在线安装指南](https://itjun.github.io/1Panel/macos-install.html)提供完整图文步骤。
           DMG 内附有“安装指南.html”，也可单独下载[离线安装指南](https://github.com/$GH_REPO/releases/download/$VERSION/1Panel-macOS-install.html)。
           EOF
           if [[ "$VERSION" == *-* ]]; then

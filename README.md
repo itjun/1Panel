@@ -5,6 +5,8 @@
 [![Release](https://github.com/itjun/1Panel/actions/workflows/release.yml/badge.svg)](https://github.com/itjun/1Panel/actions/workflows/release.yml)
 [![MIT License](https://img.shields.io/github/license/itjun/1Panel)](LICENSE)
 
+[项目官网](https://itjun.github.io/1Panel/) · [下载安装包](https://itjun.github.io/1Panel/#download) · [macOS 安装指南](https://itjun.github.io/1Panel/macos-install.html)
+
 macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.com/itjun/1Agent) 共用本机 OpenSSH。
 
 ## 中文
@@ -42,6 +44,7 @@ macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.c
 
 ## 文档
 
+- [项目官网与下载](https://itjun.github.io/1Panel/)
 - [完整文档索引](docs/README.md)
 - [项目术语](docs/glossary.md)
 - [视觉与交互规范](docs/design/specification.md) 与 [各功能验收记录](docs/design/README.md)
@@ -89,6 +92,8 @@ task darwin:package:dmg ARCH=arm64
 
 ### macOS 安装与首次打开
 
+完整图文引导请查看 **[官网 macOS 安装指南](https://itjun.github.io/1Panel/macos-install.html)**。
+
 适用于 **Apple 芯片（M 系列）、macOS 13 Ventura 或更高版本**。正常安装无需删除签名、运行终端命令或自行编译。
 
 1. **下载安装包**：打开 [GitHub 最新正式版](https://github.com/itjun/1Panel/releases/latest)，在 Assets 中下载 `1Panel-v<版本>-mac-arm64.dmg`。`Source code` 是源码，安装时无需下载。
@@ -101,7 +106,7 @@ task darwin:package:dmg ARCH=arm64
 
 - **找不到「仍要打开」**：先从「应用程序」尝试启动一次，再回到设置。该按钮通常在尝试打开后约一小时内可用；超过时间重新尝试打开应用。公司或学校管理的 Mac 可能需要管理员放行。
 - **提示「已损坏」或「会损害你的电脑」**：停止安装，从官方发布页重新下载；仍有问题时，请在 [Issues](https://github.com/itjun/1Panel/issues) 提供安装包文件名、芯片、macOS 版本及完整提示。这类提示不按普通首次放行处理。
-- **查看完整引导**：DMG 中的 `安装指南.html` 和 Release 单独提供的 `1Panel-macOS-install.html` 均可离线查看；[页面源文件](docs/macos-install.html) 随仓库维护。
+- **查看完整引导**：[官网安装指南](https://itjun.github.io/1Panel/macos-install.html) 可直接在线阅读；DMG 中的 `安装指南.html` 和 Release 单独提供的 `1Panel-macOS-install.html` 可离线查看，内容来自同一份文件。
 
 远程主机使用你自己电脑上的 `~/.ssh/config`；如果需要连接远程主机，请确保：
 
@@ -246,6 +251,8 @@ Copyright (c) 2026 黄荣君 (itjun)
 感谢 1Panel 团队和社区的开源贡献，为本项目带来了大量启发。
 
 ## English
+
+[Website & downloads](https://itjun.github.io/1Panel/) · [macOS installation guide (Chinese)](https://itjun.github.io/1Panel/macos-install.html)
 
 A remote SSH connection still leaves the host state hard to see. CPU, memory, disk, and processes each need another command. Opening the terminal has the same kind of friction: paid apps currently on the market often cannot open a session immediately, and they do not keep a usable record of it.
 

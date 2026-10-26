@@ -1,0 +1,65 @@
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - website/**
+      - docs/macos-install.html
+      - build/appicon.png
+      - .github/workflows/pages.yml
+  release:
+    types: [published]
+  # Release 使用 GITHUB_TOKEN 发布时不会再触发 release 事件，用完成事件同步下载清单。
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Release 事件也从主分支取官网内容，避免旧 tag 把网站退回历史版本。
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - uses: actions/configure-pages@v6
+
+      - name: Prepare public website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p bin/pages/assets
+          cp website/index.html website/site.css website/site.js bin/pages/
+          cp docs/macos-install.html bin/pages/macos-install.html
+          cp build/appicon.png bin/pages/assets/appicon.png
+          touch bin/pages/.nojekyll
+          gh release view --repo "$GITHUB_REPOSITORY" --json tagName,url,assets \
+            --jq '{version: .tagName, releaseUrl: .url, assets: [.assets[] | {name,url,size}]}' \
+            > bin/pages/release.json
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: bin/pages
+
+      - name: Deploy website
+        id: deployment
+        uses: actions/deploy-pages@v5
