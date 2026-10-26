@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { ChevronDown, Pencil, Plus, Search, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { api, type sshconfig } from "@/api";
 import {
   moveGroupInRacks,
@@ -168,6 +169,9 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const session = useSession();
   const settings = useSettings();
   const hostCards = useHostCards(session.hosts.map(host => host.name));
+  const latestAgentVersion = useQuery({
+    queryKey: ["agent-latest"], queryFn: () => api.agentLatestVersion(), staleTime: Infinity,
+  });
   const searchRef = useRef<HTMLInputElement>(null);
   const suppressClick = useRef(false);
   const insertMarkRef = useRef<InsertMark | null>(null);
@@ -1006,6 +1010,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                     <div className="host-rack-host-insert" data-side="after" />
                   ) : null}
                   <HostCardContent name={host.name} entry={hostCards.entries[host.name]} now={hostCards.now}
+                    latestAgentVersion={latestAgentVersion.data}
                     osRelease={session.osRelease[host.name]} onEdit={() => session.setEditingHost(host.name)} />
                 </div>
               );
