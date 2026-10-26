@@ -1,9 +1,10 @@
-export type ColorPaletteId = "classic" | "macaron" | "morandi" | "glacier" | "latte" | "rose" | "iris" | "graphite";
+export type ColorPaletteId = "classic" | "mist-blue" | "celadon" | "pistachio" | "almond" | "strawberry" | "lavender" | "rose-mauve" | "muted-pastel" | "candy" | "twilight";
 export type PaletteMode = "light" | "dark";
 export type ColorTokens = Record<`--${string}`, string>;
 
 type PaletteBase = {
   rail: string; canvas: string; surface: string; accent: string; ink: string; muted: string;
+  selection?: string;
   ok: string; warn: string; danger: string; read: string; write: string;
 };
 
@@ -50,7 +51,7 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   const line = mix(base.surface, base.ink, isDark ? 0.14 : 0.12);
   const surfaces = [base.rail, base.canvas, base.surface, raised];
   const soft = (color: string) => mix(base.surface, color, isDark ? 0.16 : 0.1);
-  const accentSoft = soft(base.accent);
+  const accentSoft = base.selection ?? soft(base.accent);
   const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, base.ink);
   const accentHover = mix(accent, isDark ? "#ffffff" : "#15151a", 0.09);
   const accentActive = mix(accent, isDark ? "#ffffff" : "#15151a", 0.17);
@@ -73,7 +74,7 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
     "--color-accent": accent, "--color-accent-hover": accentHover, "--color-accent-active": accentActive,
     "--color-on-accent": foreground([accent, accentHover, accentActive]),
     "--color-accent-soft": accentSoft, "--color-accent-tint": mix(base.surface, accent, 0.045),
-    "--color-accent-focus": accent, "--color-selection": soft(accent),
+    "--color-accent-focus": accent, "--color-selection": base.selection ?? soft(accent),
     "--color-accent-veil": `rgba(${rgb(accent).join(", ")}, ${isDark ? 0.18 : 0.1})`,
     "--color-line-veil": `rgba(${rgb(base.ink).join(", ")}, 0.08)`,
     "--color-success": ok, "--color-success-text": readable(base.ok, [...surfaces, successSoft], 4.5, base.ink),
@@ -98,40 +99,56 @@ const definitions: PaletteDefinition[] = [
     light: { rail: "#eaebee", canvas: "#f2f3f5", surface: "#ffffff", accent: "#0052d9", ink: "#1f2937", muted: "#636a76", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
     dark: { rail: "#0d1017", canvas: "#12161f", surface: "#1a1f2b", accent: "#4c8dff", ink: "#e6ebf3", muted: "#94a1b5", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
+  // 用户确认的 peiseka 预览角色色；语义状态仍沿用健康绿、告警橙、危险红。
   {
-    id: "macaron", name: "清甜马卡龙", description: "浅薰衣草 · 奶白",
-    light: { rail: "#e2ddf2", canvas: "#f0edf8", surface: "#fffdff", accent: "#7560b5", ink: "#302b3c", muted: "#686174", ok: "#43856e", warn: "#ad681b", danger: "#c34e60", read: "#5b84bb", write: "#b8783e" },
-    dark: { rail: "#201c2c", canvas: "#292435", surface: "#332d40", accent: "#c7b4f0", ink: "#f4eefb", muted: "#b6acc5", ok: "#91cbb5", warn: "#e9b777", danger: "#f197aa", read: "#a7c8f0", write: "#edba92" },
+    id: "mist-blue", name: "雾蓝", description: "蓝色控 · No.1311",
+    light: { rail: "#d1defb", canvas: "#ebf2ff", surface: "#fcfdff", accent: "#54627e", ink: "#313846", muted: "#5c626d", selection: "#d2dffc", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#1e242f", canvas: "#2a2f37", surface: "#323841", accent: "#a2befa", ink: "#e9ecf2", muted: "#b6becb", selection: "#454d5c", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
   {
-    id: "morandi", name: "雾感莫兰迪", description: "暖石灰 · 雾蓝",
-    light: { rail: "#d8d5d0", canvas: "#ece9e4", surface: "#fcfaf7", accent: "#5c7185", ink: "#363833", muted: "#656760", ok: "#557d65", warn: "#a16a2a", danger: "#b65352", read: "#607f9c", write: "#af7a40" },
-    dark: { rail: "#232522", canvas: "#2b2d29", surface: "#343732", accent: "#b0c1d0", ink: "#f0eee8", muted: "#babcb3", ok: "#a2c3a8", warn: "#d6b481", danger: "#dea09a", read: "#a4bdd0", write: "#d1b28e" },
+    id: "celadon", name: "青瓷", description: "配色导航 No.7",
+    light: { rail: "#b4e7ed", canvas: "#d8f5f8", surface: "#f5fefe", accent: "#41676d", ink: "#2b3940", muted: "#596369", selection: "#cdecee", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#1a242b", canvas: "#282f37", surface: "#323841", accent: "#71c9ce", ink: "#e9ecf2", muted: "#afb8c6", selection: "#364c54", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
   {
-    id: "glacier", name: "北欧冰川", description: "冰蓝 · 冷白",
-    light: { rail: "#d6e5f0", canvas: "#eaf2f8", surface: "#fbfdff", accent: "#316b9c", ink: "#21394a", muted: "#536c7d", ok: "#2e826d", warn: "#a86c1f", danger: "#c24e52", read: "#347cad", write: "#b47b31" },
-    dark: { rail: "#14232e", canvas: "#1b2d39", surface: "#243946", accent: "#98c8ec", ink: "#ecf6fc", muted: "#a4bdcc", ok: "#7bc6af", warn: "#e8bb7d", danger: "#f19999", read: "#8ac7ee", write: "#dfb784" },
+    id: "pistachio", name: "开心果", description: "思绪.色彩 · No.2455",
+    light: { rail: "#cddcbd", canvas: "#f3f5ec", surface: "#f9fcfc", accent: "#4f6067", ink: "#303940", muted: "#585f64", selection: "#c0ded4", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#1d242b", canvas: "#2a2f36", surface: "#323841", accent: "#9ec6cc", ink: "#e9ecf2", muted: "#b2bbc8", selection: "#404d50", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
   {
-    id: "latte", name: "奶油拿铁", description: "燕麦 · 焦糖棕",
-    light: { rail: "#e5d8c8", canvas: "#f3ede3", surface: "#fffcf6", accent: "#89613f", ink: "#41362b", muted: "#766555", ok: "#4c805f", warn: "#a46b16", danger: "#b84840", read: "#5d7f9d", write: "#ac7b37" },
-    dark: { rail: "#29221b", canvas: "#322a21", surface: "#3d3328", accent: "#dbb58d", ink: "#fbf2e6", muted: "#c7b49d", ok: "#a1c59b", warn: "#e6bd7e", danger: "#eb9f90", read: "#a8c1d6", write: "#d7b586" },
+    id: "almond", name: "杏仁奶油", description: "配色导航 No.252",
+    light: { rail: "#fbd8c7", canvas: "#f8f5e6", surface: "#fdfdf9", accent: "#6f5f5a", ink: "#3c393c", muted: "#656265", selection: "#e2ecdb", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#242429", canvas: "#2b2f35", surface: "#323841", accent: "#f9c4aa", ink: "#e9ecf2", muted: "#bac2ce", selection: "#4b5151", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
   {
-    id: "rose", name: "樱花玫瑰", description: "浅玫瑰粉 · 暖白",
-    light: { rail: "#ead6df", canvas: "#f7edf1", surface: "#fffbfd", accent: "#a65075", ink: "#45313d", muted: "#7c606f", ok: "#3f8065", warn: "#a16a22", danger: "#bf3e35", read: "#5a86a5", write: "#aa7836" },
-    dark: { rail: "#2b1d26", canvas: "#352630", surface: "#402e3a", accent: "#e6a5c2", ink: "#fceef5", muted: "#c7a9ba", ok: "#91c6ad", warn: "#e5ba80", danger: "#f49884", read: "#a5c5dd", write: "#dcba8e" },
+    id: "strawberry", name: "草莓奶霜", description: "配色导航 No.72",
+    light: { rail: "#c2e6fd", canvas: "#fff6f6", surface: "#fffdfd", accent: "#865761", ink: "#3c323a", muted: "#6a6268", selection: "#ffe3e3", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#242028", canvas: "#2b2f37", surface: "#323841", accent: "#fcafb8", ink: "#e9ecf2", muted: "#bdc4cf", selection: "#535057", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
   {
-    id: "iris", name: "鸢尾紫", description: "冷紫灰 · 瓷白",
-    light: { rail: "#dcddf0", canvas: "#eeeef8", surface: "#fcfcff", accent: "#6551b8", ink: "#2e2c43", muted: "#69657e", ok: "#3f806a", warn: "#a16b20", danger: "#bd4a55", read: "#5680af", write: "#b07a36" },
-    dark: { rail: "#1e1d30", canvas: "#27253c", surface: "#302e49", accent: "#bcaafa", ink: "#f0edff", muted: "#b5afd1", ok: "#86c8b0", warn: "#e5b879", danger: "#f095a6", read: "#9bbcf1", write: "#e2b681" },
+    id: "lavender", name: "薰衣草", description: "配色导航 No.19",
+    light: { rail: "#d2cef4", canvas: "#ebfdfb", surface: "#fafffe", accent: "#605572", ink: "#363544", muted: "#595965", selection: "#d7e6fd", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#21222d", canvas: "#2a3037", surface: "#323841", accent: "#d5b7ed", ink: "#e9ecf2", muted: "#bbc3ce", selection: "#48515c", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
   {
-    id: "graphite", name: "石墨极简", description: "中性灰阶 · 银灰",
-    light: { rail: "#dddddf", canvas: "#f0f1f2", surface: "#ffffff", accent: "#454d59", ink: "#24282e", muted: "#636a73", ok: "#3e8066", warn: "#a66c20", danger: "#bf4d4d", read: "#557eaa", write: "#a77d42" },
-    dark: { rail: "#17191c", canvas: "#202327", surface: "#292d32", accent: "#c2cad5", ink: "#f0f2f5", muted: "#aeb5bf", ok: "#72be9b", warn: "#e4ad62", danger: "#ee7d7d", read: "#84afda", write: "#ddb378" },
+    id: "rose-mauve", name: "玫瑰灰紫", description: "柔软的毛毯 · No.1676",
+    light: { rail: "#e3e7f8", canvas: "#fcf0ef", surface: "#fefcfc", accent: "#6b647f", ink: "#343541", muted: "#666770", selection: "#ffdfe2", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#1f222c", canvas: "#2b2f36", surface: "#323841", accent: "#c9bbdf", ink: "#e9ecf2", muted: "#bac2ce", selection: "#534e54", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "muted-pastel", name: "灰调粉彩", description: "万籁俱寂 · No.1888",
+    light: { rail: "#e3d7e2", canvas: "#f7f7ee", surface: "#fdfdfb", accent: "#645e69", ink: "#373840", muted: "#5f6066", selection: "#d4e6e6", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#21232b", canvas: "#2b2f36", surface: "#323841", accent: "#d1bcce", ink: "#e9ecf2", muted: "#b8c0cc", selection: "#474f55", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "candy", name: "糖果什锦", description: "糖果的味道 · No.1959",
+    light: { rail: "#cfebfd", canvas: "#f0fcf3", surface: "#fffdfc", accent: "#6b6574", ink: "#3b3c46", muted: "#66676f", selection: "#f5e1f9", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#24262e", canvas: "#2a3036", surface: "#323841", accent: "#f2daf7", ink: "#e9ecf2", muted: "#bdc4cf", selection: "#50505b", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "twilight", name: "暮蓝撞色", description: "小清新 · No.1328",
+    light: { rail: "#e1e1e1", canvas: "#f2f4f7", surface: "#fdfefe", accent: "#546486", ink: "#292f3a", muted: "#60646d", selection: "#cbeed7", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#191e28", canvas: "#2a2f37", surface: "#323841", accent: "#b2bbcf", ink: "#e9ecf2", muted: "#b4bcc9", selection: "#3d4f4c", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
 ];
 
@@ -140,8 +157,15 @@ export const COLOR_PALETTES = definitions.map((definition) => ({
   light: tokens(definition.light, "light"), dark: tokens(definition.dark, "dark"),
 }));
 
+const LEGACY_PALETTES = new Map<string, ColorPaletteId>([
+  ["sea-salt", "mist-blue"], ["glacier", "celadon"], ["morandi", "pistachio"],
+  ["latte", "almond"], ["rose", "strawberry"], ["macaron", "lavender"],
+  ["iris", "almond"], ["graphite", "rose-mauve"],
+]);
+
 export function parseColorPalette(value: unknown): ColorPaletteId {
-  return COLOR_PALETTES.find((palette) => palette.id === value)?.id ?? "classic";
+  const id = typeof value === "string" ? LEGACY_PALETTES.get(value) ?? value : value;
+  return COLOR_PALETTES.find((palette) => palette.id === id)?.id ?? "classic";
 }
 
 export function paletteTokens(id: ColorPaletteId, mode: PaletteMode): ColorTokens {

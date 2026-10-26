@@ -41,17 +41,17 @@ test("switching only palette updates shell, chart colors, theme signature and pe
     expect(JSON.parse(values.get("ipannel.settings.v1")!).colorPalette).toBe(palette.id);
     signatures.add(readThemeSignature());
   }
-  expect(signatures.size).toBe(8);
+  expect(signatures.size).toBe(COLOR_PALETTES.length);
   expect(settings.readSettings().appearance).toBe("light");
 });
 
 test("system changes repaint the selected palette and reset restores defaults", () => {
-  settings.updateSettings({ appearance: "system", colorPalette: "rose" });
+  settings.updateSettings({ appearance: "system", colorPalette: "strawberry" });
   settings.applySystemAppearanceHint(true);
-  expect(readThemeSignature()).toBe("dark:rose");
-  expect(variables.get("--color-canvas")).toBe(paletteTokens("rose", "dark")["--color-canvas"]);
+  expect(readThemeSignature()).toBe("dark:strawberry");
+  expect(variables.get("--color-canvas")).toBe(paletteTokens("strawberry", "dark")["--color-canvas"]);
   settings.applySystemAppearanceHint(false);
-  expect(readThemeSignature()).toBe("light:rose");
+  expect(readThemeSignature()).toBe("light:strawberry");
   isSystemDark = true;
   settings.resetSettings();
   expect(settings.readSettings().colorPalette).toBe("classic");
@@ -61,7 +61,7 @@ test("system changes repaint the selected palette and reset restores defaults", 
 test("startup restores palette while HTTP boards keep the classic dark theme", () => {
   values.set("ipannel.settings.v1", JSON.stringify({ appearance: "light", colorPalette: "latte" }));
   applySavedFont();
-  expect(readThemeSignature()).toBe("light:latte");
+  expect(readThemeSignature()).toBe("light:almond");
   applySavedFont(true);
   expect(readThemeSignature()).toBe("dark:classic");
   expect(variables.has("--board-color-surface")).toBe(false);
