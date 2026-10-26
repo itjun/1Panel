@@ -357,10 +357,10 @@ html.dark[data-window-material="mica"] .module-rail {
 }
 
 /* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。 */
-html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .shell-app-toolbar) {
+html[data-window-material="mica"][data-color-palette] :is(.glass-chrome, .shell-app-toolbar) {
   background-color: var(--color-canvas);
 }
-html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
+html[data-window-material="mica"][data-color-palette] .module-rail {
   background-color: var(--color-rail);
 }
 

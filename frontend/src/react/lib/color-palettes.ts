@@ -94,7 +94,7 @@ type PaletteDefinition = { id: ColorPaletteId; name: string; description: string
 
 const definitions: PaletteDefinition[] = [
   {
-    id: "classic", name: "经典蓝灰", description: "中性灰 · 品牌蓝",
+    id: "classic", name: "默认配色", description: "中性灰 · 品牌蓝",
     light: { rail: "#eaebee", canvas: "#f2f3f5", surface: "#ffffff", accent: "#0052d9", ink: "#1f2937", muted: "#636a76", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
     dark: { rail: "#0d1017", canvas: "#12161f", surface: "#1a1f2b", accent: "#4c8dff", ink: "#e6ebf3", muted: "#94a1b5", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
