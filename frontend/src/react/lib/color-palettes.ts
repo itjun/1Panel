@@ -65,12 +65,16 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   const danger = readable(base.danger, [...surfaces, dangerSoft], 4.5, base.ink);
   const read = readable(base.read, graphicSurfaces, 3, base.ink);
   const write = readable(base.write, graphicSurfaces, 3, base.ink);
+  // 顶栏悬停只改变壳层明度，避免多色配色在移入时突然跳到另一色相。
+  const tabHover = mix(base.canvas, base.ink, isDark ? 0.06 : 0.035);
   return {
     "--color-rail": base.rail, "--color-canvas": base.canvas, "--color-surface": base.surface,
     "--color-raised": raised, "--color-line": line,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
     "--color-muted": readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink),
+    "--color-tab-hover": tabHover,
+    "--color-tab-hover-ink": readable(mix(base.muted, base.ink, 0.25), [base.canvas, tabHover], 4.5, base.ink),
     "--color-accent": accent, "--color-accent-hover": accentHover, "--color-accent-active": accentActive,
     "--color-on-accent": foreground([accent, accentHover, accentActive]),
     "--color-accent-soft": accentSoft, "--color-accent-tint": mix(base.surface, accent, 0.045),

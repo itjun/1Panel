@@ -42,6 +42,10 @@ for (const palette of COLOR_PALETTES) {
       for (const state of ["", "-hover", "-active"]) check("--color-on-accent", `--color-accent${state}`, 4.5);
       check("--color-on-danger", "--color-danger", 4.5);
       check("--color-accent", "--color-accent-soft", 4.5);
+      check("--color-tab-hover-ink", "--color-tab-hover", 4.5);
+      // 悬停仅有轻微明度差，不能再跳到另一块高反差的底色。
+      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-canvas"])).toBeGreaterThan(1.02);
+      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-canvas"])).toBeLessThan(1.3);
       check("--color-success-text", "--color-success-soft", 4.5);
       check("--color-warn", "--color-warn-soft", 4.5);
       check("--color-danger", "--color-danger-soft", 4.5);

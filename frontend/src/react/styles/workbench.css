@@ -8,16 +8,34 @@
   pointer-events: auto;
 }
 .workbench-tab {
+  position: relative;
+  isolation: isolate;
   width: 64px;
   flex-shrink: 0;
   color: var(--color-muted);
   font-size: 14px;
   white-space: nowrap;
+  transition: color var(--duration-base) var(--ease-standard);
 }
-.workbench-tab:hover,
+.workbench-tab::before,
+.workbench-more::before {
+  content: "";
+  position: absolute;
+  inset: 5px 3px;
+  z-index: -1;
+  border-radius: var(--radius-control);
+  background-color: var(--color-tab-hover, var(--color-raised));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+.workbench-tab:not(.is-active):hover::before,
+.workbench-more:hover::before {
+  opacity: 1;
+}
+.workbench-tab:not(.is-active):hover,
 .workbench-more:hover {
-  background: var(--color-raised);
-  color: var(--color-ink);
+  color: var(--color-tab-hover-ink, var(--color-ink));
 }
 .workbench-tab.is-active,
 .workbench-tab.is-active:hover {
@@ -27,6 +45,8 @@
   border-radius: var(--radius-control) var(--radius-control) 0 0;
 }
 .workbench-more {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -34,6 +54,14 @@
   width: 76px;
   flex-shrink: 0;
   font-size: 14px;
+  color: var(--color-muted);
+  transition: color var(--duration-base) var(--ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-tab,
+  .workbench-more,
+  .workbench-tab::before,
+  .workbench-more::before { transition: none; }
 }
 .workbench-tab:focus-visible,
 .workbench-more:focus-visible,
