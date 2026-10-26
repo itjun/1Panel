@@ -43,6 +43,29 @@ describe("紧凑主机卡状态", () => {
     expect(hostCardView(entry({ connection: "failed", agentState: "unknown", error: "SSH failed" }), now).statusLabel).toBe("连接失败");
   });
 
+  test("按数字比较内置版本，仅低版本标记可更新", () => {
+    for (const [version, isOutdated] of [
+      ["0.2.42", true], ["v0.2.9", true], ["0.1.100", true],
+      ["0.2.53", false], ["v0.2.53", false], ["0.2.100", false], ["0.3.0", false], ["1.0.0", false],
+      ["", false], ["unknown", false],
+    ] as const) {
+      expect(hostCardView(entry({ agentVersion: version }), now, "v0.2.53").isAgentOutdated).toBe(isOutdated);
+    }
+  });
+
+  test("内置版本未知、Agent 状态异常或版本数据过期时不标记低版本", () => {
+    const older = entry({ agentVersion: "0.2.42" });
+    expect(hostCardView(older, now).isAgentOutdated).toBe(false);
+    expect(hostCardView(older, now, "unknown").isAgentOutdated).toBe(false);
+    expect(hostCardView(undefined, now, "0.2.53").isAgentOutdated).toBe(false);
+    expect(hostCardView({ ...older, error: "request failed" }, now, "0.2.53").isAgentOutdated).toBe(false);
+    expect(hostCardView(older, now + 15001, "0.2.53").isAgentOutdated).toBe(false);
+    expect(hostCardView({ ...older, detailsAt: now - 90001 }, now, "0.2.53").isAgentOutdated).toBe(false);
+    for (const agentState of ["missing", "stopped", "unknown"]) {
+      expect(hostCardView(entry({ agentVersion: "0.2.42", agentState }), now, "0.2.53").isAgentOutdated).toBe(false);
+    }
+  });
+
   test("采集失败与过期撤下缓存仪表；磁盘单项失败保留 CPU/内存", () => {
     const failed = { ...entry(), error: "request failed" };
     expect(hostCardView(failed, now).metrics.every(metric => metric.value == null)).toBe(true);
