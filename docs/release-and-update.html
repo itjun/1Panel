@@ -219,7 +219,7 @@ flowchart TB
   e4 --> w1
   e4 --> l1
   subgraph job2 [Job build 矩阵并行]
-    m1["macOS: 还原内嵌产物"] --> m2["task darwin:package ARCH=arm64"] --> m3["hdiutil 制作 1Panel.app 的 dmg"]
+    m1["macOS: 还原内嵌产物"] --> m2["task darwin:package ARCH=arm64"] --> m3["task darwin:create:dmg 打包并挂载验证，附离线安装指南"]
     w1["Windows: 还原内嵌产物"] --> w2["task windows:build"] --> w3["7z 打包 1Panel.exe"]
     l1["Linux: 还原内嵌产物 + apt 装 GTK4/WebKitGTK"] --> l2["task linux:build"] --> l3["tar.gz 二进制 + desktop + 图标"]
   end
@@ -242,6 +242,7 @@ flowchart TB
       <tr><td>内嵌产物</td><td>spanel-agent 与 iperf3 被 gitignore，统一在 Linux 上构建一次再分发，三个包内嵌版本一致；不依赖 Windows 上的 shell 工具。</td></tr>
       <tr><td>发布顺序</td><td>先以草稿上传安装包与清单，再一次性公开并标为 latest。<code>releases/latest</code> 不包含草稿和预发布，客户端读到新清单时安装包一定已就绪。</td></tr>
       <tr><td>签名复核</td><td>上传前用客户端内置公钥再校验一次，防止 Secret 里的私钥与代码中的公钥不配对。</td></tr>
+      <tr><td>macOS 免费分发</td><td>应用保留 ad-hoc 签名，DMG 打包前后都检查签名完整性。首次打开仍需用户在「系统设置 → 隐私与安全性」中手动确认；这与更新清单的 ed25519 签名是两套机制。DMG 根目录附带 <code>安装指南.html</code>，Release 另提供同一份离线指南。指南不写入已签名的应用内部。</td></tr>
     </table>
   </section>
 
@@ -254,6 +255,7 @@ flowchart TB
 ├── latest.json          <span class="c"># 发布清单（每个版本一份）</span>
 ├── latest.json.sig      <span class="c"># ed25519 签名（base64）</span>
 ├── 1Panel-v1.1.0-mac-arm64.dmg
+├── 1Panel-macOS-install.html <span class="c"># macOS 离线安装指南，DMG 内也附带</span>
 ├── 1Panel-v1.1.0-win-amd64.zip
 └── 1Panel-v1.1.0-linux-amd64.tar.gz
 

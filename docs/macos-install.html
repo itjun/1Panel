@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="1Panel macOS 安装指南：下载 DMG、拖入应用程序，并在隐私与安全性中确认首次打开。">
+  <title>安装 1Panel｜macOS 安装指南</title>
+  <style>
+    :root {
+      --canvas: #f2f3f5;
+      --surface: #ffffff;
+      --raised: #f3f4f6;
+      --ink: #1f2937;
+      --muted: #636a76;
+      --line: #e5e7eb;
+      --accent: #0052d9;
+      --accent-soft: #e8efff;
+      --on-accent: #ffffff;
+      --warn: #d35a00;
+      --warn-soft: #fff0e3;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 24px; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.75;
+      overflow-wrap: break-word;
+    }
+    a { color: var(--accent); text-underline-offset: 4px; }
+    a:hover { text-decoration-thickness: 2px; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; }
+    .skip { position: absolute; top: -80px; left: 20px; padding: 8px 16px; background: var(--surface); }
+    .skip:focus { top: 12px; }
+    .shell { max-width: 1080px; margin: 0 auto; padding: 0 40px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 80px; }
+    .brand { display: inline-flex; align-items: center; gap: 12px; font-size: 21px; font-weight: 700; text-decoration: none; color: var(--ink); }
+    .rack { display: grid; gap: 3px; width: 26px; }
+    .rack i { height: 7px; background: var(--accent); border-radius: 2px; position: relative; }
+    .rack i::after { content: ""; position: absolute; right: 4px; top: 2px; width: 3px; height: 3px; background: var(--on-accent); border-radius: 50%; }
+    header > a:last-child { font-size: 14px; }
+    main { background: var(--surface); padding: 44px 52px 48px; }
+    h1 { margin: 0 0 12px; font-size: clamp(30px, 5vw, 42px); line-height: 1.3; letter-spacing: -1px; }
+    h2 { font-size: 23px; line-height: 1.45; margin: 0 0 10px; }
+    p { margin: 0 0 12px; }
+    .lead { color: var(--muted); font-size: 18px; max-width: 38em; }
+    .requirements { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 16px 0 24px; margin: 0; color: var(--muted); font-size: 14px; list-style: none; }
+    .requirements strong { color: var(--ink); font-weight: 600; }
+    .steps { list-style: none; margin: 8px 0 0; padding: 0; counter-reset: step; }
+    .step { counter-increment: step; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding: 30px 0; border-top: 1px solid var(--line); }
+    .step::before { content: counter(step); background: var(--accent-soft); color: var(--accent); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 18px; }
+    .step p { max-width: 40em; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 9px 18px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; font-size: 15px; margin-top: 4px; }
+    .button:hover { text-decoration: underline; }
+    .hint { color: var(--muted); font-size: 14px; margin-top: 10px; }
+    .install-view { margin: 20px 0 8px; max-width: 520px; background: var(--raised); border-radius: 8px; padding: 22px 28px; }
+    .install-items { display: flex; align-items: center; justify-content: space-around; gap: 24px; }
+    .install-item { display: grid; justify-items: center; gap: 8px; font-size: 14px; }
+    .app-icon { width: 62px; height: 62px; background: var(--surface); border-radius: 14px; display: grid; place-items: center; }
+    .app-icon .rack { width: 32px; gap: 4px; }
+    .app-icon .rack i { height: 9px; }
+    .app-icon .rack i::after { top: 3px; }
+    .folder { width: 67px; height: 48px; background: var(--accent); border-radius: 4px; margin-top: 14px; position: relative; display: grid; place-items: center; color: var(--on-accent); font-size: 24px; font-weight: 600; }
+    .folder::before { content: ""; position: absolute; top: -8px; left: 0; width: 28px; height: 12px; background: var(--accent); border-radius: 4px 4px 0 0; }
+    .drag { color: var(--muted); font-size: 28px; align-self: start; margin-top: 18px; }
+    figcaption { margin-top: 12px; color: var(--muted); font-size: 13px; text-align: center; }
+    .settings-path { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0; padding: 14px 18px; background: var(--raised); font-size: 15px; }
+    .settings-path span { color: var(--muted); }
+    .settings-path strong { color: var(--accent); }
+    .notice { margin-top: 18px; padding: 14px 18px; background: var(--warn-soft); font-size: 14px; }
+    .notice strong { color: var(--warn); }
+    .faq { margin-top: 18px; }
+    .faq h2 { margin-bottom: 16px; }
+    details { border-top: 1px solid var(--line); padding: 16px 0; }
+    summary { cursor: pointer; font-weight: 600; padding-right: 8px; }
+    details p { color: var(--muted); margin: 12px 0 0; max-width: 44em; font-size: 15px; }
+    footer { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 24px 0 32px; }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --canvas: #12161f;
+        --surface: #1a1f2b;
+        --raised: #232a38;
+        --ink: #e6ebf3;
+        --muted: #94a1b5;
+        --line: #2c3445;
+        --accent: #4c8dff;
+        --accent-soft: #1a2c52;
+        --on-accent: #12161f;
+        --warn: #f29a4a;
+        --warn-soft: #40280f;
+      }
+    }
+    @media (max-width: 600px) {
+      .shell { padding: 0 18px; }
+      header { min-height: 68px; }
+      main { padding: 28px 20px; }
+      .lead { font-size: 16px; }
+      .step { grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 26px 0; }
+      .step::before { width: 30px; height: 30px; font-size: 15px; }
+      h2 { font-size: 20px; }
+      .install-view { padding: 18px 10px; }
+      .install-items { gap: 10px; }
+      .install-item { font-size: 12px; }
+      .settings-path { padding: 12px; }
+      .button { width: 100%; }
+    }
+    @media print {
+      body { background: var(--surface); }
+      .shell { max-width: none; padding: 0; }
+      main { padding: 20px; }
+      header, footer, .skip, .button { display: none; }
+      .step { break-inside: avoid; }
+      details { break-inside: avoid; }
+      details::details-content { content-visibility: visible; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#installation">跳到安装步骤</a>
+  <div class="shell">
+    <header>
+      <a class="brand" href="https://github.com/itjun/1Panel" aria-label="1Panel GitHub 项目">
+        <span class="rack" aria-hidden="true"><i></i><i></i><i></i></span>1Panel
+      </a>
+      <a href="https://github.com/itjun/1Panel/releases/latest">官方发布页</a>
+    </header>
+    <main id="installation">
+      <h1>在 Mac 上安装 1Panel</h1>
+      <p class="lead">将应用拖入“应用程序”，再按系统提示确认首次打开。这份指南也可以离线查看。</p>
+      <ul class="requirements" aria-label="安装要求">
+        <li><strong>芯片</strong> Apple M 系列</li>
+        <li><strong>系统</strong> macOS 13 Ventura 或更高</li>
+      </ul>
+
+      <ol class="steps">
+        <li class="step" id="download">
+          <div>
+            <h2>下载并打开 DMG</h2>
+            <p>在官方发布页的 Assets 中，下载名称以 <strong>mac-arm64.dmg</strong> 结尾的文件，双击打开。</p>
+            <a class="button" href="https://github.com/itjun/1Panel/releases/latest">前往下载 macOS 安装包</a>
+            <p class="hint">已经打开磁盘映像？直接继续下一步。Source code 是开发源码，安装时无需下载。</p>
+          </div>
+        </li>
+        <li class="step" id="copy">
+          <div>
+            <h2>拖入“应用程序”</h2>
+            <p>把磁盘映像里的 <strong>1Panel.app</strong> 拖到旁边的 <strong>Applications（应用程序）</strong> 文件夹。等待复制完成。</p>
+            <figure class="install-view" aria-label="把 1Panel.app 拖入 Applications 文件夹的示意图">
+              <div class="install-items" aria-hidden="true">
+                <div class="install-item"><span class="app-icon"><span class="rack"><i></i><i></i><i></i></span></span><span>1Panel.app</span></div>
+                <span class="drag">→</span>
+                <div class="install-item"><span class="folder">A</span><span>Applications</span></div>
+              </div>
+              <figcaption>将左侧应用拖到右侧文件夹</figcaption>
+            </figure>
+            <p class="hint">复制完成后，从 Finder 的“应用程序”打开 1Panel；磁盘映像可以推出。</p>
+          </div>
+        </li>
+        <li class="step" id="first-open">
+          <div>
+            <h2>尝试打开一次</h2>
+            <p>双击“应用程序”里的 <strong>1Panel</strong>。如果系统提示“无法验证开发者”或“Apple 无法检查是否包含恶意软件”，先点“完成”或“好”关闭提示，并保留应用。</p>
+            <div class="notice"><strong>确认下载来源后再继续。</strong> 当前免费分发版本尚未经过 Apple 公证。请确认安装包来自 <a href="https://github.com/itjun/1Panel/releases/latest">itjun/1Panel 官方发布页</a>。</div>
+          </div>
+        </li>
+        <li class="step" id="allow">
+          <div>
+            <h2>在系统设置中确认打开</h2>
+            <p>打开“系统设置”，进入“隐私与安全性”，向下找到“安全性”区域，确认提示中的应用是 <strong>1Panel</strong>，点“仍要打开”。按系统要求验证身份，再点“打开”。</p>
+            <div class="settings-path" aria-label="设置路径">系统设置 <span>›</span> 隐私与安全性 <span>›</span> <strong>仍要打开</strong></div>
+            <a class="button" href="x-apple.systempreferences:com.apple.preference.security">打开隐私与安全性</a>
+            <p class="hint">浏览器可能先询问是否打开“系统设置”。按钮没有响应时，从屏幕左上角的苹果菜单手动进入。确认完成后，就能正常双击打开应用。</p>
+          </div>
+        </li>
+      </ol>
+
+      <section class="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title">遇到问题</h2>
+        <details>
+          <summary>找不到“仍要打开”按钮</summary>
+          <p>先从“应用程序”尝试打开一次 1Panel，再进入“隐私与安全性”。Apple 说明此按钮通常在尝试打开后约一小时内可用；超过时间可重新尝试打开应用。如果 Mac 由公司或学校管理，可能需要联系管理员。</p>
+        </details>
+        <details>
+          <summary>提示“已损坏”或“会损害你的电脑”</summary>
+          <p>这与“无法验证开发者”提示不同，请停止安装。从官方发布页重新下载；如果仍有问题，请在 <a href="https://github.com/itjun/1Panel/issues">GitHub Issues</a> 提供安装包文件名、Mac 芯片、macOS 版本和完整提示，便于检查包的完整性。</p>
+        </details>
+        <details>
+          <summary>需要执行终端命令或自行编译吗？</summary>
+          <p>正常安装使用已打包的 DMG，按上面的系统操作确认即可，无需删除签名、运行终端命令或编译源码。重新下载其他版本时，macOS 可能要求再次确认。</p>
+        </details>
+        <details>
+          <summary>Intel Mac 可以安装吗？</summary>
+          <p>当前 macOS 安装包只支持 Apple 芯片（M 系列），并要求 macOS 13 或更高。可以在苹果菜单的“关于本机”中查看芯片和系统版本。</p>
+        </details>
+        <details>
+          <summary>打开后没有远程主机</summary>
+          <p>安装后可以先使用本机工作区。远程主机读取你自己电脑上的 SSH 配置；已有配置会自动加载，也可以在应用中添加主机。安装包不包含其他人的主机凭据。</p>
+        </details>
+      </section>
+    </main>
+    <footer>
+      <span>1Panel macOS 安装指南</span>
+      <span><a href="https://support.apple.com/zh-cn/102445">Apple 首次打开说明</a> · <a href="https://github.com/itjun/1Panel/issues">反馈安装问题</a></span>
+    </footer>
+  </div>
+</body>
+</html>

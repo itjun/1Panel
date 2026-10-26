@@ -136,31 +136,19 @@ tasks:
       - task: create:app:bundle
 
   package:dmg:
-    summary: Packages the application into a styled `.dmg`
+    summary: 打包含离线安装指南的 DMG，并验证最终映像中的应用签名
     deps:
       - task: package
     cmds:
       - task: create:dmg
 
   create:dmg:
-    summary: Creates a configurable `.dmg` from the `.app` bundle
+    summary: 将已签名的应用与安装指南打包为 DMG（与发布 CI 共用）
     platforms: [darwin]
     cmds:
-      - >-
-        wails3 tool package --format dmg --name "{{.APP_NAME}}" --out "{{.BIN_DIR}}"
-        --background "{{.DMG_BACKGROUND}}"
-        --volume-icon "{{.DMG_VOLUME_ICON}}"
-        --file-icon "{{.DMG_FILE_ICON}}"
-        --window-width "{{.DMG_WINDOW_WIDTH}}"
-        --window-height "{{.DMG_WINDOW_HEIGHT}}"
-        {{if .DMG_FILES}}--files "{{.DMG_FILES}}"{{end}}
+      - bash scripts/package-macos-dmg.sh "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.DMG_OUTPUT}}"
     vars:
-      DMG_BACKGROUND: '{{.DMG_BACKGROUND | default "build/darwin/dmg-background.png"}}'
-      DMG_VOLUME_ICON: '{{.DMG_VOLUME_ICON | default "build/darwin/icons.icns"}}'
-      DMG_FILE_ICON: '{{.DMG_FILE_ICON | default "build/darwin/dmg-file-icon.icns"}}'
-      DMG_WINDOW_WIDTH: '{{.DMG_WINDOW_WIDTH | default "540"}}'
-      DMG_WINDOW_HEIGHT: '{{.DMG_WINDOW_HEIGHT | default "380"}}'
-      DMG_FILES: '{{.DMG_FILES | default ""}}'
+      DMG_OUTPUT: '{{.DMG_OUTPUT | default (printf "%s/%s.dmg" .BIN_DIR .APP_NAME)}}'
 
 
   create:app:bundle:
@@ -216,6 +204,7 @@ tasks:
     internal: true
     cmds:
       - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+      - codesign --verify --deep --strict "{{.BIN_DIR}}/{{.APP_NAME}}.app"
 
   codesign:skip:
     summary: Skips codesigning when cross-compiling

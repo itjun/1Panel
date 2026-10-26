@@ -64,6 +64,9 @@ python3 build.py
 
 # 构建 + 打包 .app（macOS 只发布 arm64）
 task darwin:package
+
+# 构建 + 打包 DMG（附离线安装指南，并验证映像内的应用签名）
+task darwin:package:dmg ARCH=arm64
 ```
 
 > **版本对齐**：Wails CLI（`wails3`）、`go.mod` 中的 `github.com/wailsapp/wails/v3`、前端 `@wailsio/runtime` 必须同一版本（当前以 `go.mod` 为准）。不要自行升 beta；漂移时用 `task wails:check` 检查。
@@ -76,23 +79,37 @@ task darwin:package
 
 日常发版执行 `scripts/publish.sh`。它取最新正式版，把补丁号加一，用这段提交标题写成更新说明，再交给 `scripts/release.sh`（打附注 tag → 推送 → `gh run watch` 等 CI → 校验清单）。要指定版本或改说明时用 `scripts/release.sh vX.Y.Z -F notes.md`（或 `-m "说明"`）。GitHub Actions 构建三个平台并用 `gh` 发布到 **GitHub Releases**（页面右侧 Releases）。Release 同时是应用内更新源，客户端读取最新正式版里的签名清单 `latest.json`：
 
-- `1Panel-v<版本>-mac-arm64.dmg` —— macOS arm64 磁盘映像（Apple 芯片，含 `1Panel.app`；应用内更新挂载这份映像替换本机应用）
+- `1Panel-v<版本>-mac-arm64.dmg` —— macOS arm64 磁盘映像（Apple 芯片，含 `1Panel.app`、应用程序替身与离线安装指南；应用内更新挂载这份映像替换本机应用）
+- `1Panel-macOS-install.html` —— 可单独下载、用浏览器打开的离线安装指南，与 DMG 内的指南相同
 - `1Panel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Panel.exe`）
 - `1Panel-v<版本>-linux-amd64.tar.gz` —— Linux 64 位包
 - `latest.json` / `latest.json.sig` —— 应用内更新清单及 ed25519 签名
 
 详细流程见 [`docs/release-and-update.html`](docs/release-and-update.html)。
 
-### macOS 同事侧使用步骤
+### macOS 安装与首次打开
 
-1. **打开 dmg**：双击磁盘映像
-2. **拖入「应用程序」**：把 `1Panel.app` 拖到窗口里的「应用程序」替身
-3. **首次打开**：右键 → 打开（macOS Gatekeeper 会拦未签名应用，普通双击会被拒；右键打开后选「仍要打开」即可，只需做一次）
-4. **配置 SSH**：应用读取的是同事本机的 `~/.ssh/config`，请确保：
-   - 已生成密钥：`ssh-keygen -t ed25519`（一路回车）
-   - `~/.ssh/config` 中已有目标主机配置（`Host`、`HostName`、`User`、`IdentityFile` 等）
-   - 已通过 `ssh-copy-id user@host` 把公钥推到目标主机
-5. **打开应用**：左侧分组/主机列表会自动加载，点击进入即可
+适用于 **Apple 芯片（M 系列）、macOS 13 Ventura 或更高版本**。正常安装无需删除签名、运行终端命令或自行编译。
+
+1. **下载安装包**：打开 [GitHub 最新正式版](https://github.com/itjun/1Panel/releases/latest)，在 Assets 中下载 `1Panel-v<版本>-mac-arm64.dmg`。`Source code` 是源码，安装时无需下载。
+2. **拖入「应用程序」**：双击 DMG，把 `1Panel.app` 拖到窗口里的 `Applications`（应用程序）替身，等待复制完成。可双击同一窗口中的 `安装指南.html` 查看离线图文引导。
+3. **尝试首次打开**：从 Finder 的「应用程序」双击 1Panel。如果提示「无法验证开发者」或「Apple 无法检查是否包含恶意软件」，先点「完成」或「好」关闭提示，保留应用。
+4. **手动确认**：确认安装包来自上述官方发布页后，打开「系统设置 → 隐私与安全性」，向下找到「安全性」区域，确认应用名为 1Panel，再点「仍要打开」。按系统提示验证身份，最后点「打开」。指南也提供打开此设置页的按钮。
+5. **开始使用**：系统保存该应用的例外后，可正常双击启动；磁盘映像可以推出。安装后可先使用本机工作区；重新下载其他版本时，macOS 可能再次要求确认。
+
+当前采用免费分发方式：应用保留 ad-hoc 签名以校验完整性，**尚未经过 Apple 公证**。首次打开步骤以 [Apple 官方说明](https://support.apple.com/zh-cn/102445) 为准，不依赖右键「打开」。
+
+- **找不到「仍要打开」**：先从「应用程序」尝试启动一次，再回到设置。该按钮通常在尝试打开后约一小时内可用；超过时间重新尝试打开应用。公司或学校管理的 Mac 可能需要管理员放行。
+- **提示「已损坏」或「会损害你的电脑」**：停止安装，从官方发布页重新下载；仍有问题时，请在 [Issues](https://github.com/itjun/1Panel/issues) 提供安装包文件名、芯片、macOS 版本及完整提示。这类提示不按普通首次放行处理。
+- **查看完整引导**：DMG 中的 `安装指南.html` 和 Release 单独提供的 `1Panel-macOS-install.html` 均可离线查看；[页面源文件](docs/macos-install.html) 随仓库维护。
+
+远程主机使用你自己电脑上的 `~/.ssh/config`；如果需要连接远程主机，请确保：
+
+- 已生成密钥：`ssh-keygen -t ed25519`（一路回车）
+- `~/.ssh/config` 中已有目标主机配置（`Host`、`HostName`、`User`、`IdentityFile` 等）
+- 已通过 `ssh-copy-id user@host` 把公钥推到目标主机
+
+已有主机配置会自动加载，也可以在应用中添加主机。
 
 ### Windows 同事侧使用步骤
 
@@ -112,7 +129,7 @@ task darwin:package
 
 ### 系统要求
 
-- macOS 12 Monterey 或更高（仅 Apple 芯片 / arm64）
+- macOS 13 Ventura 或更高（仅 Apple 芯片 / arm64）
 - Windows 10/11 64 位（本机采集经系统 API（NtQuery / 注册表 / IP Helper）完成，不依赖 PowerShell 文本解析）
 - 目标主机需为 Debian/Ubuntu 系列（其他发行版部分监控字段可能解析失败）
 

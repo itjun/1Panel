@@ -26,6 +26,15 @@ macOS 打包需要 Python 3。`darwin:package` 和开发启动会在复制 plist
 没有版本 tag 的开发构建使用 `0.0.0`。模板中的 `0.0.0` 只作占位，修改 plist 后必须重新签名。
 发布 CI 会独立核对实际 bundle 的两个字段是否与发布 tag 一致，并验证代码签名。
 
+免费分发使用 ad-hoc 签名，不代表通过 Apple 公证；用户首次运行按 README 在系统设置中手动确认。
+本地执行 `task darwin:package:dmg ARCH=arm64` 生成 `bin/1Panel.dmg`；发布 CI 使用同一个
+`darwin:create:dmg` 任务，可通过 `DMG_OUTPUT` 指定文件名。底层脚本为
+`scripts/package-macos-dmg.sh`：用 `ditto` 保留应用权限与签名，在 DMG 根目录放入
+`Applications` 替身及 `docs/macos-install.html`（命名为 `安装指南.html`），然后只读挂载
+最终映像，复核签名、执行权限、应用文件和指南内容。任何检查失败都会阻止发布。
+指南位于应用外部，签名之后不再修改 `.app`。该检查验证包的完整性，不把 Gatekeeper
+信任评估当作已公证应用验收；真实首次放行需在默认安全设置的另一台 Mac 上验证。
+
 ## Windows
 
 The `windows` directory contains the manifest and rc files used when building with `wails build`.

@@ -16,6 +16,7 @@
 | --- | --- |
 | [开发与构建](../README.md#开发) | 开发环境、构建命令及根目录的一键构建脚本 |
 | [构建目录说明](../build/README.md) | Wails 平台构建配置与资源 |
+| [macOS 安装指南](macos-install.html) | 随 DMG 提供的离线引导页面：拖入应用程序、首次放行与常见问题 |
 | [发布与应用更新](release-and-update.html) | 发版流程、更新清单、签名及故障排查 |
 | [Agent 部署](agent-deployment.md) | systemd 与守护进程两种运行方式及管理命令 |
 

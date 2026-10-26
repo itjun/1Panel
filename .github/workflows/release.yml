@@ -157,17 +157,14 @@ jobs:
         shell: bash
         run: task linux:build
 
-      # 根目录放 1Panel.app 和「应用程序」替身，方便手动拖入；自动更新挂载后只取 .app
+      # 免费分发保留 ad-hoc 签名；DMG 附带离线安装指南，并在挂载后复核应用完整性。
+      # 自动更新挂载后仍只取 .app，指南不写入已签名的应用内部。
       - name: Package macOS app
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          stage="$(mktemp -d)"
-          cp -R bin/1Panel.app "$stage/1Panel.app"
-          ln -s /Applications "$stage/Applications"
-          hdiutil create -volname "1Panel" -srcfolder "$stage" -ov -format UDZO "bin/$ARTIFACT"
-          rm -rf "$stage"
+          task darwin:create:dmg DMG_OUTPUT="bin/$ARTIFACT"
         env:
           ARTIFACT: ${{ matrix.artifact }}
 
@@ -221,6 +218,9 @@ jobs:
           pattern: 1Panel-*
           merge-multiple: true
 
+      - name: Include offline macOS installation guide
+        run: cp docs/macos-install.html dist/1Panel-macOS-install.html
+
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -261,6 +261,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cat >> notes.md <<EOF
+
+          ### macOS 安装
+
+          下载 DMG 后，将 1Panel 拖入“应用程序”；首次打开被拦截时，在“系统设置 → 隐私与安全性”中确认“仍要打开”。
+          DMG 内附有“安装指南.html”，也可单独下载[离线安装指南](https://github.com/$GH_REPO/releases/download/$VERSION/1Panel-macOS-install.html)。
+          EOF
           if [[ "$VERSION" == *-* ]]; then
             publish=(--prerelease --latest=false)
           else
