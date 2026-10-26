@@ -1,4 +1,4 @@
-export type ColorPaletteId = "classic" | "mist-blue" | "celadon" | "pistachio" | "almond" | "strawberry" | "lavender" | "rose-mauve" | "muted-pastel" | "candy" | "twilight";
+export type ColorPaletteId = "classic" | "mist-blue" | "celadon" | "pistachio" | "almond" | "strawberry" | "lavender" | "rose-mauve" | "muted-pastel" | "candy" | "twilight" | "coral-sky" | "apricot-sea" | "lemon-taro" | "apple-milk-tea" | "mint-coral" | "sea-salt-grape" | "wisteria-lemon" | "rose-mint";
 export type PaletteMode = "light" | "dark";
 export type ColorTokens = Record<`--${string}`, string>;
 
@@ -153,6 +153,47 @@ const definitions: PaletteDefinition[] = [
     id: "twilight", name: "暮蓝撞色", description: "小清新 · No.1328",
     light: { rail: "#e1e1e1", canvas: "#f2f4f7", surface: "#fdfefe", accent: "#546486", ink: "#292f3a", muted: "#60646d", selection: "#cbeed7", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
     dark: { rail: "#191e28", canvas: "#2a2f37", surface: "#323841", accent: "#b2bbcf", ink: "#e9ecf2", muted: "#b4bcc9", selection: "#3d4f4c", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  // 新增八组撞色方案，保留各自主色与互补色的浅深色角色分工。
+  {
+    id: "coral-sky", name: "珊瑚晴空", description: "幻想中的少女 · No.1906",
+    light: { rail: "#d1d9f5", canvas: "#fff1ed", surface: "#fffefc", accent: "#8d4d54", ink: "#30343d", muted: "#5b5f68", selection: "#d2eee3", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#202a3c", canvas: "#332a31", surface: "#39353e", accent: "#f0b5b7", ink: "#f0edf1", muted: "#bdc4cc", selection: "#3d5651", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "apricot-sea", name: "杏橙海盐", description: "配色卡 21 · No.21",
+    light: { rail: "#bce7ea", canvas: "#fff2e8", surface: "#fffefa", accent: "#865844", ink: "#30343d", muted: "#5f636c", selection: "#f8e4b5", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#1f3036", canvas: "#342e2d", surface: "#3d3735", accent: "#edc3a6", ink: "#f0edf1", muted: "#bfc6cd", selection: "#5f503a", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "lemon-taro", name: "柠檬紫芋", description: "白色独角兽 · No.389",
+    light: { rail: "#ddd0ed", canvas: "#fffce8", surface: "#fffefa", accent: "#665774", ink: "#30343d", muted: "#585c65", selection: "#f4d9c5", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#282437", canvas: "#33322c", surface: "#3d3c35", accent: "#e6d29c", ink: "#f0edf1", muted: "#bdc3cb", selection: "#5f4d43", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "apple-milk-tea", name: "青苹奶茶", description: "浅草悠云 · No.1712",
+    light: { rail: "#cad5f6", canvas: "#eff8eb", surface: "#fcfefa", accent: "#4c6158", ink: "#30343d", muted: "#595d66", selection: "#f9e1cc", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#202b3c", canvas: "#2b3430", surface: "#333d38", accent: "#bcd7bf", ink: "#f0edf1", muted: "#bec5cd", selection: "#5f4e44", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "mint-coral", name: "薄荷珊瑚", description: "No.3 · No.3",
+    light: { rail: "#f3cec6", canvas: "#ebf8f6", surface: "#fbfefd", accent: "#3e6365", ink: "#30343d", muted: "#595d66", selection: "#f5e9bc", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#34272c", canvas: "#273638", surface: "#303f41", accent: "#a5dcd7", ink: "#f0edf1", muted: "#bec5cd", selection: "#5a513b", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "sea-salt-grape", name: "海盐葡萄", description: "棱镜水晶 · No.1357",
+    light: { rail: "#eee1cb", canvas: "#ecf3fe", surface: "#fcfdff", accent: "#4f6183", ink: "#30343d", muted: "#5c6069", selection: "#e8d5ed", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#322c25", canvas: "#293443", surface: "#333e4d", accent: "#b6cdf0", ink: "#f0edf1", muted: "#bcc3cb", selection: "#51465f", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "wisteria-lemon", name: "紫藤奶柠", description: "亲亲宝贝 · No.1182",
+    light: { rail: "#f2eac5", canvas: "#f1ecfc", surface: "#fefcff", accent: "#665779", ink: "#30343d", muted: "#5f636c", selection: "#d9e7fb", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#302e24", canvas: "#302c3d", surface: "#3c3649", accent: "#d5c0ee", ink: "#f0edf1", muted: "#bcc3cb", selection: "#414f67", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+  },
+  {
+    id: "rose-mint", name: "玫瑰薄荷", description: "情人节的遐思 · No.2028",
+    light: { rail: "#c2e8e4", canvas: "#fcedf4", surface: "#fffcfe", accent: "#7c576c", ink: "#30343d", muted: "#5e626b", selection: "#e8d9f2", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#223330", canvas: "#342d38", surface: "#403644", accent: "#e8bbd2", ink: "#f0edf1", muted: "#bcc3cb", selection: "#514561", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
 ];
 

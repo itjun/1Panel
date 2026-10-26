@@ -71,6 +71,7 @@ export function PalettePreviews({ value, onChange }: { value: ColorPaletteId; on
   return <div className="settings-palettes" role="radiogroup" aria-label="配色风格">
     {COLOR_PALETTES.map((palette, index) => <Fragment key={palette.id}>
       {index === 1 ? <span className="settings-palette-series">马卡龙色系</span> : null}
+      {index === 11 ? <span className="settings-palette-series">撞色色系</span> : null}
       <label className="settings-palette" data-default={palette.id === "classic" || undefined} data-selected={value === palette.id || undefined}>
       <input type="radio" name={name} value={palette.id} checked={value === palette.id} onChange={() => onChange(palette.id)} />
       <span className="settings-palette-frame">
