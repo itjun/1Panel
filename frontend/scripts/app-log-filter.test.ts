@@ -27,19 +27,19 @@ describe("application log level filters", () => {
   const other = "2026-10-16 10:24:59 App - plain console output";
   const raw = [info, error, warn, other].join("\n") + "\n";
 
-  test("filters exact levels, combines selections, and restores the original text", () => {
+  test("filters one exact level and restores the original text", () => {
     const records = parseAppLogRecords(raw);
-    expect(filterAppLogRecords(records, ["ERROR"], "")).toBe(error);
-    expect(filterAppLogRecords(records, ["ERROR", "WARN"], "")).toBe(`${error}\n${warn}`);
-    expect(filterAppLogRecords(records, [], "")).toBe(raw);
-    expect(filterAppLogRecords(records, ["OTHER"], "")).toBe(`${other}\n`);
-    expect(filterAppLogRecords(records, ["DEBUG"], "")).toBe("");
+    expect(filterAppLogRecords(records, "ERROR", "")).toBe(error);
+    expect(filterAppLogRecords(records, "WARN", "")).toBe(warn);
+    expect(filterAppLogRecords(records, null, "")).toBe(raw);
+    expect(filterAppLogRecords(records, "OTHER", "")).toBe(`${other}\n`);
+    expect(filterAppLogRecords(records, "DEBUG", "")).toBe("");
   });
 
   test("keyword matches in stack traces preserve the complete matching record", () => {
     const records = parseAppLogRecords(raw);
-    expect(filterAppLogRecords(records, ["ERROR"], " CONNECTION RESET ")).toBe(error);
-    expect(filterAppLogRecords(records, ["INFO"], "connection reset")).toBe("");
+    expect(filterAppLogRecords(records, "ERROR", " CONNECTION RESET ")).toBe(error);
+    expect(filterAppLogRecords(records, "INFO", "connection reset")).toBe("");
   });
 
   test("unclassified timestamped and structured records do not inherit ERROR", () => {

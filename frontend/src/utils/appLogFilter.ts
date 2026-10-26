@@ -47,10 +47,10 @@ export function parseAppLogRecords(raw: string): AppLogRecord[] {
   return records;
 }
 
-export function filterAppLogRecords(records: AppLogRecord[], levels: readonly AppLogLevel[], search: string): string {
+export function filterAppLogRecords(records: AppLogRecord[], level: AppLogLevel | null, search: string): string {
   const term = search.trim().toLowerCase();
   return records
-    .filter((record) => (!levels.length || levels.includes(record.level)) && (!term || record.text.toLowerCase().includes(term)))
+    .filter((record) => (level === null || record.level === level) && (!term || record.text.toLowerCase().includes(term)))
     .map((record) => record.text)
     .join("\n");
 }

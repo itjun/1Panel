@@ -27,7 +27,7 @@ export function AppLogDialog({
 }) {
   const [lines, setLines] = useState(500);
   const [search, setSearch] = useState("");
-  const [levels, setLevels] = useState<AppLogLevel[]>([]);
+  const [selectedLevel, setSelectedLevel] = useState<AppLogLevel | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const processStart = useRef("");
   const query = useQuery({
@@ -54,7 +54,7 @@ export function AppLogDialog({
     () => parseAppLogRecords(query.isError ? "" : query.data?.content || ""),
     [query.data?.content, query.isError],
   );
-  const text = useMemo(() => filterAppLogRecords(records, levels, search), [records, levels, search]);
+  const text = useMemo(() => filterAppLogRecords(records, selectedLevel, search), [records, selectedLevel, search]);
   const html = useMemo(() => logHighlightHtml(text), [text]);
 
   return (
@@ -88,16 +88,16 @@ export function AppLogDialog({
         </div>
         <div role="group" aria-label="日志级别筛选" className="flex shrink-0 flex-wrap items-center gap-2">
           <span className="text-xs text-muted">日志级别</span>
-          <Button size="sm" variant={levels.length ? "secondary" : "primary"} aria-pressed={!levels.length} onClick={() => setLevels([])}>
+          <Button size="sm" variant={selectedLevel === null ? "primary" : "secondary"} aria-pressed={selectedLevel === null} onClick={() => setSelectedLevel(null)}>
             全部
           </Button>
           {APP_LOG_LEVELS.map((level) => (
             <Button
               key={level}
               size="sm"
-              variant={levels.includes(level) ? "primary" : "secondary"}
-              aria-pressed={levels.includes(level)}
-              onClick={() => setLevels((current) => current.includes(level) ? current.filter((item) => item !== level) : [...current, level])}
+              variant={selectedLevel === level ? "primary" : "secondary"}
+              aria-pressed={selectedLevel === level}
+              onClick={() => setSelectedLevel(level)}
             >
               {level === "OTHER" ? "其他" : level.charAt(0) + level.slice(1).toLowerCase()}
             </Button>
@@ -112,7 +112,7 @@ export function AppLogDialog({
             <HighlightPane html={html} text={text} pinBottom wrap />
           ) : (
             <p className="p-4 text-sm text-muted">
-              {query.isPending ? "正在读取进程日志…" : query.isError ? "日志读取失败" : search.trim() || levels.length ? "当前日志中没有匹配内容" : "该实例日志暂为空"}
+              {query.isPending ? "正在读取进程日志…" : query.isError ? "日志读取失败" : search.trim() || selectedLevel !== null ? "当前日志中没有匹配内容" : "该实例日志暂为空"}
             </p>
           )}
         </div>
