@@ -35,7 +35,7 @@
 .host-card-status[data-tone="danger"] .host-card-status-dot { background: var(--meter-danger); }
 .host-card-agent { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .host-card-agent:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: var(--radius-control); }
-.host-card-agent[data-state="missing"], .host-card-agent[data-state="stopped"] { color: var(--color-warn); }
+.host-card-agent[data-state="missing"], .host-card-agent[data-state="stopped"], .host-card-agent[data-outdated="true"] { color: var(--color-warn); }
 .host-card-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: auto; }
 .host-card-metric { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .host-card-metric .resource-ring { width: 52px; height: 52px; }
