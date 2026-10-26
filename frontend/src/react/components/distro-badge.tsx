@@ -124,6 +124,7 @@ export function DistroBadge({
   size = 20,
   boxSize,
   title,
+  isTooltipEnabled = true,
 }: {
   osRelease?: string;
   /** 内部 SVG 边长，徽标外框为 size + 18 */
@@ -131,6 +132,7 @@ export function DistroBadge({
   /** 直接指定徽标外框边长（紧凑列表用）；设置后忽略 size，内部 SVG 按外框约 70% 缩放 */
   boxSize?: number;
   title?: string;
+  isTooltipEnabled?: boolean;
 }) {
   const meta = matchDistro(osRelease);
   let side = size + 18;
@@ -153,7 +155,7 @@ export function DistroBadge({
       }}
       role="img"
       aria-label={label}
-      data-tip={label}
+      data-tip={isTooltipEnabled ? label : undefined}
     >
       <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
         <path d={meta.path} />

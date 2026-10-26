@@ -53,25 +53,22 @@ describe("紧凑主机卡状态", () => {
     }
   });
 
-  test("低版本说明支持键盘聚焦，普通版本不增加停靠点", () => {
+  test("版本无悬浮提示与额外停靠点，低版本保留无障碍说明", () => {
     for (const version of ["0.2.42", "0.2.53", "0.3.0", "unknown"]) {
       const html = renderToStaticMarkup(createElement(HostCardContent, {
         name: "demo", entry: entry({ agentVersion: version }), now, latestAgentVersion: "v0.2.53", onEdit() {},
       }));
       const agent = html.match(/<span class="host-card-agent"[^>]*>[^<]*<\/span>/)?.[0];
       expect(agent).toBeDefined();
+      expect(agent).not.toContain('tabindex');
+      expect(agent).not.toContain('data-tip');
       if (version === "0.2.42") {
         expect(agent).toContain('data-outdated="true"');
-        expect(agent).toContain('tabindex="0"');
         expect(agent).toContain('role="note"');
         expect(agent).toContain('aria-label="Agent v0.2.42，低于内置版本 v0.2.53，可更新"');
-        expect(agent).toContain('data-tip="Agent v0.2.42，低于内置版本 v0.2.53，可更新"');
-        expect(agent).not.toContain('data-tip-overflow');
       } else {
-        expect(agent).not.toContain('tabindex');
         expect(agent).not.toContain('data-outdated');
         expect(agent).not.toContain('可更新');
-        expect(agent).toContain('data-tip-overflow=""');
       }
     }
   });
