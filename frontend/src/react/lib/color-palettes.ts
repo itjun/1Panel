@@ -49,9 +49,10 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   const isDark = mode === "dark";
   const raised = mix(base.surface, base.ink, isDark ? 0.045 : 0.035);
   const line = mix(base.surface, base.ink, isDark ? 0.14 : 0.12);
-  const surfaces = [base.rail, base.canvas, base.surface, raised];
   const soft = (color: string) => mix(base.surface, color, isDark ? 0.16 : 0.1);
   const accentSoft = base.selection ?? soft(base.accent);
+  const cardSelected = mix(raised, accentSoft, 0.3);
+  const surfaces = [base.rail, base.canvas, base.surface, raised, cardSelected];
   const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, base.ink);
   const accentHover = mix(accent, isDark ? "#ffffff" : "#15151a", 0.09);
   const accentActive = mix(accent, isDark ? "#ffffff" : "#15151a", 0.17);
@@ -59,7 +60,7 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   const warnSoft = soft(base.warn);
   const dangerSoft = soft(base.danger);
   const infoSoft = soft(base.read);
-  const graphicSurfaces = [base.surface, raised, line];
+  const graphicSurfaces = [base.surface, raised, cardSelected, line];
   const ok = readable(base.ok, graphicSurfaces, 3, base.ink);
   const meterWarn = readable(base.warn, graphicSurfaces, 3, base.ink);
   const danger = readable(base.danger, [...surfaces, dangerSoft], 4.5, base.ink);
@@ -69,7 +70,7 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   const tabHover = mix(base.canvas, base.ink, isDark ? 0.06 : 0.035);
   return {
     "--color-rail": base.rail, "--color-canvas": base.canvas, "--color-surface": base.surface,
-    "--color-raised": raised, "--color-line": line,
+    "--color-raised": raised, "--color-card-selected": cardSelected, "--color-line": line,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
     "--color-muted": readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink),

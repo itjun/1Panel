@@ -50,7 +50,7 @@ for (const palette of COLOR_PALETTES) {
   for (const mode of ["light", "dark"] as const) {
     test(`${palette.id} ${mode}: readable text, controls and health graphics`, () => {
       const colors = palette[mode];
-      const surfaces = ["--color-rail", "--color-canvas", "--color-surface", "--color-raised"];
+      const surfaces = ["--color-rail", "--color-canvas", "--color-surface", "--color-raised", "--color-card-selected"];
       const check = (foreground: string, background: string, minimum: number) => {
         expect(contrastRatio(colors[foreground as `--${string}`], colors[background as `--${string}`]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(minimum);
       };
@@ -70,7 +70,7 @@ for (const palette of COLOR_PALETTES) {
       check("--color-danger", "--color-danger-soft", 4.5);
       check("--color-info", "--color-info-soft", 4.5);
       check("--color-tooltip-text", "--color-tooltip", 4.5);
-      for (const surface of ["--color-surface", "--color-raised", "--meter-off"]) {
+      for (const surface of ["--color-surface", "--color-raised", "--color-card-selected", "--meter-off"]) {
         for (const foreground of ["--meter-ok", "--meter-warn", "--meter-danger", "--color-io-read", "--color-io-write"]) check(foreground, surface, 3);
       }
       expect(new Set([colors["--meter-ok"], colors["--meter-warn"], colors["--meter-danger"]]).size).toBe(3);
