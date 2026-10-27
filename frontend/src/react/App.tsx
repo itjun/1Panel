@@ -175,9 +175,11 @@ function Shell() {
       {/* 三段式（docs/design/specification.md §4.1）：72px 一级图标栏通顶，Mac 红绿灯 / Win·Linux 应用图标落在它顶部 */}
       <ModuleRail />
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* 顶栏从图标栏右缘开始，只放导航按钮、主机工具标签与窗口按钮。 */}
-      <header className="shell-app-toolbar shell-toolbar drag-region relative z-30 flex shrink-0 items-center">
-        <div className="pointer-events-auto relative flex h-full shrink-0 items-center">
+      {/* 顶栏导航占据侧栏上方，主机工具从内容区左缘开始。 */}
+      <header className="shell-app-toolbar shell-toolbar drag-region relative z-30 flex shrink-0 items-center"
+        data-sidebar-docked={sidebar.open && !sidebar.overlay ? "true" : undefined}>
+        <div className="pointer-events-auto relative flex h-full shrink-0 items-center"
+          style={sidebar.open && !sidebar.overlay ? { width: sidebar.width + 1 } : undefined}>
           <WindowChrome />
         </div>
         {hostWorkspace && session.workspace !== "local" ? <HostToolTabs /> : null}

@@ -7,6 +7,9 @@
   height: 100%;
   pointer-events: auto;
 }
+.shell-app-toolbar[data-sidebar-docked="true"] .workbench-tabs {
+  margin-left: 0;
+}
 .workbench-tab,
 .workbench-more {
   cursor: pointer;
