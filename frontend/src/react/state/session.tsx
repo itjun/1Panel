@@ -16,6 +16,7 @@ import {
   type NormalizedScreen,
 } from "@/utils/lastScreen";
 import { pushView, viewSnap, type ViewSnap } from "@/react/state/nav-history";
+import { openHostNav } from "@/react/state/host-navigation";
 import { readSettings } from "@/react/state/settings";
 import {
   configSectionFromLegacySettings,
@@ -548,25 +549,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // 低优先级切换：应用/日志等重页挂载时不堵死侧栏与标签点击
         startTransition(() => {
           setNav((prev) => {
-            const existing = prev.openedHosts.find((item) => item.name === hostName);
-            // 功能维度全局：切主机沿用当前功能，不回跳到该主机上次的功能（docs/design/specification.md §4.6）
-            const nextTool = tool || prev.activeTool || "overview";
-            let openedHosts: OpenedHost[];
-            if (existing) {
-              openedHosts = prev.openedHosts.map((item) =>
-                item.name === hostName ? { name: hostName, tool: nextTool } : item,
-              );
-            } else {
-              openedHosts = [...prev.openedHosts, { name: hostName, tool: nextTool }];
-            }
-            const next = {
-              ...prev,
-              workspace: "remote" as const,
-              settingsOpen: false,
-              activeHost: hostName,
-              activeTool: nextTool,
-              openedHosts,
-            };
+            const next = openHostNav(prev, hostName, tool);
             writeMainFromNav(next);
             return next;
           });
