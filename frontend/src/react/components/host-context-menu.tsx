@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { cn } from "@/react/lib/utils";
 import { useSession } from "@/react/state/session";
-import { openHostRename } from "@/react/components/host-rename-dialog";
 
 export type HostContextMenuState = {
   host: string;
@@ -94,7 +93,7 @@ export function HostContextMenu({
         style={{ left: active.x, top: active.y }}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="truncate px-3 py-1.5 text-xs text-muted">{title}</div>
+        <div className="truncate px-3 py-1.5 text-sm font-semibold text-ink">{title}</div>
         <MenuItem
           label="打开终端"
           onClick={() => {
@@ -108,14 +107,6 @@ export function HostContextMenu({
           onClick={() => {
             onClose();
             onTogglePin(active.host);
-          }}
-        />
-        <MenuItem
-          label="重命名"
-          disabled={batch}
-          onClick={() => {
-            onClose();
-            openHostRename(active.host);
           }}
         />
         <MenuItem

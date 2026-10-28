@@ -264,7 +264,7 @@ export function WorkspaceRail() {
         indented={indented}
         active={session.activeHost === name}
         selected={!!session.activeHost && selectedHostNames.includes(name)}
-        hovered={hoverKey === name}
+        hovered={hoverKey === name || hostMenu?.host === name}
         onHover={() => setHoverKey(name)}
         dragging={railDragKey === name}
         dropEdge={railDrop?.key === name ? (railDrop.before ? "before" : "after") : null}
