@@ -13,19 +13,13 @@ type TerminalApp struct {
 	Default        bool   `json:"default"`
 }
 
-// chooseListedTerminal 在可用终端里取用户的选择。
-// 只有一个时固定用它。选中的还在列表里就用它，否则用 fallback，再否则用第一项。
+// chooseListedTerminal 优先使用用户选择，未选择时使用默认项。
 func chooseListedTerminal(apps []TerminalApp, terminalID, fallbackID string) string {
+	if terminalID != "" {
+		return terminalID
+	}
 	if len(apps) == 0 {
 		return ""
-	}
-	if len(apps) == 1 {
-		return apps[0].ID
-	}
-	for _, app := range apps {
-		if app.ID == terminalID {
-			return app.ID
-		}
 	}
 	for _, app := range apps {
 		if app.ID == fallbackID {

@@ -14,7 +14,7 @@ import (
 
 // Windows 终端打开流程：
 //  1. 可选终端是已安装的 Windows Terminal 和 PowerShell。设置里选了哪个就用哪个。
-//     没选过时优先 Windows Terminal。只剩一个时固定用它。
+//     没选过时优先 Windows Terminal。
 //  2. Windows Terminal：mode=tab 在最近使用的窗口新建标签页，mode=window 打开新窗口；
 //     多台主机在一个窗口里各占一个标签。PowerShell 每台主机一个窗口。
 //  3. 连接命令直接交给系统 OpenSSH（ssh.exe）并传 SSH 配置里的 Host 别名。
@@ -140,6 +140,9 @@ func openHostsInTerminalWindows(hosts []string, mode, terminalID string) error {
 		}
 		return nil
 	default:
+		if terminalID != "" {
+			return fmt.Errorf("未找到选择的终端: %s", terminalID)
+		}
 		return fmt.Errorf("未找到可用的终端")
 	}
 }
@@ -151,7 +154,7 @@ func openSSHInPowerShell(sshExe, alias string) error {
 			strings.ReplaceAll(alias, "'", "''"))))
 	// 注意不要 prochide.Hide：这个 PowerShell 窗口就是降级后的终端，必须可见
 	if err := ps.Start(); err != nil {
-		return fmt.Errorf("未找到 Windows Terminal，且启动 PowerShell 失败: %w", err)
+		return fmt.Errorf("启动 PowerShell 失败: %w", err)
 	}
 	_ = ps.Process.Release()
 	return nil

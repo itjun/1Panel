@@ -3,9 +3,26 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestMissingWindowsTerminalDoesNotFallBack(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	t.Setenv("SystemRoot", "")
+	t.Setenv("LOCALAPPDATA", "")
+	for _, name := range []string{"ssh.exe", "powershell.exe"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("test"), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := openHostsInTerminalWindows([]string{"example"}, "tab", winTerminalWindowsTerminal); err == nil || !strings.Contains(err.Error(), "Windows Terminal") {
+		t.Fatalf("缺少选中的 Windows Terminal 时应报错，got %v", err)
+	}
+}
 
 func TestBuildWTArgs(t *testing.T) {
 	ssh := `C:\Windows\System32\OpenSSH\ssh.exe`

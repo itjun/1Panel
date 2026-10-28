@@ -618,10 +618,10 @@ const apiImpl = {
   focusMainWindow: async (): Promise<void> => {
     await System.FocusMainWindow();
   },
-  /** 本机可选用的终端。只有一个时设置页不展示选择。 */
+  /** 本机可选用的终端。 */
   listTerminalApps: (): Promise<main.TerminalApp[]> => arr(System.ListTerminalApps()),
   /** 把 SSH Host 别名交给选中的终端打开（支持多台）。
-   *  terminalApp 为空时用本机默认项；只有一个可用终端时固定用它。
+   *  terminalApp 为空时用本机默认项。
    *  mode="tab" 在最近窗口新建标签页（默认），"window" 打开新窗口，只对支持的终端生效。 */
   openHostsInTerminal: async (
     hosts: string[],

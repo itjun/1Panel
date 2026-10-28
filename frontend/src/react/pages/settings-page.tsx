@@ -535,14 +535,25 @@ function TerminalOpenSettings() {
     queryKey: ["terminal-apps"],
     queryFn: () => api.listTerminalApps(),
   });
-  const apps = terminals.data ?? [];
+  const availableApps = terminals.data ?? [];
+  const missing = !!terminals.data && !!settings.terminalApp && !availableApps.some((app) => app.id === settings.terminalApp);
+  const terminalNames: Record<string, string> = {
+    "1agent": "1Agent", ghostty: "Ghostty", otty: "Otty", terminal: "系统终端",
+    "windows-terminal": "Windows Terminal", powershell: "PowerShell",
+  };
+  const apps = missing
+    ? [{ id: settings.terminalApp, name: `${terminalNames[settings.terminalApp] ?? settings.terminalApp}（未检测到）`, supportsWindow: false, default: false }, ...availableApps]
+    : availableApps;
   const effective =
     apps.length === 1
       ? apps[0]
       : (apps.find((app) => app.id === settings.terminalApp) ??
         apps.find((app) => app.default) ??
         apps[0]);
-  const showPicker = apps.length > 1;
+  useEffect(() => {
+    if (!settings.terminalApp && effective) updateSettings({ terminalApp: effective.id });
+  }, [settings.terminalApp, effective?.id]);
+  const showPicker = apps.length > 1 || missing;
   const showMode = effective?.supportsWindow === true;
 
   return (

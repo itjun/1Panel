@@ -3,9 +3,26 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestResolveLinuxTerminalIDKeepsSelection(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	t.Setenv("TERMINAL", "xterm")
+	if err := os.WriteFile(filepath.Join(dir, "xterm"), []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := resolveLinuxTerminalID("gnome-terminal"); err == nil {
+		t.Fatal("选中的终端缺失时不应改用 xterm")
+	}
+	if path, spec, err := resolveLinuxTerminalID(""); err != nil || path != filepath.Join(dir, "xterm") || spec.bin != "xterm" {
+		t.Fatalf("未选择时应使用默认终端: %q %+v %v", path, spec, err)
+	}
+}
 
 func TestSpecForBinary(t *testing.T) {
 	cases := []struct {

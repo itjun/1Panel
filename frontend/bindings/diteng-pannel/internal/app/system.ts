@@ -115,7 +115,7 @@ export function ListSystemFonts(): $CancellablePromise<sysfonts$0.SystemFont[] |
 }
 
 /**
- * ListTerminalApps 返回本机可选用的终端。只有一个时设置页不展示选择，打开时固定用它。
+ * ListTerminalApps 返回本机可选用的终端。
  */
 export function ListTerminalApps(): $CancellablePromise<$models.TerminalApp[] | null> {
     return $Call.ByID(2373488978);
@@ -161,7 +161,6 @@ export function OpenExternalURL(target: string): $CancellablePromise<void> {
 /**
  * OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
  * terminalID 来自 ListTerminalApps；空字符串表示用该平台的默认项。
- * 只有一个可用终端时忽略 terminalID，固定用那一个。
  * macOS 见 terminal_darwin.go，Windows 见 terminal_windows.go，Linux 见 terminal_linux.go。
  * mode: "tab"=最近窗口新标签页（默认），"window"=新窗口。只对 SupportsWindow 的终端生效。
  */

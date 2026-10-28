@@ -68,8 +68,8 @@ func TestChooseMacTerminal(t *testing.T) {
 	impersonator.executable = "Ghostty"
 	impersonator.teamID = ""
 	impersonatorLookup := appLookup(map[string]macAppInfo{"Ghostty": impersonator})
-	if got := chooseMacTerminal(impersonatorLookup, macTerminalGhosttyID); got.kind != macTerminalTerminal {
-		t.Fatalf("impersonator must fall through, got %+v", got)
+	if got := chooseMacTerminal(impersonatorLookup, macTerminalGhosttyID); got.kind != macTerminalGhostty || got.appPath != "" {
+		t.Fatalf("impersonator must not be opened, got %+v", got)
 	}
 	if apps := listMacTerminalApps(impersonatorLookup); len(apps) != 1 || apps[0].ID != macTerminalTerminalID {
 		t.Fatalf("impersonator must not be listed, got %+v", apps)
@@ -87,8 +87,8 @@ func TestChooseMacTerminal(t *testing.T) {
 		t.Fatalf("wrong team must fall through, got %+v", got)
 	}
 
-	if got := chooseMacTerminal(appLookup(nil), macTerminalGhosttyID); got.kind != macTerminalTerminal {
-		t.Fatalf("fallback = %s", got.kind)
+	if got := chooseMacTerminal(appLookup(nil), macTerminalGhosttyID); got.kind != macTerminalGhostty || got.appPath != "" {
+		t.Fatalf("missing selection = %+v", got)
 	}
 }
 
@@ -119,6 +119,25 @@ func TestChooseMacTerminalOtty(t *testing.T) {
 	fake.teamID = "not-official"
 	if apps := listMacTerminalApps(appLookup(map[string]macAppInfo{"Otty": fake})); len(apps) != 1 || apps[0].ID != macTerminalTerminalID {
 		t.Fatalf("fake Otty must not be listed, got %+v", apps)
+	}
+}
+
+func TestSelected1AgentDoesNotFallBackToOtty(t *testing.T) {
+	lookup := appLookup(map[string]macAppInfo{"Otty": officialOttyInfo()})
+	choice := chooseMacTerminal(lookup, macTerminal1AgentID)
+	plan, err := planMacOpen(choice, []string{"example"}, "tab", "")
+	if err != nil || plan.kind != macTerminal1Agent || plan.openURL != "oneagent://open?host=example&reuse=1" {
+		t.Fatalf("选择 1Agent 时应交给 1Agent，plan = %+v, err = %v", plan, err)
+	}
+}
+
+func TestMissingMacTerminalDoesNotFallBack(t *testing.T) {
+	lookup := appLookup(map[string]macAppInfo{"Otty": officialOttyInfo()})
+	for _, id := range []string{macTerminalGhosttyID, "unknown"} {
+		choice := chooseMacTerminal(lookup, id)
+		if _, err := planMacOpen(choice, []string{"example"}, "tab", "/usr/bin/ssh"); err == nil {
+			t.Fatalf("选择不可用的 %s 时应报错", id)
+		}
 	}
 }
 

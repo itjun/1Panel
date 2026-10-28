@@ -17,7 +17,7 @@ import (
 //     官方 Otty（包标识 io.appmakes.otty、可执行文件 Otty、团队 9HWK5273G4）
 //     和系统「终端」。同名但身份不符的应用不列出。
 //  2. 设置里选了哪个就用哪个。没选过时优先官方 Ghostty，其次 1Agent，再次 Otty，
-//     都没有则用系统「终端」。只剩一个可用时固定用它。
+//     都没有则用系统「终端」。
 //  3. 1Agent 走 oneagent://open。其余把连接交给 ssh 和 SSH 配置里的 Host 别名。
 //     系统「终端」和 Otty 固定在已有窗口新建标签页，不提供「新窗口」选项；
 //     要新窗口由用户在对应终端里自己操作。没有窗口时，系统「终端」仍会先出现一个窗口。
@@ -98,6 +98,10 @@ func listTerminalAppsDarwin() []TerminalApp {
 
 // chooseMacTerminal 按设置里的终端 id 取一个可用终端。
 func chooseMacTerminal(lookup func(string) (macAppInfo, bool), terminalID string) macTerminalChoice {
+	// 1Agent 使用 URL scheme；检测暂时失败时仍尝试打开它。
+	if terminalID == macTerminal1AgentID {
+		return macTerminalChoice{kind: macTerminal1Agent}
+	}
 	apps := listMacTerminalApps(lookup)
 	fallback := macTerminalTerminalID
 	var ghosttyPath, ottyPath string
@@ -119,8 +123,10 @@ func chooseMacTerminal(lookup func(string) (macAppInfo, bool), terminalID string
 		return macTerminalChoice{kind: macTerminalGhostty, appPath: ghosttyPath}
 	case macTerminalOttyID:
 		return macTerminalChoice{kind: macTerminalOtty, appPath: ottyPath}
-	default:
+	case macTerminalTerminalID:
 		return macTerminalChoice{kind: macTerminalTerminal}
+	default:
+		return macTerminalChoice{kind: macTerminalKind(terminalID)}
 	}
 }
 
@@ -226,10 +232,12 @@ func planMacOpen(choice macTerminalChoice, hosts []string, mode, sshExe string) 
 		for _, alias := range aliases {
 			plan.commands = append(plan.commands, ottyLaunchArgs(cli, sshExe, alias, true))
 		}
-	default:
+	case macTerminalTerminal:
 		for _, alias := range aliases {
 			plan.scripts = append(plan.scripts, terminalAppOpenScript(sshCommand(sshExe, alias), false))
 		}
+	default:
+		return macOpenPlan{}, fmt.Errorf("未找到选择的终端: %s", choice.kind)
 	}
 	return plan, nil
 }
@@ -324,7 +332,7 @@ func openHostsInTerminalDarwin(hosts []string, mode, terminalID string) error {
 func runMacOpenPlan(plan macOpenPlan) error {
 	switch plan.kind {
 	case macTerminal1Agent:
-		if err := runOpenCommand(plan.openURL); err != nil {
+		if err := runOpenCommand("-b", oneAgentBundleID, plan.openURL); err != nil {
 			return fmt.Errorf("无法打开 1Agent: %w", err)
 		}
 		return nil

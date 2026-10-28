@@ -195,6 +195,9 @@ func (s *System) FocusMainWindow() {
 	if w == nil {
 		return
 	}
+	if !w.IsVisible() {
+		(*App)(s).fitReturningWindow()
+	}
 	macui.SetDockIconVisible(true)
 	winui.SetHiddenOnTaskbar(w, false)
 	w.Show()
@@ -394,7 +397,7 @@ func oneagentOpenURL(hosts []string) (string, error) {
 	return "oneagent://open?" + strings.Join(parts, "&"), nil
 }
 
-// ListTerminalApps 返回本机可选用的终端。只有一个时设置页不展示选择，打开时固定用它。
+// ListTerminalApps 返回本机可选用的终端。
 func (s *System) ListTerminalApps() []TerminalApp {
 	apps := listTerminalApps()
 	if apps == nil {
@@ -405,7 +408,6 @@ func (s *System) ListTerminalApps() []TerminalApp {
 
 // OpenHostsInTerminal 把 SSH Host 别名交给终端应用打开会话。
 // terminalID 来自 ListTerminalApps；空字符串表示用该平台的默认项。
-// 只有一个可用终端时忽略 terminalID，固定用那一个。
 // macOS 见 terminal_darwin.go，Windows 见 terminal_windows.go，Linux 见 terminal_linux.go。
 // mode: "tab"=最近窗口新标签页（默认），"window"=新窗口。只对 SupportsWindow 的终端生效。
 func (s *System) OpenHostsInTerminal(hosts []string, mode, terminalID string) error {

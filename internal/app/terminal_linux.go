@@ -154,34 +154,20 @@ func listTerminalAppsLinux() []TerminalApp {
 // resolveLinuxTerminalID 按设置里的终端 id 取可执行文件。
 // 空 id 仍走原来的系统默认探测，这样 $TERMINAL 自带的参数不会丢掉。
 func resolveLinuxTerminalID(terminalID string) (string, linuxTerminalSpec, error) {
-	apps := listTerminalAppsLinux()
-	resolvedPath, resolvedSpec, resolvedErr := resolveLinuxTerminal()
-	fallback := ""
-	if resolvedErr == nil {
-		fallback = resolvedSpec.bin
-	}
-	if len(apps) == 0 {
-		if resolvedErr != nil {
-			return "", linuxTerminalSpec{}, resolvedErr
-		}
-		return resolvedPath, resolvedSpec, nil
-	}
-	id := chooseListedTerminal(apps, terminalID, fallback)
-	if resolvedErr == nil && id == resolvedSpec.bin {
-		return resolvedPath, resolvedSpec, nil
+	if terminalID == "" {
+		return resolveLinuxTerminal()
 	}
 	for _, spec := range linuxTerminalSpecs {
-		if spec.bin != id {
+		if spec.bin != terminalID {
 			continue
 		}
-		if p, err := exec.LookPath(spec.bin); err == nil {
-			return p, spec, nil
+		p, err := exec.LookPath(spec.bin)
+		if err != nil {
+			return "", linuxTerminalSpec{}, fmt.Errorf("未找到选择的终端 %s: %w", terminalID, err)
 		}
+		return p, spec, nil
 	}
-	if resolvedErr != nil {
-		return "", linuxTerminalSpec{}, resolvedErr
-	}
-	return resolvedPath, resolvedSpec, nil
+	return "", linuxTerminalSpec{}, fmt.Errorf("未找到选择的终端: %s", terminalID)
 }
 
 // openHostsInTerminalLinux 在选中的终端中打开主机终端，逐台启动。

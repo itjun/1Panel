@@ -39,8 +39,8 @@ macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.c
   - 应用进程：按运行时（Java / Go / Node / Python…）归并的本机进程树，CPU/内存/IO 速率、监听端口、进程详情与结束
   - 软件列表、磁盘空间（目录树 / 大文件 / 应用占用）、网络信息（网卡 / 网关）、Hosts
 - **终端打开**：
-  - macOS：设置里可选择本机已安装的 [1Agent](https://github.com/itjun/1Agent)、官方 Ghostty、官方 Otty 或系统「终端」。只有一个可用时固定使用它。1Agent 经 `oneagent://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
-  - Windows：可选择已安装的 Windows Terminal 或 PowerShell；只有一个可用时固定使用它。Windows Terminal 支持最近窗口新标签页或新窗口，由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；OpenSSH 缺失时给出安装指引
+  - macOS：设置里可选择本机已安装的 [1Agent](https://github.com/itjun/1Agent)、官方 Ghostty、官方 Otty 或系统「终端」。选择的终端无法打开时会报错。1Agent 经 `oneagent://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
+  - Windows：可选择已安装的 Windows Terminal 或 PowerShell；选择的终端无法打开时会报错。Windows Terminal 支持最近窗口新标签页或新窗口，由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；OpenSSH 缺失时给出安装指引
 
 ## 文档
 
