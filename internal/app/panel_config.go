@@ -292,22 +292,41 @@ func (a *App) backupPanelStateLocked() error {
 // If anything after that point fails, the state remains available and is
 // explicitly marked stale.
 func (a *App) mutatePanelStateAndGenerate(testAliases []string, mutate func(*panelstore.State) error) error {
+	return a.mutatePanelStateAndGenerateForDeletion(testAliases, "", mutate)
+}
+
+// A confirmed host deletion also resolves that host's external removal. Other
+// removals and ambiguous changes still require review.
+func (a *App) mutatePanelStateAndGenerateForDeletion(testAliases []string, deletedAlias string, mutate func(*panelstore.State) error) error {
 	if a == nil || a.panelStore == nil {
 		return fmt.Errorf("Panel 主机存储未初始化")
 	}
 	a.panelConfigMu.Lock()
 	defer a.panelConfigMu.Unlock()
+	before := a.panelStore.Snapshot()
+	next := before
 	if diff, err := a.comparePanelConfigLocked(); err != nil {
 		return err
 	} else if diff.HasChanges() {
-		err := fmt.Errorf("SSH 配置已被外部修改，请先导入差异后再生成")
-		_ = a.markPanelConfigStale(err)
-		return err
+		canDelete := deletedAlias != "" && diff.Imported != nil && len(diff.RemovedHosts) == 1 && diff.RemovedHosts[0] == deletedAlias
+		for _, conflict := range diff.Conflicts {
+			if conflict != fmt.Sprintf("Host %s 从 SSH 配置消失，可能丢失 Panel 密码或分组/备注", deletedAlias) {
+				canDelete = false
+			}
+		}
+		if !canDelete {
+			err := fmt.Errorf("SSH 配置已被外部修改，请到配置页面处理差异后重试")
+			_ = a.markPanelConfigStale(err)
+			return err
+		}
+		next = *diff.Imported
+		if host, ok := a.panelStore.GetHost(deletedAlias); ok {
+			next.Hosts = append(next.Hosts, host)
+		}
 	}
 	if err := a.backupPanelStateLocked(); err != nil {
 		return err
 	}
-	next := a.panelStore.Snapshot()
 	if err := mutate(&next); err != nil {
 		return err
 	}
@@ -316,6 +335,7 @@ func (a *App) mutatePanelStateAndGenerate(testAliases []string, mutate func(*pan
 	if err := a.panelStore.Replace(next); err != nil {
 		return err
 	}
+	a.invalidateChangedPanelConnections(before, next)
 	_, err := a.generatePanelConfigLocked(testAliases, true)
 	return err
 }

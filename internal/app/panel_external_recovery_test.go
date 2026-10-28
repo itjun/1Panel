@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"diteng-pannel/internal/panelstore"
@@ -29,6 +30,37 @@ func externalRecoveryFixture(t *testing.T, external string) *App {
 		t.Fatal(err)
 	}
 	return &App{panelStore: store, sshMgr: sshd.NewManager()}
+}
+
+func TestDeleteExternallyRemovedHostImportsOtherChanges(t *testing.T) {
+	a := externalRecoveryFixture(t, "Host build\n    HostName build.example\n    User root\n")
+	if err := (*Hosts)(a).DeleteHost("gateway"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := a.panelStore.GetHost("gateway"); ok {
+		t.Fatal("gateway remains")
+	}
+	h, ok := a.panelStore.GetHost("build")
+	if !ok || h.ProxyJump != "" || h.Password != "secret" {
+		t.Fatalf("build was not safely synchronized: %+v", h)
+	}
+	b, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".ssh", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "ProxyJump") || strings.Contains(string(b), "Host gateway") {
+		t.Fatalf("old configuration resurrected: %s", b)
+	}
+}
+
+func TestDeleteExternalRemovalDoesNotAcceptOtherConflicts(t *testing.T) {
+	a := externalRecoveryFixture(t, "Host build\n    HostName build.example\n    User root\nMatch host *.example\n    SetEnv TEST=value\n")
+	if err := (*Hosts)(a).DeleteHost("gateway"); err == nil {
+		t.Fatal("unrelated Match conflict was accepted")
+	}
+	if _, ok := a.panelStore.GetHost("gateway"); !ok {
+		t.Fatal("gateway was deleted despite unrelated conflict")
+	}
 }
 
 func TestWatcherRetriesAfterExternalDriftWasMarkedStale(t *testing.T) {

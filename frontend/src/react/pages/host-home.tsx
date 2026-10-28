@@ -203,6 +203,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [moveSubOpen, setMoveSubOpen] = useState(false);
 
   const [deletingHosts, setDeletingHosts] = useState<string[] | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const deletingBusyRef = useRef(false);
   const [groupSettings, setGroupSettings] = useState<{
     id: string;
     name: string;
@@ -709,14 +711,27 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   }
 
   async function confirmDeleteHosts() {
-    if (!deletingHosts?.length) return;
-    for (const name of deletingHosts) {
-      await api.deleteHost(name);
+    if (!deletingHosts?.length || deletingBusyRef.current) return;
+    deletingBusyRef.current = true;
+    setDeletingBusy(true);
+    const remaining = [...deletingHosts];
+    try {
+      while (remaining.length) {
+        await api.deleteHost(remaining[0]!);
+        remaining.shift();
+      }
+      setDeletingHosts(null);
+      setSelected([]);
+      await session.refresh();
+      showToast("已删除");
+    } catch (err) {
+      setDeletingHosts(remaining);
+      await session.refresh().catch(() => {});
+      showError(`删除失败: ${formatErr(err)}`);
+    } finally {
+      deletingBusyRef.current = false;
+      setDeletingBusy(false);
     }
-    setDeletingHosts(null);
-    setSelected([]);
-    await session.refresh();
-    showToast("已删除");
   }
 
   async function saveGroupSettings() {
@@ -1525,7 +1540,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
       <Dialog
         open={!!deletingHosts}
-        onOpenChange={(open) => !open && setDeletingHosts(null)}
+        onOpenChange={(open) => !open && !deletingBusy && setDeletingHosts(null)}
       >
         <DialogContent>
           <DialogTitle>删除主机</DialogTitle>
@@ -1533,8 +1548,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             确定删除 {(deletingHosts || []).join("、")}？此操作不可撤销。
           </DialogDescription>
           <DialogFooter>
-            <Button onClick={() => setDeletingHosts(null)}>取消</Button>
-            <Button variant="danger" onClick={() => void confirmDeleteHosts()}>
+            <Button disabled={deletingBusy} onClick={() => setDeletingHosts(null)}>取消</Button>
+            <Button disabled={deletingBusy} variant="danger" onClick={() => void confirmDeleteHosts()}>
               删除
             </Button>
           </DialogFooter>

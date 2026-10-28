@@ -415,7 +415,7 @@ func (s *Hosts) DeleteHost(name string) error {
 		return fmt.Errorf("主机别名不能为空")
 	}
 	if a := (*App)(s); a.panelStore != nil {
-		if err := a.mutatePanelStateAndGenerate([]string{}, func(state *panelstore.State) error {
+		if err := a.mutatePanelStateAndGenerateForDeletion([]string{}, name, func(state *panelstore.State) error {
 			found := false
 			out := state.Hosts[:0]
 			for _, h := range state.Hosts {
