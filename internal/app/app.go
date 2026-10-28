@@ -94,7 +94,7 @@ type App struct {
 	appearanceWatchStopped bool
 
 	showMu       sync.Mutex
-	sized        bool // 已有确定尺寸（上次窗口 或 本次按主屏计算）
+	sized        bool // 启动时已按屏幕计算尺寸
 	shown        bool
 	ready        bool // Wails 已进入运行态（impl 就绪，窗口 API 可安全调用）
 	resizeSave   *time.Timer
@@ -212,18 +212,15 @@ func NewApp(resources Resources) *application.App {
 	initAskBeforeQuit()
 
 	// 主窗口等待材质和颜色就绪；1.5 秒后仍未就绪则显示经典骨架。
-	winW, winH := 1280, 800
 	if bounds, ok := loadMainWindowBounds(); ok {
-		winW, winH = bounds.Width, bounds.Height
 		core.mainBounds = bounds
 		core.mainBoundsOK = bounds.PositionSet
-		core.sized = true
 	}
 	winOpts := application.WebviewWindowOptions{
 		Name:                       "main",
 		Title:                      "1Panel",
-		Width:                      winW,
-		Height:                     winH,
+		Width:                      1280,
+		Height:                     800,
 		MinWidth:                   windowMinW,
 		MinHeight:                  windowMinH,
 		BackgroundColour:           mainWindowBackgroundColour(),
@@ -252,19 +249,28 @@ func NewApp(resources Resources) *application.App {
 	core.mainWindow = win
 	core.interceptMainWindowClose(win)
 	core.installBackgroundTray(app)
+	if goruntime.GOOS == "darwin" {
+		app.Event.RegisterApplicationEventHook(events.Mac.ApplicationShouldHandleReopen, func(e *application.ApplicationEvent) {
+			core.showMu.Lock()
+			ready := core.ready
+			core.showMu.Unlock()
+			if ready && !e.Context().HasVisibleWindows() {
+				e.Cancel()
+				(*System)(core).FocusMainWindow()
+			}
+		})
+	}
 
 	// 启动默认浅色；前端加载设置后会再调 SetThemeAppearance
 	core.themeAppearance = macui.AppearanceLight
 	macui.SetWindowAppearance(win, core.themeAppearance)
 
-	// 尺寸恢复与主题初始化独立，前端确认后才显示窗口。
-	core.fitWindowToPrimaryScreen()
+	// 屏幕尺寸计算与主题初始化独立，前端确认后才显示窗口。
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		core.markReady()
 		core.startWindowTheme()
-		core.restoreMainWindowGeometry()
 		macui.InstallDisplayRecovery(win)
-		core.fitWindowToPrimaryScreen()
+		core.fitStartupWindow()
 		core.maybeShowMainWindow()
 		// 请求系统通知授权；失败则静默降级（不发系统通知，不回退 osascript）
 		go func() {
@@ -299,11 +305,16 @@ func NewApp(resources Resources) *application.App {
 	})
 	go func() {
 		time.Sleep(800 * time.Millisecond)
-		core.fitWindowToPrimaryScreen()
+		core.fitStartupWindow()
 		// 验证式兜底：ApplicationStarted 的 Show 可能因启动竞态落空
 		//（详见 forceShowMainWindow 注释），500ms 一拍重试直至窗口可见。
 		for i := 0; i < 10; i++ {
-			if core.forceShowMainWindow() {
+			core.fitStartupWindow()
+			core.forceShowMainWindow()
+			core.showMu.Lock()
+			done := core.sized && core.shown
+			core.showMu.Unlock()
+			if done && win.IsVisible() {
 				return
 			}
 			time.Sleep(500 * time.Millisecond)
@@ -448,6 +459,10 @@ func (a *App) shutdown() {
 
 func (a *App) scheduleSaveGeom() {
 	a.showMu.Lock()
+	if !a.shown {
+		a.showMu.Unlock()
+		return
+	}
 	if a.resizeSave != nil {
 		a.resizeSave.Stop()
 	}
@@ -472,21 +487,6 @@ func (a *App) saveMainWindowGeom() {
 	saveMainWindowBounds(windowBounds{Width: w, Height: h, X: x, Y: y, PositionSet: true})
 }
 
-func (a *App) restoreMainWindowGeometry() {
-	if a.mainWindow == nil {
-		return
-	}
-	// Wails v3 beta.14 的 macOS 构造器将宽高各减 1；原生窗口就绪后，
-	// 在显示前用 SetSize 恢复准确尺寸，避免每次重开继续缩小。
-	// 先恢复尺寸再恢复左上角位置，避免调整高度改变窗口的位置。
-	if goruntime.GOOS == "darwin" && validWindowBounds(a.mainBounds) {
-		a.mainWindow.SetSize(a.mainBounds.Width, a.mainBounds.Height)
-	}
-	if a.mainBoundsOK {
-		a.mainWindow.SetPosition(a.mainBounds.X, a.mainBounds.Y)
-	}
-}
-
 // maybeShowMainWindow 等尺寸、运行态和主题初始化完成后显示。
 func (a *App) maybeShowMainWindow() {
 	a.showMu.Lock()
@@ -498,12 +498,9 @@ func (a *App) maybeShowMainWindow() {
 	a.shown = true
 	a.showMu.Unlock()
 	// 不在此处 SetMinSize：Wails 的 SetMinSize 内部会读 Size()，启动期
-	// impl 未就绪时返回 0x0，会把刚恢复的上次窗口尺寸强制改成最小尺寸
+	// impl 未就绪时返回 0x0，会把刚计算的窗口尺寸强制改成最小尺寸
 	// （Windows 专属坑，macOS 无此问题）。Min 约束已在创建窗口的
 	// WM_GETMINMAXINFO 生效，无需重复设置。
-	if !a.mainBoundsOK {
-		win.Center()
-	}
 	win.Show()
 	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
 	a.syncTrafficLights()
@@ -528,7 +525,7 @@ func (a *App) forceShowMainWindow() bool {
 		return true
 	}
 	// 同 maybeShowMainWindow：启动期不 SetMinSize，避免 Size()=0x0 时
-	// 把恢复的窗口尺寸砸成最小尺寸。
+	// 把计算的窗口尺寸砸成最小尺寸。
 	win.Show()
 	win.Focus() // 后台拉起的进程抢不到前台，Show 后补一拍 Focus 确保窗口在前
 	a.syncTrafficLights()
@@ -567,7 +564,7 @@ func (a *App) markReady() {
 func (a *App) enforceMinSize() {
 	// 窗口尚未显示（启动恢复尺寸阶段）时跳过：Windows 上隐藏窗口的
 	// bounds 读取可能返回 0/异常小值，此时强制夹到最小尺寸会把刚从
-	// window.json 恢复的上次窗口尺寸覆盖掉（macOS 无此问题）。
+	// 按屏幕计算的窗口尺寸覆盖掉（macOS 无此问题）。
 	a.showMu.Lock()
 	shown := a.shown
 	a.showMu.Unlock()
@@ -588,34 +585,21 @@ func (a *App) enforceMinSize() {
 	}
 }
 
-// fitWindowToPrimaryScreen 按主屏分辨率计算 16:10 的窗口尺寸：
-// 高度取屏幕的 80%，过宽时按屏幕宽度的 90% 反推（与 v2 startup 行为一致）。
-// 必须在 Hidden 期间调用；成功后不再重复（避免覆盖用户后续的手动调整）。
-func (a *App) fitWindowToPrimaryScreen() {
+// fitStartupWindow 使用上次位置选择屏幕，启动时只成功调整一次。
+func (a *App) fitStartupWindow() {
 	a.showMu.Lock()
 	if a.sized || a.mainWindow == nil || a.app == nil || !a.ready {
 		a.showMu.Unlock()
 		return
 	}
-	screen := a.app.Screen.GetPrimary()
-	if screen == nil || screen.Size.Width <= 0 || screen.Size.Height <= 0 {
+	screen := screenForSavedBounds(a.app.Screen.GetAll(), a.app.Screen.GetPrimary(), a.mainBounds, a.mainBoundsOK)
+	if !validScreen(screen) {
 		a.showMu.Unlock()
 		return
 	}
-	screenW, screenH := screen.Size.Width, screen.Size.Height
-	h := screenH * 8 / 10
-	w := h * 16 / 10
-	if w > screenW*9/10 {
-		w = screenW * 9 / 10
-		h = w * 10 / 16
-	}
-	win := a.mainWindow
 	a.sized = true
 	a.showMu.Unlock()
-	win.SetSize(w, h)
-	win.Center()
-	saveMainWindowBounds(windowBounds{Width: w, Height: h})
-	a.app.Logger.Info("窗口按主屏自适应", "width", w, "height", h)
+	a.fitWindowToScreen(screen)
 }
 
 // installMinimalMenu 避免 Wails 默认菜单（View→Reload 会抢走 ⌘R）。
