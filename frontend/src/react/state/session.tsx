@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { api, type groups, type sshconfig } from "@/api";
+import { Events } from "@wailsio/runtime";
 import {
   readMainScreen,
   writeMainScreen,
@@ -427,6 +428,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const off = Events.On("panel-config-imported", () => void refresh());
+    return () => off();
   }, [refresh]);
 
   useEffect(() => {

@@ -259,6 +259,7 @@ func (a *App) importPanelConfigLocked() (panelsync.ImportResult, error) {
 	if err := a.panelStore.Replace(result.State); err != nil {
 		return panelsync.ImportResult{}, err
 	}
+	a.invalidateChangedPanelConnections(state, result.State)
 	if err := a.syncLegacyGroupsFromPanel(result.State); err != nil {
 		return panelsync.ImportResult{}, err
 	}
@@ -317,6 +318,17 @@ func (a *App) mutatePanelStateAndGenerate(testAliases []string, mutate func(*pan
 	}
 	_, err := a.generatePanelConfigLocked(testAliases, true)
 	return err
+}
+
+func (a *App) invalidateChangedPanelConnections(before, after panelstore.State) {
+	for _, alias := range changedConnectionAliases(before.Hosts, after.Hosts) {
+		if a.sshMgr != nil {
+			a.sshMgr.Close(alias)
+		}
+		if a.agentPool != nil {
+			a.agentPool.InvalidateStatus(alias)
+		}
+	}
 }
 
 func (a *App) updatePanelState(mutate func(*panelstore.State) error) error {
