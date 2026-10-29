@@ -28,7 +28,7 @@ export function settingsShortcuts(os: AppOs) {
 }
 
 export function showWindowMaterial(os: AppOs, desktop: boolean, supported: boolean) {
-  return os === "win" && desktop && supported;
+  return desktop && (os === "mac" || (os === "win" && supported));
 }
 
 /** Section offsets are relative to the scroll container, not the window. */

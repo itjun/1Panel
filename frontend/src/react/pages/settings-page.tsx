@@ -173,12 +173,12 @@ export function SettingsPage() {
                   options={[
                     { value: "auto", label: "自动" },
                     { value: "classic", label: "经典" },
-                    { value: "mica", label: "云母" },
+                    ...(os === "mac" ? [{ value: "sidebar" as const, label: "半透明" }] : [{ value: "mica" as const, label: "云母" }]),
                   ]}
                 />
                 <p className="m-0 text-xs text-muted" role="status">
-                  当前生效：{windowTheme.theme.effective === "mica" ? "云母" : "经典"}
-                  {windowTheme.theme.reason ? ` · ${windowTheme.theme.reason}` : ""}
+                  当前生效：{({ mica: "云母", sidebar: "半透明" } as Record<string, string>)[windowTheme.theme.effective] || "经典"}
+                  {windowTheme.theme.reason ? `，${windowTheme.theme.reason}` : ""}
                 </p>
               </div>
             </SettingRow> : null}

@@ -323,51 +323,59 @@ pre,
 }
 
 /* Only the native controller can enable this attribute; browser/HTTP surfaces stay solid. */
-html[data-window-material="mica"],
-html[data-window-material="mica"] body,
-html[data-window-material="mica"] #app,
-html[data-window-material="mica"] .react-root {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]),
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) body,
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) #app,
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .react-root {
   background-color: transparent;
 }
 
 /* 云母壳层选中 / 悬停底改为半透明覆盖：不透明实底会像贴纸盖在 DWM 云母面上；
    veil 让底下的云母（随壁纸着色）直接透过来，经典模式仍用实底设计不变 */
-html[data-window-material="mica"] .rail-item-active,
-html[data-window-material="mica"] .module-rail-item[aria-current="page"] {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item-active,
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item[aria-current="page"] {
   background-color: var(--color-accent-veil);
 }
-html[data-window-material="mica"] .module-rail-item:hover {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item:hover {
   background-color: var(--color-line-veil);
 }
-html[data-window-material="mica"] .rail-item:hover,
-html[data-window-material="mica"] .rail-item.bg-line {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item:hover,
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item.bg-line {
   background-color: var(--color-line-veil);
 }
 
 /* 顶栏按钮同一处理：云母下 ghost/secondary 悬停与导航钮按下（accent-soft）都是不透明实底，
    会像贴纸盖在 DWM 云母面上，统一换成 veil。关闭键 hover 的实色 danger 保持不变——
    对齐 Windows 11 原生行为（Mica 上关闭悬停即实色红），红色警示不宜降不透明度。 */
-html[data-window-material="mica"] .shell-app-toolbar [data-variant="secondary"]:hover,
-html[data-window-material="mica"] .shell-app-toolbar [data-variant="ghost"]:hover,
-html[data-window-material="mica"] .shell-app-toolbar :is(.hover\:bg-line:hover) {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar [data-variant="secondary"]:hover,
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar [data-variant="ghost"]:hover,
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar :is(.hover\:bg-line:hover) {
   background-color: var(--color-line-veil);
 }
-html[data-window-material="mica"] .shell-app-toolbar .bg-accent-soft {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar .bg-accent-soft {
   background-color: var(--color-accent-veil);
 }
 
 /* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to
    expose it; keep a subtle rail tint for hierarchy. */
-html[data-window-material="mica"] :is(.glass-chrome, .shell-app-toolbar) {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) :is(.glass-chrome, .shell-app-toolbar) {
   background-color: transparent;
   background-image: none;
 }
-html[data-window-material="mica"] .module-rail {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail {
   background-color: rgba(0, 0, 0, 0.03);
   background-image: none;
 }
-html.dark[data-window-material="mica"] .module-rail {
+html.dark:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail {
   background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* 跟随系统材质透色，浅色和深色分别加薄遮罩以保持文字清晰。 */
+html[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .shell-app-toolbar, .module-rail) {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+html.dark[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .shell-app-toolbar, .module-rail) {
+  background-color: rgba(24, 25, 28, 0.5);
 }
 
 /* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。
@@ -378,6 +386,14 @@ html[data-window-material="mica"][data-color-palette]:not([data-color-palette="c
 }
 html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
   background-color: var(--color-rail);
+}
+
+/* 自选配色保留各自的侧栏颜色，同时透出 macOS 原生材质。 */
+html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .shell-app-toolbar) {
+  background-color: var(--color-canvas-translucent);
+}
+html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
+  background-color: var(--color-rail-translucent);
 }
 
 /* 内容平面左上 6px 圆角：白色平面嵌在灰框里，整套设计唯一的圆角装饰。

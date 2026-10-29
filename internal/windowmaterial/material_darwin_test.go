@@ -2,20 +2,21 @@
 
 package windowmaterial
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
-func TestMacMicaFallback(t *testing.T) {
-	if Automatic() != "mica" {
-		t.Fatal("Mac automatic material changed")
+func TestMacMaterialCapabilities(t *testing.T) {
+	if Automatic() != "sidebar" {
+		t.Fatalf("unexpected automatic material: %s", Automatic())
 	}
-	available, reason := Capability("mica")
-	if available || !strings.Contains(reason, "Windows 11") {
-		t.Fatalf("got %v %q", available, reason)
+	if available, reason := Capability("mica"); available || reason == "" {
+		t.Fatalf("Windows material should be unavailable: %v %q", available, reason)
 	}
-	if available, _ := Capability(Automatic()); available {
-		t.Fatal("Mac must fall back to classic")
+	if available, reason := Capability("sidebar"); !available && reason == "" {
+		t.Fatal("unavailable material must explain its fallback")
+	}
+	if !privateMacAPIsEnabled {
+		if available, _ := Capability("sidebar"); available {
+			t.Fatal("a build without private_mac_apis cannot expose native material")
+		}
 	}
 }

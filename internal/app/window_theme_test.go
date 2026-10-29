@@ -17,7 +17,7 @@ func TestWindowMaterialMigration(t *testing.T) {
 			t.Fatalf("%q: got %q", content, got)
 		}
 	}
-	for _, pref := range []string{"auto", "classic", "mica"} {
+	for _, pref := range []string{"auto", "classic", "mica", "sidebar", "glass", "frosted"} {
 		if err := saveWindowMaterial(path, pref); err != nil {
 			t.Fatal(err)
 		}
@@ -194,5 +194,45 @@ func TestWindowThemeMicaSelectionAndRecovery(t *testing.T) {
 	}
 	if s, err := m.set("auto"); err != nil || s.Effective != "mica" {
 		t.Fatal(s, err)
+	}
+}
+
+func TestWindowThemeMacMaterialSelectionAndFallback(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "theme.json")
+	available := true
+	applied := ""
+	capability := func(material string) (bool, string) {
+		if !available {
+			return false, "系统已开启降低透明度"
+		}
+		return material == "sidebar", ""
+	}
+	apply := func(material string) error { applied = material; return nil }
+	for _, legacy := range []string{"glass", "frosted"} {
+		if err := saveWindowMaterial(path, legacy); err != nil {
+			t.Fatal(err)
+		}
+		m := newWindowThemeManager(path, "sidebar", capability, apply)
+		if state := m.refresh(false); state.Preference != "sidebar" || state.Effective != "sidebar" {
+			t.Fatalf("legacy %s: %+v", legacy, state)
+		}
+	}
+	if err := saveWindowMaterial(path, "auto"); err != nil {
+		t.Fatal(err)
+	}
+	m := newWindowThemeManager(path, "sidebar", capability, apply)
+	if state := m.refresh(false); state.Effective != "sidebar" || applied != "sidebar" {
+		t.Fatalf("automatic material: %+v, applied %s", state, applied)
+	}
+	if state, err := m.set("sidebar"); err != nil || state.Effective != "sidebar" || loadWindowMaterial(path) != "sidebar" {
+		t.Fatalf("sidebar selection: %+v, %v", state, err)
+	}
+	available = false
+	if state := m.refresh(false); state.Preference != "sidebar" || state.Effective != "classic" || applied != "classic" || state.Reason == "" {
+		t.Fatalf("accessibility fallback: %+v, applied %s", state, applied)
+	}
+	available = true
+	if state := m.refresh(false); state.Preference != "sidebar" || state.Effective != "sidebar" || applied != "sidebar" {
+		t.Fatalf("restore selection: %+v, applied %s", state, applied)
 	}
 }

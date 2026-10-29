@@ -46,6 +46,25 @@ test("八组撞色的浅深色背景与选中底保留确认预览", () => {
   }
 });
 
+test("所有自选配色的半透明侧栏保留各自色相并能透出原生材质", () => {
+  for (const palette of COLOR_PALETTES.slice(1)) {
+    for (const mode of ["light", "dark"] as const) {
+      const colors = paletteTokens(palette.id, mode);
+      for (const name of ["rail", "canvas"] as const) {
+        const solid = colors[`--color-${name}`];
+        const translucent = colors[`--color-${name}-translucent`];
+        const components = translucent.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/);
+        expect(components, `${palette.id} ${mode} ${name}`).not.toBeNull();
+        const channels = [1, 3, 5].map((offset) => Number.parseInt(solid.slice(offset, offset + 2), 16));
+        expect(components!.slice(1, 4).map(Number)).toEqual(channels);
+        const opacity = Number(components![4]);
+        expect(opacity).toBeGreaterThan(0.35);
+        expect(opacity).toBeLessThan(0.65);
+      }
+    }
+  }
+});
+
 for (const palette of COLOR_PALETTES) {
   for (const mode of ["light", "dark"] as const) {
     test(`${palette.id} ${mode}: readable text, controls and health graphics`, () => {

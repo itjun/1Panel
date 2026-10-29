@@ -14,11 +14,13 @@ describe("runtime-specific settings", () => {
       expect(PLATFORM_SETTINGS[os].sans).not.toContain("苹方");
     }
   });
-  test("material controls require both Windows and a supported desktop capability", () => {
+  test("material controls follow desktop platform capabilities", () => {
     expect(showWindowMaterial("win", true, true)).toBe(true);
     expect(showWindowMaterial("win", false, true)).toBe(false);
     expect(showWindowMaterial("win", true, false)).toBe(false);
-    expect(showWindowMaterial("mac", true, true)).toBe(false);
+    expect(showWindowMaterial("mac", true, true)).toBe(true);
+    expect(showWindowMaterial("mac", true, false)).toBe(true);
+    expect(showWindowMaterial("mac", false, true)).toBe(false);
     expect(showWindowMaterial("linux", true, true)).toBe(false);
   });
 });

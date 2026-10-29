@@ -141,7 +141,8 @@ if (!sidebarState.includes("SIDEBAR_WIDTH_MIN") || !sidebarState.includes("SIDEB
   fail("sidebar width min/max missing");
 }
 if (shellStyles.includes("acrylic")) fail("acrylic was removed from the material vocabulary (auto / classic / mica)");
-if (!shellStyles.includes('html[data-window-material="mica"]')) fail("mica chrome must be gated by the effective native material");
+if (!shellStyles.includes('[data-window-material="mica"]')) fail("mica chrome must be gated by the effective native material");
+if (!shellStyles.includes('[data-window-material="sidebar"]')) fail("macOS sidebar chrome must be gated by the effective native material");
 ok("classic / mica chrome with opaque content contract");
 ok("sidebar sits below the full-width app toolbar and is resizable");
 

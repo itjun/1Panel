@@ -113,3 +113,18 @@ test("Mica exposes the native opaque surface and follows effective fallback with
   expect(root.dataset.windowMaterial).toBe("mica");
   stop();
 });
+
+
+test("Mac materials expose native backdrop and return to solid on fallback", async () => {
+  host._wails.environment.OS = "darwin";
+  state = { preference: "auto", effective: "sidebar", supported: true, reason: "", revision: 40 };
+  const stop = theme.initializeWindowTheme();
+  await Bun.sleep(10);
+  expect(root.style.background).toBe("transparent");
+  emitTheme({ ...state, preference: "sidebar", effective: "sidebar", revision: 41 });
+  expect(root.dataset.windowMaterial).toBe("sidebar");
+  expect(root.style.background).toBe("transparent");
+  emitTheme({ ...state, effective: "classic", supported: false, reason: "降低透明度", revision: 42 });
+  expect(root.style.background).toBe("var(--color-canvas)");
+  stop();
+});

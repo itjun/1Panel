@@ -31,7 +31,7 @@ type windowThemeManager struct {
 }
 
 func validWindowMaterial(value string) bool {
-	return value == "auto" || value == "classic" || value == "mica"
+	return value == "auto" || value == "classic" || value == "mica" || value == "sidebar" || value == "glass" || value == "frosted"
 }
 
 func windowThemePath() string {
@@ -85,9 +85,13 @@ func saveWindowMaterial(path, preference string) error {
 }
 
 func newWindowThemeManager(path, automatic string, capability func(string) (bool, string), apply func(string) error) *windowThemeManager {
+	preference := loadWindowMaterial(path)
+	if automatic == "sidebar" && (preference == "glass" || preference == "frosted") {
+		preference = "sidebar"
+	}
 	return &windowThemeManager{
 		path: path, automatic: automatic, capability: capability, apply: apply,
-		state: WindowThemeState{Preference: loadWindowMaterial(path), Effective: "classic", Reason: "正在准备窗口材质"},
+		state: WindowThemeState{Preference: preference, Effective: "classic", Reason: "正在准备窗口材质"},
 	}
 }
 

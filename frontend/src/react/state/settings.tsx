@@ -228,7 +228,7 @@ export function applyAppearanceToDocument(
   root.classList.add(resolved);
   root.style.colorScheme = resolved;
   applyColorPalette(root, current.colorPalette, resolved);
-  root.style.background = root.dataset.windowMaterial === "mica" ? "transparent" : "var(--color-canvas)";
+  root.style.background = root.dataset.windowMaterial && root.dataset.windowMaterial !== "classic" ? "transparent" : "var(--color-canvas)";
   if (typeof fontFamily === "string") {
     if (fontFamily) {
       root.style.setProperty("--app-font-family", fontFamily);

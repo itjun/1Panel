@@ -70,6 +70,8 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   const tabHover = mix(base.canvas, base.ink, isDark ? 0.06 : 0.035);
   return {
     "--color-rail": base.rail, "--color-rail-line": mix(base.rail, base.ink, 0.1), "--color-canvas": base.canvas, "--color-surface": base.surface,
+    "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${isDark ? 0.58 : 0.48})`,
+    "--color-canvas-translucent": `rgba(${rgb(base.canvas).join(", ")}, ${isDark ? 0.58 : 0.48})`,
     "--color-raised": raised, "--color-card-selected": cardSelected, "--color-line": line,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
