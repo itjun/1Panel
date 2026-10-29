@@ -32,9 +32,9 @@ import { usePointerDrag } from "@/react/lib/use-pointer-drag";
 import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
 import { HostCardContent } from "@/react/components/host-card";
 import { useHostCards } from "@/react/lib/use-host-cards";
-import { summarizeHostCards } from "@/utils/hostCardModel";
+import { summarizeHostAgents, summarizeHostCards } from "@/utils/hostCardModel";
 import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
-import { openAgentInstall } from "@/react/state/agent-install";
+import { AgentFleetCheckDialog } from "@/react/components/agent-fleet-check-dialog";
 import { openHostSetup } from "@/react/components/host-setup-dialog";
 import { openHostRename } from "@/react/components/host-rename-dialog";
 import { Button } from "@/react/components/ui/button";
@@ -218,6 +218,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     detail: string;
   } | null>(null);
   const [checkHost, setCheckHost] = useState("");
+  const [isAgentPickerOpen, setIsAgentPickerOpen] = useState(false);
   const flash = useFlashMessage();
   const { showToast, showError } = flash;
 
@@ -275,16 +276,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     () => reconcileHostRacks(settings.hostHomeRacks, migrateGroups.map((group) => group.id)),
     [settings.hostHomeRacks, migrateGroups],
   );
-
-  // 概况条：直接从已有 hosts / groups 算；筛选时只报匹配数（置顶区是重复项，不计）
-  let summaryText = `${session.hosts.length} 台主机 · ${session.groups.length} 个分组`;
-  if (keyword) {
-    let matched = 0;
-    for (const section of sections) {
-      if (section.id !== PINNED_SECTION) matched += section.hosts.length;
-    }
-    summaryText = `匹配 ${matched} 台主机`;
-  }
 
   function sectionCollapsed(id: string) {
     return collapsedIds.includes(id);
@@ -1061,10 +1052,11 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     );
   }
 
-  const fleetNames = keyword
+  const fleetNames = [...new Set(keyword
     ? sections.filter(section => !section.isPinned).flatMap(section => section.hosts.map(host => host.name))
-    : session.hosts.map(host => host.name);
+    : session.hosts.map(host => host.name))];
   const fleetStatus = summarizeHostCards(fleetNames, hostCards.entries, hostCards.now);
+  const agentStatus = summarizeHostAgents(fleetNames, hostCards.entries, hostCards.now, latestAgentVersion.data);
 
   let dragHint = "拖到分组中移动";
   if (dragItem?.kind === "group") {
@@ -1155,13 +1147,35 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           新建
           <ChevronDown size={14} className="text-muted" aria-hidden="true" />
         </Button>
-        <div className="ml-auto flex flex-col items-end gap-1">
-          <span className="text-xs text-muted tabular-nums">{summaryText}</span>
-          <div className="host-home-fleet-status" aria-label="主机状态汇总">
-            <span data-tone="ok">正常 {fleetStatus.normal}</span>
-            <span data-tone="warn">需关注 {fleetStatus.attention}</span>
-            {fleetStatus.unknown > 0 ? <span>待确认 {fleetStatus.unknown}</span> : null}
+      </div>
+
+      <div className="host-home-summary" aria-label={keyword ? "匹配主机概况" : "全部主机概况"}>
+        <div className="host-home-summary-group">
+          <span className="host-home-summary-title">{keyword ? "匹配主机" : "主机"}</span>
+          <div className="host-home-summary-values">
+            <span><strong>{fleetNames.length}</strong> 台</span>
+            {!keyword ? <span><strong>{session.groups.length}</strong> 个分组</span> : null}
           </div>
+        </div>
+        <div className="host-home-summary-group">
+          <span className="host-home-summary-title">主机状态</span>
+          <div className="host-home-summary-values">
+            <span data-tone={fleetStatus.normal > 0 ? "ok" : "empty"}>正常 <strong>{fleetStatus.normal}</strong></span>
+            <span data-tone={fleetStatus.attention > 0 ? "warn" : "empty"}>需关注 <strong>{fleetStatus.attention}</strong></span>
+            <span data-tone={fleetStatus.unknown > 0 ? "info" : "empty"}>待确认 <strong>{fleetStatus.unknown}</strong></span>
+          </div>
+        </div>
+        <div className="host-home-summary-group host-home-summary-agent">
+          <div>
+            <span className="host-home-summary-title">Agent</span>
+            <div className="host-home-summary-values">
+              <span data-tone={agentStatus.running > 0 ? "ok" : "empty"}>运行中 <strong>{agentStatus.running}</strong></span>
+              <span data-tone={agentStatus.problem > 0 ? "warn" : "empty"}>未安装 <strong>{agentStatus.problem}</strong></span>
+              <span data-tone={agentStatus.unknown > 0 ? "info" : "empty"}>待确认 <strong>{agentStatus.unknown}</strong></span>
+              {agentStatus.outdated > 0 ? <span data-tone="warn">需处理 <strong>{agentStatus.outdated}</strong></span> : null}
+            </div>
+          </div>
+          <Button onClick={() => setIsAgentPickerOpen(true)} disabled={fleetNames.length === 0}>检查 Agent</Button>
         </div>
       </div>
 
@@ -1477,14 +1491,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               </div>
               <MenuDivider />
               <MenuItem
-                label="安装 Agent"
-                onClick={() => {
-                  const name = hostMenu.host;
-                  closeAllMenus();
-                  openAgentInstall([name]);
-                }}
-              />
-              <MenuItem
                 label="检查 Agent"
                 onClick={() => {
                   const name = hostMenu.host;
@@ -1614,6 +1620,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         </DialogContent>
       </Dialog>
 
+      {isAgentPickerOpen ? <AgentFleetCheckDialog hosts={fleetNames} latestVersion={latestAgentVersion.data || ""}
+        onClose={() => setIsAgentPickerOpen(false)} /> : null}
       <AgentCheckDialog host={checkHost} onClose={() => setCheckHost("")} />
     </div>
   );

@@ -1,15 +1,14 @@
-import { ActionPopover } from "@/react/components/workbench/action-popover";
 import { currentGroupSample } from "@/utils/groupSnapshot";
-import { GroupTrends, snapshotAlerts } from "@/react/components/workbench/group-trends";
-import { RangeControls } from "@/react/components/workbench/resource-trends";
-import { focusHost, useWorkbenchState, useTrendWindow, type TrendMetric, type TrendRange } from "@/react/components/workbench/state";
+import { snapshotAlerts } from "@/react/components/workbench/group-trends";
+import { useWorkbenchState } from "@/react/components/workbench/state";
 /**
  * INTEGRATION: entry 的 GroupPage 改从本文件引入。
  */
-import { openAgentInstall, useAgentInstall } from "@/react/state/agent-install";
+import { useAgentInstall } from "@/react/state/agent-install";
+import { AgentFleetCheckDialog } from "@/react/components/agent-fleet-check-dialog";
 import { AgentInstallProgress } from "@/react/components/agent-install-progress";
 import { Copy } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -46,10 +45,7 @@ import { copyText } from "@/utils/clipboard";
 import { formatErr, formatMemCapacity } from "@/utils/format";
 import { sortRowsByGroupValue, type GroupSortValue } from "@/utils/groupTableState";
 
-const COL_WIDTHS_KEY = "1pannel-group-col-widths-v5";
 const COL_ORDER_KEY = "1pannel-group-col-order-v1";
-const COL_HIDDEN_KEY = "1pannel-group-hidden-columns-v1";
-const DEFAULT_HIDDEN = ["index", "addr", "lan", "user", "version", "spec", "load"];
 const TABLE_SORT_KEY = "1pannel-group-table-sort-v1";
 
 const GROUP_NAME_RE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
@@ -101,11 +97,11 @@ type GroupColumnFit = Pick<
 /** 列宽按内容自适应：width 只是测量前的初值；flex 列分富余空间，shrink 列不够时可截断到 minWidth */
 const GROUP_COL_FIT: Record<GroupColumnKey, GroupColumnFit> = {
   index: { width: 56, minWidth: 48 },
-  host: { extra: 24, width: 180, minWidth: 168, flex: 1, shrink: false },
+  host: { width: 180, minWidth: 168, flex: 1, shrink: false },
   addr: { width: 176, minWidth: 156, font: "mono", extra: IP_COPY_EXTRA, shrink: false },
   lan: { width: 176, minWidth: 156, font: "mono", extra: IP_COPY_EXTRA, shrink: false },
   agent: { width: 100, minWidth: 72, extra: TAG_EXTRA },
-  user: { width: 64, minWidth: 56, shrink: true },
+  user: { width: 64, minWidth: 56, shrink: false },
   version: { width: 128, minWidth: 120, font: "mono", shrink: false },
   spec: { width: 80, minWidth: 64 },
   load: { width: 136, minWidth: 120, font: "mono-xs", extra: METER_EXTRA, flex: 2 },
@@ -159,17 +155,6 @@ function isGroupColumnKey(value: unknown): value is GroupColumnKey {
   return typeof value === "string" && (GROUP_COL_KEYS as readonly string[]).includes(value);
 }
 
-function readHiddenColumns(): string[] {
-  try {
-    const raw = localStorage.getItem(COL_HIDDEN_KEY);
-    if (raw) {
-      const value: unknown = JSON.parse(raw);
-      if (Array.isArray(value)) return value.filter((key): key is GroupColumnKey => isGroupColumnKey(key) && key !== "host");
-    }
-  } catch { /* fall back to readable resource columns */ }
-  return [...DEFAULT_HIDDEN];
-}
-
 function readColumnOrder(): GroupColumnKey[] {
   try {
     const raw = localStorage.getItem(COL_ORDER_KEY);
@@ -194,24 +179,6 @@ function readColumnOrder(): GroupColumnKey[] {
   } catch {
     return [...GROUP_COL_KEYS];
   }
-}
-
-/** 只存用户手动拖过的列宽，其余列自适应 */
-function readManualWidths(): Record<string, number> {
-  const out: Record<string, number> = {};
-  try {
-    const raw = localStorage.getItem(COL_WIDTHS_KEY);
-    if (!raw) return out;
-    const obj = JSON.parse(raw) as Record<string, unknown>;
-    for (const key of GROUP_COL_KEYS) {
-      const value = Number(obj[key]);
-      if (!Number.isFinite(value)) continue;
-      out[key] = Math.max(Math.round(value), GROUP_COL_FIT[key].minWidth ?? 48);
-    }
-  } catch {
-    /* ignore */
-  }
-  return out;
 }
 
 function readTableSort(): { key: GroupColumnKey | null; order: InteractiveSortOrder } {
@@ -245,7 +212,7 @@ function agentTagOf(
   latest: string,
 ): { tone: "ok" | "warn" | "off"; text: string } {
   if (!status?.ok) return { tone: "off", text: "未装" };
-  if (latest && status.version !== latest) return { tone: "warn", text: "可更新" };
+  if (latest && status.version !== latest) return { tone: "warn", text: "需处理" };
   return { tone: "ok", text: `v${status.version}` };
 }
 
@@ -295,25 +262,8 @@ export function GroupPage({
   onCreateHost?: (groupId?: string) => void;
 } = {}) {
   const session = useSession();
-  const [hiddenColumns, setHiddenColumns] = useState(readHiddenColumns);
-  function changeHiddenColumns(next: string[]) {
-    setHiddenColumns(next);
-    localStorage.setItem(COL_HIDDEN_KEY, JSON.stringify(next));
-  }
-  const queryClient = useQueryClient();
   const groupId = session.activeGroupId || UNGROUPED_ID;
-  const [viewMode, setViewMode] = useWorkbenchState<"trends" | "list">(`group-view:${groupId}`, "trends");
-  const [range, setRange] = useWorkbenchState<TrendRange>(`group-range:${groupId}`, { minutes: 30 });
   const [onlyAlerts, setOnlyAlerts] = useWorkbenchState(`group-alerts:${groupId}`, false);
-  const [selectedHosts, setSelectedHosts] = useWorkbenchState<string[]>(`group-selection:${groupId}`, []);
-  const [scrollTop, setScrollTop] = useWorkbenchState(`group-scroll:${groupId}`, 0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const trendWindow = useTrendWindow(range);
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollTop; }, [viewMode]);
-  function openWorkbench(name: string, metric?: TrendMetric) {
-    focusHost(name, { range, metric });
-    session.openHost(name, "overview");
-  }
   const canEditGroup = groupId !== UNGROUPED_ID;
   const groupLabel = session.groupName(groupId);
   const hosts = session.hostsOf(groupId);
@@ -329,7 +279,6 @@ export function GroupPage({
   }, [canEditGroup, groupId, session.groups]);
 
   const [columnOrder, setColumnOrder] = useState<GroupColumnKey[]>(readColumnOrder);
-  const [manualWidths, setManualWidths] = useState<Record<string, number>>(readManualWidths);
   const [sort, setSort] = useState(readTableSort);
   const [refreshing, setRefreshing] = useState(false);
   const [boardBusy, setBoardBusy] = useState(false);
@@ -347,6 +296,7 @@ export function GroupPage({
   hostsRef.current = hosts;
 
   const installTask = useAgentInstall();
+  const [isAgentCheckOpen, setIsAgentCheckOpen] = useState(false);
   const isInstalling = installTask.phase === "running";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -466,13 +416,13 @@ export function GroupPage({
         pinned: key === "host",
         label: GROUP_COL_LABELS[key],
         ...GROUP_COL_FIT[key],
-        measure: key === "index" ? undefined : (row: GroupRow) => groupCellText(row, key),
+        measure: key === "index" ? () => String(rows.length) : (row: GroupRow) => groupCellText(row, key),
         sortable: key !== "index",
         align: key === "index" ? "right" : "left",
         wrap: key === "agent" || key === "load" || key === "cpu" || key === "mem" || key === "disk",
         render: (row: GroupRow, index: number) => {
           if (key === "index") return <span className="tabular-nums text-muted">{index + 1}</span>;
-          if (key === "host") return <div className="flex min-w-0 items-center gap-2"><input type="checkbox" aria-label={`选择 ${row.name}`} checked={selectedHosts.includes(row.name)} onDoubleClick={e => e.stopPropagation()} onChange={e => { const checked = e.target.checked; setSelectedHosts(previous => checked ? [...previous, row.name] : previous.filter(name => name !== row.name)); }}/><span className="truncate">{row.name}</span></div>;
+          if (key === "host") return <span className="truncate">{row.name}</span>;
           if (key === "addr") {
             return <IpCell ip={row.publicIP} onCopy={copyIp} />;
           }
@@ -559,19 +509,13 @@ export function GroupPage({
           return "—";
         },
       })),
-    [agentStatuses, installRows, copyIp, latestAgentVersion, isInstalling, selectedHosts, setSelectedHosts],
+    [agentStatuses, installRows, copyIp, latestAgentVersion, isInstalling, rows.length],
   );
 
   function persistOrder(next: string[]) {
     const filtered = next.filter(isGroupColumnKey);
     setColumnOrder(filtered);
     localStorage.setItem(COL_ORDER_KEY, JSON.stringify(filtered));
-  }
-
-  function persistWidths(next: Record<string, number>) {
-    setManualWidths(next);
-    if (Object.keys(next).length === 0) localStorage.removeItem(COL_WIDTHS_KEY);
-    else localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next));
   }
 
   function persistSort(key: string | null, order: InteractiveSortOrder) {
@@ -584,23 +528,10 @@ export function GroupPage({
     else localStorage.removeItem(TABLE_SORT_KEY);
   }
 
-  function resetLayout() {
-    setColumnOrder([...GROUP_COL_KEYS]);
-    setManualWidths({});
-    localStorage.removeItem(COL_ORDER_KEY);
-    localStorage.removeItem(COL_WIDTHS_KEY);
-    changeHiddenColumns([...DEFAULT_HIDDEN]);
-  }
-
-  const hasCustomLayout =
-    columnOrder.some((key, index) => key !== GROUP_COL_KEYS[index]) ||
-    Object.keys(manualWidths).length > 0 ||
-    hiddenColumns.length !== DEFAULT_HIDDEN.length || hiddenColumns.some(key => !DEFAULT_HIDDEN.includes(key));
-
   async function refreshAll() {
     setRefreshing(true);
     try {
-      await Promise.all([overview.refetch(), loadAgentStatuses(), queryClient.refetchQueries({ queryKey: ["workbench-history"], type: "active" })]);
+      await Promise.all([overview.refetch(), loadAgentStatuses()]);
     } finally {
       setRefreshing(false);
     }
@@ -687,15 +618,12 @@ export function GroupPage({
   const updatableCount = hosts.filter(
     (h) => agentTagOf(agentStatuses[h.name], latestAgentVersion).tone === "warn",
   ).length;
-  let summaryText = `${hosts.length} 台主机 · ${installedCount} 台已装 Agent`;
+  let summaryText = `${hosts.length} 台主机，${installedCount} 台已装 Agent`;
   if (updatableCount > 0) {
-    summaryText += ` · ${updatableCount} 台可更新`;
+    summaryText += `，${updatableCount} 台需处理`;
   }
 
-  const primaryColumns = DEFAULT_HIDDEN.length === hiddenColumns.length && DEFAULT_HIDDEN.every(key => hiddenColumns.includes(key));
-
   const alertNames = new Set(hosts.filter(h => { const snap = byName.get(h.name); return overview.isError || !!snap?.error || !!snap?.notInstalled || snapshotAlerts(snap).length > 0; }).map(h => h.name));
-  const visibleNames = hosts.filter(h => !onlyAlerts || alertNames.has(h.name)).map(h => h.name);
   const visibleRows = sortedRows.filter(row => !onlyAlerts || alertNames.has(row.name));
   return (
     <Page
@@ -710,102 +638,43 @@ export function GroupPage({
         <FlashNotices flash={boardFlash} />
         <div className="workbench-group-heading">
           <div className="min-w-0"><h1>{groupLabel}</h1><p>{summaryText}</p></div>
-          <div className="workbench-group-actions">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!hosts.length || isInstalling}
-            onClick={() => openAgentInstall(hosts.map(host => host.name))}
-            data-tip="为本组全部主机安装 Agent"
-          >
-            {isInstalling ? "安装中…" : "安装 Agent"}
+        </div>
+        <div className="workbench-group-toolbar" role="region" aria-label="分组操作" tabIndex={0}>
+          <Button size="sm" variant="secondary" disabled={!hosts.length || isInstalling} onClick={() => setIsAgentCheckOpen(true)}>
+            检查 Agent
           </Button>
-            {(canEditGroup || hasCustomLayout) && <ActionPopover label="更多分组操作" closeOnAction>
-          {canEditGroup ? (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={boardBusy}
-                onClick={() => void copyBoardLink()}
-              >
-                复制看板链接
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={boardBusy}
-                onClick={() => void openBoardBrowser()}
-              >
-                浏览器打开
-              </Button>
-            </>
-          ) : null}
-          {canEditGroup && hosts.length >= 2 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              data-tip="组内主机之间走局域网测带宽"
-              onClick={() => session.openSpeedtest("group", { groupId })}
-            >
-              分组测速
-            </Button>
-          ) : null}
-          {hasCustomLayout ? (
-            <Button variant="ghost" size="sm" onClick={resetLayout}>
-              恢复默认列
-            </Button>
-          ) : null}
-          {canEditGroup ? (
-            <Button variant="ghost" size="sm" onClick={openGroupSettings}>
-              分组设置
-            </Button>
-          ) : null}
-            </ActionPopover>}
-          </div>
+          {isAgentCheckOpen ? <AgentFleetCheckDialog hosts={hosts.map(host => host.name)} latestVersion={latestAgentVersion} onClose={() => setIsAgentCheckOpen(false)} /> : null}
+          {canEditGroup && <>
+            <Button size="sm" variant="secondary" disabled={boardBusy} onClick={() => void copyBoardLink()}>复制链接</Button>
+            <Button size="sm" variant="secondary" disabled={boardBusy} onClick={() => void openBoardBrowser()}>快速打开</Button>
+            {hosts.length >= 2 && <Button size="sm" variant="secondary" data-tip="组内主机之间走局域网测带宽" onClick={() => session.openSpeedtest("group", { groupId })}>分组测速</Button>}
+            <Button size="sm" variant="secondary" onClick={openGroupSettings}>分组设置</Button>
+          </>}
+          {hosts.length > 0 && <div className="workbench-group-toolbar-section">
+            <Button size="sm" aria-pressed={onlyAlerts} variant={onlyAlerts ? "primary" : "secondary"} onClick={() => setOnlyAlerts(!onlyAlerts)}>{onlyAlerts ? "清除告警筛选" : `查看告警 ${alertNames.size}`}</Button>
+          </div>}
         </div>
 
         {!hosts.length ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-            <Button variant="primary" onClick={openAddHost}>
-              添加主机
-            </Button>
+            <Button variant="primary" onClick={openAddHost}>添加主机</Button>
           </div>
         ) : (
           <>
-            <div className="workbench-group-toolbar">
-              <div className="workbench-view-switch"><Button aria-pressed={viewMode === "trends"} variant={viewMode === "trends" ? "primary" : "ghost"} onClick={() => setViewMode("trends")}>趋势</Button><Button aria-pressed={viewMode === "list"} variant={viewMode === "list" ? "primary" : "ghost"} onClick={() => setViewMode("list")}>列表</Button></div>
-              <Button aria-pressed={onlyAlerts} variant={onlyAlerts ? "primary" : "secondary"} onClick={() => setOnlyAlerts(!onlyAlerts)}>{onlyAlerts ? "清除告警筛选" : `查看告警 ${alertNames.size}`}</Button>
-              {viewMode === "trends" ? <RangeControls value={range} from={trendWindow.from} to={trendWindow.to} onChange={setRange}/> : <div className="workbench-column-controls">
-                <div className="workbench-view-switch" role="group" aria-label="显示列预设">
-                  <Button aria-pressed={primaryColumns} variant={primaryColumns ? "primary" : "ghost"} onClick={() => changeHiddenColumns([...DEFAULT_HIDDEN])}>主要列</Button>
-                  <Button aria-pressed={!hiddenColumns.length} variant={!hiddenColumns.length ? "primary" : "ghost"} onClick={() => changeHiddenColumns([])}>全部列</Button>
-                </div>
-                <ActionPopover label="自选列">
-                  {GROUP_COL_KEYS.map(key => <label key={key} className="flex min-h-8 items-center gap-2 px-2">
-                    <input type="checkbox" checked={!hiddenColumns.includes(key)} disabled={key === "host"} onChange={e => changeHiddenColumns(e.target.checked ? hiddenColumns.filter(k => k !== key) : [...hiddenColumns, key])} />{GROUP_COL_LABELS[key]}
-                  </label>)}
-                </ActionPopover>
-              </div>}
-            </div>
-            {viewMode === "list" && <span className="workbench-current-sample">{overview.isError ? "采集更新失败" : "当前数据"}<span>{overview.dataUpdatedAt ? `更新于 ${new Date(overview.dataUpdatedAt).toLocaleTimeString("zh-CN", { hour12: false })}` : "等待采样"}</span></span>}
-            {overview.isError ? <Notice text={`采集更新失败：${formatErr(overview.error)}，当前读数暂不可用，历史曲线仍可查看`} /> : null}
-            {selectedHosts.length ? <div className="flex items-center gap-2 text-xs text-accent">已选择 {selectedHosts.filter(name => hosts.some(h => h.name === name)).length} 台<Button size="sm" variant="ghost" onClick={() => setSelectedHosts([])}>取消选择</Button></div> : null}
-            {viewMode === "trends" ? <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef} onScroll={e => setScrollTop(e.currentTarget.scrollTop)}>
-              {visibleNames.length ? <GroupTrends names={visibleNames} snapshots={byName} from={trendWindow.from} to={trendWindow.to} unavailable={overview.isError} sampledAt={overview.dataUpdatedAt} onOpen={openWorkbench}/> : <div className="py-12 text-center text-muted">没有符合筛选条件的主机<Button variant="ghost" onClick={() => setOnlyAlerts(false)}>清除筛选</Button></div>}
-            </div> : <InteractiveDataTable
-              columns={columns.filter(column => !hiddenColumns.includes(column.key))}
+            {overview.isError ? <Notice text={`采集更新失败：${formatErr(overview.error)}，当前读数暂不可用`} /> : null}
+            <InteractiveDataTable
+              columns={columns}
               data={visibleRows}
+              empty={onlyAlerts ? "没有符合筛选条件的主机" : "暂无数据"}
               columnOrder={columnOrder}
-              manualWidths={manualWidths}
+              isResizable={false}
               sortKey={sort.key}
               sortOrder={sort.order}
               onColumnOrderChange={persistOrder}
-              onManualWidthsChange={persistWidths}
               onSortChange={persistSort}
               onRowDoubleClick={(row) => session.openHost(row.name)}
               getRowId={(row) => row.name}
-            />}
+            />
           </>
         )}
       </div>

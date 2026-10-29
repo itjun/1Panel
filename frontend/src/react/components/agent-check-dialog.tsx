@@ -4,6 +4,8 @@ import { AgentCheckReport } from "@/react/components/agent-check-report";
 import { Button } from "@/react/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/react/components/ui/dialog";
 import { formatErr } from "@/utils/format";
+import { agentRepairFor } from "@/utils/agentFleetCheck";
+import { startAgentRepair, useAgentInstall } from "@/react/state/agent-install";
 
 export function AgentCheckDialog({ host, onClose }: { host: string; onClose: () => void }) {
   return (
@@ -24,6 +26,9 @@ function AgentCheckContent({ host, onClose }: { host: string; onClose: () => voi
     refetchOnReconnect: false,
   });
   const isChecking = query.isPending || query.isFetching;
+  const installTask = useAgentInstall();
+  const latest = useQuery({ queryKey: ["agent-latest"], queryFn: () => api.agentLatestVersion() });
+  const repair = query.data ? agentRepairFor(query.data, latest.data || "") : "none";
 
   return (
     <DialogContent aria-describedby={undefined} className="w-[min(560px,calc(100vw-32px))]">
@@ -40,6 +45,10 @@ function AgentCheckContent({ host, onClose }: { host: string; onClose: () => voi
           {isChecking ? "检查中…" : "重新检查"}
         </Button>
         <Button onClick={onClose}>关闭</Button>
+        {repair !== "none" ? <Button variant="primary" disabled={isChecking || installTask.phase === "running"} onClick={() => {
+          startAgentRepair([{ host, action: repair }]);
+          onClose();
+        }}>立即处理</Button> : null}
       </DialogFooter>
     </DialogContent>
   );

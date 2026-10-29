@@ -74,6 +74,7 @@ type ProbeInfo struct {
 	HasCron      bool   // 有 crontab，守护方式可挂 @reboot + 每分钟 ensure
 	HasOpenRC    bool   // 有 rc-update，守护方式可挂 local.d 开机自启
 	HasBinary    bool
+	BinaryKnown  bool   // 探测输出明确返回了二进制是否存在
 	ServiceState string // active / inactive / failed / not-found
 	DataMount    string
 	DataTotalKB  uint64
@@ -147,6 +148,9 @@ func parseProbe(out string) ProbeInfo {
 			info.HasOpenRC = true
 		case line == "=BIN=1":
 			info.HasBinary = true
+			info.BinaryKnown = true
+		case line == "=BIN=0":
+			info.BinaryKnown = true
 		case line == "=WR_BIN=1":
 			info.WritableBin = true
 		case line == "=WR_TMP=1":

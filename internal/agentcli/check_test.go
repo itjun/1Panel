@@ -97,3 +97,23 @@ func TestIsNoSampleData(t *testing.T) {
 		t.Fatal("other error")
 	}
 }
+
+func TestCheckReportRepairEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		input           CheckInput
+		binary, version string
+	}{
+		{"missing", CheckInput{HealthErr: errors.New("unavailable")}, "missing", ""},
+		{"probe failed", CheckInput{ProbeErr: errors.New("unavailable"), Health: Health{Version: "0.2.1"}}, "unknown", "0.2.1"},
+		{"installed", CheckInput{HasBinary: true, Health: Health{Version: "0.2.1"}}, "installed", "0.2.1"},
+		{"health failed", CheckInput{HasBinary: true, Health: Health{Version: "old"}, HealthErr: errors.New("unavailable")}, "installed", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := BuildCheckReport(tc.input)
+			if r.BinaryState != tc.binary || r.AgentVersion != tc.version {
+				t.Fatalf("binary=%q version=%q", r.BinaryState, r.AgentVersion)
+			}
+		})
+	}
+}

@@ -204,14 +204,20 @@ func (s *Agent) CheckAgent(host string) (agentcli.CheckReport, error) {
 	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		in.ProbeErr = err
+		in.HealthErr = err
 		return agentcli.BuildCheckReport(in), nil
 	}
 	if s.installer != nil {
 		info, perr := s.installer.Probe(host, opt)
 		in.ProbeErr = perr
+		if perr == nil && !info.BinaryKnown {
+			in.ProbeErr = fmt.Errorf("未能确认 Agent 是否已安装")
+		}
 		in.HasBinary = info.HasBinary
 		in.ServiceState = info.ServiceState
 		in.InitMode = info.InitMode
+	} else {
+		in.ProbeErr = fmt.Errorf("Agent 探测不可用")
 	}
 
 	cli, err := s.agentPool.GetWithOpt(host, opt)
@@ -262,7 +268,64 @@ type AgentBatchResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// AgentBatchInstall 批量安装/更新（幂等，全部并行；单台失败不影响其余）。
+type AgentRepairTarget struct {
+	Host   string `json:"host"`
+	Action string `json:"action"` // install / upgrade
+}
+
+const agentBatchConcurrency = 16
+
+// AgentBatchRepair 兼容已有调用，执行时根据主机当前状态处理。
+func (s *Agent) AgentBatchRepair(targets []AgentRepairTarget) ([]AgentBatchResult, error) {
+	return runAgentRepairBatch(targets, s.installAgentOn)
+}
+
+func runAgentRepairBatch(targets []AgentRepairTarget, process func(string) (string, error)) ([]AgentBatchResult, error) {
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("请选择要修复的主机")
+	}
+	seen := make(map[string]bool, len(targets))
+	for i := range targets {
+		targets[i].Host = strings.TrimSpace(targets[i].Host)
+		target := targets[i]
+		if target.Host == "" || seen[target.Host] || (target.Action != "install" && target.Action != "upgrade") {
+			return nil, fmt.Errorf("修复目标无效或重复")
+		}
+		seen[target.Host] = true
+	}
+	return runAgentBatch(targets, func(host, _ string) (string, error) { return process(host) }), nil
+}
+
+func runAgentBatch(targets []AgentRepairTarget, install func(string, string) (string, error)) []AgentBatchResult {
+	results := make([]AgentBatchResult, len(targets))
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for i := 0; i < min(agentBatchConcurrency, len(targets)); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				target := targets[idx]
+				result := AgentBatchResult{Host: target.Host}
+				version, err := install(target.Host, target.Action)
+				if err != nil {
+					result.Error = err.Error()
+				} else {
+					result.OK, result.Version = true, version
+				}
+				results[idx] = result
+			}
+		}()
+	}
+	for i := range targets {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+	return results
+}
+
+// AgentBatchInstall 批量安装/更新（幂等，最多同时处理 16 台；单台失败不影响其余）。
 // hosts 为空时自动覆盖 ssh config 里的全部主机。
 func (s *Agent) AgentBatchInstall(hosts []string) ([]AgentBatchResult, error) {
 	if len(hosts) == 0 {
@@ -286,23 +349,11 @@ func (s *Agent) AgentBatchInstall(hosts []string) ([]AgentBatchResult, error) {
 			}
 		}
 	}
-	results := make([]AgentBatchResult, len(hosts))
-	var wg sync.WaitGroup
+	targets := make([]AgentRepairTarget, len(hosts))
 	for i, host := range hosts {
-		wg.Add(1)
-		go func(idx int, h string) {
-			defer wg.Done()
-			r := AgentBatchResult{Host: h}
-			if v, err := s.installAgentOn(h); err != nil {
-				r.Error = err.Error()
-			} else {
-				r.OK, r.Version = true, v
-			}
-			results[idx] = r
-		}(i, host)
+		targets[i] = AgentRepairTarget{Host: host}
 	}
-	wg.Wait()
-	return results, nil
+	return runAgentBatch(targets, s.installAgentOnForRepair), nil
 }
 
 // AgentInstallEvent 单台安装进度事件（事件名 agent-install-progress），
@@ -318,6 +369,38 @@ type AgentInstallEvent struct {
 // installAgentOn 在单台主机上执行完整安装流程，成功返回安装到的版本号。
 // 各阶段经 agent-install-progress 事件推送进度，供前端安装对话框展示。
 func (s *Agent) installAgentOn(host string) (string, error) {
+	return s.installAgentOnForRepair(host, "")
+}
+
+// 同一主机的安装和卸载不能同时执行，远端上传和回滚路径是共享的。
+func (s *Agent) beginAgentOperation(host string) bool {
+	s.agentOperationMu.Lock()
+	defer s.agentOperationMu.Unlock()
+	if s.agentOperations[host] {
+		return false
+	}
+	if s.agentOperations == nil {
+		s.agentOperations = make(map[string]bool)
+	}
+	s.agentOperations[host] = true
+	return true
+}
+
+func (s *Agent) endAgentOperation(host string) {
+	s.agentOperationMu.Lock()
+	delete(s.agentOperations, host)
+	s.agentOperationMu.Unlock()
+}
+
+func (s *Agent) installAgentOnForRepair(host, action string) (string, error) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return "", fmt.Errorf("主机名不能为空")
+	}
+	if !s.beginAgentOperation(host) {
+		return "", fmt.Errorf("该主机的 Agent 操作正在进行，请稍后再试")
+	}
+	defer s.endAgentOperation(host)
 	emit := func(step, text string, percent int) {
 		s.app.Event.Emit("agent-install-progress", AgentInstallEvent{
 			Host: host, Step: step, Percent: percent, Text: text,
@@ -337,12 +420,15 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 	if err != nil {
 		return fail(err)
 	}
+	if !info.BinaryKnown {
+		return fail(fmt.Errorf("无法确认 Agent 是否已安装，请检查主机连接后重试"))
+	}
 	if reason := info.InstallBlockReason(); reason != "" {
 		return fail(fmt.Errorf("%s", reason))
 	}
 
 	// 已在跑且版本与面板内置一致：跳过上传/替换
-	if info.ServiceState == "active" {
+	if info.BinaryKnown && info.HasBinary && info.ServiceState == "active" {
 		st := s.agentPool.Status(host, true)
 		if st.OK && st.Version == agentres.AgentVersion {
 			emit("done", "已是最新 v"+st.Version+"，跳过安装", -1)
@@ -415,6 +501,14 @@ func (s *Agent) installAgentOn(host string) (string, error) {
 
 // UninstallAgent 卸载 agent；keepData=true 保留数据目录（重装可续看历史）
 func (s *Agent) UninstallAgent(host string, keepData bool) error {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return fmt.Errorf("主机名不能为空")
+	}
+	if !s.beginAgentOperation(host) {
+		return fmt.Errorf("该主机的 Agent 操作正在进行，请稍后再试")
+	}
+	defer s.endAgentOperation(host)
 	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {
 		return err

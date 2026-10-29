@@ -12,6 +12,7 @@ type InstallStep = (typeof AGENT_INSTALL_STEPS)[number]["key"];
 
 export type AgentInstallRow = {
   host: string;
+  action?: "install" | "upgrade";
   state: "pending" | "running" | "done" | "error";
   step: InstallStep | "";
   percent?: number;
@@ -31,14 +32,17 @@ export type AgentInstallProgress = {
 };
 
 type InstallResult = { host: string; ok: boolean; version: string; error?: string };
+export type AgentRepairTarget = { host: string; action: "install" | "upgrade" };
 type InstallDependencies = {
   install: (hosts: string[]) => Promise<InstallResult[]>;
+  repair?: (targets: AgentRepairTarget[]) => Promise<InstallResult[]>;
   onProgress: (listener: (event: AgentInstallProgress) => void) => () => void;
 };
 
-/** 单台与批量共用一个会话，打开窗口不会安装；确认前锁定目标，提交时同步防重。 */
+/** 单台安装和批量修复共用一个会话，提交时锁定目标并同步防重。 */
 export class AgentInstallController {
   private state: AgentInstallState = { phase: "idle", rows: [] };
+  private repairTargets: AgentRepairTarget[] | null = null;
   private listeners = new Set<() => void>();
 
   constructor(private dependencies: InstallDependencies) {}
@@ -58,10 +62,36 @@ export class AgentInstallController {
     if (this.state.phase === "running") return;
     const targets = [...new Set(hosts.filter(host => host.trim().length > 0))];
     if (!targets.length) return;
+    this.repairTargets = null;
     this.publish({
       phase: "confirm",
       rows: targets.map(host => ({ host, state: "pending", step: "", text: "等待安装" })),
     });
+  }
+
+  async startRepair(targets: AgentRepairTarget[]) {
+    if (this.state.phase === "running" || !targets.length) return;
+    const seen = new Set<string>();
+    const valid = targets.filter(target => {
+      if (!target.host.trim() || seen.has(target.host)) return false;
+      seen.add(target.host);
+      return true;
+    });
+    if (!valid.length) return;
+    this.repairTargets = valid;
+    this.publish({ phase: "confirm", rows: valid.map(target => ({
+      host: target.host, action: target.action, state: "pending", step: "", text: "等待安装",
+    })) });
+    await this.start();
+  }
+
+  retryFailed() {
+    const failed = this.state.rows.filter(row => row.state === "error").map(row => row.host);
+    if (this.repairTargets) {
+      void this.startRepair(this.repairTargets.filter(target => failed.includes(target.host)));
+    } else {
+      this.open(failed);
+    }
   }
 
   close() {
@@ -92,7 +122,9 @@ export class AgentInstallController {
     let off: (() => void) | undefined;
     try {
       off = this.dependencies.onProgress(event => this.applyProgress(event));
-      const results = await this.dependencies.install(hosts);
+      if (this.repairTargets && !this.dependencies.repair) throw new Error("批量修复不可用");
+      const results = this.repairTargets && this.dependencies.repair
+        ? await this.dependencies.repair(this.repairTargets) : await this.dependencies.install(hosts);
       const byHost = new Map(results.map(result => [result.host, result]));
       this.publish({ phase: "done", rows: this.state.rows.map(row => {
         const result = byHost.get(row.host);

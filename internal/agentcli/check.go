@@ -16,9 +16,11 @@ type CheckItem struct {
 
 // CheckReport agent 自检报告（服务 / 通信 / 版本 / 采集）
 type CheckReport struct {
-	OK      bool        `json:"ok"`
-	Summary string      `json:"summary"`
-	Items   []CheckItem `json:"items"`
+	OK           bool        `json:"ok"`
+	Summary      string      `json:"summary"`
+	Items        []CheckItem `json:"items"`
+	BinaryState  string      `json:"binaryState"`  // installed / missing / unknown
+	AgentVersion string      `json:"agentVersion"` // 仅通信成功时可信
 }
 
 // CheckInput BuildCheckReport 入参（纯函数，便于单测）
@@ -154,7 +156,18 @@ func BuildCheckReport(in CheckInput) CheckReport {
 	if !ok {
 		sum = fmt.Sprintf("%d 项异常", fail)
 	}
-	return CheckReport{OK: ok, Summary: sum, Items: items}
+	binaryState := "unknown"
+	if in.ProbeErr == nil {
+		binaryState = "missing"
+		if in.HasBinary {
+			binaryState = "installed"
+		}
+	}
+	version := ""
+	if in.HealthErr == nil {
+		version = in.Health.Version
+	}
+	return CheckReport{OK: ok, Summary: sum, Items: items, BinaryState: binaryState, AgentVersion: version}
 }
 
 func fmtUptime(sec int64) string {

@@ -74,6 +74,8 @@ type App struct {
 	applicationDataMu       sync.Mutex
 	zshSetupMu              sync.Mutex
 	zshSetups               map[string]*ZshSetupTask
+	agentOperationMu        sync.Mutex
+	agentOperations         map[string]bool
 
 	app        *application.App
 	mainWindow *application.WebviewWindow

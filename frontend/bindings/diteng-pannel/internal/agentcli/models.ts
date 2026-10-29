@@ -30,6 +30,16 @@ export interface CheckReport {
     "ok": boolean;
     "summary": string;
     "items": CheckItem[] | null;
+
+    /**
+     * installed / missing / unknown
+     */
+    "binaryState": string;
+
+    /**
+     * 仅通信成功时可信
+     */
+    "agentVersion": string;
 }
 
 export type CurrentResponse = agentapi$0.CurrentResponse;

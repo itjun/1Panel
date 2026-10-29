@@ -260,6 +260,9 @@ const apiImpl = {
   batchInstallAgent: async (
     hosts: string[] | null
   ): Promise<main.AgentBatchResult[]> => arr(Agent.AgentBatchInstall(hosts ?? [])),
+  batchRepairAgent: async (
+    targets: main.AgentRepairTarget[]
+  ): Promise<main.AgentBatchResult[]> => arr(Agent.AgentBatchRepair(targets)),
   uninstallAgent: async (host: string, keepData: boolean): Promise<void> => {
     await Agent.UninstallAgent(host, keepData);
   },

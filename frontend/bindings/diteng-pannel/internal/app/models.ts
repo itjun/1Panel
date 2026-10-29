@@ -58,6 +58,15 @@ export interface AgentBatchResult {
     "error"?: string;
 }
 
+export interface AgentRepairTarget {
+    "host": string;
+
+    /**
+     * install / upgrade
+     */
+    "action": string;
+}
+
 /**
  * AppInfo 「关于」信息。
  */

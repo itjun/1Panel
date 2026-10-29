@@ -6,7 +6,7 @@ import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary"
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
-import { openAgentInstall, useAgentInstall } from "@/react/state/agent-install";
+import { useAgentInstall } from "@/react/state/agent-install";
 import type * as echarts from "echarts";
 import {
   useCallback,
@@ -356,7 +356,7 @@ function OverviewPage({ host }: { host: string }) {
       agentText = agent.version ? `Agent 在线 ${agent.version}` : "Agent 在线";
       agentTagTone = "ok";
       if (agentUpdatable) {
-        agentText = `Agent ${agent.version || "未知版本"}，可更新到 ${latestVer.data}`;
+        agentText = `Agent ${agent.version || "未知版本"}，与内置版本 ${latestVer.data} 不一致`;
         agentTagTone = "info";
       }
     } else if (agent.notInstalled) {
@@ -419,11 +419,6 @@ function OverviewPage({ host }: { host: string }) {
             <Button size="sm" disabled={isInstalling} onClick={() => setCheckHost(host)}>
               检查 Agent
             </Button>
-            {agentMissing || agentUpdatable ? (
-              <Button size="sm" variant="primary" disabled={isInstalling} onClick={() => openAgentInstall([host])}>
-                {agentMissing ? "安装 Agent" : `更新到 ${latestVer.data}`}
-              </Button>
-            ) : null}
           </>} />
         {agentErr ? <Notice text={agentErr} /> : null}
         <HostWorkbenchSummary data={data} disks={disks.data} isUnavailable={collection.unavailable} isDiskUnavailable={diskCollection.unavailable} />

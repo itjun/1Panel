@@ -29,11 +29,18 @@ export function AgentAppShutdown(host: string, req: agentcli$0.AppShutdownReq): 
 }
 
 /**
- * AgentBatchInstall 批量安装/更新（幂等，全部并行；单台失败不影响其余）。
+ * AgentBatchInstall 批量安装/更新（幂等，最多同时处理 16 台；单台失败不影响其余）。
  * hosts 为空时自动覆盖 ssh config 里的全部主机。
  */
 export function AgentBatchInstall(hosts: string[] | null): $CancellablePromise<$models.AgentBatchResult[] | null> {
     return $Call.ByID(99307826, hosts);
+}
+
+/**
+ * AgentBatchRepair 兼容已有调用，执行时根据主机当前状态处理。
+ */
+export function AgentBatchRepair(targets: $models.AgentRepairTarget[] | null): $CancellablePromise<$models.AgentBatchResult[] | null> {
+    return $Call.ByID(1760166658, targets);
 }
 
 /**

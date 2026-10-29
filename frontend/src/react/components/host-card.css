@@ -37,10 +37,29 @@
 .host-card-percent { font-size: 10px; margin-left: 1px; font-weight: 400; }
 .host-card-metric[data-tone="danger"] strong { color: var(--color-danger); }
 .host-card-metric-label { font-size: 12px; line-height: 18px; color: var(--color-muted); }
-.host-home-fleet-status { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; line-height: 18px; color: var(--color-muted); }
-.host-home-fleet-status span { white-space: nowrap; }
-.host-home-fleet-status [data-tone="warn"] { color: var(--color-warn); }
-.host-home-fleet-status [data-tone="ok"] { color: var(--color-success-text); }
+.host-home-summary { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 16px 32px; margin: 0 16px; padding: 12px 16px; border-radius: var(--radius-control); background: var(--color-raised); }
+.host-home-summary-group { min-width: 0; }
+.host-home-summary-title { display: block; margin-bottom: 6px; color: var(--color-muted); font-size: 12px; line-height: 18px; }
+.host-home-summary-values { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; color: var(--color-muted); font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.host-home-summary-values span { white-space: nowrap; }
+.host-home-summary-values strong { color: var(--color-ink); font-size: 14px; font-weight: 600; }
+.host-home-summary-values [data-tone="ok"], .host-home-summary-values [data-tone="ok"] strong { color: var(--color-success-text); }
+.host-home-summary-values [data-tone="warn"], .host-home-summary-values [data-tone="warn"] strong { color: var(--color-warn); }
+.host-home-summary-values [data-tone="info"], .host-home-summary-values [data-tone="info"] strong { color: var(--color-info); }
+.host-home-summary-values [data-tone="empty"], .host-home-summary-values [data-tone="empty"] strong { color: var(--color-muted); }
+.host-home-summary-agent { display: flex; flex: 1 1 360px; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.host-home-summary-agent button { background: var(--color-surface); }
+.host-home-summary-agent button:hover { background: var(--color-line); }
+.agent-fleet-list { max-height: min(60vh, 560px); overflow: auto; margin-top: 16px; }
+.agent-fleet-table { width: 100%; min-width: 520px; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: 13px; }
+.agent-fleet-table thead { position: sticky; top: 0; z-index: 1; background: var(--color-surface); color: var(--color-muted); }
+.agent-fleet-table th, .agent-fleet-table td { padding: 10px 12px; border-bottom: 1px solid var(--color-line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.agent-fleet-table thead th { font-size: 12px; font-weight: 400; }
+.agent-fleet-table th:first-child { width: 24%; }
+.agent-fleet-table th:nth-child(2) { width: 22%; }
+.agent-fleet-table tbody th { font-weight: 600; color: var(--color-ink); }
+.agent-fleet-failures { color: var(--color-muted); white-space: pre-wrap; }
+.agent-fleet-failures > div + div { margin-top: 4px; }
 .host-group-attention { margin-left: auto; flex-shrink: 0; font-size: 12px; font-weight: 400; color: var(--color-warn); }
 .host-group-count { flex-shrink: 0; }
 [data-host-axis="x"] > .host-rack-host-insert { top: 8px; bottom: 8px; left: auto; right: auto; width: 2px; height: auto; }

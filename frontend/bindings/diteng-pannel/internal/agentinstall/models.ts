@@ -33,6 +33,11 @@ export interface ProbeInfo {
     "HasBinary": boolean;
 
     /**
+     * 探测输出明确返回了二进制是否存在
+     */
+    "BinaryKnown": boolean;
+
+    /**
      * active / inactive / failed / not-found
      */
     "ServiceState": string;

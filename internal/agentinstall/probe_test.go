@@ -38,6 +38,20 @@ func TestParseProbe(t *testing.T) {
 	}
 }
 
+func TestProbeBinaryEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		input         string
+		known, exists bool
+	}{
+		{"=BIN=1\n", true, true}, {"=BIN=0\n", true, false}, {"=OS=Linux\n", false, false},
+	} {
+		p := parseProbe(tc.input)
+		if p.BinaryKnown != tc.known || p.HasBinary != tc.exists {
+			t.Fatalf("%q: %+v", tc.input, p)
+		}
+	}
+}
+
 func TestBlockDiskBelowWatermark(t *testing.T) {
 	p := parseProbe(sampleProbe)
 	// 20GB 盘剩余 3.2%（约 655360 KB）< 5%

@@ -45,6 +45,7 @@ export {
 export type {
     AddHostInput,
     AgentBatchResult,
+    AgentRepairTarget,
     AppInfo,
     AppLogRequest,
     AppLogResult,
