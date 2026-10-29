@@ -57,7 +57,7 @@ macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.c
 
 ```bash
 # 安装 Wails CLI（首次）
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.14
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
 go install github.com/go-task/task/v3/cmd/task@latest
 
 # 开发模式（热重载）
@@ -73,7 +73,7 @@ task darwin:package
 task darwin:package:dmg ARCH=arm64
 ```
 
-> **版本对齐**：Wails CLI（`wails3`）、`go.mod` 中的 `github.com/wailsapp/wails/v3`、前端 `@wailsio/runtime` 必须同一版本（当前以 `go.mod` 为准）。不要自行升 beta；漂移时用 `task wails:check` 检查。
+> **版本对齐**：Wails CLI（`wails3`）、`go.mod` 中的 `github.com/wailsapp/wails/v3`、前端 `@wailsio/runtime` 必须同一版本（当前以 `go.mod` 为准）。漂移时用 `task wails:check` 检查。
 
 构建产物：`bin/1Panel.app`（macOS）/ `bin/1Panel.exe`（Windows）/ `bin/1Panel`（Linux）。
 
