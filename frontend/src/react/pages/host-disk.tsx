@@ -186,15 +186,15 @@ export function DiskPage({ host }: { host: string }) {
                         <td className="px-3 text-right font-mono tabular-nums">
                           {formatBytes(file.size)}
                         </td>
-                        <td className="truncate px-3" data-tip={file.name} data-tip-overflow="">
-                          {file.name}
+                        <td className="select-none px-3">
+                          <span className="inline-block max-w-full select-text truncate align-middle" data-tip={file.name} data-tip-overflow="">
+                            {file.name}
+                          </span>
                         </td>
-                        <td
-                          className="truncate px-3 font-mono"
-                          data-tip={file.path}
-                          data-tip-overflow=""
-                        >
-                          {file.dir}
+                        <td className="select-none px-3 font-mono">
+                          <span className="inline-block max-w-full select-text truncate align-middle" data-tip={file.path} data-tip-overflow="">
+                            {file.dir}
+                          </span>
                         </td>
                       </tr>
                     ))}
