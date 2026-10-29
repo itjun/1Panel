@@ -112,8 +112,11 @@ func TestChooseMacTerminalOtty(t *testing.T) {
 		t.Fatalf("explicit otty = %+v", got)
 	}
 	only := appLookup(map[string]macAppInfo{"Otty": otty})
-	if got := chooseMacTerminal(only, ""); got.kind != macTerminalOtty {
-		t.Fatalf("otty default without the others = %+v", got)
+	if got := chooseMacTerminal(only, ""); got.kind != macTerminalTerminal {
+		t.Fatalf("未选择终端时不应自动使用 Otty，got %+v", got)
+	}
+	if apps := listMacTerminalApps(only); !apps[1].Default {
+		t.Fatalf("未选择终端时系统终端应为默认项，got %+v", apps)
 	}
 	fake := otty
 	fake.teamID = "not-official"
@@ -261,6 +264,19 @@ func TestLookupInstalledOttyIsOfficial(t *testing.T) {
 	}
 	if !isOfficialOtty(info) {
 		t.Fatalf("installed Otty is not the official app: %+v", info)
+	}
+}
+
+func TestLookupOttyDoesNotLaunchIt(t *testing.T) {
+	if err := exec.Command("pgrep", "-x", "Otty").Run(); err == nil {
+		t.Skip("Otty 已在运行")
+	}
+	info, ok := lookupMacApp("Otty")
+	if !ok || !isOfficialOtty(info) {
+		t.Skip("未安装官方 Otty")
+	}
+	if err := exec.Command("pgrep", "-x", "Otty").Run(); err == nil {
+		t.Fatal("检测 Otty 时启动了它")
 	}
 }
 

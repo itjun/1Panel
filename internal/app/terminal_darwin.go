@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"diteng-pannel/internal/macui"
 )
 
 // macOS 终端打开流程：
@@ -16,8 +18,8 @@ import (
 //     （包标识 com.mitchellh.ghostty、可执行文件 ghostty、团队 24VZTF6M5V）、
 //     官方 Otty（包标识 io.appmakes.otty、可执行文件 Otty、团队 9HWK5273G4）
 //     和系统「终端」。同名但身份不符的应用不列出。
-//  2. 设置里选了哪个就用哪个。没选过时优先官方 Ghostty，其次 1Agent，再次 Otty，
-//     都没有则用系统「终端」。
+//  2. 设置里选了哪个就用哪个。没选过时优先官方 Ghostty，其次 1Agent，
+//     都没有则用系统「终端」。Otty 仅在设置中选中时使用。
 //  3. 1Agent 走 oneagent://open。其余把连接交给 ssh 和 SSH 配置里的 Host 别名。
 //     系统「终端」和 Otty 固定在已有窗口新建标签页，不提供「新窗口」选项；
 //     要新窗口由用户在对应终端里自己操作。没有窗口时，系统「终端」仍会先出现一个窗口。
@@ -83,9 +85,6 @@ func listMacTerminalApps(lookup func(string) (macAppInfo, bool)) []TerminalApp {
 	}
 	if info, ok := lookup("Otty"); ok && isOfficialOtty(info) {
 		apps = append(apps, TerminalApp{ID: macTerminalOttyID, Name: "Otty", SupportsWindow: false})
-		if fallback == macTerminalTerminalID {
-			fallback = macTerminalOttyID
-		}
 	}
 	apps = append(apps, TerminalApp{ID: macTerminalTerminalID, Name: "系统终端", SupportsWindow: false})
 	markDefaultTerminal(apps, fallback)
@@ -151,12 +150,18 @@ func isOfficialGhostty(info macAppInfo) bool {
 }
 
 func lookupMacApp(name string) (macAppInfo, bool) {
-	cmd := exec.Command("osascript", "-e", "POSIX path of (path to application "+appleScriptString(name)+")")
-	out, err := cmd.Output()
-	if err != nil {
+	var bundleID string
+	switch name {
+	case "1Agent":
+		bundleID = oneAgentBundleID
+	case "Ghostty":
+		bundleID = officialGhosttyBundleID
+	case "Otty":
+		bundleID = officialOttyBundleID
+	default:
 		return macAppInfo{}, false
 	}
-	path := strings.TrimRight(strings.TrimSpace(string(out)), "/")
+	path := macui.ApplicationPath(bundleID)
 	if path == "" {
 		return macAppInfo{}, false
 	}
@@ -403,9 +408,6 @@ func activateMacApp(appPath string) error {
 	if err := runOpenCommand(appPath); err != nil {
 		return err
 	}
-	name := strings.TrimSuffix(filepath.Base(appPath), ".app")
-	cmd := exec.Command("osascript", "-e", "tell application "+appleScriptString(name)+" to activate")
-	_, _ = cmd.CombinedOutput()
 	return nil
 }
 
