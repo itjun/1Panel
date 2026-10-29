@@ -83,7 +83,7 @@ export function LocalStoragePage() {
 
   const scanButtonLabel =
     status?.state === "running"
-      ? "扫描中…"
+      ? "扫描中"
       : hasRecord
         ? "重新扫描"
         : "开始扫描";

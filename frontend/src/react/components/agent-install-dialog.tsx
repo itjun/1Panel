@@ -62,7 +62,7 @@ export function AgentInstallDialogHost() {
           {isConfirm ? <>
             <Button onClick={() => agentInstall.close()}>取消</Button>
             <Button variant="primary" onClick={() => void agentInstall.start()}>立即处理</Button>
-          </> : isRunning ? <Button variant="primary" disabled>处理中…</Button> : isDone ? <>
+          </> : isRunning ? <Button variant="primary" disabled>处理中</Button> : isDone ? <>
             {failed.length ? <Button onClick={() => agentInstall.retryFailed()}>重试失败主机</Button> : null}
             <Button variant="primary" onClick={() => agentInstall.close()}>完成</Button>
           </> : null}

@@ -83,7 +83,7 @@ export function AppLogDialog({
           />
           <Checkbox checked={autoRefresh} onChange={setAutoRefresh}>每 5 秒刷新</Checkbox>
           <Button size="sm" disabled={query.isFetching} onClick={() => void query.refetch()}>
-            {query.isFetching ? "读取中…" : "刷新"}
+            {query.isFetching ? "读取中" : "刷新"}
           </Button>
         </div>
         <div role="group" aria-label="日志级别筛选" className="flex shrink-0 flex-wrap items-center gap-2">

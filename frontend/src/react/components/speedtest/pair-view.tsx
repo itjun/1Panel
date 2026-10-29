@@ -266,7 +266,7 @@ export function PairView() {
               onClick={() => void detect(a, b)}
             >
               <RefreshCw className="size-4" />
-              {detecting ? "识别中…" : "重新识别"}
+              {detecting ? "识别中" : "重新识别"}
             </Button>
             {actions}
           </div>

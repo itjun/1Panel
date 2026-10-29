@@ -207,8 +207,8 @@ export function HostCreateForm({
   const saveLabel =
     busy
       ? kind === "host"
-        ? "连接中…"
-        : "保存中…"
+        ? "连接中"
+        : "保存中"
       : kind === "host"
         ? "测试并保存"
         : "保存";
@@ -457,7 +457,7 @@ export function HostEditForm({
 
   let editSaveLabel = "保存";
   if (busy) {
-    editSaveLabel = credentialsChanged ? "验证并保存…" : "保存中…";
+    editSaveLabel = credentialsChanged ? "验证并保存" : "保存中";
   } else if (credentialsChanged) {
     editSaveLabel = "测试并保存";
   }

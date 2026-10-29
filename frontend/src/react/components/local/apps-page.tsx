@@ -994,7 +994,7 @@ export function LocalAppsPage() {
               onClick={() => void confirmKill()}
             >
               {killing
-                ? "结束中…"
+                ? "结束中"
                 : killTargets.length > 1
                   ? "结束全部"
                   : "结束"}

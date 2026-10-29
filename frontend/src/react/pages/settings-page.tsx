@@ -495,7 +495,7 @@ function UpdateSettingRows() {
           disabled={!state?.enabled || checking || state.status === "checking"}
           onClick={() => void check()}
         >
-          {checking ? "检查中…" : "检查更新"}
+          {checking ? "检查中" : "检查更新"}
         </Button>
       </SettingRow>
       <SettingRow label="自动检查更新">

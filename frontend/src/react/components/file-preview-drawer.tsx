@@ -167,7 +167,7 @@ export function FilePreviewDrawer({ host, target, source = "remote", onClose }: 
                   onClick={() => void normalizeToLinux()}
                 >
                   {converting
-                    ? "转换中…"
+                    ? "转换中"
                     : confirmNormalize
                       ? "转换并保存"
                       : "转换为 UTF-8 / LF"}

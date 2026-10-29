@@ -565,7 +565,7 @@ export function SftpPage({ host }: { host: string }) {
               disabled={deleting}
               onClick={() => void confirmDelete()}
             >
-              {deleting ? "正在删除…" : confirmArmed ? "确认删除" : "删除"}
+              {deleting ? "正在删除" : confirmArmed ? "确认删除" : "删除"}
             </Button>
           </DialogFooter>
         </Modal>

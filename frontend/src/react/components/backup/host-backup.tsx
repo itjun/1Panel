@@ -188,7 +188,7 @@ export function HostBackupRestoreDialog({
             取消
           </Button>
           <Button variant="primary" disabled={busy || !data} onClick={() => void restore()}>
-            {busy ? "恢复中…" : "恢复"}
+            {busy ? "恢复中" : "恢复"}
           </Button>
         </DialogFooter>
       </DialogContent>

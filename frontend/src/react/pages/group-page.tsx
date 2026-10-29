@@ -722,7 +722,7 @@ export function GroupPage({
               disabled={settingsSaving}
               onClick={() => void saveGroupSettings()}
             >
-              {settingsSaving ? "保存中…" : "保存"}
+              {settingsSaving ? "保存中" : "保存"}
             </Button>
           </DialogFooter>
         </DialogContent>

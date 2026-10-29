@@ -254,7 +254,7 @@ export function ConfigDataPage() {
         <div className="config-data-restore-actions">
           <Button disabled={busy} onClick={() => setPreview(null)}>取消</Button>
           <Button variant="primary" disabled={busy} onClick={() => void restore()}>
-            {busy ? "恢复中…" : "确认恢复"}
+            {busy ? "恢复中" : "确认恢复"}
           </Button>
         </div>
       </div>

@@ -232,7 +232,7 @@ export function InspectPage() {
             disabled={checkingAll || rows.length === 0}
             onClick={() => void checkAll()}
           >
-            {checkingAll ? "检查中…" : "全部检查"}
+            {checkingAll ? "检查中" : "全部检查"}
           </Button>
         </>
       }

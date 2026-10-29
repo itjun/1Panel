@@ -197,7 +197,7 @@ export function NginxLogDownload({ host }: { host: string }) {
                   </>
                 ) : null}
               </div>
-              <Button disabled={cancelRequested} onClick={cancel}>{cancelRequested ? "正在取消…" : "取消下载"}</Button>
+              <Button disabled={cancelRequested} onClick={cancel}>{cancelRequested ? "正在取消" : "取消下载"}</Button>
             </div>
           ) : null}
         </DialogContent>

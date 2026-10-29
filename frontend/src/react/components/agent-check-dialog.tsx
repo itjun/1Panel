@@ -42,7 +42,7 @@ function AgentCheckContent({ host, onClose }: { host: string; onClose: () => voi
       ) : query.data ? <AgentCheckReport report={query.data} /> : null}
       <DialogFooter>
         <Button disabled={isChecking} onClick={() => void query.refetch({ cancelRefetch: false })}>
-          {isChecking ? "检查中…" : "重新检查"}
+          {isChecking ? "检查中" : "重新检查"}
         </Button>
         <Button onClick={onClose}>关闭</Button>
         {repair !== "none" ? <Button variant="primary" disabled={isChecking || installTask.phase === "running"} onClick={() => {

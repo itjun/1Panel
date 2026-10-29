@@ -217,7 +217,7 @@ export function ResourceTrends({
           <span title={history.error ? formatErr(history.error) : undefined}>
             {historyState.unavailable ? hasHistory ? "历史数据更新失败，保留上次曲线" : "历史数据暂不可用" : history.isPending ? "正在读取历史采样…" : "所选时段暂无采样"}
           </span>
-          {historyState.unavailable && <Button size="sm" variant="ghost" disabled={history.isFetching} onClick={() => void history.refetch()}>{history.isFetching ? "重试中…" : "重试"}</Button>}
+          {historyState.unavailable && <Button size="sm" variant="ghost" disabled={history.isFetching} onClick={() => void history.refetch()}>{history.isFetching ? "重试中" : "重试"}</Button>}
         </div>
       ) : null}
       {metrics.map((metric) => {

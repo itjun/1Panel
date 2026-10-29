@@ -90,7 +90,7 @@ export function DiskPage({ host }: { host: string }) {
                   const mount = d.mount;
                   const selected = mount === selectedMount;
                   let scanLabel = "扫描大文件";
-                  if (scanningMount === mount) scanLabel = "扫描中…";
+                  if (scanningMount === mount) scanLabel = "扫描中";
                   else if (results[mount]) scanLabel = "查看结果";
                   return (
                     <tr

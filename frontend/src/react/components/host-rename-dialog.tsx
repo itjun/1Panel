@@ -91,7 +91,7 @@ function HostRenameDialog({ host }: { host: string }) {
           <DialogFooter>
             <Button type="button" variant="secondary" disabled={busy} onClick={closeHostRename}>取消</Button>
             <Button type="submit" variant="primary" disabled={busy || (!saved && (!nextName || nextName === host))}>
-              {busy ? "保存中…" : saved ? "重新刷新" : "保存"}
+              {busy ? "保存中" : saved ? "重新刷新" : "保存"}
             </Button>
           </DialogFooter>
         </form>

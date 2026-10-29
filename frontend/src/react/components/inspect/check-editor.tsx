@@ -210,7 +210,7 @@ export function CheckEditorDialog({
               disabled={testing || !draft.url.trim()}
               onClick={() => void onTest()}
             >
-              {testing ? "发送中…" : "发送测试"}
+              {testing ? "发送中" : "发送测试"}
             </Button>
           </div>
 
@@ -366,7 +366,7 @@ export function CheckEditorDialog({
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)}>取消</Button>
           <Button variant="primary" disabled={saving} onClick={() => void onSave()}>
-            {saving ? "保存中…" : "保存"}
+            {saving ? "保存中" : "保存"}
           </Button>
         </DialogFooter>
       </DialogContent>

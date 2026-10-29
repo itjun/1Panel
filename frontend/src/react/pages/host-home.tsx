@@ -1596,7 +1596,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               disabled={groupSettingsBusy}
               onClick={() => void saveGroupSettings()}
             >
-              {groupSettingsBusy ? "保存中…" : "保存"}
+              {groupSettingsBusy ? "保存中" : "保存"}
             </Button>
           </DialogFooter>
         </DialogContent>

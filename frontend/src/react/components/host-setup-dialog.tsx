@@ -233,7 +233,7 @@ function HostSetupDialog({ host }: { host: string }) {
             onClick={() => void start()}
           >
             {busy
-              ? "执行中…"
+              ? "执行中"
               : job?.options.basePackages && job.state === "success"
                 ? "重新执行"
                 : "开始初始化"}
