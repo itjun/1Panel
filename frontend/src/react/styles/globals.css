@@ -6,6 +6,7 @@
   /* 机柜面板规范 docs/design/specification.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态与健康档占用（Meter 正常段 / 占用曲线正常档） */
   /* 一级图标栏（docs/design/specification.md §4.1）：比 canvas 深一档；12px muted 文字在上面 4.57:1 */
   --color-rail: #eaebee;
+  --color-rail-line: #d6d8dc;
   --color-canvas: #f2f3f5;
   --color-surface: #ffffff;
   --color-raised: #f3f4f6;
@@ -124,6 +125,7 @@
    灰阶保留原有蓝黑调，不随亮色壳层中性化（2026-09-30 定案） */
 html.dark {
   --color-rail: #0d1017;
+  --color-rail-line: #23262d;
   --color-canvas: #12161f;
   --color-surface: #1a1f2b;
   --color-raised: #232a38;
@@ -243,11 +245,23 @@ html.dark {
     background: var(--color-muted);
   }
 
-  /* Linux frameless 无系统阴影，窗口外补 1px line 描边区分桌面（docs/design/specification.md §4.1）。
-     用 outline 而非 inset box-shadow：outline 画在子元素之上，顶栏 / 侧栏的实色底盖不住它。 */
-  .react-root[data-os="linux"] {
-    outline: 1px solid var(--color-line);
-    outline-offset: -1px;
+  /* Linux 无系统阴影，在窗口边缘绘制细线；一级栏沿用自身色阶，避免撞色配色出现突兀亮边。 */
+  .react-root[data-os="linux"]::before,
+  .react-root[data-os="linux"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    box-sizing: border-box;
+    pointer-events: none;
+    border: 1px solid var(--color-line);
+  }
+
+  .react-root[data-os="linux"]::after {
+    right: auto;
+    width: 72px;
+    border-color: var(--color-rail-line);
+    border-right: 0;
   }
 }
 

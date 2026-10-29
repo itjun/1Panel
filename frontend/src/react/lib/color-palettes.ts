@@ -69,7 +69,7 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   // 顶栏悬停只改变壳层明度，避免多色配色在移入时突然跳到另一色相。
   const tabHover = mix(base.canvas, base.ink, isDark ? 0.06 : 0.035);
   return {
-    "--color-rail": base.rail, "--color-canvas": base.canvas, "--color-surface": base.surface,
+    "--color-rail": base.rail, "--color-rail-line": mix(base.rail, base.ink, 0.1), "--color-canvas": base.canvas, "--color-surface": base.surface,
     "--color-raised": raised, "--color-card-selected": cardSelected, "--color-line": line,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
