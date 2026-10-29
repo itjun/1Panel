@@ -356,11 +356,13 @@ html.dark[data-window-material="mica"] .module-rail {
   background-color: rgba(0, 0, 0, 0.08);
 }
 
-/* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。 */
-html[data-window-material="mica"][data-color-palette] :is(.glass-chrome, .shell-app-toolbar) {
+/* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。
+   classic 色系必须排除：applyColorPalette 对 classic 也写 data-color-palette，
+   不排除会让这条覆盖永远命中，云母壳层被强制画成实底（Win11 云母失效根因之一）。 */
+html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .shell-app-toolbar) {
   background-color: var(--color-canvas);
 }
-html[data-window-material="mica"][data-color-palette] .module-rail {
+html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
   background-color: var(--color-rail);
 }
 

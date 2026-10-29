@@ -102,6 +102,8 @@ var (
 // Wails 的窗口类固定用 COLOR_BTNFACE 背景刷，会整面盖住 DWM 系统材质（实验验证：
 // 同样设 backdrop=3，无类刷透出壁纸磨砂，BTNFACE 刷呈不透明灰）。材质生效期间清掉
 // 类刷（该类仅本进程 Wails 窗口共用），回到经典时恢复，避免加载间隙露出未擦除底色。
+// GCLP_HBRBACKGROUND 是 -10；-26 是 GCL_STYLE，写错索引既清不掉刷子、还会把刷子
+// 句柄当作类样式写进去（Win11 实机取证的失效根因）。
 func setClassErase(win *application.WebviewWindow, erase bool) {
 	hwnd := uintptr(win.NativeWindow())
 	if hwnd == 0 {
@@ -109,7 +111,7 @@ func setClassErase(win *application.WebviewWindow, erase bool) {
 	}
 	classEraseMu.Lock()
 	defer classEraseMu.Unlock()
-	if erase == classEraseCleared {
+	if erase != classEraseCleared {
 		return
 	}
 	user32 := windows.NewLazySystemDLL("user32.dll")
@@ -117,7 +119,7 @@ func setClassErase(win *application.WebviewWindow, erase bool) {
 	if erase {
 		brush, _, _ = user32.NewProc("GetSysColorBrush").Call(15) // COLOR_BTNFACE
 	}
-	user32.NewProc("SetClassLongPtrW").Call(hwnd, ^uintptr(25), brush) // GCLP_HBRBACKGROUND(-26)
+	user32.NewProc("SetClassLongPtrW").Call(hwnd, ^uintptr(9), brush) // GCLP_HBRBACKGROUND(-10)
 	user32.NewProc("InvalidateRect").Call(hwnd, 0, 1)
 	classEraseCleared = !erase
 }

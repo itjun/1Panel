@@ -2,6 +2,21 @@
 
 验证日期：2026-10-03。环境：Apple Silicon、macOS 27.0.1（26A434）、Wails v3 beta.14、Go 1.27、Bun 1.4。没有升级框架或改变 Go／React 架构。
 
+## Windows 11 云母失效修复与实机验收（2026-10-29）
+
+环境：Windows 11 build 26300（浅色系统、透明效果开启、壁纸 Desktop Spotlight）、Wails v3 beta.14、Go 1.27.3、Bun 1.4。修复前实机取证（每 250ms 采样 DWM / 类属性）确认三处缺陷叠加导致云母失效：
+
+1. `setClassErase` 把 `GCLP_HBRBACKGROUND` 写成 -26（实为 `GCL_STYLE`，正确值 -10）：清类刷从未生效，BTNFACE 类刷整面盖住 DWM 材质；恢复路径还把刷子句柄 0x63 当类样式写入（含 CS_OWNDC／CS_CLASSDC 位，实测 classStyle 被污染）。
+2. `setClassErase` 的 `if erase == classEraseCleared` 守卫方向反了：首次进云母（false==false）直接早退，连错误的写入都被跳过。
+3. 前端 `applyColorPalette` 对 classic 色系也写 `data-color-palette`，CSS 的 `[data-color-palette]` 云母壳层实底覆盖因此永远命中，壳层被强制画成实色 canvas／rail，云母永远不可见。
+
+修复：GCL 索引改 -10、守卫改 `!=`、CSS 两条覆盖规则加 `:not([data-color-palette="classic"])`。另核实 Wails beta.14 的 `WS_EX_NOREDIRECTIONBITMAP` 常量是错值 0x00200000（真实 0x02000000），窗口实际是普通重定向表面——这不影响材质（清类刷即透出 backdrop，与既往实验一致），升级框架时该常量修正与否需重新观察。
+
+修复后实机时间线：启动 0.8s backdrop=2 且类刷(-10)=0x0（真正清除），1.5s 启动超时切经典时刷子正确恢复为 BTNFACE 句柄（类样式全程保持 0x3 未被污染），1.9s 前端恢复云母后稳定在 backdrop=2 + 类刷 0。视觉验收：工具栏由 CSS 经典 #F2F3F5 变为 DWM 浅色云母 #F3F3F3；图标栏 #EBEBEB 恰为设计的 `rgba(0,0,0,0.03)` veil 叠在云母上的合成值（243×0.97≈235），内容区保持实色 #FFFFFF。启动期间经典→云母的短暂切换（约 0.4s）来自既有 1.5s 就绪超时与前端恢复链路，非本次缺陷。
+
+增量检查：`go vet`、`go test ./internal/windowmaterial`、`go test ./internal/app -run "TestWindowTheme|TestWindowMaterial"` 通过；前端 `bun run test:window-theme`（5 项 24 断言）、`bun run type-check`、`bun run verify:shell` 通过；`task windows:build` 与 Linux server 交叉构建通过。Windows 宿主上 `go test ./...` 的其余失败均为环境固有差异（Unix 0600 权限断言、符号链接特权、Linux-only syscall、路径分隔符），与本次改动无关。仍待补验：设置页手动经典／云母切换、系统透明效果开关切换、节电／高对比度回退的实机点击验收。
+
+
 ## Smoke 增量交付（2026-10-03）
 
 补齐 Fluent 三种材质的最后一块：Mica（遮挡类基础层）、亚克力（遮挡类临时层）之后，Smoke（烟雾）是透明类材质，通过压暗下层表面来强调重要的 UI，用于模态对话框 / 抽屉下方的遮罩；不区分明暗模式，始终是半透明黑色。
