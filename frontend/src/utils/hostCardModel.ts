@@ -8,16 +8,10 @@ function knownPercent(value: number | undefined): number | undefined {
   return value != null && Number.isFinite(value) && value >= 0 ? Math.min(value, 100) : undefined;
 }
 
-function isAgentVersionOlder(current: string, bundled: string): boolean {
+export function isAgentVersionDifferent(current: string, bundled: string): boolean {
   const currentVersion = current.trim().replace(/^v/, "");
   const bundledVersion = bundled.trim().replace(/^v/, "");
-  if (!/^\d+\.\d+\.\d+$/.test(currentVersion) || !/^\d+\.\d+\.\d+$/.test(bundledVersion)) return false;
-  const currentParts = currentVersion.split(".").map(Number);
-  const bundledParts = bundledVersion.split(".").map(Number);
-  for (let index = 0; index < currentParts.length; index++) {
-    if (currentParts[index] !== bundledParts[index]) return currentParts[index] < bundledParts[index];
-  }
-  return false;
+  return !!currentVersion && !!bundledVersion && currentVersion !== bundledVersion;
 }
 
 /** 可观察状态的唯一推导处：卡片、分组计数、全页计数使用同一口径。 */
@@ -57,7 +51,7 @@ export function hostCardView(entry: HostCardEntry | undefined, now: number, late
     agentLabel = !isDetailsStale && snapshot?.agentVersion ? `Agent v${snapshot.agentVersion.replace(/^v/, "")}` : "Agent 运行中";
   }
   const isAgentOutdated = agentState === "running" && !isDetailsStale &&
-    isAgentVersionOlder(snapshot?.agentVersion || "", latestAgentVersion);
+    isAgentVersionDifferent(snapshot?.agentVersion || "", latestAgentVersion);
   const connectionLabel = !entry ? "正在连接…" : connection === "online" ? "在线" :
     connection === "failed" ? "连接失败" : "状态未知";
   let statusLabel = connectionLabel;
@@ -82,6 +76,18 @@ export function summarizeHostCards(names: string[], entries: Record<string, Host
     if (view.isAttention) summary.attention += 1;
     else if (view.isUnknown) summary.unknown += 1;
     else summary.normal += 1;
+  }
+  return summary;
+}
+
+export function summarizeHostAgents(names: string[], entries: Record<string, HostCardEntry>, now: number, latestAgentVersion = "") {
+  const summary = { running: 0, problem: 0, unknown: 0, outdated: 0 };
+  for (const name of new Set(names)) {
+    const view = hostCardView(entries[name], now, latestAgentVersion);
+    if (view.agentState === "running") summary.running += 1;
+    else if (view.agentState === "missing" || view.agentState === "stopped") summary.problem += 1;
+    else summary.unknown += 1;
+    if (view.isAgentOutdated) summary.outdated += 1;
   }
   return summary;
 }

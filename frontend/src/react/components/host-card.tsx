@@ -15,7 +15,7 @@ export function HostCardContent({ name, entry, now, latestAgentVersion, osReleas
 }) {
   const view = hostCardView(entry, now, latestAgentVersion);
   const agentTip = view.isAgentOutdated
-    ? `${view.agentLabel}，低于内置版本 v${latestAgentVersion?.trim().replace(/^v/, "")}，可更新`
+    ? `${view.agentLabel}，与内置版本 v${latestAgentVersion?.trim().replace(/^v/, "")} 不一致，需要处理`
     : view.agentLabel;
   return <>
     <div className="host-card-identity">
