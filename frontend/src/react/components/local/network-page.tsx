@@ -89,7 +89,7 @@ export function LocalNetworkPage() {
   }, [snap, primaryName]);
 
   return (
-    <Page title="网络信息" onRefresh={async () => { await Promise.all([query.refetch(), refreshLocalMetrics()]); }}>
+    <Page title="网络信息" onRefresh={async () => { await Promise.all([query.refetch({ throwOnError: true }), refreshLocalMetrics()]); return true; }}>
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       {metricsError ? <Notice tone="warning" text={`公网信息更新失败：${formatErr(metricsError)}`} /> : null}
       {snap ? (

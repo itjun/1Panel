@@ -915,7 +915,7 @@ export function NetworkPage({ host }: { host: string }) {
       actions={
         slowList.length ? <Tag tone="danger">卡顿连接 {slowList.length}</Tag> : null
       }
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
       refreshing={query.isFetching}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}

@@ -147,7 +147,7 @@ export function SettingsPage() {
   );
 
   return (
-    <Page title="设置" heading={false} flush scrollLabel="设置内容">
+    <Page title="设置" heading={false} flush scrollLabel="设置内容" onRefresh={async () => { await queryClient.refetchQueries({ type: "active" }, { throwOnError: true }); return true; }}>
       <div ref={documentRef} className="settings-document">
         <header className="settings-header">
           <h1>设置</h1>

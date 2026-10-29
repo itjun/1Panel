@@ -27,7 +27,7 @@ export function Page({
   /** 左右分栏等需要贴边铺满时关掉内边距 */
   flush?: boolean;
   /** 挂到红绿灯旁刷新图标；无则 chrome 回退 session.refresh */
-  onRefresh?: () => void | Promise<void>;
+  onRefresh?: () => void | Promise<void | boolean>;
   refreshing?: boolean;
   /** 全局模块可指定内容标题；设备页默认使用工具名称。 */
   heading?: string | false;

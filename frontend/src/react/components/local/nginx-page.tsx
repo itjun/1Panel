@@ -30,9 +30,9 @@ export function LocalNginxPage() {
     retry: false,
   });
 
-  const refresh = () => {
-    void info.refetch();
-    if (chosen) void body.refetch();
+  const refresh = async () => {
+    await Promise.all([info.refetch({ throwOnError: true }), ...(chosen ? [body.refetch({ throwOnError: true })] : [])]);
+    return true;
   };
 
   const html = useMemo(() => {
@@ -58,7 +58,7 @@ export function LocalNginxPage() {
           </Tag>
           {info.data?.version ? <span>v{info.data.version}</span> : null}
         </span>
-        <CurrentTextRefresh onRefresh={refresh} refreshing={info.isFetching || body.isFetching} disabled={!chosen} />
+        <CurrentTextRefresh onRefresh={() => void refresh().catch(() => {})} refreshing={info.isFetching || body.isFetching} disabled={!chosen} />
       </>}
       toolbar={
         info.data?.confD ? (

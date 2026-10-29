@@ -100,12 +100,13 @@ export function HistoryView() {
   const [selectedId, setSelectedId] = useState("");
   const [record, setRecord] = useState<speedtest.Record | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isManualRefresh = false) => {
     setLoading(true);
     try {
       setItems(await api.speedtestHistory());
     } catch (e) {
       flash.showError(formatErr(e));
+      if (isManualRefresh) throw e;
     } finally {
       setLoading(false);
     }
@@ -145,7 +146,7 @@ export function HistoryView() {
 
   const head = ["时间", "类型", "对象", "参数", "结果", "状态", ""];
   return (
-    <Page title="历史记录" onRefresh={() => void load()} refreshing={loading}>
+    <Page title="历史记录" onRefresh={async () => { await load(true); return true; }} refreshing={loading}>
       <FlashNotices flash={flash} />
       <div className="flex flex-col gap-section">
         <div className="surface-float overflow-auto">

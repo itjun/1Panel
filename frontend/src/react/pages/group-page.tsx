@@ -319,6 +319,7 @@ export function GroupPage({
   const loadAgentStatuses = useCallback(async () => {
     const names = hostsRef.current.map((h) => h.name);
     const gid = groupIdRef.current;
+    let isFailed = false;
     await Promise.all(
       names.map(async (name) => {
         try {
@@ -326,7 +327,7 @@ export function GroupPage({
           if (!aliveRef.current || groupIdRef.current !== gid) return;
           setAgentStatuses((prev) => ({ ...prev, [name]: st }));
         } catch {
-          /* 徽章显示未装即可 */
+          isFailed = true;
         }
       }),
     );
@@ -341,6 +342,7 @@ export function GroupPage({
         /* ignore */
       }
     }
+    return !isFailed;
   }, []);
 
   useEffect(() => {
@@ -531,7 +533,9 @@ export function GroupPage({
   async function refreshAll() {
     setRefreshing(true);
     try {
-      await Promise.all([overview.refetch(), loadAgentStatuses()]);
+      const [, isAgentStatusLoaded] = await Promise.all([overview.refetch({ throwOnError: true }), loadAgentStatuses()]);
+      if (!isAgentStatusLoaded) throw new Error("部分主机状态刷新失败");
+      return true;
     } finally {
       setRefreshing(false);
     }
@@ -630,7 +634,7 @@ export function GroupPage({
       title="主机分组"
       heading={false}
       flush
-      onRefresh={() => void refreshAll()}
+      onRefresh={refreshAll}
       refreshing={refreshing}
     >
       {/* 内容区四周 16px 安全边距：白色平面上直接放扁平表格 */}

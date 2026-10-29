@@ -630,7 +630,7 @@ export function LocalAppsPage() {
           </Button>
         </>
       }
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
     >
       {(query.data?.warnings || []).length ? (
         <Notice tone="warn" text={(query.data?.warnings || []).join("；")} />

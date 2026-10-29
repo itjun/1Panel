@@ -173,7 +173,7 @@ export function LocalMonitorPage() {
   }
 
   return (
-    <Page title="性能监控" onRefresh={() => refreshLocalMetrics()}>
+    <Page title="性能监控" onRefresh={async () => { await refreshLocalMetrics(); return true; }}>
       {error && !data ? <Notice text={formatErr(error)} /> : null}
 
       {/* 单元之间 1px 细线分隔（容器 line 底 + 1px 间隙）；宽屏时最后一行（磁盘 IO）吃掉剩余高度 */}

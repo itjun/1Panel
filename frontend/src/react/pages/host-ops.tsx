@@ -384,8 +384,9 @@ function OverviewPage({ host }: { host: string }) {
     isRefreshPending.current = true;
     setIsRefreshing(true);
     try {
-      await Promise.all([overview.refetch(), disks.refetch(), network.refetch(), agentStatus.refetch(),
-        queryClient.refetchQueries({ queryKey: ["overview-history", host], type: "active" })]);
+      await Promise.all([overview.refetch({ throwOnError: true }), disks.refetch({ throwOnError: true }), network.refetch({ throwOnError: true }), agentStatus.refetch({ throwOnError: true }),
+        queryClient.refetchQueries({ queryKey: ["overview-history", host], type: "active" }, { throwOnError: true })]);
+      return true;
     } finally {
       isRefreshPending.current = false;
       setIsRefreshing(false);
@@ -608,7 +609,7 @@ function MonitorPage({ host }: { host: string }) {
     pushLive(overview.data);
   }, [overview.data, range, pushLive]);
 
-  async function seedLive() {
+  async function seedLive(isManualRefresh = false) {
     try {
       const to = Math.floor(Date.now() / 1000);
       const r = await api.agentRange(host, to - 15 * 60, to, "auto");
@@ -631,12 +632,13 @@ function MonitorPage({ host }: { host: string }) {
         })),
       );
       updateLiveGrainHint();
-    } catch {
+    } catch (error) {
       setGrainHint("");
+      if (isManualRefresh) throw error;
     }
   }
 
-  async function loadHistory(from: number, to: number) {
+  async function loadHistory(from: number, to: number, isManualRefresh = false) {
     setHistoryLoading(true);
     const span = to - from;
     const { src, everySec } = resolveGrainQuery(grainRef.current);
@@ -663,9 +665,10 @@ function MonitorPage({ host }: { host: string }) {
       } else {
         setGrainHint(`实际：${srcLabel}`);
       }
-    } catch {
+    } catch (error) {
       setHistory([]);
       setGrainHint("");
+      if (isManualRefresh) throw error;
     } finally {
       setHistoryLoading(false);
     }
@@ -693,7 +696,7 @@ function MonitorPage({ host }: { host: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host, range, grain, customFrom, customTo]);
 
-  function refreshMonitor() {
+  async function refreshMonitor() {
     if (range === "live") {
       setCpuSeries([]);
       setMemSeries([]);
@@ -703,21 +706,24 @@ function MonitorPage({ host }: { host: string }) {
       lastNet.current = null;
       lastDisk.current = null;
       lastLiveAt.current = 0;
-      void seedLive();
-      void overview.refetch();
-      return;
+      await Promise.all([seedLive(true), overview.refetch({ throwOnError: true })]);
+      return true;
     }
     if (range === "custom") {
       if (customFrom && customTo) {
         const from = Math.floor(new Date(customFrom).getTime() / 1000);
         const to = Math.floor(new Date(customTo).getTime() / 1000);
-        void loadHistory(from, to);
+        if (!(from < to)) throw new Error("请选择有效的时间范围");
+        await loadHistory(from, to, true);
+      } else {
+        throw new Error("请选择时间范围");
       }
-      return;
+      return true;
     }
     const span = RANGE_SPAN[range];
     const to = Math.floor(Date.now() / 1000);
-    void loadHistory(to - span, to);
+    await loadHistory(to - span, to, true);
+    return true;
   }
 
   const isLive = range === "live";
@@ -1217,13 +1223,14 @@ function ProcessesPage({ host }: { host: string }) {
           ) : null}
         </>
       }
-      onRefresh={() =>
-        void (view === "docker"
-          ? docker.refetch()
+      onRefresh={async () => {
+        await (view === "docker"
+          ? docker.refetch({ throwOnError: true })
           : view === "all"
-            ? procs.refetch()
-            : runtime.refetch())
-      }
+            ? procs.refetch({ throwOnError: true })
+            : runtime.refetch({ throwOnError: true }));
+        return true;
+      }}
     >
       <FlashNotices flash={flash} />
       {view === "docker" ? (
@@ -1510,7 +1517,7 @@ function CertsPage({ host }: { host: string }) {
           上传证书
         </Button>
       }
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <FlashNotices flash={flash} />
@@ -1671,7 +1678,7 @@ function ServicesPage({ host }: { host: string }) {
           placeholder="搜索服务名"
         />
       }
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <SimpleRows
@@ -1741,7 +1748,7 @@ function CronPage({ host }: { host: string }) {
   return (
     <Page
       title="定时任务"
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
     >
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <FlashNotices flash={flash} />
@@ -1823,7 +1830,7 @@ function LogsPage({ host }: { host: string }) {
           <HostLogControls log={log} />
         </>
       }
-      onRefresh={() => void log.query.refetch()}
+      onRefresh={async () => { await log.query.refetch({ throwOnError: true }); return true; }}
       refreshing={log.query.isFetching}
     >
       <HostLogContent log={log} />

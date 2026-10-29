@@ -121,13 +121,13 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
     setSelected("");
   }, [host, kind]);
 
-  const refresh = () => {
+  const refresh = async () => {
     if (isShowingLogs) {
-      void log.query.refetch();
-      return;
+      await log.query.refetch({ throwOnError: true });
+      return true;
     }
-    void listing.refetch();
-    if (isFileBodyNeeded) void body.refetch();
+    await Promise.all([listing.refetch({ throwOnError: true }), ...(isFileBodyNeeded ? [body.refetch({ throwOnError: true })] : [])]);
+    return true;
   };
   let refreshing = listing.isFetching || (isFileBodyNeeded && body.isFetching);
   if (isShowingLogs) {
@@ -161,7 +161,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
             <span className="font-mono text-sm text-muted">{listing.data?.hint || ""}</span>
           )}
           {kind === "nginx" ? <NginxLogDownload key={host} host={host} /> : null}
-          <CurrentTextRefresh onRefresh={refresh} refreshing={refreshing} disabled={!isShowingLogs && !path} />
+          <CurrentTextRefresh onRefresh={() => void refresh().catch(() => {})} refreshing={refreshing} disabled={!isShowingLogs && !path} />
         </>
       }
       onRefresh={refresh}

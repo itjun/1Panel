@@ -154,8 +154,9 @@ function getSnapshot() {
 }
 
 /** 立即采一次（页面刷新按钮用），与定时轮询共用同一次请求 */
-export function refreshLocalMetrics(): Promise<void> {
-  return tick();
+export async function refreshLocalMetrics(): Promise<void> {
+  await tick();
+  if (state.error) throw new Error(state.error);
 }
 
 /** 本机指标：最新 Overview + CPU / 负载 / 内存 / 流量 / 磁盘 IO 滑动窗口（概览与监控页共享） */

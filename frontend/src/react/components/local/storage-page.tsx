@@ -197,7 +197,7 @@ export function LocalStoragePage() {
           ) : null}
         </>
       }
-      onRefresh={async () => { await Promise.all([statusQuery.refetch(), refreshLocalMetrics()]); }}
+      onRefresh={async () => { const [result] = await Promise.all([statusQuery.refetch({ throwOnError: true }), refreshLocalMetrics()]); if (result.data?.error) throw new Error(result.data.error); return true; }}
     >
       {metricsError ? <Notice tone={device ? "warning" : "error"} text={`${device ? "磁盘更新失败，显示上次读数：" : "磁盘采集失败："}${formatErr(metricsError)}`} /> : null}
       {statusQuery.error ? <Notice text={formatErr(statusQuery.error)} /> : null}

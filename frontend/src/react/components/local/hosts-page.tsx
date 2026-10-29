@@ -33,7 +33,7 @@ export function LocalHostsPage() {
         {query.data ? <span className="text-xs text-muted">{formatSize(raw.length)}</span> : null}
         <CurrentTextRefresh onRefresh={() => void query.refetch()} refreshing={query.isFetching} />
       </>}
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
     >
       {query.error ? (
         <div className="px-4 pt-4">

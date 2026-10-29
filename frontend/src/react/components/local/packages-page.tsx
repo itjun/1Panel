@@ -186,9 +186,9 @@ export function LocalPackagesPage() {
           />
         </>
       }
-      onRefresh={() => {
-        void query.refetch();
-        if (showSizes) void sizesQuery.refetch();
+      onRefresh={async () => {
+        await Promise.all([query.refetch({ throwOnError: true }), ...(showSizes ? [sizesQuery.refetch({ throwOnError: true })] : [])]);
+        return true;
       }}
       refreshing={query.isFetching}
     >

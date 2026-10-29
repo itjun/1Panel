@@ -141,7 +141,8 @@ export function LocalOverviewPage() {
     isRefreshPending.current = true;
     setRefreshing(true);
     try {
-      await Promise.all([refreshLocalMetrics(), network.refetch()]);
+      await Promise.all([refreshLocalMetrics(), network.refetch({ throwOnError: true })]);
+      return true;
     } finally {
       isRefreshPending.current = false;
       setRefreshing(false);

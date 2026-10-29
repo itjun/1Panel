@@ -51,7 +51,7 @@ export function DiskPage({ host }: { host: string }) {
   const files = [...(selectedResult?.files || [])].sort((a, b) => b.size - a.size);
 
   return (
-    <Page title="磁盘" onRefresh={() => void disks.refetch()}>
+    <Page title="磁盘" onRefresh={async () => { await disks.refetch({ throwOnError: true }); return true; }}>
       {disks.error ? <Notice text={formatErr(disks.error)} /> : null}
 
       <div className="flex flex-col gap-section">

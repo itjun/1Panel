@@ -368,7 +368,8 @@ export function MessagesPage({
       heading={false}
       flush
       onRefresh={async () => {
-        await refetch();
+        await refetch({ throwOnError: true });
+        return true;
       }}
     >
       <FlashNotices flash={flash} />

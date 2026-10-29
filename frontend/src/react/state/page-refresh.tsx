@@ -14,11 +14,11 @@ import {
 } from "react";
 import { useSession } from "@/react/state/session";
 
-type RefreshHandler = () => void | Promise<void>;
+type RefreshHandler = () => void | Promise<void | boolean>;
 
 type PageRefreshValue = {
   busy: boolean;
-  run: () => Promise<void>;
+  run: () => Promise<"page" | "hosts" | "started">;
   register: (handler: RefreshHandler | null, busy?: boolean) => void;
 };
 
@@ -37,10 +37,10 @@ export function PageRefreshProvider({ children }: { children: ReactNode }) {
   const run = useCallback(async () => {
     const handler = handlerRef.current;
     if (handler) {
-      await handler();
-      return;
+      return (await handler()) === true ? "page" : "started";
     }
     await session.refresh();
+    return "hosts";
   }, [session]);
 
   const value = useMemo(() => ({ busy, run, register }), [busy, run, register]);

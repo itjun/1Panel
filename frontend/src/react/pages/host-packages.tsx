@@ -243,7 +243,7 @@ export function PackagesPage({ host }: { host: string }) {
           </Button>
         </>
       }
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
       refreshing={query.isFetching}
     >
       {stats ? (

@@ -123,15 +123,16 @@ export function ConfigDataPage() {
   }, [queryClient]);
 
   async function refresh() {
-    const requests: Promise<unknown>[] = [overview.refetch()];
+    const requests: Promise<unknown>[] = [overview.refetch({ throwOnError: true })];
     if (section === "backups") {
-      requests.push(backups.refetch(), restoreError.refetch());
+      requests.push(backups.refetch({ throwOnError: true }), restoreError.refetch({ throwOnError: true }));
     } else if (section === "json") {
-      requests.push(appConfig.refetch());
+      requests.push(appConfig.refetch({ throwOnError: true }));
     } else {
-      requests.push(files.refetch());
+      requests.push(files.refetch({ throwOnError: true }));
     }
     await Promise.all(requests);
+    return true;
   }
 
   async function backup() {

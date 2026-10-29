@@ -90,7 +90,7 @@ export function RunLogPage() {
           </Button>
         </>
       }
-      onRefresh={() => void refetch()}
+      onRefresh={async () => { await refetch({ throwOnError: true }); return true; }}
       refreshing={query.isFetching}
     >
       <FlashNotices flash={flash} />

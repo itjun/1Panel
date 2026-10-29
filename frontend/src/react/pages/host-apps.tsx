@@ -955,7 +955,7 @@ export function AppsPage({ host }: { host: string }) {
   return (
     <Page
       title="应用"
-      onRefresh={() => void refreshAll()}
+      onRefresh={async () => { await Promise.all([instances.refetch({ throwOnError: true }), status.refetch({ throwOnError: true })]); return true; }}
       actions={
         <Button variant="ghost" size="sm" onClick={() => void openCfg()}>
           监视配置

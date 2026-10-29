@@ -219,6 +219,7 @@ export function InspectPage() {
 
   return (
     <Page
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
       title="HTTP 巡检"
       actions={
         <>

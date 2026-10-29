@@ -38,7 +38,7 @@ export function LocalAptPage() {
         <span className="font-mono text-sm text-muted">{hint}</span>
         <CurrentTextRefresh onRefresh={() => void query.refetch()} refreshing={query.isFetching} disabled={!chosen} />
       </>}
-      onRefresh={() => void query.refetch()}
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
     >
       {query.error ? (
         <div className="px-4 pt-4">
