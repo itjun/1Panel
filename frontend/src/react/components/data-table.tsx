@@ -148,13 +148,15 @@ function readFonts(table: HTMLTableElement, head: HTMLElement): TableFonts {
 }
 
 type ColumnDrag = { key: string; target: { key: string; after: boolean } | null };
+const NO_MANUAL_WIDTHS: Record<string, number> = {};
 
 /** 支持列排序、列宽自适应 / 拖拽、列顺序拖拽的表格（分组页用）。 */
 export function InteractiveDataTable<T>({
   columns,
   data,
   columnOrder,
-  manualWidths,
+  manualWidths = NO_MANUAL_WIDTHS,
+  isResizable = true,
   sortKey,
   sortOrder,
   empty = "暂无数据",
@@ -168,12 +170,14 @@ export function InteractiveDataTable<T>({
   data: T[];
   columnOrder: string[];
   /** 用户手动拖过的列宽；其余列按内容与容器宽度自适应 */
-  manualWidths: Record<string, number>;
+  manualWidths?: Record<string, number>;
+  /** 关闭手动调整时，列宽始终按内容和容器计算。 */
+  isResizable?: boolean;
   sortKey: string | null;
   sortOrder: InteractiveSortOrder;
   empty?: string;
   onColumnOrderChange: (order: string[]) => void;
-  onManualWidthsChange: (widths: Record<string, number>) => void;
+  onManualWidthsChange?: (widths: Record<string, number>) => void;
   onSortChange: (key: string | null, order: InteractiveSortOrder) => void;
   onRowDoubleClick?: (row: T) => void;
   getRowId?: (row: T, index: number) => string;
@@ -254,7 +258,7 @@ export function InteractiveDataTable<T>({
   }, [data, fonts, ordered]);
 
   const widths = useMemo(() => {
-    const manual = resizeDraft ? { ...manualWidths, [resizeDraft.key]: resizeDraft.width } : manualWidths;
+    const manual = !isResizable ? NO_MANUAL_WIDTHS : resizeDraft ? { ...manualWidths, [resizeDraft.key]: resizeDraft.width } : manualWidths;
     return fitColumnWidths(
       ordered.map((column) => ({
         key: column.key,
@@ -269,7 +273,7 @@ export function InteractiveDataTable<T>({
       })),
       available,
     );
-  }, [available, manualWidths, naturals, ordered, resizeDraft]);
+  }, [available, manualWidths, naturals, ordered, resizeDraft, isResizable]);
 
   const tableWidth = ordered.reduce((sum, column) => sum + widths[column.key], 0);
 
@@ -326,7 +330,7 @@ export function InteractiveDataTable<T>({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       setResizeDraft(null);
-      if (latest !== startWidth) onManualWidthsChange({ ...manualWidths, [key]: latest });
+      if (latest !== startWidth) onManualWidthsChange?.({ ...manualWidths, [key]: latest });
     }
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -336,7 +340,7 @@ export function InteractiveDataTable<T>({
     if (manualWidths[key] == null) return;
     const next = { ...manualWidths };
     delete next[key];
-    onManualWidthsChange(next);
+    onManualWidthsChange?.(next);
   }
 
   function dropTargetAt(clientX: number, clientY: number, movingKey: string): ColumnDrag["target"] {
@@ -458,7 +462,7 @@ export function InteractiveDataTable<T>({
                       {sorted === "ascending" ? " ↑" : null}
                       {sorted === "descending" ? " ↓" : null}
                     </span>
-                    <div
+                    {isResizable && <div
                       role="separator"
                       aria-orientation="vertical"
                       aria-label={`调整「${column.label}」列宽，双击恢复自动`}
@@ -472,7 +476,7 @@ export function InteractiveDataTable<T>({
                         event.stopPropagation();
                         resetColumnWidth(column.key);
                       }}
-                    />
+                    />}
                   </th>
                 );
               })}
