@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { monitor } from "@/api";
 import { cn } from "@/react/lib/utils";
-import { formatBytes } from "@/utils/format";
+import { formatBytes, formatErr } from "@/utils/format";
+import { copyText } from "@/utils/clipboard";
 import { isTextFileName } from "@/utils/textFile";
 import { FileTypeIcon } from "@/react/components/file-type-icon";
+import { FlashNotices } from "@/react/components/page";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
 
 const DRAG_TYPE = "application/x-1pannel-sftp";
 const fileNameCollator = new Intl.Collator("zh", { numeric: true, sensitivity: "base" });
@@ -15,7 +18,14 @@ export type SftpDeleteItem = {
 };
 
 type SortKey = "name" | "time" | "size" | "kind";
-type MenuAction = "open" | "send" | "remove" | "refresh" | "hidden" | "all" | "mkdir" | "mkfile";
+const copyLabels = {
+  "copy-name": "文件名称",
+  "copy-relative": "相对路径",
+  "copy-absolute": "绝对路径",
+  "copy-parent": "上级路径",
+} as const;
+type CopyAction = keyof typeof copyLabels;
+type MenuAction = "open" | "send" | "remove" | "refresh" | "hidden" | "all" | "mkdir" | "mkfile" | CopyAction;
 
 type Props = {
   side: "local" | "remote";
@@ -48,6 +58,7 @@ type Props = {
 };
 
 export function SftpPane(props: Props) {
+  const copyFlash = useFlashMessage();
   const [filter, setFilter] = useState("");
   const [showHidden, setShowHidden] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -169,6 +180,7 @@ export function SftpPane(props: Props) {
   function runMenu(action: MenuAction) {
     setMenuOpen(false);
     setCtx(null);
+    if (action in copyLabels) void copySelected(action as CopyAction);
     if (action === "mkdir") props.onCreate?.("dir");
     if (action === "mkfile") props.onCreate?.("file");
     if (action === "open" && oneSelected?.isDir) props.onNavigate(oneSelected.path);
@@ -185,6 +197,29 @@ export function SftpPane(props: Props) {
     if (action === "all") {
       setSelected(shown.map((entry) => entry.path));
       setAnchor(shown.length ? 0 : -1);
+    }
+  }
+
+  async function copySelected(action: CopyAction) {
+    const items = selectedItems();
+    if (!items.length) return;
+    const values = items.map((entry) => {
+      if (action === "copy-name") return entry.name;
+      if (action === "copy-absolute") return entry.path;
+      const isWindowsPath = props.side === "local" && /^(?:[a-z]:\\|\\\\)/i.test(entry.path);
+      const separator = isWindowsPath ? "\\" : "/";
+      // 列表只展示当前目录的直接子项，相对路径保留 ./（Windows 为 .\）。
+      if (action === "copy-relative") return `.${separator}${entry.name}`;
+      const parent = entry.path.slice(0, -entry.name.length);
+      if (parent === separator || /^[a-z]:[\\/]$/i.test(parent)) return parent;
+      return parent.endsWith(separator) ? parent.slice(0, -1) : parent;
+    });
+    const text = (action === "copy-parent" ? [...new Set(values)] : values).join("\n");
+    try {
+      await copyText(text);
+      copyFlash.showToast(`已复制${copyLabels[action]}`);
+    } catch (error) {
+      copyFlash.showError(`复制失败：${formatErr(error)}`);
     }
   }
 
@@ -311,7 +346,7 @@ export function SftpPane(props: Props) {
         {menuOpen ? (
           <>
             <div className="fixed inset-0 z-40" onMouseDown={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-[calc(100%+4px)] z-[41] min-w-[176px] rounded-panel border border-line bg-surface p-1" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="absolute right-0 top-[calc(100%+4px)] z-[41] max-h-[calc(100vh-180px)] min-w-[176px] overflow-y-auto rounded-panel border border-line bg-surface p-1" onMouseDown={(event) => event.stopPropagation()}>
               <MenuActions
                 canCreate={props.canCreate}
                 canRemove={props.canRemove}
@@ -331,6 +366,7 @@ export function SftpPane(props: Props) {
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col outline-none" tabIndex={0} onKeyDown={onKey}>
       {titleBar}
+      <FlashNotices flash={copyFlash} />
 
       <div className="flex shrink-0 items-center gap-0.5 border-b border-line px-2 pb-2 pt-0.5">
         <IconButton label="后退" disabled={!props.canBack} onClick={props.onBack}>
@@ -582,7 +618,7 @@ export function SftpPane(props: Props) {
           />
           <div
             ref={ctxEl}
-            className="fixed z-[41] min-w-[176px] rounded-panel border border-line bg-surface p-1"
+            className="fixed z-[41] max-h-[calc(100vh-8px)] min-w-[176px] overflow-y-auto rounded-panel border border-line bg-surface p-1"
             style={{ left: ctx.x, top: ctx.y }}
             onMouseDown={(event) => event.stopPropagation()}
           >
@@ -631,6 +667,10 @@ function MenuActions({
       <MenuButton label="打开" disabled={!canOpen} onClick={() => onRun("open")} />
       <MenuButton label="传到对面" disabled={!selectedCount} onClick={() => onRun("send")} />
       {canRemove ? <MenuButton label="删除" danger disabled={!selectedCount} onClick={() => onRun("remove")} /> : null}
+      <div className="mx-1.5 my-1 h-px bg-line" />
+      {(Object.keys(copyLabels) as CopyAction[]).map((action) => (
+        <MenuButton key={action} label={`复制${copyLabels[action]}`} disabled={!selectedCount} onClick={() => onRun(action)} />
+      ))}
       <div className="mx-1.5 my-1 h-px bg-line" />
       <MenuButton label="刷新" onClick={() => onRun("refresh")} />
       <MenuButton label={showHidden ? "不显示隐藏文件" : "显示隐藏文件"} onClick={() => onRun("hidden")} />
