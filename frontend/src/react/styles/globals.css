@@ -9,6 +9,7 @@
   --color-rail-line: #d6d8dc;
   --color-canvas: #f2f3f5;
   --color-surface: #ffffff;
+  --color-toolbar: #f9fafb;
   --color-raised: #f3f4f6;
   --color-ink: #1f2937;
   /* 次文字：surface 上 5.4、raised 上 4.9 */
@@ -128,6 +129,7 @@ html.dark {
   --color-rail-line: #23262d;
   --color-canvas: #12161f;
   --color-surface: #1a1f2b;
+  --color-toolbar: #232832;
   --color-raised: #232a38;
   --color-ink: #e6ebf3;
   --color-muted: #94a1b5;
@@ -310,12 +312,13 @@ pre,
   -webkit-user-select: auto;
 }
 
-/* 壳 chrome（docs/design/specification.md §4.1）：顶栏 + 侧栏是一整片 canvas 外框，内容区是一整块 surface 平面，
-   两者之间不画分隔线，只靠色块区分。经典模式为实色，云母仅改变壳层背景。
-   用 background-color，不要用 background 简写。 */
-.glass-chrome,
-.shell-app-toolbar {
+/* 侧栏保留配色的辅助色；通栏与内容面组成独立工作区，只靠色块区分。 */
+.glass-chrome {
   background-color: var(--color-canvas);
+}
+
+.shell-app-toolbar {
+  background-color: var(--color-toolbar);
 }
 
 .glass-chrome {
@@ -330,35 +333,22 @@ html:is([data-window-material="mica"], [data-window-material="sidebar"]) .react-
   background-color: transparent;
 }
 
-/* 云母壳层选中 / 悬停底改为半透明覆盖：不透明实底会像贴纸盖在 DWM 云母面上；
-   veil 让底下的云母（随壁纸着色）直接透过来，经典模式仍用实底设计不变 */
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item-active,
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item[aria-current="page"] {
+/* 默认配色的选中底随原生材质透色；彩色主题保留原有选中底，避免丢失撞色。 */
+html[data-color-palette="classic"]:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item-active,
+html[data-color-palette="classic"]:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item[aria-current="page"] {
   background-color: var(--color-accent-veil);
 }
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item:hover {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item:not([aria-current="page"]):hover {
   background-color: var(--color-line-veil);
 }
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item:hover,
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item:not(.rail-item-active):hover,
 html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item.bg-line {
   background-color: var(--color-line-veil);
 }
 
-/* 顶栏按钮同一处理：云母下 ghost/secondary 悬停与导航钮按下（accent-soft）都是不透明实底，
-   会像贴纸盖在 DWM 云母面上，统一换成 veil。关闭键 hover 的实色 danger 保持不变——
-   对齐 Windows 11 原生行为（Mica 上关闭悬停即实色红），红色警示不宜降不透明度。 */
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar [data-variant="secondary"]:hover,
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar [data-variant="ghost"]:hover,
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar :is(.hover\:bg-line:hover) {
-  background-color: var(--color-line-veil);
-}
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .shell-app-toolbar .bg-accent-soft {
-  background-color: var(--color-accent-veil);
-}
-
 /* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to
    expose it; keep a subtle rail tint for hierarchy. */
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) :is(.glass-chrome, .shell-app-toolbar) {
+html:is([data-window-material="mica"], [data-window-material="sidebar"]) .glass-chrome {
   background-color: transparent;
   background-image: none;
 }
@@ -371,17 +361,17 @@ html.dark:is([data-window-material="mica"], [data-window-material="sidebar"]) .m
 }
 
 /* 跟随系统材质透色，浅色和深色分别加薄遮罩以保持文字清晰。 */
-html[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .shell-app-toolbar, .module-rail) {
+html[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .module-rail) {
   background-color: rgba(255, 255, 255, 0.4);
 }
-html.dark[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .shell-app-toolbar, .module-rail) {
+html.dark[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .module-rail) {
   background-color: rgba(24, 25, 28, 0.5);
 }
 
 /* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。
    classic 色系必须排除：applyColorPalette 对 classic 也写 data-color-palette，
    不排除会让这条覆盖永远命中，云母壳层被强制画成实底（Win11 云母失效根因之一）。 */
-html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .shell-app-toolbar) {
+html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .glass-chrome {
   background-color: var(--color-canvas);
 }
 html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
@@ -389,22 +379,24 @@ html[data-window-material="mica"][data-color-palette]:not([data-color-palette="c
 }
 
 /* 自选配色保留各自的侧栏颜色，同时透出 macOS 原生材质。 */
-html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .shell-app-toolbar) {
+html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .module-rail) {
+  --color-muted: var(--color-shell-muted);
+  --color-accent: var(--color-shell-accent);
+}
+html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) .glass-chrome {
   background-color: var(--color-canvas-translucent);
 }
 html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
   background-color: var(--color-rail-translucent);
 }
 
-/* 内容平面左上 6px 圆角：白色平面嵌在灰框里，整套设计唯一的圆角装饰。
-   overflow 裁掉子元素（石墨面、抽屉）溢出圆角的部分。 */
+/* C 区使用稳定的不透明底色，页内内容与工具标签共用自己的主题。 */
 .glass-chrome-main {
   background-color: var(--color-surface);
-  border-top-left-radius: var(--radius-panel);
   overflow: hidden;
 }
 
-/* 顶栏是 canvas 底，raised 与它太接近：顶栏里的 secondary 按钮和输入框改用 surface 底 */
+/* 通栏里的 secondary 按钮和输入框用内容面底色。 */
 .shell-app-toolbar [data-variant="secondary"],
 .shell-app-toolbar .motion-field:not(.motion-field-quiet) {
   background-color: var(--color-surface);
@@ -771,7 +763,7 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
 /* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。
    不另加上下 padding，控件在这 40px 里居中，上下留白相同。
    窗控导航按钮用 h-10 贴满通栏；其余 h-8 上下各 4px、h-7 各 6px。
-   通栏罩色与侧栏同级（见 .shell-app-toolbar / .glass-chrome）。 */
+   通栏使用独立的 toolbar 底色，与内容面保持同一色调。 */
 .shell-toolbar {
   box-sizing: border-box;
   height: 40px;
@@ -783,14 +775,40 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
   flex-shrink: 0;
 }
 
+/* A 已独立通顶；B/C 使用两列整高布局，不预留全局工具栏。 */
+.shell-columns {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+.shell-content { background-color: var(--color-surface); }
+.workspace-sidebar { min-width: 0; }
+.workspace-rail-heading {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 20px;
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
 /* Windows/Linux：Frameless 窗口无系统按钮，右上角由前端自绘
    （最小化/最大化/关闭）。工具标签让出按钮宽度。
    data-os 区分真实平台；窗控让位对 win/linux 都生效。 */
 .react-root:is([data-os="win"], [data-os="linux"]) {
   --window-controls-inset: 124px;
 }
+/* 没有通栏时，页内标题行给窗口按钮让出右侧空间。 */
+.react-root:is([data-os="win"], [data-os="linux"]) .shell-content:not([data-workspace-toolbar]) :is(.uiux-page-tools, .settings-header, .host-home-toolbar, .workbench-group-heading) {
+  padding-right: var(--window-controls-inset);
+}
 
-/* 整窗通栏承担拖拽；交互控件显式 no-drag。 */
+/* 模块标题与页内标题可拖动窗口，交互控件仍可操作。 */
+.workspace-rail-heading,
+.uiux-page-tools,
+.settings-header,
+.host-home-toolbar,
+.workbench-group-heading,
 .shell-app-toolbar {
   --wails-draggable: drag;
   -webkit-app-region: drag;
@@ -798,6 +816,11 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
   -webkit-user-select: none;
 }
 
+.workspace-rail-heading :is(button, a, input, textarea, select, label, [role="button"]),
+.uiux-page-tools :is(button, a, input, textarea, select, label, [role="button"]),
+.settings-header :is(button, a, input, textarea, select, label, [role="button"]),
+.host-home-toolbar :is(button, a, input, textarea, select, label, [role="button"]),
+.workbench-group-heading :is(button, a, input, textarea, select, label, [role="button"]),
 .shell-app-toolbar :is(button, a, input, textarea, select, label, [role="button"]) {
   --wails-draggable: no-drag;
   -webkit-app-region: no-drag;

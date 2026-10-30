@@ -1,74 +1,35 @@
-/**
- * 侧栏展开状态与可调宽度（Firefox 式拖拽改宽）。
- */
+/** B 区始终显示；各模块分别保存拖拽宽度，双击分隔线恢复该模块默认值。 */
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { WORKSPACE_DESIGNS, type WorkspaceModule } from "@/react/lib/workspace-design";
+import { useSession } from "@/react/state/session";
 
-import {
-  createContext,
-  useCallback,
-  useEffect,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-
-const SIDEBAR_OPEN_KEY = "1pannel-sidebar-open";
-const SIDEBAR_WIDTH_KEY = "1pannel-sidebar-width";
-
-/** 二级栏默认宽度：三端统一 200px（docs/design/specification.md §4.1 / §9），不含左侧 72px 一级图标栏。 */
-export function defaultSidebarWidth(): number {
-  return 200;
-}
-
+const SIDEBAR_WIDTHS_KEY = "1pannel-sidebar-widths";
 export const SIDEBAR_WIDTH_MIN = 160;
 export const SIDEBAR_WIDTH_MAX = 400;
-
-function loadSidebarOpen(): boolean {
-  try {
-    return localStorage.getItem(SIDEBAR_OPEN_KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
-
-function saveSidebarOpen(open: boolean) {
-  try {
-    localStorage.setItem(SIDEBAR_OPEN_KEY, open ? "1" : "0");
-  } catch {
-    /* ignore */
-  }
-}
 
 function clampWidth(value: number) {
   return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(value)));
 }
 
-function loadSidebarWidth(): number {
-  const fallback = defaultSidebarWidth();
+function loadWidths(): Partial<Record<WorkspaceModule, number>> {
   try {
-    const raw = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (!raw) return fallback;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return fallback;
-    return clampWidth(n);
+    const saved = JSON.parse(localStorage.getItem(SIDEBAR_WIDTHS_KEY) || "{}");
+    const widths: Partial<Record<WorkspaceModule, number>> = {};
+    if (saved && typeof saved === "object") {
+      for (const module of Object.keys(WORKSPACE_DESIGNS) as WorkspaceModule[]) {
+        if (typeof saved[module] === "number" && Number.isFinite(saved[module])) widths[module] = clampWidth(saved[module]);
+      }
+    }
+    // 旧版只有一个宽度，迁移到主机模块；旧的收起状态不再读取。
+    const legacy = localStorage.getItem("1pannel-sidebar-width");
+    if (widths.remote === undefined && legacy && Number.isFinite(Number(legacy))) widths.remote = clampWidth(Number(legacy));
+    return widths;
   } catch {
-    return fallback;
-  }
-}
-
-function saveSidebarWidth(width: number) {
-  try {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
-  } catch {
-    /* ignore */
+    return {};
   }
 }
 
 type SidebarValue = {
-  open: boolean;
-  toggle: () => void;
-  overlay: boolean;
-  closeOverlay: () => void;
   width: number;
   setWidth: (width: number) => void;
   resetWidth: () => void;
@@ -76,59 +37,24 @@ type SidebarValue = {
   widthMax: number;
   widthDefault: number;
 };
-
 const SidebarContext = createContext<SidebarValue | null>(null);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const widthDefault = useMemo(() => defaultSidebarWidth(), []);
-  const [preferredOpen, setOpen] = useState(loadSidebarOpen);
-  const [overlay, setOverlay] = useState(() => window.matchMedia("(max-width: 1050px)").matches);
-  const [overlayOpen, setOverlayOpen] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 1050px)");
-    const update = () => { setOverlay(media.matches); setOverlayOpen(false); };
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-  const open = overlay ? overlayOpen : preferredOpen;
-  const closeOverlay = useCallback(() => setOverlayOpen(false), []);
-  const [width, setWidthState] = useState(loadSidebarWidth);
-
-  const toggle = useCallback(() => {
-    if (overlay) { setOverlayOpen(value => !value); return; }
-    setOpen((prev) => {
-      const next = !prev;
-      saveSidebarOpen(next);
-      return next;
-    });
-  }, [overlay]);
-
+  const session = useSession();
+  const module = session.settingsOpen ? "settings" : session.workspace;
+  const widthDefault = WORKSPACE_DESIGNS[module].sidebarWidth;
+  const [widths, setWidths] = useState(loadWidths);
+  const width = widths[module] ?? widthDefault;
   const setWidth = useCallback((next: number) => {
-    const clamped = clampWidth(next);
-    setWidthState(clamped);
-    saveSidebarWidth(clamped);
-  }, []);
-
-  const resetWidth = useCallback(() => {
-    setWidthState(widthDefault);
-    saveSidebarWidth(widthDefault);
-  }, [widthDefault]);
-
-  const value = useMemo(
-    () => ({
-      open,
-      toggle,
-      overlay,
-      closeOverlay,
-      width,
-      setWidth,
-      resetWidth,
-      widthMin: SIDEBAR_WIDTH_MIN,
-      widthMax: SIDEBAR_WIDTH_MAX,
-      widthDefault,
-    }),
-    [open, toggle, overlay, closeOverlay, width, setWidth, resetWidth, widthDefault],
-  );
+    if (!Number.isFinite(next)) return;
+    setWidths((previous) => {
+      const updated = { ...previous, [module]: clampWidth(next) };
+      try { localStorage.setItem(SIDEBAR_WIDTHS_KEY, JSON.stringify(updated)); } catch { /* 当前窗口仍可调整宽度。 */ }
+      return updated;
+    });
+  }, [module]);
+  const resetWidth = useCallback(() => setWidth(widthDefault), [setWidth, widthDefault]);
+  const value = useMemo(() => ({ width, setWidth, resetWidth, widthMin: SIDEBAR_WIDTH_MIN, widthMax: SIDEBAR_WIDTH_MAX, widthDefault }), [width, setWidth, resetWidth, widthDefault]);
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
 }
 

@@ -166,6 +166,7 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
       }
       onRefresh={refresh}
       refreshing={refreshing}
+      showRefresh={false}
     >
       {isShowingLogs ? (
         <div className="gap-card m-[var(--gap-card)] flex min-h-0 flex-1 flex-col">

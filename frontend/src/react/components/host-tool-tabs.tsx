@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Popup } from "@/react/components/ui/popup";
 import { cn } from "@/react/lib/utils";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
-import { useSidebar } from "@/react/state/sidebar";
 import { HOST_TOOLS, useSession } from "@/react/state/session";
 import { measuredToolIndices } from "@/utils/toolOverflow";
 
@@ -19,14 +18,13 @@ export function HostToolTabs() {
   const session = useSession();
   const frame = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const sidebar = useSidebar();
   const local = session.workspace === "local";
   const tools = local ? LOCAL_SECTIONS : HOST_TOOLS;
   const selected = local ? session.localSection : session.activeTool;
   const choose = (id: string) => {
     if (local) session.setLocalSection(id as typeof session.localSection);
     else session.setTool(id as typeof session.activeTool);
-    sidebar.closeOverlay(); setOpen(false);
+    setOpen(false);
     requestAnimationFrame(() => frame.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus());
   };
   const anchor = useRef<HTMLButtonElement>(null);
@@ -61,7 +59,6 @@ export function HostToolTabs() {
     if (!hidden.length) setOpen(false);
   }, [hidden.length]);
   useEffect(() => setOpen(false), [session.activeHost, local, selected]);
-  useEffect(() => { if (sidebar.open && sidebar.overlay) setOpen(false); }, [sidebar.open, sidebar.overlay]);
   return (
     <div ref={frame} className="workbench-tabs">
       <div
@@ -121,13 +118,13 @@ export function HostToolTabs() {
           aria-haspopup="menu"
           onClick={() => {
             focusLast.current = false;
-            sidebar.closeOverlay(); setOpen(!open);
+            setOpen(!open);
           }}
           onKeyDown={(e) => {
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
             e.preventDefault();
             focusLast.current = e.key === "ArrowUp";
-            sidebar.closeOverlay(); setOpen(true);
+            setOpen(true);
           }}
         >
           更多

@@ -47,7 +47,7 @@ function PaletteMiniature({ colors, mode }: { colors: ColorTokens; mode?: Palett
     })),
   }), [colors]);
   return <span className="palette-miniature" style={colors as CSSProperties} aria-hidden="true">
-    <span className="palette-mini-toolbar"><i /><i /><i />{mode ? <span>{mode === "light" ? "浅色" : "深色"}</span> : null}</span>
+    <span className="palette-mini-toolbar"><span className="palette-mini-traffic"><i /><i /><i /></span><span className="palette-mini-navigation" /><span className="palette-mini-mode">{mode ? mode === "light" ? "浅色" : "深色" : null}</span></span>
     <span className="palette-mini-body">
     <span className="palette-mini-rail"><Server size={10} /><Monitor size={10} /><Settings size={10} /></span>
     <span className="palette-mini-sidebar"><span className="palette-mini-selected" /><span /><span /></span>

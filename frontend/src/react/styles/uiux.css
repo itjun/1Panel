@@ -4,12 +4,7 @@
 .workbench-tabs .workbench-more{width:var(--workbench-tab-width);min-width:var(--workbench-tab-width);flex:0 0 var(--workbench-tab-width);padding:0 10px;font-size:var(--app-font-size,14px);height:100%}
 .workbench-tab-measure{position:absolute;visibility:hidden;pointer-events:none;display:flex;width:max-content;height:100%;inset:0 auto auto 0;contain:layout;gap:0}
 .workspace-sidebar{display:flex;min-height:0;flex-shrink:0}
-.workspace-sidebar[hidden]{display:none}
-.workspace-sidebar.is-overlay{position:absolute;inset:0 auto 0 0;z-index:45;background:var(--color-canvas);flex-direction:column;border-right:1px solid var(--color-line)}
-.workspace-sidebar.is-overlay>aside{flex:1;min-height:0}
-.workspace-sidebar-backdrop{position:absolute;inset:0;z-index:40;background:var(--color-scrim)}
-.sidebar-close{align-self:flex-end;flex-shrink:0;margin:8px 12px;font-size:12px;color:var(--color-muted)}
-@media(max-width:1050px){.workbench-tabs{margin-right:calc(var(--window-controls-inset,0px) + 8px);margin-left:4px}}
+@media(max-width:1050px){.workbench-tabs{margin-right:calc(var(--window-controls-inset,0px) + 8px);margin-left:0}}
 
 .host-home-toolbar{flex-wrap:wrap}
 .host-home-toolbar>h1{margin-right:12px}

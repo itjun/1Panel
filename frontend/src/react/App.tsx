@@ -1,16 +1,11 @@
+import { WorkspaceLayout } from "@/react/components/workspace-layout";
 import "@/react/styles/workbench.css";
 import "@/react/styles/uiux.css";
-import { SidebarSplitter } from "@/react/components/sidebar-splitter";
-import { HostToolTabs, useIsHostWorkspace } from "@/react/components/host-tool-tabs";
-import { useToolbarDoubleClickMaximize, WindowChrome, WindowControls } from "@/react/components/window-chrome";
-import { ModuleRail } from "@/react/components/module-rail";
-import { WorkspaceRail } from "@/react/components/workspace-rail";
 import { DialogHost } from "@/react/components/ui/confirm-dialog";
 import { AgentInstallDialogHost } from "@/react/components/agent-install-dialog";
 import { HostSetupDialogHost } from "@/react/components/host-setup-dialog";
 import { HostRenameDialogHost } from "@/react/components/host-rename-dialog";
 import { UpdateCheckFailDialog, UpdateDialog } from "@/react/components/update-dialog";
-import { detectAppOs } from "@/react/lib/platform";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { usePaintGate } from "@/react/lib/use-paint-gate";
 import { ConfigDataPage } from "@/react/pages/config-data";
@@ -26,7 +21,7 @@ import { SettingsPage } from "@/react/pages/settings-page";
 import { SpeedtestPage } from "@/react/pages/speedtest";
 import { PageRefreshProvider } from "@/react/state/page-refresh";
 import { SessionProvider, useSession } from "@/react/state/session";
-import { SidebarProvider, useSidebar } from "@/react/state/sidebar";
+import { SidebarProvider } from "@/react/state/sidebar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Events } from "@wailsio/runtime";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -60,11 +55,6 @@ export function App() {
 function Shell() {
   useEffect(() => initializeWindowTheme(), []);
   const session = useSession();
-  const sidebar = useSidebar();
-  const appOs = detectAppOs();
-  const isMac = appOs === "mac";
-  const hostWorkspace = useIsHostWorkspace();
-  useToolbarDoubleClickMaximize(appOs === "linux");
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
   const createOpen = !session.settingsOpen && !!creating;
@@ -166,33 +156,8 @@ function Shell() {
   const dockMounted = createPresence.mounted || editPresence.mounted;
 
   return (
-    <div
-      className="react-root relative flex h-full min-h-0"
-      data-sidebar={sidebar.open ? "open" : "closed"}
-      data-os={appOs}
-      data-edit={dockMounted ? "open" : undefined}
-    >
-      {/* 三段式（docs/design/specification.md §4.1）：72px 一级图标栏通顶，Mac 红绿灯 / Win·Linux 应用图标落在它顶部 */}
-      <ModuleRail />
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* 顶栏导航占据侧栏上方，主机工具从内容区左缘开始。 */}
-      <header className="shell-app-toolbar shell-toolbar drag-region relative z-30 flex shrink-0 items-center"
-        data-sidebar-docked={sidebar.open && !sidebar.overlay ? "true" : undefined}>
-        <div className="pointer-events-auto relative flex h-full shrink-0 items-center"
-          style={sidebar.open && !sidebar.overlay ? { width: sidebar.width + 1 } : undefined}>
-          <WindowChrome />
-        </div>
-        {hostWorkspace && session.workspace !== "local" ? <HostToolTabs /> : null}
-        {isMac ? null : (
-          <div className="pointer-events-auto absolute top-0 right-0 flex h-full items-center pr-1">
-            <WindowControls />
-          </div>
-        )}
-      </header>
-
-      <div className="relative flex min-h-0 min-w-0 flex-1">
-        <SidebarLayer />
-        <main inert={sidebar.overlay && sidebar.open ? true : undefined} className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">
+    <>
+      <WorkspaceLayout isEditing={dockMounted}>
           <div className="relative min-h-0 min-w-0 flex-1">
             {session.settingsOpen ? (
               <div key="settings" className="motion-fade-in h-full min-h-0">
@@ -234,47 +199,17 @@ function Shell() {
               />
             </aside>
           ) : null}
-        </main>
-      </div>
-      </div>
+      </WorkspaceLayout>
       <DialogHost />
       <HostSetupDialogHost />
       <AgentInstallDialogHost />
       <HostRenameDialogHost />
       <UpdateDialog />
       <UpdateCheckFailDialog />
-    </div>
+    </>
   );
 }
 
-/** Keep navigation mounted so auto-hiding never clears selections or drag order. */
-function SidebarLayer() {
-  const sidebar = useSidebar();
-  const session = useSession();
-  const ref = useRef<HTMLDivElement>(null);
-  const visible = sidebar.open;
-  useEffect(() => { sidebar.closeOverlay(); }, [session.workspace, session.settingsOpen, sidebar.closeOverlay]);
-  useEffect(() => {
-    if (!visible || !sidebar.overlay) return;
-    ref.current?.querySelector<HTMLElement>('[aria-current="page"], button')?.focus();
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) return;
-      event.preventDefault(); sidebar.closeOverlay();
-      requestAnimationFrame(() => document.querySelector<HTMLElement>('.shell-app-toolbar [aria-label="展开侧栏"]')?.focus());
-    };
-    window.addEventListener("keydown", escape);
-    return () => window.removeEventListener("keydown", escape);
-  }, [visible, sidebar.overlay, sidebar.closeOverlay]);
-  return <>
-    {visible && sidebar.overlay ? <button className="workspace-sidebar-backdrop" aria-label="关闭侧栏遮罩" onClick={sidebar.closeOverlay}/> : null}
-    <div ref={ref} hidden={!visible} inert={!visible ? true : undefined} className={sidebar.overlay ? "workspace-sidebar is-overlay" : "workspace-sidebar"}
-      onClick={event => { if (sidebar.overlay && !event.metaKey && !event.ctrlKey && !event.shiftKey && (event.target as Element).closest('[data-rail-key]')) sidebar.closeOverlay(); }}>
-      {sidebar.overlay ? <button className="sidebar-close" aria-label="关闭侧栏" onClick={sidebar.closeOverlay}>关闭</button> : null}
-      <WorkspaceRail />
-      {!sidebar.overlay ? <SidebarSplitter /> : null}
-    </div>
-  </>;
-}
 
 function workspaceKey(session: ReturnType<typeof useSession>): string {
   if (session.workspace === "notify") return "notify";

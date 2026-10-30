@@ -1,3 +1,4 @@
+import { PageRefreshButton } from "@/react/components/page";
 /**
  * 主机首页（分组列表 + 拖拽 + 右键 + 快捷键）。
  *
@@ -1093,6 +1094,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         }`}
       >
         <h1 className="shrink-0 text-xl font-semibold">主机</h1>
+          <PageRefreshButton />
         <label className="motion-field box-border flex h-8 w-[min(20rem,40vw)] cursor-text items-center gap-2 rounded-control pl-2.5 pr-1.5">
           <Search size={14} className="shrink-0 text-muted" aria-hidden="true" />
           <input

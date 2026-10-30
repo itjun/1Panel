@@ -20,10 +20,7 @@ export const PLATFORM_SETTINGS = {
 export function settingsShortcuts(os: AppOs) {
   const mac = os === "mac";
   return [
-    { label: "展开 / 收起侧栏", keys: mac ? ["⌘ B", "⌘ \\"] : ["Ctrl+B", "Ctrl+\\"] },
     { label: "打开设置", keys: mac ? ["⌘ ,"] : ["Ctrl+,"] },
-    { label: "后退", keys: mac ? ["⌘ [", "⌘ ←"] : ["Alt+←"] },
-    { label: "前进", keys: mac ? ["⌘ ]", "⌘ →"] : ["Alt+→"] },
   ];
 }
 

@@ -46,7 +46,7 @@ test("八组撞色的浅深色背景与选中底保留确认预览", () => {
   }
 });
 
-test("所有自选配色的半透明侧栏保留各自色相并能透出原生材质", () => {
+test("自选配色透出少量材质，同时保留粉彩辨识度与文字对比度", () => {
   for (const palette of COLOR_PALETTES.slice(1)) {
     for (const mode of ["light", "dark"] as const) {
       const colors = paletteTokens(palette.id, mode);
@@ -58,8 +58,17 @@ test("所有自选配色的半透明侧栏保留各自色相并能透出原生�
         const channels = [1, 3, 5].map((offset) => Number.parseInt(solid.slice(offset, offset + 2), 16));
         expect(components!.slice(1, 4).map(Number)).toEqual(channels);
         const opacity = Number(components![4]);
-        expect(opacity).toBeGreaterThan(0.35);
-        expect(opacity).toBeLessThan(0.65);
+        expect(opacity).toBeLessThan(1);
+        for (const backdrop of [0, 128, 255]) {
+          const blended = channels.map((channel) => Math.round(channel * opacity + backdrop * (1 - opacity)));
+          // 中性背景叠加后，仍保留至少八成的原始色彩差异。
+          const chroma = Math.max(...channels) - Math.min(...channels);
+          expect(Math.max(...blended) - Math.min(...blended)).toBeGreaterThanOrEqual(chroma * 0.8 - 1);
+          const background = `#${blended.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+          for (const foreground of ["--color-ink", "--color-shell-muted", "--color-shell-accent"] as const) {
+            expect(contrastRatio(colors[foreground], background), `${palette.id} ${mode} ${foreground} on ${name}`).toBeGreaterThanOrEqual(4.5);
+          }
+        }
       }
     }
   }
@@ -69,7 +78,7 @@ for (const palette of COLOR_PALETTES) {
   for (const mode of ["light", "dark"] as const) {
     test(`${palette.id} ${mode}: readable text, controls and health graphics`, () => {
       const colors = palette[mode];
-      const surfaces = ["--color-rail", "--color-canvas", "--color-surface", "--color-raised", "--color-card-selected"];
+      const surfaces = ["--color-rail", "--color-canvas", "--color-toolbar", "--color-surface", "--color-raised", "--color-card-selected"];
       const check = (foreground: string, background: string, minimum: number) => {
         expect(contrastRatio(colors[foreground as `--${string}`], colors[background as `--${string}`]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(minimum);
       };
@@ -82,8 +91,8 @@ for (const palette of COLOR_PALETTES) {
       check("--color-accent", "--color-accent-soft", 4.5);
       check("--color-tab-hover-ink", "--color-tab-hover", 4.5);
       // 悬停仅有轻微明度差，不能再跳到另一块高反差的底色。
-      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-canvas"])).toBeGreaterThan(1.02);
-      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-canvas"])).toBeLessThan(1.3);
+      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-toolbar"])).toBeGreaterThan(1.02);
+      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-toolbar"])).toBeLessThan(1.3);
       check("--color-success-text", "--color-success-soft", 4.5);
       check("--color-warn", "--color-warn-soft", 4.5);
       check("--color-danger", "--color-danger-soft", 4.5);

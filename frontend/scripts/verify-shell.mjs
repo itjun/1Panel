@@ -46,21 +46,22 @@ for (const rel of requiredSrc) {
 ok(`required sources present (${requiredSrc.length})`);
 
 const app = fs.readFileSync(path.join(root, "src/react/App.tsx"), "utf8");
+const layout = fs.readFileSync(path.join(root, "src/react/components/workspace-layout.tsx"), "utf8");
 if (!app.includes("SessionProvider")) fail("App.tsx missing SessionProvider");
 const rail = fs.readFileSync(
   path.join(root, "src/react/components/workspace-rail.tsx"),
   "utf8",
 );
 const moduleRail = fs.readFileSync(path.join(root, "src/react/components/module-rail.tsx"), "utf8");
-if (!moduleRail.includes('label="主机"') || !app.includes("ModuleRail")) {
+if (!moduleRail.includes('label="主机"') || !layout.includes("ModuleRail")) {
   fail("primary module rail must provide host navigation");
 }
 if (!moduleRail.includes('label="配置"') || !app.includes("ConfigDataPage")) {
   fail("config workspace must remain available from the primary module rail");
 }
-if (!app.includes("HostToolTabs")) fail("host tool tabs must remain available in the host workspace");
-const toolbarMarkup = app.slice(app.indexOf("<header"), app.indexOf("</header>"));
-if (!toolbarMarkup.includes("<HostToolTabs />") || (app.match(/<HostToolTabs\s*\/>/g) || []).length !== 1) {
+if (!layout.includes("HostToolTabs")) fail("host tool tabs must remain available in the host workspace");
+const toolbarMarkup = layout.slice(layout.indexOf("<header"), layout.indexOf("</header>"));
+if (!toolbarMarkup.includes("<HostToolTabs />") || (layout.match(/<HostToolTabs\s*\/>/g) || []).length !== 1) {
   fail("host tools must appear exactly once in the window toolbar");
 }
 const hostOps = fs.readFileSync(path.join(root, "src/react/pages/host-ops.tsx"), "utf8");
@@ -121,30 +122,23 @@ if (!rail.includes("sidebarWidth") && !rail.includes("useSidebar")) {
   fail("sidebar width is not driven by sidebar state");
 }
 if (rail.includes("WindowChrome") || rail.includes("rail-traffic")) {
-  fail("window chrome must sit on the full-width app toolbar, not the sidebar");
+  fail("sidebar navigation must stay outside the scrollable workspace list");
 }
-if (!app.includes("WindowChrome")) fail("app toolbar does not host window chrome");
-if (!app.includes("shell-app-toolbar")) fail("Firefox-style full-width app toolbar missing");
-if (!app.includes("SidebarSplitter")) fail("resizable sidebar splitter missing");
-if (!app.includes("data-sidebar")) fail("shell does not mark sidebar state");
-const chrome = fs.readFileSync(
-  path.join(root, "src/react/components/window-chrome.tsx"),
-  "utf8",
-);
-if (!chrome.includes("后退") || !chrome.includes("前进") || !chrome.includes("收起侧栏")) {
-  fail("window chrome is missing back, forward, or sidebar toggle");
-}
+if (layout.includes("WindowChrome") || layout.includes("shell-sidebar-toolbar")) fail("global navigation toolbar must be removed");
+if (!/isRemoteHostWorkspace\s*\?\s*\(\s*<header\b/.test(layout)) fail("only remote hosts may show content tool tabs");
+if (!layout.includes("SidebarSplitter")) fail("module sidebar widths must remain adjustable");
+const chrome = fs.readFileSync(path.join(root, "src/react/components/window-chrome.tsx"), "utf8");
 const sidebarState = fs.readFileSync(path.join(root, "src/react/state/sidebar.tsx"), "utf8");
-if (!sidebarState.includes("1pannel-sidebar-open")) fail("sidebar open state is not persisted");
-if (!sidebarState.includes("1pannel-sidebar-width")) fail("sidebar width is not persisted");
-if (!sidebarState.includes("SIDEBAR_WIDTH_MIN") || !sidebarState.includes("SIDEBAR_WIDTH_MAX")) {
-  fail("sidebar width min/max missing");
-}
+if (/WindowChrome|useNavHistory|useSidebar|Backslash|KeyB/.test(chrome)) fail("removed navigation actions must not remain in the window controls");
+if (/matchMedia|closeOverlay|SIDEBAR_OPEN_KEY/.test(sidebarState)) fail("B must stay visible, including narrow windows and old saved collapsed state");
+if (!sidebarState.includes("1pannel-sidebar-widths")) fail("sidebar widths must persist per module");
+if (!/grid-template-rows:\s*minmax\(0, 1fr\)/.test(shellStyles)) fail("B/C must fill the height without a reserved toolbar row");
+if (!layout.includes("regions.sidebar") || !layout.includes("regions.content")) fail("B/C require independently scoped theme tokens");
 if (shellStyles.includes("acrylic")) fail("acrylic was removed from the material vocabulary (auto / classic / mica)");
 if (!shellStyles.includes('[data-window-material="mica"]')) fail("mica chrome must be gated by the effective native material");
 if (!shellStyles.includes('[data-window-material="sidebar"]')) fail("macOS sidebar chrome must be gated by the effective native material");
 ok("classic / mica chrome with opaque content contract");
-ok("sidebar sits below the full-width app toolbar and is resizable");
+ok("ABC regions are independent; sidebar is always visible and remains resizable");
 
 const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (!entry.includes("/src/react/main.tsx")) fail("index.html does not load React");

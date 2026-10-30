@@ -2,14 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { PLATFORM_SETTINGS, settingsReadingSection, settingsShortcuts, showWindowMaterial } from "../src/react/lib/settings-model";
 
 describe("runtime-specific settings", () => {
-  test("Mac bindings match the shell; Windows and Linux use Ctrl and Alt", () => {
+  test("只列出仍可用的设置快捷键，不保留侧栏开关和全局历史导航", () => {
     const mac = settingsShortcuts("mac");
-    expect(mac[2].keys).toEqual(["⌘ [", "⌘ ←"]);
+    expect(mac).toEqual([{ label: "打开设置", keys: ["⌘ ,"] }]);
     expect(mac.every((row) => row.keys.every((key) => !/Ctrl|Alt/.test(key)))).toBe(true);
     for (const os of ["win", "linux"] as const) {
       const rows = settingsShortcuts(os);
-      expect(rows[0].keys).toEqual(["Ctrl+B", "Ctrl+\\"]);
-      expect(rows[2].keys).toEqual(["Alt+←"]);
+      expect(rows).toEqual([{ label: "打开设置", keys: ["Ctrl+,"] }]);
       expect(rows.every((row) => row.keys.every((key) => !key.includes("⌘")))).toBe(true);
       expect(PLATFORM_SETTINGS[os].sans).not.toContain("苹方");
     }

@@ -45,15 +45,21 @@ function foreground(backgrounds: string[]): string {
   return minimum("#ffffff") >= minimum("#15151a") ? "#ffffff" : "#15151a";
 }
 
-function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
+function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): ColorTokens {
   const isDark = mode === "dark";
+  // 保留奶油色的主体，只让少量原生材质透入导航区。
+  const shellOpacity = isDark ? 0.86 : 0.88;
+  const toolbar = mix(base.surface, base.ink, isDark ? 0.045 : 0.025);
   const raised = mix(base.surface, base.ink, isDark ? 0.045 : 0.035);
   const line = mix(base.surface, base.ink, isDark ? 0.14 : 0.12);
   const soft = (color: string) => mix(base.surface, color, isDark ? 0.16 : 0.1);
   const accentSoft = base.selection ?? soft(base.accent);
   const cardSelected = mix(raised, accentSoft, 0.3);
-  const surfaces = [base.rail, base.canvas, base.surface, raised, cardSelected];
+  const materialSurfaces = isClassic ? [] : [base.rail, base.canvas].flatMap((color) =>
+    ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, color, shellOpacity)));
+  const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, cardSelected];
   const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, base.ink);
+  const muted = readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink);
   const accentHover = mix(accent, isDark ? "#ffffff" : "#15151a", 0.09);
   const accentActive = mix(accent, isDark ? "#ffffff" : "#15151a", 0.17);
   const successSoft = soft(base.ok);
@@ -66,18 +72,22 @@ function tokens(base: PaletteBase, mode: PaletteMode): ColorTokens {
   const danger = readable(base.danger, [...surfaces, dangerSoft], 4.5, base.ink);
   const read = readable(base.read, graphicSurfaces, 3, base.ink);
   const write = readable(base.write, graphicSurfaces, 3, base.ink);
-  // 顶栏悬停只改变壳层明度，避免多色配色在移入时突然跳到另一色相。
-  const tabHover = mix(base.canvas, base.ink, isDark ? 0.06 : 0.035);
+  // 通栏从内容面派生，与侧栏的辅助色独立。
+  const tabHover = mix(toolbar, base.ink, isDark ? 0.06 : 0.035);
   return {
     "--color-rail": base.rail, "--color-rail-line": mix(base.rail, base.ink, 0.1), "--color-canvas": base.canvas, "--color-surface": base.surface,
-    "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${isDark ? 0.58 : 0.48})`,
-    "--color-canvas-translucent": `rgba(${rgb(base.canvas).join(", ")}, ${isDark ? 0.58 : 0.48})`,
+    "--color-toolbar": toolbar,
+    "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${shellOpacity})`,
+    "--color-canvas-translucent": `rgba(${rgb(base.canvas).join(", ")}, ${shellOpacity})`,
     "--color-raised": raised, "--color-card-selected": cardSelected, "--color-line": line,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
-    "--color-muted": readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink),
+    "--color-muted": muted,
+    // 半透明导航单独校正文字，避免为了底层壁纸改变内容区的主题色。
+    "--color-shell-muted": readable(muted, [...surfaces, accentSoft, ...materialSurfaces], 4.5, base.ink),
+    "--color-shell-accent": readable(accent, [...surfaces, accentSoft, ...materialSurfaces], 4.5, base.ink),
     "--color-tab-hover": tabHover,
-    "--color-tab-hover-ink": readable(mix(base.muted, base.ink, 0.25), [base.canvas, tabHover], 4.5, base.ink),
+    "--color-tab-hover-ink": readable(mix(base.muted, base.ink, 0.25), [toolbar, tabHover], 4.5, base.ink),
     "--color-accent": accent, "--color-accent-hover": accentHover, "--color-accent-active": accentActive,
     "--color-on-accent": foreground([accent, accentHover, accentActive]),
     "--color-accent-soft": accentSoft, "--color-accent-tint": mix(base.surface, accent, 0.045),
@@ -202,7 +212,7 @@ const definitions: PaletteDefinition[] = [
 
 export const COLOR_PALETTES = definitions.map((definition) => ({
   id: definition.id, name: definition.name, description: definition.description,
-  light: tokens(definition.light, "light"), dark: tokens(definition.dark, "dark"),
+  light: tokens(definition.light, "light", definition.id === "classic"), dark: tokens(definition.dark, "dark", definition.id === "classic"),
 }));
 
 const LEGACY_PALETTES = new Map<string, ColorPaletteId>([
@@ -218,6 +228,12 @@ export function parseColorPalette(value: unknown): ColorPaletteId {
 
 export function paletteTokens(id: ColorPaletteId, mode: PaletteMode): ColorTokens {
   return (COLOR_PALETTES.find((palette) => palette.id === id) ?? COLOR_PALETTES[0])[mode];
+}
+
+/** 模块只覆盖自己的背景和强调色；文字对比度、状态色仍沿用同一套生成规则。 */
+export function regionPaletteTokens(id: ColorPaletteId, mode: PaletteMode, overrides: Partial<Pick<PaletteBase, "canvas" | "surface" | "selection" | "accent">>): ColorTokens {
+  const definition = definitions.find((palette) => palette.id === id) ?? definitions[0];
+  return tokens({ ...definition[mode], ...overrides }, mode, id === "classic");
 }
 
 export function applyColorPalette(root: HTMLElement, id: ColorPaletteId, mode: PaletteMode) {

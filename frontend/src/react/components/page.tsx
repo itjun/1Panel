@@ -1,10 +1,12 @@
-import { X } from "lucide-react";
-import { useLayoutEffect, useState, type ReactNode } from "react";
+import { RefreshCw, X } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useIsHostWorkspace } from "@/react/components/host-tool-tabs";
 import type { FlashMessage } from "@/react/lib/use-flash-message";
 import { cn } from "@/react/lib/utils";
-import { useRegisterPageRefresh } from "@/react/state/page-refresh";
+import { usePageRefresh, useRegisterPageRefresh } from "@/react/state/page-refresh";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
+import { Button } from "@/react/components/ui/button";
 
 export function Page({
   title,
@@ -15,6 +17,7 @@ export function Page({
   flush = false,
   onRefresh,
   refreshing = false,
+  showRefresh = true,
   heading,
   scrollLabel,
 }: {
@@ -26,9 +29,11 @@ export function Page({
   dark?: boolean;
   /** 左右分栏等需要贴边铺满时关掉内边距 */
   flush?: boolean;
-  /** 挂到红绿灯旁刷新图标；无则 chrome 回退 session.refresh */
+  /** 当前页面的刷新动作，显示在页内操作区。 */
   onRefresh?: () => void | Promise<void | boolean>;
   refreshing?: boolean;
+  /** 页面已有专用刷新入口时关闭默认按钮。 */
+  showRefresh?: boolean;
   /** 全局模块可指定内容标题；设备页默认使用工具名称。 */
   heading?: string | false;
   /** 可选的可聚焦滚动区域，让长文档支持 PageUp / PageDown 等原生键盘滚动。 */
@@ -46,12 +51,12 @@ export function Page({
     inlineToolbar = (
       <div
         className={cn(
-          "uiux-page-tools flex min-h-8 shrink-0 flex-wrap items-center gap-3",
+          "uiux-page-tools drag-region flex min-h-8 shrink-0 flex-wrap items-center gap-3",
           !padded && "px-[var(--gap-card)] pt-[var(--gap-card)]",
         )}
       >
         {inlineTitle ? <h1 className="uiux-page-title">{inlineTitle}</h1> : null}
-        <div className="uiux-page-actions">{toolbar}{actions}</div>
+        <div className="uiux-page-actions">{toolbar}{onRefresh && showRefresh ? <PageRefreshButton /> : null}{actions}</div>
       </div>
     );
   }
@@ -76,6 +81,36 @@ export function Page({
       </div>
     </div>
   );
+}
+
+/** 共用防重和结果反馈，放在各页面已有的操作区内。 */
+export function PageRefreshButton() {
+  const refresh = usePageRefresh();
+  const isPending = useRef(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const flash = useFlashMessage();
+  async function run() {
+    if (isPending.current || refresh.busy) return;
+    isPending.current = true;
+    setIsRefreshing(true);
+    flash.clear();
+    try {
+      const result = await refresh.run();
+      flash.showToast(result === "started" ? "已触发刷新" : "刷新成功");
+    } catch {
+      flash.showError("刷新失败，请重试");
+    } finally {
+      isPending.current = false;
+      setIsRefreshing(false);
+    }
+  }
+  return <>
+    <Button size="sm" disabled={isRefreshing || refresh.busy} onClick={() => void run()}>
+      <RefreshCw size={14} className={isRefreshing ? "animate-spin motion-reduce:animate-none" : undefined} aria-hidden />
+      {isRefreshing ? "刷新中" : "刷新"}
+    </Button>
+    <FlashNotices flash={flash} />
+  </>;
 }
 
 /** TDesign Alert 的四种 theme；warn 是 warning 的旧名 */
@@ -170,13 +205,13 @@ export function Notice({
   );
 }
 
-/** 顶栏底边（视口坐标）；提示条浮层贴在其下方 */
-function useToolbarBottom(): number {
+/** 提示条锚定 C 区内容起点，不依赖已移除的全局导航栏。 */
+function useContentTop(): number {
   const [bottom, setBottom] = useState(0);
   useLayoutEffect(() => {
-    const toolbar = document.querySelector(".shell-app-toolbar");
+    const toolbar = document.querySelector(".glass-chrome-main");
     if (!toolbar) return;
-    const measure = () => setBottom(toolbar.getBoundingClientRect().bottom);
+    const measure = () => setBottom(toolbar.getBoundingClientRect().top);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(toolbar);
@@ -194,7 +229,7 @@ function useToolbarBottom(): number {
  * 浮层不占位，层级压过对话框遮罩（docs/design/specification.md §9「操作提示条浮层」）。
  */
 export function FlashNotices({ flash }: { flash: FlashMessage }) {
-  const top = useToolbarBottom();
+  const top = useContentTop();
 
   let notice: ReactNode = null;
   if (flash.error) {

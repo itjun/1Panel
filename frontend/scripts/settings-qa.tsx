@@ -20,6 +20,7 @@ const record = (value: string) => { operation = value; window.dispatchEvent(new 
 Object.assign(api, {
   listHosts: async () => [], listGroups: async () => [], listHostIcons: async () => [],
   listAlertHistory: async () => [],
+  listMenuChecks: async () => [],
   getPanelConfigOverview: async () => ({}),
   getMyEgress: async () => ({ ip: "203.0.113.8", location: "本机出口示例" }),
   getPanelConfigStatus: async () => ({ needsReview: false }),
@@ -54,11 +55,10 @@ if (params.has("theme")) updateSettings({ appearance: params.get("theme") as "li
 const { setUpdateState } = await import("@/react/state/app-update");
 setUpdateState({ enabled: true, autoCheck: true, status: "idle" } as never);
 const { SessionProvider, useSession } = await import("@/react/state/session");
-const { SidebarProvider, useSidebar } = await import("@/react/state/sidebar");
+const { SidebarProvider } = await import("@/react/state/sidebar");
 const { PageRefreshProvider } = await import("@/react/state/page-refresh");
-const { ModuleRail } = await import("@/react/components/module-rail");
-const { WorkspaceRail } = await import("@/react/components/workspace-rail");
-const { WindowChrome, WindowControls } = await import("@/react/components/window-chrome");
+const { WorkspaceLayout } = await import("@/react/components/workspace-layout");
+const { InspectPage } = await import("@/react/pages/inspect");
 const { SettingsPage } = await import("@/react/pages/settings-page");
 const { useThemeSignature } = await import("@/react/lib/use-theme-mode");
 const { ChartHost, lineOption } = await import("@/react/components/monitor/charts");
@@ -89,7 +89,6 @@ function PaletteMonitorFixture() {
 }
 
 function Fixture() {
-  const sidebar = useSidebar();
   const [isMonitor, setIsMonitor] = React.useState(params.has("sample"));
   const settings = useSettings();
   const session = useSession();
@@ -100,21 +99,17 @@ function Fixture() {
     window.addEventListener("settings-qa-operation", changed);
     return () => window.removeEventListener("settings-qa-operation", changed);
   }, []);
-  return <div className="react-root relative flex h-full min-h-0" data-os={os} data-sidebar={sidebar.open ? "open" : "closed"}>
-    <ModuleRail />
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <header className="shell-app-toolbar shell-toolbar relative flex shrink-0 items-center">
-        <WindowChrome /><div className="flex h-full min-w-0 flex-1" />{isMonitor ? <select aria-label="监控示例配色" className="mr-4 bg-surface text-ink" value={settings.colorPalette} onChange={(event) => updateSettings({ colorPalette: parseColorPalette(event.target.value) })}>{COLOR_PALETTES.map((palette) => <option key={palette.id} value={palette.id}>{palette.name}</option>)}</select> : null}<button className="mr-4 text-sm text-accent" onClick={() => setIsMonitor(!isMonitor)}>{isMonitor ? "返回外观设置" : "查看监控示例"}</button>
-        {os === "mac" ? null : <WindowControls />}
-      </header>
-      <div className="relative flex min-h-0 min-w-0 flex-1">
-        {sidebar.open ? <aside style={{ width: sidebar.width, flexShrink: 0 }}><WorkspaceRail /></aside> : null}
-        <main className="glass-chrome-main min-w-0 flex-1">{isMonitor ? <PaletteMonitorFixture /> : <SettingsPage />}</main>
+  return <>
+    <WorkspaceLayout>
+      <div className="min-h-0 min-w-0 flex-1">
+        {session.settingsOpen ? (isMonitor ? <PaletteMonitorFixture /> : <SettingsPage />) : session.workspace === "inspect" ? <InspectPage /> : <PaletteMonitorFixture />}
       </div>
-    </div>
+    </WorkspaceLayout>
+    <button className="absolute right-4 bottom-4 z-30 bg-surface p-2 text-sm text-accent" onClick={() => { session.openSettings(true); setIsMonitor(!isMonitor); }}>{isMonitor ? "返回外观设置" : "查看监控示例"}</button>
     <output className="sr-only" aria-label="隔离操作结果">{last}</output>
     <output className="sr-only" aria-label="导航历史分区">{session.settingsSection}</output>
-  </div>;
+  </>;
+
 }
 const root = createRoot(document.getElementById("app")!);
 import.meta.hot?.dispose(() => root.unmount());

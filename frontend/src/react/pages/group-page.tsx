@@ -1,3 +1,4 @@
+import { PageRefreshButton } from "@/react/components/page";
 import { currentGroupSample } from "@/utils/groupSnapshot";
 import { snapshotAlerts } from "@/react/components/workbench/group-trends";
 import { useWorkbenchState } from "@/react/components/workbench/state";
@@ -644,6 +645,7 @@ export function GroupPage({
           <div className="min-w-0"><h1>{groupLabel}</h1><p>{summaryText}</p></div>
         </div>
         <div className="workbench-group-toolbar" role="region" aria-label="分组操作" tabIndex={0}>
+          <PageRefreshButton />
           <Button size="sm" variant="secondary" disabled={!hosts.length || isInstalling} onClick={() => setIsAgentCheckOpen(true)}>
             检查 Agent
           </Button>

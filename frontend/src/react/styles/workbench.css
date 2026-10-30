@@ -3,12 +3,9 @@
   display: flex;
   flex: 1;
   min-width: 0;
-  margin: 0 calc(var(--window-controls-inset, 0px) + 16px) 0 8px;
+  margin: 0 calc(var(--window-controls-inset, 0px) + 16px) 0 0;
   height: 100%;
   pointer-events: auto;
-}
-.shell-app-toolbar[data-sidebar-docked="true"] .workbench-tabs {
-  margin-left: 0;
 }
 .workbench-tab,
 .workbench-more {

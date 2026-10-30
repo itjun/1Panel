@@ -24,6 +24,7 @@ import {
   type SpeedtestSection,
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
+import { WORKSPACE_DESIGNS } from "@/react/lib/workspace-design";
 import { useSidebar } from "@/react/state/sidebar";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
@@ -315,6 +316,7 @@ export function WorkspaceRail() {
         style={{ width: sidebarWidth, minWidth: sidebarWidth }}
         aria-label="二级导航"
       >
+      <div className="workspace-rail-heading drag-region">{WORKSPACE_DESIGNS[session.settingsOpen ? "settings" : session.workspace].title}</div>
       <div
         key={listKind}
         className="motion-fade-in flex min-h-0 flex-1 flex-col overflow-auto"
@@ -494,7 +496,6 @@ function RailNavButton({
   active: boolean;
   onClick: () => void;
 }) {
-  const sidebar = useSidebar();
   return (
     <button
       type="button"
@@ -503,7 +504,7 @@ function RailNavButton({
         active ? "rail-item-active" : "text-muted hover:bg-line hover:text-ink",
       )}
       aria-current={active ? "page" : undefined}
-      onClick={() => { onClick(); sidebar.closeOverlay(); }}
+      onClick={onClick}
     >
       <span className="truncate">{label}</span>
     </button>

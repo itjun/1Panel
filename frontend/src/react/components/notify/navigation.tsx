@@ -50,7 +50,6 @@ export function NotifyNavigation() {
   }
   return (
     <nav className="notify-navigation" aria-label="通知中心">
-      <h2>通知中心</h2>
       {groups.map(({ source, icon: Icon }) => {
         const info = NOTIFY_SOURCE[source];
         return (

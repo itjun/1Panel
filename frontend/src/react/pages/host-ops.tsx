@@ -1,3 +1,4 @@
+import { PageRefreshButton } from "@/react/components/page";
 import { collectionState } from "@/utils/collectionState";
 import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
 import { OverviewConnections, OverviewDetails } from "@/react/components/overview/device-overview";
@@ -417,6 +418,7 @@ function OverviewPage({ host }: { host: string }) {
             {overview.dataUpdatedAt > 0 ? <span>{collection.unavailable ? "上次采样" : "采样于"} {new Date(overview.dataUpdatedAt).toLocaleString("zh-CN", { hour12: false })}</span> : null}
           </>}
           actions={<>
+            <PageRefreshButton />
             <Button size="sm" disabled={isInstalling} onClick={() => setCheckHost(host)}>
               检查 Agent
             </Button>
