@@ -79,6 +79,10 @@ func (s *Files) ListLocalDir(dir string) ([]monitor.FileEntry, error) {
 		}
 		dir = home
 	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, fmt.Errorf("解析本机目录失败: %w", err)
+	}
 	ents, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("读本机目录失败: %w", err)
