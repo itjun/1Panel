@@ -18,6 +18,12 @@ func (c *Collector) CollectLog(host, logType string, opt sshd.ConnectOption, lin
 	script := buildLogScript(logType, lines)
 	out, err := c.mgr.Run(host, opt, script, sshd.RunOptions{Timeout: 15 * time.Second})
 	if err != nil {
+		if logType == "nginx_access" || logType == "nginx_error" {
+			message := strings.TrimSpace(string(out))
+			if strings.HasPrefix(message, "日志文件不存在：") || strings.HasPrefix(message, "没有权限读取日志：") {
+				return LogResult{}, fmt.Errorf("%s", message)
+			}
+		}
 		return LogResult{}, err
 	}
 	return parseLogResult(string(out)), nil
@@ -44,11 +50,11 @@ func buildLogScript(logType string, lines int) string {
 			n)
 	case "nginx_access":
 		return fmt.Sprintf(
-			`if [ -f /var/log/nginx/access.log ]; then echo "=SOURCE=/var/log/nginx/access.log"; echo "=CONTENT="; tail -n %[1]s /var/log/nginx/access.log; else echo "=SOURCE="; echo "=CONTENT="; fi`,
+			`if [ ! -f /var/log/nginx/access.log ]; then echo "日志文件不存在：/var/log/nginx/access.log" >&2; exit 1; fi; if [ ! -r /var/log/nginx/access.log ]; then echo "没有权限读取日志：/var/log/nginx/access.log" >&2; exit 1; fi; echo "=SOURCE=/var/log/nginx/access.log"; echo "=CONTENT="; tail -n %[1]s /var/log/nginx/access.log`,
 			n)
 	case "nginx_error":
 		return fmt.Sprintf(
-			`if [ -f /var/log/nginx/error.log ]; then echo "=SOURCE=/var/log/nginx/error.log"; echo "=CONTENT="; tail -n %[1]s /var/log/nginx/error.log; else echo "=SOURCE="; echo "=CONTENT="; fi`,
+			`if [ ! -f /var/log/nginx/error.log ]; then echo "日志文件不存在：/var/log/nginx/error.log" >&2; exit 1; fi; if [ ! -r /var/log/nginx/error.log ]; then echo "没有权限读取日志：/var/log/nginx/error.log" >&2; exit 1; fi; echo "=SOURCE=/var/log/nginx/error.log"; echo "=CONTENT="; tail -n %[1]s /var/log/nginx/error.log`,
 			n)
 	default:
 		return `echo "=SOURCE="; echo "=CONTENT="`
