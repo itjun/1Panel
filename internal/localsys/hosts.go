@@ -31,6 +31,7 @@ func CollectHosts() (*HostsInfo, error) {
 	}
 	raw := string(b)
 	return &HostsInfo{
+		Path:    hostsFilePath(),
 		Raw:     raw,
 		Entries: ParseHosts(raw),
 	}, nil

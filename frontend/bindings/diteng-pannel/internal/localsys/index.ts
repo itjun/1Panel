@@ -10,6 +10,7 @@ export type {
     NetworkSnapshot,
     NginxFile,
     NginxInfo,
+    NginxLogResult,
     Overview,
     Package,
     PackageSize,

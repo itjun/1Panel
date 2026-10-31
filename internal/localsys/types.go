@@ -128,6 +128,8 @@ type NginxInfo struct {
 	ConfDir   string       `json:"confDir"`
 	ConfD     string       `json:"confD"` // 列表来源的 conf.d 目录
 	Files     []NginxFile  `json:"files"`
+	AccessLogPath string `json:"accessLogPath"`
+	ErrorLogPath string `json:"errorLogPath"`
 }
 
 // NginxFile 配置文件条目（不含内容）。
@@ -139,6 +141,7 @@ type NginxFile struct {
 
 // HostsInfo /etc/hosts 内容。
 type HostsInfo struct {
+	Path    string       `json:"path"`
 	Raw     string       `json:"raw"`
 	Entries []HostEntry  `json:"entries"`
 }

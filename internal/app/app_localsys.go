@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"diteng-pannel/internal/aptsource"
 	"diteng-pannel/internal/localsys"
 )
@@ -36,6 +37,10 @@ func (s *LocalSys) Nginx() (*localsys.NginxInfo, error) {
 
 func (s *LocalSys) NginxRead(path string) (string, error) {
 	return localsys.NginxRead(path)
+}
+
+func (s *LocalSys) NginxLog(ctx context.Context, kind string, lines int) (localsys.NginxLogResult, error) {
+	return localsys.ReadNginxLog(ctx, kind, lines)
 }
 
 func (s *LocalSys) Hosts() (*localsys.HostsInfo, error) {

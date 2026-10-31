@@ -24,6 +24,10 @@ export function AptSources(): $CancellablePromise<aptsource$0.Snapshot | null> {
     return $Call.ByID(3123481622);
 }
 
+export function ExportNginxLogs(logDir: string, temporaryDir: string, requestID: string): $CancellablePromise<string> {
+    return $Call.ByID(1668388106, logDir, temporaryDir, requestID);
+}
+
 export function Hosts(): $CancellablePromise<localsys$0.HostsInfo | null> {
     return $Call.ByID(3078227344);
 }
@@ -34,6 +38,14 @@ export function Network(): $CancellablePromise<localsys$0.NetworkSnapshot | null
 
 export function Nginx(): $CancellablePromise<localsys$0.NginxInfo | null> {
     return $Call.ByID(69165155);
+}
+
+export function NginxLog(kind: string, lines: number): $CancellablePromise<localsys$0.NginxLogResult> {
+    return $Call.ByID(3919750819, kind, lines);
+}
+
+export function NginxLogExportDefaults(): $CancellablePromise<{ [_ in string]?: string } | null> {
+    return $Call.ByID(578082235);
 }
 
 export function NginxRead(path: string): $CancellablePromise<string> {

@@ -33,6 +33,7 @@ func collectNginxInfo(bin string, fallbacks []string, running bool) *NginxInfo {
 		info.Files = listConfDFiles(info.ConfD)
 	}
 	info.Running = running
+	info.AccessLogPath, info.ErrorLogPath = detectNginxLogs(bin, conf)
 	return info
 }
 

@@ -61,6 +61,7 @@ export interface HostEntry {
  * HostsInfo /etc/hosts 内容。
  */
 export interface HostsInfo {
+    "path": string;
     "raw": string;
     "entries": HostEntry[] | null;
 }
@@ -128,6 +129,13 @@ export interface NginxInfo {
      */
     "confD": string;
     "files": NginxFile[] | null;
+    "accessLogPath": string;
+    "errorLogPath": string;
+}
+
+export interface NginxLogResult {
+    "source": string;
+    "content": string;
 }
 
 /**

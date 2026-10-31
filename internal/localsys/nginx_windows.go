@@ -39,6 +39,7 @@ func CollectNginx() (*NginxInfo, error) {
 	if nginxIsRunningWin() {
 		info.Running = true
 	}
+	info.AccessLogPath, info.ErrorLogPath = detectNginxLogs(bin, conf)
 	return info, nil
 }
 
