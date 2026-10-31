@@ -150,11 +150,11 @@ export function LocalOverviewPage() {
   }
 
   return (
-    <Page heading={false} onRefresh={() => refreshAll()} refreshing={refreshing}>
+    <Page title="系统概览" onRefresh={() => refreshAll()} refreshing={refreshing}>
       {data ? <header className="local-overview-identity"><div className="min-w-0">
-              <h1 className="truncate text-xl font-semibold text-ink">
+              <p className="truncate text-sm font-semibold text-ink">
                 {data.hostname || "本机"}
-              </h1>
+              </p>
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
                 <span>{osText}</span>
                 <span>

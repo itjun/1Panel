@@ -2,13 +2,13 @@ import { Events } from "@wailsio/runtime";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DatabaseBackup,
-  FileJson2,
   Folder,
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, type main } from "@/api";
 import { CodeSurface } from "@/react/components/code-surface";
+import { TextFileList, TextPage, TextReader } from "@/react/components/text-reader";
 import { TH_STICKY_LINE } from "@/react/components/data-table";
 import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { confirmDialog } from "@/react/components/ui/confirm-dialog";
@@ -32,10 +32,6 @@ function time(value: number) {
     second: "2-digit",
     hour12: false,
   });
-}
-
-function compactPath(path?: string) {
-  return path?.replace(/^\/Users\/[^/]+|^\/home\/[^/]+|^[A-Za-z]:\\Users\\[^\\]+/, "~") || "—";
 }
 
 function applicationBackupDir(panelPath?: string) {
@@ -262,6 +258,39 @@ export function ConfigDataPage() {
     );
   }
 
+  if (section === "json" || section === "ssh") {
+    const isJson = section === "json";
+    const isDrift = overview.data?.needsReview || overview.data?.drift || overview.data?.configStale;
+    return (
+      <TextPage title={isJson ? "应用 JSON" : "SSH 配置"} onRefresh={refresh}
+        isRefreshing={overview.isFetching || activeFetching}>
+        {overview.error ? <Notice text={formatErr(overview.error)} /> : null}
+        {isJson ? <>
+          <p className="text-page-note">密码已隐藏。</p>
+          <TextReader path={overview.data?.panelPath} text={jsonText} isLoading={appConfig.isPending}
+            isRefreshing={appConfig.isFetching}
+            error={appConfig.error ? `读取失败：${formatErr(appConfig.error)}` : undefined}
+            footer={<><span>{overview.data?.hostCount ?? "—"} 台主机</span><span>{overview.data?.groupCount ?? "—"} 个分组</span></>}>
+            <CodeSurface value={jsonText} language="json" readOnly />
+          </TextReader>
+        </> : <>
+          {isDrift ? <Notice tone="warning" text="SSH 配置与应用数据存在差异，请先检查当前文件内容。" /> : null}
+          <div className="text-reader-layout">
+            <TextFileList location={overview.data?.sshConfigPath} path={currentFile?.path || ""}
+              onSelect={setSelectedSSH} isLoading={files.isPending}
+              files={sshFiles.map((file) => ({ path: file.path, name: file.path, detail: file.generated ? "生成" : "本机" }))} />
+            <TextReader path={currentFile?.absolutePath || currentFile?.displayPath} text={currentFile?.content || ""}
+              isLoading={files.isPending} isRefreshing={files.isFetching} size={currentFile?.size}
+              error={files.error ? `读取失败：${formatErr(files.error)}` : undefined}
+              emptyText={currentFile ? "暂无内容" : "暂无 SSH 配置文件"}>
+              <CodeSurface value={currentFile?.content || ""} language="ssh" readOnly />
+            </TextReader>
+          </div>
+        </>}
+      </TextPage>
+    );
+  }
+
   return (
     <Page
       title="配置"
@@ -424,119 +453,6 @@ export function ConfigDataPage() {
         </div>
       ) : null}
 
-      {section === "json" ? (
-        <div className="config-data-page config-data-page--fixed">
-          <header className="config-data-header">
-            <div className="config-data-title">
-              <h1>应用 JSON</h1>
-              <p>只读查看当前应用的 panel.json。密码由后端隐藏，不会在此处明文显示。</p>
-            </div>
-            <div className="config-data-actions">
-              <Button disabled={appConfig.isFetching} onClick={() => void appConfig.refetch()}>
-                刷新
-              </Button>
-              <Button disabled={!jsonText} onClick={() => void copy(jsonText, "已复制应用 JSON")}>
-                复制 JSON
-              </Button>
-            </div>
-          </header>
-
-          <div className="config-data-meta">
-            <span className="config-data-path" title={overview.data?.panelPath}>
-              <FileJson2 size={15} strokeWidth={1.5} aria-hidden />
-              <span>{compactPath(overview.data?.panelPath)}</span>
-            </span>
-            <div className="config-data-facts">
-              <Tag tone="info">只读</Tag>
-              <Tag tone="neutral">{overview.data?.hostCount ?? "—"} 台主机</Tag>
-              <Tag tone="neutral">{overview.data?.groupCount ?? "—"} 个分组</Tag>
-            </div>
-          </div>
-
-          {appConfig.error ? <Notice text={formatErr(appConfig.error)} /> : null}
-          <div className="config-data-code-shell">
-            {appConfig.isPending ? (
-              <p className="config-data-code-status" role="status">正在读取应用 JSON…</p>
-            ) : (
-              <CodeSurface value={jsonText} language="json" readOnly />
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {section === "ssh" ? (
-        <div className="config-data-page config-data-page--fixed">
-          <header className="config-data-header">
-            <div className="config-data-title">
-              <h1>SSH 配置</h1>
-              <p>只读查看本机现有的 OpenSSH 配置文件。</p>
-            </div>
-            <div className="config-data-actions">
-              <Button disabled={files.isFetching} onClick={() => void files.refetch()}>
-                刷新
-              </Button>
-              <Button
-                disabled={!currentFile?.content}
-                onClick={() => void copy(currentFile?.content || "", "已复制 SSH 配置")}
-              >
-                复制当前文件
-              </Button>
-            </div>
-          </header>
-
-          <div className="config-data-meta">
-            <span className="config-data-path" title={overview.data?.sshConfigPath}>
-              <FileJson2 size={15} strokeWidth={1.5} aria-hidden />
-              <span>{compactPath(overview.data?.sshConfigPath)}</span>
-            </span>
-            <div className="config-data-facts">
-              <Tag tone="info">只读</Tag>
-              <Tag tone="neutral">{overview.data?.configFileCount ?? sshFiles.length} 个文件</Tag>
-              {overview.data?.needsReview || overview.data?.drift || overview.data?.configStale ? (
-                <Tag tone="warn">存在差异</Tag>
-              ) : null}
-            </div>
-          </div>
-
-          {overview.data?.needsReview || overview.data?.drift || overview.data?.configStale ? (
-            <Notice tone="warning" text="SSH 配置与应用数据存在差异，请先检查当前文件内容。" />
-          ) : null}
-          {files.error ? <Notice text={formatErr(files.error)} /> : null}
-
-          <div className="config-data-ssh-layout">
-            <nav className="config-data-file-list" aria-label="SSH 配置文件">
-              {sshFiles.map((file) => (
-                <button
-                  type="button"
-                  key={file.path}
-                  className={file.path === currentFile?.path ? "is-selected" : ""}
-                  aria-current={file.path === currentFile?.path ? "true" : undefined}
-                  onClick={() => setSelectedSSH(file.path)}
-                  title={file.displayPath}
-                >
-                  <span>{file.path}</span>
-                  <small>{file.generated ? "生成" : "本机"}</small>
-                </button>
-              ))}
-              {!files.isPending && !sshFiles.length ? (
-                <p className="config-data-file-empty">暂无 SSH 配置文件</p>
-              ) : null}
-            </nav>
-            <div className="config-data-ssh-main">
-              <p className="config-data-ssh-path" title={currentFile?.displayPath}>
-                {currentFile?.displayPath || "—"}
-              </p>
-              <div className="config-data-ssh-code">
-                {files.isPending ? (
-                  <p className="config-data-code-status" role="status">正在读取 SSH 配置…</p>
-                ) : (
-                  <CodeSurface value={currentFile?.content || ""} language="ssh" readOnly />
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </Page>
   );
 }

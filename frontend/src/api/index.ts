@@ -444,8 +444,14 @@ const apiImpl = {
   pickAndDownloadNginxLogs: (host: string, logDir: string, temporaryDir: string, requestID: string): CancellablePromise<string> =>
     Files.PickAndDownloadNginxLogs(host, logDir, temporaryDir, requestID),
 
+  isNginxInstalled: (host: string): Promise<boolean> => Files.IsNginxInstalled(host),
+
   /** 本机 Nginx 配置列表 */
   localSysNginx: (): Promise<localsys.NginxInfo> => must(LocalSys.Nginx()),
+  localSysNginxLog: (kind: string, lines: number): Promise<localsys.NginxLogResult> => LocalSys.NginxLog(kind, lines),
+  localSysNginxLogExportDefaults: () => must(LocalSys.NginxLogExportDefaults()),
+  localSysExportNginxLogs: (logDir: string, temporaryDir: string, requestID: string): CancellablePromise<string> =>
+    LocalSys.ExportNginxLogs(logDir, temporaryDir, requestID),
   /** 本机 Nginx 配置文件内容（只读） */
   localSysNginxRead: (path: string): Promise<string> => str(LocalSys.NginxRead(path)),
   /** 本机 /etc/hosts */

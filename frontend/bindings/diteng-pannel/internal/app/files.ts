@@ -66,6 +66,13 @@ export function DownloadSftpPathsAs(host: string, remotePaths: string[] | null, 
 }
 
 /**
+ * IsNginxInstalled 检查远程可执行文件，不把配置目录缺失或连接失败当成未安装。
+ */
+export function IsNginxInstalled(host: string): $CancellablePromise<boolean> {
+    return $Call.ByID(1318417972, host);
+}
+
+/**
  * ListLocalDir 列本机目录，给 SFTP 左栏用。
  */
 export function ListLocalDir(dir: string): $CancellablePromise<monitor$0.FileEntry[] | null> {

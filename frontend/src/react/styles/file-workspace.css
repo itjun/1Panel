@@ -1,0 +1,40 @@
+/* 仅作用于 Nginx / Hosts，其他阅读页和双击预览保持既有布局。 */
+.file-workspace-page > .text-page-header {
+  height: 44px;
+  min-height: 44px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.file-workspace-page .text-page-header > * { flex-shrink: 0; }
+.file-workspace-page .text-page-header :is(h1, button, input) {
+  box-sizing: border-box;
+  height: 32px;
+  min-height: 32px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.file-workspace-page .text-page-header h1 { display: flex; align-items: center; }
+.file-workspace-page .text-page-header button[aria-label="刷新"] { width: 32px; }
+.file-workspace-page .text-page-header-controls { overflow: visible; }
+.file-workspace-page .text-page-actions { flex-wrap: nowrap; }
+.file-workspace-page .text-page-filters { flex-wrap: nowrap; margin-left: 0; }
+.file-workspace-page .text-page-filters input { width: 160px; }
+.file-workspace-page > .text-page-content { gap: 0; }
+.file-workspace {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.file-workspace > .text-file-list { border-right: 1px solid var(--color-line); }
+.file-workspace .text-file-list-heading { height: 36px; }
+.file-workspace .text-file-list-heading span:first-child { font-family: var(--font-sans); color: var(--color-ink); font-weight: 600; }
+.file-workspace .text-reader-location { height: 36px; padding: 0 12px; }
+.file-workspace .text-reader-footer { height: 28px; min-height: 28px; padding: 0 12px; }
+@container text-page (max-width: 680px) {
+  .file-workspace { grid-template-columns: 190px minmax(0, 1fr); }
+}

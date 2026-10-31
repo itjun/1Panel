@@ -20,7 +20,7 @@ type Progress = {
   required: number;
   reserve: number;
 };
-type ExportEvent = { host: string; requestID: string; progress: Progress };
+type ExportEvent = { scope?: "local"; host: string; requestID: string; progress: Progress };
 
 function bytes(value: number): string {
   return value >= 1024 ** 3
@@ -28,10 +28,10 @@ function bytes(value: number): string {
     : `${(value / 1024 ** 2).toFixed(1)} MiB`;
 }
 
-export function NginxLogDownload({ host }: { host: string }) {
+export function NginxLogDownload({ host = "", isLocal = false, logPath }: { host?: string; isLocal?: boolean; logPath?: string }) {
   const [open, setOpen] = useState(false);
-  const [logDir, setLogDir] = useState("/var/log/nginx");
-  const [temporaryDir, setTemporaryDir] = useState("/var/tmp");
+  const [logDir, setLogDir] = useState(isLocal ? (logPath?.replace(/[\\/][^\\/]*$/, "") || "") : "/var/log/nginx");
+  const [temporaryDir, setTemporaryDir] = useState(isLocal ? "" : "/var/tmp");
   const [busy, setBusy] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -42,11 +42,27 @@ export function NginxLogDownload({ host }: { host: string }) {
   const task = useRef<CancellablePromise<string> | null>(null);
   const requestID = useRef("");
   const cancelling = useRef(false);
+  const isLogDirEdited = useRef(false);
+
+  useEffect(() => {
+    if (isLocal && logPath && !open && !isLogDirEdited.current) {
+      setLogDir(logPath.replace(/[\\/][^\\/]*$/, ""));
+    }
+  }, [isLocal, logPath, open]);
+
+  useEffect(() => {
+    if (!isLocal) return;
+    let isCurrent = true;
+    api.localSysNginxLogExportDefaults().then((defaults) => {
+      if (isCurrent) setTemporaryDir(defaults.temporaryDir || "");
+    }).catch((error) => { if (isCurrent) setMessage(formatErr(error)); });
+    return () => { isCurrent = false; };
+  }, [isLocal]);
 
   useEffect(() => {
     const off = Events.On("nginx-log-progress", (event: { data?: ExportEvent }) => {
       const data = event.data;
-      if (data?.host !== host || data.requestID !== requestID.current) return;
+      if (!data || (data.scope === "local") !== isLocal || data.host !== host || data.requestID !== requestID.current) return;
       setProgress(data.progress);
       if (data.progress.phase === "checked") setChecked(data.progress);
     });
@@ -56,7 +72,7 @@ export function NginxLogDownload({ host }: { host: string }) {
       task.current?.cancel();
       task.current = null;
     };
-  }, [host]);
+  }, [host, isLocal]);
 
   function showDialog() {
     if (requestID.current) return;
@@ -90,10 +106,12 @@ export function NginxLogDownload({ host }: { host: string }) {
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       if (requestID.current !== id) return;
       if (cancelling.current) {
-        setMessage("下载已取消。");
+        setMessage("导出已取消。");
         return;
       }
-      const pending = api.pickAndDownloadNginxLogs(host, logDir.trim(), temporaryDir.trim(), id);
+      const pending = isLocal
+        ? api.localSysExportNginxLogs(logDir.trim(), temporaryDir.trim(), id)
+        : api.pickAndDownloadNginxLogs(host, logDir.trim(), temporaryDir.trim(), id);
       task.current = pending;
       const path = await pending;
       if (requestID.current === id && path) {
@@ -102,7 +120,7 @@ export function NginxLogDownload({ host }: { host: string }) {
       }
     } catch (error) {
       if (requestID.current === id) {
-        setMessage(cancelling.current ? "下载已取消，正在清理临时文件。" : formatErr(error));
+        setMessage(cancelling.current ? "导出已取消，正在清理临时文件。" : formatErr(error));
       }
     } finally {
       if (requestID.current === id) {
@@ -121,11 +139,11 @@ export function NginxLogDownload({ host }: { host: string }) {
   }
 
   const phase = progress?.phase;
-  let status = "选择保存位置并连接主机…";
+  let status = isLocal ? "选择保存位置…" : "选择保存位置并连接主机…";
   if (phase === "compressing") {
     status = "正在压缩日志…";
   } else if (phase === "downloading") {
-    status = "正在下载压缩包…";
+    status = "正在导出压缩包…";
   } else if (phase === "complete") {
     status = "正在校验并保存…";
   } else if (phase === "checked") {
@@ -133,33 +151,35 @@ export function NginxLogDownload({ host }: { host: string }) {
   } else if (phase === "checking") {
     status = "正在检查日志与磁盘空间…";
   }
+  if (phase === "saving") status = "正在保存压缩包…";
+  const isAbsolutePath = (path: string) => isLocal ? /^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path.trim()) : path.trim().startsWith("/");
   const percent = progress?.total ? Math.min(100, progress.done / progress.total * 100) : 0;
 
   return (
     <>
       <FlashNotices flash={flash} />
       <Button size="sm" disabled={open || busy} aria-haspopup="dialog" aria-expanded={open} onClick={showDialog}>
-        <Download className="size-4" />下载日志
+        <Download className="size-4" />导出日志
       </Button>
       <Dialog open={open} onOpenChange={(value) => { if (!requestID.current) setOpen(value); }}>
         <DialogContent aria-describedby={undefined} ref={dialog} className={`w-[min(560px,calc(100vw-32px))] ${busy ? "overflow-hidden" : ""}`} aria-busy={busy}
           onEscapeKeyDown={(event) => { if (requestID.current) event.preventDefault(); }}
           onPointerDownOutside={(event) => { if (requestID.current) event.preventDefault(); }}>
-          <DialogTitle>下载 Nginx 日志</DialogTitle>
+          <DialogTitle>导出 Nginx 日志</DialogTitle>
           <div inert={busy} aria-hidden={busy || undefined}>
             <div className="mt-4 flex flex-col gap-4 text-sm">
               <label className="flex flex-col gap-2">
-                <span>远程日志目录</span>
-                <input className="motion-field h-9 w-full rounded-control px-3 font-mono text-sm text-ink disabled:text-muted" value={logDir} disabled={busy} onChange={(event) => { setLogDir(event.target.value); setChecked(null); setMessage(null); }} />
+                <span>{isLocal ? "本机日志目录" : "远程日志目录"}</span>
+                <input className="motion-field h-9 w-full rounded-control px-3 font-mono text-sm text-ink disabled:text-muted" value={logDir} disabled={busy} onChange={(event) => { isLogDirEdited.current = true; setLogDir(event.target.value); setChecked(null); setMessage(null); }} />
               </label>
               <label className="flex flex-col gap-2">
-                <span>远程压缩临时目录</span>
+                <span>{isLocal ? "本机压缩临时目录" : "远程压缩临时目录"}</span>
                 <input className="motion-field h-9 w-full rounded-control px-3 font-mono text-sm text-ink disabled:text-muted" value={temporaryDir} disabled={busy} onChange={(event) => { setTemporaryDir(event.target.value); setChecked(null); setMessage(null); }} />
               </label>
               {checked ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
                   <dt className="text-muted">文件修改日期</dt><dd>{checked.date}（主机时间）</dd>
-                  <dt className="text-muted">选中文件大小</dt><dd>{bytes(checked.total)} · {checked.files} 个文件</dd>
+                  <dt className="text-muted">选中文件大小</dt><dd>{bytes(checked.total)}，{checked.files} 个文件</dd>
                   <dt className="text-muted">磁盘可用</dt><dd>{bytes(checked.available)}</dd>
                   <dt className="text-muted">压缩空间预算</dt><dd>{bytes(checked.required)}</dd>
                   <dt className="text-muted">安全预留</dt><dd>{bytes(checked.reserve)}</dd>
@@ -170,34 +190,34 @@ export function NginxLogDownload({ host }: { host: string }) {
             </div>
             <DialogFooter>
               <Button disabled={busy} onClick={() => setOpen(false)}>关闭</Button>
-              <Button variant="primary" onClick={() => void start()} disabled={busy || !logDir.trim().startsWith("/") || !temporaryDir.trim().startsWith("/")}>下载</Button>
+              <Button variant="primary" onClick={() => void start()} disabled={busy || !isAbsolutePath(logDir) || !isAbsolutePath(temporaryDir)}>导出</Button>
             </DialogFooter>
           </div>
           {busy ? (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 rounded-panel bg-surface/95 px-8 py-6">
               <div role="status" aria-live="polite" className="flex w-full flex-col gap-3 text-sm">
-                <div className="flex items-center justify-center gap-2"><LoaderCircle className="size-4 animate-spin text-accent" />{cancelRequested ? "正在取消下载…" : status}</div>
+                <div className="flex items-center justify-center gap-2"><LoaderCircle className="size-4 animate-spin text-accent" />{cancelRequested ? "正在取消导出…" : status}</div>
                 {checked ? (
                   <>
                     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 tabular-nums">
                       <dt className="text-muted">文件修改日期</dt><dd className="text-right">{checked.date}（主机时间）</dd>
-                      <dt className="text-muted">选中文件大小</dt><dd className="text-right">{bytes(checked.total)} · {checked.files} 个文件</dd>
+                      <dt className="text-muted">选中文件大小</dt><dd className="text-right">{bytes(checked.total)}，{checked.files} 个文件</dd>
                     </dl>
                     {checked.skipped > 0 ? <p className="text-center text-xs text-muted">{checked.skipped} 个日志文件非当天修改或不是普通文件，仅打包符合条件的文件。</p> : null}
                   </>
                 ) : null}
-                {phase === "compressing" || phase === "downloading" ? (
+                {phase === "compressing" || phase === "downloading" || phase === "saving" ? (
                   <>
-                    <div className="h-2 w-full overflow-hidden rounded-control bg-raised" role="progressbar" aria-label={phase === "compressing" ? "压缩进度" : "下载进度"} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
+                    <div className="h-2 w-full overflow-hidden rounded-control bg-raised" role="progressbar" aria-label={phase === "compressing" ? "压缩进度" : "保存进度"} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
                       <div className="h-full bg-accent" style={{ width: `${percent}%` }} />
                     </div>
                     <span className="text-center text-xs text-muted tabular-nums">
-                      {phase === "compressing" ? "已压缩" : "已下载"} {bytes(progress?.done || 0)} / {bytes(progress?.total || 0)} · {percent.toFixed(0)}%
+                      {phase === "compressing" ? "已压缩" : "已保存"} {bytes(progress?.done || 0)} / {bytes(progress?.total || 0)}，{percent.toFixed(0)}%
                     </span>
                   </>
                 ) : null}
               </div>
-              <Button disabled={cancelRequested} onClick={cancel}>{cancelRequested ? "正在取消" : "取消下载"}</Button>
+              <Button disabled={cancelRequested} onClick={cancel}>{cancelRequested ? "正在取消" : "取消导出"}</Button>
             </div>
           ) : null}
         </DialogContent>

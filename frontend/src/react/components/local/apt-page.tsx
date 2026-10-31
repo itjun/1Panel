@@ -1,4 +1,3 @@
-import { CurrentTextRefresh } from "@/react/components/current-text-refresh";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
@@ -36,7 +35,6 @@ export function LocalAptPage() {
       flush
       actions={<>
         <span className="font-mono text-sm text-muted">{hint}</span>
-        <CurrentTextRefresh onRefresh={() => void query.refetch()} refreshing={query.isFetching} disabled={!chosen} />
       </>}
       onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
     >

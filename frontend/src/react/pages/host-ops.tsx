@@ -1,4 +1,3 @@
-import { PageRefreshButton } from "@/react/components/page";
 import { collectionState } from "@/utils/collectionState";
 import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
 import { OverviewConnections, OverviewDetails } from "@/react/components/overview/device-overview";
@@ -64,6 +63,7 @@ import {
   formatRateKBps,
   isAgentMissing,
 } from "@/utils/format";
+import { TextPage, TextViewTabs } from "@/react/components/text-reader";
 import { HostLogContent, HostLogControls, useHostLog } from "@/react/components/host-log-viewer";
 import { parseCronLine } from "@/utils/cron";
 
@@ -418,7 +418,6 @@ function OverviewPage({ host }: { host: string }) {
             {overview.dataUpdatedAt > 0 ? <span>{collection.unavailable ? "上次采样" : "采样于"} {new Date(overview.dataUpdatedAt).toLocaleString("zh-CN", { hour12: false })}</span> : null}
           </>}
           actions={<>
-            <PageRefreshButton />
             <Button size="sm" disabled={isInstalling} onClick={() => setCheckHost(host)}>
               检查 Agent
             </Button>
@@ -1816,26 +1815,13 @@ function LogsPage({ host }: { host: string }) {
   const log = useHostLog(host, kind);
 
   return (
-    <Page
-      title="系统日志"
-      actions={
-        <>
-          {logTypes.map((item) => (
-            <Button
-              key={item.key}
-              variant={kind === item.key ? "primary" : "secondary"}
-              onClick={() => setKind(item.key)}
-            >
-              {item.label}
-            </Button>
-          ))}
-          <HostLogControls log={log} />
-        </>
-      }
-      onRefresh={async () => { await log.query.refetch({ throwOnError: true }); return true; }}
-      refreshing={log.query.isFetching}
-    >
+    <TextPage title="系统日志"
+      controls={<>
+        <TextViewTabs label="日志类型" items={logTypes} value={kind} onChange={setKind} />
+        <div className="text-page-filters"><HostLogControls log={log} /></div>
+      </>}
+      onRefresh={() => log.query.refetch({ throwOnError: true })} isRefreshing={log.query.isFetching}>
       <HostLogContent log={log} />
-    </Page>
+    </TextPage>
   );
 }

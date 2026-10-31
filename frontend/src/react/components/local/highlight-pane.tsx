@@ -9,6 +9,7 @@ export function HighlightPane({
   pinBottom = false,
   wrap = false,
   label,
+  showCopy = true,
 }: {
   html: string;
   text: string;
@@ -16,6 +17,7 @@ export function HighlightPane({
   pinBottom?: boolean;
   wrap?: boolean;
   label?: string;
+  showCopy?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
@@ -38,7 +40,7 @@ export function HighlightPane({
 
   return (
     <div className="local-code-pane">
-      {text ? (
+      {text && showCopy ? (
         <button
           type="button"
           className={copied ? "local-code-copy is-copied" : "local-code-copy"}
