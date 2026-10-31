@@ -6,8 +6,6 @@
 .workspace-sidebar{display:flex;min-height:0;flex-shrink:0}
 @media(max-width:1050px){.workbench-tabs{margin-right:calc(var(--window-controls-inset,0px) + 8px);margin-left:0}}
 
-.host-home-toolbar{flex-wrap:wrap}
-.host-home-toolbar>h1{margin-right:12px}
 .local-overview-identity{padding-block:4px 12px;border-bottom:0.5px solid var(--color-line)}
 .local-overview-sections{container:local-overview / inline-size}
 .local-overview-system{order:2;border-top:0.5px solid var(--color-line);padding-top:16px}

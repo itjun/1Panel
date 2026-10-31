@@ -186,6 +186,19 @@ html.dark {
     overscroll-behavior: none;
   }
 
+  /* 桌面界面默认不允许拖选文字；输入框和编辑区仍可正常选择、复制。 */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable="false"]) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   .react-root {
     height: 100%;
     margin: 0;
@@ -308,8 +321,6 @@ pre,
 .drag-region :is(button, a, input, textarea, select, label, [role="button"]) {
   --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
-  user-select: auto;
-  -webkit-user-select: auto;
 }
 
 /* 侧栏保留配色的辅助色；通栏与内容面组成独立工作区，只靠色块区分。 */
@@ -785,11 +796,20 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
 .workspace-rail-heading {
   display: flex;
   align-items: center;
-  min-height: 40px;
-  padding: 0 20px;
+  min-height: 56px;
+  padding: 12px 16px;
   flex-shrink: 0;
-  font-weight: 600;
   color: var(--color-ink);
+}
+.workspace-rail-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.host-home-page > .content-float {
+  padding-top: 16px;
 }
 
 /* Windows/Linux：Frameless 窗口无系统按钮，右上角由前端自绘
@@ -799,7 +819,7 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
   --window-controls-inset: 124px;
 }
 /* 没有通栏时，页内标题行给窗口按钮让出右侧空间。 */
-.react-root:is([data-os="win"], [data-os="linux"]) .shell-content:not([data-workspace-toolbar]) :is(.uiux-page-tools, .settings-header, .host-home-toolbar, .workbench-group-heading) {
+.react-root:is([data-os="win"], [data-os="linux"]) .shell-content:not([data-workspace-toolbar]) :is(.uiux-page-tools, .settings-header, .workbench-group-heading) {
   padding-right: var(--window-controls-inset);
 }
 
@@ -824,8 +844,6 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
 .shell-app-toolbar :is(button, a, input, textarea, select, label, [role="button"]) {
   --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
-  user-select: auto;
-  -webkit-user-select: auto;
 }
 
 /* ---------- 动效工具类（机柜面板规范 docs/design/specification.md §5） ---------- */

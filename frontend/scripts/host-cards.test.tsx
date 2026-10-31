@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { main, monitor } from "../src/api";
 import { HostCardContent } from "../src/react/components/host-card";
-import { hostCardView, summarizeHostAgents, summarizeHostCards } from "../src/utils/hostCardModel";
+import { hostCardHighlightTone, hostCardView, summarizeHostAgents, summarizeHostCards, type HostCardHighlight } from "../src/utils/hostCardModel";
 import { HostCardPoller, type HostCardEntry } from "../src/utils/hostCardPoller";
 
 const now = 100000;
@@ -130,6 +130,45 @@ describe("紧凑主机卡状态", () => {
     expect(summarizeHostAgents(["running", "running", "stopped", "missing", "stale", "pending"], entries, now, "0.2.53"))
       .toEqual({ running: 1, problem: 2, unknown: 2, outdated: 1 });
     expect(summarizeHostAgents(["running"], entries, now, "").outdated).toBe(0);
+  });
+
+  test("高亮名单与汇总数量一致，区分主机待确认和 Agent 待确认", () => {
+    const entries: Record<string, HostCardEntry> = {
+      normal: entry(),
+      resource: entry({ overview: { ...snapshot().overview!, cpuPercent: 90 } }),
+      stopped: entry({ agentState: "stopped" }),
+      missing: entry({ agentState: "missing" }),
+      failed: entry({ connection: "failed", agentState: "unknown", error: "连接失败" }),
+      partial: entry({ disks: [] }),
+      outdated: entry({ agentVersion: "1.2.2" }),
+      stale: { ...entry(), updatedAt: now - 15001 },
+    };
+    const names = [...Object.keys(entries), "pending", "resource"];
+    const fleet = summarizeHostCards(names, entries, now);
+    const agents = summarizeHostAgents(names, entries, now, "1.2.3");
+    const cases: [HostCardHighlight, string[], number, string][] = [
+      ["host-attention", ["resource", "stopped", "missing", "failed"], fleet.attention, "warn"],
+      ["host-unknown", ["partial", "stale", "pending"], fleet.unknown, "info"],
+      ["agent-problem", ["stopped", "missing"], agents.problem, "warn"],
+      ["agent-unknown", ["failed", "stale", "pending"], agents.unknown, "info"],
+      ["agent-outdated", ["outdated"], agents.outdated, "warn"],
+    ];
+    for (const [highlight, expected, count, tone] of cases) {
+      const highlighted = [...new Set(names)].filter(name => hostCardHighlightTone(entries[name], now, highlight, "1.2.3"));
+      expect(highlighted).toEqual(expected);
+      expect(highlighted.length).toBe(count);
+      for (const name of highlighted) expect(hostCardHighlightTone(entries[name], now, highlight, "1.2.3")).toBe(tone);
+    }
+  });
+
+  test("取消高亮、状态恢复和数据过期都会撤下原来的警告色", () => {
+    const missing = entry({ agentState: "missing" });
+    expect(hostCardHighlightTone(missing, now, null)).toBeUndefined();
+    expect(hostCardHighlightTone(missing, now, "agent-problem")).toBe("warn");
+    expect(hostCardHighlightTone(entry(), now, "agent-problem")).toBeUndefined();
+    expect(hostCardHighlightTone(missing, now + 15001, "agent-problem")).toBeUndefined();
+    expect(hostCardHighlightTone(missing, now + 15001, "agent-unknown")).toBe("info");
+    expect(hostCardHighlightTone(entry({ agentVersion: "1.2.2" }), now, "agent-outdated")).toBeUndefined();
   });
 });
 

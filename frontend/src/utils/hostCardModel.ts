@@ -3,6 +3,7 @@ import { usageTone, type UsageTone } from "@/react/lib/usage-tone";
 import { HOST_CARD_DETAILS_STALE_MS, HOST_CARD_STALE_MS, type HostCardEntry } from "./hostCardPoller";
 
 export type HostCardMetric = { label: string; value?: number; tone?: UsageTone; detail: string };
+export type HostCardHighlight = "host-attention" | "host-unknown" | "agent-problem" | "agent-unknown" | "agent-outdated";
 
 function knownPercent(value: number | undefined): number | undefined {
   return value != null && Number.isFinite(value) && value >= 0 ? Math.min(value, 100) : undefined;
@@ -78,6 +79,18 @@ export function summarizeHostCards(names: string[], entries: Record<string, Host
     else summary.normal += 1;
   }
   return summary;
+}
+
+export function hostCardHighlightTone(entry: HostCardEntry | undefined, now: number, highlight: HostCardHighlight | null, latestAgentVersion = ""): "warn" | "info" | undefined {
+  if (!highlight) return undefined;
+  const view = hostCardView(entry, now, latestAgentVersion);
+  switch (highlight) {
+    case "host-attention": return view.isAttention ? "warn" : undefined;
+    case "host-unknown": return view.isUnknown ? "info" : undefined;
+    case "agent-problem": return view.agentState === "missing" || view.agentState === "stopped" ? "warn" : undefined;
+    case "agent-unknown": return view.agentState !== "running" && view.agentState !== "missing" && view.agentState !== "stopped" ? "info" : undefined;
+    case "agent-outdated": return view.isAgentOutdated ? "warn" : undefined;
+  }
 }
 
 export function summarizeHostAgents(names: string[], entries: Record<string, HostCardEntry>, now: number, latestAgentVersion = "") {

@@ -18,6 +18,7 @@ export function AgentFleetCheckDialog({ hosts, latestVersion, onClose }: {
   const [isChecking, setIsChecking] = useState(true);
   const generation = useRef(0);
   const installTask = useAgentInstall();
+  const targetVersion = latestVersion.trim().replace(/^v/, "");
 
   function runCheck() {
     const current = ++generation.current;
@@ -45,22 +46,31 @@ export function AgentFleetCheckDialog({ hosts, latestVersion, onClose }: {
     <Dialog open onOpenChange={isOpen => { if (!isOpen) onClose(); }}>
       <DialogContent className="w-[min(960px,calc(100vw-32px))]">
         <DialogTitle>检查 Agent</DialogTitle>
-        <DialogDescription>
-          {isChecking ? `正在检查 ${checked} / ${targets.length} 台主机…`
-            : `检查完成：${repairable.length} 台可处理${needsReview ? `，${needsReview} 台需查看` : ""}。`}
+        <DialogDescription className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+          <span>{isChecking ? `正在检查 ${checked} / ${targets.length} 台主机…`
+            : `检查完成：${repairable.length} 台可处理${needsReview ? `，${needsReview} 台需查看` : ""}。`}</span>
+          <span>最新版本 <strong className="font-semibold text-ink">{targetVersion ? `v${targetVersion}` : "暂不可用"}</strong></span>
         </DialogDescription>
         <div className="agent-fleet-list">
           <table className="agent-fleet-table" aria-label="Agent 检查结果">
-            <thead><tr><th scope="col">主机</th><th scope="col">状态</th><th scope="col">未通过的检查</th></tr></thead>
+            <thead><tr><th scope="col">主机</th><th scope="col">状态</th><th scope="col">版本检查</th><th scope="col">未通过的检查</th></tr></thead>
             <tbody>{rows.map(row => {
               const repair = row.report ? agentRepairFor(row.report, latestVersion) : "none";
               const label = row.error ? "检查失败" : !row.report ? "检查中…" : repair === "install" ? "未安装"
                 : repair === "upgrade" ? "需要处理"
                   : row.report.ok ? "正常" : "需查看";
               const failures = row.report?.items?.filter(item => !item.ok) || [];
+              const versionCheck = row.report?.items?.find(item => item.key === "version");
+              const currentVersion = row.report?.agentVersion?.trim().replace(/^v/, "");
+              const isVersionWarning = !!row.error || (!!row.report && (!currentVersion || versionCheck?.ok === false));
               return <tr key={row.host}>
                 <th scope="row">{row.host}</th>
                 <td className={row.error || repair !== "none" || (row.report && !row.report.ok) ? "text-warn" : "text-muted"}>{label}</td>
+                <td className={`tabular-nums ${isVersionWarning ? "text-warn" : row.report ? "text-ink" : "text-muted"}`}>
+                  {row.report ? <span data-tip={versionCheck?.detail}>
+                    {currentVersion ? `v${currentVersion}` : row.report.binaryState === "missing" ? "未安装" : "未能读取"}
+                  </span> : row.error ? "未能读取" : "检查中…"}
+                </td>
                 <td className="agent-fleet-failures">
                   {row.error ? <span>{row.error}</span> : failures.length ? failures.map(item => (
                     <div key={item.key}><span className="text-ink">{item.name}：</span>{item.detail || "检查未通过"}</div>
@@ -70,7 +80,7 @@ export function AgentFleetCheckDialog({ hosts, latestVersion, onClose }: {
             })}</tbody>
           </table>
         </div>
-        {!isChecking && !latestVersion ? <p className="mt-3 text-xs text-muted">无法读取面板内置版本，暂不能判断是否需要升级。</p> : null}
+        {!isChecking && !targetVersion ? <p className="mt-3 text-xs text-muted">无法读取面板内置版本，暂不能判断是否需要升级。</p> : null}
         <DialogFooter>
           <Button disabled={isChecking} onClick={runCheck}>重新检查</Button>
           <Button onClick={onClose}>关闭</Button>

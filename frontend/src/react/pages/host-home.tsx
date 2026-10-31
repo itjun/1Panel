@@ -1,4 +1,3 @@
-import { PageRefreshButton } from "@/react/components/page";
 /**
  * 主机首页（分组列表 + 拖拽 + 右键 + 快捷键）。
  *
@@ -16,7 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { ChevronDown, Pencil, Plus, Search, X } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type sshconfig } from "@/api";
 import {
   moveGroupInRacks,
@@ -26,6 +25,7 @@ import {
   type HostRack,
   type RackDropMark,
 } from "@/utils/hostRacks";
+import { captureHostRackRefresh } from "@/react/lib/host-rack-reveal";
 import { useHostRackMotion } from "@/react/lib/use-host-rack-motion";
 import { useHostRackColumns } from "@/react/lib/use-host-rack-columns";
 import { hostRackGroupColumns } from "@/utils/hostRackLayout";
@@ -33,7 +33,7 @@ import { usePointerDrag } from "@/react/lib/use-pointer-drag";
 import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
 import { HostCardContent } from "@/react/components/host-card";
 import { useHostCards } from "@/react/lib/use-host-cards";
-import { summarizeHostAgents, summarizeHostCards } from "@/utils/hostCardModel";
+import { hostCardHighlightTone, summarizeHostAgents, summarizeHostCards, type HostCardHighlight } from "@/utils/hostCardModel";
 import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
 import { AgentFleetCheckDialog } from "@/react/components/agent-fleet-check-dialog";
 import { openHostSetup } from "@/react/components/host-setup-dialog";
@@ -51,6 +51,7 @@ import { isPrimaryModifier, shortcutLabel } from "@/react/lib/platform";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { readSettings, updateSettings, useSettings } from "@/react/state/settings";
 import { UNGROUPED_ID, useSession } from "@/react/state/session";
+import { useRegisterPageRefresh } from "@/react/state/page-refresh";
 import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
 
@@ -168,11 +169,36 @@ function MenuDivider() {
 
 export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps = {}) {
   const session = useSession();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshTransition = useRef<ReturnType<typeof captureHostRackRefresh> | null>(null);
+  useEffect(() => () => refreshTransition.current?.dispose(), []);
+  useRegisterPageRefresh(async () => {
+    refreshTransition.current?.dispose();
+    const transition = rackRef.current && scrollRef.current
+      ? captureHostRackRefresh(rackRef.current, scrollRef.current) : null;
+    refreshTransition.current = transition;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        session.refresh(),
+        queryClient.refetchQueries({ type: "active" }, { throwOnError: true }),
+      ]);
+      transition?.play();
+      return true;
+    } catch (error) {
+      transition?.dispose();
+      throw error;
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, isRefreshing);
   const settings = useSettings();
   const hostCards = useHostCards(session.hosts.map(host => host.name));
   const latestAgentVersion = useQuery({
     queryKey: ["agent-latest"], queryFn: () => api.agentLatestVersion(), staleTime: Infinity,
   });
+  const latestVersion = latestAgentVersion.data?.trim().replace(/^v/, "");
   const searchRef = useRef<HTMLInputElement>(null);
   const suppressClick = useRef(false);
   const insertMarkRef = useRef<InsertMark | null>(null);
@@ -187,7 +213,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [dragItem, setDragItem] = useState<HostDragItem | null>(null);
 
   const [query, setQuery] = useState("");
-  const [scrolled, setScrolled] = useState(false);
+  const [highlight, setHighlight] = useState<HostCardHighlight | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectionSection, setSelectionSection] = useState<string | null>(null);
   const [preferredGroupId, setPreferredGroupId] = useState<string>("");
@@ -832,12 +858,14 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     showToast("机柜名称已保存");
   }
 
-  useHostRackMotion(
-    rackRef,
-    JSON.stringify([rackColumns, groupRacks, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
-    !dragItem && !keyword,
-    JSON.stringify(collapsedIds),
-  );
+  useHostRackMotion({
+    root: rackRef,
+    viewport: scrollRef,
+    layoutKey: JSON.stringify([rackColumns, groupRacks, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
+    isEnabled: !dragItem && !isRefreshing,
+    resetKey: JSON.stringify([rackColumns, collapsedIds, keyword]),
+    revealKey: JSON.stringify([rackColumns, keyword]),
+  });
 
   function renderSection(section: Section) {
     const status = summarizeHostCards(section.hosts.map(host => host.name), hostCards.entries, hostCards.now);
@@ -964,6 +992,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   data-host-group={section.id}
                   data-pin-host={section.isPinned ? host.name : undefined}
                   data-host-axis="x"
+                  data-host-highlight={hostCardHighlightTone(hostCards.entries[host.name], hostCards.now, highlight, latestAgentVersion.data)}
                   tabIndex={0}
                   role="group"
                   aria-label={`${host.name} 主机`}
@@ -1059,6 +1088,31 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const fleetStatus = summarizeHostCards(fleetNames, hostCards.entries, hostCards.now);
   const agentStatus = summarizeHostAgents(fleetNames, hostCards.entries, hostCards.now, latestAgentVersion.data);
 
+  function toggleHighlight(next: HostCardHighlight) {
+    if (highlight === next) {
+      setHighlight(null);
+      return;
+    }
+    setHighlight(next);
+    const matchingSections = new Set(sections.filter(section => section.hosts.some(host =>
+      hostCardHighlightTone(hostCards.entries[host.name], hostCards.now, next, latestAgentVersion.data),
+    )).map(section => section.id));
+    setCollapsedIds(previous => {
+      const expanded = previous.filter(id => !matchingSections.has(id));
+      writeCollapsedIds(expanded);
+      return expanded;
+    });
+  }
+
+  function renderHighlightCount(id: HostCardHighlight, label: string, count: number, tone: "warn" | "info") {
+    const isActive = highlight === id;
+    return <button type="button" className="host-home-summary-toggle"
+      data-tone={count > 0 ? tone : "empty"} aria-pressed={isActive} disabled={count === 0 && !isActive}
+      aria-label={`${id.startsWith("host-") ? "主机状态" : "Agent"}：${label} ${count} 台`}
+      title={isActive ? "取消高亮" : "高亮对应主机"}
+      onClick={() => toggleHighlight(id)}>{label} <strong>{count}</strong></button>;
+  }
+
   let dragHint = "拖到分组中移动";
   if (dragItem?.kind === "group") {
     dragHint = groupInsert?.kind === "newRow" ? "松手后放到新的一排" : groupInsert?.kind === "block"
@@ -1085,17 +1139,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     >
       <div className="content-float relative flex min-w-0 flex-1 flex-col">
       <FlashNotices flash={flash} />
-
-      {/* 页内工具行：筛选与新建（原通栏槽位内容，随 §4.6 全站下沉规则移入内容区） */}
-      {/* 内容滚动后底部出现 1px 分隔线，与吸顶表头同一做法 */}
-      <div
-        className={`host-home-toolbar motion-colors flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-4 ${
-          scrolled ? "border-line" : "border-transparent"
-        }`}
-      >
-        <h1 className="shrink-0 text-xl font-semibold">主机</h1>
-          <PageRefreshButton />
-        <label className="motion-field box-border flex h-8 w-[min(20rem,40vw)] cursor-text items-center gap-2 rounded-control pl-2.5 pr-1.5">
+      <header className="uiux-page-tools drag-region mx-4 mb-3 flex min-h-8 shrink-0 flex-wrap items-center gap-3 border-b border-line pb-3">
+        <h1 className="uiux-page-title">全部主机</h1>
+      <div className="host-home-toolbar ml-auto flex w-[min(20rem,100%)] min-w-0 items-center gap-2">
+        <label title={`搜索主机（${shortcutLabel("F")}）`} className="motion-field box-border flex h-8 min-w-0 flex-1 cursor-text items-center gap-1.5 rounded-control pl-2 pr-1.5">
           <Search size={14} className="shrink-0 text-muted" aria-hidden="true" />
           <input
             ref={searchRef}
@@ -1111,7 +1158,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                 (event.target as HTMLInputElement).blur();
               }
             }}
-            placeholder="筛选主机"
+            placeholder="搜索主机"
             aria-label="筛选主机"
             className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm leading-none text-ink outline-none placeholder:text-muted"
           />
@@ -1127,54 +1174,55 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             >
               <X size={12} aria-hidden="true" />
             </button>
-          ) : (
-            <kbd className="shrink-0 rounded-control bg-line px-1.5 py-0.5 font-sans text-xs leading-none text-muted">
-              {shortcutLabel("F")}
-            </kbd>
-          )}
+          ) : null}
         </label>
         <Button
           variant="secondary"
+          aria-label="新建"
+          title="新建"
           aria-haspopup="menu"
           aria-expanded={!!blankMenu}
-          className="gap-1.5 pl-2.5 pr-2"
+          className="w-8 shrink-0 p-0"
           onClick={(event) => {
             event.stopPropagation();
             const rect = event.currentTarget.getBoundingClientRect();
             closeAllMenus();
-            setBlankMenu({ x: rect.left, y: rect.bottom + 4 });
+            setBlankMenu({ x: Math.max(8, rect.right - 180), y: rect.bottom + 4 });
           }}
         >
-          <Plus size={14} aria-hidden="true" />
-          新建
-          <ChevronDown size={14} className="text-muted" aria-hidden="true" />
+          <Plus size={18} aria-hidden="true" />
         </Button>
       </div>
+      </header>
 
       <div className="host-home-summary" aria-label={keyword ? "匹配主机概况" : "全部主机概况"}>
-        <div className="host-home-summary-group">
+        <div className="host-home-summary-group" role="group" aria-label="主机数量">
           <span className="host-home-summary-title">{keyword ? "匹配主机" : "主机"}</span>
           <div className="host-home-summary-values">
             <span><strong>{fleetNames.length}</strong> 台</span>
             {!keyword ? <span><strong>{session.groups.length}</strong> 个分组</span> : null}
           </div>
         </div>
-        <div className="host-home-summary-group">
+        <div className="host-home-summary-group" role="group" aria-label="主机状态">
           <span className="host-home-summary-title">主机状态</span>
           <div className="host-home-summary-values">
             <span data-tone={fleetStatus.normal > 0 ? "ok" : "empty"}>正常 <strong>{fleetStatus.normal}</strong></span>
-            <span data-tone={fleetStatus.attention > 0 ? "warn" : "empty"}>需关注 <strong>{fleetStatus.attention}</strong></span>
-            <span data-tone={fleetStatus.unknown > 0 ? "info" : "empty"}>待确认 <strong>{fleetStatus.unknown}</strong></span>
+            {renderHighlightCount("host-attention", "需关注", fleetStatus.attention, "warn")}
+            {renderHighlightCount("host-unknown", "待确认", fleetStatus.unknown, "info")}
           </div>
         </div>
-        <div className="host-home-summary-group host-home-summary-agent">
+        <div className="host-home-summary-group host-home-summary-agent" role="group" aria-label="Agent">
           <div>
-            <span className="host-home-summary-title">Agent</span>
+            <span className="host-home-summary-title host-home-summary-agent-title">
+              <span>Agent</span>
+              <span>最新版本 <strong className="font-semibold text-ink">{latestVersion ? `v${latestVersion}` : latestAgentVersion.isPending ? "获取中…" : "暂不可用"}</strong></span>
+            </span>
             <div className="host-home-summary-values">
               <span data-tone={agentStatus.running > 0 ? "ok" : "empty"}>运行中 <strong>{agentStatus.running}</strong></span>
-              <span data-tone={agentStatus.problem > 0 ? "warn" : "empty"}>未安装 <strong>{agentStatus.problem}</strong></span>
-              <span data-tone={agentStatus.unknown > 0 ? "info" : "empty"}>待确认 <strong>{agentStatus.unknown}</strong></span>
-              {agentStatus.outdated > 0 ? <span data-tone="warn">需处理 <strong>{agentStatus.outdated}</strong></span> : null}
+              {renderHighlightCount("agent-problem", "未安装", agentStatus.problem, "warn")}
+              {renderHighlightCount("agent-unknown", "待确认", agentStatus.unknown, "info")}
+              {agentStatus.outdated > 0 || highlight === "agent-outdated"
+                ? renderHighlightCount("agent-outdated", "需处理", agentStatus.outdated, "warn") : null}
             </div>
           </div>
           <Button onClick={() => setIsAgentPickerOpen(true)} disabled={fleetNames.length === 0}>检查 Agent</Button>
@@ -1185,8 +1233,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           整块禁选：拖动超过阈值前浏览器已开始划选文字，事后再禁选清不掉选区 */}
       <div
         ref={scrollRef}
-        onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
-        className="flex min-h-0 flex-1 select-none flex-col gap-card overflow-auto px-4 pb-4 pt-3"
+        className="relative flex min-h-0 flex-1 select-none flex-col gap-card overflow-auto px-4 pb-4 pt-3"
       >
         {keyword && sections.length === 0 ? (
           <p className="m-0 text-sm text-muted">无匹配主机</p>

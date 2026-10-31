@@ -17,6 +17,7 @@ import { SettingsNavigation } from "@/react/components/settings-navigation";
 import { NotifyNavigation } from "@/react/components/notify/navigation";
 import { alertDialog } from "@/react/components/ui/confirm-dialog";
 import { CONFIG_SECTIONS } from "@/react/lib/config-model";
+import { WORKSPACE_DESIGNS } from "@/react/lib/workspace-design";
 import { cn } from "@/react/lib/utils";
 import {
   UNGROUPED_ID,
@@ -24,7 +25,6 @@ import {
   type SpeedtestSection,
 } from "@/react/state/session";
 import { readSettings } from "@/react/state/settings";
-import { WORKSPACE_DESIGNS } from "@/react/lib/workspace-design";
 import { useSidebar } from "@/react/state/sidebar";
 import { LOCAL_SECTIONS } from "@/react/pages/local";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
@@ -316,7 +316,9 @@ export function WorkspaceRail() {
         style={{ width: sidebarWidth, minWidth: sidebarWidth }}
         aria-label="二级导航"
       >
-      <div className="workspace-rail-heading drag-region">{WORKSPACE_DESIGNS[session.settingsOpen ? "settings" : session.workspace].title}</div>
+      <div className="workspace-rail-heading drag-region">
+        <h2>{WORKSPACE_DESIGNS[session.settingsOpen ? "settings" : session.workspace].title}</h2>
+      </div>
       <div
         key={listKind}
         className="motion-fade-in flex min-h-0 flex-1 flex-col overflow-auto"
