@@ -11,6 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { Folder, Server, type LucideIcon } from "lucide-react";
 import { api } from "@/api";
 import { HostContextMenu, type HostContextMenuState } from "@/react/components/host-context-menu";
 import { SettingsNavigation } from "@/react/components/settings-navigation";
@@ -380,6 +381,7 @@ export function WorkspaceRail() {
           <>
             <RailNavButton
               label="全部主机"
+              icon={Server}
               active={
                 session.workspace === "remote" &&
                 !session.activeHost &&
@@ -406,7 +408,7 @@ export function WorkspaceRail() {
                   entryKey={item.key}
                   onActivate={() => { clearHostSelection(); session.openGroup(item.id); }}
                   label={session.groupName(item.id) || item.id}
-                  prefix="组"
+                  icon={Folder}
                   active={
                     !session.settingsOpen &&
                     session.homeView === "group" &&
@@ -491,10 +493,12 @@ export function WorkspaceRail() {
 
 function RailNavButton({
   label,
+  icon: Icon,
   active,
   onClick,
 }: {
   label: string;
+  icon?: LucideIcon;
   active: boolean;
   onClick: () => void;
 }) {
@@ -502,12 +506,13 @@ function RailNavButton({
     <button
       type="button"
       className={cn(
-        "rail-item relative flex h-10 shrink-0 items-center px-3 text-left",
+        "rail-item relative flex h-10 shrink-0 items-center gap-2 px-3 text-left",
         active ? "rail-item-active" : "text-muted hover:bg-line hover:text-ink",
       )}
       aria-current={active ? "page" : undefined}
       onClick={onClick}
     >
+      {Icon ? <Icon size={20} strokeWidth={1.5} aria-hidden className="shrink-0" /> : null}
       <span className="truncate">{label}</span>
     </button>
   );
@@ -516,6 +521,7 @@ function RailNavButton({
 function RailSessionRow({
   entryKey,
   label,
+  icon: Icon,
   prefix,
   indented = false,
   active,
@@ -534,6 +540,7 @@ function RailSessionRow({
 }: {
   entryKey: string;
   label: string;
+  icon?: LucideIcon;
   prefix?: string;
   indented?: boolean;
   active: boolean;
@@ -568,8 +575,8 @@ function RailSessionRow({
       aria-pressed={selected}
       onClick={event => { if (event.detail === 0) onActivate(); }}
       className={cn(
-        "rail-item relative flex h-10 shrink-0 cursor-grab select-none items-center gap-1.5 truncate pr-3 text-left active:cursor-grabbing",
-        indented ? "pl-7" : "pl-3",
+        "rail-item relative flex h-10 shrink-0 cursor-grab select-none items-center gap-2 truncate pr-3 text-left active:cursor-grabbing",
+        indented ? "pl-10" : "pl-3",
         stateClass,
         dragging && "opacity-40",
       )}
@@ -584,6 +591,7 @@ function RailSessionRow({
       {dropEdge === "before" ? (
         <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-accent" />
       ) : null}
+      {Icon ? <Icon size={20} strokeWidth={1.5} aria-hidden className="shrink-0" /> : null}
       {prefix ? <span className="shrink-0 text-xs opacity-70">{prefix}</span> : null}
       <span className="truncate">{label}</span>
       {dropEdge === "after" ? (

@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { ALERT_RULES } from "@/utils/alerts";
 
 export const PREVIEW_CATEGORIES = [
@@ -14,10 +13,6 @@ export const PREVIEW_STATES = [
 export type PreviewCategory = (typeof PREVIEW_CATEGORIES)[number]["id"];
 export type PreviewState = (typeof PREVIEW_STATES)[number]["id"];
 
-export function previewSection(state: PreviewState, category?: PreviewCategory) {
-  return category ? `preview-${state}-${category}` as const : `preview-${state}` as const;
-}
-
 export const CHANNEL_SECTIONS = [
   { id: "channels", label: "接收渠道" },
   { id: "wecom", label: "通知回调" },
@@ -26,40 +21,4 @@ export const CHANNEL_SECTIONS = [
   { id: "preview", label: "消息预览" },
 ] as const;
 
-export type ChannelSection = (typeof CHANNEL_SECTIONS)[number]["id"] | ReturnType<typeof previewSection>;
-
-// Scroll position stays outside page history and persisted notification settings.
-let active: ChannelSection | null = null;
-const listeners = new Set<() => void>();
-const requests = new Set<(section: ChannelSection) => void>();
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
-}
-
-export function setChannelReadingSection(section: ChannelSection | null) {
-  if (active === section) return;
-  active = section;
-  listeners.forEach((listener) => listener());
-}
-
-export function useChannelReadingSection() {
-  return useSyncExternalStore(subscribe, () => active ?? "channels");
-}
-
-export function requestChannelSection(section: ChannelSection) {
-  requests.forEach((request) => request(section));
-}
-
-export function subscribeChannelNavigation(request: (section: ChannelSection) => void) {
-  requests.add(request);
-  return () => { requests.delete(request); };
-}
-
-export const channelScroll = {
-  attribute: "data-channel-section",
-  firstSection: "channels",
-  setReadingSection: setChannelReadingSection,
-  subscribeNavigation: subscribeChannelNavigation,
-} as const;
+export type ChannelSection = (typeof CHANNEL_SECTIONS)[number]["id"];

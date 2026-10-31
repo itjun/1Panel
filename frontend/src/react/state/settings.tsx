@@ -317,30 +317,93 @@ function syncNativeAppearance() {
     .catch(() => {});
 }
 
+function notifySubsPayload() {
+  return {
+    fromDisk: true,
+    notifyEnabled: current.notifyEnabled,
+    wecomWebhook: current.wecomWebhook,
+    systemNotifyEnabled: current.systemNotifyEnabled,
+    inAppNotifyEnabled: current.inAppNotifyEnabled,
+    alertContentKinds: current.alertContentKinds,
+    notifyRecoverEnabled: current.notifyRecoverEnabled,
+    alertLevels: current.alertLevels,
+    alertSustain: current.alertSustain,
+    alertRepeatMinutes: current.alertRepeatMinutes,
+    alertLoadWindow: current.alertLoadWindow,
+    notifyContentFields: current.notifyContentFields,
+    hostResourceNotifySubs: current.hostResourceNotifySubs,
+    hostAppNotifySubs: current.hostAppNotifySubs,
+    certKindMigrated: true,
+  };
+}
+
+function hostStringMap(
+  value: { [_ in string]?: string[] | null } | null | undefined,
+): Record<string, string[]> {
+  if (!value || typeof value !== "object") return {};
+  const out: Record<string, string[]> = {};
+  for (const [host, list] of Object.entries(value)) {
+    if (!Array.isArray(list)) continue;
+    out[host] = list.filter((item): item is string => typeof item === "string");
+  }
+  return out;
+}
+
+function applyNotifySubsFromDisk(disk: Awaited<ReturnType<typeof api.getNotifySubs>>) {
+  current = {
+    ...current,
+    notifyEnabled: !!disk.notifyEnabled,
+    wecomWebhook: typeof disk.wecomWebhook === "string" ? disk.wecomWebhook : "",
+    systemNotifyEnabled: disk.systemNotifyEnabled !== false,
+    inAppNotifyEnabled: disk.inAppNotifyEnabled !== false,
+    alertContentKinds:
+      (disk.alertContentKinds as AlertContentKind[] | null) ||
+      SETTINGS_DEFAULTS.alertContentKinds,
+    notifyRecoverEnabled: disk.notifyRecoverEnabled !== false,
+    alertLevels: parseAlertLevels(disk.alertLevels),
+    alertSustain: clampInt(
+      disk.alertSustain,
+      ALERT_SUSTAIN_RANGE,
+      SETTINGS_DEFAULTS.alertSustain,
+    ),
+    alertRepeatMinutes: clampInt(
+      disk.alertRepeatMinutes,
+      ALERT_REPEAT_RANGE,
+      SETTINGS_DEFAULTS.alertRepeatMinutes,
+    ),
+    alertLoadWindow: parseLoadWindow(disk.alertLoadWindow),
+    notifyContentFields:
+      (disk.notifyContentFields as NotifyContentField[] | null) ||
+      SETTINGS_DEFAULTS.notifyContentFields,
+    hostResourceNotifySubs: hostStringMap(
+      disk.hostResourceNotifySubs,
+    ) as AppSettings["hostResourceNotifySubs"],
+    hostAppNotifySubs: hostStringMap(disk.hostAppNotifySubs),
+  };
+}
+
+/** 启动时从本机 notify_subs.json 回灌；尚未落盘则把 localStorage 迁过去。 */
+export async function hydrateNotifySettings() {
+  try {
+    const disk = await api.getNotifySubs();
+    if (disk.fromDisk) {
+      applyNotifySubsFromDisk(disk);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+      listeners.forEach((listener) => listener());
+      return;
+    }
+    await api.setNotifySubs(notifySubsPayload());
+  } catch {
+    // 桥未就绪或读盘失败时沿用 localStorage，不阻断启动
+  }
+}
+
 function emit() {
   applySettings(current);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   listeners.forEach((listener) => listener());
   syncNativeAppearance();
-  void api
-    .setNotifySubs({
-      fromDisk: true,
-      notifyEnabled: current.notifyEnabled,
-      wecomWebhook: current.wecomWebhook,
-      systemNotifyEnabled: current.systemNotifyEnabled,
-      inAppNotifyEnabled: current.inAppNotifyEnabled,
-      alertContentKinds: current.alertContentKinds,
-      notifyRecoverEnabled: current.notifyRecoverEnabled,
-      alertLevels: current.alertLevels,
-      alertSustain: current.alertSustain,
-      alertRepeatMinutes: current.alertRepeatMinutes,
-      alertLoadWindow: current.alertLoadWindow,
-      notifyContentFields: current.notifyContentFields,
-      hostResourceNotifySubs: current.hostResourceNotifySubs,
-      hostAppNotifySubs: current.hostAppNotifySubs,
-      certKindMigrated: true,
-    })
-    .catch(() => {});
+  void api.setNotifySubs(notifySubsPayload()).catch(() => {});
 }
 
 export function updateSettings(patch: Partial<AppSettings>) {

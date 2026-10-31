@@ -13,13 +13,12 @@ import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
 import { Switch } from "@/react/components/ui/switch";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
-import { useSectionScroll } from "@/react/lib/use-section-scroll";
 import {
   CHANNEL_SECTIONS,
   PREVIEW_CATEGORIES,
   PREVIEW_STATES,
-  previewSection,
-  channelScroll,
+  type PreviewCategory,
+  type PreviewState,
   type ChannelSection,
 } from "@/react/state/notify-channels-navigation";
 import { useSession } from "@/react/state/session";
@@ -132,13 +131,14 @@ function sampleReadings(
 }
 
 export function SetupPage() {
-  const documentRef = useRef<HTMLDivElement>(null);
-  useSectionScroll(documentRef, "channels", channelScroll);
+  const [previewState, setPreviewState] = useState<PreviewState>("down");
+  const [previewCategory, setPreviewCategory] = useState<PreviewCategory>("cpu");
   const settings = useSettings();
   const session = useSession();
   const flash = useFlashMessage();
   const [webhookDraft, setWebhookDraft] = useState(settings.wecomWebhook);
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
 
   // 设置里地址被别处改过时，同步草稿
   useEffect(() => {
@@ -150,21 +150,33 @@ export function SetupPage() {
   const webhookDirty = draftExpanded !== savedExpanded;
 
   async function testAndSave() {
+    if (isSavingRef.current || !settings.notifyEnabled) return;
     if (!draftExpanded) {
+      if (!webhookDirty) return;
       updateSettings({ wecomWebhook: "" });
       flash.showToast("已清除通知回调");
       return;
     }
-    setSaving(true);
+    isSavingRef.current = true;
+    setIsSaving(true);
     try {
       await api.testWecomWebhook(draftExpanded);
-      updateSettings({ wecomWebhook: draftExpanded });
-      setWebhookDraft(draftExpanded);
-      flash.showToast("测试消息已发到群里，地址已保存");
+      if (webhookDirty) {
+        updateSettings({ wecomWebhook: draftExpanded });
+        setWebhookDraft(draftExpanded);
+        flash.showToast("测试消息已发到群里，地址已保存");
+      } else {
+        flash.showToast("测试消息已发到群里");
+      }
     } catch (error) {
-      flash.showError(`测试失败，地址没有保存：${formatErr(error)}`);
+      flash.showError(
+        webhookDirty
+          ? `测试失败，地址没有保存：${formatErr(error)}`
+          : `测试失败：${formatErr(error)}`,
+      );
     } finally {
-      setSaving(false);
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   }
 
@@ -314,14 +326,12 @@ export function SetupPage() {
     wecom: settings.notifyEnabled,
     wecomMissingWebhook: !savedExpanded,
   };
+  const selectedRows = previewRows.filter((row) => row.state === previewState && (previewCategory === "app" ? row.kind.startsWith("app:") : row.kind === previewCategory));
   return (
     <Page heading={false} flush scrollLabel="发送渠道内容">
       <FlashNotices flash={flash} />
-      <div ref={documentRef} className="settings-document notify-channel-document">
-        <NotifyPageHeader
-          title="发送渠道"
-          source={lastMessageSource()}
-        />
+      <div className="settings-document notify-channel-document">
+        <NotifyPageHeader title="发送渠道" source={lastMessageSource()} />
         <ChannelSectionBlock id="channels">
           <div className="notify-channel-rows">
             {CHANNELS.map((channel) => (
@@ -356,12 +366,16 @@ export function SetupPage() {
                   id="notify-callback-url"
                   className="motion-field h-8 w-full rounded-control pr-9 pl-3 disabled:opacity-50"
                   value={webhookDraft}
-                  disabled={!settings.notifyEnabled}
+                  disabled={!settings.notifyEnabled || isSaving}
                   placeholder="粘贴完整 Webhook 地址，或只填 key"
                   aria-label="通知回调"
                   onChange={(event) => setWebhookDraft(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && webhookDirty && !saving)
+                    if (
+                      event.key === "Enter" &&
+                      !isSaving &&
+                      (draftExpanded || webhookDirty)
+                    )
                       void testAndSave();
                   }}
                 />
@@ -382,13 +396,19 @@ export function SetupPage() {
               <Button
                 variant="primary"
                 disabled={
-                  !settings.notifyEnabled || !webhookDirty || saving
+                  !settings.notifyEnabled ||
+                  isSaving ||
+                  (!draftExpanded && !webhookDirty)
                 }
                 onClick={() => void testAndSave()}
               >
-                {draftExpanded || !savedExpanded
-                  ? "测试并保存"
-                  : "清除地址"}
+                {isSaving
+                  ? "测试中…"
+                  : !draftExpanded
+                    ? "清除地址"
+                    : webhookDirty
+                      ? "测试并保存"
+                      : "测试消息"}
               </Button>
             </div>
           </div>
@@ -418,63 +438,30 @@ export function SetupPage() {
             ))}
           </div>
         </ChannelSectionBlock>
-        <ChannelSectionBlock id="preview" navigation={<NotifyPreviewNavigation />}>
-          <div className="notify-preview-groups">
-            {PREVIEW_STATES.map((state) => {
-              const section = previewSection(state.id);
-              return (
-                <section
-                  key={state.id}
-                  id={`notify-channel-${section}`}
-                  data-channel-section={section}
-                  className="notify-preview-group"
-                  aria-labelledby={`${section}-title`}
-                >
-                  <h3 id={`${section}-title`}>{state.label}</h3>
-                  <div className="notify-preview-group-body">
-                    {PREVIEW_CATEGORIES.map((category) => {
-                      const target = previewSection(state.id, category.id);
-                      const rows = previewRows.filter((row) => row.state === state.id && (category.id === "app" ? row.kind.startsWith("app:") : row.kind === category.id));
-                      return (
-                        <section
-                          key={category.id}
-                          id={`notify-channel-${target}`}
-                          data-channel-section={target}
-                          className="notify-preview-category"
-                          aria-labelledby={`${target}-title`}
-                        >
-                          <h4 id={`${target}-title`}>{category.label}</h4>
-                          <div className="notify-preview-category-body">
-                            <PreviewMatrix rows={rows} channels={previewChannels} />
-                          </div>
-                        </section>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
+        <ChannelSectionBlock id="preview">
+          <NotifyPreviewNavigation
+            state={previewState}
+            category={previewCategory}
+            onStateChange={setPreviewState}
+            onCategoryChange={setPreviewCategory}
+          />
+          <PreviewMatrix rows={selectedRows} channels={previewChannels} />
         </ChannelSectionBlock>
       </div>
     </Page>
   );
 }
 
-function ChannelSectionBlock({ id, children, navigation }: { id: ChannelSection; children: ReactNode; navigation?: ReactNode }) {
+function ChannelSectionBlock({ id, children }: { id: ChannelSection; children: ReactNode }) {
   const section = CHANNEL_SECTIONS.find((item) => item.id === id)!;
   return (
     <section
       id={`notify-channel-${id}`}
-      data-channel-section={id}
       aria-labelledby={`notify-channel-${id}-title`}
-      className="settings-section"
+      className="notify-channel-panel"
     >
-      <header className={navigation ? "settings-section-heading notify-preview-heading" : "settings-section-heading"}>
-        <h2 id={`notify-channel-${id}-title`}>{section.label}</h2>
-        {navigation}
-      </header>
-      <div className="settings-section-body">{children}</div>
+      <h2 id={`notify-channel-${id}-title`}>{section.label}</h2>
+      {children}
     </section>
   );
 }

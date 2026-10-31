@@ -1,4 +1,3 @@
-import { sectionReadingPosition } from "@/react/lib/section-scroll";
 import type { AppOs } from "@/react/lib/platform";
 import type { SettingsSection } from "@/react/state/session";
 
@@ -29,15 +28,4 @@ export function settingsShortcuts(os: AppOs) {
 
 export function showWindowMaterial(os: AppOs, desktop: boolean, supported: boolean) {
   return desktop && (os === "mac" || (os === "win" && supported));
-}
-
-/** Section offsets are relative to the scroll container, not the window. */
-export function settingsReadingSection(
-  sections: { id: SettingsSection; top: number }[],
-  scrollTop: number,
-  viewportHeight: number,
-  scrollHeight: number,
-  pointerOffset: number | null,
-): SettingsSection {
-  return sectionReadingPosition(sections, scrollTop, viewportHeight, scrollHeight, pointerOffset, "look");
 }

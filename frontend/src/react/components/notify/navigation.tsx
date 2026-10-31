@@ -9,11 +9,6 @@ import { NOTIFY_SOURCE, type NotifySource } from "@/react/lib/notify-model";
 import { useNotificationHistory } from "@/react/lib/use-notification-history";
 import { cn } from "@/react/lib/utils";
 import { useSession, type NotifySection } from "@/react/state/session";
-import {
-  CHANNEL_SECTIONS,
-  requestChannelSection,
-  useChannelReadingSection,
-} from "@/react/state/notify-channels-navigation";
 
 const groups: { source: NotifySource; icon: LucideIcon }[] = [
   { source: "metric", icon: Server },
@@ -24,7 +19,6 @@ const groups: { source: NotifySource; icon: LucideIcon }[] = [
 export function NotifyNavigation() {
   const session = useSession();
   const { unread } = useNotificationHistory();
-  const channelSection = useChannelReadingSection();
   function entry(section: NotifySection, label: string, count?: number) {
     const active = session.notifySection === section;
     return (
@@ -75,7 +69,6 @@ export function NotifyNavigation() {
         aria-current={session.notifySection === "setup" ? "page" : undefined}
         onClick={() => {
           session.setNotifySection("setup");
-          requestChannelSection("channels");
         }}
       >
         <span>
@@ -83,21 +76,6 @@ export function NotifyNavigation() {
           发送渠道
         </span>
       </button>
-      {session.notifySection === "setup" ? (
-        <div className="notify-channel-navigation" role="group" aria-label="发送渠道目录">
-          {CHANNEL_SECTIONS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-current={channelSection === item.id || (item.id === "preview" && channelSection.startsWith("preview-")) ? "location" : undefined}
-              aria-controls={`notify-channel-${item.id}`}
-              onClick={() => requestChannelSection(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </nav>
   );
 }

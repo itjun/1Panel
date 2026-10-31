@@ -94,3 +94,9 @@
  .settings-appearance-frame{width:104px}
  .settings-row-label{padding-top:0}
 }
+
+/* 设置按侧栏选择独立显示；通知页继续使用原有分区布局。 */
+.settings-page .settings-section{display:block;padding:0;border:0}
+.settings-page .settings-header{flex-wrap:wrap;min-height:32px}
+.settings-page .settings-section-actions{margin:0 0 0 auto}
+.settings-page .settings-section-body{padding:24px 0 0;border:0}

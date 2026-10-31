@@ -1,7 +1,7 @@
 // INTEGRATION: entry 改为使用本文件的 SettingsPage。
 import { Events } from "@wailsio/runtime";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/api";
 import appIcon from "@/react/assets/appicon.png";
 import {
@@ -37,7 +37,6 @@ import { setWindowMaterial, useWindowTheme, type WindowMaterial } from "@/react/
 
 import { detectAppOs } from "@/react/lib/platform";
 import { SETTINGS_SECTIONS, settingsShortcuts, showWindowMaterial } from "@/react/lib/settings-model";
-import { useSettingsScroll } from "@/react/lib/use-settings-scroll";
 import { AppearancePreviews, PalettePreviews } from "@/react/components/settings-appearance";
 import type { SettingsSection } from "@/react/state/session";
 import "@/react/styles/settings.css";
@@ -46,8 +45,6 @@ export function SettingsPage() {
   const session = useSession();
   const settings = useSettings();
   const os = detectAppOs();
-  const documentRef = useRef<HTMLDivElement>(null);
-  useSettingsScroll(documentRef, session.settingsSection);
   const windowTheme = useWindowTheme();
   const [ask, setAsk] = useState(true);
   const flash = useFlashMessage();
@@ -147,11 +144,8 @@ export function SettingsPage() {
   );
 
   return (
-    <Page title="设置" heading={false} flush scrollLabel="设置内容" onRefresh={async () => { await queryClient.refetchQueries({ type: "active" }, { throwOnError: true }); return true; }}>
-      <div ref={documentRef} className="settings-document">
-        <header className="settings-header">
-          <h1>设置</h1>
-        </header>
+    <Page key={session.settingsSection} title="设置" heading={false} flush scrollLabel="设置内容" onRefresh={async () => { await queryClient.refetchQueries({ type: "active" }, { throwOnError: true }); return true; }}>
+      <div className="settings-document settings-page">
         <FlashNotices flash={flash} />
         <HostBackupRestoreDialog
           path={restorePath}
@@ -160,7 +154,7 @@ export function SettingsPage() {
           onError={(message) => flash.showError(message)}
         />
 
-        <SettingsSectionBlock id="look" actions={resetButton}>
+        {session.settingsSection === "look" ? <SettingsSectionBlock id="look" actions={resetButton}>
             {materialVisible ? <SettingRow label="窗口材质">
               <div className="flex flex-col items-start gap-2">
                 <RadioGroup<WindowMaterial>
@@ -213,9 +207,9 @@ export function SettingsPage() {
               <span className="text-sm tabular-nums">{settings.fontSize} px</span>
             </SettingRow>
             <SettingRow label="字体预览"><div className="settings-font-preview"><SansFontPreview /><MonoFontPreview /></div></SettingRow>
-        </SettingsSectionBlock>
+        </SettingsSectionBlock> : null}
 
-        <SettingsSectionBlock id="session">
+        {session.settingsSection === "session" ? <SettingsSectionBlock id="session">
             <SettingRow label="启动时打开">
               <RadioGroup
                 aria-label="启动时打开"
@@ -227,9 +221,9 @@ export function SettingsPage() {
                 ]}
               />
             </SettingRow>
-        </SettingsSectionBlock>
+        </SettingsSectionBlock> : null}
 
-        <SettingsSectionBlock id="board">
+        {session.settingsSection === "board" ? <SettingsSectionBlock id="board">
             <SettingRow label="内网看板">
               <Switch
                 className="mr-3"
@@ -282,9 +276,9 @@ export function SettingsPage() {
                 刷新
               </Button>
             </SettingRow>
-        </SettingsSectionBlock>
+        </SettingsSectionBlock> : null}
 
-        <SettingsSectionBlock id="app">
+        {session.settingsSection === "app" ? <SettingsSectionBlock id="app">
             <SettingRow
               label="开机启动"
               hint={launchAtLogin.error ? formatErr(launchAtLogin.error) : launchAtLogin.data?.reason || undefined}
@@ -353,9 +347,9 @@ export function SettingsPage() {
                 }}
               />
             </SettingRow>
-        </SettingsSectionBlock>
+        </SettingsSectionBlock> : null}
 
-        <SettingsSectionBlock id="shortcuts">
+        {session.settingsSection === "shortcuts" ? <SettingsSectionBlock id="shortcuts">
             <div className="overflow-hidden">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -376,9 +370,9 @@ export function SettingsPage() {
                 </tbody>
               </table>
             </div>
-        </SettingsSectionBlock>
+        </SettingsSectionBlock> : null}
 
-        <SettingsSectionBlock id="about"><AboutSection /></SettingsSectionBlock>
+        {session.settingsSection === "about" ? <SettingsSectionBlock id="about"><AboutSection /></SettingsSectionBlock> : null}
       </div>
     </Page>
   );
@@ -387,8 +381,8 @@ export function SettingsPage() {
 function SettingsSectionBlock({ id, actions, children }: { id: SettingsSection; actions?: ReactNode; children: ReactNode }) {
   const section = SETTINGS_SECTIONS.find((item) => item.id === id)!;
   return <section id={`settings-${id}`} data-settings-section={id} aria-labelledby={`settings-${id}-title`} className="settings-section">
-    <header className="settings-section-heading">
-      <h2 id={`settings-${id}-title`}>{section.label}</h2>
+    <header className="settings-header">
+      <h1 id={`settings-${id}-title`}>{section.label}</h1>
       {actions ? <div className="settings-section-actions">{actions}</div> : null}
     </header>
     <div className="settings-section-body">{children}</div>

@@ -17,7 +17,11 @@ const rootEl = document.getElementById("app");
 async function start() {
   if (!rootEl) return;
   const boardGroup = boardGroupFromPath(location.pathname);
-  if (!boardGroup && hasDesktopBridge()) await restoreApplicationPreferences();
+  if (!boardGroup && hasDesktopBridge()) {
+    await restoreApplicationPreferences();
+    const { hydrateNotifySettings } = await import("@/react/state/settings");
+    await hydrateNotifySettings();
+  }
   applySavedFont(!!boardGroup);
   rootEl.replaceChildren();
   rootEl.classList.add("react-root");
