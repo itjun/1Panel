@@ -1,7 +1,10 @@
 import { WorkspaceLayout } from "@/react/components/workspace-layout";
+import { HostNavigator } from "@/react/components/host-navigator";
 import "@/react/styles/workbench.css";
 import "@/react/styles/uiux.css";
 import { DialogHost } from "@/react/components/ui/confirm-dialog";
+import { FlashNotices } from "@/react/components/page";
+import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { AgentInstallDialogHost } from "@/react/components/agent-install-dialog";
 import { HostSetupDialogHost } from "@/react/components/host-setup-dialog";
 import { HostRenameDialogHost } from "@/react/components/host-rename-dialog";
@@ -19,7 +22,7 @@ import { LocalPage } from "@/react/pages/local";
 import { NotifyPage } from "@/react/pages/notify";
 import { SettingsPage } from "@/react/pages/settings-page";
 import { SpeedtestPage } from "@/react/pages/speedtest";
-import { PageRefreshProvider } from "@/react/state/page-refresh";
+import { PageRefreshProvider, usePageRefresh } from "@/react/state/page-refresh";
 import { SessionProvider, useSession } from "@/react/state/session";
 import { SidebarProvider } from "@/react/state/sidebar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -56,6 +59,9 @@ function Shell() {
   useEffect(() => initializeWindowTheme(), []);
   const session = useSession();
   const [creating, setCreating] = useState<CreatingState | null>(null);
+  const refresh = usePageRefresh();
+  const refreshFlash = useFlashMessage();
+  const isReloading = useRef(false);
   const editing = session.hosts.find((host) => host.name === session.editingHost) || null;
   const createOpen = !session.settingsOpen && !!creating;
   const editOpen = !session.settingsOpen && !!editing && !creating;
@@ -157,6 +163,19 @@ function Shell() {
 
   return (
     <>
+      <HostNavigator onReload={() => {
+        if (isReloading.current || refresh.busy) return;
+        isReloading.current = true;
+        setCreating(null);
+        session.setEditingHost("");
+        refreshFlash.clear();
+        void refresh.run().then((result) => {
+          if (result !== "started") refreshFlash.showToast("刷新成功");
+        }).catch(() => {
+          refreshFlash.showError("刷新失败，请重试");
+        }).finally(() => { isReloading.current = false; });
+      }} />
+      <FlashNotices flash={refreshFlash} />
       <WorkspaceLayout isEditing={dockMounted}>
           <div className="relative min-h-0 min-w-0 flex-1">
             {session.settingsOpen ? (

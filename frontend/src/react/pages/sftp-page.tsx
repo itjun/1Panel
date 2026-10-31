@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/react/components/ui/dialog";
 import { formatErr } from "@/utils/format";
+import { useRegisterPageRefresh } from "@/react/state/page-refresh";
 import { registerFileDrop } from "@/utils/fileDrop";
 import { getSftpLocation, saveSftpLocation, type SftpLocationState } from "@/utils/sftpLocationState";
 
@@ -73,7 +74,7 @@ export function SftpPage({ host }: { host: string }) {
     }, 2400);
   }
 
-  async function loadLocalAt(path: string, record: boolean) {
+  async function loadLocalAt(path: string, record: boolean, isRefresh = false) {
     const currentHost = hostRef.current;
     const seq = ++localSeq.current;
     setLoadingLocal(true);
@@ -111,12 +112,13 @@ export function SftpPage({ host }: { host: string }) {
     } catch (err) {
       if (seq !== localSeq.current || currentHost !== hostRef.current) return;
       setLocalErr(formatErr(err));
+      if (isRefresh) throw err;
     } finally {
       if (seq === localSeq.current) setLoadingLocal(false);
     }
   }
 
-  async function loadRemoteAt(path: string, record: boolean) {
+  async function loadRemoteAt(path: string, record: boolean, isRefresh = false) {
     const currentHost = hostRef.current;
     const seq = ++remoteSeq.current;
     setLoadingRemote(true);
@@ -139,6 +141,7 @@ export function SftpPage({ host }: { host: string }) {
       if (seq !== remoteSeq.current || currentHost !== hostRef.current) return;
       if (!remoteConnDead(err)) {
         setRemoteErr(formatErr(err));
+        if (isRefresh) throw err;
         return;
       }
       await new Promise((resolve) => window.setTimeout(resolve, 250));
@@ -148,11 +151,20 @@ export function SftpPage({ host }: { host: string }) {
       } catch (again) {
         if (seq !== remoteSeq.current || currentHost !== hostRef.current) return;
         setRemoteErr(formatErr(again));
+        if (isRefresh) throw again;
       }
     } finally {
       if (seq === remoteSeq.current) setLoadingRemote(false);
     }
   }
+
+  useRegisterPageRefresh(async () => {
+    await Promise.all([
+      loadLocalAt(loc.current.localCwd, false, true),
+      loadRemoteAt(loc.current.remoteCwd, false, true),
+    ]);
+    return true;
+  }, loadingLocal || loadingRemote);
 
   async function loadRemoteOnce(currentHost: string, path: string, record: boolean, from: string, seq: number) {
     let target = path ? normalizeRemote(path) : "";

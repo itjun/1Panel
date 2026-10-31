@@ -1,5 +1,5 @@
 /**
- * 当前页登记刷新回调，供自己的操作区调用；主机首页没有页级回调时刷新主机列表。
+ * 当前页登记刷新回调，供重新载入快捷键调用；无页级回调时刷新主机列表与当前查询。
  */
 
 import {
@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSession } from "@/react/state/session";
+import { useQueryClient } from "@tanstack/react-query";
 
 type RefreshHandler = () => void | Promise<void | boolean>;
 
@@ -26,6 +27,7 @@ const PageRefreshContext = createContext<PageRefreshValue | null>(null);
 
 export function PageRefreshProvider({ children }: { children: ReactNode }) {
   const session = useSession();
+  const queryClient = useQueryClient();
   const handlerRef = useRef<RefreshHandler | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,9 +41,12 @@ export function PageRefreshProvider({ children }: { children: ReactNode }) {
     if (handler) {
       return (await handler()) === true ? "page" : "started";
     }
-    await session.refresh();
+    await Promise.all([
+      session.refresh(),
+      queryClient.refetchQueries({ type: "active" }, { throwOnError: true }),
+    ]);
     return "hosts";
-  }, [session]);
+  }, [session, queryClient]);
 
   const value = useMemo(() => ({ busy, run, register }), [busy, run, register]);
   return <PageRefreshContext.Provider value={value}>{children}</PageRefreshContext.Provider>;

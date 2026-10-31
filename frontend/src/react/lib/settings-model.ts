@@ -21,6 +21,9 @@ export function settingsShortcuts(os: AppOs) {
   const mac = os === "mac";
   return [
     { label: "打开设置", keys: mac ? ["⌘ ,"] : ["Ctrl+,"] },
+    { label: "重新载入当前页面", keys: mac ? ["⌘ R"] : ["Ctrl+R"] },
+    { label: "打开远程主机", keys: mac ? ["⌘ O"] : ["Ctrl+O"] },
+    { label: "切换已打开主机", keys: ["Ctrl+Tab", "Ctrl+Shift+Tab"] },
   ];
 }
 

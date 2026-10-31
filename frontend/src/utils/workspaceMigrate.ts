@@ -58,6 +58,7 @@ const TOOLS: PersistTool[] = [
   "file-manager",
   "sftp",
   "monitor",
+  "disk",
   "certs",
   "nginx",
   "processes",
