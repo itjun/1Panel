@@ -285,11 +285,11 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
         >
           <table className="w-full min-w-[680px] border-collapse text-left text-sm">
             {/* z-20 压过主机列 body 单元格的 z-10，纵向滚动时表头盖住吸左列 */}
-            <thead className="sticky top-0 z-20 bg-surface text-xs font-normal text-muted">
+            <thead className="sticky top-0 z-20 bg-surface text-xs font-semibold text-muted">
               <tr className="h-table-head">
                 <th
                   className={cn(
-                    "relative w-12 px-2 text-center font-normal",
+                    "relative w-12 px-2 text-center font-semibold",
                     TH_STICKY_LINE,
                   )}
                 >
@@ -297,7 +297,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                 </th>
                 <th
                   className={cn(
-                    "sticky left-0 z-10 bg-surface px-3 font-normal",
+                    "sticky left-0 z-10 bg-surface px-3 font-semibold",
                     TH_STICKY_LINE,
                   )}
                 >
@@ -309,7 +309,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                       <th
                         key={rule.kind}
                         className={cn(
-                          "relative px-3 text-center font-normal",
+                          "relative px-3 text-center font-semibold",
                           TH_STICKY_LINE,
                         )}
                       >
@@ -322,7 +322,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                     <th
                       key={svc}
                       className={cn(
-                        "relative px-3 text-center font-normal",
+                        "relative px-3 text-center font-semibold",
                         TH_STICKY_LINE,
                       )}
                     >
@@ -334,7 +334,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             </thead>
             <tbody>
               {hosts.length === 0 ? (
-                <tr className="h-table-row border-t border-line">
+                <tr className="h-table-row border-b border-line">
                   <td
                     className="px-3 text-muted"
                     colSpan={
@@ -352,7 +352,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                     key={host}
                     data-notify-host={host}
                     className={cn(
-                      "h-table-row border-t border-line",
+                      "h-table-row border-b border-line",
                       focus?.host === host && "bg-accent-soft",
                     )}
                   >

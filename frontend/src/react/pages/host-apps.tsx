@@ -454,12 +454,12 @@ function AppsTable({
             ))}
           </colgroup>
           <thead>
-            <tr className="h-table-head border-b border-line text-xs font-normal text-muted">
+            <tr className="h-table-head border-b border-line text-xs font-semibold text-muted">
               {APP_COLUMNS.map((col, i) => (
                 <th
                   key={col.key}
                   colSpan={col.span}
-                  className={`${cellPadClass(i)} ${alignClass(col.align)} font-normal whitespace-nowrap`}
+                  className={`${cellPadClass(i)} ${alignClass(col.align)} font-semibold whitespace-nowrap`}
                 >
                   {col.label}
                 </th>
@@ -1044,17 +1044,17 @@ export function AppsPage({ host }: { host: string }) {
             {events.length ? (
               <div className="surface-float max-h-[22%] shrink-0 overflow-auto">
                 <table className="w-full border-collapse text-left text-sm">
-                  <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+                  <thead className="sticky top-0 z-[1] bg-surface text-xs font-semibold text-muted">
                     <tr className="h-table-head border-b border-line">
-                      <th className="px-3 font-normal">序</th>
-                      <th className="px-3 font-normal">层</th>
-                      <th className="px-3 font-normal">类型</th>
-                      <th className="px-3 font-normal">说明</th>
+                      <th className="px-3 font-semibold">序</th>
+                      <th className="px-3 font-semibold">层</th>
+                      <th className="px-3 font-semibold">类型</th>
+                      <th className="px-3 font-semibold">说明</th>
                     </tr>
                   </thead>
                   <tbody>
                     {events.map((e, i) => (
-                      <tr key={`${e.ts}-${i}`} className="h-table-row border-t border-line">
+                      <tr key={`${e.ts}-${i}`} className="h-table-row border-b border-line">
                         <td className="px-3 text-center">{i + 1}</td>
                         <td className="px-3">{e.layer || "—"}</td>
                         <td className="px-3">{e.kind || "—"}</td>

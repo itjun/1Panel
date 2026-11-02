@@ -90,7 +90,7 @@ html.board-http #app {
 .board-table__apps-col { width:27%; }
 .board-table__trend-col { width:6%; }
 .board-table th,.board-table td { padding:calc(8px * var(--board-scale)) calc(16px * var(--board-scale)); text-align:left; vertical-align:middle; border-bottom:1px solid var(--color-line); }
-.board-table thead th { position:sticky; top:0; height:var(--board-head); color:var(--color-muted); font-size:calc(16px * var(--board-scale)); font-weight:400; background:var(--color-surface); z-index:1; box-sizing:border-box; }
+.board-table thead th { position:sticky; top:0; height:var(--board-head); color:var(--color-muted); font-size:calc(16px * var(--board-scale)); font-weight:600; background:var(--color-surface); z-index:1; box-sizing:border-box; }
 .board-table tbody tr { height:var(--board-row); }
 .board-table tbody tr:hover { background:var(--color-raised); }
 .board-table tbody tr.is-selected { background:var(--color-accent-soft); }

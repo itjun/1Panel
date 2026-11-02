@@ -19,7 +19,7 @@
 .notify-separated{margin-top:24px;padding-top:24px;border-top:1px solid var(--color-line)}
 .notify-table-scroll{overflow:auto;min-width:0}
 .notify-rules-table{width:100%;min-width:680px;border-collapse:collapse;font-size:14px;text-align:left}
-.notify-rules-table th{height:36px;font-size:12px;font-weight:400;color:var(--color-muted);padding:8px 16px;border-bottom:1px solid var(--color-line)}
+.notify-rules-table th{height:36px;font-size:12px;font-weight:600;color:var(--color-muted);padding:8px 16px;border-bottom:1px solid var(--color-line)}
 .notify-rules-table td{padding:12px 16px;border-bottom:1px solid var(--color-line);vertical-align:middle}
 .notify-rules-table td:first-child{width:36%}
 .notify-rules-table td:nth-child(2){width:64px}

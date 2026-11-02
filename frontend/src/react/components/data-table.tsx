@@ -47,11 +47,11 @@ export function DataTable<T extends Record<string, unknown>>({
     <div className="uiux-data-table surface-float min-w-0 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
         {/* 表头无底色，只留下方 1px line（docs/design/specification.md §4.4） */}
-        <thead className="text-xs font-normal text-muted">
+        <thead className="text-xs font-semibold text-muted">
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id} className="h-table-head border-b border-line">
               {group.headers.map((header) => (
-                <th key={header.id} className="px-3 font-normal">
+                <th key={header.id} className="px-3 font-semibold">
                   {header.isPlaceholder ? null : (
                     <table.FlexRender header={header} />
                   )}
@@ -438,7 +438,7 @@ export function InteractiveDataTable<T>({
           style={{ tableLayout: "fixed", width: tableWidth }}
         >
           {/* 吸顶表头用 surface 底遮住滚动内容；底线画在 th::after 上，collapse 模式下的边框吸顶时会滚走 */}
-          <thead ref={headRef} className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+          <thead ref={headRef} className="sticky top-0 z-[1] bg-surface text-xs font-semibold text-muted">
             <tr ref={headerRowRef} className="h-table-head">
               {ordered.map((column) => {
                 const sorted = sortKey === column.key ? sortOrder : null;
@@ -447,7 +447,7 @@ export function InteractiveDataTable<T>({
                     key={column.key}
                     data-col-key={column.key}
                     className={cn(
-                      "relative select-none truncate px-3 font-normal",
+                      "relative select-none truncate px-3 font-semibold",
                       TH_STICKY_LINE,
                       column.align === "center" && "text-center",
                       column.align === "right" && "text-right",

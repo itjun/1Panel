@@ -478,7 +478,7 @@ export function SftpPane(props: Props) {
         }}
       >
         {props.loading ? <div className="absolute inset-x-0 top-0 z-[3] h-0.5 animate-pulse bg-accent" /> : null}
-        <div className="grid h-table-head shrink-0 grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-xs text-muted">
+        <div className="grid h-table-head shrink-0 grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-xs font-semibold text-muted">
           <SortButton label="名称" active={sortKey === "name"} asc={sortAsc} onClick={() => toggleSort("name")} />
           <SortButton label="修改时间" active={sortKey === "time"} asc={sortAsc} onClick={() => toggleSort("time")} />
           <SortButton label="大小" active={sortKey === "size"} asc={sortAsc} align="right" onClick={() => toggleSort("size")} />

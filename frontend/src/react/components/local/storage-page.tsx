@@ -14,7 +14,7 @@ import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
 import "./local.css";
 
 /* 表头统一：36px、12px 次文字、无底色 + 下方 1px line（docs/design/specification.md §4.4） */
-const THEAD_ROW_CLASS = "h-table-head border-b border-line text-xs font-normal text-muted";
+const THEAD_ROW_CLASS = "h-table-head border-b border-line text-xs font-semibold text-muted";
 
 type TabId = "apps" | "tree" | "large";
 
@@ -335,7 +335,7 @@ export function LocalStoragePage() {
                   </thead>
                   <tbody>
                     {filteredApps.length === 0 ? (
-                      <tr className="h-table-row border-t border-line">
+                      <tr className="h-table-row border-b border-line">
                         <td className="px-3 text-muted" colSpan={8}>
                           暂无应用占用数据
                         </td>
@@ -346,7 +346,7 @@ export function LocalStoragePage() {
                         const parts = app.parts || [];
                         return (
                           <Fragment key={app.path}>
-                            <tr className="h-table-row border-t border-line">
+                            <tr className="h-table-row border-b border-line">
                               <td className="px-2 text-center">
                                 <button
                                   type="button"
@@ -385,7 +385,7 @@ export function LocalStoragePage() {
                               </td>
                             </tr>
                             {open ? (
-                              <tr className="border-t border-line bg-raised">
+                              <tr className="border-b border-line bg-raised">
                                 <td colSpan={8} className="px-4 py-2">
                                   {parts.length ? (
                                     <div className="flex flex-col gap-1">
@@ -472,7 +472,7 @@ export function LocalStoragePage() {
                   </thead>
                   <tbody>
                     {treeChildren.length === 0 ? (
-                      <tr className="h-table-row border-t border-line">
+                      <tr className="h-table-row border-b border-line">
                         <td className="px-3 text-muted" colSpan={5}>
                           {treeQuery.isLoading ? "加载中…" : "无目录数据"}
                         </td>
@@ -483,7 +483,7 @@ export function LocalStoragePage() {
                         return (
                           <tr
                             key={row.path}
-                            className="h-table-row cursor-pointer border-t border-line hover:bg-raised"
+                            className="h-table-row cursor-pointer border-b border-line hover:bg-raised"
                             onClick={() => {
                               if (row.isDir) setTreePath(row.path);
                             }}
@@ -543,14 +543,14 @@ export function LocalStoragePage() {
                   </thead>
                   <tbody>
                     {filteredLarge.length === 0 ? (
-                      <tr className="h-table-row border-t border-line">
+                      <tr className="h-table-row border-b border-line">
                         <td className="px-3 text-muted" colSpan={5}>
                           暂无大文件
                         </td>
                       </tr>
                     ) : (
                       filteredLarge.map((file, idx) => (
-                        <tr key={file.path} className="h-table-row border-t border-line">
+                        <tr key={file.path} className="h-table-row border-b border-line">
                           <td className="px-2 text-center font-mono text-muted">
                             {idx + 1}
                           </td>

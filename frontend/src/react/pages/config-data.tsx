@@ -376,25 +376,25 @@ export function ConfigDataPage() {
             {backups.error ? <Notice text={formatErr(backups.error)} /> : null}
             <div className="config-data-backup-table-wrap">
               <table className="config-data-backup-table w-full min-w-[720px] table-fixed border-collapse text-left text-sm">
-                <thead className="sticky top-0 z-20 bg-surface text-xs font-normal text-muted">
+                <thead className="sticky top-0 z-20 bg-surface text-xs font-semibold text-muted">
                   <tr className="h-table-head">
-                    <th className={cn("relative px-3 text-left font-normal", TH_STICKY_LINE)}>备份时间</th>
-                    <th className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}>主机</th>
-                    <th className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}>分组</th>
-                    <th className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}>数据文件</th>
-                    <th className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}>大小</th>
-                    <th className={cn("relative px-3 text-center font-normal", TH_STICKY_LINE)}>来源</th>
-                    <th className={cn("relative px-3 text-right font-normal", TH_STICKY_LINE)}>操作</th>
+                    <th className={cn("relative px-3 text-left font-semibold", TH_STICKY_LINE)}>备份时间</th>
+                    <th className={cn("relative px-3 text-center font-semibold", TH_STICKY_LINE)}>主机</th>
+                    <th className={cn("relative px-3 text-center font-semibold", TH_STICKY_LINE)}>分组</th>
+                    <th className={cn("relative px-3 text-center font-semibold", TH_STICKY_LINE)}>数据文件</th>
+                    <th className={cn("relative px-3 text-center font-semibold", TH_STICKY_LINE)}>大小</th>
+                    <th className={cn("relative px-3 text-center font-semibold", TH_STICKY_LINE)}>来源</th>
+                    <th className={cn("relative px-3 text-right font-semibold", TH_STICKY_LINE)}>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {backups.isPending ? (
-                    <tr className="h-table-row border-t border-line">
+                    <tr className="h-table-row border-b border-line">
                       <td className="px-3 text-muted" colSpan={7} role="status">正在读取备份…</td>
                     </tr>
                   ) : null}
                   {!backups.isPending && !backups.error && !backups.data?.length ? (
-                    <tr className="border-t border-line">
+                    <tr className="border-b border-line">
                       <td colSpan={7}>
                         <div className="config-data-empty">
                           <DatabaseBackup size={24} strokeWidth={1.5} aria-hidden />
@@ -410,7 +410,7 @@ export function ConfigDataPage() {
                       <tr
                         key={item.path}
                         className={cn(
-                          "h-table-row border-t border-line hover:bg-raised",
+                          "h-table-row border-b border-line hover:bg-raised",
                           expanded && "bg-accent-soft hover:bg-accent-soft",
                         )}
                       >

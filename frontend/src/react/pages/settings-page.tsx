@@ -353,9 +353,9 @@ export function SettingsPage() {
             <div className="overflow-hidden">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="h-table-head border-b border-line text-xs text-muted">
-                    <th className="px-3 font-normal">功能</th>
-                    <th className="px-3 font-normal">快捷键</th>
+                  <tr className="h-table-head border-b border-line text-xs font-semibold text-muted">
+                    <th className="px-3 font-semibold">功能</th>
+                    <th className="px-3 font-semibold">快捷键</th>
                   </tr>
                 </thead>
                 <tbody>

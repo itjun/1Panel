@@ -131,12 +131,12 @@ function SimpleRows({
   return (
     <div className="surface-float overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+        <thead className="sticky top-0 z-[1] bg-surface text-xs font-semibold text-muted">
           <tr className="h-table-head border-b border-line">
             {headers.map((header) => (
               <th
                 key={header.key}
-                className={cn("px-3 font-normal", header.align === "right" && "text-right")}
+                className={cn("px-3 font-semibold", header.align === "right" && "text-right")}
               >
                 {header.tip ? (
                   <span
@@ -163,7 +163,7 @@ function SimpleRows({
             rows.map((row) => (
               <tr
                 key={row.id}
-                className={row.className || "h-table-row border-t border-line hover:bg-raised"}
+                className={row.className || "h-table-row border-b border-line hover:bg-raised"}
               >
                 {row.cells.map((cell, index) => {
                   const header = headers[index];
@@ -990,7 +990,7 @@ export function NetworkPage({ host }: { host: string }) {
                 ]}
                 rows={slowList.map((conn, index) => ({
                   id: `slow-${index}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
-                  className: "h-table-row border-t border-line bg-danger-soft",
+                  className: "h-table-row border-b border-line bg-danger-soft",
                   cells: [
                     conn.process || "—",
                     conn.pid || "—",
@@ -1140,8 +1140,8 @@ export function NetworkPage({ host }: { host: string }) {
                 return {
                   id: `conn-${seq}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
                   className: conn.slow
-                    ? "h-table-row border-t border-line bg-danger-soft"
-                    : "h-table-row border-t border-line hover:bg-raised",
+                    ? "h-table-row border-b border-line bg-danger-soft"
+                    : "h-table-row border-b border-line hover:bg-raised",
                   cells: [
                     <span key="state" className="inline-flex items-center gap-1">
                       <ConnState state={conn.state || ""} />

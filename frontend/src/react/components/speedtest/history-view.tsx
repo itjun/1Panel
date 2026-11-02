@@ -151,10 +151,10 @@ export function HistoryView() {
       <div className="flex flex-col gap-section">
         <div className="surface-float overflow-auto">
           <table className="min-w-[720px] w-full border-collapse text-left text-sm">
-            <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+            <thead className="sticky top-0 z-[1] bg-surface text-xs font-semibold text-muted">
               <tr className="h-table-head border-b border-line">
                 {head.map((h, i) => (
-                  <th key={i} className="whitespace-nowrap px-3 font-normal">
+                  <th key={i} className="whitespace-nowrap px-3 font-semibold">
                     {h}
                   </th>
                 ))}
@@ -173,7 +173,7 @@ export function HistoryView() {
                     key={it.id}
                     onClick={() => setSelectedId(it.id === selectedId ? "" : it.id)}
                     className={cn(
-                      "h-table-row cursor-pointer border-t border-line",
+                      "h-table-row cursor-pointer border-b border-line",
                       it.id === selectedId ? "bg-accent-soft" : "hover:bg-raised",
                     )}
                   >

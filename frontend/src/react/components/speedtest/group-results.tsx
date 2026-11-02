@@ -50,10 +50,10 @@ export function StarTable({
   return (
     <div className="surface-float overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+        <thead className="sticky top-0 z-[1] bg-surface text-xs font-semibold text-muted">
           <tr className="h-table-head border-b border-line">
             {head.map((h, i) => (
-              <th key={h} className={cn("px-3 font-normal", i >= 4 && i <= 7 && "text-right")}>
+              <th key={h} className={cn("px-3 font-semibold", i >= 4 && i <= 7 && "text-right")}>
                 {h === "中心→主机" ? (
                   <span className="inline-flex items-center gap-1.5">
                     <span aria-hidden className="h-0.5 w-3 bg-io-write" />
@@ -79,7 +79,7 @@ export function StarTable({
                 key={`${p.a}-${p.b}`}
                 onClick={() => onPick(i)}
                 className={cn(
-                  "h-table-row cursor-pointer border-t border-line",
+                  "h-table-row cursor-pointer border-b border-line",
                   i === activeIndex ? "bg-accent-soft" : "hover:bg-raised",
                 )}
               >
@@ -145,9 +145,9 @@ export function MatrixGrid({
       <table className="border-separate border-spacing-1 text-sm">
         <thead>
           <tr>
-            <th className="px-2 text-left text-xs font-normal text-muted">发送 ＼ 接收</th>
+            <th className="px-2 text-left text-xs font-semibold text-muted">发送 ＼ 接收</th>
             {hosts.map((h) => (
-              <th key={h} className="max-w-[140px] truncate px-2 text-xs font-normal text-muted" title={h}>
+              <th key={h} className="max-w-[140px] truncate px-2 text-xs font-semibold text-muted" title={h}>
                 {h}
               </th>
             ))}
@@ -156,7 +156,7 @@ export function MatrixGrid({
         <tbody>
           {hosts.map((a) => (
             <tr key={a}>
-              <th className="max-w-[160px] truncate px-2 text-left text-xs font-normal text-muted" title={a}>
+              <th className="max-w-[160px] truncate px-2 text-left text-xs font-semibold text-muted" title={a}>
                 {a}
               </th>
               {hosts.map((b) => {

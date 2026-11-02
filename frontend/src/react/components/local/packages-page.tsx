@@ -197,7 +197,7 @@ export function LocalPackagesPage() {
       <div className="surface-float min-h-48 flex-1 overflow-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-[1]">
-              <tr className="h-table-head border-b border-line bg-surface text-xs font-normal text-muted">
+              <tr className="h-table-head border-b border-line bg-surface text-xs font-semibold text-muted">
                 <th className="w-14 px-3 text-center">序</th>
                 <SortableHeader
                   label="名称"
@@ -236,7 +236,7 @@ export function LocalPackagesPage() {
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr className="h-table-row border-t border-line">
+                <tr className="h-table-row border-b border-line">
                   <td className="px-3 text-muted" colSpan={showSizes ? 7 : 5}>
                     {query.isLoading
                       ? "正在读取已安装软件…"
@@ -249,7 +249,7 @@ export function LocalPackagesPage() {
                 rows.map((item, idx) => (
                   <tr
                     key={`${item.source}-${item.name}-${item.path}`}
-                    className="h-table-row border-t border-line"
+                    className="h-table-row border-b border-line"
                   >
                     <td className="px-3 text-center font-mono text-muted">
                       {idx + 1}

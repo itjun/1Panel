@@ -194,11 +194,11 @@ function SimpleRows({
   return (
     <div className="surface-float min-h-48 flex-1 overflow-auto">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-[1] bg-surface text-xs font-normal text-muted">
+        <thead className="sticky top-0 z-[1] bg-surface text-xs font-semibold text-muted">
           <tr className="h-table-head border-b border-line">
-            <th className="w-12 px-2 text-center font-normal">序</th>
+            <th className="w-12 px-2 text-center font-semibold">序</th>
             {headers.map((header) => (
-              <th key={header.key} className="px-3 font-normal">
+              <th key={header.key} className="px-3 font-semibold">
                 {header.label}
               </th>
             ))}
@@ -217,8 +217,8 @@ function SimpleRows({
                 key={row.id}
                 className={
                   row.id === selectedId
-                    ? "h-table-row cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
-                    : "h-table-row cursor-pointer border-t border-line hover:bg-raised"
+                    ? "h-table-row cursor-pointer border-b border-line bg-accent-soft font-semibold text-accent"
+                    : "h-table-row cursor-pointer border-b border-line hover:bg-raised"
                 }
                 onClick={(e) => onRowClick?.(row.id, e)}
                 onContextMenu={(e) => {

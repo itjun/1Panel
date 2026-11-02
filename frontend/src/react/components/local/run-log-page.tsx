@@ -35,7 +35,7 @@ const STATUS_META: Record<RunLogStatus, { label: string; tone: TagTone }> = {
   abnormal: { label: "异常退出", tone: "warn" },
 };
 
-const TH = cn("relative px-3 font-normal", TH_STICKY_LINE);
+const TH = cn("relative px-3 font-semibold", TH_STICKY_LINE);
 
 export function RunLogPage() {
   const [range, setRange] = useState<RunLogRange>("7d");
@@ -116,7 +116,7 @@ export function RunLogPage() {
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-ink">按日汇总</h2>
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="text-xs text-muted">
+            <thead className="text-xs font-semibold text-muted">
               <tr className="h-table-head">
                 <th className={TH}>日期</th>
                 <th className={cn(TH, "w-32 text-right")}>启动次数</th>
@@ -128,7 +128,7 @@ export function RunLogPage() {
                 <EmptyRow colSpan={3} />
               ) : (
                 days.map((d) => (
-                  <tr key={d.day} className="h-table-row border-t border-line hover:bg-raised">
+                  <tr key={d.day} className="h-table-row border-b border-line hover:bg-raised">
                     <td className="px-3 font-mono tabular-nums">{formatDayLabel(d.day, now)}</td>
                     <td className="px-3 text-right font-mono tabular-nums">{d.launches}</td>
                     <td className="px-3 text-right font-mono tabular-nums">{formatSpan(d.totalMs)}</td>
@@ -142,7 +142,7 @@ export function RunLogPage() {
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-ink">启动明细</h2>
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="text-xs text-muted">
+            <thead className="text-xs font-semibold text-muted">
               <tr className="h-table-head">
                 <th className={cn(TH, "w-12 text-center")}>序</th>
                 <th className={TH}>启动时间</th>
@@ -157,7 +157,7 @@ export function RunLogPage() {
                 <EmptyRow colSpan={6} />
               ) : (
                 inRange.map((e, index) => (
-                  <tr key={e.id} className="h-table-row border-t border-line hover:bg-raised">
+                  <tr key={e.id} className="h-table-row border-b border-line hover:bg-raised">
                     <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
                       {index + 1}
                     </td>
@@ -211,7 +211,7 @@ function StatBlock({
 
 function EmptyRow({ colSpan }: { colSpan: number }) {
   return (
-    <tr className="h-table-row border-t border-line">
+    <tr className="h-table-row border-b border-line">
       <td className="px-3 text-muted" colSpan={colSpan}>
         所选范围内没有记录
       </td>

@@ -499,8 +499,8 @@ export function LocalAppsPage() {
         key={row.id}
         className={
           selected
-            ? "h-table-row cursor-pointer border-t border-line bg-accent-soft font-semibold text-accent"
-            : "h-table-row cursor-pointer border-t border-line hover:bg-raised"
+            ? "h-table-row cursor-pointer border-b border-line bg-accent-soft font-semibold text-accent"
+            : "h-table-row cursor-pointer border-b border-line hover:bg-raised"
         }
         onClick={() => setSelectedId(row.id)}
         onDoubleClick={() => {
@@ -643,7 +643,7 @@ export function LocalAppsPage() {
           <div className="min-w-[1280px]">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="h-table-head border-b border-line bg-surface text-xs font-normal text-muted">
+              <tr className="h-table-head border-b border-line bg-surface text-xs font-semibold text-muted">
                 <th className="w-12 px-2 text-center">序</th>
                 <SortableHeader
                   label="名称"
@@ -719,7 +719,7 @@ export function LocalAppsPage() {
             </thead>
             <tbody>
               {flatRows.length === 0 ? (
-                <tr className="h-table-row border-t border-line">
+                <tr className="h-table-row border-b border-line">
                   <td className="px-3 text-muted" colSpan={10}>
                     {query.isLoading
                       ? "正在读取本机进程…"
@@ -861,7 +861,7 @@ export function LocalAppsPage() {
                       {(resourcesQuery.data?.resources || []).length ? (
                         <table className="w-full min-w-[560px] text-left text-xs">
                           {/* 详情弹窗内的资源 / 线程子表：数据量大且嵌在弹窗里，按 docs/design/specification.md §9 超高密特例用 32px 行 */}
-                          <thead className="sticky top-0 z-10 whitespace-nowrap bg-surface font-normal text-muted">
+                          <thead className="sticky top-0 z-10 whitespace-nowrap bg-surface font-semibold text-muted">
                             <tr className="h-8 border-b border-line">
                               <th className="w-10 px-2 text-center">序</th>
                               <th className="px-2">FD</th>
@@ -875,7 +875,7 @@ export function LocalAppsPage() {
                             {(resourcesQuery.data?.resources || []).map((resource, index) => (
                               <tr
                                 key={resource.fd + ":" + resource.type + ":" + resource.name}
-                                className="border-t border-line align-top"
+                                className="border-b border-line align-top"
                               >
                                 <td className="px-2 py-1 text-center font-mono text-muted">
                                   {index + 1}
@@ -911,7 +911,7 @@ export function LocalAppsPage() {
                       <h3 className="mb-2 text-sm font-semibold text-ink">线程</h3>
                       <div className="max-h-40 overflow-auto">
                         <table className="w-full text-left text-xs">
-                          <thead className="sticky top-0 bg-surface font-normal text-muted">
+                          <thead className="sticky top-0 bg-surface font-semibold text-muted">
                             <tr className="h-8 border-b border-line">
                               <th className="w-10 px-2 text-center">序</th>
                               <th className="px-2">TID</th>
@@ -922,7 +922,7 @@ export function LocalAppsPage() {
                           </thead>
                           <tbody>
                             {(shownDetail.threads || []).map((thread, index) => (
-                              <tr key={thread.tid} className="h-8 border-t border-line">
+                              <tr key={thread.tid} className="h-8 border-b border-line">
                                 <td className="px-2 text-center font-mono text-muted">
                                   {index + 1}
                                 </td>

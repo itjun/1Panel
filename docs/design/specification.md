@@ -280,7 +280,8 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 
 - 行高 **40px**、表头 **36px**（替代旧 48 / 40）；虚拟表常量（`ROW_HEIGHT` 等）与 CSS 变量**必须同源**。
 - 文字列左对齐，数字列右对齐；数值列用 `--font-mono` 或 `tabular-nums`。
-- **表头无底色**：只用 `text-xs text-muted font-normal` + 下方 1px `--color-line`；吸顶表头用 `--color-surface` 遮挡滚动内容。
+- **表头无底色、字重加粗**：只用 `text-xs text-muted font-semibold` + 下方 1px `--color-line`；吸顶表头用 `--color-surface` 遮挡滚动内容。
+- **分隔线不叠画**：表头与首行之间只保留表头底线；数据行一律用 `border-b`（或等价底边），禁止再用 `border-t`，避免吸顶时表头底线与首行顶线叠成双线。
 - 行与行之间 1px `--color-line`；表格外框无描边、无圆角。
 - hover 用 `--color-raised`，选中用 `--color-accent-soft`；不加阴影。
 - 可交互表格（`InteractiveDataTable`，分组页）：
@@ -431,7 +432,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 确认 / 告知对话框（`components/ui/confirm-dialog.tsx`，照 TDesign DialogPlugin.confirm / alert）：`await confirmDialog({ title, body, theme })` 返回布尔，`alertDialog(...)` 只有一个「知道了」；宽 420px，标题前 20px 主题图标（info / warning / danger），danger 时确认按钮用 danger 样式。宿主 `<DialogHost />` 挂在 `App.tsx`。
 - **禁止**：原生 `<input type="checkbox|radio|range|number">`（封装组件内部除外）、`window.alert` / `window.confirm`、Wails `Dialogs.Question` 做确认、DOM 元素上的 `title` 属性（改用 `data-tip`；组件自身名为 `title` 的 prop 不在此列）。
 - 焦点：可见 `focus-visible`，输入类用 `--color-accent-focus` 外环。
-- 表格：行高 40 / 表头 36 与虚拟表常量一致（见 §4.4、§9）；表头无底色；hover 用 raised，不加阴影。
+- 表格：行高 40 / 表头 36 与虚拟表常量一致（见 §4.4、§9）；表头无底色、`font-semibold`；数据行只用底边分隔、不与表头顶线叠画；hover 用 raised，不加阴影。
 - 区块：内容区不再用卡片；`Card` / `.surface-float` 只是无描边、无圆角的普通区块，区块之间 24px（`gap-section`），区块标题 `text-sm font-semibold text-ink`。
 - 数据卡片悬停 / 聚焦：`Card` 及内容区数据块（含监控图表）**不显示悬停 / 聚焦边框**，保持扁平，区块读作一个整体；不加阴影，不另改底色。表格行用已有 hover 底色，不再叠加描边。看板主机选择走总览表行底色，见 §9「看板」。
 - 网格色块单元：同类单元平铺成网格（巡检项、Docker 容器等）用 `bg-raised p-4` 纯色块区分，块间距 `gap-card`，无描边 / 阴影；可点整块时 hover `bg-line`；块内 secondary 按钮与 neutral 标签改 `bg-surface`（hover `bg-line`），否则与色块同色。**不要在 `Card` 上写 `bg-*`**：`.surface-float` 不在 Tailwind 层内，会盖掉 `bg-*` 工具类，色块单元用普通 `div`。
@@ -550,7 +551,7 @@ Nginx / Hosts 文件阅读工具栏内的标题、类型按钮、下拉框、搜
 - [ ] 复用共享 Button / surface / table / dialog / Meter / motion 类，无分叉私货皮肤
 - [ ] 无任何 `box-shadow` / `shadow-*` / `ring-*` 生效（§9 列出的 focus 外环、Linux 外描边、首页分组 / 表格列拖拽插入线柔光环除外）
 - [ ] 内容区不嵌套描边卡片（无 `border border-line rounded-*` 包区块）；区块间距用 `gap-section`
-- [ ] 表头无底色（不再 `bg-raised`），只有下方 1px line
+- [ ] 表头无底色（不再 `bg-raised`）、`font-semibold`，只有下方 1px line；数据行不用 `border-t` 与表头底线叠画
 - [ ] 无装饰性渐变；用到的渐变都在表达信息（§2.5）
 - [ ] 资源占比使用 Meter 或概览专用 ResourceRing 组件，无残留细线进度条
 - [ ] 平台判断只从 `frontend/src/react/lib/platform.ts` 引入，无散落的 `navigator.platform` / UA 判断

@@ -42,12 +42,12 @@ export function OverviewTable({
   return (
     <div className="overview-table-scroll min-w-0 overflow-auto">
     <table className="w-full border-collapse text-left text-sm">
-      <thead className="text-xs text-muted">
+      <thead className="text-xs font-semibold text-muted">
         <tr className="h-table-head border-b border-line">
           {columns.map((column) => (
             <th
               key={column.key}
-              className={`px-3 font-normal ${column.align === "right" ? "text-right" : ""}`}
+              className={`px-3 font-semibold ${column.align === "right" ? "text-right" : ""}`}
             >
               {column.label}
             </th>

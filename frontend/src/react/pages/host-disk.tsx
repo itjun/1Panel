@@ -75,14 +75,14 @@ export function DiskPage({ host }: { host: string }) {
           ) : null}
           {mounts.length ? (
             <table className="w-full border-collapse text-left text-sm">
-              <thead className="text-xs text-muted">
+              <thead className="text-xs font-semibold text-muted">
                 <tr className="h-table-head border-b border-line">
-                  <th className="px-3 font-normal">挂载点</th>
-                  <th className="px-3 font-normal">文件系统</th>
-                  <th className="px-3 font-normal">类型</th>
-                  <th className="px-3 text-right font-normal">已用 / 总量</th>
-                  <th className="px-3 font-normal">使用率</th>
-                  <th className="px-3 font-normal" aria-label="操作" />
+                  <th className="px-3 font-semibold">挂载点</th>
+                  <th className="px-3 font-semibold">文件系统</th>
+                  <th className="px-3 font-semibold">类型</th>
+                  <th className="px-3 text-right font-semibold">已用 / 总量</th>
+                  <th className="px-3 font-semibold">使用率</th>
+                  <th className="px-3 font-semibold" aria-label="操作" />
                 </tr>
               </thead>
               <tbody>
@@ -169,12 +169,12 @@ export function DiskPage({ host }: { host: string }) {
             <>
               {files.length ? (
                 <table className="w-full table-fixed border-collapse text-left text-sm">
-                  <thead className="text-xs text-muted">
+                  <thead className="text-xs font-semibold text-muted">
                     <tr className="h-table-head border-b border-line">
-                      <th className="w-12 px-2 text-center font-normal">序</th>
-                      <th className="w-[112px] px-3 text-right font-normal">大小</th>
-                      <th className="w-[30%] px-3 font-normal">文件</th>
-                      <th className="px-3 font-normal">位置</th>
+                      <th className="w-12 px-2 text-center font-semibold">序</th>
+                      <th className="w-[112px] px-3 text-right font-semibold">大小</th>
+                      <th className="w-[30%] px-3 font-semibold">文件</th>
+                      <th className="px-3 font-semibold">位置</th>
                     </tr>
                   </thead>
                   <tbody>
