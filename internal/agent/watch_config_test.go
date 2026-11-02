@@ -42,17 +42,56 @@ func TestParseDefaultWatchYAML(t *testing.T) {
 			sapi = s
 		}
 	}
-	if bun.Runtime != "bun" || bun.ScrapeMetrics || bun.HealthPath != "/health" {
+	if bun.Runtime != "bun" || bun.HealthPath != "/health" {
 		t.Fatalf("ai-agent 应为 bun: %+v", bun)
 	}
-	if sapi.Runtime != "java" || !sapi.ScrapeMetrics || sapi.HealthPath != "/actuator/health" {
-		t.Fatalf("sapi-agent 应为 java: %+v", sapi)
+	if sapi.Runtime != "java" || sapi.HealthPath != "" {
+		t.Fatalf("sapi-agent 应为 java 且无 healthPath: %+v", sapi)
 	}
-	if c.Services[0].Name != "oss" || c.Services[0].Ingress.Enabled || c.Services[0].Ingress.HostHeader != "" {
-		t.Fatalf("oss 入口层应默认关闭且不带外部域名: %+v", c.Services[0])
+	if c.Services[0].Name != "oss" || c.Services[0].HealthPath != "" {
+		t.Fatalf("oss 应为纯端口探活: %+v", c.Services[0])
 	}
 	if c.IntervalSec != 15 || c.FailStreak != 2 {
 		t.Fatalf("默认间隔/失败次数: %+v", c)
+	}
+}
+
+func TestScrubObsoleteWatchYAML(t *testing.T) {
+	old := []byte(`wecomWebhook: "keep-me"
+gcPauseMarkMs: 200
+services:
+  - name: oss
+    jarContains: diteng-oss
+    portFrom: 8011
+    portTo: 8019
+    healthPath: /actuator/health
+    scrapeMetrics: true
+    ingress:
+      enabled: true
+      url: http://127.0.0.1/
+      hostHeader: beta-erp.cdcp.site
+`)
+	out, changed, err := mergeMissingServices(old)
+	if err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if watchRawHasObsoleteKeys(out) {
+		t.Fatalf("洗完仍有废弃键:\n%s", out)
+	}
+	c, err := parseWatchYAML(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.WecomWebhook != "keep-me" {
+		t.Fatalf("webhook 被覆盖: %q", c.WecomWebhook)
+	}
+	for _, s := range c.Services {
+		if s.Name == "oss" && s.HealthPath != "" {
+			t.Fatalf("oss healthPath 应清空: %+v", s)
+		}
+		if s.Name == "ai-agent" && s.HealthPath != "/health" {
+			t.Fatalf("ai-agent 应保留 /health: %+v", s)
+		}
 	}
 }
 

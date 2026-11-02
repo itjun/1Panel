@@ -59,7 +59,7 @@ assert.deepEqual(buildBoardAppSubItems(["oss"], [
 assert.deepEqual(buildBoardAppSubItems(["oss"], [
   liveRows[0], instance("oss", 102, { healthUp: false, status: "UNHEALTHY" }),
 ], true), [{ name: "oss", count: 2, status: "critical" }], "运行但探活异常的进程仍计数，状态不能显示正常");
-assert.equal(buildBoardAppSubItems(["oss"], [instance("oss", 101, { ingressOn: true })], true)[0].status, "critical");
+assert.equal(buildBoardAppSubItems(["oss"], [instance("oss", 101, { ingressOn: true })], true)[0].status, "healthy", "入口探活已下线，不再因 ingressOn 判红");
 assert.deepEqual(buildBoardAppSubItems(["oss"], liveRows, false), [
   { name: "oss", count: 2, status: "unknown" },
 ], "请求失败时缓存只能作为未知数据，不能继续判正常");

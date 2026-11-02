@@ -271,13 +271,12 @@ func (w *Watcher) buildJavaInstance(svc ServiceWatch, p javaProc, healthOK bool)
 		ProcessUp: true,
 		Group:     groupForService(svc.Name),
 	}
-	// Java 不再依赖自定义 /actuator/info；启动时间取自 /proc
 	inst.StartTime = formatProcStart(p.StartedAt)
 	inst.Status = instanceStatus(true, healthOK)
 	return inst
 }
 
-func (w *Watcher) layerFlags(service string) (processUp, healthUp, ingressUp, ingressOn bool) {
+func (w *Watcher) layerFlags(service string) (processUp, healthUp bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if st := w.st[service+"/"+layerProcess]; st != nil {
@@ -285,15 +284,6 @@ func (w *Watcher) layerFlags(service string) (processUp, healthUp, ingressUp, in
 	}
 	if st := w.st[service+"/"+layerHealth]; st != nil {
 		healthUp = st.up
-	}
-	if st := w.st[service+"/"+layerIngress]; st != nil {
-		ingressUp = st.up
-	}
-	for _, svc := range w.cfg.Services {
-		if svc.Name == service {
-			ingressOn = svc.Ingress.Enabled
-			break
-		}
 	}
 	return
 }
@@ -312,7 +302,7 @@ func (w *Watcher) rebuildInstances(cfg WatchConfig, procs []javaProc, instHealth
 				matched = append(matched, p)
 			}
 		}
-		procUp, healthUp, ingressUp, ingressOn := w.layerFlags(svc.Name)
+		procUp, healthUp := w.layerFlags(svc.Name)
 		if len(matched) == 0 {
 			rows = append(rows, JavaAppInstance{
 				Service:   svc.Name,
@@ -320,8 +310,6 @@ func (w *Watcher) rebuildInstances(cfg WatchConfig, procs []javaProc, instHealth
 				Group:     groupForService(svc.Name),
 				ProcessUp: procUp,
 				HealthUp:  healthUp,
-				IngressUp: ingressUp,
-				IngressOn: ingressOn,
 				Status:    "DOWN",
 			})
 			continue
@@ -330,8 +318,6 @@ func (w *Watcher) rebuildInstances(cfg WatchConfig, procs []javaProc, instHealth
 			key := fmt.Sprintf("%s/%d", svc.Name, p.PID)
 			ok := instHealth[key]
 			row := w.buildJavaInstance(svc, p, ok)
-			row.IngressUp = ingressUp
-			row.IngressOn = ingressOn
 			if dir := serviceDeployDir(row.JarPath); dir != "" {
 				if _, ok := latestByDir[dir]; !ok {
 					latestByDir[dir] = latestDeployVerInDir(dir)

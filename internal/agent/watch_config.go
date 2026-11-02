@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,120 +18,64 @@ type WatchConfig struct {
 	FailStreak     int            `yaml:"failStreak" json:"failStreak"`
 	DedupSec       int            `yaml:"dedupSec" json:"dedupSec"`
 	ProbeTimeoutMs int            `yaml:"probeTimeoutMs" json:"probeTimeoutMs"`
-	GCPauseMarkMs  float64        `yaml:"gcPauseMarkMs" json:"gcPauseMarkMs"`
 	Services       []ServiceWatch `yaml:"services" json:"services"`
 }
 
-// ServiceWatch 一个微服务监视组
+// ServiceWatch 一个微服务监视组。
+// Java 只看进程+监听端口；bun 等非 Java 才用 HealthPath 做 HTTP 探活。
 type ServiceWatch struct {
-	Name          string       `yaml:"name" json:"name"`
-	Runtime       string       `yaml:"runtime" json:"runtime"` // java / bun
-	JarContains   string       `yaml:"jarContains" json:"jarContains"`
-	PortFrom      int          `yaml:"portFrom" json:"portFrom"`
-	PortTo        int          `yaml:"portTo" json:"portTo"`
-	HealthPath    string       `yaml:"healthPath" json:"healthPath"`
-	ScrapeMetrics bool         `yaml:"scrapeMetrics" json:"scrapeMetrics"`
-	Ingress       IngressProbe `yaml:"ingress" json:"ingress"`
-}
-
-// IngressProbe nginx 本机反代探活（不要探 /actuator，beta-erp 会 404）
-type IngressProbe struct {
-	Enabled    bool   `yaml:"enabled" json:"enabled"`
-	URL        string `yaml:"url" json:"url"`
-	HostHeader string `yaml:"hostHeader" json:"hostHeader"`
+	Name        string `yaml:"name" json:"name"`
+	Runtime     string `yaml:"runtime" json:"runtime"` // java / bun
+	JarContains string `yaml:"jarContains" json:"jarContains"`
+	PortFrom    int    `yaml:"portFrom" json:"portFrom"`
+	PortTo      int    `yaml:"portTo" json:"portTo"`
+	HealthPath  string `yaml:"healthPath,omitempty" json:"healthPath,omitempty"`
 }
 
 const defaultWatchYAML = `# spanel-agent 应用监视（Webhook 不要提交到 git）
+# Java：进程在且端口起来即视为正常；仅 bun 等非 Java 配置 healthPath 做 HTTP 探活
 wecomWebhook: ""
 intervalSec: 15
 failStreak: 2
 dedupSec: 600
 probeTimeoutMs: 2000
-gcPauseMarkMs: 200
 services:
   - name: oss
     jarContains: diteng-oss
     portFrom: 8011
     portTo: 8019
-    healthPath: /actuator/health
-    scrapeMetrics: true
-    ingress:
-      enabled: false
-      url: http://127.0.0.1/
-      hostHeader: ""
   - name: csp
     jarContains: diteng-csp
     portFrom: 8201
     portTo: 8209
-    healthPath: /actuator/health
-    scrapeMetrics: true
-    ingress:
-      enabled: false
-      url: http://127.0.0.1/
-      hostHeader: ""
   - name: std
     jarContains: diteng-std
     portFrom: 8301
     portTo: 8309
-    healthPath: /actuator/health
-    scrapeMetrics: true
-    ingress:
-      enabled: false
-      url: http://127.0.0.1/
-      hostHeader: ""
   - name: fpl
     jarContains: custom-fpl
     portFrom: 8401
     portTo: 8409
-    healthPath: /actuator/health
-    scrapeMetrics: true
-    ingress:
-      enabled: false
-      url: http://127.0.0.1/
-      hostHeader: ""
   - name: zhetai
     jarContains: custom-zhetai
     portFrom: 8501
     portTo: 8509
-    healthPath: /actuator/health
-    scrapeMetrics: true
-    ingress:
-      enabled: false
-      url: http://127.0.0.1/
-      hostHeader: ""
   - name: im
     runtime: java
     jarContains: diteng-im-server
     portFrom: 8101
     portTo: 8109
-    healthPath: /actuator/health
-    scrapeMetrics: true
-    ingress:
-      enabled: false
-      url: http://127.0.0.1/
-      hostHeader: ""
   - name: ai-agent
     runtime: bun
     jarContains: ai-agent
     portFrom: 3060
     portTo: 3060
     healthPath: /health
-    scrapeMetrics: false
-    ingress:
-      enabled: false
-      url: http://127.0.0.1:3060/health
-      hostHeader: ""
   - name: sapi-agent
     runtime: java
     jarContains: sapi-agent
     portFrom: 50000
     portTo: 50000
-    healthPath: /actuator/health
-    scrapeMetrics: true
-    ingress:
-      enabled: false
-      url: http://127.0.0.1:50000/
-      hostHeader: ""
 `
 
 func (c *WatchConfig) normalize() {
@@ -146,9 +91,6 @@ func (c *WatchConfig) normalize() {
 	if c.ProbeTimeoutMs <= 0 {
 		c.ProbeTimeoutMs = 2000
 	}
-	if c.GCPauseMarkMs <= 0 {
-		c.GCPauseMarkMs = 200
-	}
 	for i := range c.Services {
 		s := &c.Services[i]
 		if s.Runtime == "" {
@@ -158,9 +100,9 @@ func (c *WatchConfig) normalize() {
 			if s.HealthPath == "" || s.HealthPath == "/actuator/health" {
 				s.HealthPath = "/health"
 			}
-			s.ScrapeMetrics = false
-		} else if s.HealthPath == "" {
-			s.HealthPath = "/actuator/health"
+		} else {
+			// Java 不探 HTTP
+			s.HealthPath = ""
 		}
 		if s.PortTo < s.PortFrom {
 			s.PortTo = s.PortFrom
@@ -241,7 +183,8 @@ func mergeMissingServices(raw []byte) ([]byte, bool, error) {
 		added = true
 	}
 	patched := patchKnownRuntimes(&cfg)
-	if !added && !patched {
+	obsolete := watchRawHasObsoleteKeys(raw)
+	if !added && !patched && !obsolete {
 		return raw, false, nil
 	}
 	out, err := yaml.Marshal(cfg)
@@ -249,6 +192,22 @@ func mergeMissingServices(raw []byte) ([]byte, bool, error) {
 		return raw, false, err
 	}
 	return out, true, nil
+}
+
+// watchRawHasObsoleteKeys 旧模板残留：actuator 探活、JVM 指标刮取、入口层、GC 阈值
+func watchRawHasObsoleteKeys(raw []byte) bool {
+	for _, key := range [][]byte{
+		[]byte("scrapeMetrics:"),
+		[]byte("gcPauseMarkMs:"),
+		[]byte("ingress:"),
+		[]byte("healthPath: /actuator"),
+		[]byte("healthPath: /actuator/health"),
+	} {
+		if bytes.Contains(raw, key) {
+			return true
+		}
+	}
+	return false
 }
 
 func patchKnownRuntimes(cfg *WatchConfig) bool {
@@ -261,8 +220,10 @@ func patchKnownRuntimes(cfg *WatchConfig) bool {
 				s.Runtime = "bun"
 				changed = true
 			}
-			s.ScrapeMetrics = false
 			if s.HealthPath == "" || s.HealthPath == "/actuator/health" {
+				if s.HealthPath != "/health" {
+					changed = true
+				}
 				s.HealthPath = "/health"
 			}
 		case "sapi-agent":
@@ -270,9 +231,16 @@ func patchKnownRuntimes(cfg *WatchConfig) bool {
 				s.Runtime = "java"
 				changed = true
 			}
-			s.ScrapeMetrics = true
-			if s.HealthPath == "" {
-				s.HealthPath = "/actuator/health"
+			if s.HealthPath != "" {
+				s.HealthPath = ""
+				changed = true
+			}
+		default:
+			if s.Runtime == "java" || s.Runtime == "" {
+				if s.HealthPath != "" {
+					s.HealthPath = ""
+					changed = true
+				}
 			}
 		}
 	}

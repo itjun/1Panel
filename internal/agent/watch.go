@@ -165,21 +165,11 @@ func (w *Watcher) tick() {
 				RSS: p.RSS, CPUPercent: w.cpuPct(p.PID, p.CPUTicks, now),
 			}
 			if port > 0 {
-				ok, heapUsed, heapMax, pause := w.probeInstance(cfg, port, svc)
+				ok := w.probeInstance(cfg, port, svc)
 				hs.HealthOK = ok
 				instHealth[fmt.Sprintf("%s/%d", svc.Name, p.PID)] = ok
-				hs.HeapUsed = heapUsed
-				hs.HeapMax = heapMax
-				hs.GCPauseMs = pause
 				if ok {
 					healthAny = true
-				}
-				if pause >= cfg.GCPauseMarkMs && pause > 0 {
-					detail := fmt.Sprintf("%s GC pause %.0fms pid=%d", svc.Name, pause, p.PID)
-					w.store.WriteWatchEvent(WatchEvent{
-						TS: now.Unix(), Service: svc.Name, Layer: "gc", Kind: "spike", Msg: detail,
-					})
-					w.notifyGC(cfg, svc, port, p, detail, now)
 				}
 			}
 			cp := hs
@@ -237,93 +227,49 @@ func httpHealthProbe(svc ServiceWatch) bool {
 	return rt != "java"
 }
 
-// probeInstance Java：端口已解析到即视为起来；非 Java：HTTP healthPath，可选再刮 JVM 指标。
-func (w *Watcher) probeInstance(cfg WatchConfig, port int, svc ServiceWatch) (ok bool, heapUsed, heapMax uint64, pauseMs float64) {
+// probeInstance Java：端口已解析到即视为起来；非 Java：HTTP healthPath。
+func (w *Watcher) probeInstance(cfg WatchConfig, port int, svc ServiceWatch) bool {
 	if !httpHealthProbe(svc) {
-		return true, 0, 0, 0
+		return true
 	}
 	return w.scrapeHTTP(cfg, port, svc)
 }
 
-func (w *Watcher) scrapeHTTP(cfg WatchConfig, port int, svc ServiceWatch) (ok bool, heapUsed, heapMax uint64, pauseMs float64) {
-	base := fmt.Sprintf("http://127.0.0.1:%d", port)
+func (w *Watcher) scrapeHTTP(cfg WatchConfig, port int, svc ServiceWatch) bool {
 	path := svc.HealthPath
 	if path == "" {
-		return false, 0, 0, 0
+		return false
 	}
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.probeTimeout())
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", port, path), nil)
 	if err != nil {
-		return false, 0, 0, 0
+		return false
 	}
 	resp, err := w.http.Do(req)
 	if err != nil {
-		return false, 0, 0, 0
+		return false
 	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return false, 0, 0, 0
+		return false
 	}
 	var hb struct {
 		Status string `json:"status"`
 		OK     *bool  `json:"ok"`
 	}
 	_ = json.Unmarshal(body, &hb)
-	ok = true
 	if hb.Status != "" && !strings.EqualFold(hb.Status, "UP") {
-		ok = false
+		return false
 	}
 	if hb.OK != nil && !*hb.OK {
-		ok = false
+		return false
 	}
-	if !svc.ScrapeMetrics {
-		return ok, 0, 0, 0
-	}
-	heapUsed = w.metricValue(cfg, base+"/actuator/metrics/jvm.memory.used?tag=area:heap", "VALUE")
-	heapMax = w.metricValue(cfg, base+"/actuator/metrics/jvm.memory.max?tag=area:heap", "VALUE")
-	pauseSec := w.metricValueFloat(cfg, base+"/actuator/metrics/jvm.gc.pause", "MAX")
-	return ok, heapUsed, heapMax, pauseSec * 1000
-}
-
-func (w *Watcher) metricValue(cfg WatchConfig, url, stat string) uint64 {
-	return uint64(w.metricValueFloat(cfg, url, stat))
-}
-
-func (w *Watcher) metricValueFloat(cfg WatchConfig, url, stat string) float64 {
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.probeTimeout())
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return 0
-	}
-	resp, err := w.http.Do(req)
-	if err != nil {
-		return 0
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return 0
-	}
-	var m struct {
-		Measurements []struct {
-			Statistic string  `json:"statistic"`
-			Value     float64 `json:"value"`
-		} `json:"measurements"`
-	}
-	if json.NewDecoder(io.LimitReader(resp.Body, 32<<10)).Decode(&m) != nil {
-		return 0
-	}
-	for _, x := range m.Measurements {
-		if strings.EqualFold(x.Statistic, stat) {
-			return x.Value
-		}
-	}
-	return 0
+	return true
 }
 
 func (w *Watcher) applyLayer(cfg WatchConfig, service, layer string, up bool, detail string) {
@@ -466,41 +412,6 @@ func (w *Watcher) buildNotify(cfg WatchConfig, service, layer, kind, detail stri
 	return n
 }
 
-func (w *Watcher) notifyGC(cfg WatchConfig, svc ServiceWatch, port int, p javaProc, detail string, now time.Time) {
-	rt := svc.Runtime
-	if rt == "" {
-		rt = "java"
-	}
-	n := wecom.WatchNotify{
-		Level:         "warning",
-		Category:      "gc",
-		Host:          w.host,
-		Service:       svc.Name,
-		Runtime:       rt,
-		Port:          port,
-		Entry:         wecom.EntryFromCmdline(p.Cmdline),
-		Kind:          "spike",
-		TitleSuffix:   "GC 尖峰",
-		Detail:        detail,
-		NotifyAt:      now,
-		ProcStartedAt: p.StartedAt,
-	}
-	// GC 也走 dedup：复用 health 层的 down 时间戳不合适；用独立 key 存 st
-	key := svc.Name + "/gc"
-	st := w.st[key]
-	if st == nil {
-		st = &layerState{}
-		w.st[key] = st
-	}
-	if !st.lastNotifyDown.IsZero() && now.Sub(st.lastNotifyDown) < time.Duration(cfg.DedupSec)*time.Second {
-		return
-	}
-	st.lastNotifyDown = now
-	if err := sendWatchWecom(cfg, wecom.FormatWatchMarkdown(n)); err != nil {
-		log.Printf("[watch] 企微 GC: %v", err)
-	}
-}
-
 func layerName(l string) string {
 	switch l {
 	case layerProcess:
@@ -508,7 +419,7 @@ func layerName(l string) string {
 	case layerHealth:
 		return "本机探活"
 	case layerIngress:
-		return "入口层"
+		return "入口层" // 历史事件兼容；入口探活已下线
 	default:
 		return l
 	}
@@ -531,15 +442,12 @@ func (w *Watcher) StatusSnapshot() []WatchStatus {
 		if rt == "" {
 			rt = "java"
 		}
-		ws := WatchStatus{Service: svc.Name, Runtime: rt, IngressOn: svc.Ingress.Enabled, Instances: w.inst[svc.Name]}
+		ws := WatchStatus{Service: svc.Name, Runtime: rt, Instances: w.inst[svc.Name]}
 		if st := w.st[svc.Name+"/"+layerProcess]; st != nil {
 			ws.ProcessUp = st.up
 		}
 		if st := w.st[svc.Name+"/"+layerHealth]; st != nil {
 			ws.HealthUp = st.up
-		}
-		if st := w.st[svc.Name+"/"+layerIngress]; st != nil {
-			ws.IngressUp = st.up
 		}
 		out = append(out, ws)
 	}

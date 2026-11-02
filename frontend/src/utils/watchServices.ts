@@ -59,11 +59,6 @@ export const APP_NOTIFY_RULES = [
     desc: "Java 看监听端口未起来；bun 等看 HTTP 健康检查非 200",
   },
   {
-    kind: "ingress",
-    name: "入口",
-    desc: "已开启入口探活且入口探测失败",
-  },
-  {
     kind: "recover",
     name: "恢复",
     desc: "上述异常全部恢复后发送回落通知",
