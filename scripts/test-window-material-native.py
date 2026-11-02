@@ -21,6 +21,8 @@ int main(void) {
   web.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
   [window.contentView addSubview:web];
   for (int i = 0; i < 50; i++) {
+   window.opaque = YES;
+   window.backgroundColor = NSColor.windowBackgroundColor;
    applyMaterial((__bridge void *)window, 1);
    applyMaterial((__bridge void *)window, 1);
    int count = 0;
@@ -30,6 +32,8 @@ int main(void) {
    }
    assert(count == 1 && effect.material == NSVisualEffectMaterialSidebar);
    assert(effect.blendingMode == NSVisualEffectBlendingModeBehindWindow);
+   assert(effect.state == NSVisualEffectStateActive);
+   assert(!window.opaque && window.backgroundColor.alphaComponent == 0);
    assert(web.superview == window.contentView);
    [window setContentSize:NSMakeSize(800 + i, 600 + i)];
    assert(NSEqualRects(effect.frame, window.contentView.bounds));

@@ -12,6 +12,9 @@ static int reduceTransparency(void) {
 }
 static void applyMaterial(void *ptr, int material) {
     NSWindow *window = (__bridge NSWindow *)ptr;
+    // 窗后材质直接采样桌面；窗口自身不能再用不透明底色挡住它。
+    window.opaque = NO;
+    window.backgroundColor = NSColor.clearColor;
     NSView *content = window.contentView;
     NSView *existing = nil;
     for (NSView *view in content.subviews) {
@@ -25,7 +28,8 @@ static void applyMaterial(void *ptr, int material) {
     frost.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     frost.material = NSVisualEffectMaterialSidebar;
     frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    frost.state = NSVisualEffectStateFollowsWindowActiveState;
+    // 失焦后仍保留桌面透色，避免切换应用时侧栏变成实色。
+    frost.state = NSVisualEffectStateActive;
     [content addSubview:frost positioned:NSWindowBelow relativeTo:nil];
 }
 */

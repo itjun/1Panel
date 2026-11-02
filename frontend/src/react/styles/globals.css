@@ -371,13 +371,8 @@ html.dark:is([data-window-material="mica"], [data-window-material="sidebar"]) .m
   background-color: rgba(0, 0, 0, 0.08);
 }
 
-/* 跟随系统材质透色，浅色和深色分别加薄遮罩以保持文字清晰。 */
-html[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .module-rail) {
-  background-color: rgba(255, 255, 255, 0.4);
-}
-html.dark[data-window-material="sidebar"][data-color-palette="classic"] :is(.glass-chrome, .module-rail) {
-  background-color: rgba(24, 25, 28, 0.5);
-}
+/* 默认配色直接透出窗后的原生侧栏材质；明暗处理交给 AppKit，
+   不再叠加灰色遮罩压低壁纸透色。A 区仅保留上面的轻微层次色。 */
 
 /* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。
    classic 色系必须排除：applyColorPalette 对 classic 也写 data-color-palette，
