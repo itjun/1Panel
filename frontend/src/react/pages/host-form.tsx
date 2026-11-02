@@ -220,7 +220,7 @@ export function HostCreateForm({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-auto px-5 pb-4 pt-5">
-        <div className="mb-6 flex items-start gap-4">
+        <div className="host-form-heading mb-6 flex items-start gap-4">
           <div className="min-w-0 flex-1">
             <div className="text-lg font-semibold leading-tight text-ink">{title}</div>
           </div>
@@ -465,7 +465,7 @@ export function HostEditForm({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-auto px-5 pb-4 pt-5">
-        <div className="mb-6 flex items-start gap-4">
+        <div className="host-form-heading mb-6 flex items-start gap-4">
           <DistroBadge osRelease={session.osRelease[host.name]} />
           <div className="min-w-0 flex-1">
             <div className="text-lg font-semibold leading-tight text-ink">编辑主机</div>

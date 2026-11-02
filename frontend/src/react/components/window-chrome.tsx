@@ -34,7 +34,7 @@ export function useToolbarDoubleClickMaximize(enabled: boolean) {
       if (event.button !== 0) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (!target.closest(".shell-app-toolbar, .workspace-rail-heading, .module-rail-drag, .uiux-page-tools, .settings-header")) return;
+      if (!target.closest(".shell-app-toolbar, .workspace-rail-heading, .module-rail-drag, .uiux-page-tools, .settings-header, .workbench-group-heading, .notify-page-header, .config-data-header, .text-page-header, .host-form-heading")) return;
       if (target.closest(TOOLBAR_INTERACTIVE_SELECTOR)) return;
       void Window.ToggleMaximise();
     };

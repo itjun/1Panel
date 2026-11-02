@@ -331,10 +331,6 @@ pre,
 .shell-app-toolbar {
   background-color: var(--color-toolbar);
 }
-/* 无主机标签时壳层带与内容面同色，只作拖拽 / 窗控，不画假业务通栏。 */
-.shell-content[data-chrome-only] .shell-app-toolbar {
-  background-color: var(--color-surface);
-}
 
 .glass-chrome {
   position: relative;
@@ -790,7 +786,7 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
   flex-shrink: 0;
 }
 
-/* A 已独立通顶；B/C 使用两列整高布局；C 顶壳层带由 shell-app-toolbar 常驻。 */
+/* A 已独立通顶；B/C 使用两列整高布局，不按平台预留空标题栏。 */
 .shell-columns {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
@@ -816,10 +812,23 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
   padding-top: 16px;
 }
 
-/* Windows/Linux：Frameless 窗口无系统按钮，壳层带右上由前端自绘
-   （最小化/最大化/关闭）。主机工具标签让出按钮宽度；页内工具行在壳层带下方，不再横向让位。 */
+/* Windows/Linux 窗控固定在右上角，只横向占位，不增加页面高度。 */
 .react-root:is([data-os="win"], [data-os="linux"]) {
   --window-controls-inset: 124px;
+}
+.shell-window-controls { background-color: var(--color-surface); }
+.shell-content[data-workspace-toolbar] > .shell-window-controls { background-color: var(--color-toolbar); }
+
+/* 无主机标签时，页面首行与窗控共用顶部；抽屉打开后由抽屉标题让位。 */
+.react-root:is([data-os="win"], [data-os="linux"]):not([data-edit]) .shell-content:not([data-workspace-toolbar]) :is(.uiux-page-tools, .settings-page .settings-header, .workbench-group-heading, .notify-page-header, .config-data-header) {
+  padding-right: var(--window-controls-inset);
+}
+/* 文件工具行会横向滚动，缩小视口才能保证滚动后的按钮也不钻到窗控下。 */
+.react-root:is([data-os="win"], [data-os="linux"]):not([data-edit]) .shell-content:not([data-workspace-toolbar]) .text-page-header {
+  margin-right: var(--window-controls-inset);
+}
+.react-root:is([data-os="win"], [data-os="linux"]) .shell-content:not([data-workspace-toolbar]) .host-form-heading {
+  padding-right: var(--window-controls-inset);
 }
 
 /* 模块标题与页内标题可拖动窗口，交互控件仍可操作。 */
@@ -828,6 +837,10 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
 .settings-header,
 .host-home-toolbar,
 .workbench-group-heading,
+.notify-page-header,
+.config-data-header,
+.text-page-header,
+.host-form-heading,
 .shell-app-toolbar {
   --wails-draggable: drag;
   -webkit-app-region: drag;
@@ -840,6 +853,10 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
 .settings-header :is(button, a, input, textarea, select, label, [role="button"]),
 .host-home-toolbar :is(button, a, input, textarea, select, label, [role="button"]),
 .workbench-group-heading :is(button, a, input, textarea, select, label, [role="button"]),
+.notify-page-header :is(button, a, input, textarea, select, label, [role="button"]),
+.config-data-header :is(button, a, input, textarea, select, label, [role="button"]),
+.text-page-header :is(button, a, input, textarea, select, label, [role="button"], [role="tab"]),
+.host-form-heading :is(button, a, input, textarea, select, label, [role="button"]),
 .shell-app-toolbar :is(button, a, input, textarea, select, label, [role="button"]) {
   --wails-draggable: no-drag;
   -webkit-app-region: no-drag;

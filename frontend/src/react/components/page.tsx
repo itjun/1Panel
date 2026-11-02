@@ -36,7 +36,7 @@ export function Page({
 }) {
   useRegisterPageRefresh(onRefresh, refreshing);
   // 模块由侧栏高亮标识，标题只在内容区显示，不挂到 C 顶壳层带。
-  // 操作按钮全站一律下沉为壳层带下方的页内工具行（docs/design/specification.md §4.6）
+  // 操作留在页内工具行；无主机标签时直接从 C 顶开始，与窗控横向避让。
   const hostWorkspace = useIsHostWorkspace();
   const padded = !flush && !dark;
   const inlineTitle = heading === false ? undefined : heading || (title !== "概览" ? title : undefined);
