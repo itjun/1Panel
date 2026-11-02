@@ -124,11 +124,12 @@ export function WindowControls() {
       >
         {maximised ? (
           <>
-            <rect x="8" y="4" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.45" />
-            <rect x="4" y="8" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            {/* 前窗完整方框；后窗只画未重叠的顶边与右边，避免双线发粗。 */}
+            <rect x="4" y="8" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 8V4.5h11.5V16H16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter" />
           </>
         ) : (
-          <rect x="5" y="5" width="14" height="14" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="5.5" y="5.5" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" />
         )}
       </CaptionButton>
       <CaptionButton label="关闭" danger onClick={() => void Window.Close()}>
