@@ -63,10 +63,7 @@ export function NotifyRulesPage({ source }: { source: NotifySource }) {
   return (
     <Page heading={false} flush>
       <div className="notify-workspace">
-        <NotifyPageHeader
-          title={label}
-          source={source}
-        />
+        <NotifyPageHeader title={label} />
         <div
           className="notify-settings-body"
           ref={(node) => {

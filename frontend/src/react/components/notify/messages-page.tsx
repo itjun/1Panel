@@ -1,10 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  ChevronDown,
-  Ellipsis,
-  SlidersHorizontal,
-} from "lucide-react";
+import { ArrowLeft, ChevronDown, Ellipsis } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -23,7 +18,6 @@ import {
 } from "@/react/components/notify/incident-detail";
 import { NotifyPageHeader } from "@/react/components/notify/page-header";
 import {
-  rememberMessageSource,
   setSubscriptionFocus,
   useNotifyView,
 } from "@/react/components/notify/view-state";
@@ -110,7 +104,6 @@ export function MessagesPage({
   const refetchTried = useRef("");
   const onFocusConsumedRef = useRef(onFocusConsumed);
   onFocusConsumedRef.current = onFocusConsumed;
-  useEffect(() => rememberMessageSource(source), [source]);
   useLayoutEffect(() => {
     const node = layoutRef.current;
     if (!node) return;
@@ -374,12 +367,7 @@ export function MessagesPage({
     >
       <FlashNotices flash={flash} />
       <div className="notify-workspace">
-        <NotifyPageHeader title={info.title}>
-          <Button onClick={() => openSubscriptions()}>
-            <SlidersHorizontal size={16} strokeWidth={1.5} aria-hidden />
-            {info.subscriptionLabel}
-          </Button>
-        </NotifyPageHeader>
+        <NotifyPageHeader title={info.title} />
         <div className="notify-message-toolbar">
           <Select
             size="sm"

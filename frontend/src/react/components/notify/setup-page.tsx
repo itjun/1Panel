@@ -7,7 +7,6 @@ import {
 } from "@/react/components/notify/channel-preview";
 import { NotifyPageHeader } from "@/react/components/notify/page-header";
 import { NotifyPreviewNavigation } from "@/react/components/notify/preview-navigation";
-import { lastMessageSource } from "@/react/components/notify/view-state";
 import { FlashNotices, Page } from "@/react/components/page";
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
@@ -331,7 +330,7 @@ export function SetupPage() {
     <Page heading={false} flush scrollLabel="发送渠道内容">
       <FlashNotices flash={flash} />
       <div className="settings-document notify-channel-document">
-        <NotifyPageHeader title="发送渠道" source={lastMessageSource()} />
+        <NotifyPageHeader title="发送渠道" />
         <ChannelSectionBlock id="channels">
           <div className="notify-channel-rows">
             {CHANNELS.map((channel) => (

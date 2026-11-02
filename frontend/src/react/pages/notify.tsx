@@ -241,7 +241,6 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
           title={
             source === "metric" ? "主机系统 · 主机订阅" : "应用服务 · 应用订阅"
           }
-          source={source}
         />
         <div className="notify-sub-toolbar">
           <Select

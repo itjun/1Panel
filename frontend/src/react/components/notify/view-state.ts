@@ -27,13 +27,6 @@ export function useNotifyView<T>(key: string, initial: T) {
 
 export type SubscriptionFocus = { host: string; field: string };
 const focuses: Partial<Record<NotifySource, SubscriptionFocus>> = {};
-let lastSource: NotifySource = "metric";
-export function rememberMessageSource(source: NotifySource) {
-  lastSource = source;
-}
-export function lastMessageSource() {
-  return lastSource;
-}
 export function setSubscriptionFocus(
   source: NotifySource,
   incident?: Incident,
