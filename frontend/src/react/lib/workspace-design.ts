@@ -19,16 +19,13 @@ const regionColors = {
     light: { canvas: "#e9f2eb", selection: "#ccdfd0", surface: "#fbfdfb", accent: "#386247" },
     dark: { canvas: "#293a32", selection: "#40584a", surface: "#252d29", accent: "#aed0b8" },
   },
-  settings: {
-    light: { canvas: "#f0edf8", selection: "#ddd5ee", surface: "#fdfcfe", accent: "#67547b" },
-    dark: { canvas: "#35313f", selection: "#51475e", surface: "#2b2830", accent: "#cdb9e2" },
-  },
 };
 
 export function workspaceRegionTokens(module: WorkspaceModule, palette: ColorPaletteId, mode: PaletteMode) {
-  // 默认配色保持中性；马卡龙主题下，巡检与设置使用已确认的模块配色。
-  const overrides: Parameters<typeof regionPaletteTokens>[2] = palette !== "classic" && (module === "inspect" || module === "settings")
-    ? regionColors[module][mode] : {};
+  // 默认配色保持中性；马卡龙 / 撞色下仅巡检覆盖浅绿角色色。
+  // 设置跟随当前色系，换马卡龙时 B 区与预览一致。
+  const overrides: Parameters<typeof regionPaletteTokens>[2] = palette !== "classic" && module === "inspect"
+    ? regionColors.inspect[mode] : {};
   const base = paletteTokens(palette, mode);
   return {
     sidebar: regionPaletteTokens(palette, mode, overrides),

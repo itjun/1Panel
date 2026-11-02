@@ -9,17 +9,19 @@ test("切换模块只改变 B/C，保留全局 A 区和用户原配色", () => {
       const remote = workspaceRegionTokens("remote", palette.id, mode);
       expect(remote.sidebar["--color-canvas"]).toBe(base["--color-canvas"]);
       expect(remote.content["--color-surface"]).toBe(base["--color-surface"]);
-      for (const module of ["inspect", "settings"] as const) {
-        const regions = workspaceRegionTokens(module, palette.id, mode);
-        if (palette.id !== "classic") expect(regions.sidebar["--color-canvas"]).not.toBe(base["--color-canvas"]);
-        for (const region of [regions.sidebar, regions.content]) {
-          for (const surface of ["--color-canvas", "--color-surface", "--color-accent-soft"] as const) {
-            for (const foreground of ["--color-ink", "--color-muted", "--color-accent"] as const) {
-              expect(contrastRatio(region[foreground], region[surface]), `${palette.id} ${mode} ${module} ${foreground} ${surface}`).toBeGreaterThanOrEqual(4.5);
-            }
+      const settings = workspaceRegionTokens("settings", palette.id, mode);
+      expect(settings.sidebar["--color-canvas"]).toBe(base["--color-canvas"]);
+      expect(settings.sidebar["--color-accent-soft"]).toBe(base["--color-accent-soft"]);
+      const inspect = workspaceRegionTokens("inspect", palette.id, mode);
+      if (palette.id !== "classic") expect(inspect.sidebar["--color-canvas"]).not.toBe(base["--color-canvas"]);
+      else expect(inspect.sidebar["--color-canvas"]).toBe(base["--color-canvas"]);
+      for (const region of [settings.sidebar, settings.content, inspect.sidebar, inspect.content]) {
+        for (const surface of ["--color-canvas", "--color-surface", "--color-accent-soft"] as const) {
+          for (const foreground of ["--color-ink", "--color-muted", "--color-accent"] as const) {
+            expect(contrastRatio(region[foreground], region[surface]), `${palette.id} ${mode} ${foreground} ${surface}`).toBeGreaterThanOrEqual(4.5);
           }
-          expect(Object.values(region).every(value => !value.includes("NaN"))).toBe(true);
         }
+        expect(Object.values(region).every(value => !value.includes("NaN"))).toBe(true);
       }
       expect(paletteTokens(palette.id, mode)).toEqual(base);
     }
