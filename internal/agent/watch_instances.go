@@ -1,11 +1,7 @@
 package agent
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -245,53 +241,6 @@ func readPPID(procRoot string, pid int) int {
 	return ppid
 }
 
-func (w *Watcher) fetchActuatorStartTime(port int) string {
-	if port <= 0 {
-		return ""
-	}
-	w.mu.Lock()
-	timeout := w.cfg.probeTimeout()
-	client := w.http
-	w.mu.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	url := fmt.Sprintf("http://127.0.0.1:%d/actuator/info", port)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return ""
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return ""
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return ""
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-	if err != nil {
-		return ""
-	}
-	return parseActuatorStartTime(body)
-}
-
-func parseActuatorStartTime(body []byte) string {
-	var raw map[string]json.RawMessage
-	if json.Unmarshal(body, &raw) != nil {
-		return ""
-	}
-	for _, key := range []string{"系统启动时间", "startTime"} {
-		if v, ok := raw[key]; ok {
-			var s string
-			if json.Unmarshal(v, &s) == nil && strings.TrimSpace(s) != "" {
-				return strings.TrimSpace(s)
-			}
-		}
-	}
-	return ""
-}
-
 func formatProcStart(t time.Time) string {
 	if t.IsZero() {
 		return ""
@@ -322,12 +271,8 @@ func (w *Watcher) buildJavaInstance(svc ServiceWatch, p javaProc, healthOK bool)
 		ProcessUp: true,
 		Group:     groupForService(svc.Name),
 	}
-	if port > 0 && rt == "java" {
-		inst.StartTime = w.fetchActuatorStartTime(port)
-	}
-	if inst.StartTime == "" {
-		inst.StartTime = formatProcStart(p.StartedAt)
-	}
+	// Java 不再依赖自定义 /actuator/info；启动时间取自 /proc
+	inst.StartTime = formatProcStart(p.StartedAt)
 	inst.Status = instanceStatus(true, healthOK)
 	return inst
 }

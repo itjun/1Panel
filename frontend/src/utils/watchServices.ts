@@ -56,7 +56,7 @@ export const APP_NOTIFY_RULES = [
   {
     kind: "health",
     name: "健康检查",
-    desc: "HTTP 健康检查非 200（如 /actuator/health、/health）",
+    desc: "Java 看监听端口未起来；bun 等看 HTTP 健康检查非 200",
   },
   {
     kind: "ingress",

@@ -44,6 +44,18 @@ func TestPortsFromCmdlineDashD(t *testing.T) {
 	}
 }
 
+func TestHTTPHealthProbe(t *testing.T) {
+	if httpHealthProbe(ServiceWatch{Runtime: "java"}) {
+		t.Fatal("java 不应走 HTTP 探活")
+	}
+	if httpHealthProbe(ServiceWatch{}) {
+		t.Fatal("默认 runtime 当作 java，不应走 HTTP")
+	}
+	if !httpHealthProbe(ServiceWatch{Runtime: "bun"}) {
+		t.Fatal("bun 应走 HTTP 探活")
+	}
+}
+
 func TestPickPort(t *testing.T) {
 	if pickPort([]int{39665, 8011}, 8011, 8019) != 8011 {
 		t.Fatal("应优先区间内端口")

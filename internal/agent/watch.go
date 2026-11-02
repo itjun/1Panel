@@ -164,8 +164,8 @@ func (w *Watcher) tick() {
 				TS: now.Unix(), Service: svc.Name, PID: p.PID, Port: port,
 				RSS: p.RSS, CPUPercent: w.cpuPct(p.PID, p.CPUTicks, now),
 			}
-			if port > 0 && svc.HealthPath != "" {
-				ok, heapUsed, heapMax, pause := w.scrape(cfg, port, svc)
+			if port > 0 {
+				ok, heapUsed, heapMax, pause := w.probeInstance(cfg, port, svc)
 				hs.HealthOK = ok
 				instHealth[fmt.Sprintf("%s/%d", svc.Name, p.PID)] = ok
 				hs.HeapUsed = heapUsed
@@ -189,7 +189,7 @@ func (w *Watcher) tick() {
 			w.applyLayer(cfg, svc.Name, layerHealth, false, svc.Name+" 本机探活：无进程")
 		} else {
 			w.applyLayer(cfg, svc.Name, layerHealth, healthAny,
-				fmt.Sprintf("%s 本机探活：健康实例 %v", svc.Name, healthAny))
+				fmt.Sprintf("%s 本机探活：端口就绪 %v", svc.Name, healthAny))
 		}
 	}
 	w.rebuildInstances(cfg, procs, instHealth)
@@ -228,9 +228,29 @@ func (w *Watcher) cpuPct(pid int, ticks uint64, now time.Time) float64 {
 	return pct
 }
 
-func (w *Watcher) scrape(cfg WatchConfig, port int, svc ServiceWatch) (ok bool, heapUsed, heapMax uint64, pauseMs float64) {
+// httpHealthProbe bun 等仍走 HTTP 探活；Java 只看端口是否起来。
+func httpHealthProbe(svc ServiceWatch) bool {
+	rt := svc.Runtime
+	if rt == "" {
+		rt = "java"
+	}
+	return rt != "java"
+}
+
+// probeInstance Java：端口已解析到即视为起来；非 Java：HTTP healthPath，可选再刮 JVM 指标。
+func (w *Watcher) probeInstance(cfg WatchConfig, port int, svc ServiceWatch) (ok bool, heapUsed, heapMax uint64, pauseMs float64) {
+	if !httpHealthProbe(svc) {
+		return true, 0, 0, 0
+	}
+	return w.scrapeHTTP(cfg, port, svc)
+}
+
+func (w *Watcher) scrapeHTTP(cfg WatchConfig, port int, svc ServiceWatch) (ok bool, heapUsed, heapMax uint64, pauseMs float64) {
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
 	path := svc.HealthPath
+	if path == "" {
+		return false, 0, 0, 0
+	}
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}

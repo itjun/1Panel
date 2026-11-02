@@ -138,13 +138,6 @@ func TestScreenFromProc(t *testing.T) {
 	}
 }
 
-func TestParseActuatorStartTime(t *testing.T) {
-	body := []byte(`{"系统启动时间":"2026-08-28 17:47:02","项目信息":{"industry":"std"}}`)
-	if got := parseActuatorStartTime(body); got != "2026-08-28 17:47:02" {
-		t.Fatalf("got %q", got)
-	}
-}
-
 func TestGroupForService(t *testing.T) {
 	if groupForService("std") != "std" {
 		t.Fatal("std")
