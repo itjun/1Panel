@@ -12,7 +12,7 @@ import { useSession } from "@/react/state/session";
 import { useSettings } from "@/react/state/settings";
 import { useSidebar } from "@/react/state/sidebar";
 
-/** 三个纵向区域各自排版，主机工具条只在 C 区内部按需出现。 */
+/** 三个纵向区域各自排版；有主机或非 Mac 时渲染 C 顶壳层带，主机工具标签按需填入。 */
 export function WorkspaceLayout({ children, isEditing = false }: { children: ReactNode; isEditing?: boolean }) {
   const session = useSession();
   const sidebar = useSidebar();
@@ -35,6 +35,9 @@ export function WorkspaceLayout({ children, isEditing = false }: { children: Rea
     };
   }, [regions.content]);
   const isRemoteHostWorkspace = module === "remote" && !!session.activeHost;
+  // Mac 红绿灯在 A 区，无主机时不占空壳层带（避免大额头）；Win/Linux 常驻壳层带给自绘窗控。
+  const showChromeToolbar = isRemoteHostWorkspace || appOs !== "mac";
+  const isChromeOnly = showChromeToolbar && !isRemoteHostWorkspace;
   useToolbarDoubleClickMaximize(appOs === "linux");
   useSettingsShortcut();
 
@@ -45,13 +48,22 @@ export function WorkspaceLayout({ children, isEditing = false }: { children: Rea
         <WorkspaceRail />
         <SidebarSplitter />
       </div>
-      <section className="shell-content relative flex min-h-0 min-w-0 flex-col" data-workspace-toolbar={isRemoteHostWorkspace ? "true" : undefined} style={regions.content as CSSProperties}>
-        {isRemoteHostWorkspace ? (
+      <section
+        className="shell-content relative flex min-h-0 min-w-0 flex-col"
+        data-workspace-toolbar={showChromeToolbar ? "true" : undefined}
+        data-chrome-only={isChromeOnly ? "true" : undefined}
+        style={regions.content as CSSProperties}
+      >
+        {showChromeToolbar ? (
           <header className="shell-app-toolbar shell-toolbar drag-region relative flex min-w-0 items-center">
-            <HostToolTabs />
+            {isRemoteHostWorkspace ? <HostToolTabs /> : null}
+            {appOs === "mac" ? null : (
+              <div className="shell-window-controls absolute top-0 right-0 z-30 flex h-full items-center pr-1">
+                <WindowControls />
+              </div>
+            )}
           </header>
         ) : null}
-        {appOs === "mac" ? null : <div className="shell-window-controls shell-toolbar absolute top-0 right-0 z-30 flex items-center pr-1"><WindowControls /></div>}
         <main className="glass-chrome-main relative flex min-h-0 min-w-0 flex-1">{children}</main>
       </section>
     </div>

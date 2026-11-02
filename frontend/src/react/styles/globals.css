@@ -331,6 +331,10 @@ pre,
 .shell-app-toolbar {
   background-color: var(--color-toolbar);
 }
+/* 无主机标签时壳层带与内容面同色，只作拖拽 / 窗控，不画假业务通栏。 */
+.shell-content[data-chrome-only] .shell-app-toolbar {
+  background-color: var(--color-surface);
+}
 
 .glass-chrome {
   position: relative;
@@ -786,7 +790,7 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
   flex-shrink: 0;
 }
 
-/* A 已独立通顶；B/C 使用两列整高布局，不预留全局工具栏。 */
+/* A 已独立通顶；B/C 使用两列整高布局；C 顶壳层带由 shell-app-toolbar 常驻。 */
 .shell-columns {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
@@ -812,15 +816,10 @@ html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette
   padding-top: 16px;
 }
 
-/* Windows/Linux：Frameless 窗口无系统按钮，右上角由前端自绘
-   （最小化/最大化/关闭）。工具标签让出按钮宽度。
-   data-os 区分真实平台；窗控让位对 win/linux 都生效。 */
+/* Windows/Linux：Frameless 窗口无系统按钮，壳层带右上由前端自绘
+   （最小化/最大化/关闭）。主机工具标签让出按钮宽度；页内工具行在壳层带下方，不再横向让位。 */
 .react-root:is([data-os="win"], [data-os="linux"]) {
   --window-controls-inset: 124px;
-}
-/* 没有通栏时，页内标题行给窗口按钮让出右侧空间。 */
-.react-root:is([data-os="win"], [data-os="linux"]) .shell-content:not([data-workspace-toolbar]) :is(.uiux-page-tools, .settings-header, .workbench-group-heading) {
-  padding-right: var(--window-controls-inset);
 }
 
 /* 模块标题与页内标题可拖动窗口，交互控件仍可操作。 */

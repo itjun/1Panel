@@ -35,8 +35,8 @@ export function Page({
   scrollLabel?: string;
 }) {
   useRegisterPageRefresh(onRefresh, refreshing);
-  // 模块由侧栏高亮标识，标题只在内容区显示，不挂到窗口通栏。
-  // 操作按钮全站一律下沉为内容区顶部的页内工具行，不上通栏（docs/design/specification.md §4.6，2026-10-05 起本机等非主机页同规则）
+  // 模块由侧栏高亮标识，标题只在内容区显示，不挂到 C 顶壳层带。
+  // 操作按钮全站一律下沉为壳层带下方的页内工具行（docs/design/specification.md §4.6）
   const hostWorkspace = useIsHostWorkspace();
   const padded = !flush && !dark;
   const inlineTitle = heading === false ? undefined : heading || (title !== "概览" ? title : undefined);
