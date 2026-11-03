@@ -1,4 +1,15 @@
 import type { localsys } from "@/api";
+import { formatBytes } from "@/utils/format";
+
+/** 容量沿用现有挂载空间统计，不把卷标、文件系统或容量猜成硬件规格。 */
+export function formatLocalDiskInfo(disk: localsys.DiskInfo): string {
+  return [
+    `型号：${disk.model || (disk.modelError ? "读取失败" : "系统未提供")}`,
+    `设备：${disk.device || disk.filesystem || "未知"}`,
+    `已挂载容量：${formatBytes(disk.total || 0)}`,
+    ...(disk.fsType ? [`文件系统：${disk.fsType}`] : []),
+  ].join("\n");
+}
 
 /** 外置硬盘最多展示数量 */
 export const MAX_EXTERNAL_DISKS = 16;

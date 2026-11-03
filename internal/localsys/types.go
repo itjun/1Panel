@@ -71,6 +71,8 @@ type DiskInfo struct {
 	Parent     string  `json:"parent"`   // 物理盘键：如 disk0（APFS 卷按 Physical Store 归到物理盘）
 	Name       string  `json:"name"`     // 展示名：如 Macintosh HD；外置盘取卷名
 	External   bool    `json:"external"` // 外置物理盘（USB / 雷雳）上的盘或卷
+	Model      string  `json:"model,omitempty"` // 系统报告的设备型号，不使用卷标代替
+	ModelError string  `json:"modelError,omitempty"`
 }
 
 // Runtime 已安装的运行时版本。

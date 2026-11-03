@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { api, type localsys, type monitor } from "@/api";
+import { api, type localsys } from "@/api";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
 import { Tag } from "@/react/components/ui/tag";
@@ -8,7 +8,6 @@ import { Notice, Page } from "@/react/components/page";
 import {
   OverviewFact,
   OverviewTable,
-  PhysicalDiskRows,
 } from "@/react/components/overview/overview-parts";
 import { useSession } from "@/react/state/session";
 import {
@@ -25,6 +24,7 @@ import {
   summarizeDiskItems,
 } from "./disk-utils";
 import { RingMeter } from "./ring-meter";
+import { LocalPhysicalDiskRows } from "./physical-disk-rows";
 import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
 
 const VIRTUAL_IFACE_FOLD = 3;
@@ -70,16 +70,10 @@ export function LocalOverviewPage() {
   const diskSummary = useMemo(() => summarizeDiskItems(diskItems), [diskItems]);
   const diskGroups = useMemo(() => buildDiskGroups(data?.disks || []), [data?.disks]);
 
-  const physDisks: monitor.DiskInfo[] = diskItems.map((item) => ({
-    filesystem: item.key,
-    mount: item.label,
-    fsType: "",
-    total: item.total,
-    used: item.used,
-    avail: item.avail,
-    percent: item.percent,
-    kind: "disk",
-  }));
+  const physDisks = diskItems.flatMap((item) => {
+    const disk = data?.disks?.find((d) => d.kind === "disk" && (d.filesystem || d.device || d.mount) === item.key);
+    return disk ? [disk] : [];
+  });
   const partitions: localsys.DiskInfo[] = [
     ...diskGroups.internal.flatMap((g) => g.partitions),
     ...flattenExternalRows(diskGroups.external),
@@ -346,7 +340,7 @@ export function LocalOverviewPage() {
             {physDisks.length ? (
               <div className="mb-4">
                 <div className="mb-1 text-xs text-muted">物理磁盘</div>
-                <PhysicalDiskRows disks={physDisks} />
+                <LocalPhysicalDiskRows disks={physDisks} />
               </div>
             ) : null}
             {partitions.length ? (

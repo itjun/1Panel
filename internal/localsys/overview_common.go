@@ -29,6 +29,7 @@ func CollectOverview() (*Overview, error) {
 	fillUptime(o)
 	sampleCPUPercentInto(o)
 	o.Disks = listDisks()
+	localDiskModels.fill(o.Disks, time.Now(), readDiskModel)
 	o.IPAddress = primaryIPv4()
 	o.PublicIP = publicIPCached()
 	fillNetDiskCounters(o)

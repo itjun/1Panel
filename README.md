@@ -38,6 +38,7 @@ macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.c
   - 系统概览：CPU（整机和每核）、内存、交换、磁盘、负载、运行时长、系统版本、网络/磁盘 IO 曲线
   - 应用进程：按运行时（Java / Go / Node / Python…）归并的本机进程树，CPU/内存/IO 速率、监听端口、进程详情与结束
   - 软件列表、磁盘空间（目录树 / 大文件 / 应用占用）、网络信息（网卡 / 网关）、Hosts
+  - 系统概览和磁盘空间显示系统报告的硬盘型号，可复制型号、设备和已挂载容量自行查询；外置设备可能只报告硬盘盒型号，读取不到时明确提示。无需额外工具，不执行磁盘测速或推测缓存、CMR / SMR。
 - **终端打开**：
   - macOS：设置里可选择本机已安装的 [1Agent](https://github.com/itjun/1Agent)、官方 Ghostty、官方 Otty 或系统「终端」。选择的终端无法打开时会报错。1Agent 经 `oneagent://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
   - Windows：可选择已安装的 Windows Terminal 或 PowerShell；选择的终端无法打开时会报错。Windows Terminal 支持最近窗口新标签页或新窗口，由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；OpenSSH 缺失时给出安装指引

@@ -71,7 +71,7 @@ export function TextViewTabs<T extends string>({ label, items, value, onChange }
   );
 }
 
-function TextCopy({ text, label, isDisabled = false, isContent = false }: {
+export function TextCopy({ text, label, isDisabled = false, isContent = false }: {
   text: string; label: string; isDisabled?: boolean; isContent?: boolean;
 }) {
   const [feedback, setFeedback] = useState("");

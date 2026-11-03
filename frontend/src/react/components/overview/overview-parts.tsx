@@ -76,7 +76,10 @@ export function OverviewTable({
 }
 
 /** 物理盘 / zpool 容量行（概览与磁盘页共用） */
-export function PhysicalDiskRows({ disks }: { disks: monitor.DiskInfo[] }) {
+export function PhysicalDiskRows({ disks, renderDetails }: {
+  disks: monitor.DiskInfo[];
+  renderDetails?: (disk: monitor.DiskInfo) => ReactNode;
+}) {
   if (!disks.length) return null;
   return (
     <div>
@@ -84,7 +87,7 @@ export function PhysicalDiskRows({ disks }: { disks: monitor.DiskInfo[] }) {
         {disks.map((d) => (
           <div
             key={d.filesystem || d.mount}
-            className="grid h-table-row grid-cols-[minmax(96px,160px)_96px_200px_minmax(0,1fr)] items-center gap-4 border-b border-line px-3 text-sm"
+            className={`grid ${renderDetails ? "gap-y-1 py-2" : "h-table-row"} grid-cols-[minmax(96px,160px)_96px_200px_minmax(0,1fr)] items-center gap-x-4 border-b border-line px-3 text-sm`}
           >
             <span className="truncate font-mono" data-tip={d.filesystem}>
               {d.mount || d.filesystem}
@@ -94,6 +97,7 @@ export function PhysicalDiskRows({ disks }: { disks: monitor.DiskInfo[] }) {
             <span className="truncate font-mono text-xs tabular-nums text-muted">
               已用 {formatBytes(d.used)}，可用 {formatBytes(d.avail)}
             </span>
+            {renderDetails ? <div className="col-span-full min-w-0">{renderDetails(d)}</div> : null}
           </div>
         ))}
       </div>

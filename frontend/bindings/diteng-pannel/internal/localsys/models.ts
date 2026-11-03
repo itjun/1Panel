@@ -44,6 +44,12 @@ export interface DiskInfo {
      * 外置物理盘（USB / 雷雳）上的盘或卷
      */
     "external": boolean;
+
+    /**
+     * 系统报告的设备型号，不使用卷标代替
+     */
+    "model"?: string;
+    "modelError"?: string;
 }
 
 /**

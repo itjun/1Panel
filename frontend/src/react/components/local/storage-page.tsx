@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { api, type localsys, type monitor } from "@/api";
-import { OverviewTable, PhysicalDiskRows } from "@/react/components/overview/overview-parts";
+import { api, type localsys } from "@/api";
+import { OverviewTable } from "@/react/components/overview/overview-parts";
 import { isMacPlatform } from "@/react/lib/platform";
 import { Button } from "@/react/components/ui/button";
 import { Meter } from "@/react/components/ui/meter";
@@ -9,7 +9,8 @@ import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { formatBytes, formatBytesSI, formatErr } from "@/utils/format";
-import { diskMountPercent, diskPhysicalLabel } from "./disk-utils";
+import { diskMountPercent } from "./disk-utils";
+import { LocalPhysicalDiskRows } from "./physical-disk-rows";
 import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
 import "./local.css";
 
@@ -151,19 +152,9 @@ export function LocalStoragePage() {
 
   const idleNoRecord = status?.state === "idle" && !hasRecord;
 
-  const physicalDisks: monitor.DiskInfo[] = useMemo(
+  const physicalDisks = useMemo(
     () => (device?.disks || [])
-      .filter((disk) => disk.kind === "disk" && (disk.total || 0) > 0)
-      .map((disk) => ({
-        filesystem: disk.filesystem || disk.device || disk.mount,
-        fsType: disk.fsType || "",
-        mount: diskPhysicalLabel(disk),
-        total: disk.total,
-        used: disk.used || 0,
-        avail: disk.avail || disk.free || 0,
-        percent: ((disk.used || 0) / disk.total) * 100,
-        kind: "disk",
-      })),
+      .filter((disk) => disk.kind === "disk" && (disk.total || 0) > 0),
     [device?.disks],
   );
   const partitions = useMemo(
@@ -207,7 +198,7 @@ export function LocalStoragePage() {
         <section>
           <div className="mb-3 text-sm font-semibold text-ink">物理磁盘</div>
           {physicalDisks.length ? (
-            <PhysicalDiskRows disks={physicalDisks} />
+            <LocalPhysicalDiskRows disks={physicalDisks} />
           ) : (
             <p className="text-sm text-muted">
               {!device && !metricsError ? "加载中…" : "未采集到物理磁盘"}
