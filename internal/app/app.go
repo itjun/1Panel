@@ -177,8 +177,9 @@ func NewApp(resources Resources) *application.App {
 		},
 		Linux: application.LinuxOptions{
 			DisableQuitOnLastWindowClosed: true,
-			// 窗口管理器显示名。不随 GTK application id 的合法化改动一起改掉。
-			ProgramName: "1Panel",
+			// GTK/D-Bus 和 Wayland 窗口标识都与桌面文件同名，供 GNOME 匹配图标。
+			ApplicationID: "com.itjun.panel",
+			ProgramName:   "com.itjun.panel",
 		},
 		ShouldQuit: core.shouldQuit,
 		OnShutdown: core.shutdown,
