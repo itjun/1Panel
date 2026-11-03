@@ -1,6 +1,6 @@
 import {
   Activity,
-  BellRing,
+  Ellipsis,
   CircleCheck,
   CircleHelp,
   TriangleAlert,
@@ -95,16 +95,16 @@ export function IncidentDetail({
   now,
   onSelect,
   onOpenHost,
-  onOpenSubs,
-  onDelete,
+  onOpenMenu,
+  isMenuOpen,
 }: {
   incident: Incident;
   all: Incident[];
   now: number;
   onSelect: (id: string) => void;
   onOpenHost: (host: string) => void;
-  onOpenSubs: () => void;
-  onDelete?: () => void;
+  onOpenMenu: (anchor: HTMLElement) => void;
+  isMenuOpen: boolean;
 }) {
   const app = isAppKind(incident.kind);
   const pointEvent = incident.status === "notice";
@@ -140,6 +140,17 @@ export function IncidentDetail({
             {incident.host || "—"}
             <span className="ml-2 font-normal text-muted">{subject}</span>
           </h2>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto shrink-0"
+            aria-label="当前消息操作"
+            aria-haspopup="menu"
+            aria-expanded={isMenuOpen}
+            onClick={(event) => onOpenMenu(event.currentTarget)}
+          >
+            <Ellipsis size={16} strokeWidth={1.5} aria-hidden />
+          </Button>
         </div>
         <p className="font-mono text-xs text-muted tabular-nums">{headline}</p>
       </header>
@@ -209,14 +220,6 @@ export function IncidentDetail({
           <Button variant="primary" onClick={() => onOpenHost(incident.host)}>
             <Activity size={16} strokeWidth={1.5} aria-hidden />
             打开主机监控
-          </Button>
-          <Button variant="ghost" onClick={onOpenSubs}>
-            <BellRing size={16} strokeWidth={1.5} aria-hidden />
-            {incident.kind === "cert"
-              ? "调整证书提醒"
-              : app
-                ? "调整此应用订阅"
-                : "调整此主机订阅"}
           </Button>
         </div>
       ) : null}

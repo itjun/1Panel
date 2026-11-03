@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, Ellipsis } from "lucide-react";
+import { ArrowLeft, Ellipsis } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type ReactNode,
+  type MouseEvent,
 } from "react";
 import { api } from "@/api";
 import { FlashNotices, Notice, Page } from "@/react/components/page";
@@ -24,14 +24,14 @@ import {
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
 import { confirmDialog } from "@/react/components/ui/confirm-dialog";
-import { Popup } from "@/react/components/ui/popup";
-import { RadioGroup } from "@/react/components/ui/radio-group";
+import { MessageActionsMenu, type MessageAction, type MessageMenuTarget } from "@/react/components/notify/message-actions-menu";
 import { Select } from "@/react/components/ui/select";
 import {
   dayKey,
   dayLabel,
   formatClock,
   formatDuration,
+  formatDateTime,
   kindLabel,
   statusLabel,
   type Incident,
@@ -96,6 +96,9 @@ export function MessagesPage({
   const [now, setNow] = useState(Date.now);
   const [narrow, setNarrow] = useState(true);
   const [focusOverride, setFocusOverride] = useState("");
+  const [menu, setMenu] = useState<MessageMenuTarget | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+  const isOperating = useRef(false);
   const layoutRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -151,17 +154,17 @@ export function MessagesPage({
     ],
   );
   const selected = selectedIncident(visible, view.selectedId, focusOverride);
-  const unreadCount = pageIncidents.filter((inc) => inc.unread).length;
+  const unreadCount = visible.filter((inc) => inc.unread).length;
   const clearable = visible.filter((inc) => inc.status !== "active");
   const hasActive = pageIncidents.some((inc) => inc.status === "active");
   const statuses: { value: StatusFilter; label: string }[] = certPage
     ? [
-        { value: "all", label: "全部" },
+        { value: "all", label: "全部状态" },
         { value: "open", label: "到期提醒" },
         { value: "closed", label: "已续期" },
       ]
     : [
-        { value: "all", label: "全部" },
+        { value: "all", label: "全部状态" },
         { value: "open", label: appPage ? "异常中" : "进行中" },
         { value: "closed", label: "已恢复" },
         { value: "unclosed", label: "未记录恢复" },
@@ -170,7 +173,7 @@ export function MessagesPage({
     if (certPage)
       return [
         { value: "all", label: "全部主机" },
-        ...[...new Set(pageIncidents.map((inc) => inc.host))].map((host) => ({
+        ...[...new Set([...pageIncidents.map((inc) => inc.host), ...(view.kindFilter === "all" ? [] : [view.kindFilter])])].map((host) => ({
           value: host,
           label: host,
         })),
@@ -187,11 +190,14 @@ export function MessagesPage({
     for (const inc of pageIncidents)
       if (!options.some((option) => option.value === inc.kind))
         options.push({ value: inc.kind, label: kindLabel(inc.kind) });
+    if (view.kindFilter !== "all" && !options.some((option) => option.value === view.kindFilter))
+      options.push({ value: view.kindFilter, label: kindLabel(view.kindFilter) });
+    const kinds = new Set(pageIncidents.map((inc) => inc.kind));
     return [
       { value: "all", label: appPage ? "全部服务" : "全部指标" },
-      ...options,
+      ...options.filter((option) => option.value === view.kindFilter || kinds.has(option.value)),
     ];
-  }, [pageIncidents, certPage, appPage]);
+  }, [pageIncidents, certPage, appPage, view.kindFilter]);
   async function refresh() {
     await refetch();
     notificationHistoryChanged();
@@ -208,32 +214,55 @@ export function MessagesPage({
       ).length;
       if (failed) throw new Error(`${failed} 条记录未能标为已读，请重试`);
     },
-    onError: (error) => flash.showError(formatErr(error)),
-    onSettled: () => {
-      void refresh();
-    },
+    onSettled: refresh,
   });
   const remove = useMutation({
     mutationFn: (ids: string[]) => api.deleteAlertHistory(ids),
-    onError: (error) => flash.showError(formatErr(error)),
-    onSettled: () => {
-      void refresh();
-    },
+    onSettled: refresh,
   });
+  // 单条、批量和自动已读共用同步锁，确认框打开前就占用。
+  async function runAction(action: () => Promise<unknown>) {
+    if (isOperating.current) return;
+    isOperating.current = true;
+    setIsBusy(true);
+    try {
+      await action();
+    } catch (error) {
+      flash.showError(formatErr(error));
+    } finally {
+      isOperating.current = false;
+      setIsBusy(false);
+    }
+  }
+  const menuIncident = menu?.incidentId
+    ? visible.find((inc) => inc.id === menu.incidentId)
+    : undefined;
+  useEffect(() => {
+    if (menu && (!menu.anchor.isConnected || (menu.incidentId && !menuIncident)))
+      setMenu(null);
+  }, [menu, menuIncident]);
+  function openMenu(incidentId: string, anchor: HTMLElement, point?: { x: number; y: number }) {
+    setMenu({ incidentId, anchor, point });
+  }
+  function openContextMenu(incident: Incident, event: MouseEvent<HTMLElement>) {
+    event.preventDefault();
+    const anchor = itemRefs.current[incident.id];
+    if (anchor) openMenu(incident.id, anchor, { x: event.clientX, y: event.clientY });
+  }
   useEffect(() => {
     if (!hasActive) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [hasActive]);
   useEffect(() => {
-    if (!selected?.unread || (narrow && !view.detailOpen)) return;
+    if (!selected?.unread || (narrow && !view.detailOpen) || menu || isOperating.current) return;
     const key = unreadEventIds([selected], query.data || []).join("|");
     if (!key || autoMarked.current.has(key)) return;
     autoMarked.current.add(key);
     if (!view.selectedId && !focusOverride)
       setView((previous) => ({ ...previous, selectedId: selected.id }));
-    mark.mutate([selected]);
-  }, [selected, narrow, view.detailOpen, query.data]);
+    void runAction(() => mark.mutateAsync([selected]));
+  }, [selected, narrow, view.detailOpen, query.data, isBusy, menu]);
   useLayoutEffect(() => {
     if (!query.isSuccess || restoredScroll.current || !listRef.current) return;
     listRef.current.scrollTop = view.scrollTop;
@@ -258,6 +287,7 @@ export function MessagesPage({
     });
   }, [focusAlertId, pageIncidents, query.data, refetch]);
   function changeFilter(patch: Partial<MessageView>) {
+    setMenu(null);
     setFocusOverride("");
     setView((previous) => ({
       ...previous,
@@ -269,6 +299,7 @@ export function MessagesPage({
     if (listRef.current) listRef.current.scrollTop = 0;
   }
   function select(id: string, focus = false) {
+    setMenu(null);
     setFocusOverride("");
     setView((previous) => ({ ...previous, selectedId: id, detailOpen: true }));
     if (focus)
@@ -282,7 +313,8 @@ export function MessagesPage({
     if (
       (event.key !== "ArrowDown" && event.key !== "ArrowUp") ||
       event.nativeEvent.isComposing ||
-      !visible.length
+      !visible.length ||
+      menu
     )
       return;
     event.preventDefault();
@@ -306,33 +338,36 @@ export function MessagesPage({
   async function deleteIncident(incident: Incident) {
     const accepted = await confirmDialog({
       title: "删除这条消息？",
-      body: `${info.label}的这次事件及关联记录将一起删除。${incident.status === "active" ? "事件仍在进行，之后的恢复记录会单独出现。" : ""}此操作不可撤销。`,
+      body: `「${incident.host || info.label} / ${kindLabel(incident.kind)}」${formatDateTime(incident.startAt || incident.lastAt)} 的消息及关联记录将一起删除。${incident.status === "active" ? "事件仍在进行，之后的恢复记录会单独出现。" : ""}此操作不可撤销。`,
       theme: "danger",
       confirmText: "删除",
     });
     if (!accepted) return;
+    await remove.mutateAsync(incident.eventIds);
     const index = visible.findIndex((item) => item.id === incident.id);
     const next = visible[index + 1] || visible[index - 1];
-    setView((previous) => ({
-      ...previous,
-      selectedId: next && next.id !== incident.id ? next.id : "",
-    }));
-    setFocusOverride("");
-    remove.mutate(incident.eventIds);
+    setView((previous) => {
+      if (previous.selectedId !== incident.id && (previous.selectedId || selected?.id !== incident.id)) return previous;
+      return { ...previous, selectedId: next && next.id !== incident.id ? next.id : "", detailOpen: !!next };
+    });
+    setFocusOverride((id) => id === incident.id ? "" : id);
   }
   async function clearVisible() {
     if (!clearable.length) return;
     const kept = visible.length - clearable.length;
     const accepted = await confirmDialog({
       title: `清理 ${clearable.length} 条历史消息？`,
-      body: `仅删除「${info.label}」当前筛选结果中的历史记录。${kept ? `进行中的 ${kept} 条会保留。` : ""}此操作不可撤销。`,
+      body: `仅删除「${info.label}」当前结果中的 ${clearable.length} 条历史消息。筛选：${kindOptions.find((option) => option.value === view.kindFilter)?.label || view.kindFilter}，${statuses.find((status) => status.value === view.statusFilter)?.label}${view.unreadOnly ? "，只看未读" : ""}。${kept ? `进行中的 ${kept} 条会保留。` : ""}此操作不可撤销。`,
       theme: "danger",
       confirmText: "清理",
     });
     if (!accepted) return;
-    remove.mutate(clearable.flatMap((inc) => inc.eventIds));
-    setView((previous) => ({ ...previous, selectedId: "", detailOpen: false }));
-    setFocusOverride("");
+    await remove.mutateAsync(clearable.flatMap((inc) => inc.eventIds));
+    const removedIds = new Set(clearable.map((inc) => inc.id));
+    setView((previous) => removedIds.has(previous.selectedId)
+      ? { ...previous, selectedId: "", detailOpen: false }
+      : previous);
+    setFocusOverride((id) => removedIds.has(id) ? "" : id);
   }
   const groups = useMemo(() => {
     const result: { key: number; label: string; items: Incident[] }[] = [];
@@ -356,6 +391,15 @@ export function MessagesPage({
     : Object.values(settings.hostResourceNotifySubs).some(
         (items) => items.length > 0,
       );
+  function incidentActions(incident: Incident): MessageAction[] {
+    const isHostAvailable = !!incident.host && !["菜单检查", "巡检", "本机"].includes(incident.host);
+    return [
+      ...(incident.unread ? [{ label: "标记已读", isDisabled: isBusy, run: () => void runAction(() => mark.mutateAsync([incident])) }] : []),
+      ...(isHostAvailable ? [{ label: "打开主机", run: () => session.openHost(incident.host, "monitor") }] : []),
+      ...(certPage || isHostAvailable ? [{ label: "调整订阅", run: () => openSubscriptions(incident) }] : []),
+      { label: "删除消息", isDanger: true, isSeparated: true, isDisabled: isBusy, run: () => void runAction(() => deleteIncident(incident)) },
+    ];
+  }
   return (
     <Page
       heading={false}
@@ -369,8 +413,8 @@ export function MessagesPage({
       <div className="notify-workspace">
         <NotifyPageHeader title={info.title} />
         <div className="notify-message-toolbar">
+          <div className="notify-message-filters">
           <Select
-            size="sm"
             aria-label={
               certPage ? "按主机筛选" : appPage ? "按服务筛选" : "按指标筛选"
             }
@@ -379,11 +423,12 @@ export function MessagesPage({
             options={kindOptions}
             className="w-32"
           />
-          <RadioGroup
+          <Select
             aria-label="按状态筛选"
             value={view.statusFilter}
             onChange={(statusFilter) => changeFilter({ statusFilter })}
             options={statuses}
+            className="w-32"
           />
           <Checkbox
             checked={view.unreadOnly}
@@ -391,51 +436,28 @@ export function MessagesPage({
           >
             只看未读
           </Checkbox>
-          <div className="notify-message-menu">
-            <ActionMenu
-              label="标记已读"
-              disabled={unreadCount === 0 || mark.isPending}
-              icon={<ChevronDown size={14} strokeWidth={1.5} />}
-              items={[
-                {
-                  label: "当前消息",
-                  disabled: !selected?.unread,
-                  run: () => {
-                    if (selected) mark.mutate([selected]);
-                  },
-                },
-                {
-                  label: `当前筛选结果（${visible.filter((inc) => inc.unread).length} 条）`,
-                  disabled: !visible.some((inc) => inc.unread),
-                  run: () => mark.mutate(visible),
-                },
-                {
-                  label: `当前分类（${unreadCount} 条）`,
-                  run: () => mark.mutate(pageIncidents),
-                },
-              ]}
-            />
-            <ActionMenu
-              label="更多消息操作"
-              compact
-              icon={<Ellipsis size={16} strokeWidth={1.5} />}
-              items={[
-                {
-                  label: "删除当前消息",
-                  disabled: !selected || remove.isPending,
-                  run: () => {
-                    if (selected) void deleteIncident(selected);
-                  },
-                },
-                {
-                  label: `清理当前筛选的历史（${clearable.length} 条）`,
-                  disabled: !clearable.length || remove.isPending,
-                  run: () => {
-                    void clearVisible();
-                  },
-                },
-              ]}
-            />
+          </div>
+          <div className="notify-message-actions" role="group" aria-label="当前筛选结果操作">
+            <Button
+              aria-label={`当前结果全部已读（${unreadCount} 条）`}
+              title="将当前筛选结果中的未读消息标记为已读"
+              disabled={isBusy || !unreadCount}
+              onClick={() => void runAction(() => mark.mutateAsync(visible))}
+            >
+              全部已读
+              <span className="font-mono text-xs text-muted tabular-nums">{unreadCount}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-danger"
+              aria-label={`清理当前结果历史（${clearable.length} 条）`}
+              title="清理当前筛选结果中的历史消息，保留进行中消息"
+              disabled={isBusy || !clearable.length}
+              onClick={() => void runAction(clearVisible)}
+            >
+              清理历史
+              <span className="font-mono text-xs tabular-nums">{clearable.length}</span>
+            </Button>
           </div>
         </div>
         {focusOverride ? (
@@ -532,6 +554,9 @@ export function MessagesPage({
                           selected={selected?.id === inc.id}
                           appPage={appPage}
                           onClick={() => select(inc.id)}
+                          isMenuOpen={menu?.incidentId === inc.id}
+                          onContextMenu={(event) => openContextMenu(inc, event)}
+                          onOpenMenu={(anchor) => openMenu(inc.id, anchor)}
                           buttonRef={(node) => {
                             itemRefs.current[inc.id] = node;
                           }}
@@ -568,13 +593,21 @@ export function MessagesPage({
                 now={now}
                 onSelect={(id) => select(id, true)}
                 onOpenHost={(host) => session.openHost(host, "monitor")}
-                onOpenSubs={() => openSubscriptions(selected)}
-                onDelete={() => void deleteIncident(selected)}
+                isMenuOpen={menu?.incidentId === selected.id}
+                onOpenMenu={(anchor) => openMenu(selected.id, anchor)}
               />
             </div>
           ) : null}
         </div>
       </div>
+      {menu && menuIncident ? (
+        <MessageActionsMenu
+          target={menu}
+          label={`${menuIncident.host} ${kindLabel(menuIncident.kind)} 消息操作`}
+          items={incidentActions(menuIncident)}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
     </Page>
   );
 }
@@ -585,6 +618,9 @@ function IncidentRow({
   selected,
   appPage,
   onClick,
+  isMenuOpen,
+  onContextMenu,
+  onOpenMenu,
   buttonRef,
 }: {
   inc: Incident;
@@ -592,6 +628,9 @@ function IncidentRow({
   selected: boolean;
   appPage: boolean;
   onClick: () => void;
+  isMenuOpen: boolean;
+  onContextMenu: (event: MouseEvent<HTMLElement>) => void;
+  onOpenMenu: (anchor: HTMLElement) => void;
   buttonRef: (node: HTMLButtonElement | null) => void;
 }) {
   const trigger = inc.escalation?.value || inc.down?.value || "";
@@ -612,13 +651,24 @@ function IncidentRow({
           ? `未记录恢复${trigger ? ` · 触发 ${trigger}` : ""}`
           : `${trigger ? `触发 ${trigger} · ` : ""}${statusLabel(inc)} ${formatDuration(now - inc.startAt)}`;
   return (
+    <div
+      className={cn("notify-message-row", isMenuOpen && "is-menu-open")}
+      onContextMenu={onContextMenu}
+      onKeyDown={(event) => {
+        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenMenu(event.target as HTMLElement);
+        }
+      }}
+    >
     <button
       ref={buttonRef}
       type="button"
       aria-current={selected || undefined}
       onClick={onClick}
       className={cn(
-        "motion-colors flex w-full flex-col gap-1 border-b border-line px-4 py-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-focus",
+        "motion-colors flex w-full flex-col gap-1 border-b border-line py-3 pl-4 pr-12 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-focus",
         selected ? "bg-accent-soft" : "hover:bg-raised",
       )}
     >
@@ -634,7 +684,7 @@ function IncidentRow({
           {appPage ? inc.service || kindLabel(inc.kind) : inc.host || "—"}
         </span>
         <LevelTag inc={inc} />
-        <span className="shrink-0 text-muted">
+        <span className="min-w-0 truncate text-muted">
           {appPage ? inc.host : kindLabel(inc.kind)}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">
@@ -653,98 +703,17 @@ function IncidentRow({
         {summary}
       </span>
     </button>
-  );
-}
-
-function ActionMenu({
-  label,
-  icon,
-  items,
-  compact = false,
-  disabled = false,
-}: {
-  label: string;
-  icon: ReactNode;
-  compact?: boolean;
-  disabled?: boolean;
-  items: { label: string; disabled?: boolean; run: () => void }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (open)
-      window.requestAnimationFrame(() =>
-        panel.current
-          ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
-          ?.focus(),
-      );
-  }, [open]);
-  return (
-    <>
-      <Button
-        size="sm"
-        ref={anchor}
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => setOpen(!open)}
-      >
-        {compact ? null : label}
-        {icon}
-      </Button>
-      <Popup
-        open={open}
-        anchorRef={anchor}
-        onClose={() => {
-          setOpen(false);
-          anchor.current?.focus();
-        }}
-        className="py-1"
-      >
-        <div
-          ref={panel}
-          role="menu"
-          aria-label={label}
-          onKeyDown={(event) => {
-            const buttons = [
-              ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-                "button:not(:disabled)",
-              ),
-            ];
-            const index = buttons.indexOf(
-              document.activeElement as HTMLButtonElement,
-            );
-            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-              event.preventDefault();
-              buttons[
-                (index +
-                  (event.key === "ArrowDown" ? 1 : -1) +
-                  buttons.length) %
-                  buttons.length
-              ]?.focus();
-            }
-          }}
-        >
-          {items.map((item) => (
-            <button
-              key={item.label}
-              role="menuitem"
-              type="button"
-              className="notify-menu-item"
-              disabled={item.disabled}
-              onClick={() => {
-                setOpen(false);
-                anchor.current?.focus();
-                item.run();
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </Popup>
-    </>
+    <Button
+      size="sm"
+      variant="ghost"
+      className="notify-row-menu"
+      aria-label={`${inc.host} ${kindLabel(inc.kind)} 消息操作`}
+      aria-haspopup="menu"
+      aria-expanded={isMenuOpen}
+      onClick={(event) => onOpenMenu(event.currentTarget)}
+    >
+      <Ellipsis size={16} strokeWidth={1.5} aria-hidden />
+    </Button>
+    </div>
   );
 }
