@@ -26,21 +26,29 @@ int main(void) {
    applyMaterial((__bridge void *)window, 1);
    applyMaterial((__bridge void *)window, 1);
    int count = 0;
-   NSVisualEffectView *effect = nil;
+   PanelWallpaperView *wallpaper = nil;
    for (NSView *v in window.contentView.subviews) {
-    if ([v.identifier isEqualToString:@"1panel-frost"]) { count++; effect = (NSVisualEffectView *)v; }
+    if ([v isKindOfClass:PanelWallpaperView.class]) { count++; wallpaper = (PanelWallpaperView *)v; }
    }
-   assert(count == 1 && effect.material == NSVisualEffectMaterialSidebar);
-   assert(effect.blendingMode == NSVisualEffectBlendingModeBehindWindow);
+   assert(count == 1 && wallpaper.wallpaper != nil);
+   assert([wallpaper.wallpaperURL isEqual:[NSWorkspace.sharedWorkspace desktopImageURLForScreen:window.screen ?: NSScreen.mainScreen]]);
+   NSVisualEffectView *effect = (NSVisualEffectView *)wallpaper.subviews.firstObject;
+   assert(effect.material == NSVisualEffectMaterialSidebar);
+   assert(effect.blendingMode == NSVisualEffectBlendingModeWithinWindow);
    assert(effect.state == NSVisualEffectStateActive);
    assert(!window.opaque && window.backgroundColor.alphaComponent == 0);
    assert(web.superview == window.contentView);
    [window setContentSize:NSMakeSize(800 + i, 600 + i)];
-   assert(NSEqualRects(effect.frame, window.contentView.bounds));
+   assert(NSEqualRects(wallpaper.frame, window.contentView.bounds));
+   assert(NSEqualRects(effect.frame, wallpaper.bounds));
    applyMaterial((__bridge void *)window, 0);
-   assert(effect.superview == nil && web.superview == window.contentView);
+   assert(wallpaper.superview == nil && wallpaper.refreshTimer == nil && web.superview == window.contentView);
   }
-  NSLog(@"PASS: 50 material switches, idempotent setup, native sidebar material and resizing");
+  NSRect fill = wallpaperRect(NSMakeSize(2000,1000), NSMakeRect(-1000,100,1000,1000), @{});
+  assert(NSEqualRects(fill, NSMakeRect(-1500,100,2000,1000)));
+  NSRect fit = wallpaperRect(NSMakeSize(2000,1000), NSMakeRect(-1000,100,1000,1000), @{NSWorkspaceDesktopImageAllowClippingKey:@NO});
+  assert(NSEqualRects(fit, NSMakeRect(-1000,350,1000,500)));
+  NSLog(@"PASS: 50 material switches, idempotent setup, desktop wallpaper source, in-window blur, resizing, screen alignment and timer cleanup");
  }
  return 0;
 }

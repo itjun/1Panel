@@ -10,27 +10,122 @@ package windowmaterial
 static int reduceTransparency(void) {
     return NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
 }
-static void applyMaterial(void *ptr, int material) {
+// 将系统壁纸放进窗口自身的底层，再由 AppKit 模糊；不采样其他应用。
+@interface PanelWallpaperView : NSView
+@property(nonatomic, strong) NSImage *wallpaper;
+@property(nonatomic, strong) NSURL *wallpaperURL;
+@property(nonatomic, strong) NSDate *wallpaperModified;
+@property(nonatomic, copy) NSDictionary *wallpaperOptions;
+@property(nonatomic, strong) NSTimer *refreshTimer;
+- (BOOL)refreshWallpaper;
+@end
+
+static NSRect wallpaperRect(NSSize image, NSRect screen, NSDictionary *options) {
+    NSSize size = image;
+    NSImageScaling scaling = options[NSWorkspaceDesktopImageScalingKey]
+        ? [options[NSWorkspaceDesktopImageScalingKey] integerValue] : NSImageScaleProportionallyUpOrDown;
+    BOOL isClipped = options[NSWorkspaceDesktopImageAllowClippingKey]
+        ? [options[NSWorkspaceDesktopImageAllowClippingKey] boolValue] : YES;
+    if (scaling == NSImageScaleAxesIndependently) {
+        size = screen.size;
+    } else if (scaling != NSImageScaleNone && image.width > 0 && image.height > 0) {
+        CGFloat x = screen.size.width / image.width;
+        CGFloat y = screen.size.height / image.height;
+        CGFloat scale = isClipped ? MAX(x, y) : MIN(x, y);
+        if (scaling == NSImageScaleProportionallyDown) scale = MIN(1, scale);
+        size = NSMakeSize(image.width * scale, image.height * scale);
+    }
+    return NSMakeRect(NSMidX(screen) - size.width / 2, NSMidY(screen) - size.height / 2, size.width, size.height);
+}
+
+@implementation PanelWallpaperView
+- (NSView *)hitTest:(NSPoint)point { return nil; }
+- (BOOL)refreshWallpaper {
+    NSScreen *screen = self.window.screen ?: NSScreen.mainScreen;
+    NSURL *url = [NSWorkspace.sharedWorkspace desktopImageURLForScreen:screen];
+    NSDictionary *options = [NSWorkspace.sharedWorkspace desktopImageOptionsForScreen:screen] ?: @{};
+    NSDate *modified = nil;
+    [url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:nil];
+    if (!self.wallpaper || ![url isEqual:self.wallpaperURL] || ![modified isEqual:self.wallpaperModified]) {
+        NSImage *image = url ? [[NSImage alloc] initWithContentsOfURL:url] : nil;
+        if (!image || image.size.width <= 0 || image.size.height <= 0) return NO;
+        self.wallpaper = image;
+        self.wallpaperURL = url;
+        self.wallpaperModified = modified;
+    }
+    self.wallpaperOptions = options;
+    self.needsDisplay = YES;
+    return YES;
+}
+- (void)windowGeometryChanged:(NSNotification *)notification {
+    if (notification.object != self.window) return;
+    if ([notification.name isEqualToString:NSWindowDidChangeScreenNotification]) {
+        [self refreshWallpaper];
+    } else {
+        // 拖动和缩放只重画缓存，避免每一帧都读取壁纸配置和文件属性。
+        self.needsDisplay = YES;
+    }
+}
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+    [self.refreshTimer invalidate];
+    self.refreshTimer = nil;
+    if (!self.window) return;
+    for (NSNotificationName name in @[NSWindowDidMoveNotification, NSWindowDidResizeNotification, NSWindowDidChangeScreenNotification]) {
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(windowGeometryChanged:) name:name object:self.window];
+    }
+    [self refreshWallpaper];
+    __weak PanelWallpaperView *weakSelf = self;
+    self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:3 repeats:YES block:^(NSTimer *timer) {
+        [weakSelf refreshWallpaper];
+    }];
+}
+- (void)dealloc {
+    [self.refreshTimer invalidate];
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+- (void)drawRect:(NSRect)dirtyRect {
+    NSColor *fill = self.wallpaperOptions[NSWorkspaceDesktopImageFillColorKey] ?: NSColor.blackColor;
+    [fill setFill];
+    NSRectFill(self.bounds);
+    if (!self.wallpaper) return;
+    NSScreen *screen = self.window.screen ?: NSScreen.mainScreen;
+    NSRect target = wallpaperRect(self.wallpaper.size, screen.frame, self.wallpaperOptions);
+    NSRect location = [self.window convertRectToScreen:[self convertRect:self.bounds toView:nil]];
+    target.origin.x -= location.origin.x;
+    target.origin.y -= location.origin.y;
+    [self.wallpaper drawInRect:target fromRect:NSZeroRect operation:NSCompositingOperationCopy fraction:1 respectFlipped:YES hints:nil];
+}
+@end
+
+static int applyMaterial(void *ptr, int material) {
     NSWindow *window = (__bridge NSWindow *)ptr;
-    // 窗后材质直接采样桌面；窗口自身不能再用不透明底色挡住它。
     window.opaque = NO;
     window.backgroundColor = NSColor.clearColor;
     NSView *content = window.contentView;
-    NSView *existing = nil;
+    PanelWallpaperView *existing = nil;
     for (NSView *view in content.subviews) {
-        if ([view.identifier isEqualToString:@"1panel-frost"]) existing = view;
+        if ([view.identifier isEqualToString:@"onepanel-window-material"]) existing = (PanelWallpaperView *)view;
     }
-    if (material && existing) return;
+    if (material && existing) return [existing refreshWallpaper];
     [existing removeFromSuperview];
-    if (!material) return;
-    NSVisualEffectView *frost = [[NSVisualEffectView alloc] initWithFrame:content.bounds];
-    frost.identifier = @"1panel-frost";
+    if (!material) return 1;
+    PanelWallpaperView *wallpaper = [[PanelWallpaperView alloc] initWithFrame:content.bounds];
+    wallpaper.identifier = @"onepanel-window-material";
+    wallpaper.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [content addSubview:wallpaper positioned:NSWindowBelow relativeTo:nil];
+    if (![wallpaper refreshWallpaper]) {
+        [wallpaper removeFromSuperview];
+        return 0;
+    }
+    NSVisualEffectView *frost = [[NSVisualEffectView alloc] initWithFrame:wallpaper.bounds];
     frost.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     frost.material = NSVisualEffectMaterialSidebar;
-    frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    // 失焦后仍保留桌面透色，避免切换应用时侧栏变成实色。
+    frost.blendingMode = NSVisualEffectBlendingModeWithinWindow;
     frost.state = NSVisualEffectStateActive;
-    [content addSubview:frost positioned:NSWindowBelow relativeTo:nil];
+    [wallpaper addSubview:frost];
+    return 1;
 }
 */
 import "C"
@@ -67,7 +162,9 @@ func Apply(win *application.WebviewWindow, material string) error {
 		kind = 1
 	}
 	return application.InvokeSyncWithError(func() error {
-		C.applyMaterial(win.NativeWindow(), kind)
+		if C.applyMaterial(win.NativeWindow(), kind) == 0 {
+			return fmt.Errorf("无法读取当前屏幕壁纸，正在使用经典外观")
+		}
 		return nil
 	})
 }
