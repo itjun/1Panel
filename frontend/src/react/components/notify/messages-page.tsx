@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Ellipsis } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -593,8 +593,9 @@ export function MessagesPage({
                 now={now}
                 onSelect={(id) => select(id, true)}
                 onOpenHost={(host) => session.openHost(host, "monitor")}
-                isMenuOpen={menu?.incidentId === selected.id}
-                onOpenMenu={(anchor) => openMenu(selected.id, anchor)}
+                onOpenSubs={() => openSubscriptions(selected)}
+                onDelete={() => void runAction(() => deleteIncident(selected))}
+                isBusy={isBusy}
               />
             </div>
           ) : null}
@@ -668,7 +669,7 @@ function IncidentRow({
       aria-current={selected || undefined}
       onClick={onClick}
       className={cn(
-        "motion-colors flex w-full flex-col gap-1 border-b border-line py-3 pl-4 pr-12 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-focus",
+        "motion-colors flex w-full flex-col gap-1 border-b border-line px-4 py-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-focus",
         selected ? "bg-accent-soft" : "hover:bg-raised",
       )}
     >
@@ -703,17 +704,6 @@ function IncidentRow({
         {summary}
       </span>
     </button>
-    <Button
-      size="sm"
-      variant="ghost"
-      className="notify-row-menu"
-      aria-label={`${inc.host} ${kindLabel(inc.kind)} 消息操作`}
-      aria-haspopup="menu"
-      aria-expanded={isMenuOpen}
-      onClick={(event) => onOpenMenu(event.currentTarget)}
-    >
-      <Ellipsis size={16} strokeWidth={1.5} aria-hidden />
-    </Button>
     </div>
   );
 }

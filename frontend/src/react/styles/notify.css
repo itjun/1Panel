@@ -54,6 +54,9 @@
 .notify-workspace .notify-message-layout{flex-direction:row;overflow:hidden;min-height:0}
 .notify-workspace .notify-message-list{width:clamp(280px,34%,400px);max-height:none;min-height:0}
 .notify-workspace .notify-message-detail{min-height:0}
+.notify-detail-header{display:flex;align-items:flex-start;flex-wrap:wrap;gap:16px}
+.notify-detail-heading{display:flex;flex-direction:column;gap:8px;flex:1 1 280px;min-width:0}
+.notify-detail-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex-shrink:0}
 .notify-message-layout.is-narrow .notify-message-list{width:auto;flex:1;border-right:0;border-bottom:0}
 .notify-message-layout.is-narrow .notify-message-detail{display:none}
 .notify-message-layout.is-narrow.is-detail-open .notify-message-list{display:none}
@@ -64,9 +67,6 @@
 .notify-menu-item:disabled{opacity:.5;cursor:default}
 .notify-message-row{position:relative;min-width:0}
 .notify-message-row.is-menu-open{outline:1px solid var(--color-accent);outline-offset:-1px}
-.notify-message-row .notify-row-menu{position:absolute;right:8px;top:12px;width:28px;padding:0;opacity:0;pointer-events:none}
-.notify-message-row:hover .notify-row-menu,.notify-message-row:focus-within .notify-row-menu,.notify-message-row.is-menu-open .notify-row-menu{opacity:1;pointer-events:auto}
-@media (hover:none),(pointer:coarse){.notify-message-row .notify-row-menu{opacity:1;pointer-events:auto}}
 .notify-context-notice{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 24px;color:var(--color-muted);font-size:12px;background:var(--color-raised)}
 .notify-incident-readout{display:flex;gap:24px;flex-wrap:wrap}
 .notify-incident-readout>div{min-width:120px}

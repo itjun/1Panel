@@ -16,7 +16,7 @@ export type MessageMenuTarget = {
   point?: { x: number; y: number };
 };
 
-/** 右键、行内按钮与详情共用菜单；操作对象由消息 ID 决定。 */
+/** 消息右键菜单（也支持键盘菜单快捷键）；操作对象由消息 ID 决定。 */
 export function MessageActionsMenu({ target, label, items, onClose }: {
   target: MessageMenuTarget;
   label: string;

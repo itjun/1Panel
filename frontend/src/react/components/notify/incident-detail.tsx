@@ -1,6 +1,4 @@
 import {
-  Activity,
-  Ellipsis,
   CircleCheck,
   CircleHelp,
   TriangleAlert,
@@ -95,17 +93,20 @@ export function IncidentDetail({
   now,
   onSelect,
   onOpenHost,
-  onOpenMenu,
-  isMenuOpen,
+  onOpenSubs,
+  onDelete,
+  isBusy,
 }: {
   incident: Incident;
   all: Incident[];
   now: number;
   onSelect: (id: string) => void;
   onOpenHost: (host: string) => void;
-  onOpenMenu: (anchor: HTMLElement) => void;
-  isMenuOpen: boolean;
+  onOpenSubs: () => void;
+  onDelete: () => void;
+  isBusy: boolean;
 }) {
+  const isHostAvailable = !!incident.host && !["菜单检查", "巡检", "本机"].includes(incident.host);
   const app = isAppKind(incident.kind);
   const pointEvent = incident.status === "notice";
   const subject = app
@@ -132,27 +133,29 @@ export function IncidentDetail({
       <p className="text-xs text-muted">
         {NOTIFY_SOURCE[notifySourceOf(incident.kind)].label} / {subject}
       </p>
-      <header className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <Tag tone={statusTone(incident)}>{statusLabel(incident)}</Tag>
-          <LevelTag inc={incident} />
-          <h2 className="min-w-0 truncate text-xl font-semibold text-ink">
-            {incident.host || "—"}
-            <span className="ml-2 font-normal text-muted">{subject}</span>
-          </h2>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto shrink-0"
-            aria-label="当前消息操作"
-            aria-haspopup="menu"
-            aria-expanded={isMenuOpen}
-            onClick={(event) => onOpenMenu(event.currentTarget)}
-          >
-            <Ellipsis size={16} strokeWidth={1.5} aria-hidden />
+      <header className="notify-detail-header">
+        <div className="notify-detail-heading">
+          <div className="flex items-center gap-2">
+            <Tag tone={statusTone(incident)}>{statusLabel(incident)}</Tag>
+            <LevelTag inc={incident} />
+            <h2 className="min-w-0 truncate text-xl font-semibold text-ink">
+              {incident.host || "—"}
+              <span className="ml-2 font-normal text-muted">{subject}</span>
+            </h2>
+          </div>
+          <p className="font-mono text-xs text-muted tabular-nums">{headline}</p>
+        </div>
+        <div className="notify-detail-actions" role="group" aria-label="当前消息操作">
+          {isHostAvailable ? (
+            <Button onClick={() => onOpenHost(incident.host)}>打开主机</Button>
+          ) : null}
+          {incident.kind === "cert" || isHostAvailable ? (
+            <Button onClick={onOpenSubs}>调整订阅</Button>
+          ) : null}
+          <Button variant="ghost" className="text-danger" disabled={isBusy} onClick={onDelete}>
+            删除消息
           </Button>
         </div>
-        <p className="font-mono text-xs text-muted tabular-nums">{headline}</p>
       </header>
 
       {pointEvent ? (
@@ -211,18 +214,6 @@ export function IncidentDetail({
           <p className="text-sm text-muted">没有记录通知渠道</p>
         )}
       </section>
-
-      {incident.host &&
-      incident.host !== "菜单检查" &&
-      incident.host !== "巡检" &&
-      incident.host !== "本机" ? (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" onClick={() => onOpenHost(incident.host)}>
-            <Activity size={16} strokeWidth={1.5} aria-hidden />
-            打开主机监控
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }
