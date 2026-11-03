@@ -443,7 +443,7 @@ ONEPANEL_UPDATE_BASE_URL=http://127.0.0.1:18765 ONEPANEL_UPDATE_CURRENT_VERSION=
     <h3>常见问题</h3>
     <table>
       <tr><th style="width:30%">现象</th><th>原因与处理</th></tr>
-      <tr><td>关于页显示「此构建未配置更新源」</td><td>构建时没有 <code>UPDATE_BASE_URL</code>（本地 <code>build.py</code> 默认如此）。发布构建由 CI 注入。</td></tr>
+      <tr><td>关于页显示「此构建未配置更新源」</td><td>构建时没有 <code>UPDATE_BASE_URL</code>。Linux 本地构建（<code>task build</code> / <code>build.py</code>）默认指向官方 GitHub Releases，其余平台本地构建与显式传 <code>UPDATE_BASE_URL=""</code> 时为空；发布构建由 CI 注入。</td></tr>
       <tr><td>关于页显示「开发构建无法比较版本」</td><td>版本号不是合法 semver（如只有提交短 SHA），先打 tag 再构建。</td></tr>
       <tr><td>CI 第一步「Check agent version committed」失败</td><td>agent 源码改了但没提交新的 <code>VERSION</code> / <code>SOURCE.sha256</code>，本地跑 <code>task agent:build</code> 后提交。</td></tr>
       <tr><td>CI「releasetool verify」失败</td><td>Secret <code>UPDATE_SIGN_KEY</code> 与 <code>pubkey.go</code> 中的公钥不配对（写错了 Secret 或换钥只换了一半），按「签名密钥」一节重新写入 Secret。</td></tr>
