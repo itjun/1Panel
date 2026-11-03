@@ -1,19 +1,45 @@
 package updater
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
 
+// Linux 的 /proc/self/exe 会跟随 rename 改成 .old，必须在替换前固定安装路径。
+var installedExe, installedExeErr = resolveInstalledExe()
+
 func currentExe() (string, error) {
+	return installedExe, installedExeErr
+}
+
+// RestartExecutable 与 Apply 使用同一个路径，避免更新后重新启动旧备份。
+func RestartExecutable() (string, error) {
+	return currentExe()
+}
+
+func resolveInstalledExe() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
+	}
+	// 兼容旧版错误地从备份启动的情况，只识别本应用的备份名。
+	if filepath.Base(exe) == "1Panel.old" {
+		target := strings.TrimSuffix(exe, ".old")
+		st, err := os.Stat(target)
+		if err != nil {
+			return "", fmt.Errorf("无法找到更新后的程序 %s：%w", target, err)
+		}
+		if !st.Mode().IsRegular() || st.Mode().Perm()&0o111 == 0 {
+			return "", fmt.Errorf("更新后的程序不可执行：%s", target)
+		}
+		exe = target
 	}
 	return exe, nil
 }

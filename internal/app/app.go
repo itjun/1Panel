@@ -28,6 +28,7 @@ import (
 	"diteng-pannel/internal/panelstore"
 	"diteng-pannel/internal/speedtest"
 	"diteng-pannel/internal/sshd"
+	"diteng-pannel/internal/updater"
 	"diteng-pannel/internal/windowmaterial"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -624,7 +625,7 @@ func (a *App) installMinimalMenu(app *application.App) {
 func (a *App) restartApp() {
 	a.allowQuit.Store(true)
 	a.endAppSession()
-	exe, err := os.Executable()
+	exe, err := updater.RestartExecutable()
 	if err != nil {
 		if a.app != nil {
 			a.app.Quit()
