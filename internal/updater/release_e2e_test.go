@@ -32,7 +32,8 @@ func TestRealRelease(t *testing.T) {
 		PublicKey: pub,
 		Dir:       t.TempDir(),
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// 下载 tar.gz + deb 两个包，慢网络下耗时可观（33MB 曾跑 6 分钟），放宽到 20 分钟
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
 	m, err := c.Fetch(ctx)
@@ -74,8 +75,9 @@ func TestRealRelease(t *testing.T) {
 	}
 
 	// deb 资产（首个 deb 发布后存在）：校验是 dpkg 可解析、包名与版本正确的安装包，
-	// 与 update-apply 助手实际安装的是同一份产物。
-	if a, ok := m.AssetFor(UpdateAssetKey()); ok && strings.HasSuffix(a.Name, ".deb") {
+	// 与 update-apply 助手实际安装的是同一份产物。按 deb 键直接查找——UpdateAssetKey
+	// 反映本机安装形态，本测试二进制不在 dpkg 数据库、取到的是 tar.gz 键。
+	if a, ok := m.AssetFor(CurrentPlatformKey() + "-deb"); ok {
 		debPath, err := c.Download(ctx, a, nil)
 		if err != nil {
 			t.Fatalf("下载/校验真实 deb 安装包失败：%v", err)
