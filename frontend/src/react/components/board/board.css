@@ -1,7 +1,7 @@
 /* 看板独立窗口皮肤；不作用于主窗口（机柜面板规范 docs/design/specification.md §8.1 / §9）
    看板深色专用面：投到大屏，亮色主题下也保持深色，所以在根元素上本地覆写一组
    --color-* 为 §2.2 暗色值（与 globals.css html.dark 同值），内部一律只引用变量。
-   内容优先，品牌蓝与状态色负责活力，无装饰网格与发光。 */
+   内容优先，macOS 蓝与状态色负责活力，无装饰网格与发光。 */
 
 html.board-http,
 .board-mode,
@@ -16,15 +16,15 @@ html.board-http,
   --color-muted: var(--board-color-muted, #94a1b5);
   --color-on-accent: var(--board-color-on-accent, #15151a);
   --color-on-danger: var(--board-color-on-danger, #15151a);
-  --color-accent-tint: var(--board-color-accent-tint, #172440);
-  --color-selection: var(--board-color-selection, #274a8c);
+  --color-accent-tint: var(--board-color-accent-tint, #1a2535);
+  --color-selection: var(--board-color-selection, #16314d);
   --color-tooltip: var(--board-color-tooltip, #dfe5ee);
   --color-tooltip-text: var(--board-color-tooltip-text, #1b2433);
-  --color-accent: var(--board-color-accent, #4c8dff);
-  --color-accent-hover: var(--board-color-accent-hover, #6fa3ff);
-  --color-accent-active: var(--board-color-accent-active, #3a78e8);
-  --color-accent-soft: var(--board-color-accent-soft, #1a2c52);
-  --color-accent-focus: var(--board-color-accent-focus, #22407a);
+  --color-accent: var(--board-color-accent, #179bff);
+  --color-accent-hover: var(--board-color-accent-hover, #2ca4ff);
+  --color-accent-active: var(--board-color-accent-active, #3eacff);
+  --color-accent-soft: var(--board-color-accent-soft, #16314d);
+  --color-accent-focus: var(--board-color-accent-focus, #0091ff);
   --color-success: var(--board-color-success, #56c08d);
   --color-success-text: var(--board-color-success-text, #56c08d);
   --color-danger: var(--board-color-danger, #f06c63);
@@ -34,7 +34,7 @@ html.board-http,
   --color-danger-soft: var(--board-color-danger-soft, #43201e);
   --color-warn-soft: var(--board-color-warn-soft, #40280f);
   --color-info-soft: var(--board-color-info-soft, #15304a);
-  --color-chart-1: var(--board-color-chart-1, #4c8dff);
+  --color-chart-1: var(--board-color-chart-1, #179bff);
   --color-io-read: var(--board-color-io-read, #4fb0ff);
   --color-io-write: var(--board-color-io-write, #f29a4a);
   --color-chart-2: var(--board-color-chart-2, #4fb0ff);

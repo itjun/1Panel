@@ -58,7 +58,8 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   const materialSurfaces = isClassic ? [] : [base.rail, base.canvas].flatMap((color) =>
     ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, color, shellOpacity)));
   const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, cardSelected];
-  const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, base.ink);
+  // 默认配色沿 macOS 蓝色的色相校正明度，避免混入灰色文字后偏色。
+  const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink);
   const muted = readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink);
   const accentHover = mix(accent, isDark ? "#ffffff" : "#15151a", 0.09);
   const accentActive = mix(accent, isDark ? "#ffffff" : "#15151a", 0.17);
@@ -91,8 +92,8 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
     "--color-accent": accent, "--color-accent-hover": accentHover, "--color-accent-active": accentActive,
     "--color-on-accent": foreground([accent, accentHover, accentActive]),
     "--color-accent-soft": accentSoft, "--color-accent-tint": mix(base.surface, accent, 0.045),
-    "--color-accent-focus": accent, "--color-selection": base.selection ?? soft(accent),
-    "--color-accent-veil": `rgba(${rgb(accent).join(", ")}, ${isDark ? 0.18 : 0.1})`,
+    "--color-accent-focus": isClassic ? base.accent : accent, "--color-selection": base.selection ?? soft(isClassic ? base.accent : accent),
+    "--color-accent-veil": `rgba(${rgb(isClassic ? base.accent : accent).join(", ")}, ${isDark ? 0.18 : 0.1})`,
     "--color-line-veil": `rgba(${rgb(base.ink).join(", ")}, 0.08)`,
     "--color-success": ok, "--color-success-text": readable(base.ok, [...surfaces, successSoft], 4.5, base.ink),
     "--color-warn": readable(base.warn, [...surfaces, warnSoft], 4.5, base.ink),
@@ -112,9 +113,10 @@ type PaletteDefinition = { id: ColorPaletteId; name: string; description: string
 
 const definitions: PaletteDefinition[] = [
   {
-    id: "classic", name: "默认配色", description: "中性灰 · 品牌蓝",
-    light: { rail: "#eaebee", canvas: "#f2f3f5", surface: "#ffffff", accent: "#0052d9", ink: "#1f2937", muted: "#636a76", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#0d1017", canvas: "#12161f", surface: "#1a1f2b", accent: "#4c8dff", ink: "#e6ebf3", muted: "#94a1b5", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
+    id: "classic", name: "默认配色", description: "中性灰 / macOS 蓝",
+    // macOS 的 NSColor.systemBlue（sRGB，取样环境 27.2），浅深色分别取样；三端使用相同色系。
+    light: { rail: "#eaebee", canvas: "#f2f3f5", surface: "#ffffff", accent: "#0088ff", ink: "#1f2937", muted: "#636a76", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
+    dark: { rail: "#0d1017", canvas: "#12161f", surface: "#1a1f2b", accent: "#0091ff", ink: "#e6ebf3", muted: "#94a1b5", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
   },
   // 用户确认的 peiseka 预览角色色；语义状态仍沿用健康绿、告警橙、危险红。
   {

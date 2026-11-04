@@ -7,7 +7,7 @@ test("默认配色、十组马卡龙与八组撞色独立保留", () => {
   for (const value of [undefined, null, "", "unknown", "__proto__", 2]) expect(parseColorPalette(value)).toBe("classic");
   for (const palette of COLOR_PALETTES) expect(parseColorPalette(palette.id)).toBe(palette.id);
   const light = paletteTokens("classic", "light");
-  expect([light["--color-rail"], light["--color-canvas"], light["--color-surface"], light["--color-accent"]]).toEqual(["#eaebee", "#f2f3f5", "#ffffff", "#0052d9"]);
+  expect([light["--color-rail"], light["--color-canvas"], light["--color-surface"], light["--color-accent"]]).toEqual(["#eaebee", "#f2f3f5", "#ffffff", "#006ac7"]);
   const dark = paletteTokens("classic", "dark");
   expect([dark["--color-rail"], dark["--color-canvas"], dark["--color-surface"]]).toEqual(["#0d1017", "#12161f", "#1a1f2b"]);
 });

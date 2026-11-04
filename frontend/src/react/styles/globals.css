@@ -3,7 +3,7 @@
 /* static：Tailwind 4 默认只输出被工具类引用到的变量，这里的 token 还会被
    JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
 @theme static {
-  /* 机柜面板规范 docs/design/specification.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），品牌蓝是主角；绿色只用于成功状态与健康档占用（Meter 正常段 / 占用曲线正常档） */
+  /* 机柜面板规范 docs/design/specification.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），macOS 蓝是主角；绿色只用于成功状态与健康档占用（Meter 正常段 / 占用曲线正常档） */
   /* 一级图标栏（docs/design/specification.md §4.1）：比 canvas 深一档；12px muted 文字在上面 4.57:1 */
   --color-rail: #eaebee;
   --color-rail-line: #d6d8dc;
@@ -18,24 +18,24 @@
   --color-line: #e5e7eb;
   /* 控件描边：ink 与 line 之间的中间灰（替代 color-mix，Linux 旧版 WebKitGTK 不支持） */
   --color-line-strong: #9ca3af;
-  /* 主色「品牌蓝」：hover / active / 选中浅底 */
-  --color-accent: #0052d9;
+  /* 主色「macOS 蓝」：hover / active / 选中浅底 */
+  --color-accent: #006ac7;
   --color-on-accent: #ffffff;
   --color-on-danger: #ffffff;
-  --color-accent-hover: #366ef4;
-  --color-accent-active: #003cab;
-  --color-accent-soft: #e8efff;
+  --color-accent-hover: #0262b7;
+  --color-accent-active: #045caa;
+  --color-accent-soft: #e6f3ff;
   /* 云母壳层选中底：accent 半透明覆盖（定值 rgba，不用 color-mix，老 WebKitGTK 不支持），
      覆盖在任何背景（云母随壁纸着色 / 经典 canvas）上都直接融入 */
-  --color-accent-veil: rgba(0, 82, 217, 0.1);
+  --color-accent-veil: rgba(0, 136, 255, 0.1);
   /* 云母壳层悬停 / 多选浅底：中性半透明覆盖，同上理由用定值 */
   --color-line-veil: rgba(31, 41, 55, 0.08);
   /* 比 accent-soft 更浅一档的蓝底：勾选未悬停格 */
-  --color-accent-tint: #f2f6ff;
+  --color-accent-tint: #f4f8fc;
   /* 输入框聚焦时的 2px 外环 */
-  --color-accent-focus: #c5d6ff;
-  /* 文本选区底色：accent 28% 叠在 surface 上的固定值 */
-  --color-selection: #c9daff;
+  --color-accent-focus: #0088ff;
+  /* 文本选区底色：与默认主题的浅蓝选中底同源 */
+  --color-selection: #e6f3ff;
   --color-graphite: #191c21;
   --color-graphite-text: #e5e7eb;
   /* 对话框 / 抽屉遮罩 = Smoke 烟雾（透明类材质）：压暗下层表面强调重要 UI；
@@ -58,8 +58,8 @@
   --color-danger-soft: #ffecea;
   --color-warn-soft: #fff0e3;
   --color-info-soft: #e3f1ff;
-  /* 读/流入/接收 = 亮蓝；写/流出/发送 = 橙；单线指标 = 品牌蓝 */
-  --color-chart-1: #0052d9;
+  /* 读/流入/接收 = 亮蓝；写/流出/发送 = 橙；单线指标 = macOS 蓝 */
+  --color-chart-1: #006ac7;
   --color-io-read: #1d8cf8;
   --color-io-write: #f08a24;
   --color-chart-2: #1d8cf8;
@@ -135,17 +135,17 @@ html.dark {
   --color-muted: #94a1b5;
   --color-line: #2c3445;
   --color-line-strong: #5a6478;
-  --color-accent: #4c8dff;
+  --color-accent: #179bff;
   --color-on-accent: #15151a;
   --color-on-danger: #15151a;
-  --color-accent-hover: #6fa3ff;
-  --color-accent-active: #3a78e8;
-  --color-accent-soft: #1a2c52;
-  --color-accent-veil: rgba(76, 141, 255, 0.18);
+  --color-accent-hover: #2ca4ff;
+  --color-accent-active: #3eacff;
+  --color-accent-soft: #16314d;
+  --color-accent-veil: rgba(0, 145, 255, 0.18);
   --color-line-veil: rgba(230, 235, 243, 0.08);
-  --color-accent-tint: #172440;
-  --color-accent-focus: #22407a;
-  --color-selection: #274a8c;
+  --color-accent-tint: #1a2535;
+  --color-accent-focus: #0091ff;
+  --color-selection: #16314d;
   --color-graphite: #181818;
   --color-graphite-text: rgba(255, 255, 255, 0.9);
   /* Smoke 遮罩不分明暗：不覆盖亮色 --color-scrim，明暗共用 rgba(0,0,0,0.6) */
@@ -160,7 +160,7 @@ html.dark {
   --color-success-soft: #1a3a2b;
   --color-danger-soft: #43201e;
   --color-warn-soft: #40280f;
-  --color-chart-1: #4c8dff;
+  --color-chart-1: #179bff;
   --color-io-read: #4fb0ff;
   --color-io-write: #f29a4a;
   --color-chart-2: #4fb0ff;

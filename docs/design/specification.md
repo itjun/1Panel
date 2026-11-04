@@ -9,7 +9,7 @@
 > **扁平化**：A 功能区、B 中间区、C 内容区纵向通顶；A 保持统一，B/C 按模块配置底色与布局，零阴影、色块表达选中。
 > **实现落点**：`frontend/src/react/styles/globals.css`（色彩 / 圆角 / 间距 / 字体 / 动效 token）、`frontend/src/react/lib/motion.ts`（动效时值）、`frontend/src/react/lib/platform.ts`（平台判断唯一出口）、`frontend/src/react/components/ui/*`（共享 UI 组件）。
 
-> **2026-10-26 配色更新**：保留默认经典蓝灰，并提供十套经预览确认的马卡龙色系，以 §2.6 和 `color-palettes.ts` 为准。默认配色恢复中性浅灰外框、白色内容与品牌蓝，深色保留原有蓝黑调。马卡龙使用柔和浅底与带少量色相的深灰底；§2.6 登记的马卡龙允许将各自主题色用于主操作、选中和普通趋势线，健康绿 / 告警橙 / 危险红的状态语义不变。
+> **2026-10-26 配色更新**：保留默认经典蓝灰，并提供十套经预览确认的马卡龙色系，以 §2.6 和 `color-palettes.ts` 为准。默认配色使用中性浅灰外框、白色内容与 macOS 蓝，深色保留原有蓝黑调。马卡龙使用柔和浅底与带少量色相的深灰底；§2.6 登记的马卡龙允许将各自主题色用于主操作、选中和普通趋势线，健康绿 / 告警橙 / 危险红的状态语义不变。
 
 > **2026-10-30 ABC 更新**：A 使用统一全局主题；B/C 按模块独立配置。马卡龙 / 撞色下巡检 B/C 使用浅绿角色色；设置跟随当前色系（便于外观页即时预览），不再锁死淡紫。默认配色仍为中性。巡检角色色是上文通用颜色约束的明确特例，状态色语义保持一致。移除全局前进、后退、刷新、主页功能条与侧栏收起展开；B 始终显示，保留按模块记忆的宽度调整。远程主机标签仅在选中主机时显示于 C 内部。
 
@@ -53,7 +53,9 @@
 
 ### 2.1 亮色（默认）
 
-外框为**中性浅灰**（对齐 TDesign `bg-color-page` `#F2F3F5`，不带蓝调；壳层与白色内容面之间不画分隔线、只靠色块区分，故外框灰度须足够可辨），次级面、描边、文字、Tooltip 等整套灰阶同样取中性灰，主色为「品牌蓝 `#0052D9`」。以下表格保留经典蓝灰的基础参考值；实际明暗配色统一由 `frontend/src/react/lib/color-palettes.ts` 生成明确色值并校验对比度，`globals.css` 提供启动前回退。见 §2.6。
+默认主题的蓝色以 macOS `NSColor.systemBlue` 的 sRGB 色值为基准（取样环境 27.2）：浅色 `#0088FF`、深色 `#0091FF`。焦点环使用基色；文字与实心按钮沿同一色相调整明度，满足现有对比度要求；选中底与半透明选中层从基色派生。三端使用同一组固定值，不跟随系统自定义强调色。其他色系与导航选中样式不变。
+
+外框为**中性浅灰**（对齐 TDesign `bg-color-page` `#F2F3F5`，不带蓝调；壳层与白色内容面之间不画分隔线、只靠色块区分，故外框灰度须足够可辨），次级面、描边、文字、Tooltip 等整套灰阶同样取中性灰，主色采用 macOS 蓝色系（浅色基色 `#0088FF`，文字与按钮校正为 `#006AC7`）。以下表格保留经典蓝灰的基础参考值；实际明暗配色统一由 `frontend/src/react/lib/color-palettes.ts` 生成明确色值并校验对比度，`globals.css` 提供启动前回退。见 §2.6。
 
 **硬性规定**：绿色用于成功状态（success：成功 / 正常 / 在线 / 最新）与占用类指标正常档（Meter 正常段、占用曲线 <60% 段，2026-10-03 定案，对齐行业监控惯例 Grafana / htop 的「正常绿、警告橙、危险红」，正常档读作主机健康），两者同取 TDesign 官方值（与 `--color-success` 同源同值，不另造绿）；品牌色、按钮、装饰图表、识别色不用绿色（代码编辑器语法高亮除外）。读 IO 用亮蓝，写 IO 用橙。
 
@@ -69,13 +71,13 @@
 | 控件描边 | `--color-line-strong` | `#9CA3AF` |
 | 主文字 | `--color-ink` | `#1F2937` |
 | 次文字 | `--color-muted` | `#636A76`（surface 上 5.4:1、raised 上 4.9:1） |
-| 主色（品牌蓝） | `--color-accent` | `#0052D9` |
-| 主色 hover | `--color-accent-hover` | `#366EF4` |
-| 主色 active | `--color-accent-active` | `#003CAB` |
-| 主色浅底 / 选中底 | `--color-accent-soft` | `#E8EFFF` |
-| 主色更浅底 | `--color-accent-tint` | `#F2F6FF` |
-| 焦点外环 | `--color-accent-focus` | `#C5D6FF` |
-| 文本选区 | `--color-selection` | `#C9DAFF` |
+| 主色（macOS 蓝） | `--color-accent` | `#006AC7` |
+| 主色 hover | `--color-accent-hover` | `#0262B7` |
+| 主色 active | `--color-accent-active` | `#045CAA` |
+| 主色浅底 / 选中底 | `--color-accent-soft` | `#E6F3FF` |
+| 主色更浅底 | `--color-accent-tint` | `#F4F8FC` |
+| 焦点外环 | `--color-accent-focus` | `#0088FF` |
+| 文本选区 | `--color-selection` | `#E6F3FF` |
 | 成功 / 正常（绿，图标 / 圆点 / 条线） | `--color-success` | `#2BA471` |
 | 成功文字 | `--color-success-text` | `#1A7F52`（success-soft 上 4.52:1，surface 上 5.0:1） |
 | 错误 | `--color-danger` | `#D54941` |
@@ -85,7 +87,7 @@
 | 错误浅底 | `--color-danger-soft` | `#FFECEA` |
 | 告警浅底 | `--color-warn-soft` | `#FFF0E3` |
 | 信息浅底 | `--color-info-soft` | `#E3F1FF` |
-| 图表主线 | `--color-chart-1` | `#0052D9` |
+| 图表主线 | `--color-chart-1` | `#006AC7` |
 | 读 / 流入 | `--color-io-read` / `--color-chart-2` | `#1D8CF8` |
 | 写 / 流出 | `--color-io-write` / `--color-chart-3` | `#F08A24` |
 | LED 分段条 正常 | `--meter-ok` | `#2BA471`（健康绿，与 `--color-success` 同源同值；三档对齐行业监控惯例 Grafana / htop：正常绿、警告橙、危险红；红绿色盲的档位区分靠亮度差与读数文字兜底；2026-10-03 定案，推翻先前「度量不是成功事件」的蓝青方案） |
@@ -111,13 +113,13 @@
 | 控件描边 | `--color-line-strong` | `#5A6478` |
 | 主文字 | `--color-ink` | `#E6EBF3` |
 | 次文字 | `--color-muted` | `#94A1B5` |
-| 主色 | `--color-accent` | `#4C8DFF` |
-| 主色 hover | `--color-accent-hover` | `#6FA3FF` |
-| 主色 active | `--color-accent-active` | `#3A78E8` |
-| 主色浅底 / 选中底 | `--color-accent-soft` | `#1A2C52` |
-| 主色更浅底 | `--color-accent-tint` | `#172440` |
-| 焦点外环 | `--color-accent-focus` | `#22407A` |
-| 文本选区 | `--color-selection` | `#274A8C` |
+| 主色 | `--color-accent` | `#179BFF` |
+| 主色 hover | `--color-accent-hover` | `#2CA4FF` |
+| 主色 active | `--color-accent-active` | `#3EACFF` |
+| 主色浅底 / 选中底 | `--color-accent-soft` | `#16314D` |
+| 主色更浅底 | `--color-accent-tint` | `#1A2535` |
+| 焦点外环 | `--color-accent-focus` | `#0091FF` |
+| 文本选区 | `--color-selection` | `#16314D` |
 | 成功 / 正常（绿） | `--color-success` | `#56C08D` |
 | 成功文字 | `--color-success-text` | `#56C08D`（同 success；success-soft 上 5.53:1，surface 上 7.31:1） |
 | 错误 | `--color-danger` | `#F06C63` |
@@ -127,7 +129,7 @@
 | 错误浅底 | `--color-danger-soft` | `#43201E` |
 | 告警浅底 | `--color-warn-soft` | `#40280F` |
 | 信息浅底 | `--color-info-soft` | `#15304A` |
-| 图表主线 | `--color-chart-1` | `#4C8DFF` |
+| 图表主线 | `--color-chart-1` | `#179BFF` |
 | 读 / 流入 | `--color-io-read` / `--color-chart-2` | `#4FB0FF` |
 | 写 / 流出 | `--color-io-write` / `--color-chart-3` | `#F29A4A` |
 | LED 分段条 正常 | `--meter-ok` | `#56C08D`（健康绿，与暗色 `--color-success` 同源同值，理由同 §2.1） |
