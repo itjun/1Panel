@@ -23,9 +23,9 @@ const (
 
 	// diskWatermarkPct 与 agent 停写水位一致：剩余低于该百分比会丢弃全部采样
 	diskWatermarkPct = 5.0
-	minDataAvailKB   = 64 * 1024 // 数据分区至少 64 MB，避免 5% 在超小盘上仍不够落库
-	minTmpAvailKB    = 32 * 1024 // 上传二进制约 10MB，/tmp 再留余量
-	minMemAvailKB    = 96 * 1024 // 与 systemd MemoryMax 对齐
+	minDataAvailKB   = 64 * 1024  // 数据分区至少 64 MB，避免 5% 在超小盘上仍不够落库
+	minTmpAvailKB    = 32 * 1024  // 上传二进制约 10MB，/tmp 再留余量
+	minMemAvailKB    = 128 * 1024 // 与 systemd MemoryMax 对齐
 )
 
 // systemd unit：含资源硬限制（宁可 agent 降级/退出，也不挤压业务）
@@ -44,7 +44,8 @@ Nice=10
 CPUQuota=25%
 CPUWeight=50
 IOWeight=50
-MemoryMax=96M
+MemoryHigh=96M
+MemoryMax=128M
 OOMScoreAdjust=500
 Environment=GOMEMLIMIT=64MiB
 
