@@ -100,3 +100,9 @@
 .settings-page .settings-header{flex-wrap:wrap;min-height:32px}
 .settings-page .settings-section-actions{margin:0 0 0 auto}
 .settings-page .settings-section-body{padding:24px 0 0;border:0}
+/* 滚动时分区通栏（标题 + 操作，即设置页顶部那一行）钉在内容区顶端，
+   目录菜单本就固定在侧栏不随内容滚动；底色挡住滚过的行，压在窗控（z-30）之下。 */
+.settings-page .settings-header{position:sticky;top:0;z-index:20;background:var(--color-surface)}
+/* 设置内容不长，滚轮 / PageUp 仍可滚，去掉右侧滚动条保持通栏干净。 */
+.react-root[data-module="settings"] .uiux-page-content{scrollbar-width:none}
+.react-root[data-module="settings"] .uiux-page-content::-webkit-scrollbar{display:none}
