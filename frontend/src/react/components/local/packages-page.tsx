@@ -6,6 +6,7 @@ import { RadioGroup } from "@/react/components/ui/radio-group";
 import { SortableHeader, type SortDirection } from "@/react/components/ui/sortable-header";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
+import { TextCopy } from "@/react/components/text-reader";
 import type { localsys } from "@/api";
 import { formatBytesSI, formatErr } from "@/utils/format";
 import { isLinuxPlatform, isMacPlatform, isWindowsPlatform } from "@/react/lib/platform";
@@ -277,12 +278,13 @@ export function LocalPackagesPage() {
                     <td className="px-3">
                       <Tag>{sourceLabel(item.source)}</Tag>
                     </td>
-                    <td
-                      className="max-w-[360px] truncate px-3 font-mono text-muted"
-                      data-tip={item.path || ""}
-                      data-tip-overflow=""
-                    >
-                      {item.path || "—"}
+                    <td className="max-w-[360px] px-3 font-mono text-muted">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="min-w-0 truncate" data-tip={item.path || ""} data-tip-overflow="">
+                          {item.path || "—"}
+                        </span>
+                        {item.path ? <TextCopy text={item.path} label={`复制路径（${item.name}）`} /> : null}
+                      </div>
                     </td>
                   </tr>
                 ))
