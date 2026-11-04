@@ -122,7 +122,7 @@
       <div class="card"><h4>Windows <span class="tag brand">amd64</span></h4>
         <ul><li>产物：<code>1Panel-vX-win-amd64.zip</code></li><li>构建机：<code>windows-latest</code></li><li>自动更新：<span class="tag ok">支持（便携版）</span></li></ul></div>
       <div class="card"><h4>Linux <span class="tag brand">amd64</span></h4>
-        <ul><li>产物：<code>1Panel-vX-linux-amd64.tar.gz</code></li><li>构建机：<code>ubuntu-24.04</code></li><li>自动更新：<span class="tag warn">仅用户目录安装</span></li></ul></div>
+        <ul><li>产物：<code>1Panel-vX-linux-amd64.tar.gz</code> 与 <code>.deb</code></li><li>构建机：<code>ubuntu-24.04</code></li><li>自动更新：<span class="tag ok">用户目录替换二进制；deb 经 pkexec 安装新包</span></li></ul></div>
     </div>
   </section>
 
@@ -221,11 +221,11 @@ flowchart TB
   subgraph job2 [Job build 矩阵并行]
     m1["macOS: 还原内嵌产物"] --> m2["task darwin:package ARCH=arm64"] --> m3["task darwin:create:dmg 打包并挂载验证，附离线安装指南"]
     w1["Windows: 还原内嵌产物"] --> w2["task windows:build"] --> w3["7z 打包 1Panel.exe"]
-    l1["Linux: 还原内嵌产物 + apt 装 GTK4/WebKitGTK"] --> l2["task linux:build"] --> l3["tar.gz 二进制 + desktop + 图标"]
+    l1["Linux: 还原内嵌产物 + apt 装 GTK4/WebKitGTK"] --> l2["task linux:build"] --> l3["tar.gz 二进制 + desktop + 图标"] --> l4["nfpm 打 deb 含 polkit 策略"]
   end
   m3 --> r1
   w3 --> r1
-  l3 --> r1
+  l4 --> r1
   subgraph job3 [Job release on ubuntu-latest]
     r1["下载三个产物"] --> r3{"配置了 UPDATE_SIGN_KEY?"}
     r3 -->|否| fail2["失败 终止发版"]
@@ -257,7 +257,8 @@ flowchart TB
 ├── 1Panel-v1.1.0-mac-arm64.dmg
 ├── 1Panel-macOS-install.html <span class="c"># macOS 离线安装指南，DMG 内也附带</span>
 ├── 1Panel-v1.1.0-win-amd64.zip
-└── 1Panel-v1.1.0-linux-amd64.tar.gz
+├── 1Panel-v1.1.0-linux-amd64.tar.gz
+└── 1Panel-v1.1.0-linux-amd64.deb
 
 <span class="c"># 客户端只请求（重定向到最新正式版）：</span>
 releases/latest/download/latest.json(.sig)</code></pre>
@@ -272,7 +273,8 @@ releases/latest/download/latest.json(.sig)</code></pre>
   "assets": {
     "darwin-arm64": { "name": "...", "url": "...", "sha256": "...", "size": 29262861 },
     "windows-amd64":    { ... },
-    "linux-amd64":      { ... }
+    "linux-amd64":      { ... },
+    "linux-amd64-deb":  { ... }
   }
 }</code></pre>
       </div>
@@ -281,7 +283,7 @@ releases/latest/download/latest.json(.sig)</code></pre>
       <tr><th style="width:24%">客户端平台</th><th style="width:24%">清单平台键</th><th>说明</th></tr>
       <tr><td>macOS（Apple 芯片）</td><td><code>darwin-arm64</code></td><td>只发布 arm64 的 dmg。清单同时写入 <code>darwin-universal</code> 指向同一映像。会解 zip 的旧版本无法安装这份 dmg，需要手动装一次。Intel Mac 无安装包</td></tr>
       <tr><td>Windows x64</td><td><code>windows-amd64</code></td><td>Windows ARM 暂无包，提示「没有当前平台的安装包」</td></tr>
-      <tr><td>Linux x64</td><td><code>linux-amd64</code></td><td>Linux ARM 暂无包</td></tr>
+      <tr><td>Linux x64</td><td><code>linux-amd64</code></td><td>Linux ARM 暂无包。deb 安装的客户端用 <code>linux-amd64-deb</code> 键取 .deb 安装包（<code>UpdateAssetKey</code> 按安装形态选择）</td></tr>
     </table>
     <h3>三重安全校验</h3>
     <div class="mermaid">
@@ -407,12 +409,16 @@ flowchart LR
     <h3>Linux</h3>
     <div class="mermaid">
 flowchart LR
-  chk{"安装方式"} -->|"用户目录二进制 如 ~/.local/bin"| z["下载 .tar.gz 校验通过"]
+  chk{"安装方式 dpkg-query 归属 + 目录可写"} -->|"用户目录二进制 如 ~/.local/bin"| z["下载 .tar.gz 校验通过"]
+  chk -->|"deb 系统包 且有 pkexec"| d["下载 .deb 清单键 linux-amd64-deb 校验通过"]
+  chk -->|"deb 且缺 pkexec"| no3["提示装 polkit 或手动更新"]
   chk -->|AppImage| no1["提示到发布页下载新版"]
-  chk -->|"deb / rpm 系统目录不可写"| no2["提示用包管理器或发布页更新"]
+  chk -->|"rpm 等 系统目录不可写"| no2["提示用包管理器或发布页更新"]
   z --> x["解出 1Panel → 1Panel.new"]
   x --> sw["旧二进制改名为 .old 新文件挪入原位"]
-  sw --> rs["exec 重新启动"]
+  d --> pk["pkexec 弹授权框 → root 助手复验哈希 → dpkg -i 新 deb"]
+  pk --> rs["exec 重新启动"]
+  sw --> rs
   rs --> cl["新进程启动后删除 .old"]
     </div>
 
@@ -420,7 +426,7 @@ flowchart LR
       <tr><th style="width:14%">平台</th><th style="width:22%">安装包内容</th><th style="width:28%">替换对象</th><th>限制</th></tr>
       <tr><td>macOS</td><td><code>1Panel.app</code></td><td>正在运行的 <code>.app</code>（通常 <code>/Applications</code>）</td><td>ad-hoc 签名、未公证；Go 下载的文件不带隔离属性，替换后可直接启动</td></tr>
       <tr><td>Windows</td><td><code>1Panel.exe</code></td><td>正在运行的 exe 所在位置</td><td>便携版；放在 <code>Program Files</code> 等需管理员权限的目录会替换失败</td></tr>
-      <tr><td>Linux</td><td><code>1Panel</code> + desktop + 图标</td><td>正在运行的二进制</td><td>只支持用户可写目录；AppImage、deb/rpm 需手动更新</td></tr>
+      <tr><td>Linux</td><td><code>1Panel</code> + desktop + 图标（tar.gz）；deb 安装包（deb 形态）</td><td>正在运行的二进制；deb 形态经 pkexec 提权 <code>dpkg -i</code> 安装新包</td><td>用户可写目录直接替换；deb 安装需 polkit/pkexec（缺则提示手动），dpkg 数据库版本随更新保持一致；AppImage、rpm 需手动更新</td></tr>
     </table>
   </section>
 

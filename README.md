@@ -88,6 +88,7 @@ task darwin:package:dmg ARCH=arm64
 - `1Panel-macOS-install.html` —— 可单独下载、用浏览器打开的离线安装指南，与 DMG 内的指南相同
 - `1Panel-v<版本>-win-amd64.zip` —— Windows 64 位包（含 `1Panel.exe`）
 - `1Panel-v<版本>-linux-amd64.tar.gz` —— Linux 64 位包
+- `1Panel-v<版本>-linux-amd64.deb` —— Linux 64 位 deb 安装包（Ubuntu 24.04+ / Debian 13+，应用内更新经 pkexec 提权 `dpkg -i` 安装新 deb）
 - `latest.json` / `latest.json.sig` —— 应用内更新清单及 ed25519 签名
 
 详细流程见 [`docs/release-and-update.html`](docs/release-and-update.html)。
@@ -132,7 +133,7 @@ task darwin:package:dmg ARCH=arm64
 
 ### Linux 桌面安装
 
-完整说明见 [官网安装指南的 Linux 章节](https://itjun.github.io/1Panel/install.html#linux)。当前 Release 提供 amd64 的 tar.gz 包，使用 GTK 4 与 WebKitGTK 6.0，Debian 13 已验证。安装运行库后解压，从包内的 `1Panel` 可执行文件启动。
+完整说明见 [官网安装指南的 Linux 章节](https://itjun.github.io/1Panel/install.html#linux)。当前 Release 提供 amd64 的 tar.gz 与 deb 包，使用 GTK 4 与 WebKitGTK 6.0，Debian 13 已验证。tar.gz 安装运行库后解压，从包内的 `1Panel` 可执行文件启动；deb 执行 `sudo apt install ./1Panel-v*-linux-amd64.deb` 后从应用菜单启动。两种形态都支持应用内自动更新（deb 形态安装更新时请求一次管理员密码，依赖 polkit）。
 
 ### 安全说明
 
@@ -200,7 +201,7 @@ task darwin:package:dmg ARCH=arm64
 
 ## 限制
 
-- 桌面端支持 macOS（Apple 芯片 arm64）、Windows 10/11 x64 与 Linux（Debian 13 验证，deb/rpm/AppImage 任务见 build/linux）
+- 桌面端支持 macOS（Apple 芯片 arm64）、Windows 10/11 x64 与 Linux（Debian 13 验证；Release 提供 tar.gz 与 deb，rpm/AppImage 任务见 build/linux）
 - 仅 Debian/Ubuntu 目标机（其他发行版的 `systemctl`、`dpkg-query` 等命令可能不可用）
 - 监控采集全部为只读命令，不做任何写操作
 - 终端通过系统 `ssh` 二进制启动，依赖本机存在 `ssh`（Windows 为系统 OpenSSH）
