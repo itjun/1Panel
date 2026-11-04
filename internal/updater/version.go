@@ -8,7 +8,7 @@ import (
 )
 
 // git describe 在非 tag 提交上产出 v1.0.3-5-gabc1234，按 semver 会被当成 v1.0.3 的预发布版
-// 而排在 v1.0.3 之前，因此单独识别为开发构建。
+// 而排在 v1.0.3 之前，因此去掉提交后缀，按基础 tag 比较。
 var describeSuffix = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 
 // Canonical 补齐 v 前缀并去掉首尾空白。
@@ -45,13 +45,13 @@ type Decision struct {
 }
 
 // Evaluate 判定是否有新版本，以及当前版本是否已低于最低支持版本。
-// 开发构建永不强制，避免拦住本地调试。
-func Evaluate(current string, dev bool, m *Manifest) Decision {
+// 本地构建与发布构建使用相同规则。
+func Evaluate(current string, m *Manifest) Decision {
 	if m == nil || !semver.IsValid(current) || !semver.IsValid(m.Version) {
 		return Decision{}
 	}
 	d := Decision{HasUpdate: semver.Compare(m.Version, current) > 0}
-	if d.HasUpdate && !dev && semver.IsValid(m.MinSupportedVersion) &&
+	if d.HasUpdate && semver.IsValid(m.MinSupportedVersion) &&
 		semver.Compare(current, m.MinSupportedVersion) < 0 {
 		d.Mandatory = true
 	}

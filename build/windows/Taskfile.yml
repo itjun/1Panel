@@ -60,8 +60,8 @@ tasks:
       # 应用版本（「关于」页显示）：tag 优先，无 tag 用提交短 SHA
       APP_VERSION:
         sh: 'git describe --tags --always 2>/dev/null || echo dev'
-      # 应用内更新清单基地址（CI 从仓库变量注入；为空时客户端不检查更新）
-      UPDATE_BASE_URL: '{{.UPDATE_BASE_URL | default ""}}'
+      # 本地构建默认使用官方更新源；CI 或自定义构建可覆盖。
+      UPDATE_BASE_URL: '{{.UPDATE_BASE_URL | default "https://github.com/itjun/1Panel/releases/latest/download"}}'
       BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui -X diteng-pannel/internal/app.buildVersion={{.APP_VERSION}} -X diteng-pannel/internal/app.updateBaseURL={{.UPDATE_BASE_URL}}"{{end}}'
     env:
       GOOS: windows

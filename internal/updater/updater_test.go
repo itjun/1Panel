@@ -43,25 +43,23 @@ func TestEvaluate(t *testing.T) {
 	m := &Manifest{Version: "v1.2.0", MinSupportedVersion: "v1.1.0"}
 	cases := []struct {
 		cur       string
-		dev       bool
 		hasUpdate bool
 		mandatory bool
 	}{
-		{"v1.2.0", false, false, false},
-		{"v1.3.0", false, false, false},
-		{"v1.1.5", false, true, false},
-		{"v1.1.0", false, true, false},
-		{"v1.0.9", false, true, true},
-		{"v1.1.0-rc1", false, true, true},
-		{"v1.0.9", true, true, false},
+		{"v1.2.0", false, false},
+		{"v1.3.0", false, false},
+		{"v1.1.5", true, false},
+		{"v1.1.0", true, false},
+		{"v1.0.9", true, true},
+		{"v1.1.0-rc1", true, true},
 	}
 	for _, c := range cases {
-		d := Evaluate(c.cur, c.dev, m)
+		d := Evaluate(c.cur, m)
 		if d.HasUpdate != c.hasUpdate || d.Mandatory != c.mandatory {
-			t.Errorf("Evaluate(%s, dev=%v) = %+v；期望 has=%v mandatory=%v", c.cur, c.dev, d, c.hasUpdate, c.mandatory)
+			t.Errorf("Evaluate(%s) = %+v；期望 has=%v mandatory=%v", c.cur, d, c.hasUpdate, c.mandatory)
 		}
 	}
-	if d := Evaluate("v1.0.0", false, &Manifest{Version: "v1.2.0"}); !d.HasUpdate || d.Mandatory {
+	if d := Evaluate("v1.0.0", &Manifest{Version: "v1.2.0"}); !d.HasUpdate || d.Mandatory {
 		t.Errorf("无 minSupportedVersion 时不应强制：%+v", d)
 	}
 }

@@ -87,7 +87,6 @@ type updateController struct {
 	app     *App
 	client  *updater.Client
 	current string // 可比较的当前版本（开发构建为基础 tag）
-	dev     bool
 
 	mu       sync.Mutex
 	prefs    updatePrefs
@@ -121,7 +120,7 @@ func newUpdateController(a *App) *updateController {
 		}
 	}
 	base, dev, ok := updater.ParseCurrent(rawVersion)
-	c.current, c.dev = base, dev
+	c.current = base
 
 	pub, _ := updater.DecodePublicKey(updater.DefaultPublicKey)
 	c.client = &updater.Client{BaseURL: baseURL, PublicKey: pub, Dir: updateDir()}
@@ -204,9 +203,6 @@ func (c *updateController) start() {
 			c.announce()
 		}
 	}
-	if c.dev {
-		return
-	}
 	go func() {
 		time.Sleep(updateFirstCheckDelay)
 		for {
@@ -220,7 +216,7 @@ func (c *updateController) start() {
 // applyManifestLocked 用清单刷新版本相关字段。
 func (c *updateController) applyManifestLocked(m *updater.Manifest) {
 	c.manifest = m
-	d := updater.Evaluate(c.current, c.dev, m)
+	d := updater.Evaluate(c.current, m)
 	c.state.HasUpdate = d.HasUpdate
 	c.state.Mandatory = d.Mandatory
 	c.state.Latest = m.Version
@@ -418,7 +414,7 @@ func isFetchUnreachable(err error) bool {
 // 距上次尝试不足 updatePokeMinInterval 则跳过；下载 / 安装中不打扰。
 func (c *updateController) poke() {
 	c.mu.Lock()
-	if !c.state.Enabled || c.dev || !c.prefs.AutoCheck || !c.started {
+	if !c.state.Enabled || !c.prefs.AutoCheck || !c.started {
 		c.mu.Unlock()
 		return
 	}

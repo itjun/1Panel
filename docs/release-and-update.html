@@ -308,10 +308,8 @@ flowchart TB
   en -->|否| off["关于页显示原因 不检查"]
   en -->|是| cache{"本地有已验签的缓存清单?"}
   cache -->|有| ev1["用缓存判定 若强制则立即弹窗 断网也拦截"]
-  cache -->|无| devq
-  ev1 --> devq{"开发构建?"}
-  devq -->|是| manual["只允许手动检查 永不强制"]
-  devq -->|否| wait["等待 10 秒"]
+  cache -->|无| wait["等待 10 秒"]
+  ev1 --> wait
   wait --> fetch["拉取 latest.json + .sig"]
   fetch --> ok{"成功且验签通过?"}
   ok -->|否| silent["静默失败 保留上次状态"]
@@ -327,7 +325,7 @@ flowchart TB
       <tr><td>定时检查</td><td>应用运行期间每 6 小时检查一次，加 ±10 分钟随机抖动，避免所有客户端同时请求。</td></tr>
       <tr><td>手动检查</td><td>设置 → 关于 → 应用更新 →「检查更新」，结果显示在该行；发现新版本直接打开弹窗。</td></tr>
       <tr><td>自动检查开关</td><td>设置 → 关于 →「自动检查更新」。关闭后可选更新不再主动弹窗，但强制更新仍会检查和拦截。</td></tr>
-      <tr><td>开发构建</td><td>版本形如 <code>v1.0.3-396-g83ba46a</code>（本地 <code>build.py</code> 产物）不自动检查、永不强制，手动检查可用。</td></tr>
+      <tr><td>开发构建</td><td>版本形如 <code>v1.0.3-396-g83ba46a</code>（本地 <code>build.py</code> 产物）按基础版本 <code>v1.0.3</code> 比较，自动检查、手动检查与弹窗规则均与发布构建一致；低于最低支持版本时同样强制更新。</td></tr>
     </table>
   </section>
 
@@ -449,7 +447,7 @@ ONEPANEL_UPDATE_BASE_URL=http://127.0.0.1:18765 ONEPANEL_UPDATE_CURRENT_VERSION=
     <h3>常见问题</h3>
     <table>
       <tr><th style="width:30%">现象</th><th>原因与处理</th></tr>
-      <tr><td>关于页显示「此构建未配置更新源」</td><td>构建时没有 <code>UPDATE_BASE_URL</code>。Linux 本地构建（<code>task build</code> / <code>build.py</code>）默认指向官方 GitHub Releases，其余平台本地构建与显式传 <code>UPDATE_BASE_URL=""</code> 时为空；发布构建由 CI 注入。</td></tr>
+      <tr><td>关于页显示「此构建未配置更新源」</td><td>旧版或自定义构建未注入更新源。三个平台的本地构建（<code>task build</code> / <code>build.py</code>）现在均默认指向官方 GitHub Releases，传空串也使用默认值；非空 <code>UPDATE_BASE_URL</code> 可覆盖。重新构建即可生效。</td></tr>
       <tr><td>关于页显示「开发构建无法比较版本」</td><td>版本号不是合法 semver（如只有提交短 SHA），先打 tag 再构建。</td></tr>
       <tr><td>CI 第一步「Check agent version committed」失败</td><td>agent 源码改了但没提交新的 <code>VERSION</code> / <code>SOURCE.sha256</code>，本地跑 <code>task agent:build</code> 后提交。</td></tr>
       <tr><td>CI「releasetool verify」失败</td><td>Secret <code>UPDATE_SIGN_KEY</code> 与 <code>pubkey.go</code> 中的公钥不配对（写错了 Secret 或换钥只换了一半），按「签名密钥」一节重新写入 Secret。</td></tr>
