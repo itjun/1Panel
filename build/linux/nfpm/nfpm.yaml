@@ -6,13 +6,14 @@
 name: "1Panel"
 arch: ${GOARCH}
 platform: "linux"
-version: "1.1.0"
+# 版本由构建方注入（CI 用 tag 去 v、- 转 ~；本地默认见 linux Taskfile 的 generate:deb）
+version: ${PANEL_VERSION}
 section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "运维管理"
 vendor: "黄荣君"
-homepage: "https://wails.io"
+homepage: "https://itjun.github.io/1Panel"
 license: "MIT"
 release: "1"
 
@@ -23,6 +24,9 @@ contents:
     dst: "/usr/share/icons/hicolor/128x128/apps/1Panel.png"
   - src: "./build/linux/com.itjun.panel.desktop"
     dst: "/usr/share/applications/com.itjun.panel.desktop"
+  # pkexec 提权安装更新时的授权文案（缺失时退回通用动作，不影响功能）
+  - src: "./build/linux/polkit/com.itjun.panel.pkexec.policy"
+    dst: "/usr/share/polkit-1/actions/com.itjun.panel.policy"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:
@@ -31,6 +35,11 @@ depends:
 
 # Distribution-specific overrides for different package formats
 overrides:
+  # deb：应用内自动更新经 pkexec 提权 dpkg -i，软依赖 polkit（缺失则降级为手动更新提示）
+  deb:
+    recommends:
+      - "policykit-1 | pkexec"
+
   # RPM packages for Fedora / RHEL / AlmaLinux / Rocky Linux
   rpm:
     depends:

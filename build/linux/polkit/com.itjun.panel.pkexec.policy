@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+
+<!-- pkexec 按 exec.path 注解匹配本动作：应用内自动更新提权安装时展示专用文案，
+     而非「以管理员身份运行程序」的通用对话框。缺此文件时 pkexec 退回通用动作，功能不受影响。 -->
+<policyconfig>
+
+  <action id="com.itjun.panel.pkexec.update">
+    <description>安装 1Panel 更新</description>
+    <description xml:lang="en">Install a 1Panel update</description>
+    <message>安装应用内检查到的 1Panel 更新（已验签的 .deb 安装包）需要管理员权限</message>
+    <message xml:lang="en">Authentication is required to install the verified 1Panel update package</message>
+
+    <!-- 提权只执行 1Panel 自带的 update-apply 助手：校验哈希后安装已下载的 deb，不联网 -->
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/1Panel</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">false</annotate>
+
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
+</policyconfig>
