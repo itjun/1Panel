@@ -42,6 +42,8 @@ var (
 			"org.gnome.desktop.interface", "color-scheme").Output()
 		return string(out), err
 	}
+	// 连接会话总线的入口，测试里替换。
+	sessionBus = dbus.SessionBus
 )
 
 // SystemPrefersDark 返回桌面当前是否偏好暗色；两种来源都查不到时 ok 为 false，
@@ -125,17 +127,18 @@ func ParseSettingChanged(body []any) (dark bool, ok bool) {
 }
 
 // WatchSystemPrefersDark 订阅门户的深浅色变化并回调。订阅失败（无会话总线 /
-// 无门户）时回调不会触发，stop 为空操作。
+// 匹配规则注册失败，如登录早期总线未就绪）返回 nil，调用方应在稍后重试；
+// 成功时 stop 取消订阅。订阅成功但门户缺席时回调不触发，stop 正常返回。
 func WatchSystemPrefersDark(fn func(dark bool)) (stop func()) {
-	conn, err := dbus.SessionBus()
+	conn, err := sessionBus()
 	if err != nil {
-		return func() {}
+		return nil
 	}
 	if err := conn.AddMatchSignal(
 		dbus.WithMatchObjectPath(dbus.ObjectPath(portalPath)),
 		dbus.WithMatchInterface(portalIface),
 	); err != nil {
-		return func() {}
+		return nil
 	}
 	signals := make(chan *dbus.Signal, 4)
 	conn.Signal(signals)

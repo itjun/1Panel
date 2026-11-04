@@ -2,6 +2,7 @@ package syscolor
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/godbus/dbus/v5"
@@ -106,5 +107,14 @@ func TestParseSettingChanged(t *testing.T) {
 	body[2] = dbus.MakeVariant("prefer-dark")
 	if _, ok := ParseSettingChanged(body); ok {
 		t.Fatal("字符串取值不应触发")
+	}
+}
+
+func TestWatchReturnsNilWhenBusUnavailable(t *testing.T) {
+	oldBus := sessionBus
+	sessionBus = func() (*dbus.Conn, error) { return nil, errors.New("no session bus") }
+	defer func() { sessionBus = oldBus }()
+	if stop := WatchSystemPrefersDark(func(bool) {}); stop != nil {
+		t.Fatal("会话总线不可用时订阅失败应返回 nil，调用方才能重试")
 	}
 }

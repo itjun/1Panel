@@ -94,7 +94,8 @@ export function initializeWindowTheme(): () => void {
         retry = setTimeout(() => void refresh(), 250);
       }
     });
-    // Linux 的 WebKitGTK 不发 prefers-color-scheme 变更事件，跟随系统的实时切换靠它。
+    // Linux 的 WebKitGTK 对 prefers-color-scheme 翻转是否派发 matchMedia change
+    // 事件随版本而异（2.54 实测会发，早期版本不发），跟随系统的实时切换以它为准。
     stopAppearanceEvents = Events.On("system-appearance-changed", (event: { data?: boolean }) => {
       if (!active() || typeof event.data !== "boolean") return;
       applySystemAppearanceHint(event.data);

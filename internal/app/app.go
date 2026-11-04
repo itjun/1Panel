@@ -85,7 +85,7 @@ type App struct {
 	boardHTTP *boardhttp.Server // 内网只读看板 HTTP 网关
 
 	themeAppearance        macui.AppearanceMode // light / dark / auto，由前端设置同步
-	themeMu                sync.Mutex           // themeAppearance 的读写锁（Linux 外观监听会并发读）
+	themeMu                sync.Mutex           // themeAppearance / appearanceLastDark 的锁（Linux 外观监听与聚焦核对并发读写）
 	windowTheme            *windowThemeManager
 	themeStartupReady      bool // 原生材质和前端颜色已就绪，或启动等待已超时
 	themeStartupTimer      *time.Timer
@@ -94,7 +94,9 @@ type App struct {
 	themeStopped           bool
 	appearanceWatchMu      sync.Mutex // Linux 桌面深浅色门户监听
 	stopAppearanceWatch    func()
+	stopAppearanceFocus    func() // 主窗口聚焦时向门户核对的钩子
 	appearanceWatchStopped bool
+	appearanceLastDark     *bool // 上次落到 GTK 的深浅色（themeMu 保护）
 
 	showMu       sync.Mutex
 	sized        bool // 启动时已按屏幕计算尺寸

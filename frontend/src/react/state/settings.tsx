@@ -288,8 +288,9 @@ function applySettings(settings: AppSettings) {
   syncSystemAppearanceWatch(settings.appearance);
 }
 
-/** Linux：WebKitGTK 不派发 prefers-color-scheme 的 matchMedia change 事件，
- * Go 侧监听桌面门户后发 system-appearance-changed，这里按事件值重铺主题。 */
+/** Linux：WebKitGTK 对 prefers-color-scheme 翻转是否派发 matchMedia change
+ * 事件随版本而异，Go 侧监听桌面门户后发 system-appearance-changed，这里按
+ * 事件值重铺主题。 */
 export function applySystemAppearanceHint(dark: boolean) {
   if (current.appearance !== "system") return;
   applyAppearanceToDocument(
