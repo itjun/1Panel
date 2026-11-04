@@ -102,6 +102,15 @@ func appVersion(appPath string) string {
 
 func listBrew(kind string) []Package {
 	brew, err := exec.LookPath("brew")
+	// Dock / Finder 启动时 PATH 通常不含 Homebrew，补查两种 Mac 的标准安装位置。
+	if err != nil {
+		for _, candidate := range []string{"/opt/homebrew/bin/brew", "/usr/local/bin/brew"} {
+			brew, err = exec.LookPath(candidate)
+			if err == nil {
+				break
+			}
+		}
+	}
 	if err != nil {
 		return nil
 	}
