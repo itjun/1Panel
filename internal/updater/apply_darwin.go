@@ -35,9 +35,13 @@ func Supported() (bool, string) {
 	return true, ""
 }
 
+// assetKeySuffix macOS 安装形态不区分更新资产。
+func assetKeySuffix() string { return "" }
+
 // Apply 从 zip 或 dmg 取出新的 .app 并替换正在运行的应用。
 // 优先在 .app 同目录（同一卷）解出后改名替换；目录不可写时请求管理员授权。
-func Apply(archive string) error {
+// wantSHA256 供 Linux 的 deb 形态复验安装包，本平台忽略。
+func Apply(archive, wantSHA256 string) error {
 	bundle, err := currentBundle()
 	if err != nil {
 		return err

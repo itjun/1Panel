@@ -18,7 +18,7 @@ func TestLinuxUpdateKeepsExecutableIdentity(t *testing.T) {
 		target := filepath.Join(dir, "1Panel")
 		if mode != "restarted" {
 			for i := 0; i < 2; i++ {
-				if err := Apply(filepath.Join(dir, "update.tar.gz")); err != nil {
+				if err := Apply(filepath.Join(dir, "update.tar.gz"), ""); err != nil {
 					t.Fatalf("第 %d 次更新失败：%v", i+1, err)
 				}
 			}

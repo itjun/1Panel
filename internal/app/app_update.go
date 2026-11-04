@@ -142,7 +142,7 @@ func newUpdateController(a *App) *updateController {
 		c.state.Enabled, c.state.DisabledReason = false, "此构建未内置验签公钥"
 	case !ok:
 		c.state.Enabled, c.state.DisabledReason = false, "开发构建无法比较版本"
-	case updater.CurrentPlatformKey() == "":
+	case updater.UpdateAssetKey() == "":
 		c.state.Enabled, c.state.DisabledReason = false, "当前平台暂不支持自动更新"
 	case !supported:
 		c.state.Enabled, c.state.DisabledReason = false, reason
@@ -228,7 +228,7 @@ func (c *updateController) applyManifestLocked(m *updater.Manifest) {
 	c.state.Notes = m.Notes
 	c.state.ReleasedAt = m.ReleasedAt
 	c.state.Size = 0
-	if a, ok := m.AssetFor(updater.CurrentPlatformKey()); ok {
+	if a, ok := m.AssetFor(updater.UpdateAssetKey()); ok {
 		c.state.Size = a.Size
 	}
 	if !d.HasUpdate {
@@ -390,6 +390,11 @@ func isRetryableUpdateErr(err error) bool {
 	if strings.HasPrefix(msg, "下载中断") {
 		return true
 	}
+	// deb 安装可能撞上 unattended-upgrades 等持有 dpkg 锁，稍后重试即可
+	if strings.Contains(msg, "dpkg status database area is locked") ||
+		strings.Contains(msg, "dpkg frontend is locked") {
+		return true
+	}
 	if strings.Contains(msg, "HTTP 408") || strings.Contains(msg, "HTTP 429") ||
 		strings.Contains(msg, "HTTP 500") || strings.Contains(msg, "HTTP 502") ||
 		strings.Contains(msg, "HTTP 503") || strings.Contains(msg, "HTTP 504") {
@@ -475,7 +480,7 @@ func (c *updateController) startUpdate() error {
 		c.mu.Unlock()
 		return errors.New("当前已是最新版本")
 	}
-	asset, ok := c.manifest.AssetFor(updater.CurrentPlatformKey())
+	asset, ok := c.manifest.AssetFor(updater.UpdateAssetKey())
 	if !ok {
 		c.mu.Unlock()
 		return errors.New("新版本没有当前平台的安装包")
@@ -538,7 +543,7 @@ func (c *updateController) runUpdate(ctx context.Context, asset updater.Asset) {
 		c.state.Status = updateInstalling
 		c.mu.Unlock()
 		c.emitState()
-		err = updater.Apply(path)
+		err = updater.Apply(path, asset.SHA256)
 	}
 
 	c.mu.Lock()

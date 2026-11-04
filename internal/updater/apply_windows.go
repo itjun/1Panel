@@ -25,8 +25,12 @@ func Supported() (bool, string) {
 	return true, ""
 }
 
+// assetKeySuffix Windows 安装形态不区分更新资产。
+func assetKeySuffix() string { return "" }
+
 // Apply 从 zip 取出新 exe 并原地替换正在运行的 exe。
-func Apply(archive string) error {
+// wantSHA256 供 Linux 的 deb 形态复验安装包，本平台忽略。
+func Apply(archive, wantSHA256 string) error {
 	exe, err := currentExe()
 	if err != nil {
 		return err

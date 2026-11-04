@@ -30,6 +30,7 @@ func TestIsRetryableUpdateErr(t *testing.T) {
 		{errors.New("下载失败：HTTP 404"), false},
 		{errors.New("下载失败：HTTP 503"), true},
 		{errors.New("安装包校验失败（sha256 不匹配）"), false},
+		{errors.New("系统包更新失败：dpkg 安装失败：exit status 1…dpkg frontend is locked by another process"), true},
 		{io.ErrUnexpectedEOF, true},
 	}
 	for _, c := range cases {

@@ -5,7 +5,9 @@ package updater
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -69,5 +71,28 @@ func TestRealRelease(t *testing.T) {
 	}
 	if st.Size() < 1_000_000 {
 		t.Fatalf("解出的二进制异常地小：%d 字节", st.Size())
+	}
+
+	// deb 资产（首个 deb 发布后存在）：校验是 dpkg 可解析、包名与版本正确的安装包，
+	// 与 update-apply 助手实际安装的是同一份产物。
+	if a, ok := m.AssetFor(UpdateAssetKey()); ok && strings.HasSuffix(a.Name, ".deb") {
+		debPath, err := c.Download(ctx, a, nil)
+		if err != nil {
+			t.Fatalf("下载/校验真实 deb 安装包失败：%v", err)
+		}
+		out, err := exec.Command("dpkg-deb", "--field", debPath, "Package", "Version").CombinedOutput()
+		if err != nil {
+			t.Fatalf("deb 安装包解析失败：%v\n%s", err, out)
+		}
+		fields := string(out)
+		if !strings.Contains(fields, "Package: 1panel") && !strings.Contains(fields, "Package: 1Panel") {
+			t.Fatalf("deb 包名异常：\n%s", fields)
+		}
+		if !strings.Contains(fields, "Version: "+strings.TrimPrefix(m.Version, "v")) {
+			t.Fatalf("deb 版本应与清单一致（%s）：\n%s", m.Version, fields)
+		}
+		t.Logf("deb 安装包校验通过（%s，%d 字节）", a.Name, a.Size)
+	} else {
+		t.Log("清单暂无 deb 资产（首个 deb 发布后此分支开始校验）")
 	}
 }

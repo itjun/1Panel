@@ -94,6 +94,17 @@ func CurrentPlatformKey() string {
 	return PlatformKey(runtime.GOOS, runtime.GOARCH)
 }
 
+// UpdateAssetKey 当前安装形态应下载的清单资产键：平台键加各平台 apply_*.go
+// 按安装形态给出的后缀（如 Linux 的 deb 安装为 "-deb"，其余形态为空）。
+// 无平台键（不发布安装包的平台）返回空串。
+func UpdateAssetKey() string {
+	key := CurrentPlatformKey()
+	if key == "" {
+		return key
+	}
+	return key + assetKeySuffix()
+}
+
 // ParseManifest 先验签再解析；签名为 base64 文本（允许首尾空白）。
 func ParseManifest(data, sig []byte, pub ed25519.PublicKey) (*Manifest, error) {
 	if err := Verify(pub, data, sig); err != nil {
