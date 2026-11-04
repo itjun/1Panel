@@ -192,6 +192,33 @@ jobs:
         env:
           ARTIFACT: ${{ matrix.artifact }}
 
+      # deb：版本取 tag（去 v、`-` 转 `~`），maintainer 取打 tag 提交的作者；
+      # 产物按矩阵命名（1Panel-<tag>-linux-amd64.deb），同时进入发布资产与更新清单
+      - name: Package Linux deb
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEB_VERSION="${GITHUB_REF_NAME#v}"
+          DEB_VERSION="${DEB_VERSION/-/\~}"
+          export PANEL_VERSION="$DEB_VERSION" GOARCH=amd64
+          export GIT_COMMITTER_NAME="$(git log -1 --format='%an')"
+          export GIT_COMMITTER_EMAIL="$(git log -1 --format='%ae')"
+          task linux:generate:deb
+          mv bin/1Panel.deb "bin/$DEB_ARTIFACT"
+          # nfpm 输出固定名 1Panel.deb；Version 字段 = PANEL_VERSION + deb revision "-1"
+          dpkg-deb --field "bin/$DEB_ARTIFACT" Version | grep -Fx "$DEB_VERSION-1"
+          dpkg-deb --info "bin/$DEB_ARTIFACT" >/dev/null
+        env:
+          DEB_ARTIFACT: 1Panel-${{ github.ref_name }}-linux-amd64.deb
+
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
+        with:
+          name: 1Panel-${{ github.ref_name }}-linux-amd64.deb
+          path: bin/1Panel-${{ github.ref_name }}-linux-amd64.deb
+          if-no-files-found: error
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
@@ -251,6 +278,7 @@ jobs:
             -asset "darwin-universal=dist/1Panel-$VERSION-mac-arm64.dmg" \
             -asset "windows-amd64=dist/1Panel-$VERSION-win-amd64.zip" \
             -asset "linux-amd64=dist/1Panel-$VERSION-linux-amd64.tar.gz" \
+            -asset "linux-amd64-deb=dist/1Panel-$VERSION-linux-amd64.deb" \
             -out dist/latest.json
           go run ./cmd/releasetool sign -in dist/latest.json -out dist/latest.json.sig
           # 用客户端内置公钥再校验一遍，防止 Secret 里的私钥与代码里的公钥不配对
@@ -271,6 +299,11 @@ jobs:
           下载 DMG 后，将 1Panel 拖入“应用程序”；首次打开被拦截时，在“系统设置 → 隐私与安全性”中确认“仍要打开”。
           [在线安装指南](https://itjun.github.io/1Panel/install.html)包含 macOS、Windows 和 Linux 的安装步骤；[macOS 终端方式](https://itjun.github.io/1Panel/macos-install.html#commands)提供清理隔离属性与重置签名命令。
           DMG 内附有“安装指南.html”，也可单独下载[离线安装指南](https://github.com/$GH_REPO/releases/download/$VERSION/1Panel-macOS-install.html)。
+
+          ### Linux 安装
+
+          下载 tar.gz 解压到任意可写目录运行，或下载 .deb 后执行 \`sudo apt install ./1Panel-$VERSION-linux-amd64.deb\`（Ubuntu 24.04+ / Debian 13+）。
+          两种安装方式都支持应用内自动更新：tar.gz 直接替换二进制；deb 会在安装更新时请求一次管理员密码（依赖 polkit/pkexec）。
           EOF
           if [[ "$VERSION" == *-* ]]; then
             publish=(--prerelease --latest=false)
