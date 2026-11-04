@@ -100,13 +100,13 @@ func (s *Monitor) CollectDisks(host string) ([]monitor.DiskInfo, error) {
 }
 
 // CollectLargestFiles 扫描指定挂载点 Top N 大文件（可能较慢，勿阻塞 UI）
-func (s *Monitor) CollectLargestFiles(host, root string, limit int) (monitor.LargeFilesResult, error) {
+func (s *Monitor) CollectLargestFiles(ctx context.Context, host, root string, limit int) (monitor.LargeFilesResult, error) {
 	cli, err := s.agentClient(host)
 	if err != nil {
 		return monitor.LargeFilesResult{}, err
 	}
 	var v monitor.LargeFilesResult
-	err = cli.GetJSON(context.Background(),
+	err = cli.GetJSON(ctx,
 		"/collect/largest-files?"+q("root", root, "limit", fmt.Sprint(limit)), &v, true)
 	return v, err
 }

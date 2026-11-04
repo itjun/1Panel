@@ -312,7 +312,7 @@ const apiImpl = {
   collectPackageDepends: (host: string, pkgName: string) =>
     arr(Monitor.CollectPackageDepends(host, pkgName)),
   collectLargestFiles: (host: string, root: string, limit = 10) =>
-    must(Monitor.CollectLargestFiles(host, root, limit)),
+    Monitor.CollectLargestFiles(host, root, limit),
   collectLog: (host: string, logType: string, lines: number): Promise<monitor.LogResult> =>
     must(Monitor.CollectLog(host, logType, lines)),
   readAppLog: (host: string, req: main.AppLogRequest): Promise<main.AppLogResult> =>

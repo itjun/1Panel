@@ -384,8 +384,14 @@ func (c *Client) GetJSON(ctx context.Context, path string, out any, slow ...bool
 		timeout = slowTimeout
 	}
 
+	attempts := 2
+	if strings.SplitN(path, "?", 2)[0] == "/collect/largest-files" {
+		// Agent 扫描最多 90 秒，给结果传输留 10 秒；断线后不自动发起第二次扫描。
+		timeout = 100 * time.Second
+		attempts = 1
+	}
 	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := 0; attempt < attempts; attempt++ {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+path, nil)
 		if err != nil {

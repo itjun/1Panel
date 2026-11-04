@@ -21,7 +21,7 @@
 | SSH 断开后 | 不受影响 | 不受影响（守护循环在独立会话中，不会收到 SIGHUP） |
 | 开机 / 容器重启后自启 | `systemctl enable` | 有 OpenRC：`/etc/local.d/spanel-agent.start`；有 crontab：`@reboot` 和每分钟 `ensure`；都没有：等面板补拉起 |
 | CPU 限制 | `CPUQuota=25%`（硬上限） | 无硬上限；用 `nice -n 10`，可用时再加 `ionice -c3` |
-| 内存限制 | `MemoryMax=96M`（硬上限）+ `GOMEMLIMIT=64MiB` | 只有 `GOMEMLIMIT=64MiB`（Go 运行时软上限） |
+| 内存限制 | `MemoryHigh=96M`（回收阈值）+ `MemoryMax=128M`（硬上限）+ `GOMEMLIMIT=64MiB` | 只有 `GOMEMLIMIT=64MiB`（Go 运行时软上限） |
 | OOM 优先级 | `OOMScoreAdjust=500` | 守护循环写入 `/proc/self/oom_score_adj = 500`，Agent 继承 |
 | 日志 | `journalctl -u spanel-agent` | `/var/lib/spanel-agent/agent.log`，超过 5MB 自动清空 |
 | 状态判断 | `systemctl is-active spanel-agent` | 守护循环和 Agent 进程都在才算 `active` |
@@ -101,7 +101,7 @@ echo 'box ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/box
 ### 不支持的情况
 
 - 非 Linux 系统（探测到 `uname -s` 不是 Linux 时阻止安装）。
-- 数据分区剩余空间低于 5% 或 64MB、`/tmp` 剩余低于 32MB、可用内存低于 96MB 时阻止安装，提示先清理。
+- 数据分区剩余空间低于 5% 或 64MB、`/tmp` 剩余低于 32MB、可用内存低于 128MB 时阻止安装，提示先清理。
 
 ## 排查
 
@@ -129,3 +129,11 @@ sudo crontab -l | grep spanel-agent
 - `internal/agentcli/client.go`：token 读取与面板补拉起（`Pool.tryHeal`）
 - `internal/sshd/run.go`：`RunAsRoot` 自动提权
 - `cmd/agentinstall-test`：端到端联调，`SPANEL_TEST_ADDR=user@ip go run ./cmd/agentinstall-test <别名>`
+
+### 大文件扫描
+
+- Agent 直接分批遍历目录，每批最多 128 项，只保留最大的 10 项（接口最多 50 项），不启动 find/sort 子进程。
+- 仅扫描同一文件系统，跳过符号链接及 `/proc`、`/sys`、`/dev`、`/run`、`/snap`、`/tmp`。
+- 每台 Agent 同时只允许一次扫描；90 秒后返回未完成标记，客户端等待 100 秒且不会自动重试。取消或切换主机会中止请求，Agent 在遍历检查点停止。
+- 无法读取的目录、文件或过深目录会标记结果不完整。128M 是整个 Agent 服务的硬上限，包含内核记账；并不保证任意目录树都能在该额度内完成扫描。
+- cgroup v2 环境下，每批读取前检查整个 Agent 的内存用量；达到硬上限的 7/8（128M 时为 112M）主动停止并返回不完整结果，给其他采集和响应留出余量。这是提前停止保护，不能替代独立 cgroup 的故障隔离；无 cgroup v2 时仍使用时限和有界遍历。

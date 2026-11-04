@@ -117,6 +117,8 @@ type Server struct {
 	collector *monitor.Collector
 	watcher   *Watcher
 	certs     *CertChecker
+
+	isScanning atomic.Bool
 }
 
 // NewServer token 为空串表示关闭 Bearer 鉴权
@@ -236,13 +238,7 @@ func (s *Server) Handler() http.Handler {
 		return c.CollectHosts("local", local)
 	}))
 	mux.HandleFunc("GET /collect/apt-sources", s.handleAptSources)
-	mux.HandleFunc("GET /collect/largest-files", s.collect(func(c *monitor.Collector, q url.Values) (any, error) {
-		root := q.Get("root")
-		if root == "" {
-			root = "/"
-		}
-		return c.CollectLargestFiles("local", local, root, queryInt(q, "limit", 20))
-	}))
+	mux.HandleFunc("GET /collect/largest-files", s.handleLargestFiles)
 	mux.HandleFunc("GET /collect/os-release", s.collectNoQuery(func(c *monitor.Collector) (any, error) {
 		return c.DetectOSRelease("local", local)
 	}))
