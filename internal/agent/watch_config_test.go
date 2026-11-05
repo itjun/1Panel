@@ -16,6 +16,43 @@ func TestMatchServiceJarAndPort(t *testing.T) {
 	}
 }
 
+func TestMatchServiceSpringApplicationName(t *testing.T) {
+	std := ServiceWatch{Name: "std", JarContains: "diteng-std", PortFrom: 8301, PortTo: 8309}
+	fpl := ServiceWatch{Name: "fpl", JarContains: "custom-fpl", PortFrom: 8401, PortTo: 8409}
+	zhetai := ServiceWatch{Name: "zhetai", JarContains: "custom-zhetai", PortFrom: 8501, PortTo: 8509}
+
+	fplCmd := "java -jar /root/workspace/x/diteng-std-202409.01.jar --spring.application.name=fpl --server.port=8601"
+	zhetaiCmd := "java -Dspring.application.name=zhetai -jar /root/workspace/x/diteng-std.jar --server.port=8602"
+	stdCmd := "java -jar /root/workspace/x/diteng-std.jar --server.port=8301"
+
+	if matchService(std, fplCmd, []int{8601}) {
+		t.Fatal("带 spring.application.name=fpl 的 std.jar 不应归 std")
+	}
+	if !matchService(fpl, fplCmd, []int{8601}) {
+		t.Fatal("应归 fpl")
+	}
+	if matchService(zhetai, fplCmd, []int{8601}) {
+		t.Fatal("fpl 进程不应归 zhetai")
+	}
+
+	if matchService(std, zhetaiCmd, []int{8602}) {
+		t.Fatal("带 spring.application.name=zhetai 的 std.jar 不应归 std")
+	}
+	if !matchService(zhetai, zhetaiCmd, []int{8602}) {
+		t.Fatal("应归 zhetai")
+	}
+	if matchService(fpl, zhetaiCmd, []int{8602}) {
+		t.Fatal("zhetai 进程不应归 fpl")
+	}
+
+	if !matchService(std, stdCmd, []int{8301}) {
+		t.Fatal("无 spring.application.name 时仍应按 jar 归 std")
+	}
+	if matchService(fpl, stdCmd, []int{8301}) {
+		t.Fatal("普通 std 不应归 fpl")
+	}
+}
+
 func TestParseDefaultWatchYAML(t *testing.T) {
 	c, err := parseWatchYAML([]byte(defaultWatchYAML))
 	if err != nil {

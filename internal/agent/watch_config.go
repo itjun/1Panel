@@ -23,6 +23,7 @@ type WatchConfig struct {
 
 // ServiceWatch 一个微服务监视组。
 // Java 只看进程+监听端口；bun 等非 Java 才用 HealthPath 做 HTTP 探活。
+// 归属判定优先 spring.application.name（与 Name 相等），否则 jarContains / 端口区间。
 type ServiceWatch struct {
 	Name        string `yaml:"name" json:"name"`
 	Runtime     string `yaml:"runtime" json:"runtime"` // java / bun
@@ -34,6 +35,8 @@ type ServiceWatch struct {
 
 const defaultWatchYAML = `# spanel-agent 应用监视（Webhook 不要提交到 git）
 # Java：进程在且端口起来即视为正常；仅 bun 等非 Java 配置 healthPath 做 HTTP 探活
+# 归属：有 spring.application.name 时按其值匹配 name；否则 jarContains / 端口区间
+# （fpl/zhetai 可用 diteng-std.jar + --spring.application.name=fpl|zhetai）
 wecomWebhook: ""
 intervalSec: 15
 failStreak: 2
@@ -258,7 +261,26 @@ func saveWatchYAML(dataDir string, raw []byte) (WatchConfig, error) {
 	return c, nil
 }
 
+// springAppNameFromCmdline 解析 -Dspring.application.name= / --spring.application.name=
+func springAppNameFromCmdline(cmdline string) string {
+	for _, f := range strings.Fields(cmdline) {
+		for _, prefix := range []string{
+			"-Dspring.application.name=",
+			"--spring.application.name=",
+		} {
+			if v, ok := strings.CutPrefix(f, prefix); ok {
+				return strings.TrimSpace(v)
+			}
+		}
+	}
+	return ""
+}
+
 func matchService(s ServiceWatch, cmdline string, ports []int) bool {
+	// std.jar 可被 spring.application.name=fpl|zhetai 启动；有该参数时只按 Name 归类，避免 jar 误判
+	if app := springAppNameFromCmdline(cmdline); app != "" {
+		return strings.EqualFold(app, s.Name)
+	}
 	cmd := strings.ToLower(cmdline)
 	jar := strings.ToLower(s.JarContains)
 	if jar != "" && strings.Contains(cmd, jar) {
