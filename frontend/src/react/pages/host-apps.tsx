@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import * as echarts from "echarts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/api";
-import type { agentapi, agentcli } from "@/api";
+import type { agentapi, agentcli, monitor } from "@/api";
 import { AppLogDialog } from "@/react/components/app-log-dialog";
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
+import { confirmDialog } from "@/react/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,11 @@ import {
 import { patchWatchNotify } from "@/utils/watchYaml";
 
 type InstRow = agentapi.JavaAppInstance;
+type AppProcessCard = {
+  proc: monitor.RuntimeProc;
+  detail: monitor.JavaProcDetail | null;
+  runtime: string;
+};
 
 function pad(n: number) {
   return n < 10 ? "0" + n : String(n);
@@ -111,6 +117,14 @@ function canOpenCharts(row: InstRow) {
 
 function canOpenLogs(row: InstRow) {
   return row.runtime !== "bun" && row.pid > 0 && !!row.jarPath;
+}
+
+function canOpenProcess(row: InstRow) {
+  return (row.pid || 0) > 0;
+}
+
+function appRuntimeKey(row: InstRow): string {
+  return row.runtime === "bun" ? "bun" : "java";
 }
 
 function compareDeployVer(a: string, b: string): number {
@@ -607,11 +621,13 @@ function AppMenu({
   target,
   onClose,
   onOpen,
+  onOpenProcess,
   onOpenLogs,
 }: {
   target: AppMenuTarget;
   onClose: () => void;
   onOpen: (row: InstRow) => void;
+  onOpenProcess: (row: InstRow) => void;
   onOpenLogs: (row: InstRow) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -654,14 +670,14 @@ function AppMenu({
       <button
         type="button"
         role="menuitem"
-        disabled={!canOpenCharts(target.row)}
+        disabled={!canOpenProcess(target.row)}
         className="block h-9 w-full px-3 text-left hover:bg-raised disabled:text-muted disabled:opacity-40"
         onClick={() => {
           onClose();
-          onOpen(target.row);
+          onOpenProcess(target.row);
         }}
       >
-        {target.row.runtime === "bun" ? "展示监控曲线" : "展示 GC 监控曲线"}
+        进程信息
       </button>
       <button
         type="button"
@@ -673,11 +689,36 @@ function AppMenu({
           onOpenLogs(target.row);
         }}
       >
-        查看进程日志
+        应用日志
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={!canOpenCharts(target.row)}
+        className="block h-9 w-full px-3 text-left hover:bg-raised disabled:text-muted disabled:opacity-40"
+        onClick={() => {
+          onClose();
+          onOpen(target.row);
+        }}
+      >
+        监控曲线
       </button>
     </div>,
     document.body,
   );
+}
+
+function ProcessDetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex gap-4">
+      <span className="w-24 shrink-0 text-muted">{label}</span>
+      <span className="min-w-0 break-all font-mono text-sm">{value ?? "—"}</span>
+    </div>
+  );
+}
+
+async function copyProcessText(text: string) {
+  await navigator.clipboard.writeText(text);
 }
 
 export function AppsPage({ host }: { host: string }) {
@@ -692,6 +733,8 @@ export function AppsPage({ host }: { host: string }) {
   const [chartsOpen, setChartsOpen] = useState(false);
   const [chartMenu, setChartMenu] = useState<AppMenuTarget | null>(null);
   const [logTarget, setLogTarget] = useState<{ host: string; row: InstRow } | null>(null);
+  const [processCard, setProcessCard] = useState<AppProcessCard | null>(null);
+  const [processBusy, setProcessBusy] = useState(false);
   const [selectedService, setSelectedService] = useState("");
   const [jarPts, setJarPts] = useState<agentapi.JarRangePoint[]>([]);
   const [hostPts, setHostPts] = useState<agentapi.RangePoint[]>([]);
@@ -870,6 +913,54 @@ export function AppsPage({ host }: { host: string }) {
     void loadDetail(service);
   }
 
+  async function openProcess(row: InstRow) {
+    if (!canOpenProcess(row) || processBusy) return;
+    setProcessBusy(true);
+    flash.clearError();
+    try {
+      const runtime = appRuntimeKey(row);
+      const [procs, detail] = await Promise.all([
+        api.collectRuntimeProcs(host, runtime),
+        api.collectJavaDetail(host, row.pid).catch(() => null),
+      ]);
+      const proc = (procs || []).find((p) => p.pid === row.pid);
+      if (!proc) {
+        flash.showError("未找到对应进程，可能已退出");
+        return;
+      }
+      setProcessCard({ proc, detail, runtime });
+    } catch (e) {
+      flash.showError(formatErr(e));
+    } finally {
+      setProcessBusy(false);
+    }
+  }
+
+  async function killProcessFromCard() {
+    if (!processCard || processBusy) return;
+    const { proc } = processCard;
+    const ok = await confirmDialog({
+      title: "结束进程",
+      body: `确定要结束（SIGTERM）进程 ${proc.pid} 吗？\n${(proc.args || "").slice(0, 120)}`,
+      theme: "danger",
+      confirmText: "结束进程",
+    });
+    if (!ok) return;
+    setProcessBusy(true);
+    try {
+      await api.killProcess(host, proc.pid, false);
+      setProcessCard(null);
+      flash.showToast("已发送信号");
+      setTimeout(() => {
+        void refreshAll();
+      }, 1500);
+    } catch (e) {
+      flash.showError(formatErr(e));
+    } finally {
+      setProcessBusy(false);
+    }
+  }
+
   async function refreshAll() {
     // 只清错误：保存 / 下架后会调这里刷新，成功提示要留着自己淡出
     flash.clearError();
@@ -947,6 +1038,7 @@ export function AppsPage({ host }: { host: string }) {
     setChartsOpen(false);
     setChartMenu(null);
     setLogTarget(null);
+    setProcessCard(null);
     setJarPts([]);
     setHostPts([]);
     setEvents([]);
@@ -998,6 +1090,9 @@ export function AppsPage({ host }: { host: string }) {
           target={chartMenu}
           onClose={() => setChartMenu(null)}
           onOpen={openCharts}
+          onOpenProcess={(row) => {
+            void openProcess(row);
+          }}
           onOpenLogs={(row) => {
             if (canOpenLogs(row)) setLogTarget({ host, row });
           }}
@@ -1011,6 +1106,103 @@ export function AppsPage({ host }: { host: string }) {
           row={logTarget.row}
           onClose={() => setLogTarget(null)}
         />
+      ) : null}
+
+      {processCard ? (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setProcessCard(null);
+          }}
+        >
+          <DialogContent aria-describedby={undefined} className="w-[min(640px,calc(100vw-32px))]">
+            <DialogTitle>{`进程 PID ${processCard.proc.pid}`}</DialogTitle>
+            <div className="mt-4 space-y-2 text-sm">
+              <ProcessDetailRow label="用户" value={processCard.proc.user || "—"} />
+              <ProcessDetailRow label="部署" value={processCard.proc.deploy || "—"} />
+              {processCard.proc.service ? (
+                <ProcessDetailRow label="systemd" value={processCard.proc.service} />
+              ) : null}
+              {processCard.proc.container ? (
+                <ProcessDetailRow
+                  label="容器"
+                  value={`${processCard.proc.container}（${processCard.proc.image || "镜像未知"}）`}
+                />
+              ) : null}
+              <ProcessDetailRow label="入口" value={processCard.proc.entry || "—"} />
+              <ProcessDetailRow
+                label="端口"
+                value={(processCard.proc.ports || []).join("、") || "—"}
+              />
+              <ProcessDetailRow
+                label="CPU / 内存"
+                value={`${processCard.proc.cpu.toFixed(2)}% / ${formatBytes(processCard.proc.rss)}（${processCard.proc.mem.toFixed(1)}%）`}
+              />
+              {processCard.runtime === "java" ? (
+                <ProcessDetailRow
+                  label="堆"
+                  value={
+                    processCard.proc.xms || processCard.proc.xmx
+                      ? `${processCard.proc.xms ? formatBytes(processCard.proc.xms) : "默认"} ~ ${
+                          processCard.proc.xmx ? formatBytes(processCard.proc.xmx) : "默认"
+                        }`
+                      : "未显式设置"
+                  }
+                />
+              ) : null}
+              <ProcessDetailRow
+                label="已运行"
+                value={formatDurationLong(processCard.proc.elapsed)}
+              />
+              {processCard.detail ? (
+                <>
+                  <ProcessDetailRow
+                    label="工作目录"
+                    value={processCard.detail.workDir || "—（无权限）"}
+                  />
+                  <ProcessDetailRow
+                    label="可执行"
+                    value={processCard.detail.exePath || "—（无权限）"}
+                  />
+                  <ProcessDetailRow
+                    label="磁盘 IO"
+                    value={
+                      processCard.detail.readBytes || processCard.detail.writeBytes ? (
+                        <span className="tabular-nums">
+                          <span className="text-io-read">
+                            读 {formatBytes(processCard.detail.readBytes)}
+                          </span>
+                          {" / "}
+                          <span className="text-io-write">
+                            写 {formatBytes(processCard.detail.writeBytes)}
+                          </span>
+                        </span>
+                      ) : (
+                        "—（无权限）"
+                      )
+                    }
+                  />
+                </>
+              ) : null}
+              <ProcessDetailRow label="命令行" value={processCard.proc.args || "—"} />
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={() => void copyProcessText(processCard.proc.args || "")}
+              >
+                复制命令行
+              </Button>
+              <Button
+                variant="danger"
+                disabled={processBusy}
+                onClick={() => void killProcessFromCard()}
+              >
+                结束
+              </Button>
+              <Button onClick={() => setProcessCard(null)}>关闭</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
       <Dialog
