@@ -5,6 +5,7 @@ import { HostOverviewTrend } from "@/react/components/overview/overview-trend";
 import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ShieldCheck } from "lucide-react";
 import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
 import { useAgentInstall } from "@/react/state/agent-install";
 import type * as echarts from "echarts";
@@ -327,7 +328,8 @@ function OverviewPage({ host }: { host: string }) {
   });
   const agentStatus = useQuery({
     queryKey: ["agent-status", host],
-    queryFn: () => api.agentStatus(host),
+    queryFn: () => api.agentStatus(host, true),
+    refetchInterval: 15000,
   });
   const latestVer = useQuery({
     queryKey: ["agent-latest"],
@@ -364,7 +366,7 @@ function OverviewPage({ host }: { host: string }) {
       agentText = "Agent 未安装";
       agentTagTone = "warn";
     } else {
-      agentText = "Agent 不可用";
+      agentText = agent.error ? `Agent 不可用（${agent.error}）` : "Agent 不可用";
       agentTagTone = "danger";
     }
   }
@@ -418,7 +420,8 @@ function OverviewPage({ host }: { host: string }) {
             {overview.dataUpdatedAt > 0 ? <span>{collection.unavailable ? "上次采样" : "采样于"} {new Date(overview.dataUpdatedAt).toLocaleString("zh-CN", { hour12: false })}</span> : null}
           </>}
           actions={<>
-            <Button size="sm" disabled={isInstalling} onClick={() => setCheckHost(host)}>
+            <Button disabled={isInstalling} onClick={() => setCheckHost(host)}>
+              <ShieldCheck size={16} strokeWidth={1.5} aria-hidden />
               检查 Agent
             </Button>
           </>} />

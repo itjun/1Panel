@@ -18,7 +18,11 @@ export function HostWorkbenchHeader({ host, metadata, actions }: { host: string;
     refetchInterval: 5000,
   });
   const data = query.data;
-  const agent = useQuery({ queryKey: ["agent-status", host], queryFn: () => api.agentStatus(host) });
+  const agent = useQuery({
+    queryKey: ["agent-status", host],
+    queryFn: () => api.agentStatus(host, true),
+    refetchInterval: 15000,
+  });
   const status = collectionState(query, !!agent.data && !agent.data.ok);
   return (
     <header className="device-overview-identity">
@@ -41,7 +45,7 @@ export function HostWorkbenchHeader({ host, metadata, actions }: { host: string;
             .catch((e) => flash.showError(formatErr(e)));
         }}
       >
-        <Terminal size={16} />
+        <Terminal size={16} strokeWidth={1.5} aria-hidden />
         打开终端
       </Button>
       </div>
