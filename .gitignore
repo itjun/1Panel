@@ -44,6 +44,8 @@ ServerPanel
 # --- 前端本地/生成 ---
 frontend/dist/
 frontend/node_modules/
+# wails3 每次本地构建都重新生成的 events 绑定桩，无需入库
+frontend/bindings/events/
 # --- 日志 / 编辑器 / OS ---
 *.log
 *.DS_Store
