@@ -98,7 +98,7 @@ do_loop() {
   echo $$ > "$PIDF"
   chmod 644 "$PIDF" 2>/dev/null
   { echo 500 > /proc/self/oom_score_adj; } 2>/dev/null
-  export GOMEMLIMIT=64MiB
+  export GOMEMLIMIT=128MiB
   PRE=""
   ionice -c3 true >/dev/null 2>&1 && PRE="ionice -c3"
   nice -n 10 true >/dev/null 2>&1 && PRE="$PRE nice -n 10"

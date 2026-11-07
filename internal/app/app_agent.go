@@ -427,10 +427,17 @@ func (s *Agent) installAgentOnForRepair(host, action string) (string, error) {
 		return fail(fmt.Errorf("%s", reason))
 	}
 
-	// 已在跑且版本与面板内置一致：跳过上传/替换
+	// 已在跑且版本与面板内置一致：跳过二进制上传，但仍同步 systemd unit（旧 MemoryMax 等）。
 	if info.BinaryKnown && info.HasBinary && info.ServiceState == "active" {
 		st := s.agentPool.Status(host, true)
 		if st.OK && st.Version == agentres.AgentVersion {
+			if info.InitMode == agentinstall.InitSystemd {
+				emit("unit", "同步 systemd 配置", -1)
+				if err := s.installer.SyncSystemdUnit(host, opt); err != nil {
+					return fail(err)
+				}
+			}
+			s.agentPool.InvalidateStatus(host)
 			emit("done", "已是最新 v"+st.Version+"，跳过安装", -1)
 			return st.Version, nil
 		}

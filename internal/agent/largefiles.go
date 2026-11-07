@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -62,7 +63,8 @@ func scanLargestFiles(ctx context.Context, root string, limit int) (monitor.Larg
 		result.Incomplete = true
 		result.Message = message
 	}
-	memoryDir := scanMemoryDirectory()
+	mem := newScanMemoryGuard(scanMemoryDirectory())
+	var st syscall.Stat_t
 	var visit func(string, int) error
 	visit = func(dir string, depth int) error {
 		if err := ctx.Err(); err != nil {
@@ -72,7 +74,7 @@ func scanLargestFiles(ctx context.Context, root string, limit int) (monitor.Larg
 		case "/proc", "/sys", "/dev", "/run", "/snap", "/tmp":
 			return nil
 		}
-		// 限制同时打开的目录数量；极深目录明确标记为未完成。
+		// 极深目录明确标记为未完成，避免递归栈过深。
 		if depth >= 128 {
 			markIncomplete("目录层级过深，部分目录未扫描")
 			return nil
@@ -85,41 +87,70 @@ func scanLargestFiles(ctx context.Context, root string, limit int) (monitor.Larg
 			markIncomplete("部分文件或目录无法读取，结果可能不完整")
 			return nil
 		}
-		defer f.Close()
+		var subdirs []string
+		var walkErr error
 		for {
 			if err := ctx.Err(); err != nil {
-				return err
+				walkErr = err
+				break
 			}
-			if memoryDir != "" {
-				if err := checkScanMemory(memoryDir); err != nil {
-					return err
-				}
+			if err := mem.check(); err != nil {
+				walkErr = err
+				break
 			}
-			entries, readErr := f.ReadDir(128)
+			entries, readErr := f.ReadDir(256)
 			for _, entry := range entries {
 				if err := ctx.Err(); err != nil {
-					return err
+					walkErr = err
+					break
 				}
-				info, err := entry.Info()
-				if err != nil {
+				name := entry.Name()
+				typ := entry.Type()
+				// 符号链接一律跳过，避免环与跨目录重复计数。
+				if typ&os.ModeSymlink != 0 {
+					continue
+				}
+				path := filepath.Join(dir, name)
+				// 目录：必须 Lstat 核对设备号，跳过挂载点。
+				if typ.IsDir() {
+					if err := syscall.Lstat(path, &st); err != nil {
+						markIncomplete("部分文件或目录无法读取，结果可能不完整")
+						continue
+					}
+					if st.Dev != dev {
+						continue
+					}
+					subdirs = append(subdirs, path)
+					continue
+				}
+				// 已知非普通文件（套接字/设备/管道等）直接跳过，避免 Info/Lstat。
+				if typ != 0 && !typ.IsRegular() && typ != os.ModeIrregular {
+					continue
+				}
+				if err := syscall.Lstat(path, &st); err != nil {
 					markIncomplete("部分文件或目录无法读取，结果可能不完整")
 					continue
 				}
-				if info.Sys().(*syscall.Stat_t).Dev != dev {
-					continue
-				}
-				path := filepath.Join(dir, entry.Name())
-				if info.IsDir() {
-					if err := visit(path, depth+1); err != nil {
-						return err
+				mode := st.Mode & syscall.S_IFMT
+				if mode == syscall.S_IFDIR {
+					if st.Dev != dev {
+						continue
 					}
+					subdirs = append(subdirs, path)
 					continue
 				}
-				if !info.Mode().IsRegular() || info.Size() < 0 {
+				if mode != syscall.S_IFREG || st.Size < 0 {
 					continue
 				}
-				file := monitor.LargeFile{Name: entry.Name(), Dir: dir, Path: path, Size: uint64(info.Size())}
-				// N 最大为 50，固定大小有序列表避免全盘排序和额外依赖。
+				// 父目录已在同一设备上；普通文件不再核对 Dev。
+				size := uint64(st.Size)
+				if len(result.Files) >= limit {
+					smallest := result.Files[limit-1]
+					if size < smallest.Size || (size == smallest.Size && path >= smallest.Path) {
+						continue
+					}
+				}
+				file := monitor.LargeFile{Name: name, Dir: dir, Path: path, Size: size}
 				i := sort.Search(len(result.Files), func(i int) bool {
 					return file.Size > result.Files[i].Size || (file.Size == result.Files[i].Size && file.Path < result.Files[i].Path)
 				})
@@ -133,14 +164,27 @@ func scanLargestFiles(ctx context.Context, root string, limit int) (monitor.Larg
 					result.Files = result.Files[:limit]
 				}
 			}
+			if walkErr != nil {
+				break
+			}
 			if readErr == io.EOF {
-				return nil
+				break
 			}
 			if readErr != nil {
 				markIncomplete("部分目录读取失败，结果可能不完整")
-				return nil
+				break
 			}
 		}
+		_ = f.Close()
+		if walkErr != nil {
+			return walkErr
+		}
+		for _, sub := range subdirs {
+			if err := visit(sub, depth+1); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	err = visit(root, 0)
 	result.ElapsedMs = time.Since(start).Milliseconds()
@@ -159,7 +203,7 @@ func scanLargestFiles(ctx context.Context, root string, limit int) (monitor.Larg
 
 var errScanMemoryPressure = fmt.Errorf("Agent 内存接近上限")
 
-// cgroup v2 包含遍历产生的内核记账，不能只看 Go 堆或进程 RSS。
+// cgroup v2：遍历产生的 file/dentry 记账会抬高 memory.current，但不代表进程真的快 OOM。
 func scanMemoryDirectory() string {
 	data, err := os.ReadFile("/proc/self/cgroup")
 	if err != nil {
@@ -176,8 +220,63 @@ func scanMemoryDirectory() string {
 	return ""
 }
 
-func checkScanMemory(dir string) error {
-	maxData, err := os.ReadFile(filepath.Join(dir, "memory.max"))
+// scanMemoryHardCurrent 贴近硬顶才停扫（4MiB 与上限 1/32 取较大），给返回结果留余量。
+func scanMemoryHardCurrent(limit uint64) uint64 {
+	if limit == 0 {
+		return 0
+	}
+	headroom := limit / 32
+	const minHeadroom = 4 << 20
+	if headroom < minHeadroom {
+		headroom = minHeadroom
+	}
+	if headroom >= limit {
+		return 0
+	}
+	return limit - headroom
+}
+
+// scanMemoryHardAnon 匿名内存（堆等）占到上限 3/4 视为真实压力。
+func scanMemoryHardAnon(limit uint64) uint64 {
+	if limit == 0 {
+		return 0
+	}
+	return limit - limit/4
+}
+
+// scanMemorySoftCurrent 目录缓存抬高 current 时触发回收，但不因此停扫。
+func scanMemorySoftCurrent(limit uint64) uint64 {
+	if limit == 0 {
+		return 0
+	}
+	return limit - limit/8
+}
+
+type scanMemoryGuard struct {
+	dir         string
+	nextReclaim time.Time
+	reclaimFn   func()
+}
+
+func newScanMemoryGuard(dir string) *scanMemoryGuard {
+	return &scanMemoryGuard{
+		dir: dir,
+		reclaimFn: func() {
+			runtime.GC()
+			time.Sleep(20 * time.Millisecond)
+		},
+	}
+}
+
+func (g *scanMemoryGuard) check() error {
+	if g == nil || g.dir == "" {
+		return nil
+	}
+	return g.checkWith(g.reclaimFn)
+}
+
+func (g *scanMemoryGuard) checkWith(reclaim func()) error {
+	maxData, err := os.ReadFile(filepath.Join(g.dir, "memory.max"))
 	if err != nil {
 		return fmt.Errorf("无法读取 Agent 内存上限: %w", err)
 	}
@@ -188,17 +287,69 @@ func checkScanMemory(dir string) error {
 	if err != nil || limit == 0 {
 		return fmt.Errorf("Agent 内存上限无效")
 	}
+	current, err := readScanMemoryCurrent(g.dir)
+	if err != nil {
+		return err
+	}
+	anon, hasAnon := readScanMemoryAnon(g.dir)
+	hardCurrent := scanMemoryHardCurrent(limit)
+	hardAnon := scanMemoryHardAnon(limit)
+	softCurrent := scanMemorySoftCurrent(limit)
+
+	hard := current >= hardCurrent || (hasAnon && anon >= hardAnon)
+	if !hard {
+		// 遍历抬高的 file 记账：偶尔 GC，不中止扫描。
+		if current >= softCurrent && time.Now().After(g.nextReclaim) {
+			if reclaim != nil {
+				reclaim()
+			}
+			g.nextReclaim = time.Now().Add(2 * time.Second)
+		}
+		return nil
+	}
+
+	if time.Now().After(g.nextReclaim) {
+		if reclaim != nil {
+			reclaim()
+		}
+		g.nextReclaim = time.Now().Add(2 * time.Second)
+		current, err = readScanMemoryCurrent(g.dir)
+		if err != nil {
+			return err
+		}
+		anon, hasAnon = readScanMemoryAnon(g.dir)
+		if current < hardCurrent && (!hasAnon || anon < hardAnon) {
+			return nil
+		}
+	}
+	return errScanMemoryPressure
+}
+
+func readScanMemoryCurrent(dir string) (uint64, error) {
 	currentData, err := os.ReadFile(filepath.Join(dir, "memory.current"))
 	if err != nil {
-		return fmt.Errorf("无法读取 Agent 内存用量: %w", err)
+		return 0, fmt.Errorf("无法读取 Agent 内存用量: %w", err)
 	}
 	current, err := strconv.ParseUint(strings.TrimSpace(string(currentData)), 10, 64)
 	if err != nil {
-		return fmt.Errorf("Agent 内存用量无效")
+		return 0, fmt.Errorf("Agent 内存用量无效")
 	}
-	// 128 MiB 上限时，在 112 MiB 主动停止，为其他采集和结果返回留余量。
-	if current >= limit-limit/8 {
-		return errScanMemoryPressure
+	return current, nil
+}
+
+func readScanMemoryAnon(dir string) (uint64, bool) {
+	data, err := os.ReadFile(filepath.Join(dir, "memory.stat"))
+	if err != nil {
+		return 0, false
 	}
-	return nil
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "anon ") {
+			v, err := strconv.ParseUint(strings.TrimSpace(strings.TrimPrefix(line, "anon ")), 10, 64)
+			if err != nil {
+				return 0, false
+			}
+			return v, true
+		}
+	}
+	return 0, false
 }

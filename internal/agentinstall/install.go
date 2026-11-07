@@ -25,7 +25,7 @@ const (
 	diskWatermarkPct = 5.0
 	minDataAvailKB   = 64 * 1024  // 数据分区至少 64 MB，避免 5% 在超小盘上仍不够落库
 	minTmpAvailKB    = 32 * 1024  // 上传二进制约 10MB，/tmp 再留余量
-	minMemAvailKB    = 128 * 1024 // 与 systemd MemoryMax 对齐
+	minMemAvailKB    = 256 * 1024 // 与 systemd MemoryMax 对齐
 )
 
 // systemd unit：含资源硬限制（宁可 agent 降级/退出，也不挤压业务）
@@ -44,10 +44,10 @@ Nice=10
 CPUQuota=25%
 CPUWeight=50
 IOWeight=50
-MemoryHigh=96M
-MemoryMax=128M
+MemoryHigh=192M
+MemoryMax=256M
 OOMScoreAdjust=500
-Environment=GOMEMLIMIT=64MiB
+Environment=GOMEMLIMIT=128MiB
 
 [Install]
 WantedBy=multi-user.target
@@ -245,6 +245,50 @@ func fmtKB(kb uint64) string {
 	return fmt.Sprintf("%d KB", kb)
 }
 
+// systemdUnitWriteScript 覆盖写入 systemd unit（不含启动）。
+func systemdUnitWriteScript() string {
+	return fmt.Sprintf(`cat > %[1]s <<'UNIT'
+%[2]sUNIT
+`, remoteUnit, unitContent)
+}
+
+// SyncSystemdUnit 把面板内置 unit 同步到远端；内容有变才 daemon-reload 并重启。
+// 用于「二进制已是最新」时仍能把旧 MemoryMax 等配置抬上来。
+func (i *Installer) SyncSystemdUnit(host string, opt sshd.ConnectOption) error {
+	script := fmt.Sprintf(`set -e
+cat > /tmp/spanel-agent.service.new <<'UNIT'
+%[1]sUNIT
+if [ -f %[2]s ] && cmp -s /tmp/spanel-agent.service.new %[2]s; then
+  rm -f /tmp/spanel-agent.service.new
+  echo unchanged
+  exit 0
+fi
+mv -f /tmp/spanel-agent.service.new %[2]s
+echo changed
+`, unitContent, remoteUnit)
+	out, err := i.mgr.RunAsRoot(host, opt, script, sshd.RunOptions{Timeout: 20 * time.Second})
+	if err != nil {
+		return fmt.Errorf("同步 Agent systemd 配置失败: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+	if lastNonEmptyLine(string(out)) != "changed" {
+		return nil
+	}
+	if out, err := i.mgr.RunAsRoot(host, opt, startCmd, sshd.RunOptions{Timeout: 30 * time.Second}); err != nil {
+		return fmt.Errorf("应用 Agent systemd 配置失败: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func lastNonEmptyLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(lines[i]); line != "" {
+			return line
+		}
+	}
+	return ""
+}
+
 // Install 安装或更新（幂等）。流程：sftp 上传 → sha256 校验 → 备份旧版 → 原子替换
 // → 写入 spanel-agent-ctl（systemd 主机另写 unit，其余挂 cron / OpenRC 自启）→ 启动。健康检查由调用方（app_agent）走 agentcli 隧道完成，
 // 失败时调用 Rollback。prog 可为 nil；上传阶段回调 0~100 百分比，校验替换阶段回调 -1。
@@ -295,11 +339,8 @@ chown root:root %[7]s
 chmod 755 %[7]s
 `, remoteBin, remoteBinOld, remoteBinNew, remoteUnit, unitContent, remoteDataDir, remoteCtl, ctlScriptFor(info.InitMode))
 	if info.InitMode == InitSystemd {
-		script += fmt.Sprintf(`if [ ! -f %[1]s ]; then
-cat > %[1]s <<'UNIT'
-%[2]sUNIT
-fi
-`, remoteUnit, unitContent)
+		// 每次安装/更新都覆盖 unit，避免旧 MemoryMax 等限制残留。
+		script += systemdUnitWriteScript()
 	}
 	script += remoteCtl + " install-hooks\n" + remoteCtl + " start\n"
 	if out, err := i.mgr.RunAsRoot(host, opt, script, sshd.RunOptions{Timeout: 60 * time.Second}); err != nil {
