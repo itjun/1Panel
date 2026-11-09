@@ -22,6 +22,7 @@ import {
 } from "./format";
 import { LiveChart, StatStrip } from "./live-chart";
 import { ParamsForm } from "./params-form";
+import { TransferPath } from "./transfer-path";
 import { PathCards } from "./path-cards";
 import { isFinished, speedtestStore, useSpeedtestRun } from "./store";
 import { evaluate } from "./verdict";
@@ -97,6 +98,8 @@ export function PairView() {
   const [params, setParams] = useState(() => loadParams(PARAMS_KEY, 10));
   const [streams, setStreams] = useState(false);
   const seq = useRef(0);
+  const isStopPending = useRef(false);
+  const [isStopping, setIsStopping] = useState(false);
 
   const pairRun = run && run.kind === "pair" ? run : null;
   const running = !!run && !isFinished(run.phase);
@@ -186,7 +189,7 @@ export function PairView() {
   }, [prefill?.nonce]);
 
   async function start() {
-    if (!selected || running) return;
+    if (!selected || speedtestStore.isRunning()) return;
     flash.clear();
     speedtestStore.begin({ kind: "pair", a, b, params, path: selected });
     try {
@@ -199,11 +202,16 @@ export function PairView() {
   }
 
   async function stop() {
-    if (!run?.id) return;
+    if (!pairRun?.id || isStopPending.current) return;
+    isStopPending.current = true;
+    setIsStopping(true);
     try {
-      await api.speedtestStop(run.id);
+      await api.speedtestStop(pairRun.id);
     } catch (e) {
       flash.showError(formatErr(e));
+    } finally {
+      isStopPending.current = false;
+      setIsStopping(false);
     }
   }
 
@@ -227,20 +235,22 @@ export function PairView() {
     pairRun?.phase === "done"
       ? evaluate({ summary: pairRun.summary, protocol: pairRun.params?.protocol || "tcp", path: pairRun.path, params: pairRun.params })
       : null;
-  const actions = running ? (
-    <Button variant="danger" onClick={stop} disabled={!run?.id}>
+  const isPairRunning = !!pairRun && !isFinished(pairRun.phase);
+  const isMatchingRun = !!pairRun && (isPairRunning || (pairRun.a === a && pairRun.b === b && pairRun.params?.direction === params.direction && pairRun.params?.duration === params.duration));
+  const actions = isPairRunning ? (
+    <Button variant="secondary" onClick={stop} disabled={!pairRun?.id || isStopping}>
       <Square className="size-4" />
-      停止
+      {isStopping ? "正在停止…" : "停止测速"}
     </Button>
   ) : (
-    <Button variant="primary" onClick={start} disabled={!selected || detecting}>
+    <Button variant="primary" onClick={start} disabled={!selected || detecting || running}>
       <Play className="size-4" />
       开始测速
     </Button>
   );
 
   return (
-    <Page title="两机测速">
+    <Page title="两机测速" actions={isPairRunning ? <Tag tone="accent">{PHASE_LABEL[pairRun.phase]}</Tag> : undefined}>
       <FlashNotices flash={flash} />
       <div className="flex flex-col gap-section">
         <Section title="端点">
@@ -268,22 +278,26 @@ export function PairView() {
               <RefreshCw className="size-4" />
               {detecting ? "识别中" : "重新识别"}
             </Button>
-            {actions}
           </div>
         </Section>
 
         <Section title="路径" extra={detecting ? <span className="text-xs text-muted">正在读取网卡并探测连通性…</span> : null}>
+          <TransferPath a={isPairRunning ? pairRun.a || "" : a} b={isPairRunning ? pairRun.b || "" : b}
+            direction={isMatchingRun ? pairRun.params?.direction || "" : params.direction}
+            phase={isMatchingRun ? pairRun.phase : detecting ? "probe" : undefined}
+            status={isMatchingRun ? PHASE_LABEL[pairRun.phase] || pairRun.phase : detecting ? "识别中" : undefined}
+            duration={isMatchingRun ? pairRun.params?.duration || 0 : params.duration}
+            elapsed={isMatchingRun ? last?.t || 0 : 0} action={isPairRunning ? actions : undefined} />
           {report ? (
             <PathCards report={report} selected={selected} onSelect={setSelected} disabled={running} />
-          ) : (
-            <p className="text-sm text-muted">
-              {detecting ? "识别中…" : "请选择 A、B 两端"}
-            </p>
-          )}
+          ) : null}
         </Section>
 
         <Section title="参数">
           <ParamsForm value={params} onChange={setParams} disabled={running} bandwidthExtra={bandwidthExtra} />
+          {!isPairRunning ? <div className="flex items-center justify-end gap-3 pt-3">
+            <span className="text-xs text-muted">{running ? "另一个测速任务正在运行" : !b ? "请先选择 B 端" : detecting ? "正在识别路径" : !selected ? "请选择可用路径" : ""}</span>{actions}
+          </div> : null}
         </Section>
 
         {pairRun ? (
@@ -294,8 +308,8 @@ export function PairView() {
                 <Tag tone={phaseTone(pairRun.phase)}>{PHASE_LABEL[pairRun.phase] || pairRun.phase}</Tag>
                 <span className="min-w-0 truncate text-xs text-muted">
                   {pairRun.a ? `${endpointLabel(pairRun.a)} ⇄ ${endpointLabel(pairRun.b || "")}` : ""}
-                  {pairRun.path ? ` · ${RELATION_LABEL[pairRun.path.relation] || pairRun.path.relation} ${pairRun.path.target.ip}` : ""}
-                  {pairRun.params ? ` · ${paramsText(pairRun.params)}` : ""}
+                  {pairRun.path ? `　${RELATION_LABEL[pairRun.path.relation] || pairRun.path.relation} ${pairRun.path.target.ip}` : ""}
+                  {pairRun.params ? `　${paramsText(pairRun.params)}` : ""}
                 </span>
                 <span className="ml-auto flex items-center gap-3">
                   {pairRun.params && last ? (

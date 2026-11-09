@@ -1,0 +1,23 @@
+.transfer-path { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.transfer-path-diagram { display: grid; grid-template-columns: minmax(80px, 180px) minmax(100px, 1fr) minmax(80px, 180px); align-items: center; gap: 24px; padding-block: 16px; }
+.transfer-path-endpoint { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.transfer-path-endpoint-0 { grid-column: 1; grid-row: 1; }
+.transfer-path-endpoint-1 { grid-column: 3; grid-row: 1; }
+.transfer-path-lanes { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 24px; }
+.transfer-path-lane { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--color-io-write); }
+.transfer-path-lane[data-direction="reverse"] { color: var(--color-io-read); }
+.transfer-path-lane[data-ready="false"] { color: var(--color-muted); }
+.transfer-path-track { position: relative; width: 100%; height: 20px; }
+.transfer-path-track::before { content: ""; position: absolute; top: 9px; left: 2px; right: 2px; border-top: 2px solid currentColor; }
+.transfer-path-lane[data-ready="false"] .transfer-path-track::before { border-top-style: dashed; }
+.transfer-path-arrow { position: absolute; right: -4px; top: 0; }
+.transfer-path-lane[data-direction="reverse"] .transfer-path-arrow { right: auto; left: -4px; }
+.transfer-path-packet { position: absolute; top: 4px; left: 0; animation: transfer-forward 1.8s linear infinite; }
+.transfer-path-lane[data-direction="reverse"] .transfer-path-packet { animation-direction: reverse; }
+.transfer-path-progress { height: 6px; flex: 1; min-width: 100px; appearance: none; border: 0; background: var(--color-line); color: var(--color-accent); }
+.transfer-path-progress::-webkit-progress-bar { background: var(--color-line); }
+.transfer-path-progress::-webkit-progress-value { background: var(--color-accent); }
+.transfer-path-progress::-moz-progress-bar { background: var(--color-accent); }
+@keyframes transfer-forward { from { left: 0; } to { left: calc(100% - 12px); } }
+@media (prefers-reduced-motion: reduce) { .transfer-path-packet { animation: none; left: 50%; } }
+@container page-content (max-width: 640px) { .transfer-path-diagram { grid-template-columns: 80px minmax(80px, 1fr) 80px; gap: 12px; } }
