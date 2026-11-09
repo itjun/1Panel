@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { AppWindow } from "lucide-react";
+import { LocalAppIcon } from "./app-icon";
 import { useMemo, useState } from "react";
 import { api } from "@/api";
 import { RadioGroup } from "@/react/components/ui/radio-group";
@@ -14,23 +14,6 @@ import { isLinuxPlatform, isMacPlatform, isWindowsPlatform } from "@/react/lib/p
 type SortKey = "name" | "appSize" | "dataSize";
 
 const NAME_COLLATOR = new Intl.Collator("zh-Hans-CN", { numeric: true, sensitivity: "base" });
-
-/** 目前只有 macOS 的 .app 能取到真实图标，其余显示默认图标 */
-function PackageIcon({ source, path }: { source: string; path: string }) {
-  const enabled = isMacPlatform() && source === "app" && !!path;
-  const query = useQuery({
-    queryKey: ["local-pkg-icon", path],
-    queryFn: () => api.localSysPackageIcon(path),
-    enabled,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    retry: false,
-  });
-  if (enabled && query.data) {
-    return <img src={query.data} alt="" aria-hidden className="size-5 shrink-0" draggable={false} />;
-  }
-  return <AppWindow aria-hidden className="size-5 shrink-0 text-muted" strokeWidth={1.5} />;
-}
 
 const MAC_SOURCE_OPTS = [
   { value: "all", label: "全部" },
@@ -257,7 +240,7 @@ export function LocalPackagesPage() {
                     </td>
                     <td className="px-3">
                       <div className="flex items-center gap-2">
-                        <PackageIcon source={item.source} path={item.path} />
+                        <LocalAppIcon path={item.path} />
                         <span className="truncate">{item.name}</span>
                         {item.fileName && item.fileName !== item.name ? (
                           <span className="shrink-0 text-xs text-muted">{item.fileName}</span>

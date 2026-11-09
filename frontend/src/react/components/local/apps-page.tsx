@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { api, type localapps } from "@/api";
 import {
@@ -26,6 +27,7 @@ import {
   formatErr,
 } from "@/utils/format";
 import { LOCAL_LANG_OPTIONS, localLangLabel } from "@/utils/localLang";
+import { appBundlePath, LocalAppIcon } from "./app-icon";
 import "./local.css";
 
 type KillTarget = { pid: number; name?: string; cmd?: string };
@@ -70,6 +72,7 @@ type TreeRow = {
   cmd: string;
   children?: TreeRow[];
   appKey?: string;
+  iconPath?: string;
   runtime?: string;
   appKind?: string;
   confidence?: string;
@@ -178,6 +181,7 @@ function procToRow(p: localapps.ProcNode, runtime: string, appKey: string): Tree
     elapsed: p.elapsed != null ? Number(p.elapsed) : null,
     cmd: p.cmd || (p.args || []).join(" ") || "",
     appKey,
+    iconPath: appBundlePath(p.exe || ""),
     runtime,
     appKind: p.kind,
     confidence: p.confidence,
@@ -229,6 +233,7 @@ function appToRow(a: localapps.AppNode): TreeRow {
     cmd: "",
     children: children.length ? children : undefined,
     appKey: a.key,
+    iconPath: procs.map((p) => appBundlePath(p.exe || "")).find(Boolean),
     runtime: a.runtime,
     appKind: a.kind,
     confidence: a.confidence,
@@ -495,8 +500,7 @@ export function LocalAppsPage() {
     const isOpen = expanded.has(row.id);
     const selected = selectedId === row.id;
     return (
-      <tr
-        key={row.id}
+      <Fragment key={row.id}><tr
         className={
           selected
             ? "h-table-row cursor-pointer border-b border-line bg-accent-soft font-semibold text-accent"
@@ -519,49 +523,35 @@ export function LocalAppsPage() {
           });
         }}
       >
-        <td className="px-2 text-center font-mono text-xs text-muted">
-          {isApp ? row.seq : ""}
-        </td>
         <td className="px-2">
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-2">
             {depth > 0 ? <span className="local-apps-tree-indent" /> : null}
             {hasChildren ? (
               <button
                 type="button"
-                className="h-5 w-5 shrink-0 rounded-control bg-raised text-xs hover:bg-line"
+                aria-label={`${isOpen ? "收起" : "展开"}${row.name}`}
+                aria-expanded={isOpen}
+                className="flex size-5 shrink-0 items-center justify-center rounded-control hover:bg-raised"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleExpand(row.id);
                 }}
               >
-                {isOpen ? "−" : "+"}
+                {isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
               </button>
             ) : (
               <span className="inline-block w-5" />
             )}
-            <span className="truncate">{row.name}</span>
+            <LocalAppIcon path={row.iconPath} runtime={row.runtime} isService={row.appKind === "service"} />
+            <span className="truncate" title={row.name}>{row.name}</span>
           </div>
         </td>
         <td className="px-2 text-sm text-muted">
-          {isApp ? (
-            <div className="min-w-0">
-              <div>{row.typeLabel} · {row.confidence === "high" ? "高置信" : "中置信"}</div>
-              {(row.evidence || []).length ? (
-                <div
-                  className="max-w-56 truncate text-xs"
-                  data-tip={(row.evidence || []).join("；")} data-tip-overflow=""
-                >
-                  {(row.evidence || []).join("；")}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            row.typeLabel
-          )}
+          {row.typeLabel}
         </td>
         <td className="px-2 text-right font-mono text-sm tabular-nums">{row.pidLabel}</td>
-        <td className="px-2 font-mono text-sm">
-          {row.ports.length ? row.ports.join("、") : "—"}
+        <td className="whitespace-nowrap px-2 font-mono text-sm" title={row.ports.join("、")}>
+          {row.ports.length ? `${row.ports.slice(0, 2).join(", ")}${row.ports.length > 2 ? ` +${row.ports.length - 2}` : ""}` : "—"}
         </td>
         <td
           className={
@@ -589,6 +579,11 @@ export function LocalAppsPage() {
             : "—"}
         </td>
       </tr>
+      {isApp && isOpen ? <tr className="border-b border-line bg-raised"><td colSpan={9} className="px-10 py-2 text-xs text-muted">
+        <span className="mr-4">置信度：{row.confidence === "high" ? "高" : row.confidence === "medium" ? "中" : "未知"}</span>
+        识别依据：{row.evidence?.join("；") || "未提供"}
+      </td></tr> : null}
+      </Fragment>
     );
   }
 
@@ -597,6 +592,23 @@ export function LocalAppsPage() {
       title="应用进程"
       actions={
         <>
+          <Button
+            size="sm"
+            disabled={!canKillSelected}
+            onClick={() => openKill(selectedRow?.killTargets || [])}
+          >
+            {killButtonLabel}
+          </Button>
+        </>
+      }
+      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
+    >
+      {(query.data?.warnings || []).length ? (
+        <Notice tone="warn" text={(query.data?.warnings || []).join("；")} />
+      ) : null}
+      {query.error ? <Notice text={formatErr(query.error)} /> : null}
+
+      <div className="mb-3 flex flex-wrap items-center gap-3">
           <RadioGroup
             aria-label="应用类型"
             value={runtime}
@@ -615,51 +627,34 @@ export function LocalAppsPage() {
             />
           ) : null}
           <input
-            className="motion-field h-7 w-56 rounded-control px-3 text-sm text-ink"
+            className="motion-field ml-auto h-8 w-72 rounded-control px-3 text-sm text-ink"
             value={keyword}
             placeholder="搜索名称 / 命令 / 路径 / 端口"
             onChange={(event) => setKeyword(event.target.value)}
           />
-          <span aria-hidden className="mx-2 h-5 w-px bg-line" />
-          <Button
-            size="sm"
-            disabled={!canKillSelected}
-            onClick={() => openKill(selectedRow?.killTargets || [])}
-          >
-            {killButtonLabel}
-          </Button>
-        </>
-      }
-      onRefresh={async () => { await query.refetch({ throwOnError: true }); return true; }}
-    >
-      {(query.data?.warnings || []).length ? (
-        <Notice tone="warn" text={(query.data?.warnings || []).join("；")} />
-      ) : null}
-      {query.error ? <Notice text={formatErr(query.error)} /> : null}
-
+      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* 表格直接铺在内容平面上，吸顶表头用 surface 底遮挡滚动内容 */}
         <div className="surface-float min-h-48 flex-1 overflow-auto">
-          <div className="min-w-[1280px]">
-          <table className="w-full border-collapse text-left text-sm">
+          <div className="min-w-[1180px]">
+          <table className="w-full table-fixed border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="h-table-head border-b border-line bg-surface text-xs font-semibold text-muted">
-                <th className="w-12 px-2 text-center">序</th>
                 <SortableHeader
                   label="名称"
                   sortKey="name"
                   activeKey={sortKey}
                   direction={sortDirection}
                   onSort={changeSort}
-                  className="min-w-[180px] px-2"
+                  className="w-[260px] px-2"
                 />
                 <SortableHeader
-                  label="类型 / 依据"
+                  label="类型"
                   sortKey="type"
                   activeKey={sortKey}
                   direction={sortDirection}
                   onSort={changeSort}
-                  className="w-44 px-2"
+                  className="w-28 px-2"
                 />
                 <SortableHeader
                   label="进程数/PID"
@@ -667,7 +662,7 @@ export function LocalAppsPage() {
                   activeKey={sortKey}
                   direction={sortDirection}
                   onSort={changeSort}
-                  className="w-28 px-2 text-right"
+                  className="w-24 px-2 text-right"
                   align="right"
                 />
                 <SortableHeader
@@ -714,13 +709,13 @@ export function LocalAppsPage() {
                   className="w-40 px-2 text-right"
                   align="right"
                 />
-                <th className="w-32 px-2">运行时长</th>
+                <th className="w-24 px-2">运行时长</th>
               </tr>
             </thead>
             <tbody>
               {flatRows.length === 0 ? (
                 <tr className="h-table-row border-b border-line">
-                  <td className="px-3 text-muted" colSpan={10}>
+                  <td className="px-3 text-muted" colSpan={9}>
                     {query.isLoading
                       ? "正在读取本机进程…"
                       : keyword.trim() || runtime !== "all"
