@@ -198,6 +198,11 @@ export interface Overview {
     "publicIP": string;
 
     /**
+     * 与出口公网 IP 同次采集的归属地
+     */
+    "publicIPLocation": string;
+
+    /**
      * 累计计数：前端差分算速率（对齐 monitor.Overview）
      */
     "netRxBytes": number;

@@ -25,11 +25,12 @@ type Overview struct {
 	PerfCPUPercent float64 `json:"perfCpuPercent"`
 	EffCPUPercent  float64 `json:"effCpuPercent"`
 	// 每个逻辑核使用率（Apple Silicon 核序：先性能核、再能效核）
-	CPUCores  []CPUCoreStat `json:"cpuCores"`
-	Hostname  string        `json:"hostname"`
-	Arch      string        `json:"arch"`
-	IPAddress string        `json:"ipAddress"` // 内网主 IP
-	PublicIP  string        `json:"publicIP"`  // 出口公网 IP（缓存探测，可能为空）
+	CPUCores         []CPUCoreStat `json:"cpuCores"`
+	Hostname         string        `json:"hostname"`
+	Arch             string        `json:"arch"`
+	IPAddress        string        `json:"ipAddress"`        // 内网主 IP
+	PublicIP         string        `json:"publicIP"`         // 出口公网 IP（缓存探测，可能为空）
+	PublicIPLocation string        `json:"publicIPLocation"` // 与出口公网 IP 同次采集的归属地
 	// 累计计数：前端差分算速率（对齐 monitor.Overview）
 	NetRxBytes     uint64 `json:"netRxBytes"`
 	NetTxBytes     uint64 `json:"netTxBytes"`

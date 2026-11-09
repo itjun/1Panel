@@ -11,34 +11,36 @@ import (
 )
 
 const (
-	publicIPCacheTTL   = 10 * time.Minute
-	publicIPRetryDelay = time.Minute
+	publicIPCacheTTL    = 10 * time.Minute
+	publicIPRetryDelay  = time.Minute
 	publicIPHTTPTimeout = 3 * time.Second
 )
 
 var (
 	rePublicIPIP  = regexp.MustCompile(`(?:当前\s*IP|IP)\s*[：:]\s*([0-9a-fA-F:.]+)`)
+	rePublicIPLoc = regexp.MustCompile(`来自于\s*[：:]\s*(.+)`)
 	rePublicIPv4  = regexp.MustCompile(`\b((?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))\b`)
 
-	publicIPMu        sync.Mutex
-	publicIPValue     string
-	publicIPNext      time.Time
+	publicIPMu         sync.Mutex
+	publicIPValue      string
+	publicIPLocation   string
+	publicIPNext       time.Time
 	publicIPRefreshing bool
 )
 
 // publicIPCached 返回已缓存的出口公网 IP；缓存过期时异步刷新，不阻塞调用方。
 // 成功缓存 10 分钟；失败保留旧值，1 分钟后重试。
-func publicIPCached() string {
+func publicIPCached() (string, string) {
 	publicIPMu.Lock()
 	defer publicIPMu.Unlock()
 	if time.Now().Before(publicIPNext) {
-		return publicIPValue
+		return publicIPValue, publicIPLocation
 	}
 	if !publicIPRefreshing {
 		publicIPRefreshing = true
 		go refreshPublicIP()
 	}
-	return publicIPValue
+	return publicIPValue, publicIPLocation
 }
 
 func refreshPublicIP() {
@@ -48,11 +50,12 @@ func refreshPublicIP() {
 		publicIPMu.Unlock()
 	}()
 
-	ip := fetchPublicIP()
+	ip, location := fetchPublicIP()
 	publicIPMu.Lock()
 	defer publicIPMu.Unlock()
 	if ip != "" {
 		publicIPValue = ip
+		publicIPLocation = location
 		publicIPNext = time.Now().Add(publicIPCacheTTL)
 		return
 	}
@@ -60,22 +63,21 @@ func refreshPublicIP() {
 	publicIPNext = time.Now().Add(publicIPRetryDelay)
 }
 
-func fetchPublicIP() string {
+func fetchPublicIP() (string, string) {
 	client := &http.Client{Timeout: publicIPHTTPTimeout}
 	resp, err := client.Get("https://myip.ipip.net/")
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ""
+		return "", ""
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	ip, _ := parsePublicIPFromIPIP(string(body))
-	return ip
+	return parsePublicIPFromIPIP(string(body))
 }
 
 // parsePublicIPFromIPIP 解析 https://myip.ipip.net/ 正文，示例：
@@ -101,7 +103,12 @@ func parsePublicIPFromIPIP(raw string) (ip, loc string) {
 			}
 		}
 	}
-	return ip, ""
+	if ip != "" {
+		if m := rePublicIPLoc.FindStringSubmatch(raw); len(m) == 2 {
+			loc = strings.TrimSpace(m[1])
+		}
+	}
+	return ip, loc
 }
 
 func stripSimpleHTMLTags(s string) string {

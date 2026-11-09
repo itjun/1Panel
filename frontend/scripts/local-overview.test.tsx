@@ -11,7 +11,7 @@ const data = {
   load1: 2.16, load5: 2.1, load15: 1.9, memTotal: 24 * gib, memUsed: 10 * gib,
   memPercent: 1000 / 24, swapTotal: 14 * gib, swapUsed: 13 * gib, swapPercent: 1300 / 14,
   tempC: 69 as number | null | undefined, cpuTempC: undefined as number | null | undefined, gpuTempC: undefined as number | null | undefined,
-  modelName: "Mac16,13", ipAddress: "192.0.2.5", publicIP: "203.0.113.8",
+  modelName: "Mac16,13", ipAddress: "192.0.2.5", publicIP: "203.0.113.8", publicIPLocation: "中国 天津 天津  联通",
   disks: [
     { kind: "disk", mount: "disk0", device: "disk0", filesystem: "disk0", name: "SSD", model: "APPLE SSD AP0512Z", fsType: "apfs", parent: "disk0", total: 500 * gib, used: 200 * gib, avail: 300 * gib, percent: 40 },
     { kind: "mount", mount: "/", device: "/dev/disk3", filesystem: "/dev/disk3", name: "Macintosh HD", fsType: "apfs", parent: "disk0", total: 500 * gib, used: 200 * gib, avail: 300 * gib, percent: 40 },
@@ -45,6 +45,7 @@ test("本机概览的圆环摘要和点击卡片保留磁盘、网络与资源�
       expect(text).toContain(value);
     }
     expect(text).not.toContain("·");
+    expect(html).toContain('203.0.113.8<span title="中国 天津 天津  联通">天津 联通</span>');
   } finally {
     client.clear();
   }

@@ -3,6 +3,7 @@ import type { monitor } from "@/api";
 import { DetailFact, OverviewDetails } from "@/react/components/local/overview-details";
 import { Tag } from "@/react/components/ui/tag";
 import { formatBytes } from "@/utils/format";
+import { formatIpLocation } from "@/utils/ip-location";
 
 const KIND_LABEL: Record<string, string> = { physical: "物理网卡", docker: "Docker", virtual: "虚拟网卡", loopback: "回环", other: "其它" };
 
@@ -14,6 +15,7 @@ export function HostOverviewNetwork({ network, privateIP, publicIP, isUnavailabl
   isLoading: boolean;
 }) {
   const interfaces = network?.interfaces || [];
+  const location = publicIP && publicIP === network?.egressPublicIP ? formatIpLocation(network.egressPublicLoc) : "";
   const shown = [...interfaces].sort((a, b) =>
     Number(b.kind === "physical") - Number(a.kind === "physical") ||
     Number(b.state === "UP") - Number(a.state === "UP") ||
@@ -56,6 +58,6 @@ export function HostOverviewNetwork({ network, privateIP, publicIP, isUnavailabl
         </div>;
       })}
     </div> : <p className="text-sm text-muted">{isLoading ? "加载中…" : privateIP || "暂无网卡数据"}</p>}
-    <p className="local-summary-public-ip"><span>公网 IP</span>{publicIP || "—"}</p>
+    <p className="local-summary-public-ip"><span>公网 IP</span>{publicIP || "—"}{location ? <span title={network?.egressPublicLoc}>{location}</span> : null}</p>
   </section>;
 }

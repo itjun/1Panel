@@ -31,7 +31,7 @@
 .local-summary-interface-copy > div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .local-summary-interface-copy strong { font-weight: 600; }
 .local-summary-interface-copy p { margin-top: 4px; color: var(--color-muted); overflow-wrap: anywhere; }
-.local-summary-public-ip { display: flex; gap: 16px; margin-top: 24px; font-size: 14px; overflow-wrap: anywhere; }
+.local-summary-public-ip { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 24px; font-size: 14px; overflow-wrap: anywhere; }
 .local-summary-public-ip > span { color: var(--color-muted); }
 .local-summary-popup { width: 320px; max-width: calc(100vw - 16px); }
 .local-summary-details { padding: 20px; max-height: min(520px, calc(100vh - 32px)); overflow-y: auto; outline: none; }

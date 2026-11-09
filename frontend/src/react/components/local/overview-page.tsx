@@ -7,6 +7,7 @@ import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import { TextCopy } from "@/react/components/text-reader";
 import { formatBytes, formatDurationLong, formatErr, formatMemCapacity } from "@/utils/format";
+import { formatIpLocation } from "@/utils/ip-location";
 import { buildDiskSummaryItems, diskParentOf, formatLocalDiskInfo, summarizeDiskItems } from "./disk-utils";
 import { DetailFact, OverviewDetails } from "./overview-details";
 import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
@@ -59,6 +60,7 @@ export function LocalOverviewPage() {
   const gpuTemp = validTemp(data?.gpuTempC);
   const temperature = validTemp(data?.tempC) ?? cpuTemp ?? gpuTemp;
   const isTemperatureKnown = temperature !== undefined;
+  const publicLocation = data?.publicIP ? formatIpLocation(data.publicIPLocation) : "";
 
   async function refreshAll() {
     if (isRefreshPending.current) return;
@@ -174,6 +176,7 @@ export function LocalOverviewPage() {
           <dl>
             <DetailFact label="内网 IP">{network.data?.privateIPs?.join(", ") || data?.ipAddress || "—"}</DetailFact>
             <DetailFact label="公网 IP">{data?.publicIP || "—"}</DetailFact>
+            <DetailFact label="公网归属地">{data?.publicIPLocation || "—"}</DetailFact>
             <DetailFact label="默认网关">{network.data?.defaultGateway || "—"}</DetailFact>
             <DetailFact label="出口网卡">{network.data?.primaryIface || "—"}</DetailFact>
             <DetailFact label="网卡">{network.data ? `${allIfaces.filter(iface => iface.state === "up").length} 已连接 / ${allIfaces.length} 个` : "—"}</DetailFact>
@@ -202,7 +205,7 @@ export function LocalOverviewPage() {
             </div>;
           })}
         </div> : <p className="text-sm text-muted">{network.isLoading ? "加载中…" : "暂无网卡数据"}</p>}
-        <p className="local-summary-public-ip"><span>公网 IP</span>{data?.publicIP || "—"}</p>
+        <p className="local-summary-public-ip"><span>公网 IP</span>{data?.publicIP || "—"}{publicLocation ? <span title={data?.publicIPLocation}>{publicLocation}</span> : null}</p>
       </section>
     </div>
   </Page>;

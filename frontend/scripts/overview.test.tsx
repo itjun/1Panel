@@ -120,7 +120,7 @@ test("远程磁盘汇总较低时，危险分区仍告警并标明挂载点", ()
 test("远程网络摘要优先展示物理网卡，详情保留全部网卡，失败时不暗示实时连接", () => {
   const network: monitor.NetworkSnapshot = {
     privateIPs: ["192.0.2.10"], publicIPs: [], dockerIPs: ["172.17.0.1"],
-    egressPublicIP: "203.0.113.10", egressPublicLoc: "", defaultGateway: "192.0.2.1",
+    egressPublicIP: "203.0.113.10", egressPublicLoc: "中国 浙江 杭州  电信", defaultGateway: "192.0.2.1",
     connections: [], slowConnections: [], connTotal: 0, connEstablished: 0, connListen: 0, connTimeWait: 0,
     interfaces: ["veth0", "docker0", "lo", "eth0"].map((name, i) => ({
       name, kind: i === 3 ? "physical" : "virtual", state: "UP", mtu: 1500, mac: "02:00:00:00:00:01",
@@ -131,6 +131,7 @@ test("远程网络摘要优先展示物理网卡，详情保留全部网卡，�
     network, privateIP: network.privateIPs.join(", "), publicIP: network.egressPublicIP, isUnavailable, isLoading: false,
   }));
   const html = render(false);
+  expect(html).toContain('203.0.113.10<span title="中国 浙江 杭州  电信">杭州 电信</span>');
   expect(html.indexOf('aria-label="eth0 网卡详情"')).toBeLessThan(html.indexOf('aria-label="docker0 网卡详情"'));
   expect(visibleText(html)).toContain("veth0");
   for (const value of ["192.0.2.1", "203.0.113.10", "02:00:00:00:00:01", "接收（累计）", "发送（累计）"]) expect(visibleText(html)).toContain(value);

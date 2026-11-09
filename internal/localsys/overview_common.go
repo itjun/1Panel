@@ -31,7 +31,7 @@ func CollectOverview() (*Overview, error) {
 	o.Disks = listDisks()
 	localDiskModels.fill(o.Disks, time.Now(), readDiskModel)
 	o.IPAddress = primaryIPv4()
-	o.PublicIP = publicIPCached()
+	o.PublicIP, o.PublicIPLocation = publicIPCached()
 	fillNetDiskCounters(o)
 	o.Runtimes = detectRuntimes()
 	fillSystemTemps(o)
