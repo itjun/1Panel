@@ -96,7 +96,7 @@ export function RunLogPage() {
       <FlashNotices flash={flash} />
       {query.error ? <Notice text={formatErr(query.error)} /> : null}
       <div className="flex flex-col gap-section">
-        <section className="grid grid-cols-2 gap-card lg:grid-cols-3">
+        <section className="run-log-summary grid grid-cols-2 gap-x-5 gap-y-4 border-b border-line pb-5 @min-[900px]:grid-cols-3 @min-[1240px]:grid-cols-6">
           <StatBlock label="启动次数" value={`${summary.launches} 次`} />
           <StatBlock label="累计在线" value={formatSpan(summary.totalMs)} />
           <StatBlock label="平均每次" value={formatSpan(summary.avgMs)} />
@@ -199,9 +199,9 @@ function StatBlock({
   valueClass?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 bg-raised p-4">
+    <div className="flex min-w-0 flex-col gap-2">
       <span className="text-xs text-muted">{label}</span>
-      <span className={cn("font-mono text-2xl font-semibold tabular-nums text-ink", valueClass)}>
+      <span className={cn("font-mono text-lg font-semibold tabular-nums text-ink", valueClass)}>
         {value}
       </span>
       {hint ? <span className="font-mono text-xs tabular-nums text-muted">{hint}</span> : null}
