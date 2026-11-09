@@ -21,9 +21,16 @@ export function HostWorkbenchSummary({ data, disks, isUnavailable, isDiskUnavail
     : "未启用";
   const metrics: OverviewMetric[] = [
     {
+      id: "load", label: "负载",
+      text: data ? data.load1.toFixed(2) : "—",
+      detail: data ? `1 分钟 / ${data.cpuCount} 核` : "1 分钟",
+      tooltip: data ? `1 分钟：${data.load1.toFixed(2)}\n5 分钟：${data.load5.toFixed(2)}\n15 分钟：${data.load15.toFixed(2)}\n核心数：${data.cpuCount} 核` : undefined,
+      percent: data?.cpuCount ? (data.load1 / data.cpuCount) * 100 : undefined,
+    },
+    {
       id: "cpu", label: "CPU",
       text: data ? `${data.cpuPercent.toFixed(1)}%` : "—",
-      detail: data ? `${data.cpuCount} 核心` : undefined,
+      detail: data ? `${data.cpuModel || "—"} / ${data.cpuCount} 核` : undefined,
       tooltip: data ? `型号：${data.cpuModel || "—"}\n核心数：${data.cpuCount} 核\n使用率：${data.cpuPercent.toFixed(2)}%` : undefined,
       percent: data?.cpuPercent,
     },
@@ -31,6 +38,7 @@ export function HostWorkbenchSummary({ data, disks, isUnavailable, isDiskUnavail
       id: "memory", label: "内存",
       text: data ? `${data.memPercent.toFixed(1)}%` : "—",
       detail: data ? `${formatBytes(data.memUsed)} / ${formatBytes(data.memTotal)}` : undefined,
+      secondary: data ? `Swap ${data.swapTotal ? formatBytes(data.swapUsed) : "未启用"}` : undefined,
       tooltip: data ? `标称容量（估算）：${formatMemCapacity(data.memTotal)}\n系统容量：${formatBytes(data.memTotal)}\n已用：${formatBytes(data.memUsed)}\n可用：${formatBytes(Math.max(0, data.memTotal - data.memUsed))}\n使用率：${data.memPercent.toFixed(2)}%\nSwap：${swapText}` : undefined,
       percent: data?.memPercent,
     },
@@ -40,16 +48,10 @@ export function HostWorkbenchSummary({ data, disks, isUnavailable, isDiskUnavail
       detail: fullDisk
         ? `${fullDisk.mount || fullDisk.filesystem} ${formatBytes(fullDisk.used)} / ${formatBytes(fullDisk.total)}`
         : disk ? `${formatBytes(disk.used)} / ${formatBytes(disk.total)}` : undefined,
+      secondary: displayedDisk ? `可用 ${formatBytes(displayedDisk.avail)}` : undefined,
       percent: diskPercent,
       tooltip: displayedDisk ? `${diskScope}\n总量：${formatBytes(displayedDisk.total)}\n已用：${formatBytes(displayedDisk.used)}\n可用：${formatBytes(displayedDisk.avail)}\n使用率：${diskPercent!.toFixed(2)}%` : undefined,
       isUnavailable: isDiskUnavailable,
-    },
-    {
-      id: "load", label: "负载",
-      text: data ? data.load1.toFixed(2) : "—",
-      detail: data ? `1 分钟 / ${data.cpuCount} 核` : "1 分钟",
-      tooltip: data ? `1 分钟：${data.load1.toFixed(2)}\n5 分钟：${data.load5.toFixed(2)}\n15 分钟：${data.load15.toFixed(2)}\n核心数：${data.cpuCount} 核` : undefined,
-      percent: data?.cpuCount ? (data.load1 / data.cpuCount) * 100 : undefined,
     },
   ];
   return <OverviewResources metrics={metrics} isUnavailable={isUnavailable} isLoading={!data && !isUnavailable} />;

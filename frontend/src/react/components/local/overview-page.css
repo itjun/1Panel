@@ -1,0 +1,72 @@
+/* 本机概览定稿：圆环为点击入口，明细沿用通用浮层；不改变其它设备页。 */
+.local-summary { container: local-summary / inline-size; display: flex; flex-direction: column; gap: 40px; margin: 24px 64px; }
+.local-summary-heading { min-height: 32px; }
+.local-summary-heading h1 { font-size: 24px; line-height: 32px; font-weight: 600; }
+.local-summary-identity { display: flex; align-items: center; gap: 16px; min-width: 0; padding-block: 8px; }
+.local-summary-trigger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-ink); cursor: pointer; }
+.local-summary-trigger:hover { background: var(--color-raised); }
+.local-summary-trigger:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
+.local-summary-device { width: 48px; height: 48px; }
+.local-summary-host { min-width: 0; }
+.local-summary-host h2 { font-size: 24px; font-weight: 600; overflow-wrap: anywhere; }
+.local-summary-host p { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; color: var(--color-muted); font-size: 16px; }
+.local-summary-uptime { margin-left: auto; color: var(--color-muted); font-size: 14px; flex-shrink: 0; }
+.local-summary-resources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 8px 0 96px; }
+.local-summary-resources.has-temperature { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.local-summary-resource { display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 8px; text-align: center; font-size: 16px; }
+.local-summary-resource > .local-summary-trigger { border-radius: 50%; margin-bottom: 4px; }
+.local-summary-resource .resource-ring { width: 224px; height: 224px; }
+.local-summary-resource .resource-ring-center > span { font-size: 18px; color: var(--color-ink); }
+.local-summary-resource > .local-summary-trigger:hover { background: transparent; }
+.local-summary-resource p { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.local-summary-secondary { color: var(--color-muted); }
+.local-summary-secondary span { margin-left: 12px; }
+.local-summary-network { background: var(--color-raised); border-radius: var(--radius-panel); padding: 32px; }
+.local-summary-network-title { gap: 8px; font-size: 18px; font-weight: 600; }
+.local-summary-interfaces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+.local-summary-interface { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.local-summary-network-icon { width: 36px; height: 36px; }
+.local-summary-network-icon:hover, .local-summary-network-title:hover { background: var(--color-surface); }
+.local-summary-interface-copy { min-width: 0; font-size: 16px; }
+.local-summary-interface-copy > div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.local-summary-interface-copy strong { font-weight: 600; }
+.local-summary-interface-copy p { margin-top: 4px; color: var(--color-muted); overflow-wrap: anywhere; }
+.local-summary-public-ip { display: flex; gap: 16px; margin-top: 24px; font-size: 14px; overflow-wrap: anywhere; }
+.local-summary-public-ip > span { color: var(--color-muted); }
+.local-summary-popup { width: 320px; max-width: calc(100vw - 16px); }
+.local-summary-details { padding: 20px; max-height: min(520px, calc(100vh - 32px)); overflow-y: auto; outline: none; }
+.local-summary-details h2 { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
+.local-summary-details h2 + p { margin-top: 8px; color: var(--color-muted); overflow-wrap: anywhere; }
+.local-summary-details dl { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.local-summary-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.local-summary-fact dt { color: var(--color-muted); flex-shrink: 0; max-width: 44%; }
+.local-summary-fact dd { min-width: 0; overflow-wrap: anywhere; text-align: right; font-variant-numeric: tabular-nums; }
+.local-summary-disk-details { margin-top: 16px; }
+.local-summary-disk-details + .local-summary-disk-details { border-top: 1px solid var(--color-line); padding-top: 16px; }
+.local-summary-disk-details p { overflow-wrap: anywhere; }
+.local-summary-disk-model { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.local-summary-disk-model p { margin: 0; min-width: 0; }
+@container page-content (max-width: 900px) { .local-summary { margin-inline: 8px; } }
+@container local-summary (max-width: 1100px) {
+  .local-summary-resource .resource-ring { width: 160px; height: 160px; }
+}
+@container local-summary (max-width: 900px) {
+  .local-summary-resources { padding-inline: 0; padding-bottom: 32px; gap: 16px; }
+  .local-summary-identity { flex-wrap: wrap; }
+  .local-summary-uptime { margin-left: 64px; }
+  .local-summary-interfaces { gap: 16px; }
+}
+@container local-summary (max-width: 760px) {
+  .local-summary-resources.has-temperature { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 24px; }
+}
+@container local-summary (max-width: 620px) {
+  .local-summary-resources { gap: 8px; }
+  .local-summary-resource .resource-ring { width: 136px; height: 136px; }
+  .local-summary-resource .resource-ring-center strong { font-size: 26px; }
+  .local-summary-secondary span { display: block; margin-left: 0; margin-top: 4px; }
+  .local-summary-interfaces { grid-template-columns: 1fr; gap: 20px; }
+  .local-summary-network { padding: 20px; }
+}
+@container local-summary (max-width: 450px) {
+  .local-summary-resources, .local-summary-resources.has-temperature { grid-template-columns: 1fr; gap: 32px; }
+}

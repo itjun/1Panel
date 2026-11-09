@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { ResourceRing } from "@/react/components/ui/resource-ring";
 import { usageTone } from "@/react/lib/usage-tone";
+import { OverviewDetails as DetailPopup } from "@/react/components/local/overview-details";
+import "@/react/components/local/overview-page.css";
 import "./device-overview.css";
 
 export type OverviewMetric = {
@@ -8,6 +10,7 @@ export type OverviewMetric = {
   label: string;
   text: string;
   detail?: string;
+  secondary?: string;
   tooltip?: string;
   percent?: number;
   isUnavailable?: boolean;
@@ -23,10 +26,11 @@ export function OverviewResources({ metrics, isUnavailable = false, isLoading = 
   const ordered = [...metrics].sort((a, b) => METRIC_ORDER.indexOf(a.id) - METRIC_ORDER.indexOf(b.id));
   const attention = ordered.filter(metric => !isUnavailable && !metric.isUnavailable &&
     Number.isFinite(metric.percent) && usageTone(metric.percent!) !== "ok");
+  const attentionLabels = attention.map(metric => metric.label);
   const isPartialUnavailable = ordered.some(metric => metric.isUnavailable);
   const isLastReading = isUnavailable && ordered.some(metric => metric.text !== "—");
   const statusTone = isLoading || isUnavailable || isPartialUnavailable ? "unknown"
-    : attention.some(metric => usageTone(metric.percent!) === "danger") ? "danger" : attention.length ? "warn" : "ok";
+    : attention.some(metric => usageTone(metric.percent!) === "danger") ? "danger" : attentionLabels.length ? "warn" : "ok";
 
   return (
     <section className="device-overview-resources" aria-label="资源状态" aria-busy={isLoading}>
@@ -34,24 +38,28 @@ export function OverviewResources({ metrics, isUnavailable = false, isLoading = 
         <span className="device-overview-status" role="status" data-tone={statusTone}>
           <span className="device-overview-status-dot" aria-hidden="true" />
           {isLoading ? "采集中" : isUnavailable ? isLastReading ? "上次读数" : "采集异常"
-            : isPartialUnavailable ? "部分采集异常" : attention.length ? `${attention.map(metric => metric.label).join("、")}偏高` : "运行正常"}
+            : isPartialUnavailable ? "部分采集异常" : attentionLabels.length ? `${attentionLabels.join("、")}偏高` : "运行正常"}
         </span>
       </div>
-      <div className="device-overview-gauges">
+      <div className="local-summary-resources remote-summary-resources" style={{ "--resource-count": ordered.length } as CSSProperties}>
         {ordered.map((metric) => {
           const isMetricUnavailable = isUnavailable || !!metric.isUnavailable;
           const metricTone = !isMetricUnavailable && Number.isFinite(metric.percent) && metric.percent! >= 0 ? usageTone(metric.percent!) : "unknown";
           return (
-            <div className="device-overview-gauge" key={metric.id} data-metric={metric.id} data-tone={metricTone}
-              tabIndex={metric.tooltip ? 0 : undefined} aria-label={metric.tooltip ? `${metric.label}明细` : undefined}
-              data-tip={metric.tooltip ? `${isMetricUnavailable ? "上次读数\n" : ""}${metric.tooltip}` : undefined}>
-              <ResourceRing value={isMetricUnavailable ? undefined : metric.percent} label={metric.label} valueText={metric.text}>
-                <strong>{metric.text.endsWith("%") ? <>{metric.text.slice(0, -1)}<span className="resource-ring-unit">%</span></> : metric.text}</strong>
-              </ResourceRing>
-              <span className="device-overview-gauge-label">{metric.label}</span>
-              <p>{metric.detail || "\u00a0"}</p>
+            <article className="local-summary-resource" key={metric.id} data-metric={metric.id} data-tone={metricTone}>
+              <DetailPopup label={`${metric.label}详情`} trigger={
+                <ResourceRing value={isMetricUnavailable ? undefined : metric.percent} label={metric.label} valueText={metric.text}>
+                  <strong>{metric.text}</strong><span>{metric.label}</span>
+                </ResourceRing>
+              }>
+                <h2>{metric.label}</h2>
+                {isMetricUnavailable ? <p className="device-overview-reading-error">{metric.text !== "—" ? "上次读数" : "暂无有效读数"}</p> : null}
+                <p className="remote-summary-reading">{metric.tooltip || "暂无明细数据"}</p>
+              </DetailPopup>
+              <p>{metric.detail || "暂无数据"}</p>
+              {metric.secondary ? <p className="local-summary-secondary">{metric.secondary}</p> : null}
               {metric.isUnavailable && !isUnavailable ? <span className="device-overview-reading-error">采集异常</span> : null}
-            </div>
+            </article>
           );
         })}
       </div>

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { monitor } from "../src/api";
@@ -6,6 +6,10 @@ import { OverviewResources, type OverviewMetric } from "../src/react/components/
 import { ResourceRing } from "../src/react/components/ui/resource-ring";
 import { overviewTrendSeries } from "../src/react/components/overview/overview-trend-model";
 import { HostWorkbenchSummary } from "../src/react/components/workbench/host-summary";
+import { HostOverviewNetwork } from "../src/react/components/overview/host-overview-network";
+
+// 静态渲染验证点击卡片中的数据契约；真实开关与定位另做浏览器验收。
+mock.module("../src/react/components/ui/popup", () => ({ Popup: ({ children }: { children: import("react").ReactNode }) => children }));
 
 function metrics(cpu = 28.3, memory = 42.1): OverviewMetric[] {
   return [
@@ -60,7 +64,7 @@ describe("概览资源展示", () => {
     expect(displayedValues(html)).toEqual(["2.16", "90.0%", "42.1%", "38.2%"]);
     expect(html).not.toContain('role="meter"');
     expect(html).not.toContain("aria-valuenow");
-    expect(html).toContain('data-tip="上次读数\nCPU原有明细"');
+    expect(visibleText(html)).toContain("上次读数CPU原有明细");
   });
 
   test("首次采集失败不暗示存在历史读数", () => {
@@ -98,12 +102,41 @@ test("远程磁盘汇总较低时，危险分区仍告警并标明挂载点", ()
   expect(visibleText(html)).toContain("磁盘偏高");
   expect(displayedValues(html)[3]).toBe("98.0%");
   expect(visibleText(html)).toContain("/ 98 GB / 100 GB");
-  expect(displayedValues(html)).toHaveLength(4);
-  expect(html).toContain('aria-label="CPU明细"');
-  expect(html).toContain('tabindex="0"');
+  expect(displayedValues(html)).toEqual(["0.40", "20.0%", "30.0%", "98.0%"]);
+  expect(html).toContain('aria-label="负载详情"');
+  expect(html).toContain('aria-label="CPU详情"');
+  expect(html).toContain('aria-haspopup="dialog"');
   for (const value of ["型号：Test CPU", "核心数：4 核", "5 分钟：0.30", "15 分钟：0.20", "系统容量：8 GB", "Swap：未启用", "挂载点：/", "设备：/dev/vda1", "可用：2 GB"]) {
     expect(html).toContain(value);
   }
+  const highLoad = renderToStaticMarkup(createElement(HostWorkbenchSummary, {
+    data: { ...data, load1: 4 }, disks: [], isUnavailable: false, isDiskUnavailable: false,
+  }));
+  expect(visibleText(highLoad)).toContain("负载偏高");
+  expect(displayedValues(highLoad)).toEqual(["4.00", "20.0%", "30.0%", "—"]);
+  expect(visibleText(highLoad)).toContain("1 分钟 / 4 核");
+});
+
+test("远程网络摘要优先展示物理网卡，详情保留全部网卡，失败时不暗示实时连接", () => {
+  const network: monitor.NetworkSnapshot = {
+    privateIPs: ["192.0.2.10"], publicIPs: [], dockerIPs: ["172.17.0.1"],
+    egressPublicIP: "203.0.113.10", egressPublicLoc: "", defaultGateway: "192.0.2.1",
+    connections: [], slowConnections: [], connTotal: 0, connEstablished: 0, connListen: 0, connTimeWait: 0,
+    interfaces: ["veth0", "docker0", "lo", "eth0"].map((name, i) => ({
+      name, kind: i === 3 ? "physical" : "virtual", state: "UP", mtu: 1500, mac: "02:00:00:00:00:01",
+      ipv4: [`192.0.2.${10 + i}`], rxBytes: 1024, txBytes: 2048, rxPackets: 1, txPackets: 2,
+    })),
+  };
+  const render = (isUnavailable: boolean) => renderToStaticMarkup(createElement(HostOverviewNetwork, {
+    network, privateIP: network.privateIPs.join(", "), publicIP: network.egressPublicIP, isUnavailable, isLoading: false,
+  }));
+  const html = render(false);
+  expect(html.indexOf('aria-label="eth0 网卡详情"')).toBeLessThan(html.indexOf('aria-label="docker0 网卡详情"'));
+  expect(visibleText(html)).toContain("veth0");
+  for (const value of ["192.0.2.1", "203.0.113.10", "02:00:00:00:00:01", "接收（累计）", "发送（累计）"]) expect(visibleText(html)).toContain(value);
+  const stale = render(true);
+  expect(visibleText(stale)).toContain("网络采集异常，显示上次读数");
+  expect(stale).not.toContain('bg-success-soft');
 });
 
 test("圆环的零、满格、超量与未知值不会误报占比", () => {
@@ -124,8 +157,8 @@ test("单项采集失败只撤下该项仪表，不把缓存当成健康读数",
   expect((html.match(/role="meter"/g) || []).length).toBe(3);
   expect(visibleText(html)).toContain("部分采集异常");
   expect(displayedValues(html)).toEqual(["2.16", "28.3%", "42.1%", "38.2%"]);
-  expect(html).toContain('data-tip="上次读数\n磁盘原有明细"');
-  expect(html).toContain('data-tip="CPU原有明细"');
+  expect(visibleText(html)).toContain("上次读数磁盘原有明细");
+  expect(visibleText(html)).toContain("CPU原有明细");
 });
 
 test("趋势按真实时间排序、去重，长缺测区间不补零", () => {

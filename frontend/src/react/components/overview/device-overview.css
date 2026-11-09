@@ -69,3 +69,22 @@
   .device-overview-connections dl { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .device-overview-trend-controls { flex-wrap: wrap; }
 }
+
+/* 远程概览复用本机的留白、圆环、网络摘要和点击详情。 */
+.remote-summary { margin-top: 0; }
+.remote-summary-identity { flex-wrap: wrap; }
+.remote-summary-host { flex: 1 1 320px; }
+.remote-summary-host .device-overview-metadata { margin-top: 8px; }
+.remote-summary-resources { grid-template-columns: repeat(var(--resource-count, 3), minmax(0, 1fr)); }
+.remote-summary-reading { white-space: pre-line; line-height: 1.9; }
+.remote-summary-resources [data-tone="unknown"] strong { color: var(--color-muted); }
+@container local-summary (max-width: 900px) {
+  .remote-summary-identity .device-overview-actions { margin-left: 64px; }
+  .remote-summary-host { flex-basis: 200px; }
+}
+@container local-summary (max-width: 760px) {
+  .remote-summary-resources { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 24px; }
+}
+@container local-summary (max-width: 450px) {
+  .remote-summary-resources { grid-template-columns: 1fr; }
+}

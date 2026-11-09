@@ -1,7 +1,6 @@
 import { collectionState } from "@/utils/collectionState";
 import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
-import { OverviewConnections, OverviewDetails } from "@/react/components/overview/device-overview";
-import { HostOverviewTrend } from "@/react/components/overview/overview-trend";
+import { HostOverviewNetwork } from "@/react/components/overview/host-overview-network";
 import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +29,6 @@ import {
   TX_TIP,
   type MonitorReadout,
 } from "@/react/components/monitor/charts";
-import { OverviewFact } from "@/react/components/overview/overview-parts";
 import { Button } from "@/react/components/ui/button";
 import { DateRangePicker } from "@/react/components/ui/date-range-picker";
 import {
@@ -310,7 +308,6 @@ function historyTimeLabel(ts: number): string {
 /* ---------- 概览 ---------- */
 
 function OverviewPage({ host }: { host: string }) {
-  const queryClient = useQueryClient();
   const overview = useQuery({
     queryKey: ["overview", host],
     queryFn: () => api.collectOverview(host),
@@ -387,8 +384,7 @@ function OverviewPage({ host }: { host: string }) {
     isRefreshPending.current = true;
     setIsRefreshing(true);
     try {
-      await Promise.all([overview.refetch({ throwOnError: true }), disks.refetch({ throwOnError: true }), network.refetch({ throwOnError: true }), agentStatus.refetch({ throwOnError: true }),
-        queryClient.refetchQueries({ queryKey: ["overview-history", host], type: "active" }, { throwOnError: true })]);
+      await Promise.all([overview.refetch({ throwOnError: true }), disks.refetch({ throwOnError: true }), network.refetch({ throwOnError: true }), agentStatus.refetch({ throwOnError: true })]);
       return true;
     } finally {
       isRefreshPending.current = false;
@@ -405,14 +401,9 @@ function OverviewPage({ host }: { host: string }) {
         : agentMissing ? "未安装 Agent，无法采集状态" : "主机连接异常，暂时无法获取数据"
     : "";
 
-  let swapText = "未启用";
-  if (data && data.swapTotal > 0) {
-    swapText = `${formatBytes(data.swapUsed)} / ${formatBytes(data.swapTotal)}`;
-  }
-
   return (
     <Page heading={false} onRefresh={refreshAll} refreshing={isRefreshing}>
-      <div className="device-overview">
+      <div className="local-summary remote-summary">
         <HostWorkbenchHeader host={host}
           metadata={<>
             <span className="device-overview-agent-address">{sshUser}@{sshAddr}:{sshPort}</span>
@@ -427,21 +418,7 @@ function OverviewPage({ host }: { host: string }) {
           </>} />
         {agentErr ? <Notice text={agentErr} /> : null}
         <HostWorkbenchSummary data={data} disks={disks.data} isUnavailable={collection.unavailable} isDiskUnavailable={diskCollection.unavailable} />
-        <div className="device-overview-lower">
-        <HostOverviewTrend host={host} memTotal={data?.memTotal} cpuCount={data?.cpuCount}
-          isAvailable={!!agent?.ok && !collection.unavailable} />
-        <OverviewDetails>
-          <div className="device-overview-facts">
-            {data?.hostname && data.hostname !== host ? <OverviewFact label="系统主机名" mono>{data.hostname}</OverviewFact> : null}
-            <OverviewFact label="CPU 型号">{data?.cpuModel || "—"}</OverviewFact>
-            <OverviewFact label="CPU 核心" mono>{data ? `${data.cpuCount} 核` : "—"}</OverviewFact>
-            <OverviewFact label="内核" mono>{data?.kernel || "—"}</OverviewFact>
-            <OverviewFact label="架构" mono>{data?.arch || "—"}</OverviewFact>
-            <OverviewFact label="Swap" mono>{data ? swapText : "—"}</OverviewFact>
-          </div>
-        </OverviewDetails>
-        </div>
-        <OverviewConnections privateIP={privateIP} publicIP={publicIP} isUnavailable={networkCollection.unavailable} />
+        <HostOverviewNetwork network={network.data} privateIP={privateIP} publicIP={publicIP} isUnavailable={networkCollection.unavailable} isLoading={network.isLoading} />
       </div>
 
       <AgentCheckDialog host={checkHost} onClose={() => setCheckHost("")} />

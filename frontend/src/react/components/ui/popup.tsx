@@ -13,7 +13,7 @@ import { cn } from "@/react/lib/utils";
 /** 浮层离视口边缘至少留这么多 */
 const VIEWPORT_MARGIN = 8;
 
-export type Placement = "bottom" | "top";
+export type Placement = "bottom" | "top" | "left" | "right";
 
 const HIDDEN_STYLE: CSSProperties = {
   position: "fixed",
@@ -79,6 +79,15 @@ export function useAnchorPosition(
       const spaceBelow = viewportHeight - rect.bottom - VIEWPORT_MARGIN;
       const spaceAbove = rect.top - VIEWPORT_MARGIN;
       let placement: Placement = prefer;
+      if (prefer === "right" || prefer === "left") {
+        const spaceRight = viewportWidth - rect.right - VIEWPORT_MARGIN;
+        const spaceLeft = rect.left - VIEWPORT_MARGIN;
+        if (prefer === "right" && panelWidth + gap <= spaceRight) placement = "right";
+        else if (prefer === "left" && panelWidth + gap <= spaceLeft) placement = "left";
+        else if (panelWidth + gap <= spaceRight) placement = "right";
+        else if (panelWidth + gap <= spaceLeft) placement = "left";
+        else placement = spaceBelow >= spaceAbove ? "bottom" : "top";
+      }
       if (prefer === "bottom" && panelHeight + gap > spaceBelow && spaceAbove > spaceBelow) {
         placement = "top";
       }
@@ -94,6 +103,13 @@ export function useAnchorPosition(
       let left = rect.left;
       if (align === "center") {
         left = rect.left + rect.width / 2 - panelWidth / 2;
+      }
+      if (placement === "right" || placement === "left") {
+        left = placement === "right" ? rect.right + gap : rect.left - gap - panelWidth;
+        top = rect.top + (rect.height - panelHeight) / 2;
+      }
+      if (prefer === "right" || prefer === "left") {
+        top = Math.max(VIEWPORT_MARGIN, Math.min(top, viewportHeight - panelHeight - VIEWPORT_MARGIN));
       }
       if (left + panelWidth > viewportWidth - VIEWPORT_MARGIN) {
         left = viewportWidth - VIEWPORT_MARGIN - panelWidth;
@@ -122,7 +138,11 @@ export function useAnchorPosition(
     window.addEventListener("resize", update);
     // capture 阶段监听，任何滚动容器滚动都能触发
     window.addEventListener("scroll", update, true);
+    const observer = new ResizeObserver(update);
+    observer.observe(panelEl);
+    observer.observe(anchorEl);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
@@ -151,6 +171,7 @@ export function Popup({
   onClose,
   className,
   matchAnchorWidth = false,
+  prefer = "bottom",
   children,
 }: {
   open: boolean;
@@ -160,11 +181,14 @@ export function Popup({
   className?: string;
   /** 浮层最小宽度是否跟随触发器宽度（Select 需要，日期面板不需要） */
   matchAnchorWidth?: boolean;
+  /** 详情卡片可优先放在左右侧，空间不足时自动换边。 */
+  prefer?: Placement;
   children: ReactNode;
 }) {
   const [panel, setPanel] = useState<HTMLDivElement | null>(null);
   const { style, placement } = useAnchorPosition(open, anchorRef.current, panel, {
     matchAnchorWidth,
+    prefer,
   });
 
   // onClose 走 ref，调用方传内联函数时不必反复重绑监听
