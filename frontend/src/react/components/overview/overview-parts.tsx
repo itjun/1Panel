@@ -8,18 +8,20 @@ export function OverviewFact({
   label,
   children,
   mono = false,
+  wrap = false,
   className = "",
 }: {
   label: string;
   children: ReactNode;
   mono?: boolean;
+  wrap?: boolean;
   className?: string;
 }) {
   return (
     <div className={`min-w-0 ${className}`}>
       <div className="text-xs text-muted">{label}</div>
       <div
-        className={`mt-1 truncate text-sm text-ink ${mono ? "font-mono tabular-nums" : ""}`}
+        className={`mt-1 ${wrap ? "break-words" : "truncate"} text-sm text-ink ${mono ? "font-mono tabular-nums" : ""}`}
         data-tip-overflow=""
         data-tip={typeof children === "string" ? children : undefined}
       >

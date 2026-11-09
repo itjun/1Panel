@@ -683,7 +683,7 @@ function TrafficUsage({ host }: { host: string }) {
           </div>
         ))}
       </div>
-      <div className="mt-4 h-[220px] min-w-0">
+      <div className="mt-4 h-[180px] min-w-0">
         <ChartHost option={chartOption} />
       </div>
     </>
@@ -925,9 +925,8 @@ export function NetworkPage({ host }: { host: string }) {
 
       {snap ? (
         <div className="gap-section flex flex-col">
-          <Card className="p-0">
-            <h3 className="mb-3 text-sm font-semibold text-ink">地址</h3>
-            <div className="gap-card grid md:grid-cols-3 xl:grid-cols-5">
+          <Card className="border-b border-line pb-5 pt-0">
+            <div className="grid grid-cols-2 gap-x-5 gap-y-3 @min-[900px]:grid-cols-5">
               <AddressField label="内网 IP" tip={PRIVATE_IP_TIP}>
                 <IpList
                   ips={privateIPs}
@@ -975,7 +974,7 @@ export function NetworkPage({ host }: { host: string }) {
           </Card>
 
           {slowList.length ? (
-            <Card className="p-0">
+            <Card className="border-b border-line pb-5 pt-0">
               <h3 className="mb-3 text-sm font-semibold text-danger">疑似网络卡顿连接</h3>
               <SimpleRows
                 headers={[
@@ -1006,7 +1005,7 @@ export function NetworkPage({ host }: { host: string }) {
             </Card>
           ) : null}
 
-          <Card className="p-0">
+          <Card className="border-b border-line pb-5 pt-0">
             <div className="mb-3 flex items-center gap-2">
               <h3 className="text-sm font-semibold text-ink">网卡</h3>
               <span className="text-sm text-muted">{(snap.interfaces || []).length}</span>
@@ -1055,7 +1054,7 @@ export function NetworkPage({ host }: { host: string }) {
             />
           </Card>
 
-          <Card className="p-0">
+          <Card className="border-b border-line pb-5 pt-0">
             <h3 className="mb-3 text-sm font-semibold text-ink">
               <span
                 data-tip={TRAFFIC_USAGE_TIP}
@@ -1067,7 +1066,7 @@ export function NetworkPage({ host }: { host: string }) {
             <TrafficUsage host={host} />
           </Card>
 
-          <Card className="p-0">
+          <Card className="border-b border-line pb-5 pt-0">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold text-ink">监听端口</h3>
               <span className="text-sm text-muted">{listenRows.length}</span>
@@ -1101,7 +1100,7 @@ export function NetworkPage({ host }: { host: string }) {
             />
           </Card>
 
-          <Card className="p-0">
+          <Card className="border-b border-line pb-5 pt-0">
             <div className="mb-3 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-ink">连接</h3>

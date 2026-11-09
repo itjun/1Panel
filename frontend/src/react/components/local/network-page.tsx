@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { api, type localsys } from "@/api";
-import { Button } from "@/react/components/ui/button";
 import { Tag } from "@/react/components/ui/tag";
 import { Notice, Page } from "@/react/components/page";
 import {
@@ -26,8 +25,8 @@ const IFACE_COLUMNS: OverviewColumn[] = [
   { key: "state", label: "状态" },
   { key: "ipv4", label: "IPv4" },
   { key: "mac", label: "MAC" },
-  { key: "rx", label: "接收", align: "right" },
-  { key: "tx", label: "发送", align: "right" },
+  { key: "rx", label: "接收（累计）", align: "right" },
+  { key: "tx", label: "发送（累计）", align: "right" },
 ];
 
 function displayName(ifc: localsys.NetInterface): string {
@@ -42,7 +41,6 @@ function isUp(ifc: localsys.NetInterface): boolean {
 
 export function LocalNetworkPage() {
   const { overview: device, error: metricsError } = useLocalMetrics();
-  const [showDown, setShowDown] = useState(false);
   const query = useQuery({
     queryKey: ["local-net"],
     queryFn: () => api.localSysNetwork(),
@@ -68,10 +66,7 @@ export function LocalNetworkPage() {
 
   const upIfaces = sortedIfaces.filter(isUp);
   const downIfaces = sortedIfaces.filter((ifc) => !isUp(ifc));
-  let shownIfaces = upIfaces;
-  if (showDown) {
-    shownIfaces = [...upIfaces, ...downIfaces];
-  }
+  const shownIfaces = [...upIfaces, ...downIfaces];
 
   const privateIPText = useMemo(() => {
     const ips = snap?.privateIPs || [];
@@ -94,10 +89,9 @@ export function LocalNetworkPage() {
       {metricsError ? <Notice tone="warning" text={`公网信息更新失败：${formatErr(metricsError)}`} /> : null}
       {snap ? (
         <div className="gap-section flex flex-col">
-          <section>
-            <div className="mb-3 text-sm font-semibold text-ink">概况</div>
+          <section className="border-b border-line pb-5">
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-              <OverviewFact label="内网 IP" mono>
+              <OverviewFact label="内网 IP" mono wrap>
                 {privateIPText}
               </OverviewFact>
               <OverviewFact label="出口公网" mono>{device?.publicIP || "—"}</OverviewFact>
@@ -112,7 +106,7 @@ export function LocalNetworkPage() {
           </section>
 
           <section>
-            <div className="mb-3 text-sm font-semibold text-ink">网卡</div>
+            <div className="mb-3 text-sm font-semibold text-ink">网卡 <span className="ml-2 font-normal text-muted">{sortedIfaces.length}</span></div>
             {shownIfaces.length ? (
               <OverviewTable
                 columns={IFACE_COLUMNS}
@@ -154,18 +148,9 @@ export function LocalNetworkPage() {
                 }))}
               />
             ) : (
-              <p className="text-sm text-muted">没有已连接的网卡</p>
+              <p className="text-sm text-muted">暂无网卡数据</p>
             )}
-            {downIfaces.length > 0 ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="mt-2"
-                onClick={() => setShowDown((prev) => !prev)}
-              >
-                {showDown ? "收起" : `展开 ${downIfaces.length} 个未连接网卡`}
-              </Button>
-            ) : null}
+            <p className="mt-3 text-xs text-muted">{sortedIfaces.length} 个接口，{upIfaces.length} 个已连接，{downIfaces.length} 个未连接</p>
           </section>
         </div>
       ) : (
