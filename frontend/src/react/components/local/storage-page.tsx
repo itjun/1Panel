@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, TriangleAlert } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { api, type localsys } from "@/api";
 import { OverviewTable } from "@/react/components/overview/overview-parts";
 import { isMacPlatform } from "@/react/lib/platform";
@@ -12,6 +13,7 @@ import { formatBytes, formatBytesSI, formatErr } from "@/utils/format";
 import { diskMountPercent } from "./disk-utils";
 import { LocalPhysicalDiskRows } from "./physical-disk-rows";
 import { refreshLocalMetrics, useLocalMetrics } from "./use-local-metrics";
+import { LocalAppIcon } from "./app-icon";
 import "./local.css";
 
 /* 表头统一：36px、12px 次文字、无底色 + 下方 1px line（docs/design/specification.md §4.4） */
@@ -37,6 +39,9 @@ function formatModTime(sec: number) {
 
 export function LocalStoragePage() {
   const { overview: device, error: metricsError } = useLocalMetrics();
+  const isScanPending = useRef(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [scanError, setScanError] = useState("");
   const [tab, setTab] = useState<TabId>("apps");
   const [keyword, setKeyword] = useState("");
   const [treePath, setTreePath] = useState("");
@@ -129,8 +134,19 @@ export function LocalStoragePage() {
   }
 
   async function startScan() {
-    await api.localSysStorageScanStart();
-    await statusQuery.refetch();
+    if (isScanPending.current || status?.state === "running") return;
+    isScanPending.current = true;
+    setIsStarting(true);
+    setScanError("");
+    try {
+      await api.localSysStorageScanStart();
+      await statusQuery.refetch({ throwOnError: true });
+    } catch (error) {
+      setScanError(formatErr(error));
+    } finally {
+      isScanPending.current = false;
+      setIsStarting(false);
+    }
   }
 
   async function reveal(path: string) {
@@ -176,10 +192,10 @@ export function LocalStoragePage() {
           <Button
             variant="primary"
             size="sm"
-            disabled={status?.state === "running"}
+            disabled={isStarting || status?.state === "running"}
             onClick={() => void startScan()}
           >
-            {scanButtonLabel}
+            {isStarting ? "正在开始…" : scanButtonLabel}
           </Button>
           {isMacPlatform() ? (
             <Button size="sm" onClick={() => void api.localSysStorageOpenPrivacy()}>
@@ -193,6 +209,7 @@ export function LocalStoragePage() {
       {metricsError ? <Notice tone={device ? "warning" : "error"} text={`${device ? "磁盘更新失败，显示上次读数：" : "磁盘采集失败："}${formatErr(metricsError)}`} /> : null}
       {statusQuery.error ? <Notice text={formatErr(statusQuery.error)} /> : null}
       {status?.error ? <Notice text={status.error} /> : null}
+      {scanError ? <Notice text={scanError} /> : null}
 
       <div className="gap-section flex flex-col">
         <section>
@@ -235,58 +252,24 @@ export function LocalStoragePage() {
           )}
         </section>
 
-        <section>
-          <div className="mb-3 text-sm font-semibold text-ink">扫描状态</div>
-          <p className="mt-2 text-xs text-muted">
-            {status?.state === "idle" && !status?.finishedAt ? (
-              <span>尚未扫描</span>
-            ) : (
-              <>
-                <span>
-                  已扫描{" "}
-                  <span className="font-mono">
-                    {formatBytesSI(status?.scannedBytes || 0)}
-                  </span>
-                </span>
-                {coverage != null ? (
-                  <>
-                    <span> · </span>
-                    <span>覆盖约 {coverage}%</span>
-                  </>
-                ) : null}
-                {status?.state === "running" ? (
-                  <>
-                    <span> · </span>
-                    <span>{status.scannedFiles || 0} 文件</span>
-                  </>
-                ) : status?.finishedAt ? (
-                  <>
-                    <span> · </span>
-                    <span>记录于 {formatScanTime(status.finishedAt)}</span>
-                  </>
-                ) : null}
-              </>
-            )}
+        <section aria-label="扫描状态" className={`flex flex-wrap items-center justify-between gap-3 rounded-control px-3 py-3 ${(status?.deniedDirs || 0) > 0 ? "bg-warn-soft" : "bg-raised"}`}>
+          {(status?.deniedDirs || 0) > 0 ? <div className="flex flex-wrap items-center gap-2 text-sm">
+            <TriangleAlert aria-hidden className="size-4 text-warn" />
+            <span>{status?.deniedDirs} 个目录因权限跳过</span>
+            {isMacPlatform() ? <button type="button" className="text-accent" onClick={() => void api.localSysStorageOpenPrivacy()}>授予完全磁盘访问</button> : null}
+          </div> : null}
+          <p role="status" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+            {status?.state === "idle" && !status.finishedAt ? <span>尚未扫描</span> : <>
+              {status?.finishedAt && status.state !== "running" ? <span>记录于 {formatScanTime(status.finishedAt)}</span> : null}
+              <span>已扫描 <span className="font-mono">{formatBytesSI(status?.scannedBytes || 0)}</span></span>
+              {coverage != null ? <span>覆盖约 {coverage}%</span> : null}
+              {status?.state === "running" ? <span>扫描中，{status.scannedFiles || 0} 文件</span> : null}
+            </>}
           </p>
-          {(status?.deniedDirs || 0) > 0 ? (
-            <p className="mt-2 text-sm text-warn">
-              {status?.deniedDirs} 个目录因权限跳过
-              {isMacPlatform() ? (
-                <button
-                  type="button"
-                  className="ml-2 text-accent"
-                  onClick={() => void api.localSysStorageOpenPrivacy()}
-                >
-                  授予完全磁盘访问
-                </button>
-              ) : null}
-            </p>
-          ) : null}
         </section>
 
         <section>
           <div className="mb-3 flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-ink">占用明细</span>
             <RadioGroup
               value={tab}
               onChange={setTab}
@@ -341,17 +324,19 @@ export function LocalStoragePage() {
                               <td className="px-2 text-center">
                                 <button
                                   type="button"
-                                  className="h-5 w-5 rounded-control bg-raised text-xs hover:bg-line"
+                                  aria-label={`${open ? "收起" : "展开"}${app.name}`}
+                                  aria-expanded={open}
+                                  className="inline-flex size-5 items-center justify-center rounded-control hover:bg-raised"
                                   onClick={() => toggleApp(app.path)}
                                 >
-                                  {open ? "−" : "+"}
+                                  {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                                 </button>
                               </td>
                               <td className="px-2 text-center font-mono text-muted">
                                 {idx + 1}
                               </td>
                               <td className="px-3">
-                                {app.name || app.bundleId || "—"}
+                                <span className="flex items-center gap-2"><LocalAppIcon path={app.path} /><span>{app.name || app.bundleId || "—"}</span></span>
                               </td>
                               <td className="whitespace-nowrap px-3 text-right font-mono">
                                 {formatBytesSI(app.bundleSize || 0)}
