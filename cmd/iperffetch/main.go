@@ -1,5 +1,7 @@
 // iperffetch 按 internal/iperfres/SHA256SUMS 下载内置 iperf3 到 internal/iperfres/bin：
 // Linux/macOS 单文件来自 userdocs/iperf3-static；win64/ 组来自 ar51an/iperf3-win-builds 的 zip（校验后解压）。
+// 两处上游的 release 资产曾大面积 504（2026-11），因此失败时回退到本仓库 deps-iperf3-<版本> 镜像；
+// 镜像与上游是同一批字节，完整性仍由 SHA256SUMS 逐一钉死，不因回退而放松。
 // 已存在且校验一致的文件跳过，校验失败直接退出非零，不留半截文件。
 package main
 
@@ -7,6 +9,7 @@ import (
 	"archive/zip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +29,9 @@ const (
 	// win64 组整包下载；zip 哈希钉死 3.22，升级 VERSION 时须同步更新
 	winBaseURL = "https://github.com/ar51an/iperf3-win-builds/releases/download/"
 	winZipSHA  = "c9feabb3d721039508ccb81f74c2ada3ae11b9e75d33d24510573c2aa21da420"
+
+	// 本仓库镜像（deps-iperf3-<版本> 预发布资产，win64 成员以基名上传），上游失效时回退
+	mirrorBaseURL = "https://github.com/itjun/1Panel/releases/download/deps-iperf3-"
 )
 
 func main() {
@@ -58,18 +64,73 @@ func run() error {
 	return nil
 }
 
-// fetchDirect 下载单文件产物（userdocs 直链）
+// fetchDirect 下载单文件产物（userdocs 直链），失败时回退本仓库镜像
 func fetchDirect(a iperfres.Asset) error {
-	dst := filepath.Join(binDir, a.Name)
-	if sum, err := fileSHA(dst); err == nil && sum == a.SHA256 {
+	d := dst(a)
+	if sum, err := fileSHA(d); err == nil && sum == a.SHA256 {
 		return nil
 	}
 	url := baseURL + iperfres.Version + "/" + a.Name
 	fmt.Println("==> 下载", url)
-	if err := download(url, dst, a.SHA256); err != nil {
-		return fmt.Errorf("%s: %w", a.Name, err)
+	if err := download(url, d, a.SHA256); err != nil {
+		fmt.Println("==> 上游失败，改用镜像:", err)
+		return fetchMirror(a)
 	}
 	return nil
+}
+
+func dst(a iperfres.Asset) string { return filepath.Join(binDir, a.Name) }
+
+// fetchMirror 从本仓库镜像资产下载单个产物（win64/iperf3.exe 对应镜像资产 iperf3.exe）。
+// 先走浏览器直链；直链边缘节点不稳（曾整段 504）时改走 api.github.com 资产路线。
+func fetchMirror(a iperfres.Asset) error {
+	d := dst(a)
+	if sum, err := fileSHA(d); err == nil && sum == a.SHA256 {
+		return nil
+	}
+	tag := "deps-iperf3-" + iperfres.Version
+	name := path.Base(a.Name)
+	url := mirrorBaseURL + iperfres.Version + "/" + name
+	fmt.Println("==> 下载", url)
+	if err := download(url, d, a.SHA256); err != nil {
+		fmt.Println("==> 镜像直链失败，改走 API 路线:", err)
+		apiURL, err := mirrorAssetAPI(tag, name)
+		if err != nil {
+			return fmt.Errorf("%s: %w", a.Name, err)
+		}
+		fmt.Println("==> 下载", apiURL)
+		if err := downloadHeader(apiURL, d, a.SHA256, "Accept", "application/octet-stream"); err != nil {
+			return fmt.Errorf("%s: %w", a.Name, err)
+		}
+	}
+	return nil
+}
+
+// mirrorAssetAPI 查询镜像 release 资产的 API 下载地址（未认证，仅回退时调用一两次）
+func mirrorAssetAPI(tag, name string) (string, error) {
+	resp, err := http.Get("https://api.github.com/repos/itjun/1Panel/releases/tags/" + tag)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	var rel struct {
+		Assets []struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"assets"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		return "", err
+	}
+	for _, as := range rel.Assets {
+		if as.Name == name {
+			return as.URL, nil
+		}
+	}
+	return "", fmt.Errorf("镜像 release %s 无资产 %s", tag, name)
 }
 
 // fetchWin64 下载 win64 zip 并解压出 SHA256SUMS 列出的成员
@@ -95,7 +156,14 @@ func fetchWin64(members []iperfres.Asset) error {
 	fmt.Println("==> 下载", url)
 	zipPath := filepath.Join(tmpDir, zipName)
 	if err := download(url, zipPath, winZipSHA); err != nil {
-		return fmt.Errorf("%s: %w", zipName, err)
+		// zip 上游失败：逐个成员回退镜像，校验同 SHA256SUMS
+		fmt.Println("==> 上游失败，改用镜像:", err)
+		for _, m := range members {
+			if err := fetchMirror(m); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	return extractWin64(zipPath, members)
 }
@@ -175,8 +243,19 @@ func fileSHA(p string) (string, error) {
 }
 
 func download(url, dst, want string) error {
+	return downloadHeader(url, dst, want, "", "")
+}
+
+func downloadHeader(url, dst, want, hdrKey, hdrVal string) error {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	if hdrKey != "" {
+		req.Header.Set(hdrKey, hdrVal)
+	}
 	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
