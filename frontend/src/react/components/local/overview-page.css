@@ -1,7 +1,5 @@
 /* 本机概览定稿：圆环为点击入口，明细沿用通用浮层；不改变其它设备页。 */
 .local-summary { container: local-summary / inline-size; display: flex; flex-direction: column; gap: 40px; margin: 24px 64px; }
-.local-summary-heading { min-height: 32px; }
-.local-summary-heading h1 { font-size: 24px; line-height: 32px; font-weight: 600; }
 .local-summary-identity { display: flex; align-items: center; gap: 16px; min-width: 0; padding-block: 8px; }
 .local-summary-trigger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-ink); cursor: pointer; }
 .local-summary-trigger:hover { background: var(--color-raised); }

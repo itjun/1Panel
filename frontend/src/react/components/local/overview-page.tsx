@@ -75,9 +75,8 @@ export function LocalOverviewPage() {
     }
   }
 
-  return <Page title="系统概览" heading={false} onRefresh={refreshAll} refreshing={isRefreshing}>
+  return <Page title="系统概览" onRefresh={refreshAll} refreshing={isRefreshing}>
     <div className="local-summary">
-      <div className="local-summary-heading drag-region"><h1>系统概览</h1></div>
       {error ? <Notice tone={data ? "warning" : "error"} text={`${data ? "采集更新失败，以下为最后已知读数：" : ""}${formatErr(error)}`} /> : null}
       {data ? <>
         <header className="local-summary-identity">
