@@ -424,7 +424,7 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
   left: -1px;
 }
 
-.sidebar-splitter:focus-visible .sidebar-splitter-line {
+.sidebar-splitter.is-keyboard-navigation:focus-visible .sidebar-splitter-line {
   background-color: var(--color-accent);
   width: 2px;
   left: -1px;
