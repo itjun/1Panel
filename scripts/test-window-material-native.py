@@ -35,7 +35,7 @@ int main(void) {
    NSVisualEffectView *effect = (NSVisualEffectView *)wallpaper.subviews.firstObject;
    assert(effect.material == NSVisualEffectMaterialSidebar);
    assert(effect.blendingMode == NSVisualEffectBlendingModeWithinWindow);
-   assert(effect.state == NSVisualEffectStateActive);
+   assert(effect.state == NSVisualEffectStateFollowsWindowActiveState);
    assert(!window.opaque && window.backgroundColor.alphaComponent == 0);
    assert(web.superview == window.contentView);
    [window setContentSize:NSMakeSize(800 + i, 600 + i)];

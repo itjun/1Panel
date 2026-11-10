@@ -371,20 +371,6 @@ html.dark:is([data-window-material="mica"], [data-window-material="sidebar"]) .m
   background-color: rgba(0, 0, 0, 0.08);
 }
 
-/* 默认配色给壁纸材质叠一层中性底色，降低鲜艳壁纸的透色强度。 */
-html[data-window-material="sidebar"][data-color-palette="classic"] .glass-chrome {
-  background-color: rgba(242, 243, 245, 0.6);
-}
-html[data-window-material="sidebar"][data-color-palette="classic"] .module-rail {
-  background-color: rgba(234, 235, 238, 0.6);
-}
-html.dark[data-window-material="sidebar"][data-color-palette="classic"] .glass-chrome {
-  background-color: rgba(18, 22, 31, 0.65);
-}
-html.dark[data-window-material="sidebar"][data-color-palette="classic"] .module-rail {
-  background-color: rgba(13, 16, 23, 0.65);
-}
-
 /* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。
    classic 色系必须排除：applyColorPalette 对 classic 也写 data-color-palette，
    不排除会让这条覆盖永远命中，云母壳层被强制画成实底（Win11 云母失效根因之一）。 */
@@ -395,15 +381,15 @@ html[data-window-material="mica"][data-color-palette]:not([data-color-palette="c
   background-color: var(--color-rail);
 }
 
-/* 自选配色保留各自的侧栏颜色，同时透出 macOS 原生材质。 */
-html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) :is(.glass-chrome, .module-rail) {
+/* macOS 侧栏共用配色 token 的厚底色（浅色 88%、深色 86%），壁纸只保留淡淡的色感。 */
+html[data-window-material="sidebar"][data-color-palette] :is(.glass-chrome, .module-rail) {
   --color-muted: var(--color-shell-muted);
   --color-accent: var(--color-shell-accent);
 }
-html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) .glass-chrome {
+html[data-window-material="sidebar"][data-color-palette] .glass-chrome {
   background-color: var(--color-canvas-translucent);
 }
-html[data-window-material="sidebar"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
+html[data-window-material="sidebar"][data-color-palette] .module-rail {
   background-color: var(--color-rail-translucent);
 }
 

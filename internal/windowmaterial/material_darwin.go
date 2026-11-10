@@ -123,7 +123,7 @@ static int applyMaterial(void *ptr, int material) {
     frost.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     frost.material = NSVisualEffectMaterialSidebar;
     frost.blendingMode = NSVisualEffectBlendingModeWithinWindow;
-    frost.state = NSVisualEffectStateActive;
+    frost.state = NSVisualEffectStateFollowsWindowActiveState;
     [wallpaper addSubview:frost];
     return 1;
 }

@@ -47,7 +47,7 @@ function foreground(backgrounds: string[]): string {
 
 function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): ColorTokens {
   const isDark = mode === "dark";
-  // 保留奶油色的主体，只让少量原生材质透入导航区。
+  // 默认中性灰和彩色主题共用厚底色，只让少量原生材质透入导航区。
   const shellOpacity = isDark ? 0.86 : 0.88;
   const toolbar = mix(base.surface, base.ink, isDark ? 0.045 : 0.025);
   const raised = mix(base.surface, base.ink, isDark ? 0.045 : 0.035);
@@ -55,7 +55,7 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   const soft = (color: string) => mix(base.surface, color, isDark ? 0.16 : 0.1);
   const accentSoft = base.selection ?? soft(base.accent);
   const cardSelected = mix(raised, accentSoft, 0.3);
-  const materialSurfaces = isClassic ? [] : [base.rail, base.canvas].flatMap((color) =>
+  const materialSurfaces = [base.rail, base.canvas].flatMap((color) =>
     ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, color, shellOpacity)));
   const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, cardSelected];
   // 默认配色沿 macOS 蓝色的色相校正明度，避免混入灰色文字后偏色。
@@ -86,7 +86,7 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
     "--color-muted": muted,
     // 半透明导航单独校正文字，避免为了底层壁纸改变内容区的主题色。
     "--color-shell-muted": readable(muted, [...surfaces, accentSoft, ...materialSurfaces], 4.5, base.ink),
-    "--color-shell-accent": readable(accent, [...surfaces, accentSoft, ...materialSurfaces], 4.5, base.ink),
+    "--color-shell-accent": readable(accent, [...surfaces, accentSoft, ...materialSurfaces], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink),
     "--color-tab-hover": tabHover,
     "--color-tab-hover-ink": readable(mix(base.muted, base.ink, 0.25), [toolbar, tabHover], 4.5, base.ink),
     "--color-accent": accent, "--color-accent-hover": accentHover, "--color-accent-active": accentActive,

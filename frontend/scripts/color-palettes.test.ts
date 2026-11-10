@@ -46,8 +46,8 @@ test("八组撞色的浅深色背景与选中底保留确认预览", () => {
   }
 });
 
-test("自选配色透出少量材质，同时保留粉彩辨识度与文字对比度", () => {
-  for (const palette of COLOR_PALETTES.slice(1)) {
+test("所有配色透出少量材质，同时保留底色辨识度与文字对比度", () => {
+  for (const palette of COLOR_PALETTES) {
     for (const mode of ["light", "dark"] as const) {
       const colors = paletteTokens(palette.id, mode);
       for (const name of ["rail", "canvas"] as const) {
