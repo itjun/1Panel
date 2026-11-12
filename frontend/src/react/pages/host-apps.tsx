@@ -354,7 +354,7 @@ type ColAlign = "left" | "right" | "center";
 
 /**
  * 三张表共用的列定义：table-layout fixed + 同一 colgroup，保证列在卡片间垂直对齐。
- * width 为空的列平分剩余宽度；路径列 span 2，占两份剩余宽度（启动时间只占一份）。
+ * 启动时间保留足够宽度展示日期和运行时长，路径列占剩余宽度。
  */
 const APP_COLUMNS: {
   key: string;
@@ -367,7 +367,7 @@ const APP_COLUMNS: {
   { key: "service", label: "标识", width: 160, align: "left" },
   { key: "port", label: "端口", width: 72, align: "right" },
   { key: "deployVer", label: "部署版本", width: 200, align: "left" },
-  { key: "startTime", label: "启动时间", align: "left" },
+  { key: "startTime", label: "启动时间", width: 440, align: "left" },
   { key: "screen", label: "会话", width: 140, align: "left" },
   { key: "jarPath", label: "路径", span: 2, align: "left" },
   { key: "status", label: "状态", width: 72, align: "left" },
@@ -450,7 +450,7 @@ function AppsTable({
         </Tag>
       </div>
       <div className="overflow-auto">
-        <div className="min-w-[1200px]">
+        <div className="min-w-[1440px]">
         <table className="w-full table-fixed border-collapse text-left text-sm">
           <colgroup>
             {APP_COLUMNS.map((col) => (
