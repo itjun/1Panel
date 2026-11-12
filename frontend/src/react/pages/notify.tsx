@@ -186,7 +186,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
       if (input) {
         const bounds = node.getBoundingClientRect();
         const target = input.getBoundingClientRect();
-        const frozenEnd = node.querySelector("th:nth-child(2)")?.getBoundingClientRect().right || bounds.left;
+        const frozenEnd = node.querySelector("th.notify-sub-host")?.getBoundingClientRect().right || bounds.left;
         if (target.right > bounds.right - 16) node.scrollLeft += target.right - bounds.right + 16;
         else if (target.left < frozenEnd + 16) node.scrollLeft += target.left - frozenEnd - 16;
         input.focus({ preventScroll: true });
@@ -194,45 +194,38 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
     } else node.scrollTop = view.scrollTop;
   }, [focus, session.orderedHosts, groupFilter]);
 
-  // 主机名 → 分组显示名（未分组统一「未分组」）
-  const hostGroupLabel = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const host of session.hosts) {
+  // orderedHosts 已按分组顺序、组内主机顺序排列，未分组放在最后。
+  const subscriptionGroups = useMemo(() => {
+    const map = new Map<string, { label: string; hosts: string[] }>();
+    for (const host of session.orderedHosts) {
       const name = host.name || "";
       if (!name) continue;
-      const gid = session.groupIdOf(name);
-      map.set(
-        name,
-        gid ? session.groupName(gid) : session.groupName(UNGROUPED_ID),
-      );
+      const id = session.groupIdOf(name) || UNGROUPED_ID;
+      let group = map.get(id);
+      if (!group) {
+        group = { label: session.groupName(id), hosts: [] };
+        map.set(id, group);
+      }
+      group.hosts.push(name);
     }
-    return map;
-  }, [session]);
+    return [...map.values()];
+  }, [session.orderedHosts, session.groupIdOf, session.groupName]);
 
-  // 分组按钮与主机列表都沿用首页顺序（只列有主机的分组）
+  // 筛选项与表格共用同一份分组，只显示有主机的分组。
   const groupButtons = useMemo(() => {
-    const names = new Set<string>();
-    for (const host of session.orderedHosts) {
-      const label = hostGroupLabel.get(host.name || "");
-      if (label) names.add(label);
-    }
     return [
-      { value: "all", label: "全部" },
-      ...[...names].map((g) => ({ value: g, label: g })),
+      { value: "all", label: "全部分组" },
+      ...subscriptionGroups.map((group) => ({ value: group.label, label: group.label })),
     ];
-  }, [hostGroupLabel, session.orderedHosts]);
+  }, [subscriptionGroups]);
 
-  const hosts = useMemo(() => {
-    const rows: string[] = [];
-    for (const host of session.orderedHosts) {
-      const name = host.name || "";
-      if (!name) continue;
-      const label = hostGroupLabel.get(name) || "未分组";
-      if (groupFilter !== "all" && label !== groupFilter) continue;
-      rows.push(name);
-    }
-    return rows;
-  }, [groupFilter, hostGroupLabel, session.orderedHosts]);
+  const rows = useMemo(() => subscriptionGroups
+    .filter((group) => groupFilter === "all" || group.label === groupFilter)
+    .flatMap((group) => group.hosts.map((host, index) => ({
+      host,
+      groupLabel: group.label,
+      groupRowSpan: index === 0 ? group.hosts.length : 0,
+    }))), [groupFilter, subscriptionGroups]);
 
   return (
     <Page heading={false} flush>
@@ -247,10 +240,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
             aria-label="按主机分组筛选"
             value={groupFilter}
             onChange={setGroupFilter}
-            options={groupButtons.map((item) => ({
-              ...item,
-              label: item.value === "all" ? "全部分组" : item.label,
-            }))}
+            options={groupButtons}
             className="w-44"
           />
         </div>
@@ -284,7 +274,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
           }}
         >
           <table className="w-full min-w-[680px] border-collapse text-left text-sm">
-            {/* z-20 压过主机列 body 单元格的 z-10，纵向滚动时表头盖住吸左列 */}
+            {/* z-20 压过分组、主机列的 z-10，纵向滚动时表头盖住吸左列 */}
             <thead className="sticky top-0 z-20 bg-surface text-xs font-semibold text-muted">
               <tr className="h-table-head">
                 <th
@@ -297,7 +287,15 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                 </th>
                 <th
                   className={cn(
-                    "sticky left-0 z-10 bg-surface px-3 font-semibold",
+                    "notify-sub-group sticky left-0 z-10 bg-surface px-3 text-center font-semibold",
+                    TH_STICKY_LINE,
+                  )}
+                >
+                  分组
+                </th>
+                <th
+                  className={cn(
+                    "notify-sub-host sticky z-10 bg-surface px-3 font-semibold",
                     TH_STICKY_LINE,
                   )}
                 >
@@ -333,21 +331,21 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
               </tr>
             </thead>
             <tbody>
-              {hosts.length === 0 ? (
+              {rows.length === 0 ? (
                 <tr className="h-table-row border-b border-line">
                   <td
                     className="px-3 text-muted"
                     colSpan={
                       kind === "metricSubs"
-                        ? ALERT_RULES.length + 2
-                        : WATCH_SERVICE_ORDER.length + 2
+                        ? ALERT_RULES.length + 3
+                        : WATCH_SERVICE_ORDER.length + 3
                     }
                   >
                     没有匹配的主机
                   </td>
                 </tr>
               ) : (
-                hosts.map((host, index) => (
+                rows.map(({ host, groupLabel, groupRowSpan }, index) => (
                   <tr
                     key={host}
                     data-notify-host={host}
@@ -359,9 +357,17 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                     <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
                       {index + 1}
                     </td>
+                    {groupRowSpan > 0 ? (
+                      <td
+                        rowSpan={groupRowSpan}
+                        className="notify-sub-group sticky left-0 z-10 border-r border-line bg-surface px-3 py-3 text-center align-middle font-medium"
+                      >
+                        <span className="notify-sub-group-label" title={groupLabel}>{groupLabel}</span>
+                      </td>
+                    ) : null}
                     <td
                       className={cn(
-                        "sticky left-0 z-10 px-3",
+                        "notify-sub-host sticky z-10 px-3",
                         focus?.host === host
                           ? "bg-accent-soft text-accent"
                           : "bg-surface",

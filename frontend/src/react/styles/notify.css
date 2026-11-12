@@ -33,11 +33,12 @@
 .notify-fixed-rules dt{color:var(--color-muted)}
 .notify-sub-toolbar,.notify-sub-focus{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 24px 8px;flex-shrink:0}
 .notify-sub-focus{justify-content:space-between;font-size:12px;color:var(--color-muted);padding-top:4px}
-.notify-sub-table{margin:8px 24px 0;min-width:0;min-height:0;flex:1;overflow:auto}
-.notify-sub-table th{white-space:nowrap}
-.notify-sub-table th:not(:nth-child(2)){min-width:72px}
+.notify-sub-table{--notify-group-width:128px;margin:8px 24px 0;min-width:0;min-height:0;flex:1;overflow:auto}
+.notify-sub-table th{white-space:nowrap;min-width:72px}
 .notify-sub-table th:first-child{min-width:48px}
-.notify-sub-table th:nth-child(2){min-width:180px}
+.notify-sub-table .notify-sub-group{width:var(--notify-group-width);min-width:var(--notify-group-width);max-width:var(--notify-group-width)}
+.notify-sub-group-label{display:block;max-width:calc(var(--notify-group-width) - 24px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notify-sub-table .notify-sub-host{left:var(--notify-group-width);min-width:180px}
 .notify-channel-document .notify-page-header{padding:0 0 16px}
 .notify-channel-panel{padding:24px 0;min-width:0}
 .notify-channel-panel + .notify-channel-panel{border-top:1px solid var(--color-line)}
