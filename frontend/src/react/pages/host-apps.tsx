@@ -65,12 +65,6 @@ function canShutdown(row: InstRow) {
   return (row.pid || 0) > 0 || (row.port || 0) > 0;
 }
 
-function shortJarPath(p: string | undefined): string {
-  if (!p) return "";
-  const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
-  return parts[parts.length - 1] || p;
-}
-
 /** 解析 "YYYY-MM-DD HH:mm:ss"，返回距今秒数；解析失败返回 null */
 function elapsedSinceStart(startTime: string): number | null {
   const m = startTime.match(
@@ -564,7 +558,7 @@ function AppsTable({
                         className="truncate px-3 align-middle font-mono text-sm text-muted"
                         data-tip={row.jarPath || ""} data-tip-overflow=""
                       >
-                        {shortJarPath(row.jarPath)}
+                        {row.jarPath || ""}
                       </td>
                     </>
                   ) : (
