@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { api } from "@/api";
 import type { agentapi, agentcli, monitor } from "@/api";
 import { AppLogDialog } from "@/react/components/app-log-dialog";
+import { TextCopy } from "@/react/components/text-reader";
 import { Button } from "@/react/components/ui/button";
 import { Checkbox } from "@/react/components/ui/checkbox";
 import { confirmDialog } from "@/react/components/ui/confirm-dialog";
@@ -702,17 +703,20 @@ function AppMenu({
   );
 }
 
-function ProcessDetailRow({ label, value }: { label: string; value: ReactNode }) {
+function ProcessDetailRow({ label, value, copyText }: { label: string; value: ReactNode; copyText?: string }) {
   return (
     <div className="flex gap-4">
       <span className="w-24 shrink-0 text-muted">{label}</span>
-      <span className="min-w-0 break-all font-mono text-sm">{value ?? "—"}</span>
+      <span className="min-w-0 break-all font-mono text-sm">
+        {value ?? "—"}
+        {copyText ? (
+          <span className="ml-1 inline-flex align-middle text-muted">
+            <TextCopy text={copyText} label={`复制${label}`} />
+          </span>
+        ) : null}
+      </span>
     </div>
   );
-}
-
-async function copyProcessText(text: string) {
-  await navigator.clipboard.writeText(text);
 }
 
 export function AppsPage({ host }: { host: string }) {
@@ -1123,7 +1127,7 @@ export function AppsPage({ host }: { host: string }) {
                   value={`${processCard.proc.container}（${processCard.proc.image || "镜像未知"}）`}
                 />
               ) : null}
-              <ProcessDetailRow label="入口" value={processCard.proc.entry || "—"} />
+              <ProcessDetailRow label="入口" value={processCard.proc.entry || "—"} copyText={processCard.proc.entry} />
               <ProcessDetailRow
                 label="端口"
                 value={(processCard.proc.ports || []).join("、") || "—"}
@@ -1153,6 +1157,7 @@ export function AppsPage({ host }: { host: string }) {
                   <ProcessDetailRow
                     label="工作目录"
                     value={processCard.detail.workDir || "—（无权限）"}
+                    copyText={processCard.detail.workDir}
                   />
                   <ProcessDetailRow
                     label="可执行"
@@ -1178,14 +1183,9 @@ export function AppsPage({ host }: { host: string }) {
                   />
                 </>
               ) : null}
-              <ProcessDetailRow label="命令行" value={processCard.proc.args || "—"} />
+              <ProcessDetailRow label="命令行" value={processCard.proc.args || "—"} copyText={processCard.proc.args} />
             </div>
             <DialogFooter>
-              <Button
-                onClick={() => void copyProcessText(processCard.proc.args || "")}
-              >
-                复制命令行
-              </Button>
               <Button
                 variant="danger"
                 disabled={processBusy}
