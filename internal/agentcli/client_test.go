@@ -1,11 +1,78 @@
 package agentcli
 
 import (
+	"context"
 	"errors"
+	"net"
+	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"diteng-pannel/internal/sshd"
 )
+
+func TestSSHTimeoutReportsTargetAndStage(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr == nil {
+			accepted <- conn
+		}
+	}()
+	host, port, _ := net.SplitHostPort(listener.Addr().String())
+	mgr := sshd.NewManager()
+	defer mgr.CloseAll()
+	client := &Client{mgr: mgr, host: "timeout-test", opt: sshd.ConnectOption{HostName: host, Port: port, User: "root", Password: "test-only"}}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	err = client.GetJSON(ctx, "/health", nil)
+	select {
+	case conn := <-accepted:
+		conn.Close()
+	case <-time.After(time.Second):
+		t.Fatal("SSH connection did not reach the test listener")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrSSHConnection) {
+		t.Fatalf("SSH timeout lost its cause or classification: %v", err)
+	}
+	for _, part := range []string{"SSH 连接超时", "root@" + listener.Addr().String()} {
+		if !strings.Contains(err.Error(), part) {
+			t.Fatalf("timeout should identify stage and target %q: %v", part, err)
+		}
+	}
+}
+
+func TestUnavailableAgentDoesNotMeanNotInstalled(t *testing.T) {
+	pool := NewPool(nil, nil)
+	pool.healedAt["test"] = time.Now()
+	pool.clients["test"] = &Client{host: "test", token: "test-only", client: &http.Client{
+		Transport: scanTransport(func(*http.Request) (*http.Response, error) {
+			return nil, ErrAgentUnreachable
+		}),
+	}}
+	status := pool.probe("test")
+	if status.OK || status.NotInstalled || !strings.Contains(status.Error, "agent 不可达") {
+		t.Fatalf("unreachable port must preserve the failure, not report missing installation: %+v", status)
+	}
+}
+
+func TestAgentRequestTimeoutPreservesStageAndCause(t *testing.T) {
+	client := &Client{token: "test-only", opt: sshd.ConnectOption{HostName: "192.0.2.10", User: "root"}, client: &http.Client{
+		Transport: scanTransport(func(*http.Request) (*http.Response, error) {
+			return nil, context.DeadlineExceeded
+		}),
+	}}
+	err := client.GetJSON(context.Background(), "/health", nil)
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "请求 Agent 数据超时（root@192.0.2.10:22）") {
+		t.Fatalf("missing Agent request stage: %v", err)
+	}
+}
 
 func TestTokenReadPreservesFailureReason(t *testing.T) {
 	for _, tc := range []struct {

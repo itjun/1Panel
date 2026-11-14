@@ -2,6 +2,8 @@ import { collectionState } from "@/utils/collectionState";
 import { HostWorkbenchHeader } from "@/react/components/workbench/host-header";
 import { HostOverviewNetwork } from "@/react/components/overview/host-overview-network";
 import { HostWorkbenchSummary } from "@/react/components/workbench/host-summary";
+import { HostConnectionFailure } from "@/react/components/host-connection-failure";
+import { hostConnectionError } from "@/react/lib/host-connection-error";
 import { readHostFocus, focusHost } from "@/react/components/workbench/state";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
@@ -363,7 +365,7 @@ function OverviewPage({ host }: { host: string }) {
       agentText = "Agent 未安装";
       agentTagTone = "warn";
     } else {
-      agentText = agent.error ? `Agent 不可用（${agent.error}）` : "Agent 不可用";
+      agentText = agent.error ? hostConnectionError(agent.error).title : "Agent 不可用";
       agentTagTone = "danger";
     }
   }
@@ -384,7 +386,9 @@ function OverviewPage({ host }: { host: string }) {
     isRefreshPending.current = true;
     setIsRefreshing(true);
     try {
-      await Promise.all([overview.refetch({ throwOnError: true }), disks.refetch({ throwOnError: true }), network.refetch({ throwOnError: true }), agentStatus.refetch({ throwOnError: true })]);
+      const results = await Promise.allSettled([overview.refetch({ throwOnError: true }), disks.refetch({ throwOnError: true }), network.refetch({ throwOnError: true }), agentStatus.refetch({ throwOnError: true })]);
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
       return true;
     } finally {
       isRefreshPending.current = false;
@@ -392,14 +396,7 @@ function OverviewPage({ host }: { host: string }) {
     }
   }
 
-  const collectionError = overview.error || overview.failureReason;
-  const agentErr = collection.unavailable
-    ? collectionError && isAgentMissing(collectionError)
-      ? "未安装 Agent，无法采集状态"
-      : collectionError
-        ? `采集失败：${formatErr(collectionError)}`
-        : agentMissing ? "未安装 Agent，无法采集状态" : "主机连接异常，暂时无法获取数据"
-    : "";
+  const connectionError = overview.error || overview.failureReason || agentStatus.error || agent?.error;
 
   return (
     <Page heading={false} onRefresh={refreshAll} refreshing={isRefreshing}>
@@ -416,7 +413,12 @@ function OverviewPage({ host }: { host: string }) {
               检查 Agent
             </Button>
           </>} />
-        {agentErr ? <Notice text={agentErr} /> : null}
+        {collection.unavailable ? <HostConnectionFailure
+          error={connectionError || (agentMissing ? "agent 未安装" : "主机连接异常，暂时无法获取数据")}
+          target={`${sshUser}@${sshAddr}:${sshPort}`}
+          isRetrying={isRefreshing}
+          onRetry={() => { void refreshAll().catch(() => { /* 错误保留在查询状态中供诊断区展示。 */ }); }}
+          onCheck={() => setCheckHost(host)} /> : null}
         <HostWorkbenchSummary data={data} disks={disks.data} isUnavailable={collection.unavailable} isDiskUnavailable={diskCollection.unavailable} />
         <HostOverviewNetwork network={network.data} privateIP={privateIP} publicIP={publicIP} isUnavailable={networkCollection.unavailable} isLoading={network.isLoading} />
       </div>

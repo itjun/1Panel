@@ -202,7 +202,7 @@ func (p *Pool) probe(host string) Status {
 	}
 	if err != nil {
 		st := Status{Error: err.Error(), CheckedAt: time.Now()}
-		if errors.Is(err, ErrAgentUnreachable) || errors.Is(err, ErrNotInstalled) {
+		if errors.Is(err, ErrNotInstalled) {
 			st.NotInstalled = true
 			st.Error = ErrNotInstalled.Error()
 		}
@@ -313,24 +313,42 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	c.mu.Unlock()
 
 	type result struct {
-		out []byte
-		err error
+		out   []byte
+		err   error
+		stage string
 	}
 	ch := make(chan result, 1)
+	connected := make(chan struct{})
 	go func() {
+		if _, err := c.mgr.Get(c.host, c.opt); err != nil {
+			ch <- result{err: fmt.Errorf("%w: %w", ErrSSHConnection, err), stage: "SSH 连接"}
+			return
+		}
+		close(connected)
+		if ctx.Err() != nil {
+			return
+		}
 		// 数据目录为 root 700，普通用户需经 sudo 读取
 		out, err := c.mgr.RunAsRoot(c.host, c.opt, "if [ ! -e /var/lib/spanel-agent/token ]; then printf '__spanel_agent_missing__'; else cat /var/lib/spanel-agent/token; fi", sshd.RunOptions{Timeout: fastTimeout})
-		ch <- result{out, err}
+		ch <- result{out: out, err: err, stage: "读取 Agent 凭据"}
 	}()
 	var r result
 	select {
 	case r = <-ch:
 	case <-ctx.Done():
-		return "", ctx.Err()
+		select {
+		case <-connected:
+			return "", c.stageError("读取 Agent 凭据", ctx.Err())
+		default:
+			return "", c.stageError("SSH 连接", fmt.Errorf("%w: %w", ErrSSHConnection, ctx.Err()))
+		}
+	}
+	if r.stage == "SSH 连接" {
+		return "", c.stageError(r.stage, r.err)
 	}
 	tok, err := tokenFromRead(r.out, r.err)
 	if err != nil {
-		return "", err
+		return "", c.stageError(r.stage, err)
 	}
 	c.mu.Lock()
 	c.token = tok
@@ -338,12 +356,27 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	return tok, nil
 }
 
+func (c *Client) stageError(stage string, err error) error {
+	port := c.opt.Port
+	if port == "" {
+		port = "22"
+	}
+	result := "失败"
+	var netErr net.Error
+	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
+		result = "超时"
+	} else if errors.Is(err, context.Canceled) {
+		result = "已取消"
+	}
+	return fmt.Errorf("%s%s（%s@%s）：%w", stage, result, c.opt.User, net.JoinHostPort(c.opt.HostName, port), err)
+}
+
 func tokenFromRead(out []byte, err error) (string, error) {
 	if errors.Is(err, sshd.ErrNoRoot) {
 		return "", err
 	}
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrSSHConnection, err)
+		return "", fmt.Errorf("%w: %w", ErrSSHConnection, err)
 	}
 	tok := lastLine(string(out))
 	if tok == "__spanel_agent_missing__" {
@@ -462,12 +495,12 @@ func (c *Client) do(req *http.Request, out any) error {
 		if strings.Contains(err.Error(), "connect failed") {
 			return fmt.Errorf("%w: %v", ErrAgentUnreachable, err)
 		}
-		return err
+		return c.stageError("请求 Agent 数据", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return err
+		return c.stageError("读取 Agent 响应", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		var e struct {
