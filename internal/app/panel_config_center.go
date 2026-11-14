@@ -246,7 +246,29 @@ func (a *App) getPanelConfigOverviewLocked() (PanelConfigOverview, error) {
 	if err != nil {
 		return PanelConfigOverview{}, err
 	}
-	structured := a.makePanelConfigDiff(state, files, diff, nil)
+	comparisonState := state
+	if state.ConfigStale {
+		// 尚未同步时用应用当前值比较；只生成内存内容，不写入 SSH 文件。
+		generation, generateErr := panelsync.Generate(state)
+		if generateErr != nil {
+			return PanelConfigOverview{}, fmt.Errorf("生成 SSH 差异失败: %w", generateErr)
+		}
+		expected := make(map[string]panelstore.ConfigFile, len(state.ConfigLayout.Files))
+		for _, file := range state.ConfigLayout.Files {
+			expected[file.Path] = file
+		}
+		for _, file := range generation.Files {
+			expected[file.Path] = panelstore.ConfigFile{Path: file.Path, Content: file.Content, Mode: file.Mode, SHA256: file.SHA256}
+		}
+		for _, path := range generation.RemovedFiles {
+			delete(expected, path)
+		}
+		comparisonState.ConfigLayout.Files = make([]panelstore.ConfigFile, 0, len(expected))
+		for _, file := range expected {
+			comparisonState.ConfigLayout.Files = append(comparisonState.ConfigLayout.Files, file)
+		}
+	}
+	structured := a.makePanelConfigDiff(comparisonState, files, diff, nil)
 	overview := PanelConfigOverview{
 		PanelPath:       a.panelStore.Path(),
 		SSHConfigPath:   root,
@@ -1194,7 +1216,7 @@ func (a *App) makePanelConfigDiff(state panelstore.State, current []panelsync.Co
 	}
 	result.ChangedFiles = a.makeFileDiff(state, current, generation)
 	result.HostDiff = makeHostDiff(state.Hosts, state.Hosts)
-	result.HasChanges = diff.HasChanges()
+	result.HasChanges = diff.HasChanges() || len(result.ChangedFiles) > 0
 	return result
 }
 

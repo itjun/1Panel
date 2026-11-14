@@ -87,6 +87,38 @@ func TestConfigFilesHashIsOrderInvariant(t *testing.T) {
 	}
 }
 
+func TestOverviewShowsPendingSSHValuesWithoutWritingFiles(t *testing.T) {
+	a := externalRecoveryFixture(t, "Host gateway\n    HostName gateway.example\n    User root\nHost build\n    HostName build.example\n    User root\n    ProxyJump gateway\n")
+	if err := a.panelStore.Update(func(state *panelstore.State) error {
+		state.Hosts[0].HostName = "pending.example"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	configPath, err := sshConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	overview, err := (*PanelConfig)(a).GetOverview()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(overview.Diff.ChangedFiles) == 0 || !contains(overview.Diff.ChangedFiles[0].PanelContent, "pending.example") {
+		t.Fatal("pending application value is missing from the file diff")
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil || string(before) != string(after) {
+		t.Fatal("reading the diff changed the SSH file")
+	}
+	if !a.panelStore.Snapshot().ConfigStale {
+		t.Fatal("reading the diff cleared the pending state")
+	}
+}
+
 func TestControlledPanelPathRejectsOutsidePath(t *testing.T) {
 	root := t.TempDir()
 	store, err := panelstore.NewStoreAt(filepath.Join(root, "panel.json"))

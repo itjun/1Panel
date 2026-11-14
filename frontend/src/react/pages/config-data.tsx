@@ -8,7 +8,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { api, type main } from "@/api";
 import { CodeSurface } from "@/react/components/code-surface";
-import { TextFileList, TextPage, TextReader } from "@/react/components/text-reader";
+import { TextCopy, TextFileList, TextPage, TextReader, TextViewTabs } from "@/react/components/text-reader";
+import { SshConfigDiff } from "@/react/components/ssh-config-diff";
 import { TH_STICKY_LINE } from "@/react/components/data-table";
 import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { confirmDialog } from "@/react/components/ui/confirm-dialog";
@@ -65,6 +66,7 @@ export function ConfigDataPage() {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<main.ApplicationBackup | null>(null);
   const [selectedSSH, setSelectedSSH] = useState("");
+  const [sshView, setSSHView] = useState<"diff" | "file">("diff");
 
   const overview = useQuery({
     queryKey: ["config-overview"],
@@ -91,10 +93,20 @@ export function ConfigDataPage() {
     enabled: section === "json",
   });
 
-  const sshFiles = (files.data || []).filter((file) => !file.panelJson);
+  const fileDiffs = overview.data?.diff?.changedFiles || [];
+  const sshFiles = useMemo(() => {
+    const current = (files.data || []).filter((file) => !file.panelJson);
+    // 文件树只包含现存文件；删除项也必须保留，才能查看已丢失的内容。
+    const missing = (overview.data?.diff?.changedFiles || [])
+      .filter((diff) => !current.some((file) => file.path === diff.path))
+      .map((diff) => ({ path: diff.path, content: diff.externalContent || "", absolutePath: "", displayPath: diff.path, size: 0, generated: false }));
+    return [...current, ...missing].sort((a, b) => a.path.localeCompare(b.path));
+  }, [files.data, overview.data?.diff?.changedFiles]);
   const currentFile = sshFiles.find((file) => file.path === selectedSSH)
+    || sshFiles.find((file) => fileDiffs.some((diff) => diff.path === file.path))
     || sshFiles.find((file) => file.absolutePath === overview.data?.sshConfigPath)
     || sshFiles[0];
+  const currentDiff = fileDiffs.find((diff) => diff.path === currentFile?.path);
   const jsonText = useMemo(
     () => appConfig.data ? JSON.stringify(appConfig.data, null, 2) : "",
     [appConfig.data],
@@ -274,17 +286,39 @@ export function ConfigDataPage() {
             <CodeSurface value={jsonText} language="json" readOnly />
           </TextReader>
         </> : <>
-          {isDrift ? <Notice tone="warning" text="SSH 配置与应用数据存在差异，请先检查当前文件内容。" /> : null}
+          {fileDiffs.length ? <Notice tone="warning" text={`${fileDiffs.length} 个文件有差异，已在文件列表标记。选择文件可查看具体变化。`} />
+            : isDrift ? <Notice tone="warning" text={overview.data?.configStale ? "应用数据已变更，SSH 配置尚未同步。" : "SSH 配置需要检查，详情见下方提示。"} /> : null}
+          {overview.data?.diff?.conflicts?.length ? <details className="config-ssh-conflicts">
+            <summary>{overview.data.diff.conflicts.length} 项需要检查</summary>
+            <ul>{overview.data.diff.conflicts.map((conflict) => <li key={conflict.id}>{conflict.summary}</li>)}</ul>
+          </details> : null}
           <div className="text-reader-layout">
             <TextFileList location={overview.data?.sshConfigPath} path={currentFile?.path || ""}
-              onSelect={setSelectedSSH} isLoading={files.isPending}
-              files={sshFiles.map((file) => ({ path: file.path, name: file.path, detail: file.generated ? "生成" : "本机" }))} />
-            <TextReader path={currentFile?.absolutePath || currentFile?.displayPath} text={currentFile?.content || ""}
+              onSelect={(path) => { setSelectedSSH(path); setSSHView("diff"); }} isLoading={files.isPending}
+              files={sshFiles.map((file) => {
+                const diff = fileDiffs.find((item) => item.path === file.path);
+                return { path: file.path, name: file.path, diffKind: diff?.kind,
+                  detail: diff ? (diff.kind === "added" ? "新增" : diff.kind === "removed" ? "已删除" : "有差异") : file.generated ? "生成" : "本机" };
+              })} />
+            <div className="config-ssh-reader">
+              {currentDiff ? <div className="config-ssh-view-controls">
+                <TextViewTabs label="SSH 配置视图" value={sshView} onChange={setSSHView}
+                  items={[{ key: "diff", label: "差异" }, { key: "file", label: "本机文件" }]} />
+              </div> : null}
+              {currentDiff && sshView === "diff" ? <section className="text-reader" aria-label="配置对比">
+                <div className="text-reader-location">
+                  <span className="config-ssh-diff-path" title={currentFile?.absolutePath || currentDiff.path}>{currentDiff.path}</span>
+                  <TextCopy text={currentFile?.absolutePath || currentDiff.path} label="复制路径" />
+                </div>
+                {files.error ? <p className="text-reader-error" role="alert">读取失败：{formatErr(files.error)}</p> : null}
+                <SshConfigDiff before={currentDiff.panelContent || ""} after={currentDiff.externalContent || ""} />
+              </section> : <TextReader path={currentFile?.absolutePath || currentFile?.displayPath} text={currentFile?.content || ""}
               isLoading={files.isPending} isRefreshing={files.isFetching} size={currentFile?.size}
               error={files.error ? `读取失败：${formatErr(files.error)}` : undefined}
-              emptyText={currentFile ? "暂无内容" : "暂无 SSH 配置文件"}>
+              emptyText={currentDiff?.kind === "removed" ? "本机文件已删除，可切换到差异查看原内容。" : currentFile ? "暂无内容" : "暂无 SSH 配置文件"}>
               <CodeSurface value={currentFile?.content || ""} language="ssh" readOnly />
-            </TextReader>
+              </TextReader>}
+            </div>
           </div>
         </>}
       </TextPage>

@@ -158,7 +158,7 @@ export function TextReader({ path, sourceLabel, text, isLoading = false, isRefre
 }
 
 export function TextFileList({ files, path, onSelect, location, isLoading = false }: {
-  files: { path: string; name: string; detail?: string }[];
+  files: { path: string; name: string; detail?: string; diffKind?: string }[];
   path: string;
   onSelect: (path: string) => void;
   location?: string;
@@ -172,6 +172,7 @@ export function TextFileList({ files, path, onSelect, location, isLoading = fals
       <div className="text-file-list-items">
         {files.map((file) => (
           <button type="button" key={file.path} aria-current={file.path === path ? "true" : undefined}
+            data-diff-kind={file.diffKind}
             onClick={() => onSelect(file.path)} title={file.name}>
             <span>{file.name}</span>{file.detail ? <small>{file.detail}</small> : null}
           </button>
