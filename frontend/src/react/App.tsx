@@ -8,7 +8,7 @@ import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { AgentInstallDialogHost } from "@/react/components/agent-install-dialog";
 import { HostSetupDialogHost } from "@/react/components/host-setup-dialog";
 import { HostRenameDialogHost } from "@/react/components/host-rename-dialog";
-import { UpdateCheckFailDialog, UpdateDialog } from "@/react/components/update-dialog";
+import { UpdateCheckFailDialog, UpdateDialog, UpdateResultDialog } from "@/react/components/update-dialog";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { usePaintGate } from "@/react/lib/use-paint-gate";
 import { ConfigDataPage } from "@/react/pages/config-data";
@@ -225,6 +225,7 @@ function Shell() {
       <HostRenameDialogHost />
       <UpdateDialog />
       <UpdateCheckFailDialog />
+      <UpdateResultDialog />
     </>
   );
 }

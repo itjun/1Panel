@@ -6,16 +6,20 @@ import type { main } from "@/api";
 /*
   应用内更新状态：后端 update-state 事件推全量快照，这里镜像一份供弹窗与「关于」页共用。
   update-available / update-show（点系统通知）以及启动时的 prompt 标记负责打开弹窗；
-  update-check-failed（连不上更新源）打开手动下载引导弹窗。
+  update-check-failed（连不上更新源）打开手动下载引导弹窗；
+  update-tray-result（托盘手动检查的结果）打开消息弹窗。
 */
+
+type UpdateResult = { title: string; message: string };
 
 type Snapshot = {
   state: main.UpdateState | null;
   dialogOpen: boolean;
   failOpen: boolean;
+  result: UpdateResult | null;
 };
 
-let current: Snapshot = { state: null, dialogOpen: false, failOpen: false };
+let current: Snapshot = { state: null, dialogOpen: false, failOpen: false, result: null };
 const listeners = new Set<() => void>();
 
 function publish(next: Partial<Snapshot>) {
@@ -65,6 +69,11 @@ export function closeCheckFailDialog() {
   publish({ failOpen: false });
 }
 
+/** 托盘「检查更新」结果弹窗的关闭。 */
+export function closeUpdateResult() {
+  publish({ result: null });
+}
+
 /** 挂在应用根部调用一次，返回卸载函数。 */
 export function initializeAppUpdate(): () => void {
   const offs = [
@@ -85,6 +94,12 @@ export function initializeAppUpdate(): () => void {
         if (state.hasUpdate) openUpdateDialog();
         else openCheckFailDialog();
       });
+    }),
+    Events.On("update-tray-result", (ev: { data?: { title?: string; message?: string } }) => {
+      const data = ev?.data;
+      if (data?.message) {
+        publish({ result: { title: data.title || "检查更新", message: data.message } });
+      }
     }),
   ];
   // 窗口在后台时可能错过事件：回到前台再对一次状态；

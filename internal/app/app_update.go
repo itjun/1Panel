@@ -611,6 +611,7 @@ func (c *updateController) setAutoCheck(on bool) {
 }
 
 // checkUpdateFromTray 复用手动检查；没有新版本或检查失败时也给出可见反馈。
+// 原生对话框窗口图标显示异常，改发事件由主窗口内的消息弹窗展示。
 func (a *App) checkUpdateFromTray() {
 	state, err := a.updates.check(true)
 	(*System)(a).FocusMainWindow()
@@ -632,12 +633,10 @@ func (a *App) checkUpdateFromTray() {
 			message = "正在安装新版本，完成后将自动重启。"
 		}
 	}
-	dialog := a.app.Dialog.Info().SetTitle(title).SetMessage(message)
-	dialog.AddButton("确定")
-	if a.mainWindow != nil {
-		dialog.AttachToWindow(a.mainWindow)
-	}
-	dialog.Show()
+	a.app.Event.Emit("update-tray-result", map[string]string{
+		"title":   title,
+		"message": message,
+	})
 }
 
 // ============ 前端绑定 ============

@@ -15,6 +15,7 @@ import {
 import {
   closeCheckFailDialog,
   closeUpdateDialog,
+  closeUpdateResult,
   initializeAppUpdate,
   useAppUpdate,
 } from "@/react/state/app-update";
@@ -205,6 +206,38 @@ export function UpdateCheckFailDialog() {
                 打开发布页
               </Button>
             ) : null}
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
+}
+
+/*
+  托盘「检查更新」结果弹窗：没有新版本、检查失败或正在更新时，后端发
+  update-tray-result 事件，在主窗口内弹消息框反馈（原生对话框独立窗口
+  的图标显示异常，已弃用）。
+*/
+export function UpdateResultDialog() {
+  const { result } = useAppUpdate();
+
+  return (
+    <Dialog
+      open={!!result}
+      onOpenChange={(next) => {
+        if (!next) closeUpdateResult();
+      }}
+    >
+      {result ? (
+        <DialogContent className="w-[min(460px,calc(100vw-32px))]">
+          <DialogTitle>{result.title}</DialogTitle>
+          <DialogDescription className="mt-1 text-sm text-muted break-words">
+            {result.message}
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="primary" autoFocus onClick={closeUpdateResult}>
+              确定
+            </Button>
           </DialogFooter>
         </DialogContent>
       ) : null}
