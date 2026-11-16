@@ -22,7 +22,8 @@ tasks:
   wails:check:
     summary: Ensure Wails CLI / go.mod / @wailsio/runtime versions match
     cmds:
-      - ./scripts/check-wails-version.sh
+      # Windows 下 task 无法直接 fork/exec .sh，显式走 bash
+      - bash ./scripts/check-wails-version.sh
 
   build:
     summary: Builds the application
