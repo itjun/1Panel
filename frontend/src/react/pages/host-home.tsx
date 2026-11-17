@@ -32,6 +32,7 @@ import { hostRackGroupColumns } from "@/utils/hostRackLayout";
 import { usePointerDrag } from "@/react/lib/use-pointer-drag";
 import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
 import { HostCardContent } from "@/react/components/host-card";
+import { HostScrollHint } from "@/react/components/host-scroll-hint";
 import { useHostCards } from "@/react/lib/use-host-cards";
 import { hostCardHighlightTone, summarizeHostAgents, summarizeHostCards, type HostCardHighlight } from "@/utils/hostCardModel";
 import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
@@ -1231,9 +1232,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
 
       {/* 内容区左右下 16px 安全边距（顶部由工具行下内边距承担）；分组为机柜式块，按用户自定义的排纵向堆叠（docs/design/specification.md §9）。
           整块禁选：拖动超过阈值前浏览器已开始划选文字，事后再禁选清不掉选区 */}
+      <div className="relative flex min-h-0 flex-1">
       <div
         ref={scrollRef}
-        className="relative flex min-h-0 flex-1 select-none flex-col gap-card overflow-auto px-4 pb-4 pt-3"
+        className="host-home-scroll relative flex min-h-0 flex-1 select-none flex-col gap-card overflow-auto px-4 pb-4 pt-3"
+        role="region"
+        aria-label="主机列表"
+        tabIndex={0}
       >
         {keyword && sections.length === 0 ? (
           <p className="m-0 text-sm text-muted">无匹配主机</p>
@@ -1260,6 +1265,8 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           {visibleRows.filter((row) => row.rack.id === UNGROUPED_RACK).map(renderRack)}
         </div>
 
+      </div>
+      <HostScrollHint viewport={scrollRef} content={rackRef} isDragging={!!dragItem} />
       </div>
       </div>
 
