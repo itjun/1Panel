@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 import { DistroBadge } from "@/react/components/distro-badge";
 import { ResourceRing } from "@/react/components/ui/resource-ring";
 import { hostCardView } from "@/utils/hostCardModel";
@@ -20,7 +20,10 @@ export function HostCardContent({ name, entry, now, latestAgentVersion, osReleas
   return <>
     <div className="host-card-identity">
       <DistroBadge boxSize={22} osRelease={view.osRelease || osRelease} isTooltipEnabled={false} />
-      <span className="host-card-name" data-tip={name} data-tip-overflow="">{name}</span>
+      <span className="host-card-title">
+        <span className="host-card-name" data-tip={name} data-tip-overflow="">{name}</span>
+        <Check className="host-card-selection" size={16} strokeWidth={2.5} aria-hidden="true" />
+      </span>
       <button type="button" aria-label={`编辑主机 ${name}`} data-tip="编辑主机"
         className="host-card-edit"
         onPointerDown={event => event.stopPropagation()}

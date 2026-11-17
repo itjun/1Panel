@@ -78,7 +78,7 @@ for (const palette of COLOR_PALETTES) {
   for (const mode of ["light", "dark"] as const) {
     test(`${palette.id} ${mode}: readable text, controls and health graphics`, () => {
       const colors = palette[mode];
-      const surfaces = ["--color-rail", "--color-canvas", "--color-toolbar", "--color-surface", "--color-raised", "--color-card-selected"];
+      const surfaces = ["--color-rail", "--color-canvas", "--color-toolbar", "--color-surface", "--color-raised", "--color-card-hover", "--color-card-selected", "--color-card-selected-hover"];
       const check = (foreground: string, background: string, minimum: number) => {
         expect(contrastRatio(colors[foreground as `--${string}`], colors[background as `--${string}`]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(minimum);
       };
@@ -90,6 +90,9 @@ for (const palette of COLOR_PALETTES) {
       check("--color-on-danger", "--color-danger", 4.5);
       check("--color-accent", "--color-accent-soft", 4.5);
       check("--color-tab-hover-ink", "--color-tab-hover", 4.5);
+      for (const surface of ["--color-raised", "--color-card-hover", "--color-card-selected", "--color-card-selected-hover"]) {
+        check("--color-card-track", surface, 1.6);
+      }
       // 悬停仅有轻微明度差，不能再跳到另一块高反差的底色。
       expect(contrastRatio(colors["--color-tab-hover"], colors["--color-toolbar"])).toBeGreaterThan(1.02);
       expect(contrastRatio(colors["--color-tab-hover"], colors["--color-toolbar"])).toBeLessThan(1.3);
@@ -98,7 +101,7 @@ for (const palette of COLOR_PALETTES) {
       check("--color-danger", "--color-danger-soft", 4.5);
       check("--color-info", "--color-info-soft", 4.5);
       check("--color-tooltip-text", "--color-tooltip", 4.5);
-      for (const surface of ["--color-surface", "--color-raised", "--color-card-selected", "--meter-off"]) {
+      for (const surface of ["--color-surface", "--color-raised", "--color-card-hover", "--color-card-selected", "--color-card-selected-hover", "--meter-off"]) {
         for (const foreground of ["--meter-ok", "--meter-warn", "--meter-danger", "--color-io-read", "--color-io-write"]) check(foreground, surface, 3);
       }
       expect(new Set([colors["--meter-ok"], colors["--meter-warn"], colors["--meter-danger"]]).size).toBe(3);

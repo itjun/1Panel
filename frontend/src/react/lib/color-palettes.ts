@@ -54,10 +54,14 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   const line = mix(base.surface, base.ink, isDark ? 0.14 : 0.12);
   const soft = (color: string) => mix(base.surface, color, isDark ? 0.16 : 0.1);
   const accentSoft = base.selection ?? soft(base.accent);
-  const cardSelected = mix(raised, accentSoft, 0.3);
+  // 主机卡用整面选中色区分状态；默认深色保留蓝色，其他主题沿用已确认的选中色。
+  const cardSelected = isClassic && isDark ? mix(raised, base.accent, 0.2) : accentSoft;
+  const cardSelectedHover = mix(cardSelected, base.ink, isDark ? 0.035 : 0.025);
+  const cardHover = mix(raised, base.ink, isDark ? 0.045 : 0.035);
+  const cardTrack = readable(line, [raised, cardHover, cardSelected, cardSelectedHover], 1.6, base.ink);
   const materialSurfaces = [base.rail, base.canvas].flatMap((color) =>
     ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, color, shellOpacity)));
-  const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, cardSelected];
+  const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, cardSelected, cardSelectedHover];
   // 默认配色沿 macOS 蓝色的色相校正明度，避免混入灰色文字后偏色。
   const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink);
   const muted = readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink);
@@ -67,7 +71,7 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   const warnSoft = soft(base.warn);
   const dangerSoft = soft(base.danger);
   const infoSoft = soft(base.read);
-  const graphicSurfaces = [base.surface, raised, cardSelected, line];
+  const graphicSurfaces = [base.surface, raised, cardSelected, cardSelectedHover, line];
   const ok = readable(base.ok, graphicSurfaces, 3, base.ink);
   const meterWarn = readable(base.warn, graphicSurfaces, 3, base.ink);
   const danger = readable(base.danger, [...surfaces, dangerSoft], 4.5, base.ink);
@@ -80,7 +84,8 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
     "--color-toolbar": toolbar,
     "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${shellOpacity})`,
     "--color-canvas-translucent": `rgba(${rgb(base.canvas).join(", ")}, ${shellOpacity})`,
-    "--color-raised": raised, "--color-card-selected": cardSelected, "--color-line": line,
+    "--color-raised": raised, "--color-card-selected": cardSelected, "--color-card-selected-hover": cardSelectedHover, "--color-line": line,
+    "--color-card-hover": cardHover, "--color-card-track": cardTrack,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
     "--color-muted": muted,

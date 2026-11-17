@@ -996,7 +996,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   data-host-highlight={hostCardHighlightTone(hostCards.entries[host.name], hostCards.now, highlight, latestAgentVersion.data)}
                   tabIndex={0}
                   role="group"
-                  aria-label={`${host.name} 主机`}
+                  aria-label={`${host.name} 主机${selectedRow ? "，已选中" : ""}`}
                   className={`host-rack-row host-card${selectedRow ? " is-selected" : ""}`}
                   onPointerDown={(event) =>
                     onHostPointerDown(event, section.id, host.name)
