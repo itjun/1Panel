@@ -150,7 +150,9 @@ export function ConfigDataPage() {
       const result = await api.pickAndBackupApplicationData(applicationPreferences());
       if (result) {
         await Promise.all([backups.refetch(), overview.refetch()]);
-        flash.showToast("已创建完整备份，并在本地保留一份副本。");
+        flash.showToast(result.missingSSHFiles > 0
+          ? `已创建备份并保留本地副本。${result.missingSSHFiles} 个 SSH 引用文件在备份时不存在。`
+          : "已创建完整备份，并在本地保留一份副本。");
       }
     } catch (error) {
       flash.showError(formatErr(error));
@@ -258,6 +260,9 @@ export function ConfigDataPage() {
             <span>{fileSize(item.size)}</span>
             <span>{sourceOS(item.sourceOS)}</span>
           </div>
+          {item.missingSSHFiles > 0 ? (
+            <Notice tone="warning" text={`备份时缺失 ${item.missingSSHFiles} 个 SSH 引用文件，恢复后如需使用，请补齐文件。`} />
+          ) : null}
           <p>恢复前会自动保存当前数据，完成后应用重新启动。备份包含密码和密钥，请确认来源可信。</p>
         </div>
         <div className="config-data-restore-actions">
@@ -340,7 +345,7 @@ export function ConfigDataPage() {
           <header className="config-data-header">
             <div className="config-data-title">
               <h1>备份与恢复</h1>
-              <p>完整保存主机、分组、应用设置、通知历史和 SSH 凭据，可跨设备恢复。</p>
+              <p>保存主机、分组、应用设置、通知历史和可用的 SSH 凭据，可跨设备恢复。</p>
             </div>
             <div className="config-data-actions">
               <Button variant="primary" disabled={busy} onClick={() => void backup()}>

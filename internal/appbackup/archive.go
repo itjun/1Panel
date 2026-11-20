@@ -30,17 +30,18 @@ type Entry struct {
 }
 
 type Manifest struct {
-	Format        string            `json:"format"`
-	Version       int               `json:"version"`
-	CreatedAt     int64             `json:"createdAt"`
-	SourceOS      string            `json:"sourceOS"`
-	SourceHome    string            `json:"sourceHome"`
-	SourceDataDir string            `json:"sourceDataDir"`
-	Hosts         int               `json:"hosts"`
-	Groups        int               `json:"groups"`
-	Preferences   map[string]string `json:"preferences"`
-	Relocations   map[string]string `json:"relocations,omitempty"`
-	Entries       []Entry           `json:"entries"`
+	Format          string            `json:"format"`
+	Version         int               `json:"version"`
+	CreatedAt       int64             `json:"createdAt"`
+	SourceOS        string            `json:"sourceOS"`
+	SourceHome      string            `json:"sourceHome"`
+	SourceDataDir   string            `json:"sourceDataDir"`
+	Hosts           int               `json:"hosts"`
+	Groups          int               `json:"groups"`
+	MissingSSHFiles int               `json:"missingSSHFiles,omitempty"`
+	Preferences     map[string]string `json:"preferences"`
+	Relocations     map[string]string `json:"relocations,omitempty"`
+	Entries         []Entry           `json:"entries"`
 }
 
 type Snapshot struct {

@@ -18,17 +18,18 @@ import (
 
 // ApplicationBackup describes a full snapshot without exposing its secrets.
 type ApplicationBackup struct {
-	Path        string `json:"path"`
-	Name        string `json:"name"`
-	CreatedAt   int64  `json:"createdAt"`
-	SourceOS    string `json:"sourceOS"`
-	Hosts       int    `json:"hosts"`
-	Groups      int    `json:"groups"`
-	DataFiles   int    `json:"dataFiles"`
-	SSHFiles    int    `json:"sshFiles"`
-	Preferences int    `json:"preferences"`
-	Size        int64  `json:"size"`
-	Fingerprint string `json:"fingerprint"`
+	Path            string `json:"path"`
+	Name            string `json:"name"`
+	CreatedAt       int64  `json:"createdAt"`
+	SourceOS        string `json:"sourceOS"`
+	Hosts           int    `json:"hosts"`
+	Groups          int    `json:"groups"`
+	DataFiles       int    `json:"dataFiles"`
+	SSHFiles        int    `json:"sshFiles"`
+	MissingSSHFiles int    `json:"missingSSHFiles"`
+	Preferences     int    `json:"preferences"`
+	Size            int64  `json:"size"`
+	Fingerprint     string `json:"fingerprint"`
 }
 
 type ApplicationPreferences struct {
@@ -53,7 +54,7 @@ func (s *Backup) applicationDataRoot() (string, error) {
 
 func applicationBackupSummary(path string, snap *appbackup.Snapshot, fingerprint string) ApplicationBackup {
 	m := snap.Manifest
-	b := ApplicationBackup{Path: path, Name: filepath.Base(path), CreatedAt: m.CreatedAt, SourceOS: m.SourceOS, Hosts: m.Hosts, Groups: m.Groups, Preferences: len(m.Preferences), Fingerprint: fingerprint}
+	b := ApplicationBackup{Path: path, Name: filepath.Base(path), CreatedAt: m.CreatedAt, SourceOS: m.SourceOS, Hosts: m.Hosts, Groups: m.Groups, MissingSSHFiles: m.MissingSSHFiles, Preferences: len(m.Preferences), Fingerprint: fingerprint}
 	for _, e := range m.Entries {
 		if strings.HasPrefix(e.Path, "data/") {
 			b.DataFiles++
@@ -119,7 +120,8 @@ func collectApplicationSnapshot(root, home string, preferences map[string]string
 		return nil, fmt.Errorf("读取主机数据失败: %w", err)
 	}
 	s.Manifest.Hosts, s.Manifest.Groups = len(state.Hosts), len(state.Groups)
-	addSSH := func(original string, text, required bool) error {
+	missingSSHFiles := make(map[string]struct{})
+	addSSH := func(original string, text, referenced bool) error {
 		p := original
 		if strings.HasPrefix(p, "~/") {
 			p = filepath.Join(home, p[2:])
@@ -128,12 +130,17 @@ func collectApplicationSnapshot(root, home string, preferences map[string]string
 			p = filepath.Join(home, p)
 		}
 		b, err := os.ReadFile(p)
-		if os.IsNotExist(err) && !required {
+		if os.IsNotExist(err) && !text {
+			// Keep references in the backed-up configuration even when their files are gone.
+			if referenced {
+				missingSSHFiles[filepath.Clean(p)] = struct{}{}
+			}
 			return nil
 		}
 		if err != nil {
 			return fmt.Errorf("无法备份 SSH 文件 %s: %w", original, err)
 		}
+		delete(missingSSHFiles, filepath.Clean(p))
 		rel, err := filepath.Rel(filepath.Join(home, ".ssh"), p)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			if text {
@@ -227,6 +234,7 @@ func collectApplicationSnapshot(root, home string, preferences map[string]string
 			}
 		}
 	}
+	s.Manifest.MissingSSHFiles = len(missingSSHFiles)
 	return s, nil
 }
 

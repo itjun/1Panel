@@ -115,6 +115,7 @@ export interface ApplicationBackup {
     "groups": number;
     "dataFiles": number;
     "sshFiles": number;
+    "missingSSHFiles": number;
     "preferences": number;
     "size": number;
     "fingerprint": string;

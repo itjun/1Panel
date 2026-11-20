@@ -238,6 +238,59 @@ func TestApplicationSnapshotIncludesExternalReferencedKey(t *testing.T) {
 	}
 }
 
+func TestApplicationBackupWithMissingSSHFiles(t *testing.T) {
+	home := t.TempDir()
+	a := newBackupTestApp(t, home)
+	service := (*Backup)(a)
+	expired := filepath.Join(t.TempDir(), "1agent-ring-ssh-expired")
+	key, knownHosts := filepath.Join(expired, "client"), filepath.Join(expired, "known_hosts")
+	state := panelstore.State{Hosts: []panelstore.PanelHost{{
+		Alias: "test-host", HostName: "192.0.2.1",
+		IdentityFiles: []string{key, "~/.ssh/id_work"},
+		ExtraOptions:  []panelstore.SSHOption{{Key: "UserKnownHostsFile", Value: knownHosts}},
+	}}}
+	if err := a.panelStore.Replace(state); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(home, ".ssh", "id_work"), "WORK-KEY", 0600)
+	export := filepath.Join(t.TempDir(), "export.zip")
+	prefs := map[string]string{}
+	created, err := service.BackupApplicationData(export, prefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := service.PreviewApplicationBackup(export)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Hosts != 1 || preview.SSHFiles != 1 || created.MissingSSHFiles != 2 || preview.MissingSSHFiles != 2 {
+		t.Fatalf("unexpected backup or preview counts: backup=%+v preview=%+v", created, preview)
+	}
+	snap, _, err := appbackup.Read(export)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(snap.Files["ssh/id_work"]) != "WORK-KEY" {
+		t.Fatal("available identity file was not saved")
+	}
+	panel, err := os.ReadFile(a.panelStore.Path())
+	if err != nil || !jsonEqual(snap.Files["data/panel.json"], panel) {
+		t.Fatalf("backup changed host settings: %v", err)
+	}
+	if err := service.RestoreApplicationData(export, preview.Fingerprint, prefs); err != nil {
+		t.Fatal(err)
+	}
+	list, err := service.ListApplicationBackups()
+	if err != nil || len(list) != 2 {
+		t.Fatalf("expected the local copy and the pre-restore backup, got %d: %v", len(list), err)
+	}
+	for _, b := range list {
+		if b.MissingSSHFiles != 2 {
+			t.Fatalf("local backup %s reported %d missing SSH files, want 2", b.Name, b.MissingSSHFiles)
+		}
+	}
+}
+
 func TestDeleteApplicationBackupOnlyRemovesLocalZip(t *testing.T) {
 	home := t.TempDir()
 	a := newBackupTestApp(t, home)
