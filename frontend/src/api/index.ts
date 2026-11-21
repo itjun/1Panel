@@ -38,7 +38,6 @@ export * as certnotify from "../../bindings/diteng-pannel/internal/certnotify/mo
 export * as localapps from "../../bindings/diteng-pannel/internal/localapps/models";
 export * as localsys from "../../bindings/diteng-pannel/internal/localsys/models";
 export * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
-export * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 export * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 // 保留 main 类型别名供现有前端使用；模型实际来自 Go 的 internal/app 包。
 export * as main from "../../bindings/diteng-pannel/internal/app/models";
@@ -61,7 +60,6 @@ import type * as main from "../../bindings/diteng-pannel/internal/app/models";
 import type * as monitor from "../../bindings/diteng-pannel/internal/monitor/models";
 import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig/models";
 import type * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
-import type * as panelsync from "../../bindings/diteng-pannel/internal/panelsync/models";
 import type * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 import type * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
 import type * as menucheck from "../../bindings/diteng-pannel/internal/menucheck/models";
@@ -123,50 +121,10 @@ const apiImpl = {
     arr(PanelConfig.GetConfigTree()),
   getEditablePanelState: (): Promise<main.PanelStateDraft> =>
     must(PanelConfig.GetEditablePanelState()),
-  getEditablePanelStateSensitive: (): Promise<main.PanelStateDraft> =>
-    must(PanelConfig.GetEditablePanelStateSensitive()),
-  previewPanelState: (draft: main.PanelStateDraft): Promise<main.PanelConfigPreview> =>
-    must(PanelConfig.PreviewPanelState(draft)),
-  previewConfigDraft: (draft: main.ConfigDraft): Promise<main.PanelConfigPreview> =>
-    must(PanelConfig.PreviewConfigDraft(draft)),
-  commitPanelPreview: (previewID: string): Promise<panelsync.WriteResult> =>
-    must(PanelConfig.CommitPanelPreview(previewID)),
-  resolveConfigConflicts: (
-    previewID: string,
-    resolutions: main.PanelConfigResolution[],
-  ): Promise<main.PanelConfigPreview> =>
-    must(PanelConfig.ResolveConfigConflicts(previewID, resolutions)),
-  listPanelBackups: (): Promise<main.PanelBackupSummary[]> =>
-    arr(PanelConfig.ListPanelBackups()),
-  getPanelBackup: (id: string): Promise<main.PanelBackup> =>
-    must(PanelConfig.GetPanelBackup(id)),
-  restorePanelBackup: (id: string): Promise<panelsync.WriteResult> =>
-    must(PanelConfig.RestorePanelBackup(id)),
-  openPanelPath: async (path: string): Promise<void> => {
-    await PanelConfig.OpenPanelPath(path);
-  },
-  listSystemEditors: (): Promise<main.PanelSystemEditor[]> =>
-    arr(PanelConfig.ListSystemEditors()),
-  openPanelPathWithEditor: async (path: string, editorID: string): Promise<void> => {
-    await PanelConfig.OpenPanelPathWithEditor(path, editorID);
-  },
-  revealPanelPath: async (path: string): Promise<void> => {
-    await PanelConfig.RevealPanelPath(path);
-  },
-  getConfigFiles: () => arr(PanelConfig.GetConfigFiles()),
-  getConfigText: (): Promise<string> => str(PanelConfig.GetConfigText()),
-  compareConfig: () => must(PanelConfig.CompareConfig()),
   getPanelConfigStatus: () => must(PanelConfig.GetStatus()),
-  importPanelConfig: () => must(PanelConfig.ImportConfig()),
-  confirmPanelConfigImport: () => must(PanelConfig.ConfirmConfigImport()),
-  generatePanelConfig: () => must(PanelConfig.GenerateConfig()),
   savePanelState: async (state: panelstore.State): Promise<void> => {
     await PanelConfig.SaveState(state);
   },
-  saveConfigDraft: (draft: main.ConfigDraft) =>
-    must(PanelConfig.SaveConfigDraft(draft)),
-  testPanelHost: (host: panelstore.PanelHost): Promise<string> =>
-    str(PanelConfig.TestHost(host)),
 
   listGroups: () => arr(Groups.ListGroups()),
   upsertGroup: async (g: groups.Group): Promise<void> => {
