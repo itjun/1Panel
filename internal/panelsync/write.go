@@ -1,11 +1,13 @@
 package panelsync
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +30,16 @@ type WriteResult struct {
 // separately so they can represent a config-stale result when generation
 // fails.
 func Write(root, backupRoot string, state panelstore.State, generation GenerationResult) (WriteResult, error) {
+	return write(root, backupRoot, state, generation, nil, nil)
+}
+
+// WriteVerified checks the reviewed snapshot and rolls back if the resulting
+// configuration fails verification or cannot be recorded by the caller.
+func WriteVerified(root, backupRoot string, state panelstore.State, generation GenerationResult, reviewed []ConfigFile, verify func() error) (WriteResult, error) {
+	return write(root, backupRoot, state, generation, &reviewed, verify)
+}
+
+func write(root, backupRoot string, state panelstore.State, generation GenerationResult, reviewed *[]ConfigFile, verify func() error) (WriteResult, error) {
 	root = filepath.Clean(root)
 	if root == "." || filepath.Base(root) != "config" {
 		return WriteResult{}, fmt.Errorf("SSH 配置路径无效: %s", root)
@@ -35,16 +47,38 @@ func Write(root, backupRoot string, state panelstore.State, generation Generatio
 	if err := os.MkdirAll(filepath.Dir(root), 0700); err != nil {
 		return WriteResult{}, fmt.Errorf("创建 SSH 配置目录失败: %w", err)
 	}
-	if err := os.Chmod(filepath.Dir(root), 0700); err != nil {
-		return WriteResult{}, fmt.Errorf("设置 SSH 配置目录权限失败: %w", err)
+	if reviewed == nil {
+		if err := os.Chmod(filepath.Dir(root), 0700); err != nil {
+			return WriteResult{}, fmt.Errorf("设置 SSH 配置目录权限失败: %w", err)
+		}
 	}
 	if err := validateGenerationFiles(generation); err != nil {
 		return WriteResult{}, err
 	}
 
+	const changedSinceReview = "本机 SSH 配置已变化，请刷新后重新检查"
 	current, err := ReadTree(root)
 	if err != nil {
 		return WriteResult{}, err
+	}
+	if reviewed != nil && !slices.Equal(current, *reviewed) {
+		return WriteResult{}, fmt.Errorf("%s", changedSinceReview)
+	}
+	if reviewed != nil {
+		sshDir, err := os.OpenRoot(filepath.Dir(root))
+		if err != nil {
+			return WriteResult{}, err
+		}
+		defer sshDir.Close()
+		paths := append([]string(nil), generation.RemovedFiles...)
+		for _, file := range generation.Files {
+			paths = append(paths, file.Path)
+		}
+		for _, path := range paths {
+			if _, err := sshDir.Lstat(filepath.FromSlash(path)); err != nil && !os.IsNotExist(err) {
+				return WriteResult{}, fmt.Errorf("无法在 SSH 目录内安全访问 %s: %w", path, err)
+			}
+		}
 	}
 	backupPath, err := CreateBackup(backupRoot, root, state, current)
 	if err != nil {
@@ -57,13 +91,32 @@ func Write(root, backupRoot string, state panelstore.State, generation Generatio
 	if err != nil {
 		return WriteResult{}, err
 	}
+	if reviewed != nil {
+		base, err := filepath.Abs(filepath.Dir(root))
+		if err != nil {
+			return WriteResult{}, err
+		}
+		byPath := make(map[string]ConfigFile, len(*reviewed))
+		for _, file := range *reviewed {
+			byPath[file.Path] = file
+		}
+		for target, original := range originals {
+			relative, err := filepath.Rel(base, target)
+			if err != nil {
+				return WriteResult{}, err
+			}
+			file, exists := byPath[filepath.ToSlash(relative)]
+			if original.exists != exists || original.exists && (string(original.content) != file.Content || uint32(original.mode) != file.Mode) {
+				return WriteResult{}, fmt.Errorf("%s: %s", changedSinceReview, relative)
+			}
+		}
+	}
 
 	// Prepare every temporary file before touching a formal config file. This
 	// catches permissions, disk-full and path errors up front.
 	type preparedFile struct {
 		target string
 		tmp    string
-		mode   os.FileMode
 	}
 	prepared := make([]preparedFile, 0, len(generation.Files))
 	cleanup := func() {
@@ -92,7 +145,7 @@ func Write(root, backupRoot string, state panelstore.State, generation Generatio
 			return WriteResult{}, fmt.Errorf("创建配置临时文件失败: %w", err)
 		}
 		tmpName := tmp.Name()
-		if err := tmp.Chmod(mode); err == nil {
+		if err = tmp.Chmod(mode); err == nil {
 			_, err = io.WriteString(tmp, file.Content)
 		}
 		if err == nil {
@@ -106,7 +159,22 @@ func Write(root, backupRoot string, state panelstore.State, generation Generatio
 			_ = os.Remove(tmpName)
 			return WriteResult{}, fmt.Errorf("写入配置临时文件失败: %s: %w", file.Path, err)
 		}
-		prepared = append(prepared, preparedFile{target: target, tmp: tmpName, mode: mode})
+		prepared = append(prepared, preparedFile{target: target, tmp: tmpName})
+	}
+	if reviewed != nil {
+		// Include globs can match our temporary files. Ignore just those names
+		// while confirming the original tree after the backup and staging work.
+		stagedNames := make(map[string]bool, len(prepared))
+		for _, item := range prepared {
+			stagedNames[filepath.Base(item.tmp)] = true
+		}
+		latest, err := readTree(root, stagedNames)
+		if err != nil {
+			return WriteResult{}, err
+		}
+		if !slices.Equal(latest, *reviewed) {
+			return WriteResult{}, fmt.Errorf("%s", changedSinceReview)
+		}
 	}
 
 	// Commit generated files. On Unix os.Rename is atomic per file. Since a
@@ -115,13 +183,32 @@ func Write(root, backupRoot string, state panelstore.State, generation Generatio
 	// mixed old/new configuration tree behind.
 	var touched []string
 	rollback := func(cause error) (WriteResult, error) {
+		if len(touched) == 0 {
+			return WriteResult{}, cause
+		}
 		if rollbackErr := restoreOriginals(touched, originals); rollbackErr != nil {
 			return WriteResult{}, fmt.Errorf("替换 SSH 配置失败: %w；回滚也失败: %v", cause, rollbackErr)
 		}
 		return WriteResult{}, fmt.Errorf("替换 SSH 配置失败: %w（已回滚）", cause)
 	}
+	markTouched := func(target string) error {
+		if reviewed != nil {
+			latest, err := captureOriginal(target)
+			if err != nil {
+				return err
+			}
+			original := originals[target]
+			if latest.exists != original.exists || latest.mode != original.mode || !bytes.Equal(latest.content, original.content) {
+				return fmt.Errorf("%s: %s", changedSinceReview, target)
+			}
+		}
+		touched = append(touched, target)
+		return nil
+	}
 	for _, item := range prepared {
-		touched = append(touched, item.target)
+		if err := markTouched(item.target); err != nil {
+			return rollback(err)
+		}
 		if err := replaceFile(item.tmp, item.target); err != nil {
 			return rollback(fmt.Errorf("%s: %w", item.target, err))
 		}
@@ -134,9 +221,16 @@ func Write(root, backupRoot string, state panelstore.State, generation Generatio
 		if err := ensureRegularOrMissing(target); err != nil {
 			return rollback(err)
 		}
-		touched = append(touched, target)
+		if err := markTouched(target); err != nil {
+			return rollback(err)
+		}
 		if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
 			return rollback(fmt.Errorf("删除旧生成配置失败: %s: %w", path, err))
+		}
+	}
+	if verify != nil {
+		if err := verify(); err != nil {
+			return rollback(err)
 		}
 	}
 	return WriteResult{BackupPath: backupPath, Files: generation.Files, Removed: generation.RemovedFiles}, nil
@@ -162,24 +256,28 @@ func captureOriginals(root string, generation GenerationResult) (map[string]orig
 		if _, ok := originals[target]; ok {
 			continue
 		}
-		if err := ensureRegularOrMissing(target); err != nil {
-			return nil, err
-		}
-		info, err := os.Stat(target)
-		if os.IsNotExist(err) {
-			originals[target] = originalFile{}
-			continue
-		}
+		original, err := captureOriginal(target)
 		if err != nil {
 			return nil, err
 		}
-		content, err := os.ReadFile(target)
-		if err != nil {
-			return nil, err
-		}
-		originals[target] = originalFile{exists: true, content: content, mode: info.Mode().Perm()}
+		originals[target] = original
 	}
 	return originals, nil
+}
+
+func captureOriginal(target string) (originalFile, error) {
+	if err := ensureRegularOrMissing(target); err != nil {
+		return originalFile{}, err
+	}
+	info, err := os.Stat(target)
+	if os.IsNotExist(err) {
+		return originalFile{}, nil
+	}
+	if err != nil {
+		return originalFile{}, err
+	}
+	content, err := os.ReadFile(target)
+	return originalFile{exists: true, content: content, mode: info.Mode().Perm()}, err
 }
 
 func restoreOriginals(touched []string, originals map[string]originalFile) error {
@@ -316,7 +414,7 @@ func validateGenerationFiles(generation GenerationResult) error {
 	seen := make(map[string]struct{}, len(generation.Files))
 	for _, file := range generation.Files {
 		path := cleanRelative(file.Path)
-		if path == "." || path == "" || strings.HasPrefix(path, "../") || filepath.IsAbs(file.Path) {
+		if path == "." || path == "" || path == ".." || strings.HasPrefix(path, "../") || filepath.IsAbs(file.Path) {
 			return fmt.Errorf("生成配置路径越界: %s", file.Path)
 		}
 		if _, ok := seen[path]; ok {
@@ -326,7 +424,7 @@ func validateGenerationFiles(generation GenerationResult) error {
 	}
 	for _, path := range generation.RemovedFiles {
 		clean := cleanRelative(path)
-		if clean == "." || clean == "" || strings.HasPrefix(clean, "../") || filepath.IsAbs(path) {
+		if clean == "." || clean == "" || clean == ".." || strings.HasPrefix(clean, "../") || filepath.IsAbs(path) {
 			return fmt.Errorf("待删除配置路径越界: %s", path)
 		}
 	}
@@ -335,7 +433,7 @@ func validateGenerationFiles(generation GenerationResult) error {
 
 func configTarget(root, relative string) (string, error) {
 	relative = cleanRelative(relative)
-	if relative == "." || relative == "" || strings.HasPrefix(relative, "../") || filepath.IsAbs(relative) {
+	if relative == "." || relative == "" || relative == ".." || strings.HasPrefix(relative, "../") || filepath.IsAbs(relative) {
 		return "", fmt.Errorf("配置路径越界: %s", relative)
 	}
 	target := filepath.Join(filepath.Dir(root), filepath.FromSlash(relative))

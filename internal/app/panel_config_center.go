@@ -36,6 +36,7 @@ type PanelConfigOverview struct {
 	PanelPath       string              `json:"panelPath"`
 	SSHConfigPath   string              `json:"sshConfigPath"`
 	Revision        uint64              `json:"revision"`
+	ConfigHash      string              `json:"configHash"`
 	HostCount       int                 `json:"hostCount"`
 	GroupCount      int                 `json:"groupCount"`
 	ConfigFileCount int                 `json:"configFileCount"`
@@ -43,6 +44,8 @@ type PanelConfigOverview struct {
 	ConfigStale     bool                `json:"configStale"`
 	Drift           bool                `json:"drift"`
 	NeedsReview     bool                `json:"needsReview"`
+	CanUseLocal     bool                `json:"canUseLocal"`
+	LastError       string              `json:"lastError,omitempty"`
 	LastGenerated   int64               `json:"lastGenerated"`
 	LastBackup      *PanelBackupSummary `json:"lastBackup,omitempty"`
 	Diff            PanelConfigDiff     `json:"diff"`
@@ -242,37 +245,20 @@ func (a *App) getPanelConfigOverviewLocked() (PanelConfigOverview, error) {
 	if err != nil {
 		return PanelConfigOverview{}, err
 	}
-	diff, err := panelsync.Compare(context.Background(), root, state)
+	diff, err := panelsync.CompareTree(context.Background(), root, state, files)
 	if err != nil {
 		return PanelConfigOverview{}, err
 	}
-	comparisonState := state
-	if state.ConfigStale {
-		// 尚未同步时用应用当前值比较；只生成内存内容，不写入 SSH 文件。
-		generation, generateErr := panelsync.Generate(state)
-		if generateErr != nil {
-			return PanelConfigOverview{}, fmt.Errorf("生成 SSH 差异失败: %w", generateErr)
-		}
-		expected := make(map[string]panelstore.ConfigFile, len(state.ConfigLayout.Files))
-		for _, file := range state.ConfigLayout.Files {
-			expected[file.Path] = file
-		}
-		for _, file := range generation.Files {
-			expected[file.Path] = panelstore.ConfigFile{Path: file.Path, Content: file.Content, Mode: file.Mode, SHA256: file.SHA256}
-		}
-		for _, path := range generation.RemovedFiles {
-			delete(expected, path)
-		}
-		comparisonState.ConfigLayout.Files = make([]panelstore.ConfigFile, 0, len(expected))
-		for _, file := range expected {
-			comparisonState.ConfigLayout.Files = append(comparisonState.ConfigLayout.Files, file)
-		}
+	comparisonState, err := expectedPanelConfig(state)
+	if err != nil {
+		return PanelConfigOverview{}, err
 	}
 	structured := a.makePanelConfigDiff(comparisonState, files, diff, nil)
 	overview := PanelConfigOverview{
 		PanelPath:       a.panelStore.Path(),
 		SSHConfigPath:   root,
 		Revision:        state.Revision,
+		ConfigHash:      configFilesHash(files),
 		HostCount:       len(state.Hosts),
 		GroupCount:      len(state.Groups),
 		ConfigFileCount: len(files),
@@ -280,6 +266,8 @@ func (a *App) getPanelConfigOverviewLocked() (PanelConfigOverview, error) {
 		ConfigStale:     state.ConfigStale,
 		Drift:           diff.HasChanges(),
 		NeedsReview:     len(diff.Conflicts) > 0,
+		CanUseLocal:     localConfigBlocker(structured.Conflicts) == "",
+		LastError:       state.LastError,
 		LastGenerated:   state.ConfigLayout.LastGenerated,
 		Diff:            structured,
 	}

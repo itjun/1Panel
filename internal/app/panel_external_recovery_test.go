@@ -14,6 +14,7 @@ func externalRecoveryFixture(t *testing.T, external string) *App {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	if err := os.MkdirAll(filepath.Join(home, ".ssh"), 0700); err != nil {
 		t.Fatal(err)
 	}

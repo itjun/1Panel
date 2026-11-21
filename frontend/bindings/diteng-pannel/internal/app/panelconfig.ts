@@ -133,6 +133,14 @@ export function ResolveConfigConflicts(previewID: string, resolutions: $models.P
     return $Call.ByID(395426502, previewID, resolutions);
 }
 
+/**
+ * ResolveConfigDrift reconciles the configuration the user reviewed. A new
+ * change on either side requires a new review before overwriting anything.
+ */
+export function ResolveConfigDrift(revision: number, configHash: string, source: string): $CancellablePromise<void> {
+    return $Call.ByID(1061517166, revision, configHash, source);
+}
+
 export function RestorePanelBackup(id: string): $CancellablePromise<panelsync$0.WriteResult> {
     return $Call.ByID(3474653029, id);
 }

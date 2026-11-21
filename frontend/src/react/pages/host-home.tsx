@@ -33,6 +33,7 @@ import { usePointerDrag } from "@/react/lib/use-pointer-drag";
 import { HostDragPreview, positionHostDragPreview, type HostDragItem } from "@/react/components/host-drag-preview";
 import { HostCardContent } from "@/react/components/host-card";
 import { HostScrollHint } from "@/react/components/host-scroll-hint";
+import { HostSshConfigNotice } from "@/react/components/host-ssh-config-notice";
 import { useHostCards } from "@/react/lib/use-host-cards";
 import { hostCardHighlightTone, summarizeHostAgents, summarizeHostCards, type HostCardHighlight } from "@/utils/hostCardModel";
 import { AgentCheckDialog } from "@/react/components/agent-check-dialog";
@@ -1196,6 +1197,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
       </div>
       </header>
 
+      <HostSshConfigNotice onOpen={() => session.setConfigSection("ssh")} />
       <div className="host-home-summary" aria-label={keyword ? "匹配主机概况" : "全部主机概况"}>
         <div className="host-home-summary-group" role="group" aria-label="主机数量">
           <span className="host-home-summary-title">{keyword ? "匹配主机" : "主机"}</span>

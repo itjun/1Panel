@@ -580,6 +580,7 @@ export interface PanelConfigOverview {
     "panelPath": string;
     "sshConfigPath": string;
     "revision": number;
+    "configHash": string;
     "hostCount": number;
     "groupCount": number;
     "configFileCount": number;
@@ -587,6 +588,8 @@ export interface PanelConfigOverview {
     "configStale": boolean;
     "drift": boolean;
     "needsReview": boolean;
+    "canUseLocal": boolean;
+    "lastError"?: string;
     "lastGenerated": number;
     "lastBackup"?: PanelBackupSummary | null;
     "diff": PanelConfigDiff;

@@ -116,6 +116,9 @@ const apiImpl = {
     must(PanelConfig.GetPanelState()),
   getPanelConfigOverview: (): Promise<main.PanelConfigOverview> =>
     must(PanelConfig.GetOverview()),
+  resolveConfigDrift: async (revision: number, configHash: string, source: "local" | "app"): Promise<void> => {
+    await PanelConfig.ResolveConfigDrift(revision, configHash, source);
+  },
   getPanelConfigTree: (): Promise<main.PanelConfigFile[]> =>
     arr(PanelConfig.GetConfigTree()),
   getEditablePanelState: (): Promise<main.PanelStateDraft> =>

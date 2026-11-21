@@ -64,6 +64,11 @@ func Compare(ctx context.Context, root string, state panelstore.State) (ConfigDi
 	if err != nil {
 		return ConfigDiff{}, err
 	}
+	return CompareTree(ctx, root, state, files)
+}
+
+// CompareTree compares the exact snapshot already read by the caller.
+func CompareTree(ctx context.Context, root string, state panelstore.State, files []ConfigFile) (ConfigDiff, error) {
 	// A failed or interrupted group rename can leave a generated file on disk
 	// under the old name while the Panel snapshot already records the new
 	// name. If the bytes are exactly the snapshot bytes, this is an internal
@@ -281,6 +286,10 @@ func Generate(state panelstore.State) (GenerationResult, error) {
 }
 
 func ReadTree(root string) ([]ConfigFile, error) {
+	return readTree(root, nil)
+}
+
+func readTree(root string, stagedNames map[string]bool) ([]ConfigFile, error) {
 	root = filepath.Clean(root)
 	sshDir := filepath.Dir(root)
 	visited := map[string]bool{}
@@ -288,7 +297,7 @@ func ReadTree(root string) ([]ConfigFile, error) {
 	var visit func(string) error
 	visit = func(path string) error {
 		path = filepath.Clean(path)
-		if visited[path] {
+		if visited[path] || stagedNames[filepath.Base(path)] {
 			return nil
 		}
 		visited[path] = true

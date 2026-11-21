@@ -1,11 +1,10 @@
-import { Events } from "@wailsio/runtime";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   DatabaseBackup,
   Folder,
   ShieldCheck,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { api, type main } from "@/api";
 import { CodeSurface } from "@/react/components/code-surface";
 import { TextCopy, TextFileList, TextPage, TextReader, TextViewTabs } from "@/react/components/text-reader";
@@ -16,6 +15,7 @@ import { confirmDialog } from "@/react/components/ui/confirm-dialog";
 import { Button } from "@/react/components/ui/button";
 import { Tag } from "@/react/components/ui/tag";
 import { applicationPreferences } from "@/react/lib/application-data";
+import { panelConfigNeedsAttention, panelConfigOverviewQuery } from "@/react/lib/panel-config-overview";
 import { cn } from "@/react/lib/utils";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { useSession } from "@/react/state/session";
@@ -61,17 +61,13 @@ function sourceOS(value: string) {
 export function ConfigDataPage() {
   const session = useSession();
   const section = session.configSection;
-  const queryClient = useQueryClient();
   const flash = useFlashMessage();
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<main.ApplicationBackup | null>(null);
   const [selectedSSH, setSelectedSSH] = useState("");
   const [sshView, setSSHView] = useState<"diff" | "file">("diff");
 
-  const overview = useQuery({
-    queryKey: ["config-overview"],
-    queryFn: () => api.getPanelConfigOverview(),
-  });
+  const overview = useQuery(panelConfigOverviewQuery);
   const backups = useQuery({
     queryKey: ["application-backups"],
     queryFn: () => api.listApplicationBackups(),
@@ -119,17 +115,6 @@ export function ConfigDataPage() {
       ? appConfig.isFetching
       : files.isFetching;
 
-  useEffect(() => {
-    const off = ["panel-config-imported", "panel-config-needs-review"].map((name) => (
-      Events.On(name, () => {
-        for (const key of ["config-overview", "config-files", "config-readonly-state"]) {
-          void queryClient.invalidateQueries({ queryKey: [key] });
-        }
-      })
-    ));
-    return () => off.forEach((dispose) => dispose());
-  }, [queryClient]);
-
   async function refresh() {
     const requests: Promise<unknown>[] = [overview.refetch({ throwOnError: true })];
     if (section === "backups") {
@@ -141,6 +126,41 @@ export function ConfigDataPage() {
     }
     await Promise.all(requests);
     return true;
+  }
+
+  async function resolveSSH(source: "local" | "app") {
+    const reviewed = overview.data;
+    if (busy || !reviewed?.configHash) return;
+    setBusy(true);
+    flash.clear();
+    try {
+      const local = source === "local";
+      const label = local ? "采用本机配置" : "按应用记录恢复";
+      const removed = local ? reviewed.diff.removedHosts || [] : [];
+      const removedFiles = !local ? fileDiffs.filter((file) => file.kind === "added") : [];
+      const ok = await confirmDialog({
+        title: `${label}？`,
+        body: <span className="grid gap-2 break-all">
+          <span>{local ? "按本机 SSH 配置更新应用记录。" : "用应用记录恢复或覆盖本机 SSH 文件。"}本次操作会处理当前页面的全部差异，并在写入前备份。</span>
+          {fileDiffs.length ? <span>涉及文件：{fileDiffs.map((file) => file.path).join("、")}</span> : null}
+          {removed.length ? <span>将从应用移除主机及其应用记录：{removed.join("、")}</span> : null}
+          {removedFiles.length ? <span>将从本机删除：{removedFiles.map((file) => file.path).join("、")}</span> : null}
+        </span>,
+        theme: removed.length || removedFiles.length ? "danger" : "warning",
+        confirmText: label,
+      });
+      if (!ok) return;
+      try {
+        await api.resolveConfigDrift(reviewed.revision, reviewed.configHash, source);
+      } finally {
+        await Promise.all([overview.refetch(), files.refetch()]);
+      }
+      flash.showToast(local ? "已采用本机 SSH 配置" : "已按应用记录恢复 SSH 配置");
+    } catch (error) {
+      flash.showError(formatErr(error));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function backup() {
@@ -277,11 +297,21 @@ export function ConfigDataPage() {
 
   if (section === "json" || section === "ssh") {
     const isJson = section === "json";
-    const isDrift = overview.data?.needsReview || overview.data?.drift || overview.data?.configStale;
+    const needsAttention = panelConfigNeedsAttention(overview.data);
+    const canUseLocal = overview.data?.canUseLocal;
+    const conflicts = overview.data?.diff?.conflicts || [];
+    const lastError = overview.data?.lastError;
+    const sshWarning = fileDiffs.length ? `${fileDiffs.length} 个文件有差异。${currentDiff?.kind === "removed" && canUseLocal
+      ? "采用本机配置会以当前本机文件为准，按应用记录恢复会补齐缺失配置。"
+      : "选择文件查看变化，再决定采用哪一边。"}`
+      : conflicts.length ? "本机 SSH 配置需要处理。展开下方详情查看原因。"
+      : "应用数据已变更，本机 SSH 配置尚未同步。";
     return (
       <TextPage title={isJson ? "应用 JSON" : "SSH 配置"} onRefresh={refresh}
-        isRefreshing={overview.isFetching || activeFetching}>
-        {overview.error ? <Notice text={formatErr(overview.error)} /> : null}
+        isRefreshing={busy || overview.isFetching || activeFetching}>
+        <FlashNotices flash={flash} />
+        {overview.error ? <Notice text={isJson ? formatErr(overview.error)
+          : `无法读取 SSH 配置。请检查错误中提到的本机路径和文件权限，修正后刷新。${formatErr(overview.error)}`} /> : null}
         {isJson ? <>
           <p className="text-page-note">密码已隐藏。</p>
           <TextReader path={overview.data?.panelPath} text={jsonText} isLoading={appConfig.isPending}
@@ -291,11 +321,19 @@ export function ConfigDataPage() {
             <CodeSurface value={jsonText} language="json" readOnly />
           </TextReader>
         </> : <>
-          {fileDiffs.length ? <Notice tone="warning" text={`${fileDiffs.length} 个文件有差异，已在文件列表标记。选择文件可查看具体变化。`} />
-            : isDrift ? <Notice tone="warning" text={overview.data?.configStale ? "应用数据已变更，SSH 配置尚未同步。" : "SSH 配置需要检查，详情见下方提示。"} /> : null}
-          {overview.data?.diff?.conflicts?.length ? <details className="config-ssh-conflicts">
-            <summary>{overview.data.diff.conflicts.length} 项需要检查</summary>
-            <ul>{overview.data.diff.conflicts.map((conflict) => <li key={conflict.id}>{conflict.summary}</li>)}</ul>
+          {!overview.error && needsAttention ? <Notice tone="warning"
+            text={canUseLocal ? sshWarning : `${sshWarning} 也可以修正本机文件后刷新。`}
+            actions={<>
+              {canUseLocal ? <Button size="sm" disabled={busy} onClick={() => void resolveSSH("local")}>采用本机配置</Button> : null}
+              {(fileDiffs.length || overview.data?.configStale) ?
+                <Button size="sm" disabled={busy} onClick={() => void resolveSSH("app")}>按应用记录恢复</Button> : null}
+            </>} /> : null}
+          {conflicts.length || lastError ? <details className="config-ssh-conflicts" open={!canUseLocal || undefined}>
+            <summary>{conflicts.length ? `${conflicts.length} 项需要检查` : "上次同步失败的原因"}</summary>
+            <ul>
+              {conflicts.map((conflict) => <li key={conflict.id}>{conflict.summary}</li>)}
+              {lastError ? <li>{lastError}</li> : null}
+            </ul>
           </details> : null}
           <div className="text-reader-layout">
             <TextFileList location={overview.data?.sshConfigPath} path={currentFile?.path || ""}
@@ -303,7 +341,7 @@ export function ConfigDataPage() {
               files={sshFiles.map((file) => {
                 const diff = fileDiffs.find((item) => item.path === file.path);
                 return { path: file.path, name: file.path, diffKind: diff?.kind,
-                  detail: diff ? (diff.kind === "added" ? "新增" : diff.kind === "removed" ? "已删除" : "有差异") : file.generated ? "生成" : "本机" };
+                  detail: diff ? (diff.kind === "added" ? "本机新增" : diff.kind === "removed" ? "本机缺失" : "有差异") : file.generated ? "生成" : "本机" };
               })} />
             <div className="config-ssh-reader">
               {currentDiff ? <div className="config-ssh-view-controls">
@@ -320,7 +358,7 @@ export function ConfigDataPage() {
               </section> : <TextReader path={currentFile?.absolutePath || currentFile?.displayPath} text={currentFile?.content || ""}
               isLoading={files.isPending} isRefreshing={files.isFetching} size={currentFile?.size}
               error={files.error ? `读取失败：${formatErr(files.error)}` : undefined}
-              emptyText={currentDiff?.kind === "removed" ? "本机文件已删除，可切换到差异查看原内容。" : currentFile ? "暂无内容" : "暂无 SSH 配置文件"}>
+              emptyText={currentDiff?.kind === "removed" ? "本机 SSH 配置未包含此文件，可切换到差异查看应用记录。" : currentFile ? "暂无内容" : "暂无 SSH 配置文件"}>
               <CodeSurface value={currentFile?.content || ""} language="ssh" readOnly />
               </TextReader>}
             </div>

@@ -367,3 +367,48 @@ func TestPortForwardRoundTrip(t *testing.T) {
 		t.Fatalf("port forwarding was not parsed back: %#v", parsed)
 	}
 }
+
+func TestWriteVerifiedWithIncludeGlob(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "config")
+	if err := os.WriteFile(root, []byte("Include config.d/*\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	reviewed, err := ReadTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const restored = "Host demo\n  HostName demo.invalid\n"
+	generation := GenerationResult{Files: []ConfigFile{{Path: "config.d/demo.conf", Content: restored}}}
+	if _, err := WriteVerified(root, filepath.Join(dir, "backups"), panelstore.State{}, generation, reviewed, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	files, err := ReadTree(root)
+	if err != nil || len(files) != 2 || files[1].Content != restored {
+		t.Fatalf("restored Include tree is incorrect: %v", err)
+	}
+}
+
+func TestWriteVerifiedPreservesUnreviewedFileOutsideInclude(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "config")
+	if err := os.WriteFile(root, []byte("# Include removed\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	reviewed, err := ReadTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const content = "# Created after review\n"
+	target := filepath.Join(dir, "demo.conf")
+	if err := os.WriteFile(target, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	generation := GenerationResult{Files: []ConfigFile{{Path: "demo.conf", Content: "# Application's snapshot\n"}}}
+	if _, err := WriteVerified(root, filepath.Join(dir, "backups"), panelstore.State{}, generation, reviewed, func() error { return nil }); err == nil || !strings.Contains(err.Error(), "已变化") {
+		t.Fatalf("expected rejection of an unreviewed target: %v", err)
+	}
+	if contents, err := os.ReadFile(target); err != nil || string(contents) != content {
+		t.Fatalf("the unreviewed target was modified: %v", err)
+	}
+}

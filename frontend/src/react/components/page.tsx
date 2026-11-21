@@ -129,6 +129,7 @@ function NoticeIcon({ tone }: { tone: NoticeTone }) {
 export function Notice({
   text,
   tone = "error",
+  actions,
   onClose,
   leaving = false,
   onMouseEnter,
@@ -136,6 +137,7 @@ export function Notice({
 }: {
   text: string;
   tone?: NoticeTone;
+  actions?: ReactNode;
   /** 传了才显示右侧关闭按钮 */
   onClose?: () => void;
   /** true 时播放淡出 */
@@ -148,6 +150,7 @@ export function Notice({
       className={cn(
         /* 行高 24 + 上下 8 = 最小 40px；图标 / 关闭按钮与首行对齐，长文字换行 */
         "flex min-h-10 shrink-0 items-start gap-2 rounded-panel px-4 py-2 text-sm leading-6",
+        actions && "flex-wrap",
         leaving ? "motion-notice-out" : "motion-notice-in",
         NOTICE_TONE_CLASS[tone],
       )}
@@ -155,7 +158,8 @@ export function Notice({
       onMouseLeave={onMouseLeave}
     >
       <NoticeIcon tone={tone} />
-      <p className="min-w-0 flex-1 break-words text-ink">{text}</p>
+      <p className={cn("min-w-0 flex-1 break-words text-ink", actions && "basis-48")}>{text}</p>
+      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       {onClose ? (
         <button
           type="button"

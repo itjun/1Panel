@@ -3,6 +3,7 @@
  */
 
 import { Events } from "@wailsio/runtime";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   FileCog,
@@ -13,11 +14,11 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { api } from "@/api";
+import { useEffect } from "react";
 import appMenuLogoUrl from "@/assets/1panel-menu-logo.svg";
 import { Tag } from "@/react/components/ui/tag";
 import { detectAppOs } from "@/react/lib/platform";
+import { panelConfigNeedsAttention, panelConfigOverviewQuery } from "@/react/lib/panel-config-overview";
 import { useSession } from "@/react/state/session";
 import { useNotificationHistory } from "@/react/lib/use-notification-history";
 
@@ -30,33 +31,23 @@ export function ModuleRail() {
   const isMac = detectAppOs() === "mac";
   const { unread: unreadBySource } = useNotificationHistory(true);
   const unread = unreadBySource.metric + unreadBySource.app + unreadBySource.cert;
-  const [configNeedsAttention, setConfigNeedsAttention] = useState(false);
+  const queryClient = useQueryClient();
+  const overview = useQuery({ ...panelConfigOverviewQuery, refetchInterval: 15000 });
+  const configNeedsAttention = overview.isError || panelConfigNeedsAttention(overview.data);
 
-  // 配置红点
   useEffect(() => {
-    let cancelled = false;
-    async function refresh() {
-      try {
-        const overview = await api.getPanelConfigOverview();
-        if (cancelled) return;
-        setConfigNeedsAttention(
-          !!(overview.configStale || overview.drift || overview.needsReview),
-        );
-      } catch {
-        /* 进入配置模块后显示读取错误。 */
+    function refresh() {
+      for (const queryKey of [panelConfigOverviewQuery.queryKey, ["config-files"], ["config-readonly-state"]]) {
+        void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
       }
     }
-    void refresh();
     const offs = [
-      Events.On("panel-config-imported", () => void refresh()),
-      Events.On("panel-config-needs-review", () => setConfigNeedsAttention(true)),
-      Events.On("panel-config-import-error", () => setConfigNeedsAttention(true)),
+      Events.On("panel-config-imported", refresh),
+      Events.On("panel-config-needs-review", refresh),
+      Events.On("panel-config-import-error", refresh),
     ];
-    return () => {
-      cancelled = true;
-      offs.forEach((off) => off());
-    };
-  }, []);
+    return () => offs.forEach((off) => off());
+  }, [queryClient]);
 
   const open = !session.settingsOpen;
   const ws = session.workspace;
