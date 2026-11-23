@@ -693,18 +693,20 @@ export interface TerminalApp {
 
 /**
  * UpdateHostInput 是「编辑主机」对话框的入参
- * 别名不可在此接口修改（请用 RenameHost）；须带密码做连通性验证，通过后才写 config
+ * NewName 和 Port 留空时沿用当前别名和端口。
  */
 export interface UpdateHostInput {
     /**
      * 现有 Host 别名
      */
     "name": string;
+    "newName"?: string;
 
     /**
      * 新 IP/域名
      */
     "hostName": string;
+    "port"?: string;
 
     /**
      * 登录用户

@@ -2,13 +2,16 @@
 
 package sshconfig
 
-import "os"
+import "golang.org/x/sys/windows"
 
 func replaceFile(oldpath, newpath string) error {
-	// Windows os.Rename fails if dest exists. golang.org/x/sys/windows has
-	// no ReplaceFile; Remove+Rename leaves a brief empty window.
-	if err := os.Remove(newpath); err != nil && !os.IsNotExist(err) {
+	from, err := windows.UTF16PtrFromString(oldpath)
+	if err != nil {
 		return err
 	}
-	return os.Rename(oldpath, newpath)
+	to, err := windows.UTF16PtrFromString(newpath)
+	if err != nil {
+		return err
+	}
+	return windows.MoveFileEx(from, to, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
 }

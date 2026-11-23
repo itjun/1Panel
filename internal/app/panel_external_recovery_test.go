@@ -56,12 +56,16 @@ func TestDeleteExternallyRemovedHostImportsOtherChanges(t *testing.T) {
 
 func TestDeleteExternalRemovalDoesNotAcceptOtherConflicts(t *testing.T) {
 	a := externalRecoveryFixture(t, "Host build\n    HostName build.example\n    User root\nMatch host *.example\n    SetEnv TEST=value\n")
+	knownHosts := filepath.Join(os.Getenv("HOME"), ".ssh", "known_hosts")
+	const hostKey = "gateway.example ssh-ed25519 AAAA\n"
+	writeTestFile(t, knownHosts, hostKey, 0600)
 	if err := (*Hosts)(a).DeleteHost("gateway"); err == nil {
 		t.Fatal("unrelated Match conflict was accepted")
 	}
 	if _, ok := a.panelStore.GetHost("gateway"); !ok {
 		t.Fatal("gateway was deleted despite unrelated conflict")
 	}
+	assertHostLifecycleFile(t, knownHosts, hostKey)
 }
 
 func TestWatcherRetriesAfterExternalDriftWasMarkedStale(t *testing.T) {

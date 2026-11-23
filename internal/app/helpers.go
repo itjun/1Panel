@@ -32,10 +32,12 @@ type AddHostInput struct {
 }
 
 // UpdateHostInput 是「编辑主机」对话框的入参
-// 别名不可在此接口修改（请用 RenameHost）；须带密码做连通性验证，通过后才写 config
+// NewName 和 Port 留空时沿用当前别名和端口。
 type UpdateHostInput struct {
-	Name     string `json:"name"`     // 现有 Host 别名
+	Name     string `json:"name"` // 现有 Host 别名
+	NewName  string `json:"newName,omitempty"`
 	HostName string `json:"hostName"` // 新 IP/域名
+	Port     string `json:"port,omitempty"`
 	User     string `json:"user"`     // 登录用户
 	Password string `json:"password"` // 必填；验连后写入 host_meta
 	Note     string `json:"note"`     // 本机备注，可选

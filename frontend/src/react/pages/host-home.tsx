@@ -1609,7 +1609,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         <DialogContent>
           <DialogTitle>删除主机</DialogTitle>
           <DialogDescription>
-            确定删除 {(deletingHosts || []).join("、")}？此操作不可撤销。
+            确定删除 {(deletingHosts || []).join("、")}？本机的 SSH 配置和主机指纹也会一并删除。
           </DialogDescription>
           <DialogFooter>
             <Button disabled={deletingBusy} onClick={() => setDeletingHosts(null)}>取消</Button>

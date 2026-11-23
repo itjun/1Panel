@@ -77,9 +77,10 @@ type ConnectOption struct {
 	IdentityFile  string
 	IdentityFiles []string // 多个 IdentityFile；IdentityFile 保留兼容旧调用方
 	HostKeyAlgos  string   // 逗号分隔的 SSH host-key 算法；空值使用 Go SSH 默认值
-	ProxyJump     string   // 可选跳板机；当前 Go 直连器保留该信息供上层适配
-	ProxyCommand  string   // Go 连接器不执行任意 shell 命令；非空时显式报错
-	IdentityAgent string   // Unix SSH agent socket；为空时尝试 SSH_AUTH_SOCK
+	HostKeyCheck  ssh.HostKeyCallback
+	ProxyJump     string // 可选跳板机；当前 Go 直连器保留该信息供上层适配
+	ProxyCommand  string // Go 连接器不执行任意 shell 命令；非空时显式报错
+	IdentityAgent string // Unix SSH agent socket；为空时尝试 SSH_AUTH_SOCK
 	ForwardAgent  bool
 	Password      string // 与 IdentityFile 二选一；也可同时给（密钥优先）
 }
@@ -399,6 +400,9 @@ func (m *Manager) dial(opt ConnectOption) (*ssh.Client, error) {
 		Auth:            auths,
 		Timeout:         tcpConnectTimeout,           // 仅 TCP；完整握手见下方 SetDeadline
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // 内部工具，不做 host key 校验
+	}
+	if opt.HostKeyCheck != nil {
+		config.HostKeyCallback = opt.HostKeyCheck
 	}
 	if strings.TrimSpace(opt.HostKeyAlgos) != "" {
 		algorithms, err := parseHostKeyAlgorithms(opt.HostKeyAlgos)

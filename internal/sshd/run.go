@@ -75,6 +75,16 @@ func (m *Manager) RunAsRoot(host string, opt ConnectOption, script string, runOp
 // errSessionCreate 标识 NewSession 失败（连接级错误），Run 据此判断是否需要重建连接
 var errSessionCreate = errors.New("session create failed")
 
+// RunNew opens a fresh connection for operations verifying new credentials.
+func (m *Manager) RunNew(opt ConnectOption, cmd string) ([]byte, error) {
+	client, err := m.DialNew(opt)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	return runWithClient(client, cmd)
+}
+
 // Run 在指定 host 上执行一条命令，返回 stdout+stderr 合并输出
 // 如果连接不存在会自动建立。连接级失败时自动重建并重试一次（不 Close 旧连接，
 // 以保护该主机上正在使用的终端 session）。

@@ -19,11 +19,7 @@ import * as sshconfig$0 from "../sshconfig/models.js";
 import * as $models from "./models.js";
 
 /**
- * AddHost 添加新主机：先校验别名不重复 → 验证凭据 → 回写 ~/.ssh/config
- * 用户只需提供别名/IP/用户 3 项，端口默认 22，公钥/密钥路径自动推断为 ~/.ssh/id_ed25519(.pub)
- *   - 填了密码：用户+密码验证；并检查本机公钥是否已上传（缺才补传，已存在不动）
- *   - 密码留空：只校验本机私钥登录（等同 `ssh user@ip`），不推送公钥
- * 契约：只有连通性+凭据验证成功才会写 config
+ * AddHost 验证登录凭据，检查或安装登录公钥，然后写入 SSH 配置和主机指纹。
  */
 export function AddHost(input: $models.AddHostInput): $CancellablePromise<string> {
     return $Call.ByID(1231883563, input);
@@ -43,7 +39,7 @@ export function CopySSHID(input: $models.CopyIDInput): $CancellablePromise<strin
 }
 
 /**
- * DeleteHost 从 Panel JSON 删除主机别名，再生成 OpenSSH 配置，并清理分组引用与连接池
+ * DeleteHost 删除主机别名、本机 OpenSSH 配置和主机指纹，并清理分组引用与连接池。
  */
 export function DeleteHost(name: string): $CancellablePromise<void> {
     return $Call.ByID(448780191, name);
@@ -106,10 +102,8 @@ export function TestConnection(input: $models.AddHostInput): $CancellablePromise
 }
 
 /**
- * UpdateHost 编辑主机 → 更新 Panel JSON（再生成 config）中的 HostName/User/备注
- * 别名不变；验证失败不写 config。成功返回验证结果消息。
- *   - 填了密码：密码测连 → 检查本机公钥是否已上传（缺才补传）→ 保存新密码
- *   - 未填密码：只校验本机私钥登录（不回退已存密码），不推公钥、不清空已存密码
+ * UpdateHost verifies SSH on the edited endpoint and repairs the OpenSSH host
+ * key if necessary before committing the new configuration.
  */
 export function UpdateHost(input: $models.UpdateHostInput): $CancellablePromise<string> {
     return $Call.ByID(393176269, input);

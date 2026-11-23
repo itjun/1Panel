@@ -240,7 +240,6 @@ func (a *App) comparePanelConfigLocked() (panelsync.ConfigDiff, error) {
 	return panelsync.Compare(context.Background(), path, a.panelStore.Snapshot())
 }
 
-
 func (a *App) importPanelConfigLocked() (panelsync.ImportResult, error) {
 	path, err := sshConfigPath()
 	if err != nil {
@@ -292,20 +291,32 @@ func (a *App) backupPanelStateLocked() error {
 // If anything after that point fails, the state remains available and is
 // explicitly marked stale.
 func (a *App) mutatePanelStateAndGenerate(testAliases []string, mutate func(*panelstore.State) error) error {
-	return a.mutatePanelStateAndGenerateForDeletion(testAliases, "", mutate)
+	return a.mutatePanelConfig(testAliases, "", false, mutate)
 }
 
-// A confirmed host deletion also resolves that host's external removal. Other
-// removals and ambiguous changes still require review.
-func (a *App) mutatePanelStateAndGenerateForDeletion(testAliases []string, deletedAlias string, mutate func(*panelstore.State) error) error {
+// Registration and deletion commit the config tree and Panel model together,
+// so the caller can roll back its known_hosts change if either write fails.
+func (a *App) mutateRegisteredHost(deletedAlias string, mutate func(*panelstore.State) error) error {
+	return a.mutatePanelConfig(nil, deletedAlias, true, mutate)
+}
+
+func (a *App) mutatePanelConfig(testAliases []string, deletedAlias string, transactional bool, mutate func(*panelstore.State) error) error {
 	if a == nil || a.panelStore == nil {
 		return fmt.Errorf("Panel 主机存储未初始化")
 	}
 	a.panelConfigMu.Lock()
 	defer a.panelConfigMu.Unlock()
 	before := a.panelStore.Snapshot()
-	next := before
-	if diff, err := a.comparePanelConfigLocked(); err != nil {
+	next := a.panelStore.Snapshot()
+	root, err := sshConfigPath()
+	if err != nil {
+		return err
+	}
+	files, err := panelsync.ReadTree(root)
+	if err != nil {
+		return err
+	}
+	if diff, err := panelsync.CompareTree(context.Background(), root, before, files); err != nil {
 		return err
 	} else if diff.HasChanges() {
 		canDelete := deletedAlias != "" && diff.Imported != nil && len(diff.RemovedHosts) == 1 && diff.RemovedHosts[0] == deletedAlias
@@ -330,13 +341,30 @@ func (a *App) mutatePanelStateAndGenerateForDeletion(testAliases []string, delet
 	if err := mutate(&next); err != nil {
 		return err
 	}
+	if transactional {
+		generation, err := panelsync.Generate(next)
+		if err != nil {
+			return err
+		}
+		if err := validateGeneratedConfig(next, generation); err != nil {
+			return err
+		}
+		backupRoot := filepath.Join(filepath.Dir(a.panelStore.Path()), "backups")
+		if _, err := panelsync.WriteVerified(root, backupRoot, next, generation, files, func() error {
+			return a.recordGeneratedConfig(root, next, generation)
+		}); err != nil {
+			return err
+		}
+		a.invalidateChangedPanelConnections(before, next)
+		return nil
+	}
 	next.ConfigStale = true
 	next.LastError = ""
 	if err := a.panelStore.Replace(next); err != nil {
 		return err
 	}
 	a.invalidateChangedPanelConnections(before, next)
-	_, err := a.generatePanelConfigLocked(testAliases, true)
+	_, err = a.generatePanelConfigLocked(testAliases, true)
 	return err
 }
 
@@ -419,12 +447,18 @@ func (a *App) generatePanelConfigLocked(testAliases []string, force bool) (panel
 		_ = a.markPanelConfigStale(err)
 		return panelsync.WriteResult{}, err
 	}
-	files, err := panelsync.ReadTree(root)
-	if err != nil {
+	if err := a.recordGeneratedConfig(root, a.panelStore.Snapshot(), generation); err != nil {
 		_ = a.markPanelConfigStale(err)
 		return written, err
 	}
-	updated := a.panelStore.Snapshot()
+	return written, nil
+}
+
+func (a *App) recordGeneratedConfig(root string, updated panelstore.State, generation panelsync.GenerationResult) error {
+	files, err := panelsync.ReadTree(root)
+	if err != nil {
+		return err
+	}
 	updated.ConfigStale = false
 	updated.LastError = ""
 	updated.ConfigLayout.Files = make([]panelstore.ConfigFile, 0, len(files))
@@ -442,11 +476,7 @@ func (a *App) generatePanelConfigLocked(testAliases []string, force bool) (panel
 		updated.ConfigLayout.ManagedHosts = append(updated.ConfigLayout.ManagedHosts, host.Alias)
 	}
 	updated.ConfigLayout.LastGenerated = generation.GeneratedAt
-	if err := a.panelStore.Replace(updated); err != nil {
-		_ = a.markPanelConfigStale(err)
-		return written, err
-	}
-	return written, nil
+	return a.panelStore.Replace(updated)
 }
 
 func (a *App) markPanelConfigStale(cause error) error {

@@ -222,17 +222,34 @@ func UpdateHostFields(name, hostName, user string) error {
 
 // UpdateHostFieldsFile 对指定文件更新 HostName / User（便于测试）
 func UpdateHostFieldsFile(path, name, hostName, user string) error {
+	return updateHostEndpointFile(path, name, name, hostName, user, "")
+}
+
+// UpdateHostEndpoint saves all connection fields in one local config write.
+func UpdateHostEndpoint(name, newName, hostName, user, port string) error {
+	path, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+	return updateHostEndpointFile(path, name, newName, hostName, user, port)
+}
+
+func updateHostEndpointFile(path, name, newName, hostName, user, port string) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("读取 ssh config 失败: %w", err)
 	}
 
 	lines := splitLines(string(content))
+	if name != newName && hostBlockExists(lines, newName) {
+		return fmt.Errorf("别名 %s 已存在", newName)
+	}
 	var out []string
 	changed := false
 	inTarget := false
 	sawHostName := false
 	sawUser := false
+	sawPort := false
 	// 记录 Host 行写入 out 后的下标，便于插入缺失字段
 	hostLineOutIdx := -1
 
@@ -247,6 +264,10 @@ func UpdateHostFieldsFile(path, name, hostName, user string) error {
 		}
 		if user != "" && !sawUser {
 			inserts = append(inserts, "    User "+user)
+			changed = true
+		}
+		if port != "" && !sawPort {
+			inserts = append(inserts, "    Port "+port)
 			changed = true
 		}
 		if len(inserts) == 0 {
@@ -280,14 +301,22 @@ func UpdateHostFieldsFile(path, name, hostName, user string) error {
 			inTarget = false
 			sawHostName = false
 			sawUser = false
+			sawPort = false
 			hostLineOutIdx = -1
 
 			tokens := strings.Fields(value)
-			for _, tok := range tokens {
+			for i, tok := range tokens {
 				if tok == name {
 					inTarget = true
+					if name != newName {
+						tokens[i] = newName
+						changed = true
+					}
 					break
 				}
+			}
+			if inTarget && name != newName {
+				raw = leadingWS(raw) + "Host " + strings.Join(tokens, " ")
 			}
 			out = append(out, raw)
 			if inTarget {
@@ -323,6 +352,14 @@ func UpdateHostFieldsFile(path, name, hostName, user string) error {
 				}
 			} else {
 				out = append(out, raw)
+			}
+		case "port":
+			sawPort = true
+			if port == "" {
+				out = append(out, raw)
+			} else {
+				out = append(out, indent+"Port "+port)
+				changed = changed || value != port
 			}
 		default:
 			out = append(out, raw)

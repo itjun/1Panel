@@ -52,25 +52,6 @@ function normalizePort(raw: string): string {
   return trimmed || "22";
 }
 
-/**
- * 仅更新 Panel JSON 里的端口（updateHost 不带 Port 字段）。
- * 端口无变化时直接返回。
- */
-async function applyHostPort(alias: string, port: string): Promise<void> {
-  const nextPort = normalizePort(port);
-  const state = await api.getPanelState();
-  const hosts = state.hosts || [];
-  const current = hosts.find((item) => item.alias === alias);
-  if (!current) return;
-  if (normalizePort(current.port || "") === nextPort) return;
-  await api.savePanelState({
-    ...state,
-    hosts: hosts.map((item) =>
-      item.alias === alias ? { ...item, port: nextPort } : item,
-    ),
-  });
-}
-
 /** 分组下拉：空字符串表示未分组 */
 function GroupSelect({
   value,
@@ -336,13 +317,7 @@ export function HostCreateForm({
   );
 }
 
-/**
- * 侧栏编辑主机：别名 / 分组 / 端口 / 地址 / 用户 / 密码 / 备注均可改。
- * 密码必填：打开时用 getHostPassword 预填已存密码，改 IP 不必重新找密码；
- * 地址/用户/密码有变才走 updateHost 测连（密码验证 + 检查/上传公钥）；
- * 仅备注变化用 setHostNote；分组用 assignHost；端口用 getPanelState +
- * savePanelState 补写（updateHost 不带 Port）。
- */
+/** 编辑主机并在保存时检查 OpenSSH 主机指纹。 */
 export function HostEditForm({
   host,
   onClose,
@@ -357,7 +332,6 @@ export function HostEditForm({
   const [hostName, setHostName] = useState(host.hostName);
   const [user, setUser] = useState(host.user);
   const [password, setPassword] = useState("");
-  const [savedPassword, setSavedPassword] = useState("");
   const [note, setNote] = useState(host.note || "");
   const [port, setPort] = useState(normalizePort(host.port || ""));
   const [groupId, setGroupId] = useState(() => session.groupIdOf(host.name));
@@ -376,24 +350,17 @@ export function HostEditForm({
     setPort(normalizePort(host.port || ""));
     setGroupId(session.groupIdOf(host.name));
     setPassword("");
-    setSavedPassword("");
     setError("");
     setSuccess("");
     void api
       .getHostPassword(host.name)
       .then((pwd) => {
         setPassword(pwd || "");
-        setSavedPassword(pwd || "");
       })
       .catch(() => {
         /* 预填失败不影响编辑，用户可手动输入 */
       });
   }, [host, session.groupIdOf]);
-
-  const credentialsChanged =
-    hostName.trim() !== host.hostName ||
-    user.trim() !== host.user ||
-    password !== savedPassword;
 
   async function handleSave() {
     const nextAlias = alias.trim();
@@ -413,33 +380,21 @@ export function HostEditForm({
     setError("");
     setSuccess("");
     try {
-      // 1) 别名变更：先 rename，后续接口都用新别名
-      if (nextAlias !== currentNameRef.current) {
-        await api.renameHost(currentNameRef.current, nextAlias);
-        currentNameRef.current = nextAlias;
-      }
+      const verifyMsg = await api.updateHost({
+        name: currentNameRef.current,
+        newName: nextAlias,
+        hostName: addr,
+        port: normalizePort(port),
+        user: login,
+        password,
+        note: nextNote,
+      });
+      currentNameRef.current = nextAlias;
 
-      // 2) 地址/用户/密码有变才测连：填密码做密码验证+公钥检查，留空仅校验密钥
-      let verifyMsg = "";
-      if (credentialsChanged) {
-        verifyMsg = await api.updateHost({
-          name: nextAlias,
-          hostName: addr,
-          user: login,
-          password,
-          note: nextNote,
-        });
-      } else if (nextNote !== (host.note || "").trim()) {
-        await api.setHostNote(nextAlias, nextNote);
-      }
-
-      // 3) 分组：空字符串 = 未分组
+      // 空字符串表示未分组。
       if (nextGroup !== prevGroup) {
         await api.assignHost(nextAlias, nextGroup);
       }
-
-      // 4) 端口：Panel JSON 单独补写
-      await applyHostPort(nextAlias, port);
 
       session.renameHostRefs(host.name, nextAlias);
       if (verifyMsg) {
@@ -453,13 +408,6 @@ export function HostEditForm({
     } finally {
       setBusy(false);
     }
-  }
-
-  let editSaveLabel = "保存";
-  if (busy) {
-    editSaveLabel = credentialsChanged ? "验证并保存" : "保存中";
-  } else if (credentialsChanged) {
-    editSaveLabel = "测试并保存";
   }
 
   return (
@@ -541,7 +489,7 @@ export function HostEditForm({
             />
             <input
               className={EDIT_INPUT}
-              placeholder="密码（留空则仅校验密钥登录）"
+              placeholder="密码"
               type="password"
               value={password}
               disabled={busy}
@@ -569,7 +517,7 @@ export function HostEditForm({
           className="h-10 w-full rounded-control bg-accent text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void handleSave()}
         >
-          {editSaveLabel}
+          {busy ? "检查并保存中" : "检查并保存"}
         </button>
       </div>
     </div>
