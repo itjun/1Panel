@@ -17,7 +17,7 @@ export type RadioOption<T extends string> = {
 /**
  * 按钮式单选组（照 TDesign RadioGroup variant="default-filled"）：少量互斥选项。
  *
- * - raised 底轨道 + 2px 内边距；选项 28px 高；选中项 surface 底 + accent 字 + 600 字重。
+ * - raised 底轨道 + 2px 内边距；选项 28px 高；选中项使用内容区选中底色和文字 + 600 字重。
  * - 选中底块在选项间滑动（--duration-moderate）；减少动态效果时直接跳。
  * - role="radiogroup"，左右 / 上下键切换并聚焦，Tab 只停在选中项上。
  */
@@ -87,7 +87,7 @@ export function RadioGroup<T extends string>({
       <span
         aria-hidden
         style={indicator}
-        className="motion-segment absolute top-0.5 bottom-0.5 rounded-tag bg-surface"
+        className="motion-segment absolute top-0.5 bottom-0.5 rounded-tag bg-item-selected"
       />
       {options.map((item, index) => {
         const selected = index === selectedIndex;
@@ -110,7 +110,7 @@ export function RadioGroup<T extends string>({
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
               "relative z-10 inline-flex h-7 items-center rounded-tag px-3 text-sm whitespace-nowrap motion-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-focus disabled:cursor-not-allowed",
-              selected ? "font-semibold text-accent" : "text-ink hover:text-accent",
+              selected ? "font-semibold text-item-selected-text" : "text-ink enabled:hover:bg-item-hover",
               item.disabled && "text-muted",
             )}
           >

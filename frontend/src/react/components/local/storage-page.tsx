@@ -326,7 +326,7 @@ export function LocalStoragePage() {
                                   type="button"
                                   aria-label={`${open ? "收起" : "展开"}${app.name}`}
                                   aria-expanded={open}
-                                  className="inline-flex size-5 items-center justify-center rounded-control hover:bg-raised"
+                                  className="inline-flex size-5 items-center justify-center rounded-control hover:bg-item-hover"
                                   onClick={() => toggleApp(app.path)}
                                 >
                                   {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
@@ -459,7 +459,7 @@ export function LocalStoragePage() {
                         return (
                           <tr
                             key={row.path}
-                            className="h-table-row cursor-pointer border-b border-line hover:bg-raised"
+                            className="h-table-row cursor-pointer border-b border-line hover:bg-item-hover"
                             onClick={() => {
                               if (row.isDir) setTreePath(row.path);
                             }}

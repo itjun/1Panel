@@ -53,9 +53,11 @@
 
 ### 2.1 亮色（默认）
 
-默认主题的蓝色以 macOS `NSColor.systemBlue` 的 sRGB 色值为基准（取样环境 27.2）：浅色 `#0088FF`、深色 `#0091FF`。焦点环使用基色；文字与实心按钮沿同一色相调整明度，满足现有对比度要求；选中底与半透明选中层从基色派生。三端使用同一组固定值，不跟随系统自定义强调色。其他色系与导航选中样式不变。
+默认主题的蓝色以 macOS `NSColor.systemBlue` 的 sRGB 色值为基准（取样环境 27.2）：浅色 `#0088FF`、深色 `#0091FF`。焦点环使用基色；文字与实心按钮沿同一色相调整明度，满足现有对比度要求。三端使用同一组固定值，不跟随系统自定义强调色。
 
-外框为**中性浅灰**（对齐 TDesign `bg-color-page` `#F2F3F5`，不带蓝调；壳层与白色内容面之间不画分隔线、只靠色块区分，故外框灰度须足够可辨），次级面、描边、文字、Tooltip 等整套灰阶同样取中性灰，主色采用 macOS 蓝色系（浅色基色 `#0088FF`，文字与按钮校正为 `#006AC7`）。以下表格保留经典蓝灰的基础参考值；实际明暗配色统一由 `frontend/src/react/lib/color-palettes.ts` 生成明确色值并校验对比度，`globals.css` 提供启动前回退。见 §2.6。
+所有模块中的可选项使用下列交互色。鼠标经过已选项时保持选中底色。键盘焦点用独立轮廓表示。告警、连通性与指标继续使用业务色。
+
+外框为**中性浅灰**（对齐 TDesign `bg-color-page` `#F2F3F5`，不带蓝调；壳层与白色内容面之间不画分隔线、只靠色块区分，故外框灰度须足够可辨），次级面、描边、文字、Tooltip 等整套灰阶同样取中性灰，主色采用 macOS 蓝色系（浅色基色 `#0088FF`，文字与按钮按交互底色校正为 `#0066BF`）。以下表格保留经典蓝灰的基础参考值；实际明暗配色统一由 `frontend/src/react/lib/color-palettes.ts` 生成明确色值并校验对比度，`globals.css` 提供启动前回退。见 §2.6。
 
 **硬性规定**：绿色用于成功状态（success：成功 / 正常 / 在线 / 最新）与占用类指标正常档（Meter 正常段、占用曲线 <60% 段，2026-10-03 定案，对齐行业监控惯例 Grafana / htop 的「正常绿、警告橙、危险红」，正常档读作主机健康），两者同取 TDesign 官方值（与 `--color-success` 同源同值，不另造绿）；品牌色、按钮、装饰图表、识别色不用绿色（代码编辑器语法高亮除外）。读 IO 用亮蓝，写 IO 用橙。
 
@@ -66,7 +68,9 @@
 | 一级图标栏 | `--color-rail` | `#EAEBEE`（比 canvas 深一档；12px muted 文字在上面 4.57:1） |
 | 画布 | `--color-canvas` | `#F2F3F5`（TDesign bg-color-page，对白色 surface 1.11:1） |
 | 容器面 | `--color-surface` | `#FFFFFF` |
-| 次级面 / hover 底 | `--color-raised` | `#F3F4F6` |
+| 次级面 | `--color-raised` | `#F3F4F6` |
+| A / B / C 可交互项悬停 | `--color-item-hover` | `#E1E6EC` |
+| C 区选中 | `--color-item-selected` | `#EAF4FE` |
 | 分隔 / 描边 | `--color-line` | `#E5E7EB` |
 | 控件描边 | `--color-line-strong` | `#9CA3AF` |
 | 主文字 | `--color-ink` | `#1F2937` |
@@ -74,7 +78,7 @@
 | 主色（macOS 蓝） | `--color-accent` | `#006AC7` |
 | 主色 hover | `--color-accent-hover` | `#0262B7` |
 | 主色 active | `--color-accent-active` | `#045CAA` |
-| 主色浅底 / 选中底 | `--color-accent-soft` | `#E6F3FF` |
+| 主色浅底 | `--color-accent-soft` | `#E6F3FF` |
 | 主色更浅底 | `--color-accent-tint` | `#F4F8FC` |
 | 焦点外环 | `--color-accent-focus` | `#0088FF` |
 | 文本选区 | `--color-selection` | `#E6F3FF` |
@@ -108,7 +112,9 @@
 | 一级图标栏 | `--color-rail` | `#0D1017`（比 canvas 深一档） |
 | 画布 | `--color-canvas` | `#12161F` |
 | 容器面 | `--color-surface` | `#1A1F2B` |
-| 次级面 / hover 底 | `--color-raised` | `#232A38` |
+| 次级面 | `--color-raised` | `#232A38` |
+| A / B / C 可交互项悬停 | `--color-item-hover` | `#3A3C41` |
+| C 区选中 | `--color-item-selected` | `#20374C` |
 | 分隔 / 描边 | `--color-line` | `#2C3445` |
 | 控件描边 | `--color-line-strong` | `#5A6478` |
 | 主文字 | `--color-ink` | `#E6EBF3` |
@@ -116,7 +122,7 @@
 | 主色 | `--color-accent` | `#179BFF` |
 | 主色 hover | `--color-accent-hover` | `#2CA4FF` |
 | 主色 active | `--color-accent-active` | `#3EACFF` |
-| 主色浅底 / 选中底 | `--color-accent-soft` | `#16314D` |
+| 主色浅底 | `--color-accent-soft` | `#16314D` |
 | 主色更浅底 | `--color-accent-tint` | `#1A2535` |
 | 焦点外环 | `--color-accent-focus` | `#0091FF` |
 | 文本选区 | `--color-selection` | `#16314D` |
@@ -183,7 +189,7 @@
 - 配色使用大尺寸缩略图，复用真实圆环、Meter 和曲线组件，与应用共享颜色定义；原生单选语义支持方向键，选中项有主色描边、对勾和名称强调。导航保持背景选中，不增加前置装饰条。
 - 缩略图按可用宽度采用 4 / 2 / 1 列，默认配色独立置顶，马卡龙系列在宽屏为三排十套，限制总宽避免拉伸。每套并排展示带「浅色」「深色」标识的真实组件预览，直接比较色相、层次和明暗；上方明暗模式缩略图实时使用所选色系。名称与选择标记统一对齐。
 - 本机与远程顶部标签（含「更多」）统一等宽，宽度为四个界面字号加 24px，默认 14px 字号对应 80px；两字、四字标签一致，空间不足沿用更多菜单。
-- 顶部工具标签（含「更多」）使用手型指针；悬停、按下与选中后的文字统一使用主题色 `--color-accent`，不绘制悬停背景块。选中项悬停保持原样，「更多」展开时使用同一主题色文字；文字沿用现有短动效，减少动态效果时关闭过渡。
+- 顶部工具标签与「更多」使用手型指针。普通项悬停使用 `--color-item-hover`，当前工具和已展开的「更多」使用 C 区选中色。
 - 外壳、内容、控件、图表线条/面积/坐标轴/提示框及轨道整套联动。图表依赖明暗与配色签名，切换色系后立即重建 option，不等待下一轮采样。
 - 资源健康维持绿/橙/红与现有 60% / 85% 阈值；色阶随色系调整。普通任务进度使用主色；输入/输出保持蓝/橙语义。主色实底前景用 `--color-on-accent`，危险实底用 `--color-on-danger`，不得固定白字。
 - 正文、辅助文字、功能文字、主按钮各状态前景对比度至少 4.5:1；关键曲线、圆环有效弧、Meter 有效段与相邻表面对比度至少 3:1。健康状态同时保留读数/文字信息。
@@ -212,7 +218,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 界面字体 `fontFamily` → 非空时写入 `--app-font-family`，`.react-root` 以 `var(--app-font-family, var(--font-sans))` 取用。
 - 等宽字体 `monoFontFamily` → 非空时写入 `--app-font-mono`，`--font-mono` 自动跟随；`board.css` / `local.css` / `code-surface.tsx` 直接引用 `var(--font-mono)` 即可，不要另写字体名。
 - 选项由 `lib/fonts.ts` 按 `detectAppOs()` 生成，只列当前系统上有的字体；最后一项「自定义…」在该行下方展开**本机字体列表**（`components/font-picker.tsx`，数据来自后端 `System.ListSystemFonts` → `internal/sysfonts`：Mac 走 CoreText，Windows / Linux 扫字体目录），可搜索、可「只看等宽字体」，点一项即保存；读取失败时才退回手填字体名。具体字体与自定义值后面都自动补系统后备栈，缺字体时不会显示成乱码；已存的自定义字体本机未安装时，列表顶部提示「本机未安装，当前显示系统默认」。
-- 字体列表每一项用该字体自身渲染名字与示例（内联 `fontFamily` = 列表给出的家族名 + 系统后备栈），这是下条「禁止写死字体名」的唯一例外；面板为 `bg-raised` + `--radius-panel`，列表区铺 `bg-surface`，选中项 `accent-soft` 底 + `accent` 字 + 对勾。
+- 字体列表每一项用该字体自身渲染名字与示例（内联 `fontFamily` = 列表给出的家族名 + 系统后备栈），这是下条「禁止写死字体名」的唯一例外；面板为 `bg-raised` + `--radius-panel`，列表区铺 `bg-surface`，选中项 `item-selected` 底 + `item-selected-text` 字 + 对勾。
 - 空串 = 系统默认；旧版两串「默认」选项值读取时迁到空串。
 
 **禁止**在页面 / 组件内写死具体字体名（`font-family: Menlo` 之类），一律走 `--font-sans` / `--font-mono` 或 Tailwind `font-mono`；也禁止再引入 `@font-face` 打包字体或运行时从网络加载字体。
@@ -254,7 +260,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 | 一级图标栏（Rail） | 宽 **72px**，**从窗口顶端通到底**；经典模式使用不透明底色 `--color-rail`；云母模式下为轻微层次色；顶部 40px 是窗口拖拽区：Mac 系统红绿灯落在这里，Win/Linux 在此居中放 18px 应用图标；其下自上而下平铺高频模块（主机 / 本机 / 配置 / 通知 / 测速），低频模块（巡检 / 设置）固定在栏底；配置模块承载备份恢复、应用 JSON 与 SSH 配置查看；始终显示，切换模块不改变 A 的配色或选中样式 |
 | B 顶部 | 最小高 56px，显示当前模块的大标题（20px / 600 / 行高 1.4，左右内边距 16px），与 B 共用底色；所有模块保留 B，不使用空标题占位。移除全局刷新、前进、后退、主页、侧栏开关及其热键。模块标题和页内标题空白处保留窗口拖动 |
 | C 顶壳层带 | 高 **40px**。选中远程主机时三端都显示工具标签（`--color-toolbar`）。无主机时三端均不渲染空带。页面标题与业务操作放在壳层带**下方**（无带时仍在 C 顶）的页内工具行 |
-| Win/Linux 窗口按钮 | 最小化 / 最大化 / 关闭固定在 C 区右上角，不占额外一行；有主机标签时标签让位，否则页面首行横向留出 124px。可横向滚动的文件工具行缩小视口；编辑抽屉打开时由抽屉标题让位。尺寸 **38×28**，风格与导航按钮一致（线性图标、hover 用 `--color-line`，关闭 hover 用 `--color-danger`） |
+| Win/Linux 窗口按钮 | 最小化 / 最大化 / 关闭固定在 C 区右上角，不占额外一行；有主机标签时标签让位，否则页面首行横向留出 124px。可横向滚动的文件工具行缩小视口；编辑抽屉打开时由抽屉标题让位。尺寸 **38×28**，风格与导航按钮一致（线性图标、hover 用 `--color-item-hover`，关闭 hover 用 `--color-danger`） |
 | B 中间区 | 主机 / 配置 / 通知默认 200px，本机 / 测速 / 设置 184px，巡检 164px。始终显示，取消手动收起、窄窗自动隐藏和浮层遮罩；旧收起状态不再读取。保留 160–400px 拖拽宽度，各模块独立保存，双击恢复本模块默认值 |
 | C 内容区 | 壳层带与工作内容位于同一个模块容器，使用独立、不透明的 surface 背景；页内内容从壳层带下方开始，内部贴边滚动，不套外层圆角卡片 |
 | 设置分区（2026-10-31） | B 区的外观、会话、看板、应用、热键、关于分别点击进入，C 区只渲染当前分区；鼠标移动与滚动不切换标签。切换从页首显示，长内容在当前页内滚动，不限制为一屏。C 顶部显示当前分区标题，表单在标题下方；沿用原选中底色，不增加前置指示条 |
@@ -287,7 +293,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - **表头无底色、字重加粗**：只用 `text-xs text-muted font-semibold` + 下方 1px `--color-line`；吸顶表头用 `--color-surface` 遮挡滚动内容。
 - **分隔线不叠画**：表头与首行之间只保留表头底线；数据行一律用 `border-b`（或等价底边），禁止再用 `border-t`，避免吸顶时表头底线与首行顶线叠成双线。
 - 行与行之间 1px `--color-line`；表格外框无描边、无圆角。
-- hover 用 `--color-raised`，选中用 `--color-accent-soft`；不加阴影。
+- 可操作的行悬停使用 `--color-item-hover`，选中行使用 `--color-item-selected`。只读行保持静态。
 - 可交互表格（`InteractiveDataTable`，分组页）：
   - **列宽自适应**：默认按每列内容实测宽度（canvas 测字，跟随用户字体设置）与容器宽度分配；有富余时分给弹性列（主机、Meter 列），不够时先压弹性列、再压可截断文字列到下限，仍放不下才横向滚动。用户手动拖过的列宽固定并本地保存，双击列边界或「恢复默认列」回到自适应。
   - **列宽拖拽标记**：表头每列右缘 8px 热区（`cursor: col-resize`），悬停 / 拖动时显示贯穿表头与全部行的 2px `--color-accent` 竖线（`.table-col-resize-guide`）。
@@ -304,7 +310,7 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 模块多、需频繁切换 → 侧栏 / 纵向导航。
 - 同一模块内少量互斥视图（约 2–5 项）→ 分段控件或 Tabs。
 - 主机功能等多入口 → 顶栏 / 页内 Tabs，保持单行可扫，禁止挤成多行杂乱按钮堆。
-- 顶部主机 / 本机工具标签以纯色块表达选中：选中项使用 `--color-surface` 底色与内容面衔接、主题色文字和 600 字重，上角为控件圆角；未选项保持外框底色与次级文字，悬停、按下时文字与选中态统一使用 `--color-accent`，全程使用手型指针。选中项悬停保持原样，不加四边描边或装饰条；键盘焦点使用独立的 2px 内收轮廓，不改变标签尺寸与点击区域。
+- 当前工具标签使用 `--color-item-selected` 底色、`--color-item-selected-text` 文字和 600 字重。键盘焦点使用 2px 内收轮廓。
 - 远程主机功能标签仅在选中主机时填入 C 顶壳层带，保留一排；按实际可用宽度自动收纳到“更多”，当前工具始终可见，宽度足够时按原顺序展示全部工具。本机、巡检、设置等页面不显示主机标签；三端均不预留空的拖拽 / 窗控带（2026-11-02）。主机身份信息仅在概览页集中展示，其他工具页不重复占用身份栏高度；**所有页面**自己的操作（刷新、时间范围、恢复默认、路径提示、双栏文件标题条、筛选 / 搜索簇等）放壳层带下方的页内工具行，不上壳层带。
 - 主机功能状态按主机保存：侧栏切换主机时恢复该主机上次停留的功能，首次打开默认概览；从其他入口明确指定功能时打开指定功能。
 
@@ -423,13 +429,13 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 
 ### 8.2 控件
 
-- 按钮（填充式）：共享 `Button`；primary = accent 实色 + 白字；secondary = `bg-raised`、hover `bg-line`；ghost = 透明、hover `bg-raised`；danger = danger 实色；全部无描边、无阴影，圆角 `--radius-control`；主操作才用 `primary`。
+- 按钮（填充式）：共享 `Button`；primary = accent 实色 + 白字；secondary = `bg-raised`、hover `bg-item-hover`；ghost = 透明、hover `bg-item-hover`；danger = danger 实色；全部无描边、无阴影，圆角 `--radius-control`；主操作才用 `primary`。
 - 输入框 / 下拉 / 搜索框（填充式，`.motion-field`）：`bg-raised`、边框透明、圆角 4px；focus 时边框 `--color-accent`、底色 `--color-surface`，外加 2px `--color-accent-focus` 外环。
-- 下拉选择（`components/ui/select.tsx`，结构与交互照 TDesign Select）：触发器沿用 `.motion-field`，高 32px（`sm` 28 / `lg` 36 与表单输入框对齐），右侧 16px `ChevronDown`（描边 1.5，打开时旋转 180°、`--duration-base`），打开态与 focus 同样式（`.motion-field-active`）；面板走共享浮层 `components/ui/popup.tsx`（portal 到 body、触发器下方 4px、空间不足翻到上方、`bg-surface` + 1px `--color-line` + `--radius-panel`、**无阴影**、入场 `motion-axis-y-in`），最小宽 = 触发器宽，内边距 4px，最高 280px 可滚动；选项行高 32px、`--radius-control`、左右内边距 8px，hover `bg-raised`，选中 `bg-accent-soft` + `text-accent` + 右侧 16px 对勾，禁用项 muted 半透明；键盘上下 / Home / End 移动高亮、Enter / 空格选中、Esc 关闭并回焦。选项多（如主机列表）时开 `filterable`（照 TDesign Select filterable）：打开后触发器原位变输入框，placeholder 显示当前选中项，按 value / 字符串 label / `keywords`（如 HostName、分组名）不区分大小写包含匹配，高亮自动落到第一个匹配项，此时空格是输入、只有 Enter 选中；无结果显示一行 muted「无匹配项」。**禁止再用原生 `<select>`**。
-- 日期时间区间（`components/ui/date-range-picker.tsx`，照 TDesign DateRangePicker + enableTimePicker）：触发器一个 `.motion-field`，`font-mono tabular-nums` 显示 `YYYY-MM-DD HH:mm ~ YYYY-MM-DD HH:mm`，右侧 `Calendar` 图标；面板内边距 12px：顶部开始 / 结束两个框（当前编辑侧 `.motion-field-active`），左侧月历（宽 224px，周一起始，6×7 格 32px，标题 `font-semibold`，非本月 muted，今天 1px `--color-accent` 描边，端点 `bg-accent` 白字，区间内 `bg-accent-soft text-accent`，hover `bg-raised`），右侧时 / 分两列（行高 28px，选中 `bg-accent-soft text-accent`）以 1px `--color-line` 竖线分隔；底部 1px 分隔线 + 左「此刻」文字按钮（accent）+ 右 primary 小按钮「确定」；先选开始自动切到结束，两端齐才可确定，结束早于开始自动交换，Esc / 外点不回写。值格式 `YYYY-MM-DDTHH:mm`（本地时间）。**禁止再用原生 `datetime-local`**。
-- 多选框（`components/ui/checkbox.tsx`，照 TDesign Checkbox）：16px 方框 `--radius-tag`，未选 1px `--color-line-strong` + `bg-surface`，hover 描边 accent；选中 / 半选 `bg-accent` 白色 ✓ / −；文字 `text-sm` 间距 8px；同组横排间距 24px；键盘聚焦 2px `--color-accent-focus` 外环。订阅矩阵格子传 `className="sub-check"` 铺满单元格（hover `accent-soft`、选中 `accent-tint`）。只用于多选。
+- 下拉选择（`components/ui/select.tsx`，结构与交互照 TDesign Select）：触发器沿用 `.motion-field`，高 32px（`sm` 28 / `lg` 36 与表单输入框对齐），右侧 16px `ChevronDown`（描边 1.5，打开时旋转 180°、`--duration-base`），打开态与 focus 同样式（`.motion-field-active`）；面板走共享浮层 `components/ui/popup.tsx`（portal 到 body、触发器下方 4px、空间不足翻到上方、`bg-surface` + 1px `--color-line` + `--radius-panel`、**无阴影**、入场 `motion-axis-y-in`），最小宽 = 触发器宽，内边距 4px，最高 280px 可滚动；选项行高 32px、`--radius-control`、左右内边距 8px，hover `bg-item-hover`，选中 `bg-item-selected` + `text-item-selected-text` + 右侧 16px 对勾，禁用项 muted 半透明；键盘上下 / Home / End 移动高亮、Enter / 空格选中、Esc 关闭并回焦。选项多（如主机列表）时开 `filterable`（照 TDesign Select filterable）：打开后触发器原位变输入框，placeholder 显示当前选中项，按 value / 字符串 label / `keywords`（如 HostName、分组名）不区分大小写包含匹配，高亮自动落到第一个匹配项，此时空格是输入、只有 Enter 选中；无结果显示一行 muted「无匹配项」。**禁止再用原生 `<select>`**。
+- 日期时间区间（`components/ui/date-range-picker.tsx`，照 TDesign DateRangePicker + enableTimePicker）：触发器一个 `.motion-field`，`font-mono tabular-nums` 显示 `YYYY-MM-DD HH:mm ~ YYYY-MM-DD HH:mm`，右侧 `Calendar` 图标；面板内边距 12px：顶部开始 / 结束两个框（当前编辑侧 `.motion-field-active`），左侧月历（宽 224px，周一起始，6×7 格 32px，标题 `font-semibold`，非本月 muted，今天 1px `--color-accent` 描边，端点使用加粗文字，区间内使用 `bg-item-selected text-item-selected-text`，hover `bg-item-hover`），右侧时 / 分两列（行高 28px，选中 `bg-item-selected text-item-selected-text`）以 1px `--color-line` 竖线分隔；底部 1px 分隔线 + 左「此刻」文字按钮（accent）+ 右 primary 小按钮「确定」；先选开始自动切到结束，两端齐才可确定，结束早于开始自动交换，Esc / 外点不回写。值格式 `YYYY-MM-DDTHH:mm`（本地时间）。**禁止再用原生 `datetime-local`**。
+- 多选框（`components/ui/checkbox.tsx`，照 TDesign Checkbox）：16px 方框 `--radius-tag`，未选 1px `--color-line-strong` + `bg-surface`，hover 描边 accent；选中 / 半选 `bg-accent` 白色 ✓ / −；文字 `text-sm` 间距 8px；同组横排间距 24px；键盘聚焦 2px `--color-accent-focus` 外环。订阅矩阵格子传 `className="sub-check"` 铺满单元格（hover `item-hover`、选中 `item-selected`）。只用于多选。
 - 开关（`components/ui/switch.tsx`，照 TDesign Switch）：36×20 胶囊，开 `bg-accent`、关 `bg-line-strong`，16px 白色圆钮 `.motion-switch-knob` 滑动；`loading` 时圆钮内转圈并禁用；可带右侧文字（间距 8px）。用于「开 / 关」即时生效的设置。
-- 单选按钮组（`components/ui/radio-group.tsx`，照 TDesign RadioGroup variant="default-filled"）：轨道 `bg-raised` + `--radius-control` + 2px 内边距，选项高 28px、左右 12px，选中块 `bg-surface` + `--radius-tag` 以 `.motion-segment` 滑动、文字 `text-accent font-semibold`；方向键切换（roving tabindex）。用于 2–5 个互斥选项。
+- 单选按钮组（`components/ui/radio-group.tsx`，照 TDesign RadioGroup variant="default-filled"）：轨道 `bg-raised` + `--radius-control` + 2px 内边距，选项高 28px、左右 12px，选中块 `bg-item-selected` + `--radius-tag` 以 `.motion-segment` 滑动、文字 `text-item-selected-text font-semibold`；方向键切换（roving tabindex）。用于 2–5 个互斥选项。
 - 滑块（`components/ui/slider.tsx`，照 TDesign Slider）：4px 轨道 `bg-line`、已选段 `bg-accent`，16px 圆钮 2px accent 描边 + `bg-surface`；拖动 / 悬停 / 聚焦时圆钮上方即时显示 Tooltip 数值；方向键 / PageUp / PageDown / Home / End。
 - 数字输入（`components/ui/input-number.tsx`，照 TDesign InputNumber）：`.motion-field` 高 32px，左 − 右 + 两个按钮夹中间输入，失焦 / Enter / ↑↓ / 按钮时按 min / max 夹值并提交。
 - 文字提示（`components/ui/tooltip.tsx`，照 TDesign Tooltip）：全局一层 `TooltipLayer`（`main.tsx` 挂载）按事件委托识别 `data-tip`；`Tooltip` 组件等价于给子元素加 `data-tip`；截断文字用 `Ellipsis` 或 `data-tip-overflow`，只有真正溢出才提示。气泡 `bg-tooltip text-tooltip-text text-xs`、内边距 4px 8px、`--radius-control`、最宽 320px 可换行、8px 小三角，默认在目标上方居中、空间不足翻到下方；**立即出现、无动画**（§5.2）。纯图标按钮须另写 `aria-label`（`data-tip` 不提供无障碍名）。
@@ -439,10 +445,10 @@ Token（`globals.css` `@theme static`，Mac 的字体排最前）：
 - 表格：行高 40 / 表头 36 与虚拟表常量一致（见 §4.4、§9）；表头无底色、`font-semibold`；数据行只用底边分隔、不与表头顶线叠画；hover 用 raised，不加阴影。
 - 区块：内容区不再用卡片；`Card` / `.surface-float` 只是无描边、无圆角的普通区块，区块之间 24px（`gap-section`），区块标题 `text-sm font-semibold text-ink`。
 - 数据卡片悬停 / 聚焦：`Card` 及内容区数据块（含监控图表）**不显示悬停 / 聚焦边框**，保持扁平，区块读作一个整体；不加阴影，不另改底色。表格行用已有 hover 底色，不再叠加描边。看板主机选择走总览表行底色，见 §9「看板」。
-- 网格色块单元：同类单元平铺成网格（巡检项、Docker 容器等）用 `bg-raised p-4` 纯色块区分，块间距 `gap-card`，无描边 / 阴影；可点整块时 hover `bg-line`；块内 secondary 按钮与 neutral 标签改 `bg-surface`（hover `bg-line`），否则与色块同色。**不要在 `Card` 上写 `bg-*`**：`.surface-float` 不在 Tailwind 层内，会盖掉 `bg-*` 工具类，色块单元用普通 `div`。
+- 网格色块单元：同类单元平铺成网格（巡检项、Docker 容器等）用 `bg-raised p-4` 纯色块区分，块间距 `gap-card`，无描边 / 阴影；可点整块时 hover `bg-item-hover`；块内 secondary 按钮与 neutral 标签改 `bg-surface`（hover `bg-item-hover`），否则与色块同色。**不要在 `Card` 上写 `bg-*`**：`.surface-float` 不在 Tailwind 层内，会盖掉 `bg-*` 工具类，色块单元用普通 `div`。
 - 环图（`RingMeter`）直接落在内容平面上，不再垫 raised 色块（环图所在区块本身就是平面，再垫一层即卡片套卡片）。
-- 二级栏选中：`bg-accent-soft text-accent` **纯色块，无左侧指示条**；二级栏 hover 用 `bg-line`（canvas 上 raised 对比不够）；行高 40px，左右内缩 8px。
-- 一级图标栏（`components/module-rail.tsx`，`.module-rail-item`）：每项 **56×52** 方块（`--radius-control`），20px lucide 线性图标（描边 1.5）+ 下方 4px + 12px 文字，项间距 4px；第一项顶边紧贴顶栏下沿（y = 40px），与二级栏第一行、内容区白色平面的顶边在同一条线上，栏底留 8px；顶部依次为主机 / 本机 / 通知 / 测速，底部依次为巡检 / 配置 / 设置；图标：主机 `Server`、本机 `Laptop`、巡检 `ScanSearch`、通知 `Bell`、测速 `Gauge`、配置 `FileCog`、设置 `Settings`。静止 `text-muted` 无底；hover `bg-line` + `text-ink`；选中底色 `--color-canvas`（与二级栏同色，读作向右打开到二级栏）+ 图标与文字 `--color-accent`、文字 600，无指示条；通知未读数是图标右上角的 accent 小 Tag（等宽数字，>99 显示 99+），配置待处理是图标右上角 6px `--color-danger` 圆点；键盘焦点 2px `--color-accent-focus` 外环。图标与名称始终同时显示，不提供隐藏名称的开关，图标栏无右键菜单。
+- 二级栏选中：`--color-nav-selected` 搭配 `--color-nav-selected-text` 前景色 **纯色块，无左侧指示条**；二级栏 hover 用 `bg-item-hover`；行高 40px，左右内缩 8px。
+- 一级图标栏（`components/module-rail.tsx`，`.module-rail-item`）：每项 **56×52** 方块（`--radius-control`），20px lucide 线性图标（描边 1.5）+ 下方 4px + 12px 文字，项间距 4px；第一项顶边紧贴顶栏下沿（y = 40px），与二级栏第一行、内容区白色平面的顶边在同一条线上，栏底留 8px；顶部依次为主机 / 本机 / 通知 / 测速，底部依次为巡检 / 配置 / 设置；图标：主机 `Server`、本机 `Laptop`、巡检 `ScanSearch`、通知 `Bell`、测速 `Gauge`、配置 `FileCog`、设置 `Settings`。静止 `text-muted` 无底；hover `bg-item-hover`；选中底色 `--color-rail-selected` + 图标与文字 `--color-rail-selected-text`、文字 600，无指示条；通知未读数是图标右上角的 accent 小 Tag（等宽数字，>99 显示 99+），配置待处理是图标右上角 6px `--color-danger` 圆点；键盘焦点 2px `--color-accent-focus` 外环。图标与名称始终同时显示，不提供隐藏名称的开关，图标栏无右键菜单。
 - 二级栏结构：只列当前一级模块的标签，不再有模块区与横线；第一行顶边紧贴顶栏下沿，不留上内边距；主机模块顶部固定一行「全部主机」（回首页，首页时为选中态，左侧 20px / 描边 1.5 的 `Server` 图标，与通知分区标题同规），其下 8px 留白再列已打开的主机与分组（可拖拽排序、右键菜单；分组左侧同规 `Folder` 图标，组内主机缩进对齐分组标题文字）。从全部主机打开主机时，侧栏只加入这台主机，不自动打开所属分组；分组要单独打开才出现在侧栏，其下仍列出该组里已打开的主机。巡检即使只有一项也照常显示二级栏，避免切模块时版面跳动；整栏独立滚动。图标栏与二级栏各自有一处选中色块，属正常。
 - 页面提示条（`Notice` / `FlashNotices` + `useFlashMessage`），视觉按 TDesign Alert：
   - 四种 theme：success（`--color-success` / `success-soft`，绿，同 TDesign）、info（`info` / `info-soft`）、warning（`warn` / `warn-soft`，组件里旧名 `warn` 等价）、error（`danger` / `danger-soft`）。

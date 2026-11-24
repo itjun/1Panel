@@ -430,12 +430,12 @@
 }
 
 .config-data-file-list button:hover {
-  background: var(--color-line);
+  background: var(--color-item-hover);
 }
 
 .config-data-file-list button.is-selected {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--color-item-selected-text);
+  background: var(--color-item-selected);
 }
 
 .config-data-file-list button > span {

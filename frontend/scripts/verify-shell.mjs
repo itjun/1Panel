@@ -110,8 +110,8 @@ if (/\.content-float\s*\{[^}]*border-radius:/s.test(shellStyles)) {
 if (!shellStyles.includes("--radius-surface: 0px") && !shellStyles.includes("--radius-surface: 0;")) {
   fail("--radius-surface must be 0 (right angles)");
 }
-if (!/\.rail-item-active\s*\{[^}]*var\(--color-accent-soft\)/s.test(shellStyles)) {
-  fail("rail-item-active must use --color-accent-soft");
+if (!/\.workspace-sidebar \.glass-chrome button\[aria-current="page"\]\s*\{[^}]*var\(--color-nav-selected\)[^}]*var\(--color-nav-selected-text\)/s.test(shellStyles)) {
+  fail("the active navigation row must use the secondary navigation selection colors");
 }
 if (
   /html,\s*body,\s*#app,\s*\.react-root\s*\{[^}]*transparent/s.test(shellStyles)

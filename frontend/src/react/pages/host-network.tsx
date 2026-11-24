@@ -163,7 +163,7 @@ function SimpleRows({
             rows.map((row) => (
               <tr
                 key={row.id}
-                className={row.className || "h-table-row border-b border-line hover:bg-raised"}
+                className={row.className || "h-table-row border-b border-line"}
               >
                 {row.cells.map((cell, index) => {
                   const header = headers[index];
@@ -202,7 +202,7 @@ function IpCopyButton({
     <button
       type="button"
       data-tip={`点击复制 ${ip}`}
-      className="-mx-2 inline-flex max-w-full items-center gap-2 rounded-control px-2 py-1 text-left hover:bg-raised"
+      className="-mx-2 inline-flex max-w-full items-center gap-2 rounded-control px-2 py-1 text-left hover:bg-item-hover"
       onClick={() => {
         void copyText(ip)
           .then(() => flash.showToast(`已复制 ${ip}`))
@@ -265,7 +265,7 @@ function IpList({
       {hasMore ? (
         <button
           type="button"
-          className="-mx-2 rounded-control px-2 py-1 text-xs text-accent hover:bg-raised"
+          className="-mx-2 rounded-control px-2 py-1 text-xs text-accent hover:bg-item-hover"
           onClick={onToggle}
         >
           {expanded ? "收起" : `+${ips.length - IP_COLLAPSE_LIMIT}`}
@@ -1140,7 +1140,7 @@ export function NetworkPage({ host }: { host: string }) {
                   id: `conn-${seq}-${conn.pid}-${conn.localAddr}-${conn.remoteAddr}`,
                   className: conn.slow
                     ? "h-table-row border-b border-line bg-danger-soft"
-                    : "h-table-row border-b border-line hover:bg-raised",
+                    : "h-table-row border-b border-line",
                   cells: [
                     <span key="state" className="inline-flex items-center gap-1">
                       <ConnState state={conn.state || ""} />

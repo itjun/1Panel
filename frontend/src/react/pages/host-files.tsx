@@ -202,8 +202,8 @@ function RemoteCodePage({ host, kind }: { host: string; kind: "nginx" | "apt" | 
           {(listing.data?.files || []).map((file) => (
             <button key={file.path} type="button"
               className={file.path === path
-                ? "flex h-table-row w-full items-center px-3 text-left font-mono text-sm font-semibold text-accent bg-accent-soft"
-                : "flex h-table-row w-full items-center px-3 text-left font-mono text-sm hover:bg-raised"}
+                ? "flex h-table-row w-full items-center px-3 text-left font-mono text-sm font-semibold text-item-selected-text bg-item-selected"
+                : "flex h-table-row w-full items-center px-3 text-left font-mono text-sm hover:bg-item-hover"}
               onClick={() => setSelected(file.path)}>
               <span className="min-w-0 truncate" data-tip={file.name} data-tip-overflow="">{file.name}</span>
             </button>

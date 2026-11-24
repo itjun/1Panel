@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import type { speedtest } from "@/api";
 import { Tag } from "@/react/components/ui/tag";
 import { cn } from "@/react/lib/utils";
@@ -53,7 +54,7 @@ function PathCard({
       aria-pressed={clickable ? active : undefined}
       onClick={() => clickable && summary.best && onSelect(summary.best)}
       onKeyDown={(e) => {
-        if (!clickable || !summary.best) return;
+        if (e.target !== e.currentTarget || !clickable || !summary.best) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onSelect(summary.best);
@@ -61,14 +62,14 @@ function PathCard({
       }}
       className={cn(
         "motion-colors flex min-w-0 flex-col gap-3 rounded-panel p-4 text-left",
-        active ? "bg-accent-soft" : "bg-raised",
-        clickable && !active && "cursor-pointer hover:bg-accent-tint",
+        active ? "bg-item-selected" : "bg-raised",
+        clickable && !active && "cursor-pointer hover:bg-item-hover",
         !available && "opacity-60",
       )}
     >
       <div className="flex items-center gap-2">
         <StatusLed on={available} />
-        <span className={cn("text-sm font-semibold", active ? "text-accent" : available ? "text-ink" : "text-muted")}>
+        <span className={cn("text-sm font-semibold", active ? "text-item-selected-text" : available ? "text-ink" : "text-muted")}>
           {title}
         </span>
         {recommended && available ? <Tag tone="accent">推荐</Tag> : null}
@@ -89,20 +90,23 @@ function PathCard({
                 <button
                   type="button"
                   disabled={!pick}
+                  aria-pressed={isSel}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (pick) onSelect(c);
                   }}
                   className={cn(
                     "flex w-full min-w-0 items-center gap-2 rounded-control px-2 py-1 text-left text-xs",
-                    pick ? "cursor-pointer hover:bg-surface" : "cursor-default",
-                    isSel && "bg-surface",
+                    pick && !isSel && "cursor-pointer hover:bg-item-hover",
+                    isSel && "bg-item-selected font-semibold text-item-selected-text",
+                    !pick && "cursor-default",
                   )}
                 >
                   <StatusLed on={c.ok} className="size-1.5" />
                   <span className={cn("min-w-0 flex-1 truncate", c.ok ? "text-ink" : "text-muted")}>
                     {candidateTitle(c, report)}
                   </span>
+                  {isSel ? <Check size={14} className="shrink-0 text-accent" aria-hidden /> : null}
                   {c.linkMbps ? (
                     <span className="shrink-0 text-muted tabular-nums" data-tip={`两端网卡协商速率：${linkSidesText(c)}`}>
                       上限 {linkSpeedText(c.linkMbps)}

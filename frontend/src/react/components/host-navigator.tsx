@@ -30,6 +30,7 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
   const session = useSession();
   const [picker, setPicker] = useState<Picker>(null);
   const pickerRef = useRef<Picker>(null);
+  const hoveredHost = useRef("");
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -52,6 +53,7 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
   current.current = { session, choices, opened, onReload, items };
 
   const changePicker = useCallback((next: Picker) => {
+    hoveredHost.current = "";
     pickerRef.current = next;
     setPicker(next);
   }, []);
@@ -111,7 +113,7 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
             previousFocus.current = document.activeElement as HTMLElement;
             savePreview();
           }
-          const from = active?.mode === "switch" ? active.selected : current.current.session.workspace === "remote" && !current.current.session.settingsOpen ? current.current.session.activeHost : "";
+          const from = active?.mode === "switch" ? hoveredHost.current || active.selected : current.current.session.workspace === "remote" && !current.current.session.settingsOpen ? current.current.session.activeHost : "";
           changePicker({ mode: "switch", selected: stepHostChoice(hosts, from, action === "previous" ? -1 : 1) });
         }
         return;
@@ -123,7 +125,8 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
       } else if (event.key === "Enter") {
         if (event.target instanceof Element && event.target.closest("button")) return;
         event.preventDefault(); event.stopPropagation();
-        const target = current.current.items.find((item) => item.name === active.selected) || current.current.items[0];
+        const targetName = hoveredHost.current || active.selected;
+        const target = current.current.items.find((item) => item.name === targetName) || current.current.items[0];
         if (target) choose(target.name);
       } else if (["ArrowDown", "ArrowUp", ...(active.mode === "switch" ? ["ArrowLeft", "ArrowRight", "Home", "End"] : [])].includes(event.key)) {
         event.preventDefault(); event.stopPropagation();
@@ -131,7 +134,7 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
         const columns = list.current ? getComputedStyle(list.current).gridTemplateColumns.split(" ").length : 3;
         let step = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1;
         if (active.mode === "switch" && (event.key === "ArrowUp" || event.key === "ArrowDown")) step *= columns;
-        const name = event.key === "Home" ? hosts[0]?.name : event.key === "End" ? hosts[hosts.length - 1]?.name : stepHostChoice(hosts, active.selected, step);
+        const name = event.key === "Home" ? hosts[0]?.name : event.key === "End" ? hosts[hosts.length - 1]?.name : stepHostChoice(hosts, hoveredHost.current || active.selected, step);
         if (name) changePicker({ ...active, selected: name });
       }
     };
@@ -139,7 +142,8 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
       const active = pickerRef.current;
       if (active?.mode !== "switch" || event.key !== "Control") return;
       event.preventDefault(); event.stopPropagation();
-      if (current.current.opened.some((host) => host.name === active.selected)) choose(active.selected);
+      const name = hoveredHost.current || active.selected;
+      if (current.current.opened.some((host) => host.name === name)) choose(name);
       else close();
     };
     const onVisibility = () => { if (document.hidden) close(); };
@@ -167,7 +171,7 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
       onCloseAutoFocus={(event) => { event.preventDefault(); if (previousFocus.current?.isConnected) previousFocus.current.focus(); }}>
       <div className="mb-5 flex shrink-0 items-center justify-between gap-4">
         <DialogTitle>{picker?.mode === "switch" ? "切换主机" : "打开远程主机"}</DialogTitle>
-        <button type="button" aria-label="关闭" className="grid h-7 w-7 place-items-center rounded-control text-muted hover:bg-raised hover:text-ink" onClick={close}><X size={16} /></button>
+        <button type="button" aria-label="关闭" className="grid h-7 w-7 place-items-center rounded-control text-muted hover:bg-item-hover hover:text-ink" onClick={close}><X size={16} /></button>
       </div>
       {picker?.mode === "open" ? <div className="host-open-search mb-4 flex shrink-0 items-center gap-2 rounded-control border border-line-strong px-3 focus-within:border-accent">
         <Search size={17} className="shrink-0 text-muted" />
@@ -189,7 +193,9 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
           return <div key={host.name} id={`${listId}-${index}`} role="option" aria-label={`${host.name} ${host.group} ${tool}`} aria-selected={isSelected}
             className={cn("host-navigator-option", picker?.mode === "switch" ? "host-switch-card" : "host-open-row", isSelected && "is-selected")}
             onClick={() => choose(host.name)} onPointerMove={(event) => {
-              if ((event.movementX || event.movementY) && !isSelected && picker) changePicker({ ...picker, selected: host.name });
+              if (event.movementX || event.movementY) hoveredHost.current = host.name;
+            }} onPointerLeave={() => {
+              if (hoveredHost.current === host.name) hoveredHost.current = "";
             }}>
             {picker?.mode === "switch" ? <>
               {preview && preview.tool === host.tool ? <Preview preview={preview} /> : <div className="host-switch-preview flex flex-col items-center justify-center gap-2 text-muted"><DistroBadge boxSize={40} osRelease={session.osRelease[host.name]} isTooltipEnabled={false} /><span className="text-sm">{tool}</span></div>}

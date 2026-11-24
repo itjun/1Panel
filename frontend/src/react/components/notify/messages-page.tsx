@@ -670,7 +670,7 @@ function IncidentRow({
       onClick={onClick}
       className={cn(
         "motion-colors flex w-full flex-col gap-1 border-b border-line px-4 py-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-focus",
-        selected ? "bg-accent-soft" : "hover:bg-raised",
+        selected ? "bg-item-selected" : "hover:bg-item-hover",
       )}
     >
       <span className="flex min-h-6 items-center gap-2 text-sm">
@@ -679,7 +679,7 @@ function IncidentRow({
           className={cn(
             "min-w-0 truncate",
             inc.unread && "font-semibold",
-            selected && "text-accent",
+            selected && "text-item-selected-text",
           )}
         >
           {appPage ? inc.service || kindLabel(inc.kind) : inc.host || "—"}

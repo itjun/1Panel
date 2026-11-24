@@ -488,7 +488,7 @@ function AppsTable({
                   key={`${row.service}-${row.pid}-${row.port}-${idx}`}
                   className={
                     chartsAvailable
-                      ? "group h-table-row border-b border-line last:border-b-0 hover:bg-raised"
+                      ? "group h-table-row border-b border-line last:border-b-0 hover:bg-item-hover"
                       : "h-table-row border-b border-line text-muted last:border-b-0"
                   }
                   onContextMenu={(event) => onRowContextMenu(row, event)}
@@ -666,7 +666,7 @@ function AppMenu({
         type="button"
         role="menuitem"
         disabled={!canOpenProcess(target.row)}
-        className="block h-9 w-full px-3 text-left hover:bg-raised disabled:text-muted disabled:opacity-40"
+        className="block h-9 w-full px-3 text-left hover:bg-item-hover disabled:text-muted disabled:opacity-40"
         onClick={() => {
           onClose();
           onOpenProcess(target.row);
@@ -678,7 +678,7 @@ function AppMenu({
         type="button"
         role="menuitem"
         disabled={!canOpenLogs(target.row)}
-        className="block h-9 w-full px-3 text-left hover:bg-raised disabled:text-muted disabled:opacity-40"
+        className="block h-9 w-full px-3 text-left hover:bg-item-hover disabled:text-muted disabled:opacity-40"
         onClick={() => {
           onClose();
           onOpenLogs(target.row);
@@ -690,7 +690,7 @@ function AppMenu({
         type="button"
         role="menuitem"
         disabled={!canOpenCharts(target.row)}
-        className="block h-9 w-full px-3 text-left hover:bg-raised disabled:text-muted disabled:opacity-40"
+        className="block h-9 w-full px-3 text-left hover:bg-item-hover disabled:text-muted disabled:opacity-40"
         onClick={() => {
           onClose();
           onOpen(target.row);

@@ -173,7 +173,7 @@ export function HostToolTabs() {
               type="button"
               role="menuitem"
               key={tool.id}
-              className="flex h-8 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised focus-visible:bg-accent-soft"
+              className="flex h-8 w-full items-center rounded-control px-3 text-left text-sm hover:bg-item-hover focus-visible:outline-2 focus-visible:outline-accent-focus"
               onClick={() => {
                 choose(tool.id);
                 requestAnimationFrame(() =>

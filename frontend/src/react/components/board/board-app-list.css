@@ -73,7 +73,7 @@
 
 .board-app-list .board-app-list__more.is-critical { color: var(--color-danger); }
 .board-app-list .board-app-list__more.is-unknown { color: var(--color-warn); }
-.board-app-list button.board-app-list__more:hover { background: var(--color-raised); }
+.board-app-list button.board-app-list__more:hover { background: var(--color-item-hover); }
 .board-app-list button.board-app-list__more:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 
 /* 保留与真实标签相同的宽度约束，只测量尺寸，既不占位也不进入键盘/读屏顺序。 */

@@ -154,7 +154,7 @@ function MenuItem({
   return (
     <button
       type="button"
-      className={`flex w-full items-center justify-start px-3 py-2 text-left hover:bg-raised ${
+      className={`flex w-full items-center justify-start px-3 py-2 text-left hover:bg-item-hover ${
         danger ? "text-danger" : "text-ink"
       }`}
       onClick={onClick}
@@ -919,7 +919,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             aria-label="折叠或展开分组"
             aria-expanded={!collapsed}
             data-collapse-toggle
-            className="ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:text-ink"
+            className="ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:bg-item-hover hover:text-ink"
             onClick={(event) => {
               event.stopPropagation();
               toggleCollapsed(section.id);
@@ -947,7 +947,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
           </button>
           <button
             type="button"
-            className={`flex h-full min-w-0 flex-1 items-center gap-2 px-1 text-left hover:text-accent ${sortable ? "cursor-grab" : ""}`}
+            className={`flex h-full min-w-0 flex-1 items-center gap-2 px-1 text-left hover:bg-item-hover hover:text-ink ${sortable ? "cursor-grab" : ""}`}
             onClick={() => {
               if (suppressClick.current) return;
               if (section.isPinned) return;
@@ -1070,7 +1070,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         aria-label={rackName}>
         {showGapLine ? <div className="host-rack-lane-insert" /> : null}
         <button type="button"
-          className="group/rack-name flex h-6 w-fit max-w-full items-center gap-2 rounded-control px-1 text-xs text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
+          className="group/rack-name flex h-6 w-fit max-w-full items-center gap-2 rounded-control px-1 text-xs text-muted hover:bg-item-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
           aria-label={`设置机柜名称：${rackName}`} title="设置机柜名称"
           onClick={() => setRackSettings({ id: row.rack.id, name: row.rack.name })}>
           <span className="truncate">{rackName}</span><Pencil size={12} className="shrink-0 opacity-0 group-hover/rack-name:opacity-100 group-focus-visible/rack-name:opacity-100" />
@@ -1168,7 +1168,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             <button
               type="button"
               aria-label="清空筛选"
-              className="motion-colors inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-control text-muted hover:bg-line hover:text-ink"
+              className="motion-colors inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-control text-muted hover:bg-item-hover hover:text-ink"
               onClick={() => {
                 setQuery("");
                 searchRef.current?.focus();
@@ -1499,7 +1499,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               >
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-raised"
+                  className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-item-hover"
                 >
                   <span>迁移分组</span>
                   <span className="text-muted">›</span>
@@ -1508,10 +1508,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                   <div className="absolute left-full top-0 z-[62] ml-1 max-h-[280px] min-w-[148px] overflow-y-auto rounded-panel border border-line bg-surface py-1">
                     <button
                       type="button"
-                      className={`flex w-full px-3 py-2 text-left hover:bg-raised ${
+                      className={`flex w-full px-3 py-2 text-left ${
                         session.groupIdOf(hostMenu.host) === ""
-                          ? "bg-accent-soft font-semibold text-accent"
-                          : ""
+                          ? "bg-item-selected font-semibold text-item-selected-text"
+                          : "hover:bg-item-hover"
                       }`}
                       onClick={() => {
                         const name = hostMenu.host;
@@ -1525,10 +1525,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
                       <button
                         key={g.id}
                         type="button"
-                        className={`flex w-full px-3 py-2 text-left hover:bg-raised ${
+                        className={`flex w-full px-3 py-2 text-left ${
                           session.groupIdOf(hostMenu.host) === g.id
-                            ? "bg-accent-soft font-semibold text-accent"
-                            : ""
+                            ? "bg-item-selected font-semibold text-item-selected-text"
+                            : "hover:bg-item-hover"
                         }`}
                         onClick={() => {
                           const name = hostMenu.host;

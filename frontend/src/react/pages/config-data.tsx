@@ -487,8 +487,8 @@ export function ConfigDataPage() {
                       <tr
                         key={item.path}
                         className={cn(
-                          "h-table-row border-b border-line hover:bg-raised",
-                          expanded && "bg-accent-soft hover:bg-accent-soft",
+                          "h-table-row border-b border-line hover:bg-item-hover",
+                          expanded && "bg-item-selected hover:bg-item-selected",
                         )}
                       >
                         <td className="px-3 tabular-nums text-ink" title={item.path}>{time(item.createdAt)}</td>

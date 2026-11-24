@@ -124,9 +124,8 @@ export function WorkspaceRail() {
     });
   }, [session.activeHost]);
 
-  // 进入分组页时清掉主机多选，避免与分组 active 叠出双高亮
+  // 离开主机会话时清除旧选择，之后仍可在列表内重新多选。
   useEffect(() => {
-    if (session.homeView !== "group") return;
     if (session.activeHost) return;
     setSelectedHostNames((prev) => (prev.length === 0 ? prev : []));
     hostAnchorRef.current = "";
@@ -215,9 +214,9 @@ export function WorkspaceRail() {
   }
 
   function endRailDrag() {
+    setHoverKey("");
     setRailDragKey("");
     setRailDrop(null);
-    setHoverKey("");
     window.setTimeout(() => {
       suppressHostClickRef.current = false;
     }, 0);
@@ -265,9 +264,9 @@ export function WorkspaceRail() {
         label={name}
         indented={indented}
         active={session.activeHost === name}
-        selected={!!session.activeHost && selectedHostNames.includes(name)}
+        selected={selectedHostNames.includes(name)}
         hovered={hoverKey === name || hostMenu?.host === name}
-        onHover={() => setHoverKey(name)}
+        onHoverChange={setHoverKey}
         dragging={railDragKey === name}
         dropEdge={railDrop?.key === name ? (railDrop.before ? "before" : "after") : null}
         onPointerDown={(e) => {
@@ -323,7 +322,6 @@ export function WorkspaceRail() {
       <div
         key={listKind}
         className="motion-fade-in flex min-h-0 flex-1 flex-col overflow-auto"
-        onPointerLeave={() => setHoverKey("")}
         onContextMenu={(e) => {
           if (listKind !== "hosts") return;
           if ((e.target as HTMLElement).closest("button")) return;
@@ -417,7 +415,7 @@ export function WorkspaceRail() {
                   }
                   selected={false}
                   hovered={hoverKey === item.key}
-                  onHover={() => setHoverKey(item.key)}
+                  onHoverChange={setHoverKey}
                   dragging={false}
                   dropEdge={null}
                   onPointerDown={(e) => {
@@ -507,7 +505,7 @@ function RailNavButton({
       type="button"
       className={cn(
         "rail-item relative flex h-10 shrink-0 items-center gap-2 px-3 text-left",
-        active ? "rail-item-active" : "text-muted hover:bg-line hover:text-ink",
+        active ? "rail-item-active" : "text-muted",
       )}
       aria-current={active ? "page" : undefined}
       onClick={onClick}
@@ -527,7 +525,7 @@ function RailSessionRow({
   active,
   selected,
   hovered,
-  onHover,
+  onHoverChange,
   dragging,
   dropEdge,
   onPointerDown,
@@ -546,7 +544,7 @@ function RailSessionRow({
   active: boolean;
   selected: boolean;
   hovered: boolean;
-  onHover: () => void;
+  onHoverChange: (key: string) => void;
   dragging: boolean;
   dropEdge: "before" | "after" | null;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -557,15 +555,6 @@ function RailSessionRow({
   onDrop: (event: DragEvent<HTMLButtonElement>) => void;
   onDragEnd: () => void;
 }) {
-  // 侧栏是 canvas 底，raised 对比不够，hover / 多选浅底统一用 line
-  let stateClass = "text-muted";
-  if (active) {
-    stateClass = "rail-item-active";
-  } else if (selected || hovered) {
-    // 多选中的其他主机：浅底区分，不与当前主机的选中样式混淆
-    stateClass = "bg-line text-ink";
-  }
-
   return (
     <button
       type="button"
@@ -573,14 +562,16 @@ function RailSessionRow({
       data-rail-key={entryKey}
       aria-current={active ? "page" : undefined}
       aria-pressed={selected}
+      data-hovered={hovered || undefined}
+      onPointerMove={() => onHoverChange(entryKey)}
+      onPointerLeave={() => onHoverChange("")}
       onClick={event => { if (event.detail === 0) onActivate(); }}
       className={cn(
         "rail-item relative flex h-10 shrink-0 cursor-grab select-none items-center gap-2 truncate pr-3 text-left active:cursor-grabbing",
         indented ? "pl-10" : "pl-3",
-        stateClass,
+        active ? "rail-item-active" : "text-muted",
         dragging && "opacity-40",
       )}
-      onPointerMove={onHover}
       onPointerDown={onPointerDown}
       onContextMenu={onContextMenu}
       onDragStart={onDragStart}
@@ -657,7 +648,7 @@ function CtxItem({
     <button
       type="button"
       className={cn(
-        "flex w-full items-center px-3 py-2 text-left hover:bg-raised",
+        "flex w-full items-center px-3 py-2 text-left hover:bg-item-hover",
         danger && "text-danger hover:bg-danger-soft",
       )}
       onClick={onClick}

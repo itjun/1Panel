@@ -88,14 +88,13 @@ export function AppLogDialog({
         </div>
         <div role="group" aria-label="日志级别筛选" className="flex shrink-0 flex-wrap items-center gap-2">
           <span className="text-xs text-muted">日志级别</span>
-          <Button size="sm" variant={selectedLevel === null ? "primary" : "secondary"} aria-pressed={selectedLevel === null} onClick={() => setSelectedLevel(null)}>
+          <Button size="sm" aria-pressed={selectedLevel === null} onClick={() => setSelectedLevel(null)}>
             全部
           </Button>
           {APP_LOG_LEVELS.map((level) => (
             <Button
               key={level}
               size="sm"
-              variant={selectedLevel === level ? "primary" : "secondary"}
               aria-pressed={selectedLevel === level}
               onClick={() => setSelectedLevel(level)}
             >

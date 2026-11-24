@@ -71,8 +71,8 @@ function TreeNodeRow({
         type="button"
         className={
           selected
-            ? "flex w-full items-center gap-1 bg-accent-soft px-2 py-1.5 text-left text-sm font-semibold text-accent"
-            : "flex w-full items-center gap-1 px-2 py-1.5 text-left text-sm hover:bg-raised"
+            ? "flex w-full items-center gap-1 bg-item-selected px-2 py-1.5 text-left text-sm font-semibold text-accent"
+            : "flex w-full items-center gap-1 px-2 py-1.5 text-left text-sm hover:bg-item-hover"
         }
         style={{
           paddingLeft: 8 + depth * 14,
@@ -81,7 +81,7 @@ function TreeNodeRow({
       >
         {entry.isDir ? (
           <span
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-control text-xs text-muted hover:bg-line"
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-control text-xs text-muted hover:bg-item-hover"
             onClick={(event) => {
               event.stopPropagation();
               onToggle(entry.path);

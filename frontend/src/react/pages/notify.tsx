@@ -351,7 +351,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                     data-notify-host={host}
                     className={cn(
                       "h-table-row border-b border-line",
-                      focus?.host === host && "bg-accent-soft",
+                      focus?.host === host && "bg-item-selected",
                     )}
                   >
                     <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
@@ -369,7 +369,7 @@ function SubsPage({ kind }: { kind: "metricSubs" | "appSubs" }) {
                       className={cn(
                         "notify-sub-host sticky z-10 px-3",
                         focus?.host === host
-                          ? "bg-accent-soft text-accent"
+                          ? "bg-item-selected text-item-selected-text"
                           : "bg-surface",
                       )}
                     >

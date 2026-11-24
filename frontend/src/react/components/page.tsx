@@ -165,7 +165,7 @@ export function Notice({
           type="button"
           aria-label="关闭提示"
           onClick={onClose}
-          className="motion-colors -mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-control text-muted hover:text-ink focus-visible:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          className="motion-colors -mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-control text-muted hover:bg-item-hover hover:text-ink focus-visible:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
         >
           <X size={16} strokeWidth={1.5} aria-hidden />
         </button>

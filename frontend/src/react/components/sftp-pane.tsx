@@ -334,7 +334,7 @@ export function SftpPane(props: Props) {
       <div className="relative">
         <button
           type="button"
-          className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-line"
+          className="flex h-8 items-center gap-1 rounded-control px-2 text-sm hover:bg-item-hover"
           onClick={(event) => {
             event.stopPropagation();
             setMenuOpen((value) => !value);
@@ -410,7 +410,7 @@ export function SftpPane(props: Props) {
             />
           ) : (
             <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-auto">
-              <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded-control px-1.5 py-1 text-sm text-ink hover:bg-raised hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
+              <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded-control px-1.5 py-1 text-sm text-ink hover:bg-item-hover hover:text-accent" onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); go(props.rootPath); }}>
                 <FolderIcon />
                 根目录
               </button>
@@ -420,7 +420,7 @@ export function SftpPane(props: Props) {
                   <button
                     type="button"
                     className={cn(
-                      "inline-flex max-w-[200px] items-center gap-1 truncate rounded-control px-1.5 py-1 text-sm text-ink hover:bg-raised hover:text-accent",
+                      "inline-flex max-w-[200px] items-center gap-1 truncate rounded-control px-1.5 py-1 text-sm text-ink hover:bg-item-hover hover:text-accent",
                       index === segments.length - 1 && "font-semibold",
                     )}
                     onMouseDown={(event) => {
@@ -507,8 +507,8 @@ export function SftpPane(props: Props) {
               className={cn(
                 "grid h-table-row cursor-grab grid-cols-[minmax(120px,240px)_minmax(108px,148px)_64px_56px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3 text-sm",
                 selected.includes(entry.path)
-                  ? "bg-accent-soft font-semibold text-accent"
-                  : "hover:bg-raised",
+                  ? "bg-item-selected font-semibold text-item-selected-text"
+                  : "hover:bg-item-hover",
                 hoverDir === entry.path &&
                   !selected.includes(entry.path) &&
                   "bg-accent-soft outline-1 -outline-offset-1 outline-accent",
@@ -697,7 +697,7 @@ function MenuButton({
       className={cn(
         "flex w-full rounded-control px-2.5 py-1.5 text-left text-sm",
         danger ? "text-danger" : "text-ink",
-        disabled ? "cursor-default opacity-35" : "hover:bg-raised",
+        disabled ? "cursor-default opacity-35" : "hover:bg-item-hover",
       )}
       onClick={onClick}
     >
@@ -744,7 +744,7 @@ function IconButton({
       data-tip={label}
       aria-label={label}
       disabled={disabled}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-control text-ink hover:bg-raised disabled:cursor-default disabled:opacity-30"
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-control text-ink hover:bg-item-hover disabled:cursor-default disabled:opacity-30"
       onClick={onClick}
     >
       <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">

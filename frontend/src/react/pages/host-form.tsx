@@ -25,7 +25,7 @@ function DockCloseButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       aria-label="关闭"
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted hover:bg-item-hover"
       onClick={onClick}
     >
       <svg

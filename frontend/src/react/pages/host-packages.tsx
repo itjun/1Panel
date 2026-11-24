@@ -48,7 +48,7 @@ function SimpleRows({
             </tr>
           ) : (
             rows.map((row, rowIndex) => (
-              <tr key={row.id} className="h-table-row border-b border-line hover:bg-raised">
+              <tr key={row.id} className="h-table-row border-b border-line">
                 <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
                   {rowIndex + 1}
                 </td>
@@ -230,13 +230,13 @@ export function PackagesPage({ host }: { host: string }) {
             onChange={(e) => setFilter(e.target.value)}
           />
           <Button
-            variant={sortKey === "name" ? "primary" : "secondary"}
+            aria-pressed={sortKey === "name"}
             onClick={() => toggleSort("name")}
           >
             按名{sortKey === "name" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
           </Button>
           <Button
-            variant={sortKey === "depends" ? "primary" : "secondary"}
+            aria-pressed={sortKey === "depends"}
             onClick={() => toggleSort("depends")}
           >
             按依赖数{sortKey === "depends" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}

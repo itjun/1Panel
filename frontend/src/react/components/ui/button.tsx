@@ -11,10 +11,10 @@ const buttonVariants = cva(
         /* 主操作才用 primary，字重 600；其余 400（docs/design/specification.md §3.3 只用 400 / 600） */
         primary:
           "bg-accent font-semibold text-on-accent hover:bg-accent-hover active:bg-accent-active",
-        secondary: "bg-raised text-ink hover:bg-line",
+        secondary: "bg-raised text-ink hover:bg-item-hover aria-pressed:bg-item-selected aria-pressed:font-semibold aria-pressed:text-item-selected-text aria-pressed:hover:bg-item-selected",
         /* 没有 danger-hover token，hover 用整体透明度而非 bg-danger/90（后者会生成 color-mix） */
         danger: "bg-danger text-on-danger hover:opacity-90 active:opacity-100",
-        ghost: "text-ink hover:bg-raised",
+        ghost: "text-ink hover:bg-item-hover",
       },
       size: {
         /* 默认 32px / 小 28px */

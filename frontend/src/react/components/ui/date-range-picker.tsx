@@ -192,7 +192,7 @@ export function DateRangePicker({
           <button
             type="button"
             onClick={pickNow}
-            className="rounded-control px-2 py-1 text-sm text-accent motion-colors hover:bg-accent-soft"
+            className="rounded-control px-2 py-1 text-sm text-accent motion-colors hover:bg-item-hover"
           >
             此刻
           </button>
@@ -312,15 +312,15 @@ function CalendarPanel({
           }
           const isToday = isSameDay(day, today);
 
-          let cellClass = "text-ink hover:bg-raised";
+          let cellClass = "text-ink hover:bg-item-hover";
           if (!inMonth) {
-            cellClass = "text-muted hover:bg-raised";
+            cellClass = "text-muted hover:bg-item-hover";
           }
           if (inRange) {
-            cellClass = "bg-accent-soft text-accent";
+            cellClass = "bg-item-selected text-item-selected-text";
           }
           if (isEndpoint) {
-            cellClass = "bg-accent text-on-accent";
+            cellClass = "bg-item-selected font-semibold text-item-selected-text";
           }
 
           return (
@@ -360,7 +360,7 @@ function NavButton({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="flex h-7 w-7 items-center justify-center rounded-control text-muted motion-colors hover:bg-raised hover:text-ink"
+      className="flex h-7 w-7 items-center justify-center rounded-control text-muted motion-colors hover:bg-item-hover hover:text-ink"
     >
       {children}
     </button>
@@ -397,7 +397,7 @@ function TimeColumn({
           onClick={() => onPick(n)}
           className={cn(
             "flex h-7 w-full items-center justify-center rounded-control text-sm tabular-nums motion-colors",
-            n === selected ? "bg-accent-soft text-accent" : "text-ink hover:bg-raised",
+            n === selected ? "bg-item-selected text-item-selected-text" : "text-ink hover:bg-item-hover",
           )}
         >
           {pad2(n)}

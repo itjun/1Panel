@@ -7,9 +7,21 @@ test("默认配色、十组马卡龙与八组撞色独立保留", () => {
   for (const value of [undefined, null, "", "unknown", "__proto__", 2]) expect(parseColorPalette(value)).toBe("classic");
   for (const palette of COLOR_PALETTES) expect(parseColorPalette(palette.id)).toBe(palette.id);
   const light = paletteTokens("classic", "light");
-  expect([light["--color-rail"], light["--color-canvas"], light["--color-surface"], light["--color-accent"]]).toEqual(["#eaebee", "#f2f3f5", "#ffffff", "#006ac7"]);
+  expect([light["--color-rail"], light["--color-canvas"], light["--color-surface"], light["--color-accent"]]).toEqual(["#eaebee", "#f2f3f5", "#ffffff", "#0066bf"]);
   const dark = paletteTokens("classic", "dark");
   expect([dark["--color-rail"], dark["--color-canvas"], dark["--color-surface"]]).toEqual(["#0d1017", "#12161f", "#1a1f2b"]);
+});
+
+test("默认配色的悬停和选中底色与确认稿一致", () => {
+  expect(paletteTokens("classic", "light")).toMatchObject({
+    "--color-rail-selected": "#d7e3f6", "--color-rail-selected-text": "#277ef0",
+    "--color-nav-selected": "#eaf4fe", "--color-nav-selected-text": "#080a0c",
+    "--color-item-hover": "#e1e6ec", "--color-item-selected": "#eaf4fe", "--color-item-selected-text": "#080a0c",
+  });
+  expect(paletteTokens("classic", "dark")).toMatchObject({
+    "--color-rail-selected": "#0964cb", "--color-nav-selected": "#0964cb",
+    "--color-item-hover": "#3a3c41", "--color-item-selected": "#20374c", "--color-item-selected-text": "#ffffff",
+  });
 });
 
 test("旧配色设置迁移到对应风格，避免丢失已选色系", () => {
@@ -78,7 +90,7 @@ for (const palette of COLOR_PALETTES) {
   for (const mode of ["light", "dark"] as const) {
     test(`${palette.id} ${mode}: readable text, controls and health graphics`, () => {
       const colors = palette[mode];
-      const surfaces = ["--color-rail", "--color-canvas", "--color-toolbar", "--color-surface", "--color-raised", "--color-card-hover", "--color-card-selected", "--color-card-selected-hover"];
+      const surfaces = ["--color-rail", "--color-canvas", "--color-toolbar", "--color-surface", "--color-raised", "--color-item-hover", "--color-item-selected"];
       const check = (foreground: string, background: string, minimum: number) => {
         expect(contrastRatio(colors[foreground as `--${string}`], colors[background as `--${string}`]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(minimum);
       };
@@ -89,19 +101,17 @@ for (const palette of COLOR_PALETTES) {
       for (const state of ["", "-hover", "-active"]) check("--color-on-accent", `--color-accent${state}`, 4.5);
       check("--color-on-danger", "--color-danger", 4.5);
       check("--color-accent", "--color-accent-soft", 4.5);
-      check("--color-tab-hover-ink", "--color-tab-hover", 4.5);
-      for (const surface of ["--color-raised", "--color-card-hover", "--color-card-selected", "--color-card-selected-hover"]) {
+      check("--color-item-selected-text", "--color-item-selected", 4.5);
+      check("--color-nav-selected-text", "--color-nav-selected", 4.5);
+      for (const surface of ["--color-raised", "--color-item-hover", "--color-item-selected"]) {
         check("--color-card-track", surface, 1.6);
       }
-      // 悬停仅有轻微明度差，不能再跳到另一块高反差的底色。
-      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-toolbar"])).toBeGreaterThan(1.02);
-      expect(contrastRatio(colors["--color-tab-hover"], colors["--color-toolbar"])).toBeLessThan(1.3);
       check("--color-success-text", "--color-success-soft", 4.5);
       check("--color-warn", "--color-warn-soft", 4.5);
       check("--color-danger", "--color-danger-soft", 4.5);
       check("--color-info", "--color-info-soft", 4.5);
       check("--color-tooltip-text", "--color-tooltip", 4.5);
-      for (const surface of ["--color-surface", "--color-raised", "--color-card-hover", "--color-card-selected", "--color-card-selected-hover", "--meter-off"]) {
+      for (const surface of ["--color-surface", "--color-raised", "--color-item-hover", "--color-item-selected", "--meter-off"]) {
         for (const foreground of ["--meter-ok", "--meter-warn", "--meter-danger", "--color-io-read", "--color-io-write"]) check(foreground, surface, 3);
       }
       expect(new Set([colors["--meter-ok"], colors["--meter-warn"], colors["--meter-danger"]]).size).toBe(3);

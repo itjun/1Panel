@@ -174,7 +174,7 @@ export function HistoryView() {
                     onClick={() => setSelectedId(it.id === selectedId ? "" : it.id)}
                     className={cn(
                       "h-table-row cursor-pointer border-b border-line",
-                      it.id === selectedId ? "bg-accent-soft" : "hover:bg-raised",
+                      it.id === selectedId ? "bg-item-selected" : "hover:bg-item-hover",
                     )}
                   >
                     <td className="whitespace-nowrap px-3 tabular-nums text-muted">{formatTime(it.createdAt)}</td>

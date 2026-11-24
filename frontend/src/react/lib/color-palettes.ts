@@ -54,14 +54,13 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   const line = mix(base.surface, base.ink, isDark ? 0.14 : 0.12);
   const soft = (color: string) => mix(base.surface, color, isDark ? 0.16 : 0.1);
   const accentSoft = base.selection ?? soft(base.accent);
-  // 主机卡用整面选中色区分状态；默认深色保留蓝色，其他主题沿用已确认的选中色。
-  const cardSelected = isClassic && isDark ? mix(raised, base.accent, 0.2) : accentSoft;
-  const cardSelectedHover = mix(cardSelected, base.ink, isDark ? 0.035 : 0.025);
-  const cardHover = mix(raised, base.ink, isDark ? 0.045 : 0.035);
-  const cardTrack = readable(line, [raised, cardHover, cardSelected, cardSelectedHover], 1.6, base.ink);
+  const itemHover = isDark ? "#3a3c41" : "#e1e6ec";
+  const itemSelected = base.selection ?? (isDark ? "#20374c" : "#eaf4fe");
+  const selectedText = isDark ? "#ffffff" : "#080a0c";
+  const cardTrack = readable(line, [raised, itemHover, itemSelected], 1.6, base.ink);
   const materialSurfaces = [base.rail, base.canvas].flatMap((color) =>
     ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, color, shellOpacity)));
-  const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, cardSelected, cardSelectedHover];
+  const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, itemHover, itemSelected];
   // 默认配色沿 macOS 蓝色的色相校正明度，避免混入灰色文字后偏色。
   const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink);
   const muted = readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink);
@@ -71,32 +70,33 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   const warnSoft = soft(base.warn);
   const dangerSoft = soft(base.danger);
   const infoSoft = soft(base.read);
-  const graphicSurfaces = [base.surface, raised, cardSelected, cardSelectedHover, line];
+  const graphicSurfaces = [base.surface, raised, itemHover, itemSelected, line];
   const ok = readable(base.ok, graphicSurfaces, 3, base.ink);
   const meterWarn = readable(base.warn, graphicSurfaces, 3, base.ink);
   const danger = readable(base.danger, [...surfaces, dangerSoft], 4.5, base.ink);
   const read = readable(base.read, graphicSurfaces, 3, base.ink);
   const write = readable(base.write, graphicSurfaces, 3, base.ink);
-  // 通栏从内容面派生，与侧栏的辅助色独立。
-  const tabHover = mix(toolbar, base.ink, isDark ? 0.06 : 0.035);
   return {
     "--color-rail": base.rail, "--color-rail-line": mix(base.rail, base.ink, 0.1), "--color-canvas": base.canvas, "--color-surface": base.surface,
     "--color-toolbar": toolbar,
     "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${shellOpacity})`,
     "--color-canvas-translucent": `rgba(${rgb(base.canvas).join(", ")}, ${shellOpacity})`,
-    "--color-raised": raised, "--color-card-selected": cardSelected, "--color-card-selected-hover": cardSelectedHover, "--color-line": line,
-    "--color-card-hover": cardHover, "--color-card-track": cardTrack,
+    "--color-raised": raised, "--color-line": line,
+    "--color-card-track": cardTrack,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
     "--color-muted": muted,
     // 半透明导航单独校正文字，避免为了底层壁纸改变内容区的主题色。
     "--color-shell-muted": readable(muted, [...surfaces, accentSoft, ...materialSurfaces], 4.5, base.ink),
     "--color-shell-accent": readable(accent, [...surfaces, accentSoft, ...materialSurfaces], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink),
-    "--color-tab-hover": tabHover,
-    "--color-tab-hover-ink": readable(mix(base.muted, base.ink, 0.25), [toolbar, tabHover], 4.5, base.ink),
+    "--color-item-hover": itemHover, "--color-item-selected": itemSelected, "--color-item-selected-text": selectedText,
     "--color-accent": accent, "--color-accent-hover": accentHover, "--color-accent-active": accentActive,
     "--color-on-accent": foreground([accent, accentHover, accentActive]),
     "--color-accent-soft": accentSoft, "--color-accent-tint": mix(base.surface, accent, 0.045),
+    "--color-rail-selected": isClassic ? (isDark ? "#0964cb" : "#d7e3f6") : itemSelected,
+    "--color-rail-selected-text": isClassic ? (isDark ? "#ffffff" : "#277ef0") : accent,
+    "--color-nav-selected": isClassic && isDark ? "#0964cb" : itemSelected,
+    "--color-nav-selected-text": selectedText,
     "--color-accent-focus": isClassic ? base.accent : accent, "--color-selection": base.selection ?? soft(isClassic ? base.accent : accent),
     "--color-accent-veil": `rgba(${rgb(isClassic ? base.accent : accent).join(", ")}, ${isDark ? 0.18 : 0.1})`,
     "--color-line-veil": `rgba(${rgb(base.ink).join(", ")}, 0.08)`,

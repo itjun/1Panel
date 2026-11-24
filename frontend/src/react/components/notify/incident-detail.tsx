@@ -184,7 +184,7 @@ export function IncidentDetail({
                 <button
                   type="button"
                   onClick={() => onSelect(inc.id)}
-                  className="motion-colors flex h-8 w-full items-center gap-3 rounded-control px-2 text-left text-sm hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent-focus"
+                  className="motion-colors flex h-8 w-full items-center gap-3 rounded-control px-2 text-left text-sm hover:bg-item-hover focus-visible:outline-2 focus-visible:outline-accent-focus"
                 >
                   <StatusLed inc={inc} />
                   <span className="w-36 font-mono text-xs text-muted tabular-nums">

@@ -245,7 +245,7 @@ function IpCell({ ip, onCopy }: { ip: string; onCopy: (ip: string) => void }) {
         data-tip="复制"
         onClick={() => onCopy(ip)}
         onDoubleClick={(e) => e.stopPropagation()}
-        className="motion-colors inline-flex size-5 shrink-0 items-center justify-center rounded-control text-muted hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
+        className="motion-colors inline-flex size-5 shrink-0 items-center justify-center rounded-control text-muted hover:bg-item-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-focus"
       >
         <Copy size={14} strokeWidth={1.5} aria-hidden />
       </button>
@@ -655,7 +655,7 @@ export function GroupPage({
             <Button size="sm" variant="secondary" onClick={openGroupSettings}>分组设置</Button>
           </>}
           {hosts.length > 0 && <div className="workbench-group-toolbar-section">
-            <Button size="sm" aria-pressed={onlyAlerts} variant={onlyAlerts ? "primary" : "secondary"} onClick={() => setOnlyAlerts(!onlyAlerts)}>{onlyAlerts ? "清除告警筛选" : `查看告警 ${alertNames.size}`}</Button>
+            <Button size="sm" aria-pressed={onlyAlerts} onClick={() => setOnlyAlerts(!onlyAlerts)}>{onlyAlerts ? "清除告警筛选" : `查看告警 ${alertNames.size}`}</Button>
           </div>}
         </div>
 

@@ -117,7 +117,7 @@ function ContextMenu({ menu, onClose }: { menu: CtxMenu | null; onClose: () => v
           className={
             item.danger
               ? "block w-full px-3 py-2 text-left text-danger hover:bg-danger-soft"
-              : "block w-full px-3 py-2 text-left hover:bg-raised"
+              : "block w-full px-3 py-2 text-left hover:bg-item-hover"
           }
           onClick={() => {
             item.onClick();
@@ -218,8 +218,8 @@ function SimpleRows({
                 key={row.id}
                 className={
                   row.id === selectedId
-                    ? "h-table-row cursor-pointer border-b border-line bg-accent-soft font-semibold text-accent"
-                    : "h-table-row cursor-pointer border-b border-line hover:bg-raised"
+                    ? "h-table-row cursor-pointer border-b border-line bg-item-selected font-semibold text-item-selected-text"
+                    : "h-table-row cursor-pointer border-b border-line hover:bg-item-hover"
                 }
                 onClick={(e) => onRowClick?.(row.id, e)}
                 onContextMenu={(e) => {
@@ -1164,7 +1164,7 @@ function ProcessesPage({ host }: { host: string }) {
           {(["all", "java", "bun", "python", "node", "go", "docker"] as const).map((item) => (
             <Button
               key={item}
-              variant={view === item ? "primary" : "secondary"}
+              aria-pressed={view === item}
               onClick={() => setView(item)}
             >
               {tabLabel(item, item === "all" ? "全部" : item === "bun" ? "Bun" : item)}
@@ -1179,7 +1179,7 @@ function ProcessesPage({ host }: { host: string }) {
           {view !== "docker" ? (
             <>
               <Button
-                variant={sortKey === "cpu" ? "primary" : "secondary"}
+                aria-pressed={sortKey === "cpu"}
                 onClick={() => {
                   if (sortKey === "cpu") setSortDir((d) => (d === "asc" ? "desc" : "asc"));
                   else {
@@ -1191,7 +1191,7 @@ function ProcessesPage({ host }: { host: string }) {
                 CPU {sortKey === "cpu" ? (sortDir === "desc" ? "↓" : "↑") : ""}
               </Button>
               <Button
-                variant={sortKey === "rss" ? "primary" : "secondary"}
+                aria-pressed={sortKey === "rss"}
                 onClick={() => {
                   if (sortKey === "rss") setSortDir((d) => (d === "asc" ? "desc" : "asc"));
                   else {
@@ -1242,21 +1242,21 @@ function ProcessesPage({ host }: { host: string }) {
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
-                      className="bg-surface hover:bg-line"
+                      className="bg-surface hover:bg-item-hover"
                       disabled={busy}
                       onClick={() => void dockerAct(item.name, "start")}
                     >
                       启动
                     </Button>
                     <Button
-                      className="bg-surface hover:bg-line"
+                      className="bg-surface hover:bg-item-hover"
                       disabled={busy}
                       onClick={() => void dockerAct(item.name, "stop")}
                     >
                       停止
                     </Button>
                     <Button
-                      className="bg-surface hover:bg-line"
+                      className="bg-surface hover:bg-item-hover"
                       disabled={busy}
                       onClick={() => void dockerAct(item.name, "restart")}
                     >

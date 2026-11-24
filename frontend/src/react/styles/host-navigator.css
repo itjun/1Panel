@@ -11,8 +11,8 @@
 .host-navigator-switch { width: min(780px, calc(100vw - 32px)); }
 .host-navigator-items { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .host-navigator-option { cursor: pointer; border-radius: var(--radius-control); }
-.host-navigator-option:hover { background: var(--color-raised); }
-.host-navigator-option.is-selected { background: var(--color-accent-soft); }
+.host-navigator-option:hover { background: var(--color-item-hover); }
+.host-navigator-option.is-selected { background: var(--color-item-selected); color: var(--color-item-selected-text); }
 .host-open-row { display: flex; align-items: center; gap: 16px; min-height: 48px; padding: 8px 12px; }
 .host-open-row + .host-open-row { border-top: 1px solid var(--color-line); }
 .host-open-name { flex: 0 1 140px; }

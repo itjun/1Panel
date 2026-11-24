@@ -24,7 +24,7 @@ export type SelectOption<T extends string | number = string> = {
  * 下拉选择器（结构与交互照 TDesign Select，外观走本仓库 token）。
  *
  * - 触发器沿用 `.motion-field` 填充式输入框外观，打开时右侧箭头翻转。
- * - 面板：surface 底 + 1px line 描边，选项 32px 行高，hover raised，选中 accent-soft 底 + 对勾。
+ * - 面板：surface 底 + 1px line 描边，选项 32px 行高，hover item-hover，选中 item-selected 底 + 对勾。
  * - 键盘：上下移动高亮、Enter / 空格选中、Esc 关闭、Home / End 到首尾。
  * - filterable（照 TDesign Select filterable）：打开后触发器变输入框，按 value / 字符串 label / keywords
  *   不区分大小写包含匹配；此时空格是输入，只有 Enter 选中。
@@ -254,8 +254,8 @@ export function Select<T extends string | number = string>({
                 onClick={() => pick(index)}
                 className={cn(
                   "flex h-8 cursor-pointer items-center gap-2 rounded-control px-2 text-sm motion-colors",
-                  isSelected ? "bg-accent-soft text-accent" : "text-ink",
-                  isActive && !isSelected && "bg-raised",
+                  isSelected ? "bg-item-selected text-item-selected-text" : "text-ink",
+                  isActive && !isSelected && !item.disabled && "bg-item-hover",
                   item.disabled && "cursor-not-allowed text-muted opacity-50",
                 )}
               >

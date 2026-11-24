@@ -26,7 +26,7 @@ export function SortableHeader<K extends string>({
     >
       <button
         type="button"
-        className={`flex w-full items-center gap-1 rounded-control text-left hover:text-accent focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent ${align === "right" ? "justify-end text-right" : "justify-start"} ${active ? "text-accent" : "text-muted"}`}
+        className={`flex w-full items-center gap-1 rounded-control text-left focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent ${align === "right" ? "justify-end text-right" : "justify-start"} ${active ? "bg-item-selected text-item-selected-text" : "text-muted hover:bg-item-hover"}`}
         onClick={() => onSort(sortKey)}
         data-tip={`${label}：点击排序，再次点击切换升降序`}
       >

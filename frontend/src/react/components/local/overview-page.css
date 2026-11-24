@@ -2,7 +2,8 @@
 .local-summary { container: local-summary / inline-size; display: flex; flex-direction: column; gap: 40px; margin: 24px 64px; }
 .local-summary-identity { display: flex; align-items: center; gap: 16px; min-width: 0; padding-block: 8px; }
 .local-summary-trigger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-ink); cursor: pointer; }
-.local-summary-trigger:hover { background: var(--color-raised); }
+.local-summary-trigger[aria-expanded="true"] { background: var(--color-item-selected); }
+.local-summary-trigger:not([aria-expanded="true"]):hover { background: var(--color-item-hover); }
 .local-summary-trigger:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
 .local-summary-device { width: 48px; height: 48px; }
 .local-summary-host { min-width: 0; }
@@ -15,7 +16,6 @@
 .local-summary-resource > .local-summary-trigger { border-radius: 50%; margin-bottom: 4px; }
 .local-summary-resource .resource-ring { width: 224px; height: 224px; }
 .local-summary-resource .resource-ring-center > span { font-size: 18px; color: var(--color-ink); }
-.local-summary-resource > .local-summary-trigger:hover { background: transparent; }
 .local-summary-resource p { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .local-summary-secondary { color: var(--color-muted); }
 .local-summary-secondary span { margin-left: 12px; }
@@ -24,7 +24,6 @@
 .local-summary-interfaces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
 .local-summary-interface { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .local-summary-network-icon { width: 36px; height: 36px; }
-.local-summary-network-icon:hover, .local-summary-network-title:hover { background: var(--color-surface); }
 .local-summary-interface-copy { min-width: 0; font-size: 16px; }
 .local-summary-interface-copy > div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .local-summary-interface-copy strong { font-weight: 600; }

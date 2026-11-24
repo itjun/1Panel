@@ -104,7 +104,7 @@ export function ParamsForm({
       <button
         type="button"
         onClick={() => setAdvanced((v) => !v)}
-        className="motion-colors inline-flex w-fit items-center gap-1 rounded-control px-1 py-0.5 text-sm text-muted hover:text-ink"
+        className="motion-colors inline-flex w-fit items-center gap-1 rounded-control px-1 py-0.5 text-sm text-muted hover:bg-item-hover hover:text-ink"
         aria-expanded={advanced}
       >
         <ChevronDown className={cn("size-4 motion-colors", advanced ? "" : "-rotate-90")} />

@@ -85,7 +85,8 @@
 
 .local-code-copy:hover {
   opacity: 1;
-  background: var(--color-muted);
+  background: var(--color-item-hover);
+  color: var(--color-ink);
 }
 
 .local-code-copy.is-copied {
@@ -146,15 +147,6 @@
 
 .local-code-pre.is-wrap .ng-line {
   width: auto;
-}
-
-.local-code-pre .ng-line:hover {
-  background: rgba(102, 217, 239, 0.08);
-  box-shadow: inset 2px 0 #66d9ef;
-}
-
-.local-code-pre .ng-line:hover::before {
-  color: #f8f8f2;
 }
 
 .local-code-pre .ng-line::before {

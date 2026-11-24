@@ -103,7 +103,7 @@ function HostDiskPage({ host }: { host: string }) {
                 <th className="px-3 text-right">已用 / 总量</th><th className="w-56 px-3">使用率</th><th className="w-32 px-3 text-right">操作</th>
               </tr></thead>
               <tbody>{mounts.map((d) => (
-                <tr key={`${d.mount}-${d.filesystem}`} className={`h-table-row border-b border-line ${activeMount === d.mount ? "bg-accent-tint" : "hover:bg-raised"}`}>
+                <tr key={`${d.mount}-${d.filesystem}`} className={`h-table-row border-b border-line ${activeMount === d.mount ? "bg-item-selected" : "hover:bg-item-hover"}`}>
                   <td className="px-3 py-2">
                     <button type="button" aria-pressed={activeMount === d.mount} className="max-w-64 truncate text-left font-mono text-accent" title={d.mount} onClick={() => setSelectedMount(d.mount)}>
                       {d.mount || "—"}{d.mount === "/" ? <span className="ml-2 font-sans text-ink">根目录</span> : null}
@@ -143,7 +143,7 @@ function HostDiskPage({ host }: { host: string }) {
                       <th className="w-12 px-2 text-center font-semibold">序</th><th className="px-3 font-semibold">文件路径</th><th className="w-32 px-3 text-right font-semibold">大小</th>
                     </tr></thead>
                     <tbody>{files.map((file, index) => (
-                      <tr key={file.path} className="h-table-row border-b border-line hover:bg-raised">
+                      <tr key={file.path} className="h-table-row border-b border-line">
                         <td className="px-2 text-center font-mono text-xs text-muted">{index + 1}</td>
                         <td className="px-3 font-mono"><span className="inline-block max-w-full select-text truncate align-middle" data-tip={file.path} data-tip-overflow="">{file.path}</span></td>
                         <td className="px-3 text-right font-mono tabular-nums">{formatBytes(file.size)}</td>

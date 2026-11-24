@@ -128,7 +128,7 @@ export function RunLogPage() {
                 <EmptyRow colSpan={3} />
               ) : (
                 days.map((d) => (
-                  <tr key={d.day} className="h-table-row border-b border-line hover:bg-raised">
+                  <tr key={d.day} className="h-table-row border-b border-line">
                     <td className="px-3 font-mono tabular-nums">{formatDayLabel(d.day, now)}</td>
                     <td className="px-3 text-right font-mono tabular-nums">{d.launches}</td>
                     <td className="px-3 text-right font-mono tabular-nums">{formatSpan(d.totalMs)}</td>
@@ -157,7 +157,7 @@ export function RunLogPage() {
                 <EmptyRow colSpan={6} />
               ) : (
                 inRange.map((e, index) => (
-                  <tr key={e.id} className="h-table-row border-b border-line hover:bg-raised">
+                  <tr key={e.id} className="h-table-row border-b border-line">
                     <td className="px-2 text-center font-mono text-xs tabular-nums text-muted">
                       {index + 1}
                     </td>

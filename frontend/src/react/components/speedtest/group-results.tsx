@@ -80,7 +80,7 @@ export function StarTable({
                 onClick={() => onPick(i)}
                 className={cn(
                   "h-table-row cursor-pointer border-b border-line",
-                  i === activeIndex ? "bg-accent-soft" : "hover:bg-raised",
+                  i === activeIndex ? "bg-item-selected" : "hover:bg-item-hover",
                 )}
               >
                 <td className="max-w-[200px] truncate px-3 text-ink">{p.b}</td>
@@ -188,9 +188,9 @@ export function MatrixGrid({
                     title={p?.reason || (p?.path ? pathText(p.path) : undefined)}
                     onClick={() => i !== undefined && onPick(i)}
                     className={cn(
-                      "motion-colors h-12 min-w-[112px] cursor-pointer rounded-control px-2 text-center tabular-nums",
+                      "motion-colors h-12 min-w-[112px] rounded-control px-2 text-center tabular-nums",
                       p?.status === "done" ? tier(v) : "bg-raised text-muted",
-                      i === activeIndex && "outline outline-2 -outline-offset-2 outline-accent",
+                      i !== undefined && (i === activeIndex ? "cursor-pointer bg-item-selected text-item-selected-text font-semibold" : "cursor-pointer hover:bg-item-hover"),
                     )}
                   >
                     {body}

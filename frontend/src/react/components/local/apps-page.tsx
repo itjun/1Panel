@@ -503,8 +503,8 @@ export function LocalAppsPage() {
       <Fragment key={row.id}><tr
         className={
           selected
-            ? "h-table-row cursor-pointer border-b border-line bg-accent-soft font-semibold text-accent"
-            : "h-table-row cursor-pointer border-b border-line hover:bg-raised"
+            ? "h-table-row cursor-pointer border-b border-line bg-item-selected text-item-selected-text"
+            : "h-table-row cursor-pointer border-b border-line hover:bg-item-hover"
         }
         onClick={() => setSelectedId(row.id)}
         onDoubleClick={() => {
@@ -531,7 +531,7 @@ export function LocalAppsPage() {
                 type="button"
                 aria-label={`${isOpen ? "收起" : "展开"}${row.name}`}
                 aria-expanded={isOpen}
-                className="flex size-5 shrink-0 items-center justify-center rounded-control hover:bg-raised"
+                className="flex size-5 shrink-0 items-center justify-center rounded-control hover:bg-item-hover"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleExpand(row.id);
@@ -543,7 +543,7 @@ export function LocalAppsPage() {
               <span className="inline-block w-5" />
             )}
             <LocalAppIcon path={row.iconPath} runtime={row.runtime} isService={row.appKind === "service"} />
-            <span className="truncate" title={row.name}>{row.name}</span>
+            <span className={selected ? "truncate font-semibold" : "truncate"} title={row.name}>{row.name}</span>
           </div>
         </td>
         <td className="px-2 text-sm text-muted">

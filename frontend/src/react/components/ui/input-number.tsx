@@ -65,7 +65,7 @@ export function InputNumber({
   }
 
   const stepButton =
-    "flex w-8 shrink-0 items-center justify-center text-muted motion-colors hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted";
+    "flex w-8 shrink-0 items-center justify-center text-muted motion-colors enabled:hover:bg-item-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted";
 
   return (
     <div

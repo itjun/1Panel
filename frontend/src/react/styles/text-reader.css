@@ -37,8 +37,8 @@
 
 .text-view-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
 .text-view-tabs button { min-height: 32px; padding: 0 12px; color: var(--color-muted); font-size: 14px; border-radius: var(--radius-control); cursor: pointer; }
-.text-view-tabs button:hover { color: var(--color-ink); background: var(--color-raised); }
-.text-view-tabs button[aria-pressed="true"] { color: var(--color-accent); background: var(--color-accent-soft); font-weight: 600; }
+.text-view-tabs button:hover { color: var(--color-ink); background: var(--color-item-hover); }
+.text-view-tabs button[aria-pressed="true"] { color: var(--color-item-selected-text); background: var(--color-item-selected); font-weight: 600; }
 .text-view-tabs button:focus-visible, .text-file-list button:focus-visible, .text-copy button:focus-visible, .text-reader-path:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 
 .text-reader-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--gap-card); flex: 1; min-height: 0; min-width: 0; }
@@ -65,13 +65,12 @@
 
 .text-copy { position: relative; display: inline-flex; flex-shrink: 0; }
 .text-copy button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-control); color: inherit; cursor: pointer; }
-.text-copy button:hover { background: var(--color-raised); color: var(--color-ink); }
+.text-copy button:hover { background: var(--color-item-hover); color: var(--color-ink); }
 .text-copy button:disabled { opacity: 0.4; cursor: default; }
 .text-copy-feedback:empty { display: none; }
 .text-copy-feedback { position: absolute; top: 100%; right: 0; z-index: 11; padding: 4px 8px; white-space: nowrap; background: var(--color-tooltip); color: var(--color-tooltip-text); border-radius: var(--radius-control); font: 12px var(--font-sans); }
 .text-copy--content { position: absolute; top: 10px; right: 12px; z-index: 3; }
 .text-copy--content button { width: 30px; height: 30px; border: 1px solid var(--color-muted); background: var(--color-graphite); color: var(--color-graphite-text); }
-.text-copy--content button:hover { background: var(--color-graphite); color: var(--color-graphite-text); border-color: var(--color-graphite-text); }
 
 .text-file-list { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--color-surface); }
 .text-file-list-heading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; height: 36px; padding: 0 12px; font-size: 12px; color: var(--color-muted); }
@@ -79,8 +78,8 @@
 .text-file-list-heading span:last-child { flex-shrink: 0; }
 .text-file-list-items { min-height: 0; overflow: auto; }
 .text-file-list button { display: flex; align-items: center; gap: 8px; width: 100%; height: var(--spacing-table-row); padding: 0 12px; text-align: left; cursor: pointer; }
-.text-file-list button:hover { background: var(--color-raised); }
-.text-file-list button[aria-current="true"] { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600; }
+.text-file-list button:hover { background: var(--color-item-hover); }
+.text-file-list button[aria-current="true"] { background: var(--color-item-selected); color: var(--color-item-selected-text); font-weight: 600; }
 .text-file-list button > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 14px var(--font-mono); font-weight: inherit; }
 .text-file-list button > small { flex-shrink: 0; color: var(--color-muted); font-size: 12px; font-weight: 400; }
 .text-file-list-items > p { margin: 0; padding: 16px 12px; color: var(--color-muted); font-size: 13px; }

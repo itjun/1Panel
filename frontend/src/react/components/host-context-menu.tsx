@@ -151,7 +151,7 @@ function MenuItem({
   danger?: boolean;
   disabled?: boolean;
 }) {
-  let stateClass = "text-ink hover:bg-raised";
+  let stateClass = "text-ink hover:bg-item-hover";
   if (disabled) {
     stateClass = "cursor-default text-muted";
   } else if (danger) {

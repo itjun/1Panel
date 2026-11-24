@@ -8,6 +8,13 @@
   --color-rail: #eaebee;
   --color-rail-line: #d6d8dc;
   --color-canvas: #f2f3f5;
+  --color-rail-selected: #d7e3f6;
+  --color-rail-selected-text: #277ef0;
+  --color-item-hover: #e1e6ec;
+  --color-item-selected: #eaf4fe;
+  --color-item-selected-text: #080a0c;
+  --color-nav-selected: #eaf4fe;
+  --color-nav-selected-text: #080a0c;
   --color-surface: #ffffff;
   --color-toolbar: #f9fafb;
   --color-raised: #f3f4f6;
@@ -126,6 +133,13 @@
    灰阶保留原有蓝黑调，不随亮色壳层中性化（2026-09-30 定案） */
 html.dark {
   --color-rail: #0d1017;
+  --color-item-hover: #3a3c41;
+  --color-item-selected: #20374c;
+  --color-item-selected-text: #ffffff;
+  --color-rail-selected: #0964cb;
+  --color-rail-selected-text: #ffffff;
+  --color-nav-selected: #0964cb;
+  --color-nav-selected-text: #ffffff;
   --color-rail-line: #23262d;
   --color-canvas: #12161f;
   --color-surface: #1a1f2b;
@@ -344,19 +358,6 @@ html:is([data-window-material="mica"], [data-window-material="sidebar"]) .react-
   background-color: transparent;
 }
 
-/* 默认配色的选中底随原生材质透色；彩色主题保留原有选中底，避免丢失撞色。 */
-html[data-color-palette="classic"]:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item-active,
-html[data-color-palette="classic"]:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item[aria-current="page"] {
-  background-color: var(--color-accent-veil);
-}
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail-item:not([aria-current="page"]):hover {
-  background-color: var(--color-line-veil);
-}
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item:not(.rail-item-active):hover,
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .rail-item.bg-line {
-  background-color: var(--color-line-veil);
-}
-
 /* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to
    expose it; keep a subtle rail tint for hierarchy. */
 html:is([data-window-material="mica"], [data-window-material="sidebar"]) .glass-chrome {
@@ -400,17 +401,13 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
 }
 
 /* 通栏里的 secondary 按钮和输入框用内容面底色。 */
-.shell-app-toolbar [data-variant="secondary"],
+.shell-app-toolbar [data-variant="secondary"]:not([aria-pressed="true"]),
 .shell-app-toolbar .motion-field:not(.motion-field-quiet) {
   background-color: var(--color-surface);
 }
 
-.shell-app-toolbar [data-variant="secondary"]:hover {
-  background-color: var(--color-line);
-}
-
-.shell-app-toolbar [data-variant="ghost"]:hover {
-  background-color: var(--color-line);
+.shell-app-toolbar :is([data-variant="secondary"], [data-variant="ghost"]):not([aria-pressed="true"]):not(:disabled):hover {
+  background-color: var(--color-item-hover);
 }
 
 /* Firefox 式侧栏分割条：平时细命中区，悬停显 accent-focus 竖线，键盘聚焦一条 accent 竖线，拖动时加粗 */
@@ -687,19 +684,13 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
   visibility: visible;
 }
 
-/* 侧栏导航项：左右各留 8px、控件圆角；选中只用 accent-soft 纯色块，无左侧指示条 */
+/* 侧栏导航项共用 B 区的悬停和选中底色。 */
 .rail-item {
   position: relative;
   width: calc(100% - 16px);
   margin-left: 8px;
   margin-right: 8px;
   border-radius: var(--radius-control);
-}
-
-.rail-item-active {
-  background-color: var(--color-accent-soft);
-  color: var(--color-accent);
-  font-weight: 600;
 }
 
 /* 一级图标栏（docs/design/specification.md §4.1 / §8.2）：72px 通顶，比 canvas 深一档 */
@@ -709,7 +700,7 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
   background-color: var(--color-rail);
 }
 
-/* 56×52 方块：图标 + 下方小字；选中底色取二级栏的 canvas，读作向右打开 */
+/* 56×52 方块：图标 + 下方小字；使用一级栏选中色 */
 .module-rail-item {
   position: relative;
   display: flex;
@@ -728,14 +719,25 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
     background-color var(--duration-base) var(--ease-standard);
 }
 
-.module-rail-item:hover {
-  background-color: var(--color-line);
-  color: var(--color-ink);
+.module-rail-item:not([aria-current]):hover {
+  background-color: var(--color-item-hover);
 }
 
-.module-rail-item[aria-current="page"] {
-  background-color: var(--color-canvas);
-  color: var(--color-accent);
+.module-rail .module-rail-item[aria-current="page"] {
+  background-color: var(--color-rail-selected);
+  color: var(--color-rail-selected-text);
+  font-weight: 600;
+}
+
+.workspace-sidebar :is(.rail-item:not([aria-pressed]), .settings-navigation button, .notify-nav-entry, .notify-channel-entry):not([aria-current]):hover,
+.workspace-sidebar .rail-item[data-hovered]:not([aria-current]):not([aria-pressed="true"]) {
+  background-color: var(--color-item-hover);
+}
+
+.workspace-sidebar .rail-item[aria-pressed="true"],
+.workspace-sidebar .glass-chrome button[aria-current="page"] {
+  background-color: var(--color-nav-selected);
+  color: var(--color-nav-selected-text);
   font-weight: 600;
 }
 
@@ -1085,9 +1087,9 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
   background-color: transparent;
 }
 
-.motion-field.motion-field-quiet:not(.motion-field-active):hover {
+.motion-field.motion-field-quiet:not(.motion-field-active):not(:focus-within):hover {
   border-color: transparent;
-  background-color: var(--color-raised);
+  background-color: var(--color-item-hover);
 }
 
 /* 放在 raised 底上的输入框（如设置页字体列表面板）：平时铺 surface 底，否则与面板融在一起 */
@@ -1125,16 +1127,17 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
   transition: background-color var(--duration-base) var(--ease-standard);
 }
 
-.sub-check:hover {
-  background-color: var(--color-accent-soft);
+.sub-check:not(:has(input:disabled)):hover {
+  background-color: var(--color-item-hover);
 }
 
-.sub-check:has(input:checked) {
-  background-color: var(--color-accent-tint);
+.sub-check:has(input:checked), .sub-check:has(input:checked):hover {
+  background-color: var(--color-item-selected);
 }
 
 .sub-check:has(input:focus-visible) {
-  background-color: var(--color-accent-soft);
+  outline: 2px solid var(--color-accent-focus);
+  outline-offset: -2px;
 }
 
 /* Switch 圆钮位移（components/ui/switch.tsx） */

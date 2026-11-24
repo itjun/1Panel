@@ -17,19 +17,20 @@
   color: var(--color-muted);
   font-size: 14px;
   white-space: nowrap;
-  transition: color var(--duration-base) var(--ease-standard);
+  transition: color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
 }
 .workbench-tab:not(.is-active):hover,
 .workbench-tab:not(.is-active):active,
 .workbench-more:hover,
-.workbench-more:active,
-.workbench-more[aria-expanded="true"] {
-  color: var(--color-accent);
+.workbench-more:active {
+  background-color: var(--color-item-hover);
+  color: var(--color-ink);
 }
 .workbench-tab.is-active,
-.workbench-tab.is-active:hover {
-  background-color: var(--color-surface);
-  color: var(--color-accent);
+.workbench-tab.is-active:hover,
+.workbench-more[aria-expanded="true"] {
+  background-color: var(--color-item-selected);
+  color: var(--color-item-selected-text);
   font-weight: 600;
   border-radius: var(--radius-control) var(--radius-control) 0 0;
 }
@@ -42,7 +43,7 @@
   flex-shrink: 0;
   font-size: 14px;
   color: var(--color-muted);
-  transition: color var(--duration-base) var(--ease-standard);
+  transition: color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
 }
 @media (prefers-reduced-motion: reduce) {
   .workbench-tab,

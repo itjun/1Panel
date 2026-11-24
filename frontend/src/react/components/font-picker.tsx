@@ -170,11 +170,11 @@ export function FontListPanel({
         ) : null}
         {filtered.map((font, index) => {
           const selected = font.family.toLowerCase() === currentKey;
-          let stateClass = "text-ink hover:bg-raised";
+          let stateClass = "text-ink hover:bg-item-hover";
           if (selected) {
-            stateClass = "bg-accent-soft text-accent";
+            stateClass = "bg-item-selected text-item-selected-text";
           } else if (index === highlight) {
-            stateClass = "bg-raised text-ink";
+            stateClass = "bg-item-hover text-ink";
           }
           return (
             <button

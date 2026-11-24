@@ -72,7 +72,7 @@ export function DataTable<T extends Record<string, unknown>>({
             </tr>
           ) : (
             visibleRows.map((row) => (
-              <tr key={row.id} className="h-table-row border-b border-line hover:bg-raised">
+              <tr key={row.id} className="h-table-row border-b border-line">
                 {row.getAllCells().map((cell) => (
                   <td key={cell.id} className={cn("px-3 text-ink")}>
                     <table.FlexRender cell={cell} />
@@ -446,14 +446,17 @@ export function InteractiveDataTable<T>({
                   <th
                     key={column.key}
                     data-col-key={column.key}
+                    aria-sort={sorted || undefined}
                     className={cn(
                       "relative select-none truncate px-3 font-semibold",
                       TH_STICKY_LINE,
+                      column.pinned && "bg-surface",
+                      column.sortable !== false && "hover:bg-item-hover",
                       column.align === "center" && "text-center",
                       column.align === "right" && "text-right",
                       colDrag?.key === column.key ? "cursor-grabbing opacity-50" : "cursor-pointer",
                     )}
-                    style={{ width: widths[column.key], ...(column.pinned ? { position: "sticky", left: 0, zIndex: 3, background: "var(--color-surface)", boxShadow: "1px 0 var(--color-line)" } : {}) }}
+                    style={{ width: widths[column.key], ...(column.pinned ? { position: "sticky", left: 0, zIndex: 3, boxShadow: "1px 0 var(--color-line)" } : {}) }}
                     onPointerDown={(event) => onHeaderPointerDown(event, column.key)}
                     onClick={() => cycleSort(column.key)}
                   >
@@ -493,7 +496,7 @@ export function InteractiveDataTable<T>({
               data.map((row, index) => (
                 <tr
                   key={getRowId?.(row, index) ?? String(index)}
-                  className="h-table-row border-b border-line hover:bg-raised"
+                  className={cn("h-table-row border-b border-line bg-surface", onRowDoubleClick && "hover:bg-item-hover")}
                   onDoubleClick={() => onRowDoubleClick?.(row)}
                 >
                   {ordered.map((column) => (
@@ -506,7 +509,7 @@ export function InteractiveDataTable<T>({
                         column.align === "right" && "text-right",
                         colDrag?.key === column.key && "opacity-50",
                       )}
-                      style={{ width: widths[column.key], ...(column.pinned ? { position: "sticky", left: 0, zIndex: 1, background: "var(--color-surface)", boxShadow: "1px 0 var(--color-line)" } : {}) }}
+                      style={{ width: widths[column.key], ...(column.pinned ? { position: "sticky", left: 0, zIndex: 1, background: "inherit", boxShadow: "1px 0 var(--color-line)" } : {}) }}
                     >
                       {column.render(row, index)}
                     </td>
