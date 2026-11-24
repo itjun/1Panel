@@ -22,6 +22,57 @@ import { panelConfigNeedsAttention, panelConfigOverviewQuery } from "@/react/lib
 import { useSession } from "@/react/state/session";
 import { useNotificationHistory } from "@/react/lib/use-notification-history";
 
+type ModuleIcon = {
+  outline: LucideIcon;
+  filledPath: string;
+};
+
+const MODULE_ICONS = {
+  remote: {
+    outline: Server,
+    filledPath: `M4 1.5h16A2.5 2.5 0 0 1 22.5 4v4a2.5 2.5 0 0 1-2.5 2.5H4A2.5 2.5 0 0 1 1.5 8V4A2.5 2.5 0 0 1 4 1.5Z
+      M4 13.5h16a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-2.5 2.5H4A2.5 2.5 0 0 1 1.5 20v-4A2.5 2.5 0 0 1 4 13.5Z
+      M5 6a1.1 1.1 0 1 0 2.2 0A1.1 1.1 0 0 0 5 6Z
+      M5 18a1.1 1.1 0 1 0 2.2 0A1.1 1.1 0 0 0 5 18Z`,
+  },
+  local: {
+    outline: Laptop,
+    filledPath: `M6 4.5h12A2.5 2.5 0 0 1 20.5 7v8.5l1.6 3.2a1.5 1.5 0 0 1-1.34 2.17H3.24A1.5 1.5 0 0 1 1.9 18.7l1.6-3.2V7A2.5 2.5 0 0 1 6 4.5Z
+      M6 15a.75.75 0 0 0 0 1.5h12a.75.75 0 0 0 0-1.5Z`,
+  },
+  config: {
+    outline: FileCog,
+    filledPath: `M6.5 1.5h7.75L21 8.25V20a2.5 2.5 0 0 1-2.5 2.5h-7.1A6.5 6.5 0 0 0 4 12.5V4a2.5 2.5 0 0 1 2.5-2.5Z
+      M14.5 3.8v3.8a.9.9 0 0 0 .9.9h3.8Z
+      M5.5 14h2l.33 1.45.65.38 1.42-.45 1 1.74-1.08 1v.75l1.08 1-1 1.74-1.42-.45-.65.38L7.5 23h-2l-.33-1.46-.65-.38-1.42.45-1-1.74 1.08-1v-.75l-1.08-1 1-1.74 1.42.45.65-.38Z
+      M5 18.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0Z`,
+  },
+  notify: {
+    outline: Bell,
+    filledPath: `M12 1.5a6.75 6.75 0 0 1 6.75 6.75c0 4.05 1.24 5.47 2.5 6.8a1.6 1.6 0 0 1-1.16 2.7H3.91a1.6 1.6 0 0 1-1.16-2.7c1.26-1.33 2.5-2.75 2.5-6.8A6.75 6.75 0 0 1 12 1.5Z
+      M9.3 19.5a2.7 2.7 0 0 0 5.4 0Z`,
+  },
+  speedtest: {
+    outline: Gauge,
+    filledPath: `M3.34 19a10 10 0 1 1 17.32 0c-.31.54-.88 1-1.5 1H4.84c-.62 0-1.19-.46-1.5-1Z
+      M10.9 12.9a1.56 1.56 0 1 0 2.2 2.2l4.4-5.4a.85.85 0 0 0-1.2-1.2Z`,
+  },
+  inspect: {
+    outline: ScanSearch,
+    filledPath: `M4 2h3a1 1 0 0 1 0 2H4v3a1 1 0 0 1-2 0V4a2 2 0 0 1 2-2Z
+      M20 2h-3a1 1 0 0 0 0 2h3v3a1 1 0 0 0 2 0V4a2 2 0 0 0-2-2Z
+      M4 22h3a1 1 0 0 0 0-2H4v-3a1 1 0 0 0-2 0v3a2 2 0 0 0 2 2Z
+      M20 22h-3a1 1 0 0 1 0-2h3v-3a1 1 0 0 1 2 0v3a2 2 0 0 1-2 2Z
+      M11.5 6.5a5 5 0 0 1 3.86 8.18l2.3 2.3a1.15 1.15 0 0 1-1.62 1.62l-2.29-2.64A5 5 0 1 1 11.5 6.5Z
+      M9.5 11.5a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z`,
+  },
+  settings: {
+    outline: Settings,
+    filledPath: `M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915Z
+      M8.5 12a3.5 3.5 0 1 0 7 0 3.5 3.5 0 0 0-7 0Z`,
+  },
+} satisfies Record<string, ModuleIcon>;
+
 function formatCount(n: number): string {
   return n > 99 ? "99+" : String(n);
 }
@@ -69,40 +120,40 @@ export function ModuleRail() {
         )}
       </div>
       <nav className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 pb-2" aria-label="切换模块">
-        <RailModule icon={Server} label="主机" active={open && ws === "remote"} onClick={() => session.goHome()} />
-        <RailModule icon={Laptop} label="本机" active={open && ws === "local"} onClick={() => session.setWorkspace("local")} />
+        <RailModule icon={MODULE_ICONS.remote} label="主机" active={open && ws === "remote"} onClick={() => session.goHome()} />
+        <RailModule icon={MODULE_ICONS.local} label="本机" active={open && ws === "local"} onClick={() => session.setWorkspace("local")} />
         <RailModule
-          icon={FileCog}
+          icon={MODULE_ICONS.config}
           label="配置"
           active={open && ws === "config"}
           statusDot={configNeedsAttention}
           onClick={() => session.setWorkspace("config")}
         />
         <RailModule
-          icon={Bell}
+          icon={MODULE_ICONS.notify}
           label="通知"
           active={open && ws === "notify"}
           badge={unread > 0 ? formatCount(unread) : null}
           onClick={() => session.setWorkspace("notify")}
         />
-        <RailModule icon={Gauge} label="测速" active={open && ws === "speedtest"} onClick={() => session.setWorkspace("speedtest")} />
+        <RailModule icon={MODULE_ICONS.speedtest} label="测速" active={open && ws === "speedtest"} onClick={() => session.setWorkspace("speedtest")} />
         <div className="flex-1" />
-        <RailModule icon={ScanSearch} label="巡检" active={open && ws === "inspect"} onClick={() => session.setWorkspace("inspect")} />
-        <RailModule icon={Settings} label="设置" active={session.settingsOpen} onClick={() => session.openSettings(true)} />
+        <RailModule icon={MODULE_ICONS.inspect} label="巡检" active={open && ws === "inspect"} onClick={() => session.setWorkspace("inspect")} />
+        <RailModule icon={MODULE_ICONS.settings} label="设置" active={session.settingsOpen} onClick={() => session.openSettings(true)} />
       </nav>
     </aside>
   );
 }
 
 function RailModule({
-  icon: Icon,
+  icon: { outline: OutlineIcon, filledPath },
   label,
   active,
   badge,
   statusDot,
   onClick,
 }: {
-  icon: LucideIcon;
+  icon: ModuleIcon;
   label: string;
   active: boolean;
   badge?: string | null;
@@ -116,7 +167,13 @@ function RailModule({
       className="module-rail-item shrink-0"
       onClick={onClick}
     >
-      <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
+      {active ? (
+        <svg width={20} height={20} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path fillRule="evenodd" d={filledPath} />
+        </svg>
+      ) : (
+        <OutlineIcon size={20} strokeWidth={1.5} aria-hidden="true" />
+      )}
       <span className="max-w-full truncate px-1">{label}</span>
       {badge ? (
         <Tag tone="accent" className="module-rail-badge absolute h-4 px-1 font-mono tabular-nums">
