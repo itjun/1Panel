@@ -47,8 +47,8 @@ function foreground(backgrounds: string[]): string {
 
 function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): ColorTokens {
   const isDark = mode === "dark";
-  // 默认中性灰和彩色主题共用厚底色，只让少量原生材质透入导航区。
-  const shellOpacity = isDark ? 0.86 : 0.88;
+  // 默认 A 区透出更多原生磨砂，彩色主题保留已确认的底色强度。
+  const railOpacity = isDark ? (isClassic ? 0.72 : 0.86) : (isClassic ? 0.62 : 0.88);
   const toolbar = mix(base.surface, base.ink, isDark ? 0.045 : 0.025);
   const raised = mix(base.surface, base.ink, isDark ? 0.045 : 0.035);
   const line = mix(base.surface, base.ink, isDark ? 0.14 : 0.12);
@@ -58,8 +58,7 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   const itemSelected = base.selection ?? (isDark ? "#20374c" : "#eaf4fe");
   const selectedText = isDark ? "#ffffff" : "#080a0c";
   const cardTrack = readable(line, [raised, itemHover, itemSelected], 1.6, base.ink);
-  const materialSurfaces = [base.rail, base.canvas].flatMap((color) =>
-    ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, color, shellOpacity)));
+  const materialSurfaces = ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, base.rail, railOpacity));
   const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, itemHover, itemSelected];
   // 默认配色沿 macOS 蓝色的色相校正明度，避免混入灰色文字后偏色。
   const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink);
@@ -79,14 +78,13 @@ function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): Color
   return {
     "--color-rail": base.rail, "--color-rail-line": mix(base.rail, base.ink, 0.1), "--color-canvas": base.canvas, "--color-surface": base.surface,
     "--color-toolbar": toolbar,
-    "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${shellOpacity})`,
-    "--color-canvas-translucent": `rgba(${rgb(base.canvas).join(", ")}, ${shellOpacity})`,
+    "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${railOpacity})`,
     "--color-raised": raised, "--color-line": line,
     "--color-card-track": cardTrack,
     "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
     "--color-ink": base.ink,
     "--color-muted": muted,
-    // 半透明导航单独校正文字，避免为了底层壁纸改变内容区的主题色。
+    // 半透明 A 区单独校正文字，保留其他区域的主题色。
     "--color-shell-muted": readable(muted, [...surfaces, accentSoft, ...materialSurfaces], 4.5, base.ink),
     "--color-shell-accent": readable(accent, [...surfaces, accentSoft, ...materialSurfaces], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink),
     "--color-item-hover": itemHover, "--color-item-selected": itemSelected, "--color-item-selected-text": selectedText,

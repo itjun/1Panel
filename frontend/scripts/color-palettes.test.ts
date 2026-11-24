@@ -58,28 +58,26 @@ test("八组撞色的浅深色背景与选中底保留确认预览", () => {
   }
 });
 
-test("所有配色透出少量材质，同时保留底色辨识度与文字对比度", () => {
+test("A 区半透明底色在所有配色下保持可读", () => {
   for (const palette of COLOR_PALETTES) {
     for (const mode of ["light", "dark"] as const) {
       const colors = paletteTokens(palette.id, mode);
-      for (const name of ["rail", "canvas"] as const) {
-        const solid = colors[`--color-${name}`];
-        const translucent = colors[`--color-${name}-translucent`];
-        const components = translucent.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/);
-        expect(components, `${palette.id} ${mode} ${name}`).not.toBeNull();
-        const channels = [1, 3, 5].map((offset) => Number.parseInt(solid.slice(offset, offset + 2), 16));
-        expect(components!.slice(1, 4).map(Number)).toEqual(channels);
-        const opacity = Number(components![4]);
-        expect(opacity).toBeLessThan(1);
-        for (const backdrop of [0, 128, 255]) {
-          const blended = channels.map((channel) => Math.round(channel * opacity + backdrop * (1 - opacity)));
-          // 中性背景叠加后，仍保留至少八成的原始色彩差异。
-          const chroma = Math.max(...channels) - Math.min(...channels);
-          expect(Math.max(...blended) - Math.min(...blended)).toBeGreaterThanOrEqual(chroma * 0.8 - 1);
-          const background = `#${blended.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
-          for (const foreground of ["--color-ink", "--color-shell-muted", "--color-shell-accent"] as const) {
-            expect(contrastRatio(colors[foreground], background), `${palette.id} ${mode} ${foreground} on ${name}`).toBeGreaterThanOrEqual(4.5);
-          }
+      const components = colors["--color-rail-translucent"].match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/);
+      const label = `${palette.id} ${mode}`;
+      expect(components, label).not.toBeNull();
+      const channels = [1, 3, 5].map((offset) => Number.parseInt(colors["--color-rail"].slice(offset, offset + 2), 16));
+      expect(components!.slice(1, 4).map(Number)).toEqual(channels);
+      const opacity = Number(components![4]);
+      if (palette.id === "classic") {
+        expect(opacity, label).toBeLessThanOrEqual(0.75);
+      } else {
+        expect(opacity, label).toBe(mode === "dark" ? 0.86 : 0.88);
+      }
+      for (const backdrop of [0, 128, 255]) {
+        const blended = channels.map((channel) => Math.round(channel * opacity + backdrop * (1 - opacity)));
+        const background = `#${blended.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+        for (const foreground of ["--color-ink", "--color-shell-muted", "--color-shell-accent"] as const) {
+          expect(contrastRatio(colors[foreground], background), `${label} ${foreground} on A`).toBeGreaterThanOrEqual(4.5);
         }
       }
     }

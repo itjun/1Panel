@@ -55,7 +55,6 @@ export function WorkspaceLayout({ children, isEditing = false }: { children: Rea
             className="shell-app-toolbar shell-toolbar glass-chrome drag-region flex min-w-0 items-center"
             style={{
               "--color-canvas": regions.sidebar["--color-canvas"],
-              "--color-canvas-translucent": regions.sidebar["--color-canvas-translucent"],
             } as CSSProperties}
           >
             <HostToolTabs />

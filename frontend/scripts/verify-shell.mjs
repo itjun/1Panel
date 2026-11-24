@@ -136,7 +136,10 @@ if (!/grid-template-rows:\s*minmax\(0, 1fr\)/.test(shellStyles)) fail("B/C must 
 if (!layout.includes("regions.sidebar") || !layout.includes("regions.content")) fail("B/C require independently scoped theme tokens");
 if (shellStyles.includes("acrylic")) fail("acrylic was removed from the material vocabulary (auto / classic / mica)");
 if (!shellStyles.includes('[data-window-material="mica"]')) fail("mica chrome must be gated by the effective native material");
-if (!shellStyles.includes('[data-window-material="sidebar"]')) fail("macOS sidebar chrome must be gated by the effective native material");
+if (!/html\[data-window-material="sidebar"\] \.module-rail\s*\{[^}]*background-color:\s*var\(--color-rail-translucent\)/.test(shellStyles) ||
+    !/html\[data-window-material="sidebar"\] \.shell-columns\s*\{[^}]*background-color:\s*var\(--color-canvas\)/.test(shellStyles)) {
+  fail("macOS sidebar material must show only through A in light and dark modes");
+}
 ok("classic / mica chrome with opaque content contract");
 ok("ABC regions are independent; sidebar is always visible and remains resizable");
 

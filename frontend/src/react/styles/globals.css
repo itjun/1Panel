@@ -337,7 +337,7 @@ pre,
   -webkit-app-region: no-drag;
 }
 
-/* 主机通栏与 B 区共用底色和原生材质。 */
+/* 主机通栏与 B 区共用底色。 */
 .glass-chrome {
   position: relative;
   background-color: var(--color-canvas);
@@ -353,15 +353,15 @@ html:is([data-window-material="mica"], [data-window-material="sidebar"]) .react-
 
 /* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to
    expose it; keep a subtle rail tint for hierarchy. */
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .glass-chrome {
+html[data-window-material="mica"] .glass-chrome {
   background-color: transparent;
   background-image: none;
 }
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail {
+html[data-window-material="mica"] .module-rail {
   background-color: rgba(0, 0, 0, 0.03);
   background-image: none;
 }
-html.dark:is([data-window-material="mica"], [data-window-material="sidebar"]) .module-rail {
+html.dark[data-window-material="mica"] .module-rail {
   background-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -375,16 +375,14 @@ html[data-window-material="mica"][data-color-palette]:not([data-color-palette="c
   background-color: var(--color-rail);
 }
 
-/* macOS 侧栏共用配色 token 的厚底色（浅色 88%、深色 86%），壁纸只保留淡淡的色感。 */
-html[data-window-material="sidebar"][data-color-palette] :is(.glass-chrome, .module-rail) {
+/* macOS 原生磨砂只通过 A 区露出。 */
+html[data-window-material="sidebar"] .module-rail {
+  background-color: var(--color-rail-translucent);
   --color-muted: var(--color-shell-muted);
   --color-accent: var(--color-shell-accent);
 }
-html[data-window-material="sidebar"][data-color-palette] .glass-chrome {
-  background-color: var(--color-canvas-translucent);
-}
-html[data-window-material="sidebar"][data-color-palette] .module-rail {
-  background-color: var(--color-rail-translucent);
+html[data-window-material="sidebar"] .shell-columns {
+  background-color: var(--color-canvas);
 }
 
 /* C 区使用稳定的不透明底色，页内内容与工具标签共用自己的主题。 */
