@@ -27,12 +27,17 @@
   color: var(--color-ink);
 }
 .workbench-tab.is-active,
-.workbench-tab.is-active:hover,
+.workbench-more[aria-expanded="true"] {
+  font-weight: 600;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+}
+.workbench-tab.is-active {
+  background-color: var(--color-surface);
+  color: var(--color-accent);
+}
 .workbench-more[aria-expanded="true"] {
   background-color: var(--color-item-selected);
   color: var(--color-item-selected-text);
-  font-weight: 600;
-  border-radius: var(--radius-control) var(--radius-control) 0 0;
 }
 .workbench-more {
   display: flex;

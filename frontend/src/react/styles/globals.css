@@ -337,17 +337,10 @@ pre,
   -webkit-app-region: no-drag;
 }
 
-/* 侧栏保留配色的辅助色；通栏与内容面组成独立工作区，只靠色块区分。 */
-.glass-chrome {
-  background-color: var(--color-canvas);
-}
-
-.shell-app-toolbar {
-  background-color: var(--color-toolbar);
-}
-
+/* 主机通栏与 B 区共用底色和原生材质。 */
 .glass-chrome {
   position: relative;
+  background-color: var(--color-canvas);
 }
 
 /* Only the native controller can enable this attribute; browser/HTTP surfaces stay solid. */
@@ -767,8 +760,7 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
 
 /* 顶部通栏：固定 40px，与 macOS 红绿灯带对齐。
    不另加上下 padding，控件在这 40px 里居中，上下留白相同。
-   窗控导航按钮用 h-10 贴满通栏；其余 h-8 上下各 4px、h-7 各 6px。
-   通栏使用独立的 toolbar 底色，与内容面保持同一色调。 */
+   窗控导航按钮用 h-10 贴满通栏；其余 h-8 上下各 4px、h-7 各 6px。 */
 .shell-toolbar {
   box-sizing: border-box;
   height: 40px;
@@ -785,7 +777,6 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
 }
-.shell-content { background-color: var(--color-surface); }
 .workspace-sidebar { min-width: 0; }
 .workspace-rail-heading {
   display: flex;
@@ -811,7 +802,7 @@ html[data-window-material="sidebar"][data-color-palette] .module-rail {
   --window-controls-inset: 124px;
 }
 .shell-window-controls { background-color: var(--color-surface); }
-.shell-content[data-workspace-toolbar] > .shell-window-controls { background-color: var(--color-toolbar); }
+.shell-content[data-workspace-toolbar] > .shell-window-controls { background-color: transparent; }
 
 /* 无主机标签时，页面首行与窗控共用顶部；抽屉打开后由抽屉标题让位。 */
 .react-root:is([data-os="win"], [data-os="linux"]):not([data-edit]) .shell-content:not([data-workspace-toolbar]) :is(.uiux-page-tools, .settings-page .settings-header, .workbench-group-heading, .notify-page-header, .config-data-header) {

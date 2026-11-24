@@ -51,7 +51,13 @@ export function WorkspaceLayout({ children, isEditing = false }: { children: Rea
         style={regions.content as CSSProperties}
       >
         {isRemoteHostWorkspace ? (
-          <header className="shell-app-toolbar shell-toolbar drag-region relative flex min-w-0 items-center">
+          <header
+            className="shell-app-toolbar shell-toolbar glass-chrome drag-region flex min-w-0 items-center"
+            style={{
+              "--color-canvas": regions.sidebar["--color-canvas"],
+              "--color-canvas-translucent": regions.sidebar["--color-canvas-translucent"],
+            } as CSSProperties}
+          >
             <HostToolTabs />
           </header>
         ) : null}
