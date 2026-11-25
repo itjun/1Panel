@@ -63,8 +63,8 @@
   --color-io-read: #0080b0;
   --color-chart-2: #0080b0;
   --color-chart-gc: #0080b0;
-  --color-io-write: #008858;
-  --color-chart-3: #008858;
+  --color-io-write: #c43695;
+  --color-chart-3: #c43695;
   --color-heat-low: #f2f3ff;
   --color-heat-mid: #d9e1ff;
   --color-heat-high: #b5c7ff;
@@ -202,8 +202,8 @@ html.board-http,
   --color-io-read: #41b8f2;
   --color-chart-2: #41b8f2;
   --color-chart-gc: #41b8f2;
-  --color-io-write: #92dab2;
-  --color-chart-3: #92dab2;
+  --color-io-write: #ff79cd;
+  --color-chart-3: #ff79cd;
   --color-heat-low: #1b2f51;
   --color-heat-mid: #173463;
   --color-heat-high: #143975;

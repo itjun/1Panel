@@ -35,7 +35,7 @@ const roles: readonly [string, string, readonly (`--${string}`)[]][] = [
   ["#d9e1ff", "#173463", ["--color-heat-mid"]],
   ["#b5c7ff", "#143975", ["--color-heat-high"]],
   ["#0080b0", "#41b8f2", ["--color-io-read", "--color-chart-2", "--color-chart-gc"]],
-  ["#008858", "#92dab2", ["--color-io-write", "--color-chart-3"]],
+  ["#c43695", "#ff79cd", ["--color-io-write", "--color-chart-3"]],
   ["#8e56dd", "#c69cff", ["--color-chart-comparison"]],
   ["#b38500", "#ffd36d", ["--color-category-yellow"]],
   ["#c43695", "#ff79cd", ["--color-category-pink"]],

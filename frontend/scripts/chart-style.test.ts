@@ -20,7 +20,7 @@ for (const mode of ["light", "dark"] as const) {
   test(`${mode}: direction colors, line patterns and detail layering`, () => {
     const palette = chartPalette(mode);
     expect([palette.read, palette.write]).toEqual(
-      mode === "light" ? ["#0080b0", "#008858"] : ["#41b8f2", "#92dab2"],
+      mode === "light" ? ["#0080b0", "#c43695"] : ["#41b8f2", "#ff79cd"],
     );
     for (const ink of [palette.read, palette.write]) {
       expect(contrastRatio(ink, palette.surface)).toBeGreaterThanOrEqual(3);
@@ -41,7 +41,7 @@ for (const mode of ["light", "dark"] as const) {
     expect(stream?.emphasis?.lineStyle?.opacity).toBe(1);
     expect(send?.z).toBeGreaterThan(stream?.z ?? 0);
     expect(receive?.z).toBeGreaterThan(stream?.z ?? 0);
-    const rgb = mode === "light" ? ["0,136,88", "0,128,176"] : ["146,218,178", "65,184,242"];
+    const rgb = mode === "light" ? ["196,54,149", "0,128,176"] : ["255,121,205", "65,184,242"];
     [send, receive].forEach((series, index) => {
       expect(series?.areaStyle?.color).toMatchObject({
         colorStops: [
