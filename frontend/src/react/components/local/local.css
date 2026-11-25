@@ -118,12 +118,12 @@
 /* 深色代码区的选区独立于浅色壳，嵌套语法 token 也统一亮字。 */
 .local-code-pre::selection,
 .local-code-pre ::selection {
-  background: #365d91;
-  color: #f8f8f2;
+  background: var(--code-selection);
+  color: var(--color-graphite-text);
 }
 
 .local-code-pre.muted {
-  color: var(--color-muted);
+  color: var(--code-comment);
 }
 
 .local-code-pre.is-wrap {
@@ -132,7 +132,7 @@
 }
 
 .local-code-pre .log-warn {
-  color: var(--color-warn);
+  color: var(--code-string);
 }
 
 .local-code-pre .ng-line {
@@ -156,22 +156,21 @@
   left: 0;
   width: 2.6em;
   text-align: right;
-  color: var(--color-muted);
+  color: var(--code-comment);
   user-select: none;
 }
 
-/* Monokai 语法高亮：固定深底配色，不随浅色主题切换。
-   属 docs/design/specification.md §2.5 / §8.1 允许的「编辑器主题」例外，色值不走 token */
+/* 与 CodeMirror 共用固定深色阅读面的语法色。 */
 .local-code-pre .hljs-comment,
 .local-code-pre .hljs-quote {
-  color: #75715e;
+  color: var(--code-comment);
   font-style: italic;
 }
 
 .local-code-pre .hljs-keyword,
 .local-code-pre .hljs-selector-tag,
 .local-code-pre .hljs-literal {
-  color: #f92672;
+  color: var(--code-keyword);
 }
 
 .local-code-pre .hljs-section,
@@ -179,23 +178,23 @@
 .local-code-pre .hljs-attr,
 .local-code-pre .hljs-built_in,
 .local-code-pre .hljs-type {
-  color: #66d9ef;
+  color: var(--code-property);
 }
 
 .local-code-pre .hljs-string,
 .local-code-pre .hljs-title,
 .local-code-pre .hljs-name {
-  color: #e6db74;
+  color: var(--code-string);
 }
 
 .local-code-pre .hljs-number,
 .local-code-pre .hljs-meta {
-  color: #ae81ff;
+  color: var(--code-number);
 }
 
 .local-code-pre .hljs-punctuation,
 .local-code-pre .hljs-bullet {
-  color: #f8f8f2;
+  color: var(--color-graphite-text);
 }
 
 .local-apps-tree-indent {

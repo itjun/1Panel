@@ -7,7 +7,6 @@ import { RadioGroup } from "@/react/components/ui/radio-group";
 import { chartPalette, trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
 import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import { usageBands } from "@/react/lib/usage-tone";
-import { readThemeColor } from "@/react/lib/utils";
 import { collectionState } from "@/utils/collectionState";
 import { formatErr } from "@/utils/format";
 import { overviewTrendSeries, type OverviewTrendSeries, type TrendMetric } from "./overview-trend-model";
@@ -70,7 +69,7 @@ export function OverviewTrend({ title, series, from, to, cpuCount, isLoading, er
         axisLabel: { color: colors.muted, fontSize: 12, formatter: (v: number) => metric === "load" ? String(v) : `${v}%` },
         splitLine: { lineStyle: { color: colors.line, type: "dashed", width: 0.5 } },
       },
-      series: [{ ...trendLineStyle({ color: bands ? colors.ok : readThemeColor("--color-chart-1", ""), values: points.map(point => point[1]), bands }), itemStyle: { borderColor: colors.surface, borderWidth: 0.5 }, name: label, data: points }],
+      series: [{ ...trendLineStyle({ color: bands ? colors.ok : colors.primary, values: points.map(point => point[1]), bands }), itemStyle: { borderColor: colors.surface, borderWidth: 0.5 }, name: label, data: points }],
     };
   }, [metric, label, points, from, to, cpuCount, theme]);
   return (

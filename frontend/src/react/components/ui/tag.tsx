@@ -22,7 +22,7 @@ const TONE_CLASS: Record<TagTone, string> = {
   warn: "bg-warn-soft text-warn",
   danger: "bg-danger-soft text-danger",
   info: "bg-info-soft text-info",
-  accent: "bg-accent-soft text-accent",
+  accent: "bg-accent-soft text-info",
 };
 
 export function Tag({ tone = "neutral", className, children, title, onClick }: TagProps) {

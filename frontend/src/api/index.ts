@@ -42,7 +42,6 @@ export * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models
 // 保留 main 类型别名供现有前端使用；模型实际来自 Go 的 internal/app 包。
 export * as main from "../../bindings/diteng-pannel/internal/app/models";
 export * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
-export * as menucheck from "../../bindings/diteng-pannel/internal/menucheck/models";
 
 import type { CancellablePromise } from "@wailsio/runtime";
 import type * as agentcli from "../../bindings/diteng-pannel/internal/agentcli/models";
@@ -62,7 +61,6 @@ import type * as sshconfig from "../../bindings/diteng-pannel/internal/sshconfig
 import type * as panelstore from "../../bindings/diteng-pannel/internal/panelstore/models";
 import type * as sysfonts from "../../bindings/diteng-pannel/internal/sysfonts/models";
 import type * as speedtest from "../../bindings/diteng-pannel/internal/speedtest/models";
-import type * as menucheck from "../../bindings/diteng-pannel/internal/menucheck/models";
 import { noteBackendCall } from "@/utils/uxPerf";
 
 // 保留原有类型导出名，视图层零改动
@@ -451,6 +449,7 @@ const apiImpl = {
     str(Monitor.DockerInspect(host, container)),
 
   inspectZsh: (host: string): Promise<main.ZshEnvironment> => must(System.InspectZsh(host)),
+  prepareHostSetupCommand: (host: string): Promise<string> => str(System.PrepareHostSetupCommand(host)),
   startHostSetup: (host: string): Promise<main.ZshSetupTask> => must(System.StartHostSetup(host)),
   getZshSetup: (host: string): Promise<main.ZshSetupTask> => must(System.GetZshSetup(host)),
   copySSHID: (input: main.CopyIDInput): Promise<string> => str(Hosts.CopySSHID(input)),
@@ -486,17 +485,6 @@ const apiImpl = {
       kind: meta?.kind ?? "",
     });
   },
-
-  // ============ HTTP 巡检（用户自定义请求 + 断言 + 定时） ============
-  checkMenuPage: (id: string): Promise<main.MenuCheckResult> =>
-    must(System.CheckMenuPage(id)),
-  listMenuChecks: (): Promise<main.MenuCheckResult[]> =>
-    arr(System.ListMenuChecks()),
-  saveMenuCheck: (item: menucheck.Item): Promise<menucheck.Item> =>
-    must(System.SaveMenuCheck(item)),
-  deleteMenuCheck: (id: string): Promise<void> => System.DeleteMenuCheck(id),
-  testMenuCheck: (item: menucheck.Item): Promise<main.MenuCheckResult> =>
-    must(System.TestMenuCheck(item)),
 
   // ============ 应用内告警历史 ============
   listAlertHistory: (limit: number): Promise<alerthistory.Event[]> =>
@@ -567,7 +555,6 @@ const apiImpl = {
     await System.SetThemeAppearance(mode);
   },
   getWindowThemeState: (): Promise<main.WindowThemeState> => must(System.GetWindowThemeState()),
-  setWindowMaterial: (preference: string): Promise<main.WindowThemeState> => must(System.SetWindowMaterial(preference)),
   windowThemeReady: (revision: number): Promise<boolean> => System.WindowThemeReady(revision),
   /** 本机已安装的字体家族（设置页「自定义字体」列表） */
   listSystemFonts: (): Promise<sysfonts.SystemFont[]> => arr(System.ListSystemFonts()),

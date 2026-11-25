@@ -181,7 +181,7 @@ export function HostNavigator({ onReload }: { onReload: () => void }) {
             setQuery(event.target.value);
             const first = filterHostChoices(choices, event.target.value)[0];
             changePicker({ mode: "open", selected: first?.name || "" });
-          }} className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted" />
+          }} className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-placeholder" />
       </div> : null}
       <div ref={list} id={listId} role="listbox" aria-label={picker?.mode === "switch" ? "已打开的主机" : "远程主机"}
         aria-activedescendant={selected ? `${listId}-${items.indexOf(selected)}` : undefined}

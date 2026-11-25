@@ -7,6 +7,7 @@
 .transfer-path-lane { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--color-io-write); }
 .transfer-path-lane[data-direction="reverse"] { color: var(--color-io-read); }
 .transfer-path-lane[data-ready="false"] { color: var(--color-muted); }
+.transfer-path-lane[data-ready="true"] .transfer-path-label { color: var(--color-ink); }
 .transfer-path-track { position: relative; width: 100%; height: 20px; }
 .transfer-path-track::before { content: ""; position: absolute; top: 9px; left: 2px; right: 2px; border-top: 2px solid currentColor; }
 .transfer-path-lane[data-ready="false"] .transfer-path-track::before { border-top-style: dashed; }

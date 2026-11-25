@@ -151,11 +151,11 @@ function formatIoPair(row: TreeRow, kind: "disk" | "net") {
   if (a <= 0 && b <= 0) return "—";
   return (
     <span className="tabular-nums">
-      <span className={a > 0 ? "text-io-read" : undefined}>
+      <span className={a > 0 ? "io-readout-read" : undefined}>
         {a > 0 ? formatRate(a) : "—"}
       </span>
       {" / "}
-      <span className={b > 0 ? "text-io-write" : undefined}>
+      <span className={b > 0 ? "io-readout-write" : undefined}>
         {b > 0 ? formatRate(b) : "—"}
       </span>
     </span>
@@ -781,7 +781,7 @@ export function LocalAppsPage() {
                     </div>
                     <div>
                       <dt className="text-xs text-muted">监听端口</dt>
-                      <dd className="mt-0.5 font-mono font-semibold text-accent">
+                      <dd className="mt-0.5 font-mono font-semibold text-info">
                         {(shownDetail.ports || []).join("、") || "—"}
                       </dd>
                     </div>

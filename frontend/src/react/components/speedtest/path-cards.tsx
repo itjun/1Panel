@@ -64,7 +64,6 @@ function PathCard({
         "motion-colors flex min-w-0 flex-col gap-3 rounded-panel p-4 text-left",
         active ? "bg-item-selected" : "bg-raised",
         clickable && !active && "cursor-pointer hover:bg-item-hover",
-        !available && "opacity-60",
       )}
     >
       <div className="flex items-center gap-2">
@@ -142,7 +141,7 @@ function EndpointSegments({ view, side }: { view: speedtest.EndpointView; side: 
           {addrs.map((a) => (
             <Tag
               key={`${a.source}-${a.ip}`}
-              tone={a.kind === "wan" ? "warn" : a.kind === "overlay" ? "info" : "neutral"}
+              tone={a.kind === "overlay" ? "info" : "neutral"}
               title={a.speedMbps ? `${a.iface} · 协商速率 ${a.speedMbps} Mbps` : `${a.iface || a.source}`}
             >
               <span className="font-mono">{addrText(a)}</span>

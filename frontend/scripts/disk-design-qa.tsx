@@ -24,7 +24,7 @@ Object.assign(api,{
  },
 });
 const {updateSettings}=await import('@/react/state/settings');
-updateSettings({colorPalette:'apricot-sea',appearance:'light'});
+updateSettings({appearance:'light'});
 Object.entries({'--color-canvas':'#fffefa','--color-surface':'#fffefa','--color-accent':'#805536','--color-accent-soft':'#fae8bc'}).forEach(([key,value])=>document.documentElement.style.setProperty(key,value));
 function Fixture(){const [host,setHost]=React.useState('cdcp-raven');return <><div style={{height:32,paddingLeft:16,fontSize:12}}><span>本地样例预览</span> <button onClick={()=>setHost(host==='cdcp-raven'?'other':'cdcp-raven')}>切换样例主机</button> {host}</div><div style={{height:'calc(100% - 32px)'}}><DiskPage host={host}/></div></>}
 const root=createRoot(document.getElementById('app')!);

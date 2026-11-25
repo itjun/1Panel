@@ -1,9 +1,9 @@
 import { expect, mock, test } from "bun:test";
-import { COLOR_PALETTES, paletteTokens } from "../src/react/lib/color-palettes";
+import { paletteTokens } from "../src/react/lib/color-palettes";
 
 const classes = new Set<string>();
 const variables = new Map<string, string>();
-const values = new Map<string, string>([["ipannel.settings.v1", JSON.stringify({ appearance: "dark", fontSize: 16 })]]);
+const values = new Map<string, string>([["ipannel.settings.v1", JSON.stringify({ appearance: "dark", fontSize: 16, colorPalette: "rose-mint", startupPage: "home", terminalApp: "1agent" })]]);
 let isSystemDark = false;
 const root = {
   dataset: {} as Record<string, string>,
@@ -24,54 +24,68 @@ const { readThemeSignature } = await import("../src/react/lib/use-theme-mode");
 const { readThemeColor, applySavedFont } = await import("../src/react/lib/utils");
 
 test("legacy settings retain appearance and typography with the classic palette", () => {
-  expect(settings.readSettings().colorPalette).toBe("classic");
+  expect(settings.readSettings()).not.toHaveProperty("colorPalette");
+  expect(settings.readSettings()).not.toHaveProperty("startupPage");
   expect(settings.readSettings().appearance).toBe("dark");
   expect(settings.readSettings().fontSize).toBe(16);
 });
 
-test("switching only palette updates shell, chart colors, theme signature and persistence", () => {
+test("旧版选中的 1Agent 在读取和保存时迁移为 Natty", () => {
+  expect(settings.readSettings().terminalApp).toBe("natty");
+  settings.updateSettings({ terminalOpenMode: "tab" });
+  expect(JSON.parse(values.get("ipannel.settings.v1")!).terminalApp).toBe("natty");
+});
+
+test("保存更新时丢弃旧配色，同时使用默认色绘制图表和应用内看板", () => {
   settings.updateSettings({ appearance: "light" });
-  const signatures = new Set<string>();
-  for (const palette of COLOR_PALETTES) {
-    settings.updateSettings({ colorPalette: palette.id });
-    expect(readThemeColor("--color-rail", "")).toBe(palette.light["--color-rail"]);
-    expect(readThemeColor("--color-io-read", "")).toBe(palette.light["--color-io-read"]);
-    expect(variables.get("--board-color-surface")).toBe(palette.dark["--color-surface"]);
-    expect(readThemeColor("--color-surface", "", "dark")).toBe(palette.dark["--color-surface"]);
-    expect(JSON.parse(values.get("ipannel.settings.v1")!).colorPalette).toBe(palette.id);
-    signatures.add(readThemeSignature());
-  }
-  expect(signatures.size).toBe(COLOR_PALETTES.length);
-  expect(settings.readSettings().appearance).toBe("light");
+  expect(JSON.parse(values.get("ipannel.settings.v1")!)).not.toHaveProperty("colorPalette");
+  expect(JSON.parse(values.get("ipannel.settings.v1")!)).not.toHaveProperty("startupPage");
+  expect(readThemeColor("--color-io-read", "")).toBe(paletteTokens("light")["--color-io-read"]);
+  expect(variables.get("--color-surface")).toBe(paletteTokens("light")["--color-surface"]);
 });
 
 test("system changes repaint the selected palette and reset restores defaults", () => {
-  settings.updateSettings({ appearance: "system", colorPalette: "strawberry" });
+  settings.updateSettings({ appearance: "system" });
   settings.applySystemAppearanceHint(true);
-  expect(readThemeSignature()).toBe("dark:strawberry");
-  expect(variables.get("--color-canvas")).toBe(paletteTokens("strawberry", "dark")["--color-canvas"]);
+  expect(readThemeSignature()).toBe("dark");
+  expect(variables.get("--color-canvas")).toBe(paletteTokens("dark")["--color-canvas"]);
   settings.applySystemAppearanceHint(false);
-  expect(readThemeSignature()).toBe("light:strawberry");
+  expect(readThemeSignature()).toBe("light");
   isSystemDark = true;
   settings.resetSettings();
-  expect(settings.readSettings().colorPalette).toBe("classic");
-  expect(readThemeSignature()).toBe("dark:classic");
+  expect(settings.readSettings()).not.toHaveProperty("colorPalette");
+  expect(readThemeSignature()).toBe("dark");
 });
 
-test("startup restores palette while HTTP boards keep the classic dark theme", () => {
+test("startup ignores retired palette values while HTTP boards use TDesign dark roles", () => {
   values.set("ipannel.settings.v1", JSON.stringify({ appearance: "light", colorPalette: "latte" }));
   applySavedFont();
-  expect(readThemeSignature()).toBe("light:almond");
+  expect(readThemeSignature()).toBe("light");
   applySavedFont(true);
-  expect(readThemeSignature()).toBe("dark:classic");
+  expect(readThemeSignature()).toBe("dark");
   expect(variables.has("--board-color-surface")).toBe(false);
-  expect(variables.has("--color-line")).toBe(false);
-  // 模拟 board.css 的最终样式：图表应读取看板的既有颜色，不再取应用派生色。
+  expect(variables.get("--color-line")).toBe(paletteTokens("dark")["--color-line"]);
+  // HTTP 图表读取看板根元素的实际深色。
   classes.add("board-http");
-  variables.set("--color-line", "#2c3445");
-  expect(readThemeColor("--color-line", "", "dark")).toBe("#2c3445");
+  expect(readThemeColor("--color-line", "", "dark")).toBe("#393939");
   classes.delete("board-http");
   values.set("ipannel.settings.v1", JSON.stringify({ appearance: "light", colorPalette: "not-a-palette" }));
   applySavedFont();
-  expect(readThemeSignature()).toBe("light:classic");
+  expect(readThemeSignature()).toBe("light");
+});
+
+test("damaged appearance settings still paint the independent board dark", () => {
+  const previous = values.get("ipannel.settings.v1")!;
+  try {
+    for (const value of ["{", "null"]) {
+      values.set("ipannel.settings.v1", value);
+      variables.clear();
+      applySavedFont(true);
+      expect(readThemeSignature()).toBe("dark");
+      expect(variables.get("--color-io-read")).toBe(paletteTokens("dark")["--color-io-read"]);
+    }
+  } finally {
+    values.set("ipannel.settings.v1", previous);
+    applySavedFont();
+  }
 });

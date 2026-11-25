@@ -9,17 +9,27 @@
   :root {
     --brand: #0052d9;
     --brand-light: #f2f3ff;
-    --ink: #1f2329;
-    --muted: #646a73;
-    --line: #e5e6eb;
-    --canvas: #f5f6f7;
+    --on-brand: #ffffff;
+    --success-soft: #e3f9e9;
+    --warn-soft: #fff1e9;
+    --danger-soft: #fff0ed;
+    --ink: #191919;
+    --muted: #666666;
+    --line: #e8e8e8;
+    --canvas: #eeeeee;
     --surface: #ffffff;
-    --raised: #f2f3f5;
-    --success: #2ba471;
-    --warn: #e37318;
-    --danger: #d54941;
+    --raised: #f3f3f3;
+    --success: #006c45;
+    --warn: #954500;
+    --danger: #ad352f;
     --radius: 6px;
     --radius-lg: 9px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { color-scheme: dark; --brand: #699ef5; --brand-light: #1b2f51; --on-brand: #181818;
+      --canvas: #181818; --surface: #242424; --raised: #2c2c2c; --ink: #e8e8e8; --muted: #a6a6a6; --line: #393939;
+      --success: #46bf96; --success-soft: #193a2a; --warn: #e8935c; --warn-soft: #4f2a1d;
+      --danger: #ec888e; --danger-soft: #472324; }
   }
   * { box-sizing: border-box; }
   body {
@@ -56,14 +66,14 @@
   h2 .no {
     display: inline-flex; align-items: center; justify-content: center;
     width: 24px; height: 24px; border-radius: var(--radius);
-    background: var(--brand); color: #fff; font-size: 13px;
+    background: var(--brand); color: var(--on-brand); font-size: 13px;
   }
   h3 { font-size: 15px; margin: 20px 0 8px; }
   p { margin: 8px 0; }
   .lead { color: var(--muted); margin: 0 0 16px; }
   .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin: 12px 0; text-align: center; overflow-x: auto; }
   code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; background: var(--raised); padding: 1px 6px; border-radius: 4px; }
-  pre { background: #1f2329; color: #e8eaed; padding: 16px; border-radius: var(--radius); overflow-x: auto; font-size: 12.5px; line-height: 1.6; }
+  pre { background: #181818; color: #e8e8e8; padding: 16px; border-radius: var(--radius); overflow-x: auto; font-size: 12.5px; line-height: 1.6; }
   pre code { background: none; padding: 0; color: inherit; }
   pre .c { color: #8a9099; }
   table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
@@ -77,12 +87,12 @@
   .card h4 { margin: 0 0 8px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
   .card ul { margin: 0; padding-left: 18px; }
   .tag { display: inline-block; font-size: 12px; line-height: 20px; padding: 0 8px; border-radius: 4px; background: var(--raised); color: var(--muted); }
-  .tag.ok { background: #e3f9e9; color: var(--success); }
-  .tag.warn { background: #fff1e9; color: var(--warn); }
-  .tag.danger { background: #fff0ed; color: var(--danger); }
+  .tag.ok { background: var(--success-soft); color: var(--success); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .tag.danger { background: var(--danger-soft); color: var(--danger); }
   .tag.brand { background: var(--brand-light); color: var(--brand); }
   .note { border-left: 3px solid var(--brand); background: var(--brand-light); padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0; margin: 12px 0; }
-  .note.warn { border-color: var(--warn); background: #fff8f3; }
+  .note.warn { border-color: var(--warn); background: var(--warn-soft); }
   .steps { counter-reset: s; list-style: none; padding: 0; margin: 12px 0; }
   .steps li { counter-increment: s; position: relative; padding: 0 0 12px 36px; }
   .steps li::before {
@@ -468,6 +478,8 @@ ONEPANEL_UPDATE_BASE_URL=http://127.0.0.1:18765 ONEPANEL_UPDATE_CURRENT_VERSION=
 </main>
 
 <script>
+  const theme = getComputedStyle(document.documentElement);
+  const color = (role) => theme.getPropertyValue(role).trim();
   mermaid.initialize({
     startOnLoad: true,
     theme: "base",
@@ -476,14 +488,14 @@ ONEPANEL_UPDATE_BASE_URL=http://127.0.0.1:18765 ONEPANEL_UPDATE_CURRENT_VERSION=
     themeVariables: {
       fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
       fontSize: "13px",
-      primaryColor: "#f2f3ff",
-      primaryBorderColor: "#0052d9",
-      primaryTextColor: "#1f2329",
-      lineColor: "#8a9099",
-      secondaryColor: "#f2f3f5",
-      tertiaryColor: "#ffffff",
-      clusterBkg: "#f7f8fa",
-      clusterBorder: "#e5e6eb"
+      primaryColor: color("--brand-light"),
+      primaryBorderColor: color("--brand"),
+      primaryTextColor: color("--ink"),
+      lineColor: color("--muted"),
+      secondaryColor: color("--raised"),
+      tertiaryColor: color("--surface"),
+      clusterBkg: color("--raised"),
+      clusterBorder: color("--line")
     }
   });
 </script>

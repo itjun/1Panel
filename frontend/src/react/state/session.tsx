@@ -19,6 +19,7 @@ import {
 import { pushView, viewSnap, type ViewSnap } from "@/react/state/nav-history";
 import { openHostNav } from "@/react/state/host-navigation";
 import { readSettings } from "@/react/state/settings";
+import { SETTINGS_SECTIONS } from "@/react/lib/settings-model";
 import {
   configSectionFromLegacySettings,
   normalizeConfigSection,
@@ -29,13 +30,8 @@ import type { PersistTool } from "@/utils/workspaceMigrate";
 export const UNGROUPED_ID = "__ungrouped__";
 const NAV_KEY = "1pannel-react-nav";
 
-export type Workspace =
-  | "remote"
-  | "local"
-  | "inspect"
-  | "notify"
-  | "config"
-  | "speedtest";
+const WORKSPACES = ["remote", "local", "notify", "config", "speedtest"] as const;
+export type Workspace = (typeof WORKSPACES)[number];
 
 export type Tool =
   | "overview"
@@ -78,11 +74,10 @@ export type NotifySection =
   | "setup";
 
 export type ConfigSection = "backups" | "json" | "ssh";
-export type InspectSection = "menuCheck";
 export type SpeedtestSection = "pair" | "group" | "history";
 /** 从主机右键 / 分组页跳进测速时的预填 */
 export type SpeedtestPrefill = { a?: string; b?: string; groupId?: string; nonce: number };
-export type SettingsSection = "look" | "session" | "board" | "app" | "shortcuts" | "about";
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];
 export type HomeView = "home" | "group";
 
 export type OpenedHost = {
@@ -130,7 +125,6 @@ type Nav = {
   localSection: LocalSection;
   notifySection: NotifySection;
   configSection: ConfigSection;
-  inspectSection: InspectSection;
   speedtestSection: SpeedtestSection;
   settingsSection: SettingsSection;
   homeView: HomeView;
@@ -147,7 +141,6 @@ const defaultNav = (): Nav => ({
   localSection: "overview",
   notifySection: "metricMessages",
   configSection: "backups",
-  inspectSection: "menuCheck",
   speedtestSection: "pair",
   settingsSection: "look",
   homeView: "home",
@@ -158,8 +151,8 @@ const defaultNav = (): Nav => ({
   openedHosts: [],
 });
 
-function loadNav(): Nav {
-  const nav = defaultNav();
+function restoreNav(): Nav {
+  const nav = navFromMainScreen(readMainScreen());
   try {
     const raw = localStorage.getItem(NAV_KEY);
     if (!raw) {
@@ -167,12 +160,14 @@ function loadNav(): Nav {
       if (pinned) nav.pinned = JSON.parse(pinned) as string[];
       return nav;
     }
-    const parsed = JSON.parse(raw) as Partial<Omit<Nav, "workspace">> & {
+    const saved = JSON.parse(raw) as Partial<Omit<Nav, "workspace">> & {
       workspace?: string;
-      openedHosts?: OpenedHost[];
+      inspectSection?: unknown;
     };
-    const openedHosts: OpenedHost[] = [];
+    const { inspectSection: _legacyInspectSection, ...parsed } = saved;
+    let openedHosts = nav.openedHosts;
     if (Array.isArray(parsed.openedHosts)) {
+      openedHosts = [];
       const seen = new Set<string>();
       for (const item of parsed.openedHosts) {
         if (!item || typeof item !== "object") continue;
@@ -188,21 +183,17 @@ function loadNav(): Nav {
         openedHosts.push({ name, tool });
       }
     }
-    // 旧持久化里的 terminal 工作区回落到主机页
-    let workspace = parsed.workspace;
-    if (
-      workspace === "terminal" ||
-      (workspace &&
-        !["remote", "local", "inspect", "notify", "config", "speedtest"].includes(workspace))
-    ) {
-      workspace = "remote";
-    }
+    // 旧版保存的已删除工作区回落到主机。
+    const workspace = WORKSPACES.find((item) => item === parsed.workspace) ?? "remote";
     const merged = {
       ...nav,
       ...parsed,
-      workspace: (workspace as Workspace) || "remote",
+      workspace,
       openedHosts,
     };
+    if (!merged.openedHosts.some((item) => item.name === merged.activeHost)) {
+      merged.activeHost = "";
+    }
     // 旧「关于本机」分区已删除，回落到系统概览
     if ((merged.localSection as string) === "sysinfo") {
       merged.localSection = "overview";
@@ -236,12 +227,10 @@ function loadNav(): Nav {
       merged.workspace = "config";
       merged.configSection = legacyConfigSection;
     }
-    const settingsSections = new Set(["look", "session", "board", "app", "shortcuts", "about"]);
-    if (!settingsSections.has(merged.settingsSection as string)) {
+    if (!SETTINGS_SECTIONS.some((section) => section.id === merged.settingsSection)) {
       merged.settingsSection = "look";
     }
     if (merged.workspace === "config") {
-      merged.settingsOpen = false;
       merged.configSection = normalizeConfigSection(merged.configSection);
     }
     return merged;
@@ -250,9 +239,14 @@ function loadNav(): Nav {
   }
 }
 
-function openedHostsFromScreen(screen: NormalizedScreen | null): OpenedHost[] {
-  if (!screen) return [];
-  const result: OpenedHost[] = [];
+/** 兼容只有主窗口快照的旧版，当前版本优先恢复完整导航记录。 */
+function navFromMainScreen(screen: NormalizedScreen | null): Nav {
+  const nav = defaultNav();
+  if (!screen) return nav;
+  nav.workspace = screen.workspace;
+  nav.settingsOpen = screen.settingsOpen;
+  nav.activeGroupId = screen.activeGroupId || "";
+  nav.homeView = nav.activeGroupId ? "group" : "home";
   const seen = new Set<string>();
   for (const item of screen.hostSessions) {
     if (item.role !== "host") continue;
@@ -261,36 +255,12 @@ function openedHostsFromScreen(screen: NormalizedScreen | null): OpenedHost[] {
     const tool = persistToolToReact(item.tool);
     if (!tool) continue;
     seen.add(name);
-    result.push({ name, tool });
+    nav.openedHosts.push({ name, tool });
+    if (item.id === screen.activeHostSessionId || name === screen.activeHostSessionId) {
+      nav.activeHost = name;
+      nav.activeTool = tool;
+    }
   }
-  return result;
-}
-
-function restoreNav(): Nav {
-  const nav = loadNav();
-  const screen = readMainScreen();
-  const openedHosts = openedHostsFromScreen(screen);
-  nav.openedHosts = openedHosts;
-
-  if (readSettings().startupPage === "home") {
-    nav.homeView = "home";
-    nav.activeHost = "";
-    nav.workspace = "remote";
-    nav.settingsOpen = false;
-    return nav;
-  }
-
-  // 本机 / 配置 / 通知 / 巡检 / 设置沿用 loadNav 里记下的工作区与分区
-  const activeId = screen?.activeHostSessionId?.trim() || "";
-  const active = openedHosts.find((item) => item.name === activeId);
-  if (active) {
-    nav.activeHost = active.name;
-    nav.activeTool = active.tool;
-    return nav;
-  }
-
-  nav.activeHost = "";
-  nav.homeView = "home";
   return nav;
 }
 
@@ -354,7 +324,6 @@ type SessionValue = Nav & {
   setLocalSection: (section: LocalSection) => void;
   setNotifySection: (section: NotifySection) => void;
   setConfigSection: (section: ConfigSection) => void;
-  setInspectSection: (section: InspectSection) => void;
   setSpeedtestSection: (section: SpeedtestSection) => void;
   speedtestPrefill: SpeedtestPrefill | null;
   /** 跳到测速工作区并预填端点或分组 */
@@ -511,8 +480,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         patch({ notifySection, workspace: "notify", settingsOpen: false }),
       setConfigSection: (configSection) =>
         patch({ configSection, workspace: "config", settingsOpen: false }),
-      setInspectSection: (inspectSection) =>
-        patch({ inspectSection, workspace: "inspect", settingsOpen: false }),
       setSpeedtestSection: (speedtestSection) =>
         patch({ speedtestSection, workspace: "speedtest", settingsOpen: false }),
       speedtestPrefill,
@@ -696,7 +663,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         localSection: snap.localSection,
         notifySection: snap.notifySection,
         configSection: snap.configSection,
-        inspectSection: snap.inspectSection,
         speedtestSection: snap.speedtestSection,
         settingsSection: snap.settingsSection,
         homeView: snap.homeView,

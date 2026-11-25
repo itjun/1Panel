@@ -45,8 +45,8 @@ export function HostScrollHint({ viewport, content, isDragging }: {
     const bounds = scroller.getBoundingClientRect();
     const isUp = direction === "up";
     let nextTop = isUp ? -Infinity : Infinity;
-    // 跳过折叠分组内仍挂载的卡片；保留分组标题的上下文。
-    for (const card of scroller.querySelectorAll<HTMLElement>(".host-rack-content:not([data-collapsed]) [data-host-row]")) {
+    // 滚动到卡片时为分组标题预留空间。
+    for (const card of content.current?.querySelectorAll<HTMLElement>("[data-host-row]") ?? []) {
       const rect = card.getBoundingClientRect();
       if (isUp && rect.top < bounds.top && rect.bottom < bounds.bottom - 48) {
         nextTop = Math.max(nextTop, scroller.scrollTop + rect.top - bounds.top - 48);

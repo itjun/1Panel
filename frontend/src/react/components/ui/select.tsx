@@ -167,7 +167,7 @@ export function Select<T extends string | number = string>({
             setOpen((prev) => !prev);
             inputRef.current?.focus();
           }}
-          className={cn(fieldClass, disabled ? "cursor-not-allowed text-muted" : "cursor-text")}
+          className={cn(fieldClass, disabled ? "cursor-not-allowed text-disabled" : "cursor-text")}
         >
           <span className="relative flex min-w-0 flex-1 items-center">
             <input
@@ -186,7 +186,7 @@ export function Select<T extends string | number = string>({
                 if (!open) setOpen(true);
               }}
               onKeyDown={onKeyDown}
-              className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed"
+              className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-placeholder disabled:cursor-not-allowed"
             />
             {open ? null : (
               <span
@@ -217,7 +217,7 @@ export function Select<T extends string | number = string>({
           setOpen((prev) => !prev);
         }}
         onKeyDown={onKeyDown}
-        className={cn(fieldClass, "disabled:cursor-not-allowed disabled:text-muted")}
+        className={cn(fieldClass, "disabled:cursor-not-allowed disabled:text-disabled")}
       >
         <span className={cn("min-w-0 flex-1 truncate", !selected && "text-muted")}>
           {selected ? selected.label : placeholder}
@@ -256,7 +256,7 @@ export function Select<T extends string | number = string>({
                   "flex h-8 cursor-pointer items-center gap-2 rounded-control px-2 text-sm motion-colors",
                   isSelected ? "bg-item-selected text-item-selected-text" : "text-ink",
                   isActive && !isSelected && !item.disabled && "bg-item-hover",
-                  item.disabled && "cursor-not-allowed text-muted opacity-50",
+                  item.disabled && "cursor-not-allowed text-disabled",
                 )}
               >
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>

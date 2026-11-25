@@ -33,7 +33,7 @@
 }
 .workbench-tab.is-active {
   background-color: var(--color-surface);
-  color: var(--color-accent);
+  color: var(--color-info);
 }
 .workbench-more[aria-expanded="true"] {
   background-color: var(--color-item-selected);
@@ -204,7 +204,7 @@
   font-size: 20px;
   font-weight: 600;
 }
-.resource-trends__focus { font-size: 11px; color: var(--color-accent); background: var(--color-accent-soft); border-radius: var(--radius-control); padding: 2px 6px; }
+.resource-trends__focus { font-size: 11px; color: var(--color-info); background: var(--color-accent-soft); border-radius: var(--radius-control); padding: 2px 6px; }
 .resource-trends__notice { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--color-muted); }
 .resource-trends.is-empty { row-gap: 8px; }
 .resource-trends.is-empty .resource-trends__plot { height: 24px; }

@@ -35,7 +35,7 @@ export function NotifyNavigation() {
       >
         <span>{label}</span>
         {count !== undefined && count > 0 ? (
-          <span className={cn("notify-nav-count", count > 0 && "text-accent")}>
+          <span className={cn("notify-nav-count", !active && "text-accent")}>
             {count > 99 ? "99+" : count}
           </span>
         ) : null}

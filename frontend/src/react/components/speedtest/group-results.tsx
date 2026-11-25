@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { speedtest } from "@/api";
+import { TrendDirectionSwatch } from "@/react/components/monitor/charts";
 import { Tag } from "@/react/components/ui/tag";
 import { cn } from "@/react/lib/utils";
 import { RELATION_LABEL, formatBps, formatMs } from "./format";
@@ -56,12 +57,12 @@ export function StarTable({
               <th key={h} className={cn("px-3 font-semibold", i >= 4 && i <= 7 && "text-right")}>
                 {h === "中心→主机" ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <span aria-hidden className="h-0.5 w-3 bg-io-write" />
+                    <TrendDirectionSwatch direction="write" />
                     {h}
                   </span>
                 ) : h === "主机→中心" ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <span aria-hidden className="h-0.5 w-3 bg-io-read" />
+                    <TrendDirectionSwatch direction="read" />
                     {h}
                   </span>
                 ) : (
@@ -135,9 +136,9 @@ export function MatrixGrid({
   function tier(v: number) {
     if (!v || !max) return "bg-raised text-muted";
     const r = v / max;
-    if (r >= 0.75) return "bg-accent-soft text-accent font-semibold";
-    if (r >= 0.4) return "bg-accent-tint text-ink";
-    return "bg-raised text-ink";
+    if (r >= 0.75) return "bg-heat-high text-ink font-semibold";
+    if (r >= 0.4) return "bg-heat-mid text-ink";
+    return "bg-heat-low text-ink";
   }
 
   return (

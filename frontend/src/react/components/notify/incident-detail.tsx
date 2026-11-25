@@ -106,7 +106,7 @@ export function IncidentDetail({
   onDelete: () => void;
   isBusy: boolean;
 }) {
-  const isHostAvailable = !!incident.host && !["菜单检查", "巡检", "本机"].includes(incident.host);
+  const isHostAvailable = !!incident.host && incident.host !== "本机";
   const app = isAppKind(incident.kind);
   const pointEvent = incident.status === "notice";
   const subject = app

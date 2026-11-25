@@ -17,6 +17,9 @@ func TestZshEnvironmentParsing(t *testing.T) {
 	if !env.Supported || !env.Privileged || !env.Highlighting || !env.HighlightingEnabled || env.SuggestionsEnabled || env.User != "deploy" || env.RestoreCommand == "" {
 		t.Fatalf("unexpected environment: %+v", env)
 	}
+	if issue := parseZshEnvironment("aptSourceIssue=缺少 APT 源\n").AptSourceIssue; issue != "缺少 APT 源" {
+		t.Fatalf("APT issue lost during inspection: %q", issue)
+	}
 	for _, output := range []string{"os=Darwin\nmanager=apt-get", "os=Linux\nmanager=pacman", "os=Linux"} {
 		if parseZshEnvironment(output).Supported {
 			t.Fatalf("unexpected support for %q", output)
@@ -47,6 +50,39 @@ func TestZshCommandQuotesAndPreservesExitStatus(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("uploaded script not cleaned")
+	}
+}
+
+func TestManualHostSetupCommandChecksUserAndCleansUpOnSuccess(t *testing.T) {
+	f := newZshFixture(t)
+	f.stub(t, "id", "echo deploy")
+	path := filepath.Join(f.home, "init ' script.sh")
+	if err := os.WriteFile(path, []byte("printf '%s\\n' \"$*\"\n[ ! -f \"$HOME/fail\" ]\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run := func(user string) ([]byte, error) {
+		cmd := exec.Command("sh", "-c", manualHostSetupCommand(path, user))
+		cmd.Env = append(os.Environ(), "HOME="+f.home, "PATH="+f.bin+":"+os.Getenv("PATH"))
+		return cmd.CombinedOutput()
+	}
+	if out, err := run("other"); err == nil || !strings.Contains(string(out), "请使用 other") {
+		t.Fatalf("wrong user could run the script: %v\n%s", err, out)
+	}
+	failFlag := filepath.Join(f.home, "fail")
+	if err := os.WriteFile(failFlag, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run("deploy"); err == nil || !strings.Contains(string(out), "--interactive-sudo") {
+		t.Fatalf("script failure was lost: %v\n%s", err, out)
+	}
+	if err := os.Remove(failFlag); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run("deploy"); err != nil || strings.TrimSpace(string(out)) != "--apply --base-packages --no-correction --default-shell --interactive-sudo" {
+		t.Fatalf("manual setup could not retry: %v\n%s", err, out)
+	}
+	if out, err := run("deploy"); err == nil || !strings.Contains(string(out), "找不到初始化脚本") {
+		t.Fatalf("script still exists after success: %v\n%s", err, out)
 	}
 }
 
@@ -117,7 +153,9 @@ func TestZshHostInitializationPackagesAndServiceFailure(t *testing.T) {
 		t.Run(map[bool]string{false: "install", true: "service failure"}[failService], func(t *testing.T) {
 			f := newZshFixture(t)
 			f.stub(t, "id", `if [ "$1" = -u ]; then echo 0; else echo deploy; fi`)
-			f.stub(t, "apt-get", `printf '%s\n' "$*" >> "$HOME/packages.log"`)
+			f.stub(t, "apt-get", `
+if [ "$1" = indextargets ]; then printf 'Packages\n'; exit 0; fi
+printf '%s\n' "$*" >> "$HOME/packages.log"`)
 			body := `printf '%s\n' "$*" >> "$HOME/service.log"`
 			if failService {
 				body += "\nexit 1"
@@ -136,7 +174,7 @@ func TestZshHostInitializationPackagesAndServiceFailure(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("host installation failed: %v\n%s", err, out)
 			}
-			if got := readZshFile(t, filepath.Join(f.home, "packages.log")); got != "update\n-o DPkg::Lock::Timeout=300 install -y openssh-server vim curl wget sudo tree ca-certificates zsh git htop btop\n" {
+			if got := readZshFile(t, filepath.Join(f.home, "packages.log")); got != "-o APT::Update::Error-Mode=any update\n-o DPkg::Lock::Timeout=300 install -y openssh-server vim curl wget sudo tree ca-certificates zsh git htop btop\n" {
 				t.Fatalf("unexpected package operations: %s", got)
 			}
 			if got := readZshFile(t, filepath.Join(f.home, "service.log")); got != "enable ssh\n" {
@@ -147,6 +185,57 @@ func TestZshHostInitializationPackagesAndServiceFailure(t *testing.T) {
 				t.Fatal("full setup flags incomplete")
 			}
 		})
+	}
+}
+
+func TestHostSetupReportsMissingBinaryAPTSourceBeforeInstalling(t *testing.T) {
+	f := newZshFixture(t)
+	f.stub(t, "id", `if [ "$1" = -u ]; then echo 0; else echo deploy; fi`)
+	f.stub(t, "apt-get", `
+if [ "$1" = indextargets ]; then printf 'Sources\n'; exit 0; fi
+echo 'unexpected package operation' >&2
+exit 88`)
+	out, err := f.run(t, "--inspect")
+	if issue := parseZshEnvironment(out).AptSourceIssue; err != nil || !strings.Contains(issue, "没有启用 APT 软件包源") {
+		t.Fatalf("inspection did not report missing binary sources: %v\n%s", err, out)
+	}
+	out, err = f.run(t, "--apply", "--base-packages", "--interactive-sudo")
+	if err == nil || !strings.Contains(out, "[错误] 目标主机没有启用 APT 软件包源") || strings.Contains(out, "unexpected package operation") {
+		t.Fatalf("installer did not stop at source validation: %v\n%s", err, out)
+	}
+}
+
+func TestHostSetupInteractiveSudoKeepsUserConfiguration(t *testing.T) {
+	f := newZshFixture(t)
+	f.stub(t, "id", `if [ "$1" = -u ]; then echo 1000; else echo deploy; fi`)
+	f.stub(t, "sudo", `
+printf '%s\n' "$*" >> "$HOME/sudo.log"
+case "$1" in
+  -n) exit 1 ;;
+  -v) exit 0 ;;
+esac
+exec "$@"`)
+	f.stub(t, "apt-get", `if [ "$1" = indextargets ]; then echo Packages; fi`)
+	f.stub(t, "systemctl", "exit 0")
+	f.stub(t, "chsh", `printf '%s\n' "$2" > "$HOME/login-shell"`)
+	f.stub(t, "getent", `
+shell=/bin/bash
+[ ! -f "$HOME/login-shell" ] || shell=$(cat "$HOME/login-shell")
+printf 'deploy:x:1000:1000::%s:%s\n' "$HOME" "$shell"`)
+	if out, err := f.run(t, "--apply", "--base-packages", "--default-shell"); err == nil || !strings.Contains(out, "需要 root 或免密 sudo") {
+		t.Fatalf("automatic setup did not require passwordless sudo: %v\n%s", err, out)
+	}
+	if out, err := f.run(t, "--apply", "--base-packages", "--default-shell", "--interactive-sudo"); err != nil {
+		t.Fatalf("interactive setup failed: %v\n%s", err, out)
+	}
+	log := readZshFile(t, filepath.Join(f.home, "sudo.log"))
+	for _, command := range []string{"-n true", "-v", "env LC_ALL=C apt-get -o APT::Update::Error-Mode=any update", "systemctl enable ssh", "chsh -s " + f.zsh + " deploy"} {
+		if !strings.Contains(log, command+"\n") {
+			t.Errorf("missing sudo call %q in:\n%s", command, log)
+		}
+	}
+	if rc := readZshFile(t, filepath.Join(f.home, ".zshrc")); !strings.Contains(rc, "1Panel zsh") {
+		t.Fatal("configuration is missing from the login user's home")
 	}
 }
 

@@ -8,17 +8,17 @@
   <title>安装 1Panel｜macOS 安装指南</title>
   <style>
     :root {
-      --canvas: #f2f3f5;
+      --canvas: #eeeeee;
       --surface: #ffffff;
-      --raised: #f3f4f6;
-      --ink: #1f2937;
-      --muted: #636a76;
-      --line: #e5e7eb;
-      --accent: #0052d9;
-      --accent-soft: #e8efff;
+      --raised: #f3f3f3;
+      --ink: rgba(0, 0, 0, .9);
+      --muted: rgba(0, 0, 0, .6);
+      --line: #e8e8e8;
+      --accent: #0052d9; --link: #003cab;
+      --accent-soft: #f2f3ff;
       --on-accent: #ffffff;
-      --warn: #d35a00;
-      --warn-soft: #fff0e3;
+      --warn: #954500;
+      --warn-soft: #fff1e9;
     }
     * { box-sizing: border-box; }
     html { scroll-padding-top: 24px; }
@@ -31,7 +31,7 @@
       line-height: 1.75;
       overflow-wrap: break-word;
     }
-    a { color: var(--accent); text-underline-offset: 4px; }
+    a { color: var(--link); text-underline-offset: 4px; }
     a:hover { text-decoration-thickness: 2px; }
     :focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; }
     .skip { position: absolute; top: -80px; left: 20px; padding: 8px 16px; background: var(--surface); }
@@ -52,7 +52,7 @@
     .requirements strong { color: var(--ink); font-weight: 600; }
     .steps { list-style: none; margin: 8px 0 0; padding: 0; counter-reset: step; }
     .step { counter-increment: step; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding: 30px 0; border-top: 1px solid var(--line); }
-    .step::before { content: counter(step); background: var(--accent-soft); color: var(--accent); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 18px; }
+    .step::before { content: counter(step); background: var(--accent-soft); color: var(--link); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 18px; }
     .step p { max-width: 40em; }
     .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 9px 18px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; font-size: 15px; margin-top: 4px; }
     .button:hover { text-decoration: underline; }
@@ -70,7 +70,7 @@
     figcaption { margin-top: 12px; color: var(--muted); font-size: 13px; text-align: center; }
     .settings-path { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0; padding: 14px 18px; background: var(--raised); font-size: 15px; }
     .settings-path span { color: var(--muted); }
-    .settings-path strong { color: var(--accent); }
+    .settings-path strong { color: var(--link); }
     .notice { margin-top: 18px; padding: 14px 18px; background: var(--warn-soft); font-size: 14px; }
     .notice strong { color: var(--warn); }
     .faq { margin-top: 18px; }
@@ -87,17 +87,17 @@
     footer { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 24px 0 32px; }
     @media (prefers-color-scheme: dark) {
       :root {
-        --canvas: #12161f;
-        --surface: #1a1f2b;
-        --raised: #232a38;
-        --ink: #e6ebf3;
-        --muted: #94a1b5;
-        --line: #2c3445;
-        --accent: #4c8dff;
-        --accent-soft: #1a2c52;
-        --on-accent: #12161f;
-        --warn: #f29a4a;
-        --warn-soft: #40280f;
+        --canvas: #181818;
+        --surface: #242424;
+        --raised: #2c2c2c;
+        --ink: rgba(255, 255, 255, .9);
+        --muted: rgba(255, 255, 255, .55);
+        --line: #393939;
+        --accent: #4582e6; --link: #699ef5;
+        --accent-soft: #1b2f51;
+        --on-accent: #181818;
+        --warn: #e8935c;
+        --warn-soft: #4f2a1d;
       }
     }
     @media (max-width: 600px) {

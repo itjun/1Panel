@@ -1,14 +1,12 @@
 import { useMemo } from "react";
 import type { speedtest } from "@/api";
-import { ChartHost, lineOption } from "@/react/components/monitor/charts";
-import { trendLineStyle } from "@/react/lib/chart-style";
+import { ChartHost, lineOption, TrendDirectionSwatch, type LineSeries } from "@/react/components/monitor/charts";
+import type { TrendDirection } from "@/react/lib/chart-style";
 import { useThemeSignature } from "@/react/lib/use-theme-mode";
-import { readThemeColor } from "@/react/lib/utils";
 import { formatBps, formatMs, pickBpsScale } from "./format";
 
 /**
- * 实时吞吐曲线：A→B（A 发送）橙色 io-write，B→A（A 接收）浅蓝 io-read，
- * 与监控面板「发送 / 接收」语义一致。分流视图用同色细线。
+ * 实时吞吐与监控共用方向色。A→B 为发送，B→A 为接收，分流用同色细实线。
  */
 export function LiveChart({
   samples: all,
@@ -30,44 +28,28 @@ export function LiveChart({
     for (const s of samples) peak = Math.max(peak, s.ab, s.ba);
     const { divisor, unit } = pickBpsScale(peak);
     const x = samples.map((s) => `${s.t.toFixed(s.t % 1 === 0 ? 0 : 1)}s`);
-    const write = readThemeColor("--color-io-write", "#f08a24");
-    const read = readThemeColor("--color-io-read", "#1d8cf8");
     const scale = (v: number) => Number((v / divisor).toFixed(3));
 
-    type S = { name: string; data: number[]; color: string; thin?: boolean };
-    const list: S[] = [];
-    if (hasAB || !hasBA) list.push({ name: "A→B", data: samples.map((s) => scale(s.ab)), color: write });
-    if (hasBA) list.push({ name: "B→A", data: samples.map((s) => scale(s.ba)), color: read });
+    const series: LineSeries[] = [];
+    if (hasAB || !hasBA) series.push({ name: "A→B", data: samples.map((s) => scale(s.ab)), direction: "write" });
+    if (hasBA) series.push({ name: "B→A", data: samples.map((s) => scale(s.ba)), direction: "read" });
     if (streams) {
       const nAB = Math.max(0, ...samples.map((s) => s.streamsAB?.length || 0));
       const nBA = Math.max(0, ...samples.map((s) => s.streamsBA?.length || 0));
       for (let i = 0; i < nAB; i++) {
-        list.push({ name: `A→B #${i + 1}`, data: samples.map((s) => scale(s.streamsAB?.[i] || 0)), color: write, thin: true });
+        series.push({ name: `A→B #${i + 1}`, data: samples.map((s) => scale(s.streamsAB?.[i] || 0)), direction: "write", detail: true });
       }
       for (let i = 0; i < nBA; i++) {
-        list.push({ name: `B→A #${i + 1}`, data: samples.map((s) => scale(s.streamsBA?.[i] || 0)), color: read, thin: true });
+        series.push({ name: `B→A #${i + 1}`, data: samples.map((s) => scale(s.streamsBA?.[i] || 0)), direction: "read", detail: true });
       }
     }
 
-    const base = lineOption(
-      x,
-      list.map((s) => ({ name: s.name, data: s.data })),
-      {
+    return {
+      ...lineOption(x, series, {
         yFormatter: (v) => `${v.toFixed(v >= 100 ? 0 : 2)} ${unit}`,
         axisFormatter: (v) => `${v} ${unit}`,
-      },
-    );
-    return {
-      ...base,
+      }),
       animation: false,
-      color: list.map((s) => s.color),
-      series: list.map((s) => ({
-        ...trendLineStyle({ color: s.color, values: s.data, muted: s.thin, fill: !s.thin }),
-        name: s.name,
-        data: s.data,
-        lineStyle: s.thin ? { width: 1, opacity: 0.35 } : { width: 2.25 },
-        z: s.thin ? 1 : 2,
-      })),
     };
   }, [all, streams, theme]);
 
@@ -78,12 +60,11 @@ export function LiveChart({
   );
 }
 
-function Stat({ label, value, swatch }: { label: string; value: string; swatch?: "read" | "write" }) {
+function Stat({ label, value, swatch }: { label: string; value: string; swatch?: TrendDirection }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <span className="flex items-center gap-1.5 text-xs text-muted">
-        {swatch === "write" ? <span aria-hidden className="h-0.5 w-3 bg-io-write" /> : null}
-        {swatch === "read" ? <span aria-hidden className="h-0.5 w-3 bg-io-read" /> : null}
+        {swatch ? <TrendDirectionSwatch direction={swatch} /> : null}
         {label}
       </span>
       <span className="truncate text-base font-semibold text-ink tabular-nums">{value}</span>

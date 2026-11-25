@@ -13,9 +13,6 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as menucheck$0 from "../menucheck/models.js";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
 import * as monitor$0 from "../monitor/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -24,20 +21,6 @@ import * as sysfonts$0 from "../sysfonts/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
-
-/**
- * CheckMenuPage 立即用 Go HTTP 执行巡检项（不打开浏览器、不告警）。id 空则检查全部，返回最后一项结果以兼容旧调用。
- */
-export function CheckMenuPage(id: string): $CancellablePromise<$models.MenuCheckResult> {
-    return $Call.ByID(313600278, id);
-}
-
-/**
- * DeleteMenuCheck 删除巡检项。
- */
-export function DeleteMenuCheck(id: string): $CancellablePromise<void> {
-    return $Call.ByID(481524562, id);
-}
 
 /**
  * FocusMainWindow 显示并聚焦主窗口。
@@ -98,13 +81,6 @@ export function InspectZsh(host: string): $CancellablePromise<$models.ZshEnviron
  */
 export function ListBoardURLs(groupName: string): $CancellablePromise<string[] | null> {
     return $Call.ByID(2143159036, groupName);
-}
-
-/**
- * ListMenuChecks 返回用户配置的巡检项及最近一次结果。
- */
-export function ListMenuChecks(): $CancellablePromise<$models.MenuCheckResult[] | null> {
-    return $Call.ByID(3870404384);
 }
 
 /**
@@ -169,17 +145,18 @@ export function OpenHostsInTerminal(hosts: string[] | null, mode: string, termin
 }
 
 /**
+ * PrepareHostSetupCommand stages the bundled script without running it. The
+ * login user runs the returned command from a terminal that can prompt for sudo.
+ */
+export function PrepareHostSetupCommand(host: string): $CancellablePromise<string> {
+    return $Call.ByID(2068260429, host);
+}
+
+/**
  * PreviewHostAlertMarkdown 返回企微将收到的 markdown 原文（不发送），供设置页预览。
  */
 export function PreviewHostAlertMarkdown($in: $models.HostAlertNotify): $CancellablePromise<string> {
     return $Call.ByID(1972512867, $in);
-}
-
-/**
- * SaveMenuCheck 新增（id 为空）或更新巡检项，保存后立即参与定时调度。
- */
-export function SaveMenuCheck(item: menucheck$0.Item): $CancellablePromise<menucheck$0.Item> {
-    return $Call.ByID(2779536728, item);
 }
 
 /**
@@ -216,10 +193,6 @@ export function SetTrafficLightsHidden(hidden: boolean): $CancellablePromise<voi
     return $Call.ByID(2641606870, hidden);
 }
 
-export function SetWindowMaterial(preference: string): $CancellablePromise<$models.WindowThemeState> {
-    return $Call.ByID(1298128291, preference);
-}
-
 /**
  * StartHostSetup 安装 itjun-tools 基础软件，并打开全部 Shell 增强。
  * 目标是 SSH 登录用户；个人配置先备份再保留。
@@ -233,13 +206,6 @@ export function StartHostSetup(host: string): $CancellablePromise<$models.ZshSet
  */
 export function StartZshSetup(host: string, options: $models.ZshSetupOptions): $CancellablePromise<$models.ZshSetupTask> {
     return $Call.ByID(3038712628, host, options);
-}
-
-/**
- * TestMenuCheck 用未保存的配置试发一次请求（编辑弹窗里的「发送测试」）。
- */
-export function TestMenuCheck(item: menucheck$0.Item): $CancellablePromise<$models.MenuCheckResult> {
-    return $Call.ByID(2609588423, item);
 }
 
 /**

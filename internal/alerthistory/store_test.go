@@ -1,10 +1,47 @@
 package alerthistory
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestRetiredChecksAreHiddenFromHistoryAndUnreadCount(t *testing.T) {
+	path := filepath.Join(t.TempDir(), historyFile)
+	data := []byte(`[
+		{"id":"check","host":"巡检","kind":"inspect:check"},
+		{"id":"menu","host":"菜单检查","kind":"menu:check"},
+		{"id":"cpu","host":"h1","kind":"cpu"},
+		{"id":"cert","host":"h2","kind":"cert","read":true}
+	]`)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	s := &Store{path: path}
+	if err := s.load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.List(1); len(got) != 1 || got[0].ID != "cpu" {
+		t.Fatalf("List(1) = %+v", got)
+	}
+	if got := s.List(0); len(got) != 2 || got[1].ID != "cert" {
+		t.Fatalf("List(0) = %+v", got)
+	}
+	if got := s.ListByHost("巡检", 0); len(got) != 0 {
+		t.Fatalf("ListByHost(巡检) = %+v", got)
+	}
+	if got := s.UnreadCount(); got != 1 {
+		t.Fatalf("UnreadCount = %d, want 1", got)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(saved, data) {
+		t.Fatal("reading history changed the original file")
+	}
+}
 
 func TestStoreAppendCapAndRead(t *testing.T) {
 	dir := t.TempDir()

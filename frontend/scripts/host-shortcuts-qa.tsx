@@ -41,8 +41,9 @@ Object.assign(api, {
   getApplicationData: async () => ({ preferences: {} }),
 });
 const { updateSettings } = await import("@/react/state/settings");
-updateSettings({ startupPage: "resume", appearance: params.get("theme") === "dark" ? "dark" : "light", colorPalette: "apricot-sea", hostHomeRows: [["dev", "apps"]], hostHomeRacks: [{ id: "fixture", name: "", groups: ["dev", "apps"] }] });
+updateSettings({ appearance: params.get("theme") === "dark" ? "dark" : "light", hostHomeRows: [["dev", "apps"]], hostHomeRacks: [{ id: "fixture", name: "", groups: ["dev", "apps"] }] });
 const { writeMainScreen } = await import("@/utils/lastScreen");
+localStorage.removeItem("1pannel-react-nav");
 writeMainScreen({ workspace: "remote", settingsOpen: false, activeHostSessionId: names[1], activeTerminalId: "", desks: [],
   hostSessions: params.has("empty") ? [] : names.slice(0, params.has("single") ? 1 : 6).map((name) => ({ id: name, host: name, role: "host", tool: "disk", title: name, titleCustom: false, terminals: [], activeTerminalId: "" })),
 });

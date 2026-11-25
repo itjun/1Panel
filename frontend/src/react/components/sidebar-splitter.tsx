@@ -96,7 +96,7 @@ export function SidebarSplitter() {
     >
       <div className="sidebar-splitter-hit absolute inset-y-0 -left-1 w-2 cursor-col-resize" />
       {/* 悬停、实际键盘导航及拖动的竖线颜色由 globals.css 控制。 */}
-      <div className="sidebar-splitter-line pointer-events-none absolute inset-y-0 -left-px w-0.5" />
+      <div className="sidebar-splitter-line pointer-events-none absolute inset-y-0" />
     </div>
   );
 }

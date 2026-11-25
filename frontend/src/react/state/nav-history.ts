@@ -5,7 +5,6 @@
 import type {
   ConfigSection,
   HomeView,
-  InspectSection,
   LocalSection,
   NotifySection,
   SettingsSection,
@@ -22,7 +21,6 @@ export type ViewSnap = {
   localSection: LocalSection;
   notifySection: NotifySection;
   configSection: ConfigSection;
-  inspectSection: InspectSection;
   speedtestSection: SpeedtestSection;
   settingsSection: SettingsSection;
   homeView: HomeView;
@@ -38,7 +36,6 @@ export function viewSnap(nav: ViewSnap): ViewSnap {
     localSection: nav.localSection,
     notifySection: nav.notifySection,
     configSection: nav.configSection,
-    inspectSection: nav.inspectSection,
     speedtestSection: nav.speedtestSection,
     settingsSection: nav.settingsSection,
     homeView: nav.homeView,
@@ -54,7 +51,6 @@ export function viewKey(snap: ViewSnap): string {
   if (snap.workspace === "local") return `local:${snap.localSection}`;
   if (snap.workspace === "notify") return `notify:${snap.notifySection}`;
   if (snap.workspace === "config") return `config:${snap.configSection}`;
-  if (snap.workspace === "inspect") return `inspect:${snap.inspectSection}`;
   if (snap.workspace === "speedtest") return `speedtest:${snap.speedtestSection}`;
   if (snap.activeHost) return `host:${snap.activeHost}:${snap.activeTool}`;
   if (snap.homeView === "group") return `group:${snap.activeGroupId}`;

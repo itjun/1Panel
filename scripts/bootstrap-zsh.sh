@@ -16,6 +16,7 @@ SUGGEST=1
 CORRECTION=0
 DEFAULT_SHELL=0
 BASE_PACKAGES=0
+INTERACTIVE_SUDO=0
 APT_LOCK_TIMEOUT="${ONEPANEL_APT_LOCK_TIMEOUT:-300}"
 case "$APT_LOCK_TIMEOUT" in ''|*[!0-9]*) printf '%s\n' '[错误] APT 锁等待秒数必须为 0–300 的整数。' >&2; exit 1 ;; esac
 [ "${#APT_LOCK_TIMEOUT}" -le 3 ] && [ "$APT_LOCK_TIMEOUT" -le 300 ] || { printf '%s\n' '[错误] APT 锁等待秒数必须为 0–300 的整数。' >&2; exit 1; }
@@ -30,7 +31,13 @@ log() { printf '%s\n' "$*"; }
 die() { log "[错误] $*" >&2; exit 1; }
 quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 privileged() {
-  if [ "$(id -u)" = 0 ]; then "$@"; else sudo -n "$@"; fi
+  if [ "$(id -u)" = 0 ]; then
+    "$@"
+  elif [ "$INTERACTIVE_SUDO" = 1 ]; then
+    sudo "$@"
+  else
+    sudo -n "$@"
+  fi
 }
 login_shell() {
   if command -v getent >/dev/null 2>&1; then
@@ -44,6 +51,13 @@ manager() {
     if command -v "$pm" >/dev/null 2>&1; then printf '%s' "$pm"; return; fi
   done
   printf 'unsupported'
+}
+apt_source_issue() {
+  if ! index_targets=$(LC_ALL=C apt-get indextargets --no-release-info --format '$(IDENTIFIER)' 2>/dev/null); then
+    printf '%s\n' 'APT 软件源配置无法读取，请检查目标主机的 sources.list 和 sources.list.d。'
+  elif ! printf '%s\n' "$index_targets" | grep -Fxq Packages; then
+    printf '%s\n' '目标主机没有启用 APT 软件包源。请在 /etc/apt/sources.list 或 /etc/apt/sources.list.d/ 启用当前发行版的软件源，再重新检测。'
+  fi
 }
 plugin_path() {
   name="$1"
@@ -62,7 +76,11 @@ inspect() {
     . /etc/os-release
     printf 'distribution=%s\n' "${PRETTY_NAME:-${ID:-Linux}}"
   fi
-  printf 'user=%s\nhome=%s\nshell=%s\nmanager=%s\nzshrc=%s\n' "$(id -un)" "$HOME" "$(login_shell)" "$(manager)" "$ZSHRC"
+  package_manager=$(manager)
+  printf 'user=%s\nhome=%s\nshell=%s\nmanager=%s\nzshrc=%s\n' "$(id -un)" "$HOME" "$(login_shell)" "$package_manager" "$ZSHRC"
+  if [ "$package_manager" = apt-get ]; then
+    printf 'aptSourceIssue=%s\n' "$(apt_source_issue)"
+  fi
   if command -v zsh >/dev/null 2>&1; then printf 'zsh=%s\n' "$(zsh --version)"; fi
   if [ "$(id -u)" = 0 ] || (command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null); then printf 'privileged=true\n'; fi
   if command -v git >/dev/null 2>&1; then printf 'git=true\n'; fi
@@ -101,7 +119,7 @@ apt_update_with_wait() {
   started="$(date +%s)"
   while :; do
     apt_result=0
-    privileged env LC_ALL=C apt-get update > "$WORK/apt-update.log" 2>&1 || apt_result=$?
+    privileged env LC_ALL=C apt-get -o APT::Update::Error-Mode=any update > "$WORK/apt-update.log" 2>&1 || apt_result=$?
     cat "$WORK/apt-update.log"
     [ "$apt_result" != 0 ] || return 0
     if ! grep -Eq 'Could not get lock .*([Rr]esource temporarily unavailable|held by process)' "$WORK/apt-update.log"; then
@@ -133,13 +151,15 @@ install_deps() {
     command -v git >/dev/null 2>&1 || need="$need git ca-certificates"
   fi
   [ -n "$need" ] || return 0
-  if [ "$(id -u)" != 0 ]; then
+  if [ "$INTERACTIVE_SUDO" = 0 ] && [ "$(id -u)" != 0 ]; then
     command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null || die '安装系统依赖需要 root 或免密 sudo，请在终端安装依赖后重新检测。'
   fi
   log "[依赖] 安装:$need"
   # These package names are a fixed internal list, never user input.
   case "$(manager)" in
     apt-get)
+      source_issue=$(apt_source_issue)
+      [ -z "$source_issue" ] || die "$source_issue"
       apt_update_with_wait
       log "[APT] 安装锁繁忙时自动等待，最多 $APT_LOCK_TIMEOUT 秒；锁释放后继续安装"
       privileged env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt-get -o "DPkg::Lock::Timeout=$APT_LOCK_TIMEOUT" install -y $need
@@ -276,7 +296,9 @@ backup_config() {
     printf 'if [ -f "$backup/zshrc" ]; then cp -p "$backup/zshrc" "$rc"; else rm -f "$rc"; fi\n'
     printf 'if [ -f "$backup/setup.zsh" ]; then cp -p "$backup/setup.zsh" "$config"; else rm -f "$config"; fi\n'
     if [ "$DEFAULT_SHELL" = 1 ]; then
-      printf 'if [ "$(id -u)" = 0 ]; then chsh -s %s %s; else sudo -n chsh -s %s %s; fi\n' "$(quote "$old_shell")" "$(quote "$(id -un)")" "$(quote "$old_shell")" "$(quote "$(id -un)")"
+      sudo_command='sudo -n'
+      [ "$INTERACTIVE_SUDO" != 1 ] || sudo_command='sudo'
+      printf 'if [ "$(id -u)" = 0 ]; then chsh -s %s %s; else %s chsh -s %s %s; fi\n' "$(quote "$old_shell")" "$(quote "$(id -un)")" "$sudo_command" "$(quote "$old_shell")" "$(quote "$(id -un)")"
     fi
     printf 'printf "已恢复本次修改前的配置，请重新登录。\\n"\n'
   } > "$BACKUP/restore.sh"
@@ -339,6 +361,9 @@ apply() {
     [ -f "$ZSHRC" ] && [ -w "$ZSHRC" ] || die '.zshrc 不是可写的普通文件。'
     awk -v b="$BEGIN" -v e="$END" '$0==b {if (inside) exit 1;inside=1} $0==e {if (!inside) exit 1;inside=0} END {if (inside) exit 1}' "$ZSHRC" || die '1Panel 配置标记不完整，请先检查 .zshrc。'
   fi
+  if [ "$INTERACTIVE_SUDO" = 1 ] && [ "$(id -u)" != 0 ]; then
+    command -v sudo >/dev/null 2>&1 && sudo -v || die '请让管理员为当前用户开通 sudo 权限，再到远程终端重试。'
+  fi
   mkdir -p "$BASE/plugins" "$BASE/backups"
   mkdir "$BASE/.lock" 2>/dev/null || die "已有初始化任务或残留锁: $BASE/.lock；确认没有任务运行后移除该空目录。"
   trap cleanup EXIT
@@ -351,7 +376,9 @@ apply() {
   [ "$HIGHLIGHT" != 1 ] || install_plugin zsh-syntax-highlighting
   if [ "$DEFAULT_SHELL" = 1 ]; then
     command -v chsh >/dev/null 2>&1 || die '缺少 chsh，请取消设为默认 Shell 后重试。'
-    [ "$(id -u)" = 0 ] || (command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null) || die '切换默认 Shell 需要 root 或免密 sudo。'
+    if [ "$INTERACTIVE_SUDO" = 0 ] && [ "$(id -u)" != 0 ]; then
+      command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null || die '切换默认 Shell 需要 root 或免密 sudo。'
+    fi
   fi
   backup_config
   write_config
@@ -373,6 +400,7 @@ for arg in "$@"; do
     --correction) CORRECTION=1 ;;
     --default-shell) DEFAULT_SHELL=1 ;;
     --base-packages) BASE_PACKAGES=1 ;;
+    --interactive-sudo) INTERACTIVE_SUDO=1 ;;
     *) die "未知参数: $arg" ;;
   esac
 done

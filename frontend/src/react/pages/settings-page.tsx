@@ -33,11 +33,10 @@ import {
 import { useSession } from "@/react/state/session";
 import { openUpdateDialog, setUpdateState, useAppUpdate } from "@/react/state/app-update";
 import { formatErr } from "@/utils/format";
-import { setWindowMaterial, useWindowTheme, type WindowMaterial } from "@/react/state/window-theme";
 
 import { detectAppOs } from "@/react/lib/platform";
-import { SETTINGS_SECTIONS, settingsShortcuts, showWindowMaterial } from "@/react/lib/settings-model";
-import { AppearancePreviews, PalettePreviews } from "@/react/components/settings-appearance";
+import { SETTINGS_SECTIONS, settingsShortcuts } from "@/react/lib/settings-model";
+import { AppearancePreviews } from "@/react/components/settings-appearance";
 import type { SettingsSection } from "@/react/state/session";
 import "@/react/styles/settings.css";
 
@@ -45,7 +44,6 @@ export function SettingsPage() {
   const session = useSession();
   const settings = useSettings();
   const os = detectAppOs();
-  const windowTheme = useWindowTheme();
   const [ask, setAsk] = useState(true);
   const flash = useFlashMessage();
   const [boardEnabled, setBoardEnabled] = useState(true);
@@ -110,25 +108,20 @@ export function SettingsPage() {
   });
 
   const changed =
-    windowTheme.theme.preference !== "auto" ||
     settings.appearance !== SETTINGS_DEFAULTS.appearance ||
-    settings.colorPalette !== SETTINGS_DEFAULTS.colorPalette ||
     settings.fontFamily !== SETTINGS_DEFAULTS.fontFamily ||
     settings.monoFontFamily !== SETTINGS_DEFAULTS.monoFontFamily ||
     settings.fontSize !== SETTINGS_DEFAULTS.fontSize ||
-    settings.startupPage !== SETTINGS_DEFAULTS.startupPage ||
     (launchAtLogin.data?.supported && !launchAtLogin.data.enabled) ||
     !ask;
 
-  const materialVisible = showWindowMaterial(os, windowTheme.desktop, windowTheme.theme.supported);
   const resetButton = (
           <Button
             size="sm"
-            disabled={!changed || windowTheme.pending || setLaunchAtLogin.isPending}
+            disabled={!changed || setLaunchAtLogin.isPending}
             onClick={() => {
               void (async () => {
                 try {
-                  if (windowTheme.desktop) await setWindowMaterial("auto");
                   resetSettings();
                   await api.setAskBeforeQuit(true);
                   setAsk(true);
@@ -155,34 +148,9 @@ export function SettingsPage() {
         />
 
         {session.settingsSection === "look" ? <SettingsSectionBlock id="look" actions={resetButton}>
-            {materialVisible ? <SettingRow label="窗口材质">
-              <div className="flex flex-col items-start gap-2">
-                <RadioGroup<WindowMaterial>
-                  aria-label="窗口材质"
-                  value={windowTheme.theme.preference as WindowMaterial}
-                  disabled={windowTheme.pending || !windowTheme.desktop}
-                  onChange={(preference) => {
-                    void setWindowMaterial(preference).catch((error) => flash.showError(formatErr(error)));
-                  }}
-                  options={[
-                    { value: "auto", label: "自动" },
-                    { value: "classic", label: "经典" },
-                    ...(os === "mac" ? [{ value: "sidebar" as const, label: "半透明" }] : [{ value: "mica" as const, label: "云母" }]),
-                  ]}
-                />
-                <p className="m-0 text-xs text-muted" role="status">
-                  当前生效：{({ mica: "云母", sidebar: "半透明" } as Record<string, string>)[windowTheme.theme.effective] || "经典"}
-                  {windowTheme.theme.reason ? `，${windowTheme.theme.reason}` : ""}
-                </p>
-              </div>
-            </SettingRow> : null}
             <SettingRow label="明暗模式">
               <AppearancePreviews os={os} value={settings.appearance} onChange={(appearance) => updateSettings({ appearance })} />
             </SettingRow>
-            <div className="settings-palette-section">
-              <h3>配色风格</h3>
-              <PalettePreviews value={settings.colorPalette} onChange={(colorPalette) => updateSettings({ colorPalette })} />
-            </div>
             <FontSettingRow
               label="界面字体"
               kind="sans"
@@ -207,20 +175,6 @@ export function SettingsPage() {
               <span className="text-sm tabular-nums">{settings.fontSize} px</span>
             </SettingRow>
             <SettingRow label="字体预览"><div className="settings-font-preview"><SansFontPreview /><MonoFontPreview /></div></SettingRow>
-        </SettingsSectionBlock> : null}
-
-        {session.settingsSection === "session" ? <SettingsSectionBlock id="session">
-            <SettingRow label="启动时打开">
-              <RadioGroup
-                aria-label="启动时打开"
-                value={settings.startupPage}
-                onChange={(startupPage) => updateSettings({ startupPage })}
-                options={[
-                  { value: "home", label: "应用首页" },
-                  { value: "resume", label: "离开画面" },
-                ]}
-              />
-            </SettingRow>
         </SettingsSectionBlock> : null}
 
         {session.settingsSection === "board" ? <SettingsSectionBlock id="board">
@@ -530,18 +484,19 @@ function TerminalOpenSettings() {
     queryFn: () => api.listTerminalApps(),
   });
   const availableApps = terminals.data ?? [];
-  const missing = !!terminals.data && !!settings.terminalApp && !availableApps.some((app) => app.id === settings.terminalApp);
+  const selectedID = settings.terminalApp;
+  const missing = !!terminals.data && !!selectedID && !availableApps.some((app) => app.id === selectedID);
   const terminalNames: Record<string, string> = {
-    "1agent": "1Agent", ghostty: "Ghostty", otty: "Otty", terminal: "系统终端",
+    natty: "Natty", ghostty: "Ghostty", otty: "Otty", terminal: "系统终端",
     "windows-terminal": "Windows Terminal", powershell: "PowerShell",
   };
   const apps = missing
-    ? [{ id: settings.terminalApp, name: `${terminalNames[settings.terminalApp] ?? settings.terminalApp}（未检测到）`, supportsWindow: false, default: false }, ...availableApps]
+    ? [{ id: selectedID, name: `${terminalNames[selectedID] ?? selectedID}（未检测到）`, supportsWindow: false, default: false }, ...availableApps]
     : availableApps;
   const effective =
     apps.length === 1
       ? apps[0]
-      : (apps.find((app) => app.id === settings.terminalApp) ??
+      : (apps.find((app) => app.id === selectedID) ??
         apps.find((app) => app.default) ??
         apps[0]);
   useEffect(() => {

@@ -22,7 +22,6 @@ import (
 	"diteng-pannel/internal/hosticon"
 	"diteng-pannel/internal/hostmeta"
 	"diteng-pannel/internal/macui"
-	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/notifysubs"
 	"diteng-pannel/internal/panelstore"
@@ -63,8 +62,6 @@ type App struct {
 	appSessionOnce          sync.Once
 	notifySubs              *notifysubs.Store
 	certNotify              *certnotify.Store
-	menuCheck               *menucheck.Watcher
-	menuCheckStore          *menucheck.Store
 	speedTest               *speedtest.Service
 	updates                 *updateController
 	launchAtLogin           *launchAtLoginManager
@@ -115,7 +112,7 @@ const RetryInterval = 30 * time.Second
 
 func mainWindowBackgroundColour() application.RGBA {
 	// 启动骨架与经典模式底色；云母由可切换的原生控制器管理。
-	return application.NewRGB(242, 243, 245)
+	return application.NewRGB(238, 238, 238)
 }
 
 // NewApp 构造并配置 Wails v3 应用：窗口 / 服务 / 文件拖放 / 生命周期。
@@ -194,7 +191,7 @@ func NewApp(resources Resources) *application.App {
 		core.applicationRestoreError = "应用数据恢复失败，可使用恢复前的自动备份重试：" + err.Error()
 		app.Logger.Error("恢复应用数据失败", "error", err)
 	}
-	core.windowTheme = newWindowThemeManager(windowThemePath(), windowmaterial.Automatic(), windowmaterial.Capability, func(material string) error {
+	core.windowTheme = newWindowThemeManager(windowmaterial.Automatic(), windowmaterial.Capability, func(material string) error {
 		return windowmaterial.Apply(core.mainWindow, material)
 	})
 	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {
@@ -291,7 +288,6 @@ func NewApp(resources Resources) *application.App {
 			desktop.SetAuthorized(true)
 		}()
 		core.startAlertPollKeepalive()
-		core.startMenuCheckWatcher()
 		core.startLocalDiskStartupCheck()
 		core.startBoardHTTP()
 		core.updates.start()

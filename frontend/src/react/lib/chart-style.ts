@@ -1,33 +1,46 @@
 import * as echarts from "echarts";
-import type { PaletteMode } from "./color-palettes";
+import { paletteTokens, type ColorTokens, type PaletteMode } from "./color-palettes";
+import { readThemeSignature } from "./use-theme-mode";
 import { bandTone, type UsageBands } from "./usage-tone";
 import { readThemeColor } from "./utils";
 
+export type TrendDirection = "read" | "write";
+export const TREND_DOT = [2, 4]; // 应用事件的竖向参考线。
+
 /** DESGIN.md：所有趋势图共用的笔触、面积填充与浮层。每次构建 option 时重读主题。 */
 export function chartPalette(mode?: PaletteMode) {
+  const fallback = paletteTokens(mode ?? readThemeSignature());
+  const color = (name: keyof ColorTokens) => readThemeColor(name, fallback[name], mode);
   return {
-    surface: readThemeColor("--color-surface", "#ffffff", mode),
-    ink: readThemeColor("--color-ink", "#1f2937", mode),
-    muted: readThemeColor("--color-muted", "#636a76", mode),
-    line: readThemeColor("--color-line", "#e5e7eb", mode),
-    pointer: readThemeColor("--color-line-strong", "#9ca3af", mode),
-    ok: readThemeColor("--meter-ok", "#2ba471", mode),
-    warn: readThemeColor("--meter-warn", "#f08a24", mode),
-    danger: readThemeColor("--meter-danger", "#d54941", mode),
+    surface: color("--color-surface"),
+    raised: color("--color-raised"),
+    ink: color("--color-ink"),
+    muted: color("--color-muted"),
+    line: color("--color-line"),
+    pointer: color("--color-line-strong"),
+    primary: color("--color-chart-1"),
+    read: color("--color-io-read"),
+    write: color("--color-io-write"),
+    comparison: color("--color-chart-comparison"),
+    gc: color("--color-chart-gc"),
+    ok: color("--meter-ok"),
+    warn: color("--meter-warn"),
+    danger: color("--meter-danger"),
   };
 }
 
 /** 渐变相对曲线实际面积；阈值位置按真实数值换算，不改变数据和纵轴。 */
 export function trendArea(color: string, peak = 0, bands?: UsageBands, mode?: PaletteMode) {
   const palette = chartPalette(mode);
+  const peakOpacity = 0.28;
   const alpha = (value: string, opacity: number) => echarts.color.modifyAlpha(value, opacity);
   const toneColor = (value: number) => bands ? palette[bandTone(value, bands)] : color;
-  const stops = [{ offset: 0, color: alpha(toneColor(peak), 0.28) }];
+  const stops = [{ offset: 0, color: alpha(toneColor(peak), peakOpacity) }];
   if (bands && peak > 0) {
     for (const threshold of [bands.danger, bands.warn]) {
       if (threshold > peak) continue;
       const offset = 1 - threshold / peak;
-      const opacity = 0.28 * (1 - offset);
+      const opacity = peakOpacity * (1 - offset);
       // 同一位置两端的色阶明确表达档位，避免把告警稀释成另一种颜色。
       stops.push({ offset, color: alpha(toneColor(threshold), opacity) });
       stops.push({ offset, color: alpha(threshold === bands.danger ? palette.warn : palette.ok, opacity) });
@@ -37,12 +50,13 @@ export function trendArea(color: string, peak = 0, bands?: UsageBands, mode?: Pa
   return { opacity: 1, color: new echarts.graphic.LinearGradient(0, 0, 0, 1, stops) };
 }
 
-export function trendLineStyle({ color, values, bands, muted = false, fill = true, mode }: {
+export function trendLineStyle({ color, values, bands, muted = false, fill = true, detail = false, mode }: {
   color: string;
   values: readonly (number | null)[];
   bands?: UsageBands;
   muted?: boolean;
   fill?: boolean;
+  detail?: boolean;
   mode?: PaletteMode;
 }): echarts.LineSeriesOption {
   let peak = 0;
@@ -52,19 +66,22 @@ export function trendLineStyle({ color, values, bands, muted = false, fill = tru
     count++;
     peak = Math.max(peak, value);
   }
+  const thin = muted || detail;
+  const width = thin ? 1.25 : 2.4;
+  const opacity = detail ? ((mode ?? readThemeSignature()) === "dark" ? 0.58 : 0.72) : 1;
   return {
     type: "line",
     smooth: 0.15,
     smoothMonotone: "x",
     connectNulls: false,
-    showSymbol: count === 1 || (!muted && values.length <= 48),
+    showSymbol: count === 1 || (!thin && values.length <= 48),
     showAllSymbol: false,
     symbol: "circle",
     symbolSize: count === 1 ? 6 : 3,
     itemStyle: { borderColor: chartPalette(mode).surface, borderWidth: 1 },
-    lineStyle: { width: muted ? 1.25 : 2.25, type: muted ? "dashed" : "solid", cap: "round", join: "round" },
-    areaStyle: fill && !muted ? trendArea(color, peak, bands, mode) : undefined,
-    emphasis: { scale: 1.8, lineStyle: { width: muted ? 1.25 : 2.25 } },
+    lineStyle: { width, type: "solid", opacity, cap: "round", join: "round" },
+    areaStyle: fill && !thin ? trendArea(color, peak, bands, mode) : undefined,
+    emphasis: { scale: 1.8, lineStyle: { width, opacity: 1 } },
   };
 }
 

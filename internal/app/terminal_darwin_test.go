@@ -25,18 +25,18 @@ func officialGhosttyInfo() macAppInfo {
 	}
 }
 
-func oneAgentInfo() macAppInfo {
+func nattyInfo() macAppInfo {
 	return macAppInfo{
-		path:       "/Applications/1Agent.app",
-		bundleID:   oneAgentBundleID,
-		executable: oneAgentExecutable,
+		path:       "/Applications/Natty.app",
+		bundleID:   nattyBundleID,
+		executable: nattyExecutable,
 	}
 }
 
 func TestChooseMacTerminal(t *testing.T) {
 	official := officialGhosttyInfo()
-	agent := oneAgentInfo()
-	lookupAll := appLookup(map[string]macAppInfo{"Ghostty": official, "1Agent": agent})
+	agent := nattyInfo()
+	lookupAll := appLookup(map[string]macAppInfo{"Ghostty": official, "Natty": agent})
 	if got := chooseMacTerminal(lookupAll, ""); got.kind != macTerminalGhostty || got.appPath != official.path {
 		t.Fatalf("official Ghostty wins by default, got %+v", got)
 	}
@@ -46,25 +46,28 @@ func TestChooseMacTerminal(t *testing.T) {
 	if got := chooseMacTerminal(lookupAll, macTerminalGhosttyID); got.kind != macTerminalGhostty {
 		t.Fatalf("explicit ghostty, got %+v", got)
 	}
-	if got := chooseMacTerminal(lookupAll, macTerminal1AgentID); got.kind != macTerminal1Agent {
-		t.Fatalf("explicit 1Agent, got %+v", got)
+	if got := chooseMacTerminal(lookupAll, "1agent"); got.kind != macTerminalNatty {
+		t.Fatalf("saved legacy terminal selection, got %+v", got)
+	}
+	if got := chooseMacTerminal(lookupAll, macTerminalNattyID); got.kind != macTerminalNatty {
+		t.Fatalf("explicit Natty, got %+v", got)
 	}
 	apps := listMacTerminalApps(lookupAll)
-	if len(apps) != 3 || apps[0].ID != macTerminal1AgentID || apps[1].ID != macTerminalGhosttyID || !apps[1].Default || apps[2].ID != macTerminalTerminalID || apps[2].SupportsWindow {
+	if len(apps) != 3 || apps[0].ID != macTerminalNattyID || apps[1].ID != macTerminalGhosttyID || !apps[1].Default || apps[2].ID != macTerminalTerminalID || apps[2].SupportsWindow {
 		t.Fatalf("apps = %+v", apps)
 	}
-	onlyAgent := appLookup(map[string]macAppInfo{"1Agent": agent})
-	if got := chooseMacTerminal(onlyAgent, ""); got.kind != macTerminal1Agent {
-		t.Fatalf("1Agent is default without Ghostty, got %+v", got)
+	onlyAgent := appLookup(map[string]macAppInfo{"Natty": agent})
+	if got := chooseMacTerminal(onlyAgent, ""); got.kind != macTerminalNatty {
+		t.Fatalf("Natty is default without Ghostty, got %+v", got)
 	}
 	fake := agent
 	fake.bundleID = "com.example.other"
-	if apps := listMacTerminalApps(appLookup(map[string]macAppInfo{"1Agent": fake})); len(apps) != 1 || apps[0].ID != macTerminalTerminalID {
-		t.Fatalf("fake 1Agent must not be listed, got %+v", apps)
+	if apps := listMacTerminalApps(appLookup(map[string]macAppInfo{"Natty": fake})); len(apps) != 1 || apps[0].ID != macTerminalTerminalID {
+		t.Fatalf("fake Natty must not be listed, got %+v", apps)
 	}
 
 	impersonator := official
-	impersonator.bundleID = "com.itjun.1agent"
+	impersonator.bundleID = "com.itjun.natty"
 	impersonator.executable = "Ghostty"
 	impersonator.teamID = ""
 	impersonatorLookup := appLookup(map[string]macAppInfo{"Ghostty": impersonator})
@@ -103,7 +106,7 @@ func officialOttyInfo() macAppInfo {
 
 func TestChooseMacTerminalOtty(t *testing.T) {
 	otty := officialOttyInfo()
-	lookup := appLookup(map[string]macAppInfo{"Otty": otty, "Ghostty": officialGhosttyInfo(), "1Agent": oneAgentInfo()})
+	lookup := appLookup(map[string]macAppInfo{"Otty": otty, "Ghostty": officialGhosttyInfo(), "Natty": nattyInfo()})
 	apps := listMacTerminalApps(lookup)
 	if len(apps) != 4 || apps[2].ID != macTerminalOttyID || apps[2].SupportsWindow || apps[3].SupportsWindow || apps[1].ID != macTerminalGhosttyID || !apps[1].Default {
 		t.Fatalf("apps = %+v", apps)
@@ -125,12 +128,12 @@ func TestChooseMacTerminalOtty(t *testing.T) {
 	}
 }
 
-func TestSelected1AgentDoesNotFallBackToOtty(t *testing.T) {
+func TestSelectedNattyDoesNotFallBackToOtty(t *testing.T) {
 	lookup := appLookup(map[string]macAppInfo{"Otty": officialOttyInfo()})
-	choice := chooseMacTerminal(lookup, macTerminal1AgentID)
+	choice := chooseMacTerminal(lookup, macTerminalNattyID)
 	plan, err := planMacOpen(choice, []string{"example"}, "tab", "")
-	if err != nil || plan.kind != macTerminal1Agent || plan.openURL != "oneagent://open?host=example&reuse=1" {
-		t.Fatalf("选择 1Agent 时应交给 1Agent，plan = %+v, err = %v", plan, err)
+	if err != nil || plan.kind != macTerminalNatty || plan.openURL != "natty://open?host=example&reuse=1" {
+		t.Fatalf("选择 Natty 时应交给 Natty，plan = %+v, err = %v", plan, err)
 	}
 }
 
@@ -169,16 +172,16 @@ func TestPlanMacOpenOtty(t *testing.T) {
 	}
 }
 
-func TestPlanMacOpen1Agent(t *testing.T) {
-	plan, err := planMacOpen(macTerminalChoice{kind: macTerminal1Agent}, []string{"alpha", "beta box"}, "window", "/usr/bin/ssh")
+func TestPlanMacOpenNatty(t *testing.T) {
+	plan, err := planMacOpen(macTerminalChoice{kind: macTerminalNatty}, []string{"alpha", "beta box"}, "window", "/usr/bin/ssh")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.openURL != "oneagent://open?host=alpha&host=beta%20box&reuse=1" {
+	if plan.openURL != "natty://open?host=alpha&host=beta%20box&reuse=1" {
 		t.Fatalf("url = %s", plan.openURL)
 	}
 	if len(plan.commands) != 0 || len(plan.scripts) != 0 {
-		t.Fatalf("1Agent plan should only carry a URL: %+v", plan)
+		t.Fatalf("Natty plan should only carry a URL: %+v", plan)
 	}
 }
 
@@ -247,13 +250,13 @@ func TestOttyCreatedTabID(t *testing.T) {
 	}
 }
 
-func TestLookupInstalled1Agent(t *testing.T) {
-	info, ok := lookupMacApp("1Agent")
+func TestLookupInstalledNatty(t *testing.T) {
+	info, ok := lookupMacApp("Natty")
 	if !ok {
-		t.Skip("1Agent is not installed")
+		t.Skip("Natty is not installed")
 	}
-	if !isOneAgent(info) {
-		t.Fatalf("installed 1Agent is not com.itjun.1agent: %+v", info)
+	if !isNatty(info) {
+		t.Fatalf("installed Natty is not com.itjun.natty: %+v", info)
 	}
 }
 

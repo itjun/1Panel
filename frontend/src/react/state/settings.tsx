@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { api } from "@/api";
-import { applyColorPalette, parseColorPalette, type ColorPaletteId } from "@/react/lib/color-palettes";
+import { applyColorPalette } from "@/react/lib/color-palettes";
 import {
   ALL_ALERT_KINDS,
   normalizeAlertLevels,
@@ -35,13 +35,11 @@ export type NotifyContentField =
 
 export type AppSettings = {
   appearance: AppearancePref;
-  colorPalette: ColorPaletteId;
   /** 界面字体：菜单、侧栏、按钮、主机名、表格普通文字等；空串 = 系统默认 */
   fontFamily: string;
   /** 等宽字体：IP、版本号、数值、路径、日志、配置编辑器；空串 = 系统默认 */
   monoFontFamily: string;
   fontSize: number;
-  startupPage: "home" | "resume";
   notifyEnabled: boolean;
   wecomWebhook: string;
   systemNotifyEnabled: boolean;
@@ -71,11 +69,9 @@ export type AppSettings = {
 
 export const SETTINGS_DEFAULTS: AppSettings = {
   appearance: "system",
-  colorPalette: "classic",
   fontFamily: "",
   monoFontFamily: "",
   fontSize: 14,
-  startupPage: "home",
   notifyEnabled: false,
   wecomWebhook: "",
   systemNotifyEnabled: true,
@@ -148,8 +144,15 @@ function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...SETTINGS_DEFAULTS };
-    const parsed = JSON.parse(raw) as Partial<AppSettings> & { hostCertNotifySubs?: unknown };
+    const parsed = JSON.parse(raw) as Partial<AppSettings> & {
+      hostCertNotifySubs?: unknown;
+      colorPalette?: unknown;
+      startupPage?: unknown;
+    };
     delete parsed.hostCertNotifySubs;
+    delete parsed.colorPalette;
+    delete parsed.startupPage;
+    if (parsed.terminalApp === "1agent") parsed.terminalApp = "natty";
     let fontFamily = SETTINGS_DEFAULTS.fontFamily;
     if (
       typeof parsed.fontFamily === "string" &&
@@ -169,7 +172,6 @@ function loadSettings(): AppSettings {
       fontFamily,
       monoFontFamily,
       appearance: parseAppearance(parsed.appearance),
-      colorPalette: parseColorPalette(parsed.colorPalette),
       alertContentKinds:
         parsed.alertContentKinds || SETTINGS_DEFAULTS.alertContentKinds,
       notifyContentFields:
@@ -227,7 +229,7 @@ export function applyAppearanceToDocument(
   root.classList.remove("light", "dark");
   root.classList.add(resolved);
   root.style.colorScheme = resolved;
-  applyColorPalette(root, current.colorPalette, resolved);
+  applyColorPalette(root, resolved);
   root.style.background = root.dataset.windowMaterial && root.dataset.windowMaterial !== "classic" ? "transparent" : "var(--color-canvas)";
   if (typeof fontFamily === "string") {
     if (fontFamily) {
@@ -412,9 +414,6 @@ export function updateSettings(patch: Partial<AppSettings>) {
   if (patch.hostHomeRacks !== undefined) current.hostHomeRows = hostRackRows(patch.hostHomeRacks);
   if (patch.appearance !== undefined) {
     current.appearance = parseAppearance(patch.appearance);
-  }
-  if (patch.colorPalette !== undefined) {
-    current.colorPalette = parseColorPalette(patch.colorPalette);
   }
   emit();
 }

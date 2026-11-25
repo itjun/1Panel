@@ -57,7 +57,7 @@ function trendOption(data: BoardChartPoint[], label: string, from: number, to: n
     series: [{
       ...trendLineStyle({ mode: "dark", color: readThemeColor("--meter-ok", "", "dark"), values: data.map(p => p[1]), bands: usageBands(100) }),
       name: label, data,
-      lineStyle: { width: Math.max(2.25, fontSize / 8) },
+      lineStyle: { width: Math.max(2.4, fontSize / 8), cap: "round", join: "round" },
     }],
   };
 }

@@ -307,7 +307,7 @@ export function HostCreateForm({
         <button
           type="button"
           disabled={busy || !canSave}
-          className="h-10 w-full rounded-control bg-accent text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 w-full rounded-control bg-primary text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void handleSave()}
         >
           {saveLabel}
@@ -514,7 +514,7 @@ export function HostEditForm({
         <button
           type="button"
           disabled={busy || !alias.trim() || !hostName.trim() || !user.trim() || !password}
-          className="h-10 w-full rounded-control bg-accent text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 w-full rounded-control bg-primary text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void handleSave()}
         >
           {busy ? "检查并保存中" : "检查并保存"}

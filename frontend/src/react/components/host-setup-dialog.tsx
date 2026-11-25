@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "@/api";
@@ -61,10 +61,17 @@ function HostSetupDialog({ host }: { host: string }) {
     refetchInterval: (query) =>
       query.state.data?.state === "running" ? 1000 : false,
   });
+  const manualSetup = useMutation({
+    mutationFn: () => api.prepareHostSetupCommand(host),
+  });
   const env = environment.data;
   const job = task.data;
   const running = job?.state === "running";
   const busy = starting || running;
+  const completed = job?.state === "success" && job.options.basePackages;
+  const sourceIssue = env?.supported ? env.aptSourceIssue : "";
+  const needsSudo =
+    env?.supported && !env.privileged && !environment.isError && !sourceIssue;
   const logs = job?.logs ?? [];
   const restoreCommand =
     logs.find((line) => line.startsWith("[恢复命令] "))?.slice(7) ??
@@ -77,13 +84,12 @@ function HostSetupDialog({ host }: { host: string }) {
     (env && !env.supported
       ? "仅支持使用 apt、dnf、yum、apk 的远程 Linux 主机。"
       : "") ||
-    (env && !env.privileged
-      ? "安装软件和设置登录 Shell 需要 root 或免密 sudo。"
-      : "") ||
+    sourceIssue ||
     (job?.state === "error" ? job.error : "");
   const ready =
     !!env?.supported &&
     env.privileged &&
+    !sourceIssue &&
     !environment.isFetching &&
     !environment.isError &&
     !task.isPending &&
@@ -155,6 +161,16 @@ function HostSetupDialog({ host }: { host: string }) {
             <dd>命令高亮、历史建议；拼写纠错默认关闭</dd>
           </dl>
           {issue ? <Notice tone="error" text={issue} /> : null}
+          {env && needsSudo && !busy ? (
+            <HostSetupPermissionGuide
+              user={env.user}
+              command={manualSetup.data}
+              preparing={manualSetup.isPending}
+              error={manualSetup.isError ? formatErr(manualSetup.error) : ""}
+              onPrepare={() => manualSetup.mutate()}
+              onCopy={(value, message) => void copy(value, message)}
+            />
+          ) : null}
           {job?.state === "success" && !busy && !issue ? (
             <Notice
               tone="success"
@@ -215,8 +231,9 @@ function HostSetupDialog({ host }: { host: string }) {
               复制恢复命令
             </Button>
           ) : null}
-          {issue && !busy ? (
+          {(issue || needsSudo) && !busy ? (
             <Button
+              disabled={environment.isFetching || task.isFetching}
               onClick={() => {
                 setStartError("");
                 void environment.refetch();
@@ -234,12 +251,75 @@ function HostSetupDialog({ host }: { host: string }) {
           >
             {busy
               ? "执行中"
-              : job?.options.basePackages && job.state === "success"
+              : completed
                 ? "重新执行"
                 : "开始初始化"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function HostSetupPermissionGuide({
+  user,
+  command,
+  preparing,
+  error,
+  onPrepare,
+  onCopy,
+}: {
+  user: string;
+  command?: string;
+  preparing: boolean;
+  error: string;
+  onPrepare: () => void;
+  onCopy: (value: string, message: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <Notice
+        tone="warning"
+        text={`面板无法以 ${user} 自动提权。已有 sudo 权限时，可在远程终端输入密码完成初始化。`}
+      />
+      <section className="space-y-2 rounded-control border border-line p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-medium">在终端手动初始化</h3>
+          {command ? (
+            <Button
+              size="sm"
+              onClick={() => onCopy(command, "命令已复制，请在目标主机终端执行")}
+            >
+              复制命令
+            </Button>
+          ) : (
+            <Button size="sm" disabled={preparing} onClick={onPrepare}>
+              {preparing ? "准备中…" : "准备命令"}
+            </Button>
+          )}
+        </div>
+        <p className="text-muted">
+          准备命令会上传脚本。用 {user} 登录目标主机，粘贴命令并按提示输入 sudo 密码。账号没有 sudo 权限时，请联系主机管理员。
+        </p>
+        {command ? (
+          <>
+            <pre
+              tabIndex={0}
+              aria-label="手动初始化命令"
+              className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-control bg-graphite px-3 py-2 font-mono text-xs leading-5 text-graphite-text"
+            >
+              {command}
+            </pre>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-muted">终端显示「完成」后重新登录，即可使用 zsh。</p>
+              <Button size="sm" disabled={preparing} onClick={onPrepare}>
+                重新准备
+              </Button>
+            </div>
+          </>
+        ) : null}
+        {error ? <Notice tone="error" text={`准备命令失败：${error}`} /> : null}
+      </section>
+    </div>
   );
 }

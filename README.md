@@ -7,15 +7,15 @@
 
 [项目官网](https://itjun.github.io/1Panel/) · [下载安装包](https://itjun.github.io/1Panel/#download) · [全平台安装指南](https://itjun.github.io/1Panel/install.html)
 
-macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.com/itjun/1Agent) 共用本机 OpenSSH。
+macOS、Windows、Linux 上的主机状态面板。和 [Natty](https://github.com/itjun/natty) 共用本机 OpenSSH。
 
 ## 中文
 
 远程 SSH 连上之后，目标主机的状态仍然不好看：CPU、内存、磁盘和进程要再单独敲命令才能知道。另一边，打开终端时，现有收费软件往往不能马上打开，也留不下可用的会话记录。
 
-1Panel 和 1Agent 的做法是只使用通用 OpenSSH。两个应用都读取本机 `~/.ssh/config`，沿用已经配好的密钥、端口和跳板机，尽快把主机会话建起来。
+1Panel 和 Natty 的做法是只使用通用 OpenSSH。两个应用都读取本机 `~/.ssh/config`，沿用已经配好的密钥、端口和跳板机，尽快把主机会话建起来。
 
-1Panel 负责看主机。它把 SSH 配置里的主机分组，直接显示 CPU、内存、磁盘、负载、进程、Java、Docker、服务、定时任务和软件包，不用为了看一眼再去敲命令；同时也提供本机工作区。[1Agent](https://github.com/itjun/1Agent) 负责 macOS 终端：快速打开会话，并保留可恢复的终端历史。两个项目可以单独使用。装在同一台 Mac 上时，1Panel 通过 `oneagent://open` 把当前主机交给 1Agent。Windows 和 Linux 上打开终端时，1Panel 改用本机已安装的终端。
+1Panel 负责看主机。它把 SSH 配置里的主机分组，直接显示 CPU、内存、磁盘、负载、进程、Java、Docker、服务、定时任务和软件包，不用为了看一眼再去敲命令；同时也提供本机工作区。[Natty](https://github.com/itjun/natty) 负责 macOS 终端：快速打开会话，并保留可恢复的终端历史。两个项目可以单独使用。装在同一台 Mac 上时，1Panel 通过 `natty://open` 把当前主机交给 Natty。Windows 和 Linux 上打开终端时，1Panel 改用本机已安装的终端。
 
 面板基于 Wails v3（Go + React 19 + TypeScript）。读取本机 `~/.ssh/config`，分组管理 SSH 主机，提供：分组概览（卡片 + 发行版 logo + 红/绿预警色）、主机详情（CPU/内存/磁盘/负载/进程/Java/Docker/服务/定时任务/软件包/终端）；同时提供本机工作区（系统概览 / 应用进程 / 软件列表 / 磁盘空间 / 网络信息 / Hosts，macOS 另有 Nginx 页）。
 
@@ -40,7 +40,7 @@ macOS、Windows、Linux 上的主机状态面板。和 [1Agent](https://github.c
   - 软件列表、磁盘空间（目录树 / 大文件 / 应用占用）、网络信息（网卡 / 网关）、Hosts
   - 系统概览和磁盘空间显示系统报告的硬盘型号，可复制型号、设备和已挂载容量自行查询；外置设备可能只报告硬盘盒型号，读取不到时明确提示。无需额外工具，不执行磁盘测速或推测缓存、CMR / SMR。
 - **终端打开**：
-  - macOS：设置里可选择本机已安装的 [1Agent](https://github.com/itjun/1Agent)、官方 Ghostty、官方 Otty 或系统「终端」。选择的终端无法打开时会报错。1Agent 经 `oneagent://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
+  - macOS：设置里可选择本机已安装的 [Natty](https://github.com/itjun/natty)、官方 Ghostty、官方 Otty 或系统「终端」。选择的终端无法打开时会报错。Natty 经 `natty://open` 打开；Otty 用自带的 `otty-cli` 执行系统 ssh。系统「终端」和 Otty 固定在已有窗口新建标签页，不提供新窗口选项。Otty 打开后会切到前台；系统终端没有辅助功能权限时改为新窗口
   - Windows：可选择已安装的 Windows Terminal 或 PowerShell；选择的终端无法打开时会报错。Windows Terminal 支持最近窗口新标签页或新窗口，由系统 OpenSSH（`ssh.exe`）按本机 SSH 配置连接；OpenSSH 缺失时给出安装指引
 
 ## 文档
@@ -221,7 +221,7 @@ task darwin:package:dmg ARCH=arm64
 
 在首页右键目标主机 →「初始化」→「开始初始化」。任务窗口展示目标、安装范围与日志，不切换当前主机或页面。一次安装 [itjun-tools](https://gitee.com/shenzhenitjun/itjun-tools) 的基础软件清单（openssh-server、vim、curl、wget、sudo、tree、ca-certificates），APT 主机另外安装 htop、btop 监控工具，加上 zsh、Git、完整 Oh My Zsh、命令高亮和历史建议；使用 ys 主题，将当前 SSH 登录用户的默认 Shell 设为 zsh，并启用 SSH 开机启动。关闭窗口后任务继续，可右键同一主机重新查看。
 
-支持使用 apt、dnf、yum、apk 的远程 Linux 主机。主机初始化需要 root 或免密 sudo；沿用目标系统现有软件源，不替换为 Debian trixie 源，也不执行整机升级。Alpine 的 SSH 软件包使用 openssh，RPM 与 Alpine 额外补齐 chsh 所需软件。[zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting) 和 [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) 使用官方固定版本，随应用内置并校验，目标主机无需访问 GitHub；来源、许可证和校验值见 `scripts/zsh-plugins/`。拼写纠错默认关闭：初始化配置末尾执行 `unsetopt correct correctall`，覆盖 Oh My Zsh 或原配置启用的纠错选项；高亮不保证参数或执行结果正确。APT 遇到其他安装任务持有锁时最多等待 300 秒，索引锁繁忙时自动重试；不会删除锁文件或终止其他升级任务。
+支持使用 apt、dnf、yum、apk 的远程 Linux 主机。面板自动初始化需要 root 或免密 sudo。已有带密码的 sudo 权限时，可在弹窗中准备并复制命令，以当前 SSH 用户登录目标主机终端执行。两种方式都沿用目标系统现有软件源，不替换为 Debian trixie 源，也不执行整机升级。Alpine 的 SSH 软件包使用 openssh，RPM 与 Alpine 额外补齐 chsh 所需软件。[zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting) 和 [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) 使用官方固定版本，随应用内置并校验，目标主机无需访问 GitHub；来源、许可证和校验值见 `scripts/zsh-plugins/`。拼写纠错默认关闭：初始化配置末尾执行 `unsetopt correct correctall`，覆盖 Oh My Zsh 或原配置启用的纠错选项；高亮不保证参数或执行结果正确。APT 初始化先检查是否启用了二进制软件包源，索引更新失败时会停止并提示检查源或网络。APT 遇到其他安装任务持有锁时最多等待 300 秒，索引锁繁忙时自动重试；不会删除锁文件或终止其他升级任务。
 
 `scripts/bootstrap-zsh.sh` 可独立执行。脚本保留原 `.zshrc`（遵循远程环境中的 `ZDOTDIR`），只替换末尾的 1Panel 标记块，插件与配置保存在 `~/.local/share/1panel/zsh/`。完整 Oh My Zsh（全部内置插件、主题、工具）来自官方仓库的固定版本，随应用内置（来源、许可证和校验值见 `scripts/oh-my-zsh/`），通过面板安装框架无需远程访问 GitHub。已有完整框架会复用并避免重复加载，保留原插件列表及个人 PATH；首次安装默认启用 git、svn，高亮和历史建议另外加载。全新用户安装到 `~/.oh-my-zsh/`；该目录已有不完整内容时，保留它并使用 `~/.local/share/1panel/zsh/oh-my-zsh-full/`。独立脚本优先读取相邻的 `oh-my-zsh/oh-my-zsh.tar.gz` 和 `zsh-plugins/` 安装包；没有相邻安装包时才从官方源下载。每次写配置前产生独立备份与 `restore.sh`，语法或主题/功能加载验证失败时自动恢复配置；下载失败时不写入 `.zshrc`。恢复命令会覆盖备份之后的个人配置编辑，不卸载系统软件或插件，也不删除命令历史。
 
@@ -265,9 +265,9 @@ Copyright (c) 2026 黄荣君 (itjun)
 
 A remote SSH connection still leaves the host state hard to see. CPU, memory, disk, and processes each need another command. Opening the terminal has the same kind of friction: paid apps currently on the market often cannot open a session immediately, and they do not keep a usable record of it.
 
-1Panel and 1Agent stay on ordinary OpenSSH. Both read the local `~/.ssh/config`, reuse the keys, ports, and jump hosts already configured there, and bring the host session up quickly.
+1Panel and Natty stay on ordinary OpenSSH. Both read the local `~/.ssh/config`, reuse the keys, ports, and jump hosts already configured there, and bring the host session up quickly.
 
-1Panel is for seeing the host. It groups the hosts from the SSH config and shows CPU, memory, disk, load, processes, Java, Docker, services, scheduled tasks, and packages directly, along with a workspace for the machine running the app. [1Agent](https://github.com/itjun/1Agent) is the macOS terminal: it opens a session quickly and keeps terminal history that can be restored. Each project works on its own. On the same Mac, 1Panel hands the current host to 1Agent through `oneagent://open`. On Windows and Linux, 1Panel opens the host in a terminal already installed on that machine.
+1Panel is for seeing the host. It groups the hosts from the SSH config and shows CPU, memory, disk, load, processes, Java, Docker, services, scheduled tasks, and packages directly, along with a workspace for the machine running the app. [Natty](https://github.com/itjun/natty) is the macOS terminal: it opens a session quickly and keeps terminal history that can be restored. Each project works on its own. On the same Mac, 1Panel hands the current host to Natty through `natty://open`. On Windows and Linux, 1Panel opens the host in a terminal already installed on that machine.
 
 The panel is built with Wails v3 (Go, React 19, and TypeScript). It reads `~/.ssh/config`, groups SSH hosts, and provides a group overview (cards, distribution logos, and red/green warning colors), host details (CPU, memory, disk, load, processes, Java, Docker, services, scheduled tasks, packages, and a terminal), and a local workspace (system overview, application processes, installed software, disk space, network information, and Hosts; Nginx is also available on macOS).
 

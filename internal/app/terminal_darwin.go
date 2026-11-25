@@ -14,21 +14,21 @@ import (
 )
 
 // macOS 终端打开流程：
-//  1. 可选终端是已安装的 1Agent（包标识 com.itjun.1agent）、官方 Ghostty
+//  1. 可选终端是已安装的 Natty（包标识 com.itjun.natty）、官方 Ghostty
 //     （包标识 com.mitchellh.ghostty、可执行文件 ghostty、团队 24VZTF6M5V）、
 //     官方 Otty（包标识 io.appmakes.otty、可执行文件 Otty、团队 9HWK5273G4）
 //     和系统「终端」。同名但身份不符的应用不列出。
-//  2. 设置里选了哪个就用哪个。没选过时优先官方 Ghostty，其次 1Agent，
+//  2. 设置里选了哪个就用哪个。没选过时优先官方 Ghostty，其次 Natty，
 //     都没有则用系统「终端」。Otty 仅在设置中选中时使用。
-//  3. 1Agent 走 oneagent://open。其余把连接交给 ssh 和 SSH 配置里的 Host 别名。
+//  3. Natty 走 natty://open。其余把连接交给 ssh 和 SSH 配置里的 Host 别名。
 //     系统「终端」和 Otty 固定在已有窗口新建标签页，不提供「新窗口」选项；
 //     要新窗口由用户在对应终端里自己操作。没有窗口时，系统「终端」仍会先出现一个窗口。
 //     Ghostty 在 macOS 上没有新窗口动作，-e 只会在正在运行的 Ghostty 里再开一个终端。
 //     Otty 没在运行时，标签页会退回新窗口，否则无法启动。打开后把 Otty 切到前台。
 
 const (
-	oneAgentBundleID          = "com.itjun.1agent"
-	oneAgentExecutable        = "1Agent"
+	nattyBundleID             = "com.itjun.natty"
+	nattyExecutable           = "Natty"
 	officialGhosttyBundleID   = "com.mitchellh.ghostty"
 	officialGhosttyExecutable = "ghostty"
 	officialGhosttyTeamID     = "24VZTF6M5V"
@@ -40,7 +40,7 @@ const (
 type macTerminalKind string
 
 const (
-	macTerminal1Agent   macTerminalKind = "1Agent"
+	macTerminalNatty    macTerminalKind = "Natty"
 	macTerminalGhostty  macTerminalKind = "Ghostty"
 	macTerminalOtty     macTerminalKind = "Otty"
 	macTerminalTerminal macTerminalKind = "Terminal"
@@ -60,13 +60,13 @@ type macTerminalChoice struct {
 
 type macOpenPlan struct {
 	kind     macTerminalKind
-	openURL  string     // 1Agent
+	openURL  string     // Natty
 	commands [][]string // Ghostty：交给 open 的参数。Otty：otty-cli 的完整参数，argv[0] 是 otty-cli
 	scripts  []string   // 系统「终端」：每台主机一段 AppleScript
 }
 
 const (
-	macTerminal1AgentID   = "1agent"
+	macTerminalNattyID    = "natty"
 	macTerminalGhosttyID  = "ghostty"
 	macTerminalOttyID     = "otty"
 	macTerminalTerminalID = "terminal"
@@ -75,9 +75,9 @@ const (
 func listMacTerminalApps(lookup func(string) (macAppInfo, bool)) []TerminalApp {
 	apps := make([]TerminalApp, 0, 4)
 	fallback := macTerminalTerminalID
-	if info, ok := lookup("1Agent"); ok && isOneAgent(info) {
-		apps = append(apps, TerminalApp{ID: macTerminal1AgentID, Name: "1Agent", SupportsWindow: false})
-		fallback = macTerminal1AgentID
+	if info, ok := lookup("Natty"); ok && isNatty(info) {
+		apps = append(apps, TerminalApp{ID: macTerminalNattyID, Name: "Natty", SupportsWindow: false})
+		fallback = macTerminalNattyID
 	}
 	if info, ok := lookup("Ghostty"); ok && isOfficialGhostty(info) {
 		apps = append(apps, TerminalApp{ID: macTerminalGhosttyID, Name: "Ghostty", SupportsWindow: false})
@@ -97,9 +97,9 @@ func listTerminalAppsDarwin() []TerminalApp {
 
 // chooseMacTerminal 按设置里的终端 id 取一个可用终端。
 func chooseMacTerminal(lookup func(string) (macAppInfo, bool), terminalID string) macTerminalChoice {
-	// 1Agent 使用 URL scheme；检测暂时失败时仍尝试打开它。
-	if terminalID == macTerminal1AgentID {
-		return macTerminalChoice{kind: macTerminal1Agent}
+	// Natty 使用 URL scheme；检测暂时失败时仍尝试打开它。
+	if terminalID == macTerminalNattyID || terminalID == "1agent" {
+		return macTerminalChoice{kind: macTerminalNatty}
 	}
 	apps := listMacTerminalApps(lookup)
 	fallback := macTerminalTerminalID
@@ -116,8 +116,8 @@ func chooseMacTerminal(lookup func(string) (macAppInfo, bool), terminalID string
 		ottyPath = info.path
 	}
 	switch chooseListedTerminal(apps, terminalID, fallback) {
-	case macTerminal1AgentID:
-		return macTerminalChoice{kind: macTerminal1Agent}
+	case macTerminalNattyID:
+		return macTerminalChoice{kind: macTerminalNatty}
 	case macTerminalGhosttyID:
 		return macTerminalChoice{kind: macTerminalGhostty, appPath: ghosttyPath}
 	case macTerminalOttyID:
@@ -129,10 +129,10 @@ func chooseMacTerminal(lookup func(string) (macAppInfo, bool), terminalID string
 	}
 }
 
-func isOneAgent(info macAppInfo) bool {
+func isNatty(info macAppInfo) bool {
 	return info.path != "" &&
-		info.bundleID == oneAgentBundleID &&
-		info.executable == oneAgentExecutable
+		info.bundleID == nattyBundleID &&
+		info.executable == nattyExecutable
 }
 
 func isOfficialOtty(info macAppInfo) bool {
@@ -152,8 +152,8 @@ func isOfficialGhostty(info macAppInfo) bool {
 func lookupMacApp(name string) (macAppInfo, bool) {
 	var bundleID string
 	switch name {
-	case "1Agent":
-		bundleID = oneAgentBundleID
+	case "Natty":
+		bundleID = nattyBundleID
 	case "Ghostty":
 		bundleID = officialGhosttyBundleID
 	case "Otty":
@@ -208,8 +208,8 @@ func macSSHPath() (string, error) {
 func planMacOpen(choice macTerminalChoice, hosts []string, mode, sshExe string) (macOpenPlan, error) {
 	// 调用方可能仍传来 window（旧设置）。macOS 一律开标签页。
 	_ = mode
-	if choice.kind == macTerminal1Agent {
-		url, err := oneagentOpenURL(hosts)
+	if choice.kind == macTerminalNatty {
+		url, err := nattyOpenURL(hosts)
 		if err != nil {
 			return macOpenPlan{}, err
 		}
@@ -320,7 +320,7 @@ func openHostsInTerminalDarwin(hosts []string, mode, terminalID string) error {
 	}
 	choice := chooseMacTerminal(lookupMacApp, terminalID)
 	sshExe := ""
-	if choice.kind != macTerminal1Agent {
+	if choice.kind != macTerminalNatty {
 		var err error
 		sshExe, err = macSSHPath()
 		if err != nil {
@@ -336,9 +336,9 @@ func openHostsInTerminalDarwin(hosts []string, mode, terminalID string) error {
 
 func runMacOpenPlan(plan macOpenPlan) error {
 	switch plan.kind {
-	case macTerminal1Agent:
-		if err := runOpenCommand("-b", oneAgentBundleID, plan.openURL); err != nil {
-			return fmt.Errorf("无法打开 1Agent: %w", err)
+	case macTerminalNatty:
+		if err := runOpenCommand("-b", nattyBundleID, plan.openURL); err != nil {
+			return fmt.Errorf("无法打开 Natty: %w", err)
 		}
 		return nil
 	case macTerminalGhostty:

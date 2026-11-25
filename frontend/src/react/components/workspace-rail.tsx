@@ -238,17 +238,9 @@ export function WorkspaceRail() {
 
   const listKind = session.settingsOpen
     ? "settings"
-    : session.workspace === "config"
-      ? "config"
-    : session.workspace === "notify"
-        ? "notify"
-        : session.workspace === "local"
-          ? "local"
-          : session.workspace === "inspect"
-            ? "inspect"
-            : session.workspace === "speedtest"
-              ? "speedtest"
-              : "hosts";
+    : session.workspace === "remote"
+      ? "hosts"
+      : session.workspace;
 
   function hostRow(name: string, indented: boolean) {
     return (
@@ -366,14 +358,6 @@ export function WorkspaceRail() {
               />
             ))
           : null}
-
-        {listKind === "inspect" ? (
-          <RailNavButton
-            label="HTTP 巡检"
-            active
-            onClick={() => session.setInspectSection("menuCheck")}
-          />
-        ) : null}
 
         {listKind === "hosts" ? (
           <>

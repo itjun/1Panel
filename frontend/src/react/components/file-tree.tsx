@@ -71,7 +71,7 @@ function TreeNodeRow({
         type="button"
         className={
           selected
-            ? "flex w-full items-center gap-1 bg-item-selected px-2 py-1.5 text-left text-sm font-semibold text-accent"
+            ? "flex w-full items-center gap-1 bg-item-selected px-2 py-1.5 text-left text-sm font-semibold text-info"
             : "flex w-full items-center gap-1 px-2 py-1.5 text-left text-sm hover:bg-item-hover"
         }
         style={{

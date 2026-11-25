@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PLATFORM_SETTINGS, settingsShortcuts, showWindowMaterial } from "../src/react/lib/settings-model";
+import { PLATFORM_SETTINGS, settingsShortcuts } from "../src/react/lib/settings-model";
 
 describe("runtime-specific settings", () => {
   test("列出全局快捷键，不保留侧栏开关和全局历史导航", () => {
@@ -21,14 +21,5 @@ describe("runtime-specific settings", () => {
       expect(rows.every((row) => row.keys.every((key) => !key.includes("⌘")))).toBe(true);
       expect(PLATFORM_SETTINGS[os].sans).not.toContain("苹方");
     }
-  });
-  test("material controls follow desktop platform capabilities", () => {
-    expect(showWindowMaterial("win", true, true)).toBe(true);
-    expect(showWindowMaterial("win", false, true)).toBe(false);
-    expect(showWindowMaterial("win", true, false)).toBe(false);
-    expect(showWindowMaterial("mac", true, true)).toBe(true);
-    expect(showWindowMaterial("mac", true, false)).toBe(true);
-    expect(showWindowMaterial("mac", false, true)).toBe(false);
-    expect(showWindowMaterial("linux", true, true)).toBe(false);
   });
 });

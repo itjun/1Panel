@@ -12,7 +12,7 @@
       #app {
         margin: 0;
         height: 100%;
-        background-color: var(--color-canvas, #f2f3f5);
+        background-color: var(--color-canvas, #eeeeee);
         color-scheme: light;
       }
       .boot-skel {
@@ -20,7 +20,7 @@
         height: 100%;
         grid-template-rows: 40px 1fr;
         grid-template-columns: var(--boot-sidebar, 320px) 1fr;
-        background: var(--color-canvas, #f2f3f5);
+        background: var(--color-canvas, #eeeeee);
       }
       html.boot-no-side .boot-skel {
         grid-template-columns: 1fr;
@@ -29,14 +29,11 @@
       html.boot-no-side .boot-tb-l {
         display: none;
       }
-      .boot-tb-l,
-      .boot-tb-r {
-        background: var(--color-canvas, #f2f3f5);
-      }
       .boot-tb-r {
         display: flex;
         align-items: center;
         padding: 0 20px;
+        background: var(--color-toolbar, #f3f3f3);
       }
       .boot-title {
         width: 96px;
@@ -44,9 +41,10 @@
         border-radius: 4px;
         background: rgba(31, 35, 41, 0.08);
       }
+      .boot-tb-l, .boot-side { background: var(--color-sidebar, #f3f3f4); }
+      html.dark :is(.boot-tb-l, .boot-side) { background: var(--color-sidebar, #272b34); }
       .boot-side {
         padding: 12px 10px;
-        background: var(--color-canvas, #f2f3f5);
       }
       .boot-line {
         height: 28px;
@@ -63,7 +61,7 @@
         margin-bottom: 8px;
         border-radius: 0;
         background: var(--color-surface, #ffffff);
-        box-shadow: 0 0 0 1px #e5e7eb;
+        box-shadow: 0 0 0 1px #e8e8e8;
       }
       .boot-grid {
         display: grid;
@@ -74,7 +72,7 @@
         height: 72px;
         border-radius: 0;
         background: var(--color-surface, #ffffff);
-        box-shadow: 0 0 0 1px #e5e7eb;
+        box-shadow: 0 0 0 1px #e8e8e8;
       }
       .boot-pulse {
         animation: boot-pulse 1.1s ease-in-out infinite;
@@ -93,14 +91,14 @@
       html.dark,
       html.dark body,
       html.dark #app {
-        background-color: #12161f;
+        background-color: #181818;
         color-scheme: dark;
       }
-      html.dark .boot-skel,
-      html.dark .boot-tb-l,
-      html.dark .boot-tb-r,
-      html.dark .boot-side {
-        background: #12161f;
+      html.dark .boot-skel {
+        background: #181818;
+      }
+      html.dark .boot-tb-r {
+        background: #2c2c2c;
       }
       html.dark .boot-title {
         background: rgba(255, 255, 255, 0.1);
@@ -111,7 +109,7 @@
       html.dark .boot-main,
       html.dark .boot-card,
       html.dark .boot-tile {
-        background: #1a1f2b;
+        background: #242424;
         box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
       }
     </style>

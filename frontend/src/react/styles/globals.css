@@ -3,86 +3,95 @@
 /* static：Tailwind 4 默认只输出被工具类引用到的变量，这里的 token 还会被
    JS（lib/utils.ts readThemeColor）、内联样式和图表库直接读，必须全部落到 :root。 */
 @theme static {
-  /* 机柜面板规范 docs/design/specification.md §2.1 亮色：中性浅灰外框（对齐 TDesign bg-color-page，壳层与白色内容面靠色块区分且不画分隔线，需足够可辨），macOS 蓝是主角；绿色只用于成功状态与健康档占用（Meter 正常段 / 占用曲线正常档） */
-  /* 一级图标栏（docs/design/specification.md §4.1）：比 canvas 深一档；12px muted 文字在上面 4.57:1 */
-  --color-rail: #eaebee;
-  --color-rail-line: #d6d8dc;
-  --color-canvas: #f2f3f5;
-  --color-rail-selected: #d7e3f6;
-  --color-rail-selected-text: #277ef0;
-  --color-item-hover: #e1e6ec;
-  --color-item-selected: #eaf4fe;
-  --color-item-selected-text: #080a0c;
-  --color-nav-selected: #eaf4fe;
-  --color-nav-selected-text: #080a0c;
+  /* TDesign 主题在 React 初始化前也可用。 */
+  --color-rail: #e7e8eb;
+  --color-sidebar: #f3f3f4;
+  --color-canvas: #eeeeee;
   --color-surface: #ffffff;
-  --color-toolbar: #f9fafb;
-  --color-raised: #f3f4f6;
-  --color-ink: #1f2937;
-  /* 次文字：surface 上 5.4、raised 上 4.9 */
-  --color-muted: #636a76;
-  /* 分隔 / 描边：只做轻微分隔，不抢视觉 */
-  --color-line: #e5e7eb;
-  /* 控件描边：ink 与 line 之间的中间灰（替代 color-mix，Linux 旧版 WebKitGTK 不支持） */
-  --color-line-strong: #9ca3af;
-  /* 主色「macOS 蓝」：hover / active / 选中浅底 */
-  --color-accent: #006ac7;
+  --color-toolbar: #f3f3f3;
+  --color-raised: #f3f3f3;
+  --color-item-hover: #f3f3f3;
+  --color-line: #e8e8e8;
+  --color-rail-line: #e8e8e8;
+  --color-line-veil: #e8e8e8;
+  --meter-off: #e8e8e8;
+  --color-card-track: #e8e8e8;
+  --color-line-strong: #dddddd;
+  --color-ink: rgba(0, 0, 0, 0.9);
+  --color-nav-label: rgba(0, 0, 0, 0.9);
+  --color-item-selected-text: rgba(0, 0, 0, 0.9);
+  --color-nav-selected-text: rgba(0, 0, 0, 0.9);
+  --color-muted: rgba(0, 0, 0, 0.6);
+  --color-rail-label: rgba(0, 0, 0, 0.6);
+  --color-rail-icon: rgba(0, 0, 0, 0.6);
+  --color-nav-icon: rgba(0, 0, 0, 0.6);
+  --color-placeholder: rgba(0, 0, 0, 0.4);
+  --color-disabled: rgba(0, 0, 0, 0.26);
+  --color-rail-selected: #f2f3ff;
+  --color-nav-selected: #f2f3ff;
+  --color-item-selected: #f2f3ff;
+  --color-selection: #f2f3ff;
+  --color-accent-soft: #f2f3ff;
+  --color-accent-tint: #f2f3ff;
+  --color-accent-veil: #f2f3ff;
+  --color-info-soft: #f2f3ff;
+  --color-accent: #0052d9;
+  --color-primary: #0052d9;
+  --color-accent-hover: #366ef4;
+  --color-primary-hover: #366ef4;
+  --color-accent-active: #003cab;
+  --color-primary-active: #003cab;
+  --color-link: #003cab;
+  --color-rail-selected-text: #0052d9;
+  --color-accent-focus: #0052d9;
+  --color-info: #0052d9;
+  --color-chart-1: #0052d9;
   --color-on-accent: #ffffff;
+  --color-on-accent-hover: #ffffff;
   --color-on-danger: #ffffff;
-  --color-accent-hover: #0262b7;
-  --color-accent-active: #045caa;
-  --color-accent-soft: #e6f3ff;
-  /* 云母壳层选中底：accent 半透明覆盖（定值 rgba，不用 color-mix，老 WebKitGTK 不支持），
-     覆盖在任何背景（云母随壁纸着色 / 经典 canvas）上都直接融入 */
-  --color-accent-veil: rgba(0, 136, 255, 0.1);
-  /* 云母壳层悬停 / 多选浅底：中性半透明覆盖，同上理由用定值 */
-  --color-line-veil: rgba(31, 41, 55, 0.08);
-  /* 比 accent-soft 更浅一档的蓝底：勾选未悬停格 */
-  --color-accent-tint: #f4f8fc;
-  /* 输入框聚焦时的 2px 外环 */
-  --color-accent-focus: #0088ff;
-  /* 文本选区底色：与默认主题的浅蓝选中底同源 */
-  --color-selection: #e6f3ff;
-  --color-graphite: #191c21;
-  --color-graphite-text: #e5e7eb;
-  /* 对话框 / 抽屉遮罩 = Smoke 烟雾（透明类材质）：压暗下层表面强调重要 UI；
-     不分明暗模式，始终半透明黑，明暗共用此值。一律用 bg-scrim，
-     禁止黑色加透明度修饰符（会生成 color-mix） */
-  --color-scrim: rgba(0, 0, 0, 0.6);
-  /* 文字提示（Tooltip，docs/design/specification.md §8.2）：亮色下深底浅字，暗色下反过来 */
-  --color-tooltip: #1f2937;
-  --color-tooltip-text: #ffffff;
-  /* 功能色：danger / warn / info 为可作正文的加深档，surface 上 ≥4.5；
-     success 按 TDesign 用绿，只作图标 / 圆点 / 条线，文字一律用 success-text */
+  --color-danger-fill: #ad352f;
   --color-success: #2ba471;
-  /* 成功文字：success-soft 上 4.52、surface 上 5.0 */
-  --color-success-text: #1a7f52;
-  --color-danger: #d54941;
-  --color-warn: #d35a00;
-  --color-info: #0a6fe0;
-  /* 功能色浅底 */
-  --color-success-soft: #e3f9e9;
-  --color-danger-soft: #ffecea;
-  --color-warn-soft: #fff0e3;
-  --color-info-soft: #e3f1ff;
-  /* 读/流入/接收 = 亮蓝；写/流出/发送 = 橙；单线指标 = macOS 蓝 */
-  --color-chart-1: #006ac7;
-  --color-io-read: #1d8cf8;
-  --color-io-write: #f08a24;
-  --color-chart-2: #1d8cf8;
-  --color-chart-3: #f08a24;
-  /* LED 分段条（docs/design/specification.md §4.7）：正常 / ≥60% / ≥85% / 未亮格；正常档健康绿与 --color-success 同源，
-     三档对齐行业监控惯例（Grafana / htop：正常绿、警告橙、危险红），2026-10-03 定案 */
   --meter-ok: #2ba471;
-  --meter-warn: #f08a24;
+  --color-success-text: #006c45;
+  --color-success-soft: #e3f9e9;
+  --meter-warn: #e37318;
+  --color-warn: #954500;
+  --color-warn-soft: #fff1e9;
   --meter-danger: #d54941;
-  --meter-off: #e5e7eb;
+  --color-danger: #ad352f;
+  --color-danger-soft: #fff0ed;
+  --color-io-read: #0080b0;
+  --color-chart-2: #0080b0;
+  --color-chart-gc: #0080b0;
+  --color-io-write: #008858;
+  --color-chart-3: #008858;
+  --color-heat-low: #f2f3ff;
+  --color-heat-mid: #d9e1ff;
+  --color-heat-high: #b5c7ff;
+  --color-chart-comparison: #8e56dd;
+  --color-category-yellow: #b38500;
+  --color-category-pink: #c43695;
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  --color-tooltip: #2c2c2c;
+  --color-tooltip-text: #ffffff;
+  --color-graphite: #181818;
+  --color-graphite-text: #e8e8e8;
+  --color-rail-translucent: rgba(231, 232, 235, 0.6);
+  --color-shell-muted: #181818;
+  --color-shell-accent: #001a57;
+  --code-comment: #a6a6a6;
+  --code-property: #41b8f2;
+  --code-string: #ffd36d;
+  --code-number: #c69cff;
+  --code-keyword: #ffb9b0;
+  --code-selection: #143975;
+  --code-active-line: #272b34;
   /* 圆角四档（docs/design/specification.md §4.3）：浮层 6 / 表面 0（扁平化）/ 控件 4 / 标签 3 */
   --radius-panel: 6px;
   --radius-surface: 0;
   --radius-control: 4px;
   --radius-tag: 3px;
-  /* 网格内同类单元之间（监控图表、巡检格、左右分栏） */
+  /* 网格内同类单元之间（监控图表、左右分栏） */
   --gap-card: 8px;
   /* 首页拖拽预览和空机柜的参考宽度（docs/design/specification.md §9） */
   --host-rack-column: 280px;
@@ -129,60 +138,86 @@
   --drop-shadow-*: initial;
 }
 
-/* 机柜面板规范 docs/design/specification.md §2.2 暗色：同一块面板关灯后的样子，层级与亮色一致。
-   灰阶保留原有蓝黑调，不随亮色壳层中性化（2026-09-30 定案） */
-html.dark {
-  --color-rail: #0d1017;
-  --color-item-hover: #3a3c41;
-  --color-item-selected: #20374c;
-  --color-item-selected-text: #ffffff;
-  --color-rail-selected: #0964cb;
-  --color-rail-selected-text: #ffffff;
-  --color-nav-selected: #0964cb;
-  --color-nav-selected-text: #ffffff;
-  --color-rail-line: #23262d;
-  --color-canvas: #12161f;
-  --color-surface: #1a1f2b;
-  --color-toolbar: #232832;
-  --color-raised: #232a38;
-  --color-ink: #e6ebf3;
-  --color-muted: #94a1b5;
-  --color-line: #2c3445;
-  --color-line-strong: #5a6478;
-  --color-accent: #179bff;
-  --color-on-accent: #15151a;
-  --color-on-danger: #15151a;
-  --color-accent-hover: #2ca4ff;
-  --color-accent-active: #3eacff;
-  --color-accent-soft: #16314d;
-  --color-accent-veil: rgba(0, 145, 255, 0.18);
-  --color-line-veil: rgba(230, 235, 243, 0.08);
-  --color-accent-tint: #1a2535;
-  --color-accent-focus: #0091ff;
-  --color-selection: #16314d;
+/* 独立看板和应用内看板使用同一套深色角色。 */
+html.dark,
+html.board-http,
+.board-mode,
+.board-dialog {
+  --color-rail: #20232b;
+  --color-sidebar: #272b34;
+  --color-canvas: #181818;
+  --color-surface: #242424;
+  --color-toolbar: #2c2c2c;
+  --color-raised: #2c2c2c;
+  --color-item-hover: #2c2c2c;
+  --color-line: #393939;
+  --color-rail-line: #393939;
+  --color-line-veil: #393939;
+  --meter-off: #393939;
+  --color-card-track: #393939;
+  --color-line-strong: #5e5e5e;
+  --color-ink: rgba(255, 255, 255, 0.9);
+  --color-nav-label: rgba(255, 255, 255, 0.9);
+  --color-item-selected-text: rgba(255, 255, 255, 0.9);
+  --color-nav-selected-text: rgba(255, 255, 255, 0.9);
+  --color-muted: rgba(255, 255, 255, 0.55);
+  --color-rail-label: rgba(255, 255, 255, 0.55);
+  --color-rail-icon: rgba(255, 255, 255, 0.55);
+  --color-nav-icon: rgba(255, 255, 255, 0.55);
+  --color-placeholder: rgba(255, 255, 255, 0.35);
+  --color-disabled: rgba(255, 255, 255, 0.22);
+  --color-rail-selected: #1b2f51;
+  --color-nav-selected: #1b2f51;
+  --color-item-selected: #1b2f51;
+  --color-selection: #1b2f51;
+  --color-accent-soft: #1b2f51;
+  --color-accent-tint: #1b2f51;
+  --color-accent-veil: #1b2f51;
+  --color-info-soft: #1b2f51;
+  --color-accent: #4582e6;
+  --color-primary: #4582e6;
+  --color-accent-hover: #2667d4;
+  --color-primary-hover: #2667d4;
+  --color-accent-active: #699ef5;
+  --color-primary-active: #699ef5;
+  --color-link: #699ef5;
+  --color-rail-selected-text: #699ef5;
+  --color-accent-focus: #699ef5;
+  --color-info: #699ef5;
+  --color-chart-1: #699ef5;
+  --color-on-accent: #181818;
+  --color-on-accent-hover: #ffffff;
+  --color-on-danger: #ffffff;
+  --color-danger-fill: #a03f46;
+  --color-success: #059465;
+  --meter-ok: #059465;
+  --color-success-text: #46bf96;
+  --color-success-soft: #193a2a;
+  --meter-warn: #cf6e2d;
+  --color-warn: #e8935c;
+  --color-warn-soft: #4f2a1d;
+  --meter-danger: #c64751;
+  --color-danger: #ec888e;
+  --color-danger-soft: #472324;
+  --color-io-read: #41b8f2;
+  --color-chart-2: #41b8f2;
+  --color-chart-gc: #41b8f2;
+  --color-io-write: #92dab2;
+  --color-chart-3: #92dab2;
+  --color-heat-low: #1b2f51;
+  --color-heat-mid: #173463;
+  --color-heat-high: #143975;
+  --color-chart-comparison: #c69cff;
+  --color-category-yellow: #ffd36d;
+  --color-category-pink: #ff79cd;
+  --color-scrim: rgba(0, 0, 0, 0.4);
+  --color-tooltip: #e8e8e8;
+  --color-tooltip-text: rgba(0, 0, 0, 0.9);
   --color-graphite: #181818;
-  --color-graphite-text: rgba(255, 255, 255, 0.9);
-  /* Smoke 遮罩不分明暗：不覆盖亮色 --color-scrim，明暗共用 rgba(0,0,0,0.6) */
-  --color-tooltip: #dfe5ee;
-  --color-tooltip-text: #1b2433;
-  --color-success: #56c08d;
-  --color-success-text: #56c08d;
-  --color-danger: #f06c63;
-  --color-warn: #f29a4a;
-  --color-info: #4fb0ff;
-  --color-info-soft: #15304a;
-  --color-success-soft: #1a3a2b;
-  --color-danger-soft: #43201e;
-  --color-warn-soft: #40280f;
-  --color-chart-1: #179bff;
-  --color-io-read: #4fb0ff;
-  --color-io-write: #f29a4a;
-  --color-chart-2: #4fb0ff;
-  --color-chart-3: #f29a4a;
-  --meter-ok: #56c08d;
-  --meter-warn: #f29a4a;
-  --meter-danger: #f06c63;
-  --meter-off: #2c3445;
+  --color-graphite-text: #e8e8e8;
+  --color-rail-translucent: rgba(32, 35, 43, 0.72);
+  --color-shell-muted: #e8e8e8;
+  --color-shell-accent: #d9e1ff;
 }
 
 @layer base {
@@ -274,7 +309,7 @@ html.dark {
     background: var(--color-muted);
   }
 
-  /* Linux 无系统阴影，在窗口边缘绘制细线；一级栏沿用自身色阶，避免撞色配色出现突兀亮边。 */
+  /* Linux 无系统阴影，在窗口边缘绘制细线；一级栏沿用自身色阶。 */
   .react-root[data-os="linux"]::before,
   .react-root[data-os="linux"]::after {
     content: "";
@@ -340,7 +375,7 @@ pre,
 /* 主机通栏与 B 区共用底色。 */
 .glass-chrome {
   position: relative;
-  background-color: var(--color-canvas);
+  background-color: var(--color-sidebar);
 }
 
 /* Only the native controller can enable this attribute; browser/HTTP surfaces stay solid. */
@@ -351,44 +386,76 @@ html:is([data-window-material="mica"], [data-window-material="sidebar"]) .react-
   background-color: transparent;
 }
 
-/* Mica itself is an opaque DWM surface. Clear the shell's WebView layers to
-   expose it; keep a subtle rail tint for hierarchy. */
-html[data-window-material="mica"] .glass-chrome {
+/* Windows 云母沿用深色外观。 */
+html.dark[data-window-material="mica"] .glass-chrome {
   background-color: transparent;
-  background-image: none;
-}
-html[data-window-material="mica"] .module-rail {
-  background-color: rgba(0, 0, 0, 0.03);
-  background-image: none;
 }
 html.dark[data-window-material="mica"] .module-rail {
   background-color: rgba(0, 0, 0, 0.08);
 }
-
-/* 自选色系绘制确定的外壳底色，原生云母偏好与回退状态仍由系统管理。
-   classic 色系必须排除：applyColorPalette 对 classic 也写 data-color-palette，
-   不排除会让这条覆盖永远命中，云母壳层被强制画成实底（Win11 云母失效根因之一）。 */
-html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .glass-chrome {
-  background-color: var(--color-canvas);
-}
-html[data-window-material="mica"][data-color-palette]:not([data-color-palette="classic"]) .module-rail {
-  background-color: var(--color-rail);
-}
-
 /* macOS 原生磨砂只通过 A 区露出。 */
 html[data-window-material="sidebar"] .module-rail {
   background-color: var(--color-rail-translucent);
   --color-muted: var(--color-shell-muted);
+  --color-rail-label: var(--color-shell-muted);
+  --color-rail-icon: var(--color-shell-muted);
   --color-accent: var(--color-shell-accent);
 }
 html[data-window-material="sidebar"] .shell-columns {
   background-color: var(--color-canvas);
 }
 
+html:not(.dark) .workspace-sidebar .glass-chrome {
+  --color-muted: var(--color-nav-label);
+}
+html:not(.dark) .workspace-sidebar :is(.rail-item, .notify-navigation h3, .notify-channel-entry) svg {
+  color: var(--color-nav-icon);
+}
+
+/* 系统提高对比度时，加深浅蓝选中项的小字与实体按钮。 */
+@media (prefers-contrast: more) {
+  html:not(.dark) body {
+    --color-rail-selected-text: #003cab;
+    --color-rail-label: #393939;
+    --color-rail-icon: #4b4b4b;
+    --color-primary: #003cab;
+    --color-primary-hover: #003cab;
+    --color-primary-active: #002a7c;
+  }
+}
+
 /* C 区使用稳定的不透明底色，页内内容与工具标签共用自己的主题。 */
 .glass-chrome-main {
   background-color: var(--color-surface);
   overflow: hidden;
+}
+
+/* 表格与紧凑读数：同方向的小实线与曲线同色，数字用正文色。 */
+.io-readout-read, .io-readout-write { color: var(--color-ink); white-space: nowrap; }
+.io-readout-read::before, .io-readout-write::before {
+  content: "";
+  display: inline-block;
+  width: 0.65em;
+  height: 2px;
+  margin-inline-end: 0.3em;
+  vertical-align: middle;
+  background: var(--color-io-read);
+}
+.io-readout-write::before { background: var(--color-io-write); }
+
+/* 小字号主按钮的浅色悬停保留实底，深色悬停改配白字。 */
+[data-variant="primary"]:hover:not(:active) {
+  outline: 1px solid var(--color-primary-hover);
+  outline-offset: -1px;
+}
+html.dark [data-variant="primary"]:hover:not(:active),
+:is(.board-mode, .board-dialog) [data-variant="primary"]:hover:not(:active) {
+  background-color: var(--color-primary-hover);
+  color: var(--color-on-accent-hover);
+}
+[data-variant="primary"]:focus-visible {
+  outline: 2px solid var(--color-accent-focus);
+  outline-offset: 2px;
 }
 
 /* 通栏里的 secondary 按钮和输入框用内容面底色。 */
@@ -401,11 +468,7 @@ html[data-window-material="sidebar"] .shell-columns {
   background-color: var(--color-item-hover);
 }
 
-/* Firefox 式侧栏分割条：平时细命中区，悬停显 accent-focus 竖线，键盘聚焦一条 accent 竖线，拖动时加粗 */
-.sidebar-splitter-line {
-  background-color: transparent;
-}
-
+/* 侧栏边缘平时靠底色区分，调宽时显示交互提示。 */
 .sidebar-splitter:hover .sidebar-splitter-line {
   background-color: var(--color-accent-focus);
   width: 2px;
@@ -535,27 +598,12 @@ html[data-window-material="sidebar"] .shell-columns {
 }
 
 .host-rack-row:focus-visible {
-  /* Keep the whole focus ring inside the animated collapse clipping area. */
   outline-style: solid;
   outline-offset: -2px;
 }
 
 .host-home-page [data-group-head] {
   touch-action: none;
-}
-
-.host-rack-content {
-  display: grid;
-  grid-template-rows: 1fr;
-  opacity: 1;
-  transition:
-    grid-template-rows var(--duration-moderate) var(--ease-standard),
-    opacity var(--duration-base) var(--ease-standard);
-}
-
-.host-rack-content[data-collapsed] {
-  grid-template-rows: 0fr;
-  opacity: 0;
 }
 
 .host-rack-host-insert {
@@ -600,7 +648,6 @@ html[data-window-material="sidebar"] .shell-columns {
 @media (prefers-reduced-motion: reduce) {
   .host-rack-block,
   .host-rack-row,
-  .host-rack-content,
   .host-rack-new-row {
     transition: none !important;
     animation: none !important;
@@ -684,6 +731,7 @@ html[data-window-material="sidebar"] .shell-columns {
   border-radius: var(--radius-control);
 }
 
+
 /* 一级图标栏（docs/design/specification.md §4.1 / §8.2）：72px 通顶，比 canvas 深一档 */
 .module-rail {
   width: 72px;
@@ -691,7 +739,7 @@ html[data-window-material="sidebar"] .shell-columns {
   background-color: var(--color-rail);
 }
 
-/* 56×52 方块：图标 + 下方小字；使用一级栏选中色 */
+/* 一级模块的图标与文字共用选中色；二级行使用更浅的选中底。 */
 .module-rail-item {
   position: relative;
   display: flex;
@@ -714,6 +762,12 @@ html[data-window-material="sidebar"] .shell-columns {
   background-color: var(--color-item-hover);
 }
 
+html:not(.dark) .module-rail-item:not([aria-current]) {
+  color: var(--color-rail-label);
+}
+html:not(.dark) .module-rail-item:not([aria-current]) > svg {
+  color: var(--color-rail-icon);
+}
 .module-rail .module-rail-item[aria-current="page"] {
   background-color: var(--color-rail-selected);
   color: var(--color-rail-selected-text);
@@ -735,6 +789,11 @@ html[data-window-material="sidebar"] .shell-columns {
 .module-rail-item:focus-visible {
   outline: 2px solid var(--color-accent-focus);
   outline-offset: 0;
+}
+
+.workspace-sidebar .glass-chrome button[aria-current="page"]:focus-visible {
+  outline: 2px solid var(--color-nav-selected-text);
+  outline-offset: -3px;
 }
 
 /* 未读 Tag 与配置红点：贴在图标右上角 */
@@ -775,7 +834,9 @@ html[data-window-material="sidebar"] .shell-columns {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
 }
-.workspace-sidebar { min-width: 0; }
+/* 内容面及挂载到 body 的浮层共用工作区画布。 */
+.glass-chrome-main, body > :not(#app) { --color-canvas: var(--color-surface); }
+.workspace-sidebar { min-width: 0; background: var(--color-sidebar); }
 .workspace-rail-heading {
   display: flex;
   align-items: center;

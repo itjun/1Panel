@@ -83,7 +83,7 @@ function renderInlines(nodes: InlineNode[], onOpenLink?: (href: string) => void)
       <a
         key={index}
         href={node.href}
-        className="break-all text-accent underline underline-offset-2"
+        className="break-all text-link underline underline-offset-2"
         onClick={(event) => {
           event.preventDefault();
           if (onOpenLink) onOpenLink(node.href);

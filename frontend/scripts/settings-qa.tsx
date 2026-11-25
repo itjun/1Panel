@@ -20,7 +20,6 @@ const record = (value: string) => { operation = value; window.dispatchEvent(new 
 Object.assign(api, {
   listHosts: async () => [], listGroups: async () => [], listHostIcons: async () => [],
   listAlertHistory: async () => [],
-  listMenuChecks: async () => [],
   getPanelConfigOverview: async () => ({}),
   getMyEgress: async () => ({ ip: "203.0.113.8", location: "本机出口示例" }),
   getPanelConfigStatus: async () => ({ needsReview: false }),
@@ -48,9 +47,7 @@ Object.assign(api, {
   setUpdateAutoCheck: async (value: boolean) => record(`自动更新：${value}`),
   openExternalURL: async () => record("外部链接"),
 });
-const { updateSettings, useSettings } = await import("@/react/state/settings");
-const { COLOR_PALETTES, parseColorPalette } = await import("@/react/lib/color-palettes");
-if (params.has("palette")) updateSettings({ colorPalette: parseColorPalette(params.get("palette")) });
+const { updateSettings } = await import("@/react/state/settings");
 if (params.has("theme")) updateSettings({ appearance: params.get("theme") as "light" | "dark" | "system" });
 const { setUpdateState } = await import("@/react/state/app-update");
 setUpdateState({ enabled: true, autoCheck: true, status: "idle" } as never);
@@ -58,7 +55,6 @@ const { SessionProvider, useSession } = await import("@/react/state/session");
 const { SidebarProvider } = await import("@/react/state/sidebar");
 const { PageRefreshProvider } = await import("@/react/state/page-refresh");
 const { WorkspaceLayout } = await import("@/react/components/workspace-layout");
-const { InspectPage } = await import("@/react/pages/inspect");
 const { SettingsPage } = await import("@/react/pages/settings-page");
 const { useThemeSignature } = await import("@/react/lib/use-theme-mode");
 const { ChartHost, lineOption } = await import("@/react/components/monitor/charts");
@@ -69,8 +65,8 @@ await import("@/react/components/board/board.css");
 function PaletteMonitorFixture() {
   const theme = useThemeSignature();
   const option = React.useMemo(() => lineOption(["12:00", "12:05", "12:10", "12:15", "12:20", "12:25"], [
-    { name: "接收", data: [80, 160, 130, 210, 170, 220] },
-    { name: "发送", data: [35, 70, 50, 95, 65, 110] },
+    { name: "接收", direction: "read", data: [80, 160, 130, 210, 170, 220] },
+    { name: "发送", direction: "write", data: [35, 70, 50, 95, 65, 110] },
   ]), [theme]);
   return <div style={{ padding: 24 }}>
     <h1 className="text-xl font-semibold">主机概览</h1>
@@ -90,9 +86,7 @@ function PaletteMonitorFixture() {
 
 function Fixture() {
   const [isMonitor, setIsMonitor] = React.useState(params.has("sample"));
-  const settings = useSettings();
   const session = useSession();
-  React.useLayoutEffect(() => { session.setSettingsSection((params.get("section") || "look") as "look"); }, []);
   const [last, setLast] = React.useState(operation);
   React.useEffect(() => {
     const changed = () => setLast(operation);
@@ -102,7 +96,7 @@ function Fixture() {
   return <>
     <WorkspaceLayout>
       <div className="min-h-0 min-w-0 flex-1">
-        {session.settingsOpen ? (isMonitor ? <PaletteMonitorFixture /> : <SettingsPage />) : session.workspace === "inspect" ? <InspectPage /> : <PaletteMonitorFixture />}
+        {session.settingsOpen && !isMonitor ? <SettingsPage /> : <PaletteMonitorFixture />}
       </div>
     </WorkspaceLayout>
     <button className="absolute right-4 bottom-4 z-30 bg-surface p-2 text-sm text-accent" onClick={() => { session.openSettings(true); setIsMonitor(!isMonitor); }}>{isMonitor ? "返回外观设置" : "查看监控示例"}</button>

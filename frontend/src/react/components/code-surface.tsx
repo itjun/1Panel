@@ -46,16 +46,16 @@ const ssh = StreamLanguage.define({
 });
 
 const highlighting = HighlightStyle.define([
-  { tag: tags.propertyName, color: "#66d9ef" },
-  { tag: tags.string, color: "#e6db74" },
-  { tag: tags.number, color: "#ae81ff" },
-  { tag: [tags.keyword, tags.bool, tags.null], color: "#f92672" },
-  { tag: tags.comment, color: "#75715e", fontStyle: "italic" },
-  { tag: [tags.punctuation, tags.operator], color: "#f8f8f2" },
+  { tag: tags.propertyName, color: "var(--code-property)" },
+  { tag: tags.string, color: "var(--code-string)" },
+  { tag: tags.number, color: "var(--code-number)" },
+  { tag: [tags.keyword, tags.bool, tags.null], color: "var(--code-keyword)" },
+  { tag: tags.comment, color: "var(--code-comment)", fontStyle: "italic" },
+  { tag: [tags.punctuation, tags.operator], color: "var(--color-graphite-text)" },
 ]);
 
 /* 代码区走独立石墨面（docs/design/specification.md §8.1），底色 / 文字读 graphite token；
-   行号、当前行等编辑器主题色按规范例外保留硬编码。 */
+   行号、语法、选区和当前行共用固定深色阅读角色。 */
 const theme = EditorView.theme(
   {
     "&": {
@@ -71,23 +71,23 @@ const theme = EditorView.theme(
       fontSize: "14px",
       lineHeight: "1.55",
     },
-    ".cm-content": { padding: "10px 0", caretColor: "#f8f8f2" },
+    ".cm-content": { padding: "10px 0", caretColor: "var(--color-graphite-text)" },
     ".cm-line": { padding: "0 12px" },
-    ".cm-line:hover": { backgroundColor: "rgba(102, 217, 239, 0.08)" },
-    ".cm-gutters": { backgroundColor: "var(--color-graphite)", color: "#8b98a8", border: "none" },
+    ".cm-line:hover": { backgroundColor: "var(--code-active-line)" },
+    ".cm-gutters": { backgroundColor: "var(--color-graphite)", color: "var(--code-comment)", border: "none" },
     ".cm-lineNumbers .cm-gutterElement": { padding: "0 10px 0 8px" },
     ".cm-activeLine, .cm-activeLine:hover": {
-      backgroundColor: "rgba(102, 153, 220, 0.14)",
-      boxShadow: "inset 2px 0 #66d9ef",
+      backgroundColor: "var(--code-active-line)",
+      boxShadow: "inset 2px 0 var(--code-property)",
     },
-    ".cm-activeLineGutter": { backgroundColor: "#29384b", color: "#f8f8f2" },
-    ".cm-selectionBackground": { backgroundColor: "#2b4567" },
+    ".cm-activeLineGutter": { backgroundColor: "var(--code-active-line)", color: "var(--color-graphite-text)" },
+    ".cm-selectionBackground": { backgroundColor: "var(--code-selection)" },
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
-      backgroundColor: "#365d91",
+      backgroundColor: "var(--code-selection)",
     },
     // drawSelection 绘制选区底色；原生选中文字保持亮色，覆盖浅色壳的 ink。
-    ".cm-content ::selection, .cm-content::selection": { color: "#f8f8f2 !important" },
-    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#f8f8f2", borderLeftWidth: "2px" },
+    ".cm-content ::selection, .cm-content::selection": { color: "var(--color-graphite-text) !important" },
+    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--color-graphite-text)", borderLeftWidth: "2px" },
   },
   { dark: true },
 );

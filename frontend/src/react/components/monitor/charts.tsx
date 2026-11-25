@@ -2,8 +2,8 @@ import * as echarts from "echarts";
 import type { PaletteMode } from "@/react/lib/color-palettes";
 import { useEffect, useRef, type ReactNode } from "react";
 import { bandTone, type UsageBands, type UsageTone } from "@/react/lib/usage-tone";
-import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
-import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
+import { cn, readThemeColor } from "@/react/lib/utils";
+import { chartPalette, trendLineStyle, trendTooltip, type TrendDirection } from "@/react/lib/chart-style";
 
 /** 分档面积锚定真实纵轴坐标，横向缩放后不能把新的可见峰值误涂成危险档。 */
 function anchorUsageAreas(chart: echarts.EChartsType) {
@@ -115,10 +115,13 @@ export function binaryAxis(values: number[], minExp: number): { max: number; int
 export type LineSeries = {
   name: string;
   data: number[];
-  /** 占用类指标按 §4.7 三档分段着色（--meter-ok / warn / danger），不传则按系列名取色 */
+  /** 占用类指标按 §4.7 三档分段着色（--meter-ok / warn / danger）。 */
   bands?: UsageBands;
-  /** 陪衬曲线（如交换）：muted 细虚线，不与分段色抢语义 */
+  /** 陪衬曲线（如交换）：muted 细实线，不与分段色抢语义 */
   muted?: boolean;
+  direction?: TrendDirection;
+  /** 测速分流在总量线下方绘制同方向细线。 */
+  detail?: boolean;
 };
 
 /** 读数的档位：有分档时取值所在档，无分档返回 undefined */
@@ -143,15 +146,12 @@ export function lineOption(
 ): echarts.EChartsOption {
   const mode = opts?.colorMode;
   const axisFormatter = opts?.axisFormatter || opts?.yFormatter;
-  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)", mode);
-  const line = readThemeColor("--color-line", "#e5e7eb", mode);
-  const meterOk = readThemeColor("--meter-ok", "#2ba471", mode);
-  const meterWarn = readThemeColor("--meter-warn", "#f08a24", mode);
-  const meterDanger = readThemeColor("--meter-danger", "#d54941", mode);
-  const colors = seriesColorList(series.map((s) => s.name), mode).map((c, idx) => {
-    if (series[idx]?.muted) return muted;
-    if (series[idx]?.bands) return meterOk;
-    return c;
+  const palette = chartPalette(mode);
+  const { muted, line } = palette;
+  const colors = series.map((item) => {
+    if (item.muted) return muted;
+    if (item.bands) return palette.ok;
+    return item.direction ? palette[item.direction] : palette.primary;
   });
   const visualMap: echarts.VisualMapComponentOption[] = [];
   series.forEach((s, idx) => {
@@ -162,9 +162,9 @@ export function lineOption(
       seriesIndex: idx,
       dimension: 1,
       pieces: [
-        { lt: s.bands.warn, color: meterOk },
-        { gte: s.bands.warn, lt: s.bands.danger, color: meterWarn },
-        { gte: s.bands.danger, color: meterDanger },
+        { lt: s.bands.warn, color: palette.ok },
+        { gte: s.bands.warn, lt: s.bands.danger, color: palette.warn },
+        { gte: s.bands.danger, color: palette.danger },
       ],
     });
   });
@@ -217,9 +217,13 @@ export function lineOption(
       splitLine: { lineStyle: { color: line } },
     },
     series: series.map((s, idx) => ({
-      ...trendLineStyle({ mode, color: colors[idx]!, values: s.data, bands: s.bands, muted: s.muted }),
+      ...trendLineStyle({
+        mode, color: colors[idx]!, values: s.data, bands: s.bands, muted: s.muted,
+        detail: s.detail,
+      }),
       name: s.name,
       data: s.data,
+      z: s.detail ? 1 : 2,
     })),
   };
 }
@@ -234,18 +238,22 @@ export type MonitorReadout = {
   label: string;
   value: string;
   /** 与曲线同色的短横线，兼作图例；ok / warn / danger 对应分段曲线当前档 */
-  swatch?: "read" | "write" | "muted" | UsageTone;
+  swatch?: TrendDirection | "muted" | UsageTone;
   /** 标签悬停说明（流入 / 流出的方向解释等） */
   tip?: string;
   /** 数值档位：危险档数值走 danger 文字色，与圆环中心一致；ok / warn 不改文字色 */
   tone?: UsageTone;
 };
 
+export function TrendDirectionSwatch({ direction }: { direction: TrendDirection }) {
+  const color = direction === "read" ? "border-io-read" : "border-io-write";
+  return <span className={cn("w-5 shrink-0 self-center border-t-2 border-solid", color)} aria-hidden />;
+}
+
 function ReadoutSwatch({ swatch }: { swatch: NonNullable<MonitorReadout["swatch"]> }) {
-  if (swatch === "read") return <span className="h-0.5 w-3 self-center bg-io-read" aria-hidden />;
-  if (swatch === "write") return <span className="h-0.5 w-3 self-center bg-io-write" aria-hidden />;
+  if (swatch === "read" || swatch === "write") return <TrendDirectionSwatch direction={swatch} />;
   if (swatch === "muted") {
-    return <span className="w-3 self-center border-t border-dashed border-muted" aria-hidden />;
+    return <span className="w-3 self-center border-t border-solid border-muted" aria-hidden />;
   }
   return (
     <span

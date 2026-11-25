@@ -112,6 +112,7 @@ type ZshEnvironment struct {
 	Home                string `json:"home"`
 	Shell               string `json:"shell"`
 	Manager             string `json:"manager"`
+	AptSourceIssue      string `json:"aptSourceIssue"`
 	Zshrc               string `json:"zshrc"`
 	Zsh                 string `json:"zsh"`
 	Theme               string `json:"theme"`
@@ -142,7 +143,7 @@ func parseZshEnvironment(out string) ZshEnvironment {
 	env := ZshEnvironment{
 		RestoreCommand: values["restoreCommand"],
 		OS:             values["os"], Distribution: values["distribution"], User: values["user"],
-		Home: values["home"], Shell: values["shell"], Manager: values["manager"],
+		Home: values["home"], Shell: values["shell"], Manager: values["manager"], AptSourceIssue: values["aptSourceIssue"],
 		Zshrc: values["zshrc"], Zsh: values["zsh"], Theme: values["theme"], OhMyZshRoot: values["ohMyZshRoot"],
 		Privileged: zshBool(values, "privileged"), OhMyZsh: zshBool(values, "ohMyZsh"),
 		Git: zshBool(values, "git"), Highlighting: zshBool(values, "highlighting"),
@@ -216,7 +217,7 @@ func zshSetupErrorMessage(logs []string, err error) string {
 	return "初始化失败，请查看执行日志。"
 }
 
-func zshSetupCommand(path string, options ZshSetupOptions) string {
+func zshSetupArgs(options ZshSetupOptions) string {
 	args := " --apply"
 	if options.BasePackages {
 		args += " --base-packages"
@@ -235,16 +236,60 @@ func zshSetupCommand(path string, options ZshSetupOptions) string {
 	if options.DefaultShell {
 		args += " --default-shell"
 	}
+	return args
+}
+
+func zshSetupCommand(path string, options ZshSetupOptions) string {
 	quoted := zshShellQuote(path)
-	return "sh " + quoted + args + " 2>&1; result=$?; rm -f -- " + quoted + "; exit $result"
+	return "sh " + quoted + zshSetupArgs(options) + " 2>&1; result=$?; rm -f -- " + quoted + "; exit $result"
+}
+
+var hostSetupOptions = ZshSetupOptions{
+	BasePackages: true, Highlighting: true, Suggestions: true, DefaultShell: true,
+}
+
+func manualHostSetupCommand(path, user string) string {
+	command := `
+if [ "$(id -un)" != "$1" ]; then
+  printf "请使用 %s 登录目标主机后再执行。\n" "$1" >&2
+  exit 1
+fi
+if [ ! -r "$2" ]; then
+  printf "%s\n" "找不到初始化脚本，请确认目标主机，或回到 1Panel 重新准备命令。" >&2
+  exit 1
+fi
+sh "$2"` + zshSetupArgs(hostSetupOptions) + ` --interactive-sudo && rm -f -- "$2"`
+	return "sh -c " + zshShellQuote(strings.TrimSpace(command)) + " sh " +
+		zshShellQuote(user) + " " + zshShellQuote(path)
+}
+
+// PrepareHostSetupCommand stages the bundled script without running it. The
+// login user runs the returned command from a terminal that can prompt for sudo.
+func (s *System) PrepareHostSetupCommand(host string) (string, error) {
+	env, err := s.InspectZsh(host)
+	if err != nil {
+		return "", err
+	}
+	if !env.Supported {
+		return "", fmt.Errorf("仅支持使用 apt、dnf、yum、apk 的远程 Linux 主机")
+	}
+	if env.AptSourceIssue != "" {
+		return "", errors.New(env.AptSourceIssue)
+	}
+	if s.GetZshSetup(host).State == "running" {
+		return "", fmt.Errorf("该主机已有初始化任务正在运行")
+	}
+	path, err := s.bootstrapZsh(host)
+	if err != nil {
+		return "", err
+	}
+	return manualHostSetupCommand(path, env.User), nil
 }
 
 // StartHostSetup 安装 itjun-tools 基础软件，并打开全部 Shell 增强。
 // 目标是 SSH 登录用户；个人配置先备份再保留。
 func (s *System) StartHostSetup(host string) (ZshSetupTask, error) {
-	return s.StartZshSetup(host, ZshSetupOptions{
-		BasePackages: true, Highlighting: true, Suggestions: true, Correction: false, DefaultShell: true,
-	})
+	return s.StartZshSetup(host, hostSetupOptions)
 }
 
 const zshSetupTimeout = 30 * time.Minute
@@ -258,9 +303,12 @@ func (s *System) StartZshSetup(host string, options ZshSetupOptions) (ZshSetupTa
 	if !env.Supported {
 		return ZshSetupTask{}, fmt.Errorf("仅支持使用 apt、dnf、yum、apk 的远程 Linux 主机")
 	}
-	needsGit := !env.Git // ys prompt and its official source require Git.
-	if !env.Privileged && (env.Zsh == "" || needsGit || options.DefaultShell || options.BasePackages) {
-		return ZshSetupTask{}, fmt.Errorf("安装依赖或切换默认 Shell 需要 root 或免密 sudo；请先在终端处理后重新检测")
+	needsPackages := options.BasePackages || env.Zsh == "" || !env.Git
+	if needsPackages && env.AptSourceIssue != "" {
+		return ZshSetupTask{}, errors.New(env.AptSourceIssue)
+	}
+	if !env.Privileged && (needsPackages || options.DefaultShell) {
+		return ZshSetupTask{}, fmt.Errorf("安装依赖或切换默认 Shell 需要 root 或免密 sudo")
 	}
 	opt, err := (*App)(s).connectOptionFor(host)
 	if err != nil {

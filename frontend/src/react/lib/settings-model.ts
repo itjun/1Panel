@@ -1,14 +1,12 @@
 import type { AppOs } from "@/react/lib/platform";
-import type { SettingsSection } from "@/react/state/session";
 
-export const SETTINGS_SECTIONS: { id: SettingsSection; label: string }[] = [
+export const SETTINGS_SECTIONS = [
   { id: "look", label: "外观" },
-  { id: "session", label: "会话" },
   { id: "board", label: "看板" },
   { id: "app", label: "应用" },
   { id: "shortcuts", label: "热键" },
   { id: "about", label: "关于" },
-];
+] as const;
 
 export const PLATFORM_SETTINGS = {
   mac: { name: "macOS", sans: "SF Pro / 苹方", mono: "SF Mono / Menlo" },
@@ -24,8 +22,4 @@ export function settingsShortcuts(os: AppOs) {
     { label: "打开远程主机", keys: mac ? ["⌘ O"] : ["Ctrl+O"] },
     { label: "切换已打开主机", keys: ["Ctrl+Tab", "Ctrl+Shift+Tab"] },
   ];
-}
-
-export function showWindowMaterial(os: AppOs, desktop: boolean, supported: boolean) {
-  return desktop && (os === "mac" || (os === "win" && supported));
 }

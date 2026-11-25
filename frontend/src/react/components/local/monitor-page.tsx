@@ -105,8 +105,8 @@ export function LocalMonitorPage() {
       lineOption(
         netSeries.map((p) => p.time),
         [
-          { name: "流入", data: netSeries.map((p) => p.rx) },
-          { name: "流出", data: netSeries.map((p) => p.tx) },
+          { name: "流入", direction: "read", data: netSeries.map((p) => p.rx) },
+          { name: "流出", direction: "write", data: netSeries.map((p) => p.tx) },
         ],
         {
           yFormatter: (v) => formatRateKBps(v),
@@ -122,8 +122,8 @@ export function LocalMonitorPage() {
       lineOption(
         ioSeries.map((p) => p.time),
         [
-          { name: "读", data: ioSeries.map((p) => p.read) },
-          { name: "写", data: ioSeries.map((p) => p.write) },
+          { name: "读", direction: "read", data: ioSeries.map((p) => p.read) },
+          { name: "写", direction: "write", data: ioSeries.map((p) => p.write) },
         ],
         {
           yFormatter: (v) => formatRateKBps(v),

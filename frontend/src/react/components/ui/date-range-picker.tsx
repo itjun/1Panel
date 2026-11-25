@@ -192,7 +192,7 @@ export function DateRangePicker({
           <button
             type="button"
             onClick={pickNow}
-            className="rounded-control px-2 py-1 text-sm text-accent motion-colors hover:bg-item-hover"
+            className="rounded-control px-2 py-1 text-sm text-link motion-colors hover:bg-item-hover"
           >
             此刻
           </button>

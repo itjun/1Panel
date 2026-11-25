@@ -3,9 +3,6 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as menucheck$0 from "../menucheck/models.js";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
 import * as monitor$0 from "../monitor/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -471,36 +468,6 @@ export interface LocalTextCheck {
     "size": number;
 }
 
-/**
- * MenuCheckResult 巡检结果：请求是否正常、内容是否正常，附带当前配置供编辑回填。
- */
-export interface MenuCheckResult {
-    "id": string;
-    "label": string;
-    "method": string;
-    "url": string;
-
-    /**
-     * 请求正常
-     */
-    "ok": boolean;
-
-    /**
-     * 内容正常
-     */
-    "hasData": boolean;
-    "menuText": string;
-    "dataText": string;
-    "title": string;
-    "message": string;
-    "statusCode": number;
-    "durationMs": number;
-    "bodyPreview": string;
-    "checkedAt": number;
-    "scheduled": boolean;
-    "config": menucheck$0.Item;
-}
-
 export interface PanelBackup {
     "summary": PanelBackupSummary;
     "state": PanelStateDraft;
@@ -774,7 +741,6 @@ export interface UpdateState {
 }
 
 export interface WindowThemeState {
-    "preference": string;
     "effective": string;
     "supported": boolean;
     "reason": string;
@@ -793,6 +759,7 @@ export interface ZshEnvironment {
     "home": string;
     "shell": string;
     "manager": string;
+    "aptSourceIssue": string;
     "zshrc": string;
     "zsh": string;
     "theme": string;

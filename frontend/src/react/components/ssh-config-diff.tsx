@@ -8,7 +8,7 @@ export function SshConfigDiff({ before, after }: { before: string; after: string
   const removed = rows.filter((row) => row.kind === "removed").length;
   const added = rows.filter((row) => row.kind === "added").length;
   return (
-    <div className="config-ssh-diff" style={paletteTokens("classic", "dark") as CSSProperties}>
+    <div className="config-ssh-diff" style={paletteTokens("dark") as CSSProperties}>
       <div className="config-ssh-diff-legend">
         <span className="config-ssh-diff-before">− 应用记录（{removed} 行）</span>
         <span className="config-ssh-diff-after">+ 本机文件（{added} 行）</span>

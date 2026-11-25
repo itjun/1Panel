@@ -1,249 +1,66 @@
-export type ColorPaletteId = "classic" | "mist-blue" | "celadon" | "pistachio" | "almond" | "strawberry" | "lavender" | "rose-mauve" | "muted-pastel" | "candy" | "twilight" | "coral-sky" | "apricot-sea" | "lemon-taro" | "apple-milk-tea" | "mint-coral" | "sea-salt-grape" | "wisteria-lemon" | "rose-mint";
 export type PaletteMode = "light" | "dark";
 export type ColorTokens = Record<`--${string}`, string>;
 
-type PaletteBase = {
-  rail: string; canvas: string; surface: string; accent: string; ink: string; muted: string;
-  selection?: string;
-  ok: string; warn: string; danger: string; read: string; write: string;
-};
-
-function rgb(hex: string): number[] {
-  return [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
-}
-
-function mix(background: string, foreground: string, amount: number): string {
-  const front = rgb(foreground);
-  return `#${rgb(background).map((value, index) => Math.round(value + (front[index] - value) * amount).toString(16).padStart(2, "0")).join("")}`;
-}
-
-function luminance(hex: string): number {
-  const channels = rgb(hex).map((value) => {
-    const channel = value / 255;
-    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-}
-
-export function contrastRatio(first: string, second: string): number {
-  const a = luminance(first);
-  const b = luminance(second);
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-}
-
-/** 在同一色相方向上加深或提亮，最终输出明确的十六进制色值，兼容旧 WebKit。 */
-function readable(color: string, backgrounds: string[], ratio: number, ink: string): string {
-  for (let step = 0; step <= 100; step++) {
-    const candidate = mix(color, ink, step / 100);
-    if (backgrounds.every((background) => contrastRatio(candidate, background) >= ratio)) return candidate;
-  }
-  return ink;
-}
-
-function foreground(backgrounds: string[]): string {
-  const minimum = (color: string) => Math.min(...backgrounds.map((background) => contrastRatio(color, background)));
-  return minimum("#ffffff") >= minimum("#15151a") ? "#ffffff" : "#15151a";
-}
-
-function tokens(base: PaletteBase, mode: PaletteMode, isClassic: boolean): ColorTokens {
-  const isDark = mode === "dark";
-  // 默认 A 区透出更多原生磨砂，彩色主题保留已确认的底色强度。
-  const railOpacity = isDark ? (isClassic ? 0.72 : 0.86) : (isClassic ? 0.62 : 0.88);
-  const toolbar = mix(base.surface, base.ink, isDark ? 0.045 : 0.025);
-  const raised = mix(base.surface, base.ink, isDark ? 0.045 : 0.035);
-  const line = mix(base.surface, base.ink, isDark ? 0.14 : 0.12);
-  const soft = (color: string) => mix(base.surface, color, isDark ? 0.16 : 0.1);
-  const accentSoft = base.selection ?? soft(base.accent);
-  const itemHover = isDark ? "#3a3c41" : "#e1e6ec";
-  const itemSelected = base.selection ?? (isDark ? "#20374c" : "#eaf4fe");
-  const selectedText = isDark ? "#ffffff" : "#080a0c";
-  const cardTrack = readable(line, [raised, itemHover, itemSelected], 1.6, base.ink);
-  const materialSurfaces = ["#000000", "#ffffff"].map((backdrop) => mix(backdrop, base.rail, railOpacity));
-  const surfaces = [base.rail, base.canvas, toolbar, base.surface, raised, itemHover, itemSelected];
-  // 默认配色沿 macOS 蓝色的色相校正明度，避免混入灰色文字后偏色。
-  const accent = readable(base.accent, [...surfaces, accentSoft], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink);
-  const muted = readable(base.muted, [...surfaces, accentSoft], 4.5, base.ink);
-  const accentHover = mix(accent, isDark ? "#ffffff" : "#15151a", 0.09);
-  const accentActive = mix(accent, isDark ? "#ffffff" : "#15151a", 0.17);
-  const successSoft = soft(base.ok);
-  const warnSoft = soft(base.warn);
-  const dangerSoft = soft(base.danger);
-  const infoSoft = soft(base.read);
-  const graphicSurfaces = [base.surface, raised, itemHover, itemSelected, line];
-  const ok = readable(base.ok, graphicSurfaces, 3, base.ink);
-  const meterWarn = readable(base.warn, graphicSurfaces, 3, base.ink);
-  const danger = readable(base.danger, [...surfaces, dangerSoft], 4.5, base.ink);
-  const read = readable(base.read, graphicSurfaces, 3, base.ink);
-  const write = readable(base.write, graphicSurfaces, 3, base.ink);
-  return {
-    "--color-rail": base.rail, "--color-rail-line": mix(base.rail, base.ink, 0.1), "--color-canvas": base.canvas, "--color-surface": base.surface,
-    "--color-toolbar": toolbar,
-    "--color-rail-translucent": `rgba(${rgb(base.rail).join(", ")}, ${railOpacity})`,
-    "--color-raised": raised, "--color-line": line,
-    "--color-card-track": cardTrack,
-    "--color-line-strong": readable(mix(base.surface, base.ink, 0.4), surfaces, 3, base.ink),
-    "--color-ink": base.ink,
-    "--color-muted": muted,
-    // 半透明 A 区单独校正文字，保留其他区域的主题色。
-    "--color-shell-muted": readable(muted, [...surfaces, accentSoft, ...materialSurfaces], 4.5, base.ink),
-    "--color-shell-accent": readable(accent, [...surfaces, accentSoft, ...materialSurfaces], 4.5, isClassic ? (isDark ? "#ffffff" : "#000000") : base.ink),
-    "--color-item-hover": itemHover, "--color-item-selected": itemSelected, "--color-item-selected-text": selectedText,
-    "--color-accent": accent, "--color-accent-hover": accentHover, "--color-accent-active": accentActive,
-    "--color-on-accent": foreground([accent, accentHover, accentActive]),
-    "--color-accent-soft": accentSoft, "--color-accent-tint": mix(base.surface, accent, 0.045),
-    "--color-rail-selected": isClassic ? (isDark ? "#0964cb" : "#d7e3f6") : itemSelected,
-    "--color-rail-selected-text": isClassic ? (isDark ? "#ffffff" : "#277ef0") : accent,
-    "--color-nav-selected": isClassic && isDark ? "#0964cb" : itemSelected,
-    "--color-nav-selected-text": selectedText,
-    "--color-accent-focus": isClassic ? base.accent : accent, "--color-selection": base.selection ?? soft(isClassic ? base.accent : accent),
-    "--color-accent-veil": `rgba(${rgb(isClassic ? base.accent : accent).join(", ")}, ${isDark ? 0.18 : 0.1})`,
-    "--color-line-veil": `rgba(${rgb(base.ink).join(", ")}, 0.08)`,
-    "--color-success": ok, "--color-success-text": readable(base.ok, [...surfaces, successSoft], 4.5, base.ink),
-    "--color-warn": readable(base.warn, [...surfaces, warnSoft], 4.5, base.ink),
-    "--color-danger": danger, "--color-on-danger": foreground([danger]),
-    "--color-info": readable(base.read, [...surfaces, infoSoft], 4.5, base.ink),
-    "--color-success-soft": successSoft, "--color-warn-soft": warnSoft,
-    "--color-danger-soft": dangerSoft, "--color-info-soft": infoSoft,
-    "--color-tooltip": base.ink, "--color-tooltip-text": base.surface,
-    "--color-chart-1": accent, "--color-chart-2": read, "--color-chart-3": write,
-    "--color-io-read": read, "--color-io-write": write,
-    "--meter-ok": ok, "--meter-warn": meterWarn,
-    "--meter-danger": readable(base.danger, graphicSurfaces, 3, base.ink), "--meter-off": line,
-  };
-}
-
-type PaletteDefinition = { id: ColorPaletteId; name: string; description: string; light: PaletteBase; dark: PaletteBase };
-
-const definitions: PaletteDefinition[] = [
-  {
-    id: "classic", name: "默认配色", description: "中性灰 / macOS 蓝",
-    // macOS 的 NSColor.systemBlue（sRGB，取样环境 27.2），浅深色分别取样；三端使用相同色系。
-    light: { rail: "#eaebee", canvas: "#f2f3f5", surface: "#ffffff", accent: "#0088ff", ink: "#1f2937", muted: "#636a76", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#0d1017", canvas: "#12161f", surface: "#1a1f2b", accent: "#0091ff", ink: "#e6ebf3", muted: "#94a1b5", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  // 用户确认的 peiseka 预览角色色；语义状态仍沿用健康绿、告警橙、危险红。
-  {
-    id: "mist-blue", name: "雾蓝", description: "蓝色控 · No.1311",
-    light: { rail: "#d1defb", canvas: "#ebf2ff", surface: "#fcfdff", accent: "#54627e", ink: "#313846", muted: "#5c626d", selection: "#d2dffc", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#1e242f", canvas: "#2a2f37", surface: "#323841", accent: "#a2befa", ink: "#e9ecf2", muted: "#b6becb", selection: "#454d5c", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "celadon", name: "青瓷", description: "配色导航 No.7",
-    light: { rail: "#b4e7ed", canvas: "#d8f5f8", surface: "#f5fefe", accent: "#41676d", ink: "#2b3940", muted: "#596369", selection: "#cdecee", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#1a242b", canvas: "#282f37", surface: "#323841", accent: "#71c9ce", ink: "#e9ecf2", muted: "#afb8c6", selection: "#364c54", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "pistachio", name: "开心果", description: "思绪.色彩 · No.2455",
-    light: { rail: "#cddcbd", canvas: "#f3f5ec", surface: "#f9fcfc", accent: "#4f6067", ink: "#303940", muted: "#585f64", selection: "#c0ded4", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#1d242b", canvas: "#2a2f36", surface: "#323841", accent: "#9ec6cc", ink: "#e9ecf2", muted: "#b2bbc8", selection: "#404d50", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "almond", name: "杏仁奶油", description: "配色导航 No.252",
-    light: { rail: "#fbd8c7", canvas: "#f8f5e6", surface: "#fdfdf9", accent: "#6f5f5a", ink: "#3c393c", muted: "#656265", selection: "#e2ecdb", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#242429", canvas: "#2b2f35", surface: "#323841", accent: "#f9c4aa", ink: "#e9ecf2", muted: "#bac2ce", selection: "#4b5151", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "strawberry", name: "草莓奶霜", description: "配色导航 No.72",
-    light: { rail: "#c2e6fd", canvas: "#fff6f6", surface: "#fffdfd", accent: "#865761", ink: "#3c323a", muted: "#6a6268", selection: "#ffe3e3", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#242028", canvas: "#2b2f37", surface: "#323841", accent: "#fcafb8", ink: "#e9ecf2", muted: "#bdc4cf", selection: "#535057", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "lavender", name: "薰衣草", description: "配色导航 No.19",
-    light: { rail: "#d2cef4", canvas: "#ebfdfb", surface: "#fafffe", accent: "#605572", ink: "#363544", muted: "#595965", selection: "#d7e6fd", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#21222d", canvas: "#2a3037", surface: "#323841", accent: "#d5b7ed", ink: "#e9ecf2", muted: "#bbc3ce", selection: "#48515c", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "rose-mauve", name: "玫瑰灰紫", description: "柔软的毛毯 · No.1676",
-    light: { rail: "#e3e7f8", canvas: "#fcf0ef", surface: "#fefcfc", accent: "#6b647f", ink: "#343541", muted: "#666770", selection: "#ffdfe2", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#1f222c", canvas: "#2b2f36", surface: "#323841", accent: "#c9bbdf", ink: "#e9ecf2", muted: "#bac2ce", selection: "#534e54", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "muted-pastel", name: "灰调粉彩", description: "万籁俱寂 · No.1888",
-    light: { rail: "#e3d7e2", canvas: "#f7f7ee", surface: "#fdfdfb", accent: "#645e69", ink: "#373840", muted: "#5f6066", selection: "#d4e6e6", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#21232b", canvas: "#2b2f36", surface: "#323841", accent: "#d1bcce", ink: "#e9ecf2", muted: "#b8c0cc", selection: "#474f55", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "candy", name: "糖果什锦", description: "糖果的味道 · No.1959",
-    light: { rail: "#cfebfd", canvas: "#f0fcf3", surface: "#fffdfc", accent: "#6b6574", ink: "#3b3c46", muted: "#66676f", selection: "#f5e1f9", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#24262e", canvas: "#2a3036", surface: "#323841", accent: "#f2daf7", ink: "#e9ecf2", muted: "#bdc4cf", selection: "#50505b", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "twilight", name: "暮蓝撞色", description: "小清新 · No.1328",
-    light: { rail: "#e1e1e1", canvas: "#f2f4f7", surface: "#fdfefe", accent: "#546486", ink: "#292f3a", muted: "#60646d", selection: "#cbeed7", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#191e28", canvas: "#2a2f37", surface: "#323841", accent: "#b2bbcf", ink: "#e9ecf2", muted: "#b4bcc9", selection: "#3d4f4c", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  // 新增八组撞色方案，保留各自主色与互补色的浅深色角色分工。
-  {
-    id: "coral-sky", name: "珊瑚晴空", description: "幻想中的少女 · No.1906",
-    light: { rail: "#d1d9f5", canvas: "#fff1ed", surface: "#fffefc", accent: "#8d4d54", ink: "#30343d", muted: "#5b5f68", selection: "#d2eee3", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#202a3c", canvas: "#332a31", surface: "#39353e", accent: "#f0b5b7", ink: "#f0edf1", muted: "#bdc4cc", selection: "#3d5651", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "apricot-sea", name: "杏橙海盐", description: "配色卡 21 · No.21",
-    light: { rail: "#bce7ea", canvas: "#fff2e8", surface: "#fffefa", accent: "#865844", ink: "#30343d", muted: "#5f636c", selection: "#f8e4b5", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#1f3036", canvas: "#342e2d", surface: "#3d3735", accent: "#edc3a6", ink: "#f0edf1", muted: "#bfc6cd", selection: "#5f503a", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "lemon-taro", name: "柠檬紫芋", description: "白色独角兽 · No.389",
-    light: { rail: "#ddd0ed", canvas: "#fffce8", surface: "#fffefa", accent: "#665774", ink: "#30343d", muted: "#585c65", selection: "#f4d9c5", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#282437", canvas: "#33322c", surface: "#3d3c35", accent: "#e6d29c", ink: "#f0edf1", muted: "#bdc3cb", selection: "#5f4d43", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "apple-milk-tea", name: "青苹奶茶", description: "浅草悠云 · No.1712",
-    light: { rail: "#cad5f6", canvas: "#eff8eb", surface: "#fcfefa", accent: "#4c6158", ink: "#30343d", muted: "#595d66", selection: "#f9e1cc", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#202b3c", canvas: "#2b3430", surface: "#333d38", accent: "#bcd7bf", ink: "#f0edf1", muted: "#bec5cd", selection: "#5f4e44", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "mint-coral", name: "薄荷珊瑚", description: "No.3 · No.3",
-    light: { rail: "#f3cec6", canvas: "#ebf8f6", surface: "#fbfefd", accent: "#3e6365", ink: "#30343d", muted: "#595d66", selection: "#f5e9bc", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#34272c", canvas: "#273638", surface: "#303f41", accent: "#a5dcd7", ink: "#f0edf1", muted: "#bec5cd", selection: "#5a513b", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "sea-salt-grape", name: "海盐葡萄", description: "棱镜水晶 · No.1357",
-    light: { rail: "#eee1cb", canvas: "#ecf3fe", surface: "#fcfdff", accent: "#4f6183", ink: "#30343d", muted: "#5c6069", selection: "#e8d5ed", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#322c25", canvas: "#293443", surface: "#333e4d", accent: "#b6cdf0", ink: "#f0edf1", muted: "#bcc3cb", selection: "#51465f", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "wisteria-lemon", name: "紫藤奶柠", description: "亲亲宝贝 · No.1182",
-    light: { rail: "#f2eac5", canvas: "#f1ecfc", surface: "#fefcff", accent: "#665779", ink: "#30343d", muted: "#5f636c", selection: "#d9e7fb", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#302e24", canvas: "#302c3d", surface: "#3c3649", accent: "#d5c0ee", ink: "#f0edf1", muted: "#bcc3cb", selection: "#414f67", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
-  {
-    id: "rose-mint", name: "玫瑰薄荷", description: "情人节的遐思 · No.2028",
-    light: { rail: "#c2e8e4", canvas: "#fcedf4", surface: "#fffcfe", accent: "#7c576c", ink: "#30343d", muted: "#5e626b", selection: "#e8d9f2", ok: "#2ba471", warn: "#d35a00", danger: "#d54941", read: "#1d8cf8", write: "#d78322" },
-    dark: { rail: "#223330", canvas: "#342d38", surface: "#403644", accent: "#e8bbd2", ink: "#f0edf1", muted: "#bcc3cb", selection: "#514561", ok: "#56c08d", warn: "#f29a4a", danger: "#f06c63", read: "#4fb0ff", write: "#f29a4a" },
-  },
+// TDesign Web 色阶。每行按浅色、深色排列。同值角色各自保留变量名，供控件、图表和预览使用。
+const roles: readonly [string, string, readonly (`--${string}`)[]][] = [
+  ["#e7e8eb", "#20232b", ["--color-rail"]],
+  ["#f3f3f4", "#272b34", ["--color-sidebar"]],
+  ["#eeeeee", "#181818", ["--color-canvas"]],
+  ["#ffffff", "#242424", ["--color-surface"]],
+  ["#f3f3f3", "#2c2c2c", ["--color-toolbar", "--color-raised", "--color-item-hover"]],
+  ["#e8e8e8", "#393939", ["--color-line", "--color-rail-line", "--color-line-veil", "--meter-off", "--color-card-track"]],
+  ["#dddddd", "#5e5e5e", ["--color-line-strong"]],
+  ["rgba(0, 0, 0, 0.9)", "rgba(255, 255, 255, 0.9)", ["--color-ink", "--color-nav-label", "--color-item-selected-text", "--color-nav-selected-text"]],
+  ["rgba(0, 0, 0, 0.6)", "rgba(255, 255, 255, 0.55)", ["--color-muted", "--color-rail-label", "--color-rail-icon", "--color-nav-icon"]],
+  ["rgba(0, 0, 0, 0.4)", "rgba(255, 255, 255, 0.35)", ["--color-placeholder"]],
+  ["rgba(0, 0, 0, 0.26)", "rgba(255, 255, 255, 0.22)", ["--color-disabled"]],
+  ["#f2f3ff", "#1b2f51", ["--color-rail-selected", "--color-nav-selected", "--color-item-selected", "--color-selection", "--color-accent-soft", "--color-accent-tint", "--color-accent-veil", "--color-info-soft"]],
+  ["#0052d9", "#4582e6", ["--color-accent", "--color-primary"]],
+  ["#366ef4", "#2667d4", ["--color-accent-hover", "--color-primary-hover"]],
+  ["#003cab", "#699ef5", ["--color-accent-active", "--color-primary-active", "--color-link"]],
+  ["#0052d9", "#699ef5", ["--color-rail-selected-text", "--color-accent-focus", "--color-info", "--color-chart-1"]],
+  ["#ffffff", "#181818", ["--color-on-accent"]],
+  ["#ffffff", "#ffffff", ["--color-on-accent-hover", "--color-on-danger"]],
+  ["#ad352f", "#a03f46", ["--color-danger-fill"]],
+  ["#2ba471", "#059465", ["--color-success", "--meter-ok"]],
+  ["#006c45", "#46bf96", ["--color-success-text"]],
+  ["#e3f9e9", "#193a2a", ["--color-success-soft"]],
+  ["#e37318", "#cf6e2d", ["--meter-warn"]],
+  ["#954500", "#e8935c", ["--color-warn"]],
+  ["#fff1e9", "#4f2a1d", ["--color-warn-soft"]],
+  ["#d54941", "#c64751", ["--meter-danger"]],
+  ["#ad352f", "#ec888e", ["--color-danger"]],
+  ["#fff0ed", "#472324", ["--color-danger-soft"]],
+  ["#f2f3ff", "#1b2f51", ["--color-heat-low"]],
+  ["#d9e1ff", "#173463", ["--color-heat-mid"]],
+  ["#b5c7ff", "#143975", ["--color-heat-high"]],
+  ["#0080b0", "#41b8f2", ["--color-io-read", "--color-chart-2", "--color-chart-gc"]],
+  ["#008858", "#92dab2", ["--color-io-write", "--color-chart-3"]],
+  ["#8e56dd", "#c69cff", ["--color-chart-comparison"]],
+  ["#b38500", "#ffd36d", ["--color-category-yellow"]],
+  ["#c43695", "#ff79cd", ["--color-category-pink"]],
+  ["rgba(0, 0, 0, 0.6)", "rgba(0, 0, 0, 0.4)", ["--color-scrim"]],
+  ["#2c2c2c", "#e8e8e8", ["--color-tooltip"]],
+  ["#ffffff", "rgba(0, 0, 0, 0.9)", ["--color-tooltip-text"]],
+  ["#181818", "#181818", ["--color-graphite"]],
+  ["#e8e8e8", "#e8e8e8", ["--color-graphite-text"]],
+  ["rgba(231, 232, 235, 0.6)", "rgba(32, 35, 43, 0.72)", ["--color-rail-translucent"]],
+  ["#181818", "#e8e8e8", ["--color-shell-muted"]],
+  ["#001a57", "#d9e1ff", ["--color-shell-accent"]],
 ];
 
-export const COLOR_PALETTES = definitions.map((definition) => ({
-  id: definition.id, name: definition.name, description: definition.description,
-  light: tokens(definition.light, "light", definition.id === "classic"), dark: tokens(definition.dark, "dark", definition.id === "classic"),
-}));
-
-const LEGACY_PALETTES = new Map<string, ColorPaletteId>([
-  ["sea-salt", "mist-blue"], ["glacier", "celadon"], ["morandi", "pistachio"],
-  ["latte", "almond"], ["rose", "strawberry"], ["macaron", "lavender"],
-  ["iris", "almond"], ["graphite", "rose-mauve"],
-]);
-
-export function parseColorPalette(value: unknown): ColorPaletteId {
-  const id = typeof value === "string" ? LEGACY_PALETTES.get(value) ?? value : value;
-  return COLOR_PALETTES.find((palette) => palette.id === id)?.id ?? "classic";
+const appearanceColors: Record<PaletteMode, ColorTokens> = { light: {}, dark: {} };
+for (const [light, dark, names] of roles) {
+  for (const name of names) {
+    appearanceColors.light[name] = light;
+    appearanceColors.dark[name] = dark;
+  }
 }
 
-export function paletteTokens(id: ColorPaletteId, mode: PaletteMode): ColorTokens {
-  return (COLOR_PALETTES.find((palette) => palette.id === id) ?? COLOR_PALETTES[0])[mode];
+export function paletteTokens(mode: PaletteMode): ColorTokens {
+  return appearanceColors[mode];
 }
 
-/** 模块只覆盖自己的背景和强调色；文字对比度、状态色仍沿用同一套生成规则。 */
-export function regionPaletteTokens(id: ColorPaletteId, mode: PaletteMode, overrides: Partial<Pick<PaletteBase, "canvas" | "surface" | "selection" | "accent">>): ColorTokens {
-  const definition = definitions.find((palette) => palette.id === id) ?? definitions[0];
-  return tokens({ ...definition[mode], ...overrides }, mode, id === "classic");
-}
-
-export function applyColorPalette(root: HTMLElement, id: ColorPaletteId, mode: PaletteMode) {
-  for (const [name, value] of Object.entries(paletteTokens(id, mode))) root.style.setProperty(name, value);
-  // 应用内看板始终取同一色系的深色版，局部变量覆盖不会污染主窗口。
-  for (const [name, value] of Object.entries(paletteTokens(id, "dark"))) root.style.setProperty(`--board-${name.slice(2)}`, value);
-  root.dataset.colorPalette = id;
+export function applyColorPalette(root: HTMLElement, mode: PaletteMode) {
+  for (const [name, value] of Object.entries(appearanceColors[mode])) root.style.setProperty(name, value);
 }

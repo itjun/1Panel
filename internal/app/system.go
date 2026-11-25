@@ -12,7 +12,6 @@ import (
 	"diteng-pannel/internal/desktop"
 	"diteng-pannel/internal/groupid"
 	"diteng-pannel/internal/macui"
-	"diteng-pannel/internal/menucheck"
 	"diteng-pannel/internal/monitor"
 	"diteng-pannel/internal/prochide"
 	"diteng-pannel/internal/sysfonts"
@@ -376,11 +375,11 @@ func (s *System) TestWecomWebhook(webhook string) error {
 	return wecom.TestWebhook(webhook)
 }
 
-// oneagentOpenURL 拼出 1Agent 认的地址（oneagent://open）。空格必须写成 %20。
-// Go 的 QueryEscape 会把空格写成 +，1Agent 会把加号留在主机名里。
+// nattyOpenURL 拼出 Natty 认的地址（natty://open）。空格必须写成 %20。
+// Go 的 QueryEscape 会把空格写成 +，Natty 会把加号留在主机名里。
 // 带 reuse=1：已经打开的主机只聚焦，不再多开一个会话；多台一起打开时并成一个工作区。
-// 设置里选了 1Agent 时由「终端打开」调用。
-func oneagentOpenURL(hosts []string) (string, error) {
+// 设置里选了 Natty 时由「终端打开」调用。
+func nattyOpenURL(hosts []string) (string, error) {
 	parts := make([]string, 0, len(hosts))
 	for _, host := range hosts {
 		alias := strings.TrimSpace(host)
@@ -394,7 +393,7 @@ func oneagentOpenURL(hosts []string) (string, error) {
 		return "", fmt.Errorf("没有主机")
 	}
 	parts = append(parts, "reuse=1")
-	return "oneagent://open?" + strings.Join(parts, "&"), nil
+	return "natty://open?" + strings.Join(parts, "&"), nil
 }
 
 // ListTerminalApps 返回本机可选用的终端。
@@ -421,90 +420,4 @@ func (s *System) OpenHostsInTerminal(hosts []string, mode, terminalID string) er
 		return fmt.Errorf("仅支持在 macOS / Windows / Linux 上打开终端")
 	}
 	return openHostsInTerminalDarwin(hosts, mode, terminalID)
-}
-
-// CheckMenuPage 立即用 Go HTTP 执行巡检项（不打开浏览器、不告警）。id 空则检查全部，返回最后一项结果以兼容旧调用。
-func (s *System) CheckMenuPage(id string) (MenuCheckResult, error) {
-	w, err := s.menuCheckWatcher()
-	if err != nil {
-		return MenuCheckResult{}, err
-	}
-	snaps := w.CheckNow(id)
-	if len(snaps) == 0 {
-		return MenuCheckResult{}, fmt.Errorf("未找到巡检项")
-	}
-	return menuSnapToResult(snaps[len(snaps)-1]), nil
-}
-
-// ListMenuChecks 返回用户配置的巡检项及最近一次结果。
-func (s *System) ListMenuChecks() ([]MenuCheckResult, error) {
-	w, err := s.menuCheckWatcher()
-	if err != nil {
-		return nil, err
-	}
-	snaps := w.Latest()
-	out := make([]MenuCheckResult, 0, len(snaps))
-	for _, sn := range snaps {
-		out = append(out, menuSnapToResult(sn))
-	}
-	return out, nil
-}
-
-// SaveMenuCheck 新增（id 为空）或更新巡检项，保存后立即参与定时调度。
-func (s *System) SaveMenuCheck(item menucheck.Item) (menucheck.Item, error) {
-	if _, err := s.menuCheckWatcher(); err != nil {
-		return menucheck.Item{}, err
-	}
-	return s.menuCheckStore.Upsert(item)
-}
-
-// DeleteMenuCheck 删除巡检项。
-func (s *System) DeleteMenuCheck(id string) error {
-	w, err := s.menuCheckWatcher()
-	if err != nil {
-		return err
-	}
-	if err := s.menuCheckStore.Delete(id); err != nil {
-		return err
-	}
-	w.Forget(id)
-	return nil
-}
-
-// TestMenuCheck 用未保存的配置试发一次请求（编辑弹窗里的「发送测试」）。
-func (s *System) TestMenuCheck(item menucheck.Item) (MenuCheckResult, error) {
-	w, err := s.menuCheckWatcher()
-	if err != nil {
-		return MenuCheckResult{}, err
-	}
-	return menuSnapToResult(w.Test(item)), nil
-}
-
-func (s *System) menuCheckWatcher() (*menucheck.Watcher, error) {
-	(*App)(s).startMenuCheckWatcher()
-	if s.menuCheck == nil || s.menuCheckStore == nil {
-		return nil, fmt.Errorf("巡检未启动：无法读取本机配置文件")
-	}
-	return s.menuCheck, nil
-}
-
-func menuSnapToResult(sn menucheck.Snapshot) MenuCheckResult {
-	return MenuCheckResult{
-		ID:          sn.ID,
-		Label:       sn.Label,
-		Method:      sn.Method,
-		URL:         sn.URL,
-		OK:          sn.OK,
-		HasData:     sn.HasData,
-		MenuText:    sn.MenuText,
-		DataText:    sn.DataText,
-		Title:       sn.Title,
-		Message:     sn.Message,
-		StatusCode:  sn.StatusCode,
-		DurationMs:  sn.DurationMs,
-		BodyPreview: sn.BodyPreview,
-		CheckedAt:   sn.CheckedAt,
-		Scheduled:   sn.Scheduled,
-		Config:      sn.Item,
-	}
 }

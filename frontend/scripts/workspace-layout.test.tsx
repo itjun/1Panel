@@ -20,16 +20,14 @@ mock.module("../src/react/components/window-chrome", () => ({
   WindowControls: () => createElement("button", { "aria-label": "窗口关闭" }),
 }));
 mock.module("../src/react/lib/platform", () => ({ detectAppOs: () => appOs }));
-mock.module("../src/react/lib/use-theme-mode", () => ({ useThemeMode: () => "light" }));
 mock.module("../src/react/state/session", () => ({ useSession: () => session }));
-mock.module("../src/react/state/settings", () => ({ useSettings: () => ({ colorPalette: "classic" }) }));
 mock.module("../src/react/state/sidebar", () => ({ useSidebar: () => ({ width: 200 }) }));
 
 const { WorkspaceLayout } = await import("../src/react/components/workspace-layout");
 
 const cases: { name: string; workspace: Workspace; settingsOpen: boolean; activeHost: string; isHostToolbar: boolean }[] = [
   { name: "首页和分组", workspace: "remote", settingsOpen: false, activeHost: "", isHostToolbar: false },
-  ...(["local", "config", "notify", "speedtest", "inspect"] as const).map((workspace) => ({
+  ...(["local", "config", "notify", "speedtest"] as const).map((workspace) => ({
     name: workspace, workspace, settingsOpen: false, activeHost: "remembered-host", isHostToolbar: false,
   })),
   { name: "从主机打开设置", workspace: "remote", settingsOpen: true, activeHost: "remembered-host", isHostToolbar: false },

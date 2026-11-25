@@ -14,7 +14,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { ChevronDown, Pencil, Plus, Search, X } from "lucide-react";
+import { Pencil, Plus, Search, X } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type sshconfig } from "@/api";
 import {
@@ -58,7 +58,6 @@ import { copyText } from "@/utils/clipboard";
 import { formatErr } from "@/utils/format";
 
 const PINNED_SECTION = "pinned";
-const COLLAPSE_KEY = "1pannel-host-group-collapsed";
 const GROUP_NAME_RE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 export type HostHomePageProps = {
@@ -111,24 +110,6 @@ function isAdditiveSelect(event: {
 }) {
   if (event.shiftKey) return false;
   return isPrimaryModifier(event);
-}
-
-function readCollapsedIds(): string[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]");
-    if (!Array.isArray(raw)) return [];
-    return raw.filter((x): x is string => typeof x === "string");
-  } catch {
-    return [];
-  }
-}
-
-function writeCollapsedIds(list: string[]) {
-  try {
-    localStorage.setItem(COLLAPSE_KEY, JSON.stringify(list));
-  } catch {
-    /* ignore */
-  }
 }
 
 function clampMenuPos(x: number, y: number, w: number, h: number) {
@@ -219,7 +200,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const [selected, setSelected] = useState<string[]>([]);
   const [selectionSection, setSelectionSection] = useState<string | null>(null);
   const [preferredGroupId, setPreferredGroupId] = useState<string>("");
-  const [collapsedIds, setCollapsedIds] = useState<string[]>(() => readCollapsedIds());
   const [insertMark, setInsertMark] = useState<InsertMark | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -305,23 +285,6 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     () => reconcileHostRacks(settings.hostHomeRacks, migrateGroups.map((group) => group.id)),
     [settings.hostHomeRacks, migrateGroups],
   );
-
-  function sectionCollapsed(id: string) {
-    return collapsedIds.includes(id);
-  }
-
-  function toggleCollapsed(id: string) {
-    setCollapsedIds((prev) => {
-      let next: string[];
-      if (prev.includes(id)) {
-        next = prev.filter((item) => item !== id);
-      } else {
-        next = [...prev, id];
-      }
-      writeCollapsedIds(next);
-      return next;
-    });
-  }
 
   function closeAllMenus() {
     setHostMenu(null);
@@ -607,14 +570,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   }
 
   function onGroupHeadPointerDown(
-    event: ReactPointerEvent<HTMLDivElement>,
+    event: ReactPointerEvent<HTMLButtonElement>,
     section: Section,
   ) {
     if (event.button !== 0) return;
     if (!isSortableGroup(section)) return;
     // 筛选时只看到部分分组，禁止排序
     if (keyword) return;
-    if ((event.target as HTMLElement).closest("[data-collapse-toggle]")) return;
     const rack = rackRef.current;
     if (!rack) return;
     const draggedId = section.id;
@@ -865,14 +827,12 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
     viewport: scrollRef,
     layoutKey: JSON.stringify([rackColumns, groupRacks, sections.map((section) => [section.id, section.hosts.map((host) => host.name)])]),
     isEnabled: !dragItem && !isRefreshing,
-    resetKey: JSON.stringify([rackColumns, collapsedIds, keyword]),
     revealKey: JSON.stringify([rackColumns, keyword]),
   });
 
   function renderSection(section: Section) {
     const status = summarizeHostCards(section.hosts.map(host => host.name), hostCards.entries, hostCards.now);
-    const collapsed = sectionCollapsed(section.id);
-    const columns = hostRackGroupColumns(section.hosts.length, rackColumns, collapsed);
+    const columns = hostRackGroupColumns(section.hosts.length, rackColumns);
     const isDrop = dropTargetId === section.id;
     const sortable = !keyword && isSortableGroup(section);
     let insertSide: string | null = null;
@@ -896,9 +856,10 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
         {insertSide ? (
           <div className="host-rack-insert" data-side={insertSide} />
         ) : null}
-        <div
+        <button
+          type="button"
           data-group-head
-          className={`flex h-9 w-full items-center gap-1 pr-2 ${sortable ? "cursor-grab" : ""}`}
+          className={`flex h-9 w-full min-w-0 items-center gap-2 rounded-control px-3 text-left hover:bg-item-hover hover:text-ink ${sortable ? "cursor-grab" : ""}`}
           onPointerDown={(event) => onGroupHeadPointerDown(event, section)}
           onContextMenu={(event) => {
             if (section.isPinned) return;
@@ -913,148 +874,108 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
               y: next.y,
             });
           }}
+          onClick={() => {
+            if (suppressClick.current) return;
+            if (section.isPinned) return;
+            setPreferredGroupId(
+              section.id === UNGROUPED_ID ? "" : section.id,
+            );
+            setSelected([]);
+            setSelectionSection(null);
+          }}
         >
-          <button
-            type="button"
-            aria-label="折叠或展开分组"
-            aria-expanded={!collapsed}
-            data-collapse-toggle
-            className="ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:bg-item-hover hover:text-ink"
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleCollapsed(section.id);
-            }}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              aria-hidden="true"
-              className="motion-transform"
-              style={{
-                transform: collapsed ? "rotate(-90deg)" : undefined,
-              }}
-            >
-              <path
-                d="M2.5 4.5 6 8l3.5-3.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className={`flex h-full min-w-0 flex-1 items-center gap-2 px-1 text-left hover:bg-item-hover hover:text-ink ${sortable ? "cursor-grab" : ""}`}
-            onClick={() => {
-              if (suppressClick.current) return;
-              if (section.isPinned) return;
-              setPreferredGroupId(
-                section.id === UNGROUPED_ID ? "" : section.id,
-              );
-              setSelected([]);
-              setSelectionSection(null);
-            }}
-          >
-            <span className="truncate text-sm font-semibold text-ink" data-tip={section.name} data-tip-overflow="">
-              {section.name}
-            </span>
-            <span className="host-group-count text-xs tabular-nums text-muted">
-              {section.hosts.length} 台
-            </span>
-            {status.attention > 0 ? <span className="host-group-attention">{status.attention} 异常</span> : null}
-          </button>
-        </div>
+          <span className="truncate text-sm font-semibold text-ink" data-tip={section.name} data-tip-overflow="">
+            {section.name}
+          </span>
+          <span className="host-group-count text-xs tabular-nums text-muted">
+            {section.hosts.length} 台
+          </span>
+          {status.attention > 0 ? <span className="host-group-attention">{status.attention} 异常</span> : null}
+        </button>
 
-        <div className="host-rack-content" data-collapsed={collapsed || undefined} inert={collapsed} aria-hidden={collapsed}>
-          <div className="min-h-0 overflow-hidden">
-          <div className="host-card-stack" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-            {section.hosts.length === 0 && !keyword ? (
-              <p className="m-0 flex h-10 items-center px-2 text-muted">
-                {dragging ? (isDrop ? "松开鼠标，移入此分组" : "拖拽主机到这里") : "没有主机"}
-              </p>
-            ) : null}
-            {section.hosts.map((host) => {
-              const selectedRow = selected.includes(host.name);
-              const mark =
-                insertMark?.sectionId === section.id &&
-                insertMark.target === host.name
-                  ? insertMark.after
-                    ? "after"
-                    : "before"
-                  : null;
-              return (
-                <div
-                  key={`${section.id}-${host.name}`}
-                  data-host-row
-                  data-drag-source={dragItem?.kind === "host" && dragItem.name === host.name && dragItem.sectionId === section.id || undefined}
-                  data-host-sort={host.name}
-                  data-host-group={section.id}
-                  data-pin-host={section.isPinned ? host.name : undefined}
-                  data-host-axis="x"
-                  data-host-highlight={hostCardHighlightTone(hostCards.entries[host.name], hostCards.now, highlight, latestAgentVersion.data)}
-                  tabIndex={0}
-                  role="group"
-                  aria-label={`${host.name} 主机${selectedRow ? "，已选中" : ""}`}
-                  className={`host-rack-row host-card${selectedRow ? " is-selected" : ""}`}
-                  onPointerDown={(event) =>
-                    onHostPointerDown(event, section.id, host.name)
-                  }
-                  onClick={(event) => {
-                    if (suppressClick.current) return;
-                    selectHost(section.id, host.name, event);
-                  }}
-                  onDoubleClick={() => {
-                    if (suppressClick.current) return;
+        <div className="host-card-stack" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {section.hosts.length === 0 && !keyword ? (
+            <p className="m-0 flex h-10 items-center px-2 text-muted">
+              {dragging ? (isDrop ? "松开鼠标，移入此分组" : "拖拽主机到这里") : "没有主机"}
+            </p>
+          ) : null}
+          {section.hosts.map((host) => {
+            const selectedRow = selected.includes(host.name);
+            const mark =
+              insertMark?.sectionId === section.id &&
+              insertMark.target === host.name
+                ? insertMark.after
+                  ? "after"
+                  : "before"
+                : null;
+            return (
+              <div
+                key={`${section.id}-${host.name}`}
+                data-host-row
+                data-drag-source={dragItem?.kind === "host" && dragItem.name === host.name && dragItem.sectionId === section.id || undefined}
+                data-host-sort={host.name}
+                data-host-group={section.id}
+                data-pin-host={section.isPinned ? host.name : undefined}
+                data-host-axis="x"
+                data-host-highlight={hostCardHighlightTone(hostCards.entries[host.name], hostCards.now, highlight, latestAgentVersion.data)}
+                tabIndex={0}
+                role="group"
+                aria-label={`${host.name} 主机${selectedRow ? "，已选中" : ""}`}
+                className={`host-rack-row host-card${selectedRow ? " is-selected" : ""}`}
+                onPointerDown={(event) =>
+                  onHostPointerDown(event, section.id, host.name)
+                }
+                onClick={(event) => {
+                  if (suppressClick.current) return;
+                  selectHost(section.id, host.name, event);
+                }}
+                onDoubleClick={() => {
+                  if (suppressClick.current) return;
+                  session.openHost(host.name);
+                }}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter") {
                     session.openHost(host.name);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget) return;
-                    if (event.key === "Enter") {
-                      session.openHost(host.name);
-                    }
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const hosts = selected.includes(host.name)
-                      ? selected.slice()
-                      : [host.name];
-                    if (!selected.includes(host.name)) {
-                      setSelected([host.name]);
-                      setSelectionSection(section.id);
-                    }
-                    closeAllMenus();
-                    const next = clampMenuPos(
-                      event.clientX,
-                      event.clientY,
-                      200,
-                      hosts.length > 1 ? 260 : 520,
-                    );
-                    setHostMenu({
-                      host: host.name,
-                      hosts,
-                      x: next.x,
-                      y: next.y,
-                    });
-                  }}
-                >
-                  {mark === "before" ? (
-                    <div className="host-rack-host-insert" data-side="before" />
-                  ) : null}
-                  {mark === "after" ? (
-                    <div className="host-rack-host-insert" data-side="after" />
-                  ) : null}
-                  <HostCardContent name={host.name} entry={hostCards.entries[host.name]} now={hostCards.now}
-                    latestAgentVersion={latestAgentVersion.data}
-                    osRelease={session.osRelease[host.name]} onEdit={() => session.setEditingHost(host.name)} />
-                </div>
-              );
-            })}
-          </div>
-          </div>
+                  }
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const hosts = selected.includes(host.name)
+                    ? selected.slice()
+                    : [host.name];
+                  if (!selected.includes(host.name)) {
+                    setSelected([host.name]);
+                    setSelectionSection(section.id);
+                  }
+                  closeAllMenus();
+                  const next = clampMenuPos(
+                    event.clientX,
+                    event.clientY,
+                    200,
+                    hosts.length > 1 ? 260 : 520,
+                  );
+                  setHostMenu({
+                    host: host.name,
+                    hosts,
+                    x: next.x,
+                    y: next.y,
+                  });
+                }}
+              >
+                {mark === "before" ? (
+                  <div className="host-rack-host-insert" data-side="before" />
+                ) : null}
+                {mark === "after" ? (
+                  <div className="host-rack-host-insert" data-side="after" />
+                ) : null}
+                <HostCardContent name={host.name} entry={hostCards.entries[host.name]} now={hostCards.now}
+                  latestAgentVersion={latestAgentVersion.data}
+                  osRelease={session.osRelease[host.name]} onEdit={() => session.setEditingHost(host.name)} />
+              </div>
+            );
+          })}
         </div>
       </section>
     );
@@ -1090,29 +1011,13 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
   const fleetStatus = summarizeHostCards(fleetNames, hostCards.entries, hostCards.now);
   const agentStatus = summarizeHostAgents(fleetNames, hostCards.entries, hostCards.now, latestAgentVersion.data);
 
-  function toggleHighlight(next: HostCardHighlight) {
-    if (highlight === next) {
-      setHighlight(null);
-      return;
-    }
-    setHighlight(next);
-    const matchingSections = new Set(sections.filter(section => section.hosts.some(host =>
-      hostCardHighlightTone(hostCards.entries[host.name], hostCards.now, next, latestAgentVersion.data),
-    )).map(section => section.id));
-    setCollapsedIds(previous => {
-      const expanded = previous.filter(id => !matchingSections.has(id));
-      writeCollapsedIds(expanded);
-      return expanded;
-    });
-  }
-
   function renderHighlightCount(id: HostCardHighlight, label: string, count: number, tone: "warn" | "info") {
     const isActive = highlight === id;
     return <button type="button" className="host-home-summary-toggle"
       data-tone={count > 0 ? tone : "empty"} aria-pressed={isActive} disabled={count === 0 && !isActive}
       aria-label={`${id.startsWith("host-") ? "主机状态" : "Agent"}：${label} ${count} 台`}
       title={isActive ? "取消高亮" : "高亮对应主机"}
-      onClick={() => toggleHighlight(id)}>{label} <strong>{count}</strong></button>;
+      onClick={() => setHighlight(isActive ? null : id)}>{label} <strong>{count}</strong></button>;
   }
 
   let dragHint = "拖到分组中移动";
@@ -1162,7 +1067,7 @@ export function HostHomePage({ onCreateHost, onCreateGroup }: HostHomePageProps 
             }}
             placeholder="搜索主机"
             aria-label="筛选主机"
-            className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm leading-none text-ink outline-none placeholder:text-muted"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm leading-none text-ink outline-none placeholder:text-placeholder"
           />
           {query ? (
             <button

@@ -256,7 +256,7 @@ export function LocalStoragePage() {
           {(status?.deniedDirs || 0) > 0 ? <div className="flex flex-wrap items-center gap-2 text-sm">
             <TriangleAlert aria-hidden className="size-4 text-warn" />
             <span>{status?.deniedDirs} 个目录因权限跳过</span>
-            {isMacPlatform() ? <button type="button" className="text-accent" onClick={() => void api.localSysStorageOpenPrivacy()}>授予完全磁盘访问</button> : null}
+            {isMacPlatform() ? <button type="button" className="text-link" onClick={() => void api.localSysStorageOpenPrivacy()}>授予完全磁盘访问</button> : null}
           </div> : null}
           <p role="status" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
             {status?.state === "idle" && !status.finishedAt ? <span>尚未扫描</span> : <>
@@ -353,7 +353,7 @@ export function LocalStoragePage() {
                               <td className="px-2 text-center">
                                 <button
                                   type="button"
-                                  className="text-accent"
+                                  className="text-link"
                                   onClick={() => void reveal(app.path)}
                                 >
                                   显示
@@ -381,7 +381,7 @@ export function LocalStoragePage() {
                                           </span>
                                           <button
                                             type="button"
-                                            className="text-accent"
+                                            className="text-link"
                                             onClick={() => void reveal(p.path)}
                                           >
                                             显示
@@ -412,7 +412,7 @@ export function LocalStoragePage() {
                 <div className="mb-2 flex flex-wrap items-center gap-1 px-3 text-sm">
                   <button
                     type="button"
-                    className="text-accent"
+                    className="text-link"
                     onClick={() => setTreePath("")}
                   >
                     扫描范围
@@ -422,7 +422,7 @@ export function LocalStoragePage() {
                       <span className="text-muted">/</span>
                       <button
                         type="button"
-                        className="text-accent disabled:text-ink"
+                        className="text-link disabled:text-ink"
                         disabled={i === crumbs.length - 1}
                         onClick={() => setTreePath(c.path)}
                       >
@@ -486,7 +486,7 @@ export function LocalStoragePage() {
                             <td className="px-2 text-center">
                               <button
                                 type="button"
-                                className="text-accent"
+                                className="text-link"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   void reveal(row.path);
@@ -542,7 +542,7 @@ export function LocalStoragePage() {
                           <td className="px-2 text-center">
                             <button
                               type="button"
-                              className="text-accent"
+                              className="text-link"
                               onClick={() => void reveal(file.path)}
                             >
                               显示

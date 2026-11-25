@@ -110,9 +110,6 @@ if (/\.content-float\s*\{[^}]*border-radius:/s.test(shellStyles)) {
 if (!shellStyles.includes("--radius-surface: 0px") && !shellStyles.includes("--radius-surface: 0;")) {
   fail("--radius-surface must be 0 (right angles)");
 }
-if (!/\.workspace-sidebar \.glass-chrome button\[aria-current="page"\]\s*\{[^}]*var\(--color-nav-selected\)[^}]*var\(--color-nav-selected-text\)/s.test(shellStyles)) {
-  fail("the active navigation row must use the secondary navigation selection colors");
-}
 if (
   /html,\s*body,\s*#app,\s*\.react-root\s*\{[^}]*transparent/s.test(shellStyles)
 ) {
@@ -133,7 +130,9 @@ if (/WindowChrome|useNavHistory|useSidebar|Backslash|KeyB/.test(chrome)) fail("r
 if (/matchMedia|closeOverlay|SIDEBAR_OPEN_KEY/.test(sidebarState)) fail("B must stay visible, including narrow windows and old saved collapsed state");
 if (!sidebarState.includes("1pannel-sidebar-widths")) fail("sidebar widths must persist per module");
 if (!/grid-template-rows:\s*minmax\(0, 1fr\)/.test(shellStyles)) fail("B/C must fill the height without a reserved toolbar row");
-if (!layout.includes("regions.sidebar") || !layout.includes("regions.content")) fail("B/C require independently scoped theme tokens");
+if (!/\.workspace-sidebar \.glass-chrome button\[aria-current="page"\]\s*\{[^}]*var\(--color-nav-selected\)[^}]*var\(--color-nav-selected-text\)/s.test(shellStyles)) {
+  fail("the active navigation row must use the secondary navigation selection colors");
+}
 if (shellStyles.includes("acrylic")) fail("acrylic was removed from the material vocabulary (auto / classic / mica)");
 if (!shellStyles.includes('[data-window-material="mica"]')) fail("mica chrome must be gated by the effective native material");
 if (!/html\[data-window-material="sidebar"\] \.module-rail\s*\{[^}]*background-color:\s*var\(--color-rail-translucent\)/.test(shellStyles) ||
@@ -141,7 +140,7 @@ if (!/html\[data-window-material="sidebar"\] \.module-rail\s*\{[^}]*background-c
   fail("macOS sidebar material must show only through A in light and dark modes");
 }
 ok("classic / mica chrome with opaque content contract");
-ok("ABC regions are independent; sidebar is always visible and remains resizable");
+ok("ABC regions share the default appearance; sidebar is always visible and remains resizable");
 
 const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (!entry.includes("/src/react/main.tsx")) fail("index.html does not load React");
@@ -151,8 +150,8 @@ if (entry.includes('dataset.platform') || entry.includes('data-platform')) {
 if (/background-color:\s*transparent\s*!important/.test(entry)) {
   fail("index.html boot must not use transparent root background");
 }
-if (!entry.includes("background-color: var(--color-canvas, #f2f3f5)")) {
-  fail("index.html boot root should use classic canvas #f2f3f5");
+if (!entry.includes("background-color: var(--color-canvas, #eeeeee)")) {
+  fail("index.html boot root should match the light page canvas");
 }
 ok("index.html loads React with solid boot skeleton");
 

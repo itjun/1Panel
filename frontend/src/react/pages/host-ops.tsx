@@ -790,10 +790,12 @@ function MonitorPage({ host }: { host: string }) {
         [
           {
             name: "流入",
+            direction: "read",
             data: isLive ? traffic.map((p) => p.b) : history.map((p) => p.netRxKBps),
           },
           {
             name: "流出",
+            direction: "write",
             data: isLive ? traffic.map((p) => p.a) : history.map((p) => p.netTxKBps),
           },
         ],
@@ -813,10 +815,12 @@ function MonitorPage({ host }: { host: string }) {
         [
           {
             name: "读",
+            direction: "read",
             data: isLive ? ioTraffic.map((p) => p.a) : history.map((p) => p.diskReadKBps),
           },
           {
             name: "写",
+            direction: "write",
             data: isLive ? ioTraffic.map((p) => p.b) : history.map((p) => p.diskWriteKBps),
           },
         ],
@@ -1376,11 +1380,11 @@ function ProcessesPage({ host }: { host: string }) {
                     value={
                       detail.readBytes || detail.writeBytes ? (
                         <span className="tabular-nums">
-                          <span className="text-io-read">
+                          <span className="io-readout-read">
                             读 {formatBytes(detail.readBytes)}
                           </span>
                           {" / "}
-                          <span className="text-io-write">
+                          <span className="io-readout-write">
                             写 {formatBytes(detail.writeBytes)}
                           </span>
                         </span>

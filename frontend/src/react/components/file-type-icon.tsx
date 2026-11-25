@@ -13,7 +13,7 @@ export function FileTypeIcon({ name, isDir = false, className }: { name: string;
   if (kind === "folder") {
     return (
       <svg viewBox="0 0 24 24" className={cn("h-3.5 w-3.5 shrink-0", className)} aria-hidden="true" focusable="false">
-        <path fill="#4C8DFF" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+        <path fill="var(--color-chart-1)" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
       </svg>
     );
   }

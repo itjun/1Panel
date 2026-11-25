@@ -80,9 +80,7 @@ func (s *Store) Path() string { return s.path }
 
 // List 返回最近 limit 条（新→旧）；limit≤0 表示全部。
 func (s *Store) List(limit int) []Event {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return clonePrefix(s.events, limit)
+	return s.ListByHost("", limit)
 }
 
 // ListByHost 返回指定主机最近 limit 条（新→旧）；limit≤0 表示该主机全部。
@@ -90,12 +88,9 @@ func (s *Store) ListByHost(host string, limit int) []Event {
 	host = strings.TrimSpace(host)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if host == "" {
-		return clonePrefix(s.events, limit)
-	}
 	out := make([]Event, 0)
 	for _, e := range s.events {
-		if e.Host != host {
+		if isRetiredCheck(e.Kind) || (host != "" && e.Host != host) {
 			continue
 		}
 		out = append(out, e)
@@ -174,7 +169,7 @@ func (s *Store) MarkAllRead(host string) error {
 	defer s.mu.Unlock()
 	changed := false
 	for i := range s.events {
-		if host != "" && s.events[i].Host != host {
+		if isRetiredCheck(s.events[i].Kind) || (host != "" && s.events[i].Host != host) {
 			continue
 		}
 		if !s.events[i].Read {
@@ -229,21 +224,16 @@ func (s *Store) UnreadCount() int {
 	defer s.mu.RUnlock()
 	n := 0
 	for _, e := range s.events {
-		if !e.Read {
+		if !e.Read && !isRetiredCheck(e.Kind) {
 			n++
 		}
 	}
 	return n
 }
 
-func clonePrefix(src []Event, limit int) []Event {
-	n := len(src)
-	if limit > 0 && limit < n {
-		n = limit
-	}
-	out := make([]Event, n)
-	copy(out, src[:n])
-	return out
+// Hide retired checks while keeping historical records on disk.
+func isRetiredCheck(kind string) bool {
+	return strings.HasPrefix(kind, "inspect:") || strings.HasPrefix(kind, "menu:")
 }
 
 func (s *Store) load() error {

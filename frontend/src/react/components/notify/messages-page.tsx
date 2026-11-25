@@ -392,7 +392,7 @@ export function MessagesPage({
         (items) => items.length > 0,
       );
   function incidentActions(incident: Incident): MessageAction[] {
-    const isHostAvailable = !!incident.host && !["菜单检查", "巡检", "本机"].includes(incident.host);
+    const isHostAvailable = !!incident.host && incident.host !== "本机";
     return [
       ...(incident.unread ? [{ label: "标记已读", isDisabled: isBusy, run: () => void runAction(() => mark.mutateAsync([incident])) }] : []),
       ...(isHostAvailable ? [{ label: "打开主机", run: () => session.openHost(incident.host, "monitor") }] : []),

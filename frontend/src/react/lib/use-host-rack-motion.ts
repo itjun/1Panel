@@ -3,12 +3,11 @@ import { MOTION_MS } from "@/react/lib/motion";
 import { revealHostGroups } from "@/react/lib/host-rack-reveal";
 
 /** Keep a spatial reference when saved group/host order changes after a drop. */
-export function useHostRackMotion({ root, viewport, layoutKey, isEnabled, resetKey, revealKey }: {
+export function useHostRackMotion({ root, viewport, layoutKey, isEnabled, revealKey }: {
   root: RefObject<HTMLElement | null>;
   viewport: RefObject<HTMLElement | null>;
   layoutKey: string;
   isEnabled: boolean;
-  resetKey: string;
   revealKey: string;
 }) {
   const previous = useRef(new Map<string, { x: number; y: number }>());
@@ -17,10 +16,9 @@ export function useHostRackMotion({ root, viewport, layoutKey, isEnabled, resetK
 
   useLayoutEffect(() => {
     // 首次测量列数、窗口重排与筛选使用统一显现，不能从旧布局飞入。
-    // 折叠已有 CSS 动画，也不能把过渡前的位置留给下一次排序。
     previous.current.clear();
     animations.current.forEach((animation) => animation.cancel());
-  }, [resetKey]);
+  }, [revealKey]);
 
   useLayoutEffect(() => {
     const rack = root.current;

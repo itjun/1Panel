@@ -8,16 +8,14 @@ Object.assign(globalThis, {
   requestAnimationFrame: (callback: () => void) => { queueMicrotask(callback); return 1; },
 });
 
-type State = { preference: string; effective: string; supported: boolean; reason: string; revision: number };
-let state: State = { preference: "auto", effective: "classic", supported: false, reason: "", revision: 1 };
-let saveFails = false;
+type State = { effective: string; supported: boolean; reason: string; revision: number };
+let state: State = { effective: "classic", supported: false, reason: "", revision: 1 };
 let readyCalls = 0;
 let getCalls = 0;
 const listeners = new Map<string, (event: { data?: unknown }) => void>();
 let appearanceHints: boolean[] = [];
 const emitTheme = (data: State) => listeners.get("window-theme-changed")?.({ data });
 const emitAppearance = (data: boolean) => listeners.get("system-appearance-changed")?.({ data });
-mock.module("react", () => ({ useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read() }));
 mock.module("@wailsio/runtime", () => ({ Events: { On: (name: string, callback: (event: { data?: unknown }) => void) => {
   listeners.set(name, callback); return () => { listeners.delete(name); };
 } } }));
@@ -28,11 +26,6 @@ mock.module("@/react/state/settings", () => ({
 mock.module("@/api", () => ({ api: {
   setThemeAppearance: async () => {},
   getWindowThemeState: async () => { getCalls++; return { ...state }; },
-  setWindowMaterial: async (preference: string) => {
-    if (saveFails) throw new Error("保存失败");
-    state = { ...state, preference, revision: state.revision + 1 };
-    return { ...state };
-  },
   windowThemeReady: async () => { readyCalls++; return true; },
 } }));
 const theme = await import("../src/react/state/window-theme");
@@ -50,7 +43,7 @@ test("browser preview keeps a solid background and does not call native initiali
 
 test("desktop paints effective material, acknowledges readiness and responds to accessibility events", async () => {
   host._wails.environment.OS = "windows";
-  state = { preference: "auto", effective: "mica", supported: true, reason: "", revision: 10 };
+  state = { effective: "mica", supported: true, reason: "", revision: 10 };
   const stop = theme.initializeWindowTheme();
   await Bun.sleep(10);
   expect(root.dataset.windowMaterial).toBe("mica");
@@ -62,10 +55,6 @@ test("desktop paints effective material, acknowledges readiness and responds to 
   expect(root.dataset.windowMaterial).toBe("classic");
   emitTheme({ ...state, revision: 12 });
   expect(root.dataset.windowMaterial).toBe("mica");
-  saveFails = true;
-  await expect(theme.setWindowMaterial("classic")).rejects.toThrow("保存失败");
-  expect(theme.useWindowTheme().theme.preference).toBe("auto");
-  expect(theme.useWindowTheme().pending).toBe(false);
   stop();
   expect(listeners.size).toBe(0);
 });
@@ -84,23 +73,9 @@ test("desktop relays Linux system-appearance events to the appearance hint", asy
   expect(appearanceHints).toEqual([]);
 });
 
-test("unsupported desktop remembers requested material while keeping its effective solid theme", async () => {
+test("Mica exposes the native opaque surface and follows effective fallback", async () => {
   host._wails.environment.OS = "windows";
-  saveFails = false;
-  state = { preference: "auto", effective: "classic", supported: false, reason: "尚未提供", revision: 20 };
-  const stop = theme.initializeWindowTheme();
-  await Bun.sleep(10);
-  await theme.setWindowMaterial("mica");
-  expect(theme.useWindowTheme().theme.preference).toBe("mica");
-  expect(root.dataset.windowMaterial).toBe("classic");
-  await theme.setWindowMaterial("auto");
-  expect(theme.useWindowTheme().theme.preference).toBe("auto");
-  stop();
-});
-
-test("Mica exposes the native opaque surface and follows effective fallback without discarding preference", async () => {
-  host._wails.environment.OS = "windows";
-  state = { preference: "mica", effective: "mica", supported: true, reason: "", revision: 30 };
+  state = { effective: "mica", supported: true, reason: "", revision: 30 };
   const stop = theme.initializeWindowTheme();
   await Bun.sleep(10);
   expect(root.dataset.windowMaterial).toBe("mica");
@@ -108,7 +83,6 @@ test("Mica exposes the native opaque surface and follows effective fallback with
   emitTheme({ ...state, effective: "classic", supported: false, reason: "节电模式", revision: 31 });
   expect(root.dataset.windowMaterial).toBe("classic");
   expect(root.style.background).toBe("var(--color-canvas)");
-  expect(theme.useWindowTheme().theme.preference).toBe("mica");
   emitTheme({ ...state, revision: 32 });
   expect(root.dataset.windowMaterial).toBe("mica");
   stop();
@@ -117,11 +91,11 @@ test("Mica exposes the native opaque surface and follows effective fallback with
 
 test("Mac materials expose native backdrop and return to solid on fallback", async () => {
   host._wails.environment.OS = "darwin";
-  state = { preference: "auto", effective: "sidebar", supported: true, reason: "", revision: 40 };
+  state = { effective: "sidebar", supported: true, reason: "", revision: 40 };
   const stop = theme.initializeWindowTheme();
   await Bun.sleep(10);
   expect(root.style.background).toBe("transparent");
-  emitTheme({ ...state, preference: "sidebar", effective: "sidebar", revision: 41 });
+  emitTheme({ ...state, effective: "sidebar", revision: 41 });
   expect(root.dataset.windowMaterial).toBe("sidebar");
   expect(root.style.background).toBe("transparent");
   emitTheme({ ...state, effective: "classic", supported: false, reason: "降低透明度", revision: 42 });

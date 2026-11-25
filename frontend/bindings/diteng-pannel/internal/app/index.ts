@@ -67,7 +67,6 @@ export type {
     ImportResult,
     LaunchAtLoginState,
     LocalTextCheck,
-    MenuCheckResult,
     PanelBackup,
     PanelBackupSummary,
     PanelConfigConflict,

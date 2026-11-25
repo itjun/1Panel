@@ -21,10 +21,10 @@ import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { Tag } from "@/react/components/ui/tag";
 import { useFlashMessage } from "@/react/lib/use-flash-message";
 import { ChartHost } from "@/react/components/monitor/charts";
-import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
+import { chartPalette, TREND_DOT, trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
 import { useProgressiveList } from "@/react/lib/use-progressive-list";
 import { useThemeSignature } from "@/react/lib/use-theme-mode";
-import { readThemeColor, seriesColorList } from "@/react/lib/utils";
+import { readThemeColor } from "@/react/lib/utils";
 import { updateSettings, useSettings } from "@/react/state/settings";
 import { clampContextMenuPos } from "@/utils/contextMenuPos";
 import {
@@ -228,20 +228,23 @@ function bytesAxisFormatter(values: number[]) {
   };
 }
 
+type AppChartMark = { name: string; x: string; down: boolean };
+
 function lineOption(opts: {
   xData: string[];
-  series: { name: string; data: number[]; yAxisIndex?: number }[];
+  series: { name: string; data: number[]; tone?: "comparison" | "gc"; yAxisIndex?: number }[];
   unit?: "bytes" | "raw";
   formatStr?: string;
-  markLines?: { name: string; x: string }[];
+  markLines?: AppChartMark[];
   dualBytesOnRight?: boolean;
 }): echarts.EChartsOption {
-  const muted = readThemeColor("--color-muted", "rgba(0, 0, 0, 0.6)");
-  const line = readThemeColor("--color-line", "#e5e7eb");
-  const danger = readThemeColor("--color-danger", "#d54941");
+  const palette = chartPalette();
+  const { muted, line } = palette;
+  const danger = readThemeColor("--color-danger", palette.danger);
   const markLineData = (opts.markLines || []).map((m) => ({
     name: m.name,
     xAxis: m.x,
+    lineStyle: { color: m.down ? danger : muted },
   }));
   const allY = opts.series.flatMap((s) => s.data);
   const bytesFmt =
@@ -282,7 +285,7 @@ function lineOption(opts: {
     });
   }
 
-  const colors = seriesColorList(opts.series.map((s) => s.name));
+  const colors = opts.series.map((s) => palette[s.tone ?? "primary"]);
   return {
     textStyle: { fontFamily: readThemeColor("--app-font-family", readThemeColor("--font-sans", "sans-serif")) },
     color: colors,
@@ -338,12 +341,13 @@ function lineOption(opts: {
       name: s.name,
       data: s.data,
       yAxisIndex: s.yAxisIndex || 0,
+      z: s.tone ? 3 : 2,
       markLine:
         index === 0 && markLineData.length
           ? {
               symbol: "none",
               label: { show: false },
-              lineStyle: { type: "dashed", color: danger, width: 1 },
+              lineStyle: { type: TREND_DOT, color: muted, width: 1.25 },
               data: markLineData,
             }
           : undefined,
@@ -392,8 +396,11 @@ function cellPadClass(index: number) {
   return "px-3";
 }
 
-/* 服务名识别色（docs/design/specification.md §6 / §9）：色相跳过 70–170 绿色段 */
-const SERVICE_HUES = [212, 18, 272, 346, 196, 32, 236, 312, 54, 290, 0, 250];
+/* 服务类别色只用于名称旁的圆点。文字和状态各取自己的角色。 */
+const SERVICE_COLORS = [
+  "var(--color-chart-1)", "var(--color-chart-comparison)", "var(--color-chart-gc)",
+  "var(--meter-warn)", "var(--color-category-yellow)", "var(--color-category-pink)",
+];
 
 function serviceNameColors(rows: { service: string }[]): Map<string, string> {
   const names = [...new Set(rows.map((row) => row.service).filter(Boolean))].sort((a, b) =>
@@ -401,9 +408,7 @@ function serviceNameColors(rows: { service: string }[]): Map<string, string> {
   );
   const colors = new Map<string, string>();
   names.forEach((name, index) => {
-    const hue = SERVICE_HUES[index % SERVICE_HUES.length];
-    const lap = Math.floor(index / SERVICE_HUES.length);
-    colors.set(name, `hsl(${hue} 48% ${42 - lap * 3}%)`);
+    colors.set(name, SERVICE_COLORS[index % SERVICE_COLORS.length]);
   });
   return colors;
 }
@@ -509,7 +514,7 @@ function AppsTable({
                         style={{ background: online ? nameColor : "var(--color-line)" }}
                         aria-hidden
                       />
-                      <span className="truncate" style={{ color: online ? nameColor : undefined }}>
+                      <span className="truncate">
                         {row.service}
                       </span>
                       {row.runtime === "bun" ? <Tag>Bun</Tag> : null}
@@ -804,12 +809,12 @@ export function AppsPage({ host }: { host: string }) {
 
   const marks = useMemo(() => {
     const xs = new Set(jarPts.map((p) => timeLabel(p.ts)));
-    const out: { name: string; x: string }[] = [];
+    const out: AppChartMark[] = [];
     for (const e of events) {
       if (!e.ts) continue;
       const x = timeLabel(e.ts);
       if (!xs.has(x)) continue;
-      out.push({ name: `${e.layer}/${e.kind}`, x });
+      out.push({ name: `${e.layer}/${e.kind}`, x, down: e.kind === "down" });
     }
     return out.slice(0, 20);
   }, [jarPts, events]);
@@ -824,7 +829,7 @@ export function AppsPage({ host }: { host: string }) {
       xData: jarX,
       series: [
         { name: "堆已用", data: jarPts.map((p) => p.heapUsed || 0) },
-        { name: "RSS", data: jarPts.map((p) => p.rss || 0) },
+        { name: "RSS", tone: "comparison", data: jarPts.map((p) => p.rss || 0) },
       ],
       unit: "bytes",
       markLines: marks,
@@ -835,7 +840,7 @@ export function AppsPage({ host }: { host: string }) {
     if (!chartsOpen) return {};
     return lineOption({
       xData: jarX,
-      series: [{ name: "RSS", data: jarPts.map((p) => p.rss || 0) }],
+      series: [{ name: "RSS", tone: "comparison", data: jarPts.map((p) => p.rss || 0) }],
       unit: "bytes",
       markLines: marks,
     });
@@ -846,7 +851,7 @@ export function AppsPage({ host }: { host: string }) {
     return lineOption({
       xData: jarX,
       series: [
-        { name: "GC pause", data: jarPts.map((p) => p.gcPauseMs || 0) },
+        { name: "GC pause", tone: "gc", data: jarPts.map((p) => p.gcPauseMs || 0) },
         { name: "进程 CPU%", data: jarPts.map((p) => p.cpuPercent || 0) },
       ],
       formatStr: "ms / %",
@@ -872,6 +877,7 @@ export function AppsPage({ host }: { host: string }) {
         { name: "主机 CPU%", data: hostPts.map((p) => p.cpuPercent || 0) },
         {
           name: "主机内存",
+          tone: "comparison",
           data: hostPts.map((p) => p.memUsed || 0),
           yAxisIndex: 1,
         },
@@ -1168,11 +1174,11 @@ export function AppsPage({ host }: { host: string }) {
                     value={
                       processCard.detail.readBytes || processCard.detail.writeBytes ? (
                         <span className="tabular-nums">
-                          <span className="text-io-read">
+                          <span className="io-readout-read">
                             读 {formatBytes(processCard.detail.readBytes)}
                           </span>
                           {" / "}
-                          <span className="text-io-write">
+                          <span className="io-readout-write">
                             写 {formatBytes(processCard.detail.writeBytes)}
                           </span>
                         </span>

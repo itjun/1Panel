@@ -9,7 +9,6 @@ import {
   FileCog,
   Gauge,
   Laptop,
-  ScanSearch,
   Server,
   Settings,
   type LucideIcon,
@@ -56,15 +55,6 @@ const MODULE_ICONS = {
     outline: Gauge,
     filledPath: `M3.34 19a10 10 0 1 1 17.32 0c-.31.54-.88 1-1.5 1H4.84c-.62 0-1.19-.46-1.5-1Z
       M10.9 12.9a1.56 1.56 0 1 0 2.2 2.2l4.4-5.4a.85.85 0 0 0-1.2-1.2Z`,
-  },
-  inspect: {
-    outline: ScanSearch,
-    filledPath: `M4 2h3a1 1 0 0 1 0 2H4v3a1 1 0 0 1-2 0V4a2 2 0 0 1 2-2Z
-      M20 2h-3a1 1 0 0 0 0 2h3v3a1 1 0 0 0 2 0V4a2 2 0 0 0-2-2Z
-      M4 22h3a1 1 0 0 0 0-2H4v-3a1 1 0 0 0-2 0v3a2 2 0 0 0 2 2Z
-      M20 22h-3a1 1 0 0 1 0-2h3v-3a1 1 0 0 1 2 0v3a2 2 0 0 1-2 2Z
-      M11.5 6.5a5 5 0 0 1 3.86 8.18l2.3 2.3a1.15 1.15 0 0 1-1.62 1.62l-2.29-2.64A5 5 0 1 1 11.5 6.5Z
-      M9.5 11.5a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z`,
   },
   settings: {
     outline: Settings,
@@ -138,7 +128,6 @@ export function ModuleRail() {
         />
         <RailModule icon={MODULE_ICONS.speedtest} label="测速" active={open && ws === "speedtest"} onClick={() => session.setWorkspace("speedtest")} />
         <div className="flex-1" />
-        <RailModule icon={MODULE_ICONS.inspect} label="巡检" active={open && ws === "inspect"} onClick={() => session.setWorkspace("inspect")} />
         <RailModule icon={MODULE_ICONS.settings} label="设置" active={session.settingsOpen} onClick={() => session.openSettings(true)} />
       </nav>
     </aside>

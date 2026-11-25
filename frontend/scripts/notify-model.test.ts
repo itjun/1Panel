@@ -48,10 +48,9 @@ describe("通知来源与操作范围", () => {
         "load",
         "net",
         "diskio",
-        "inspect:scan",
         "unknown",
       ].map(notifySourceOf),
-    ).toEqual(Array(8).fill("metric"));
+    ).toEqual(Array(7).fill("metric"));
     expect(notifySourceOf("app:im")).toBe("app");
     expect(notifySourceOf("app:custom-service")).toBe("app");
     expect(notifySourceOf("cert")).toBe("cert");

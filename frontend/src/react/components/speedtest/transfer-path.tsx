@@ -32,7 +32,7 @@ export function TransferPath({ a, b, direction, phase, elapsed = 0, duration, st
           const isReverse = value === "reverse";
           const Arrow = isReverse ? ArrowLeft : ArrowRight;
           return <div key={value} className="transfer-path-lane" data-direction={value} data-running={isRunning} data-ready={!!a && !!b}>
-            <span className="text-xs font-medium">{isReverse ? "B → A" : "A → B"}{status ? `　${status}` : ""}</span>
+            <span className="transfer-path-label text-xs font-medium">{isReverse ? "B → A" : "A → B"}{status ? `　${status}` : ""}</span>
             <div className="transfer-path-track" aria-hidden>
               <Arrow className="transfer-path-arrow size-5" />
               {isRunning ? <Circle className="transfer-path-packet size-3" fill="currentColor" /> : null}

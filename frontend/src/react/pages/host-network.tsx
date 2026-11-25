@@ -8,9 +8,9 @@ import { Checkbox } from "@/react/components/ui/checkbox";
 import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { useFlashMessage, type FlashMessage } from "@/react/lib/use-flash-message";
-import { cn, readThemeColor, seriesColorList } from "@/react/lib/utils";
+import { cn, readThemeColor } from "@/react/lib/utils";
 import { ChartHost, RX_TIP, TX_TIP } from "@/react/components/monitor/charts";
-import { trendLineStyle, trendTooltip } from "@/react/lib/chart-style";
+import { chartPalette, trendLineStyle, trendTooltip, type TrendDirection } from "@/react/lib/chart-style";
 import { useThemeSignature } from "@/react/lib/use-theme-mode";
 import type * as echarts from "echarts";
 import { copyText } from "@/utils/clipboard";
@@ -673,10 +673,10 @@ function TrafficUsage({ host }: { host: string }) {
               ) : null}
             </div>
             <div className="mt-0.5 flex gap-3 font-mono text-xs">
-              <span className="text-io-read" data-tip={RX_TIP}>
+              <span className="io-readout-read" data-tip={RX_TIP}>
                 流入 {formatBytes(w.rx)}
               </span>
-              <span className="text-io-write" data-tip={TX_TIP}>
+              <span className="io-readout-write" data-tip={TX_TIP}>
                 流出 {formatBytes(w.tx)}
               </span>
             </div>
@@ -696,41 +696,52 @@ function buildDailyTrafficOption(
   tx: (number | null)[],
   marks: DayMark[],
 ): echarts.EChartsOption {
-  const warn = readThemeColor("--color-warn", "#d35a00");
-  const danger = readThemeColor("--color-danger", "#d54941");
+  const warn = readThemeColor("--color-warn", "#954500");
+  const danger = readThemeColor("--color-danger", "#ad352f");
   const markColor = (mark: DayMark) => {
     if (mark?.tone === "danger") return danger;
     if (mark?.tone === "warn") return warn;
     return null;
   };
-  const muted = readThemeColor("--color-muted", "#636a76");
-  const line = readThemeColor("--color-line", "#e5e7eb");
-  const [rxColor, txColor] = seriesColorList(["流入", "流出"]);
+  const palette = chartPalette();
+  const { muted, line, read: rxColor, write: txColor } = palette;
 
   const last = labels.length - 1;
-  // 完整日用实线；今天未满一天，单独用虚线接在昨天后面，免得看成断崖下跌
+  // 今天沿用方向实线，用浅底和刻度说明数据仍在累计。
   const fullDays = (data: (number | null)[]) => data.map((v, i) => (i === last ? null : v));
   const todaySegment = (data: (number | null)[]) => data.map((v, i) => (i >= last - 1 ? v : null));
 
   const dot = (color: string) =>
     `<span style="display:inline-block;width:8px;height:8px;border-radius:4px;margin-right:6px;background:${color}"></span>`;
 
-  // 同名系列在图例里一起开关：实线段与今天的虚线段共用「流入」「流出」两个名字
-  const lineSeries = (name: string, color: string, data: (number | null)[]) => [
-    {
-      ...trendLineStyle({ color, values: fullDays(data) }),
-      name,
-      data: fullDays(data),
-      color,
-    },
-    {
-      ...trendLineStyle({ color, values: todaySegment(data), fill: false }),
-      name,
-      data: todaySegment(data),
-      color,
-      lineStyle: { width: 2.25, type: "dashed" as const },
-    },
-  ];
+  // 历史与今天使用同一系列名，让图例一起开关两段。
+  const lineSeries = (name: string, direction: TrendDirection, data: (number | null)[]): echarts.LineSeriesOption[] => {
+    const color = palette[direction];
+    const historical = fullDays(data);
+    const today = todaySegment(data);
+    return [
+      {
+        ...trendLineStyle({ color, values: historical }),
+        name,
+        data: historical,
+        color,
+        z: direction === "write" ? 3 : 2,
+        markArea: direction === "read" && last > 0 ? {
+          silent: true,
+          label: { show: false },
+          itemStyle: { color: palette.raised, opacity: 0.7 },
+          data: [[{ xAxis: last - 1 }, { xAxis: last }]],
+        } : undefined,
+      },
+      {
+        ...trendLineStyle({ color, values: today, fill: false }),
+        name,
+        data: today,
+        color,
+        z: direction === "write" ? 5 : 4,
+      },
+    ];
+  };
 
   return {
     grid: { left: 8, right: 24, top: 28, bottom: 8, containLabel: true },
@@ -759,6 +770,7 @@ function buildDailyTrafficOption(
     legend: {
       top: 0,
       right: 0,
+      icon: "rect", itemWidth: 18, itemHeight: 2,
       data: ["流入", "流出"],
       textStyle: { fontSize: 12, color: muted },
     },
@@ -770,6 +782,7 @@ function buildDailyTrafficOption(
         hideOverlap: true,
         alignMinLabel: "left",
         alignMaxLabel: "right",
+        formatter: (value: string) => value === "今天" ? "今天（未满）" : value,
         color: (_value?: string | number, index?: number) => {
           return markColor(marks[index ?? -1]) || muted;
         },
@@ -784,7 +797,7 @@ function buildDailyTrafficOption(
       axisLabel: { fontSize: 12, color: muted, formatter: (v: number) => formatBytes(v, 0) },
       splitLine: { lineStyle: { color: line } },
     },
-    series: [...lineSeries("流入", rxColor, rx), ...lineSeries("流出", txColor, tx)],
+    series: [...lineSeries("流入", "read", rx), ...lineSeries("流出", "write", tx)],
   };
 }
 
@@ -1037,14 +1050,14 @@ export function NetworkPage({ host }: { host: string }) {
                   </div>,
                   <span
                     key="rx"
-                    className="font-mono tabular-nums text-io-read"
+                    className="font-mono tabular-nums io-readout-read"
                     data-tip={`开机累计 ${formatBytes(n.rxBytes || 0)}`}
                   >
                     {ifaceRates[n.name] ? formatRateKBps(ifaceRates[n.name].rx) : "—"}
                   </span>,
                   <span
                     key="tx"
-                    className="font-mono tabular-nums text-io-write"
+                    className="font-mono tabular-nums io-readout-write"
                     data-tip={`开机累计 ${formatBytes(n.txBytes || 0)}`}
                   >
                     {ifaceRates[n.name] ? formatRateKBps(ifaceRates[n.name].tx) : "—"}
