@@ -10,12 +10,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"diteng-pannel/internal/desktop"
 	"diteng-pannel/internal/updater"
+	"golang.org/x/mod/semver"
 )
 
 // updateBaseURL 更新清单基地址，发布构建经 -ldflags -X 注入；为空时不检查更新。
@@ -48,6 +50,11 @@ const (
 // AppUpdate 应用内更新服务（前端绑定）。
 type AppUpdate App
 
+type UpdateReleaseNote struct {
+	Version string `json:"version"`
+	Notes   string `json:"notes"`
+}
+
 // UpdateState 推送给前端的更新状态快照。
 type UpdateState struct {
 	Enabled        bool   `json:"enabled"`
@@ -74,6 +81,8 @@ type UpdateState struct {
 	Prompt         bool   `json:"prompt"`
 	AutoCheck      bool   `json:"autoCheck"`
 	SkippedVersion string `json:"skippedVersion"`
+	// PreviousNotes 是当前版本与目标版本之间的正式版日志，从新到旧排列。
+	PreviousNotes []UpdateReleaseNote `json:"previousNotes,omitempty"`
 }
 
 type updatePrefs struct {
@@ -222,6 +231,18 @@ func (c *updateController) applyManifestLocked(m *updater.Manifest) {
 	c.state.Latest = m.Version
 	c.state.MinSupported = m.MinSupportedVersion
 	c.state.Notes = m.Notes
+	c.state.PreviousNotes = nil
+	if d.HasUpdate {
+		for version, notes := range m.History {
+			if semver.IsValid(version) && semver.Prerelease(version) == "" &&
+				semver.Compare(version, c.current) > 0 && semver.Compare(version, m.Version) < 0 {
+				c.state.PreviousNotes = append(c.state.PreviousNotes, UpdateReleaseNote{Version: version, Notes: notes})
+			}
+		}
+		slices.SortFunc(c.state.PreviousNotes, func(a, b UpdateReleaseNote) int {
+			return semver.Compare(b.Version, a.Version)
+		})
+	}
 	c.state.ReleasedAt = m.ReleasedAt
 	c.state.Size = 0
 	if a, ok := m.AssetFor(updater.UpdateAssetKey()); ok {

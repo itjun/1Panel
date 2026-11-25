@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReleaseNotes } from "../src/react/components/release-notes";
-import { parseReleaseNotes } from "../src/utils/releaseNotes";
+import { parseReleaseNotes, releaseNoteBody } from "../src/utils/releaseNotes";
 
 const NOTES = `# 1.3.0
 
@@ -63,4 +63,11 @@ test("a fenced block is not scanned as markdown", () => {
 test("empty notes use the fallback sentence", () => {
   const html = renderToStaticMarkup(<ReleaseNotes text={"  \n"} />);
   expect(html).toContain("本次更新未附说明。");
+});
+
+test("remove only the standalone version heading in grouped release notes", () => {
+  expect(releaseNoteBody("v1.3.0", "# 1.3.0\r\n\r\n## 修复")).toBe("## 修复");
+  expect(releaseNoteBody("v1.3.37", "v1.3.37\n\n- 修复备份")).toBe("- 修复备份");
+  expect(releaseNoteBody("v1.3.37", "v1.3.37 修复备份")).toBe("v1.3.37 修复备份");
+  expect(releaseNoteBody("v1.3.37", "v1.3.37")).toBe("");
 });

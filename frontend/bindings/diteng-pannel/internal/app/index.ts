@@ -84,6 +84,7 @@ export type {
     PanelSystemEditor,
     TerminalApp,
     UpdateHostInput,
+    UpdateReleaseNote,
     UpdateState,
     WindowThemeState,
     ZshEnvironment,

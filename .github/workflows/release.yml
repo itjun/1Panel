@@ -267,6 +267,9 @@ jobs:
           git fetch --force --tags
           # 更新说明：取附注 tag 的说明；轻量 tag 为空时客户端只显示版本号
           git for-each-ref "refs/tags/$VERSION" --format='%(contents)' > notes.md
+          # 只收入实际发布过的正式版。构建失败也会留下 tag，不能直接列举全部 tag。
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' > published-tags.txt
           # darwin-universal 与 darwin-arm64 是同一份 arm64 磁盘映像。
           # v1.1.0 客户端只认 darwin-universal，保留别名才能继续找到安装包。
           go run ./cmd/releasetool manifest \
@@ -274,6 +277,7 @@ jobs:
             -base-url "https://github.com/$GH_REPO/releases/download" \
             -policy release/update-policy.json \
             -notes-file notes.md \
+            -published-tags published-tags.txt \
             -asset "darwin-arm64=dist/1Panel-$VERSION-mac-arm64.dmg" \
             -asset "darwin-universal=dist/1Panel-$VERSION-mac-arm64.dmg" \
             -asset "windows-amd64=dist/1Panel-$VERSION-win-amd64.zip" \

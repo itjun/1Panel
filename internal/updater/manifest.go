@@ -34,6 +34,8 @@ type Manifest struct {
 	ReleasedAt          string           `json:"releasedAt"`
 	Notes               string           `json:"notes"`
 	Assets              map[string]Asset `json:"assets"`
+	// History 按版本号保存以往正式版的更新说明，Notes 单独留给本次发布。
+	History map[string]string `json:"history,omitempty"`
 }
 
 // Validate 检查版本号合法且 minSupportedVersion 不高于 version。
@@ -107,6 +109,9 @@ func UpdateAssetKey() string {
 
 // ParseManifest 先验签再解析；签名为 base64 文本（允许首尾空白）。
 func ParseManifest(data, sig []byte, pub ed25519.PublicKey) (*Manifest, error) {
+	if len(data) > maxManifestBytes {
+		return nil, errors.New("清单过大")
+	}
 	if err := Verify(pub, data, sig); err != nil {
 		return nil, err
 	}

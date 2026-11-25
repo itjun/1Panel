@@ -20,6 +20,7 @@ import {
   useAppUpdate,
 } from "@/react/state/app-update";
 import { formatBytes, formatErr } from "@/utils/format";
+import { releaseNoteBody } from "@/utils/releaseNotes";
 
 /*
   应用更新弹窗：
@@ -77,7 +78,7 @@ export function UpdateDialog() {
     >
       {state ? (
         <DialogContent
-          className="w-[min(520px,calc(100vw-32px))]"
+          className="flex max-h-[min(720px,calc(100dvh-32px))] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden"
           onEscapeKeyDown={(e) => {
             if (forced) e.preventDefault();
           }}
@@ -99,11 +100,21 @@ export function UpdateDialog() {
             </div>
           ) : null}
 
-          <div className="mt-4 max-h-60 overflow-auto rounded-control bg-raised px-3 py-2 text-sm leading-6 break-words text-ink">
-            <ReleaseNotes
-              text={state.notes ?? ""}
-              onOpenLink={(href) => void api.openExternalURL(href)}
-            />
+          <div
+            role="region"
+            aria-label="更新日志"
+            tabIndex={0}
+            className="mt-4 min-h-0 overflow-y-auto overscroll-contain rounded-control bg-raised px-4 py-3 text-sm leading-6 break-words text-ink"
+          >
+            {[{ version: state.latest, notes: state.notes }, ...(state.previousNotes ?? [])].map((release) => (
+              <section key={release.version} className="border-line not-first:mt-4 not-first:border-t not-first:pt-4">
+                <h3 className="mb-1 text-base font-semibold tabular-nums">{release.version}</h3>
+                <ReleaseNotes
+                  text={releaseNoteBody(release.version, release.notes ?? "")}
+                  onOpenLink={(href) => void api.openExternalURL(href)}
+                />
+              </section>
+            ))}
           </div>
 
           {busy ? (

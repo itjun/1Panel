@@ -22,6 +22,14 @@ const BULLET = /^[-*+][ \t]+(.*)$/;
 const ORDERED = /^(\d+)\.[ \t]+(.*)$/;
 const QUOTE = /^>[ \t]?(.*)$/;
 
+/** 部分发版说明自带版本标题，分组时只保留一份。 */
+export function releaseNoteBody(version: string, source: string): string {
+  const notes = source.trim();
+  const [firstLine] = notes.split("\n", 1);
+  const title = firstLine.trim().replace(/^#{1,6}\s+/, "").replace(/^v/, "");
+  return title === version.replace(/^v/, "") ? notes.slice(firstLine.length).trimStart() : notes;
+}
+
 export function parseReleaseNotes(source: string): ReleaseBlock[] {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReleaseBlock[] = [];

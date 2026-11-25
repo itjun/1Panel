@@ -724,6 +724,11 @@ export interface UpdateHostInput {
     "note": string;
 }
 
+export interface UpdateReleaseNote {
+    "version": string;
+    "notes": string;
+}
+
 /**
  * UpdateState 推送给前端的更新状态快照。
  */
@@ -761,6 +766,11 @@ export interface UpdateState {
     "prompt": boolean;
     "autoCheck": boolean;
     "skippedVersion": string;
+
+    /**
+     * PreviousNotes 是当前版本与目标版本之间的正式版日志，从新到旧排列。
+     */
+    "previousNotes"?: UpdateReleaseNote[] | null;
 }
 
 export interface WindowThemeState {

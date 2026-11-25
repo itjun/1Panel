@@ -5,11 +5,40 @@ import (
 	"crypto/rand"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
 	"diteng-pannel/internal/updater"
 )
+
+func TestUpdateHistoryShowsAllMissedReleases(t *testing.T) {
+	m := &updater.Manifest{
+		Version: "v1.4.0", Notes: "最新说明",
+		History: map[string]string{
+			"v1.2.0": "更早版本", "v1.3.2": "当前版本",
+			"v1.3.3": "", "v1.3.4": "四", "v1.3.5": "五", "v1.3.6": "六",
+			"v1.3.9": "九", "v1.3.10": "十", "v1.3.12": "十二",
+			"v1.4.0-rc.1": "预发布", "v1.4.0": "重复", "v1.4.1": "未来版本",
+		},
+	}
+	c := &updateController{current: "v1.3.2"}
+	c.applyManifestLocked(m)
+	want := []UpdateReleaseNote{
+		{"v1.3.12", "十二"}, {"v1.3.10", "十"}, {"v1.3.9", "九"}, {"v1.3.6", "六"},
+		{"v1.3.5", "五"}, {"v1.3.4", "四"}, {"v1.3.3", ""},
+	}
+	if c.state.Notes != "最新说明" || !slices.Equal(c.state.PreviousNotes, want) {
+		t.Fatalf("跨版本日志错误：%+v", c.state)
+	}
+	for _, current := range []string{"v1.3.12", "v1.4.0", "v1.5.0"} {
+		c.current = current
+		c.applyManifestLocked(m)
+		if len(c.state.PreviousNotes) != 0 {
+			t.Fatalf("%s 不应再显示之前的日志：%+v", current, c.state.PreviousNotes)
+		}
+	}
+}
 
 func TestLocalBuildUpdateCheck(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)

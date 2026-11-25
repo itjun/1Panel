@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"diteng-pannel/internal/updater"
+	"golang.org/x/mod/semver"
 )
 
 func main() {
@@ -98,6 +100,7 @@ func cmdManifest(args []string) error {
 	baseURL := fs.String("base-url", "", "公开下载基地址，安装包位于 <base>/<version>/<文件名>")
 	policyPath := fs.String("policy", "release/update-policy.json", "强制更新策略文件")
 	notesFile := fs.String("notes-file", "", "更新说明（Markdown）文件，可选")
+	publishedTags := fs.String("published-tags", "", "已发布正式版的 tag 列表，每行一个")
 	out := fs.String("out", updater.ManifestName, "输出文件")
 	var assets assetFlags
 	fs.Var(&assets, "asset", "平台键=安装包路径，可重复")
@@ -127,6 +130,13 @@ func cmdManifest(args []string) error {
 		}
 		m.Notes = strings.TrimSpace(string(b))
 	}
+	if *publishedTags != "" {
+		history, err := readPublishedNotes(*publishedTags, m.Version)
+		if err != nil {
+			return err
+		}
+		m.History = history
+	}
 	base := strings.TrimRight(*baseURL, "/")
 	for _, spec := range assets {
 		key, path, ok := strings.Cut(spec, "=")
@@ -153,6 +163,30 @@ func cmdManifest(args []string) error {
 		return err
 	}
 	return os.WriteFile(*out, append(b, '\n'), 0o644)
+}
+
+func readPublishedNotes(tagFile, target string) (map[string]string, error) {
+	data, err := os.ReadFile(tagFile)
+	if err != nil {
+		return nil, err
+	}
+	history := make(map[string]string)
+	for _, tag := range strings.Fields(string(data)) {
+		if !semver.IsValid(tag) || semver.Prerelease(tag) != "" || semver.Compare(tag, target) >= 0 {
+			continue
+		}
+		// 输出包含引用名，能区分空说明和本地缺少这个 tag。
+		out, err := exec.Command("git", "tag", "--list", "--format=%(refname:strip=2)%00%(contents)", tag).Output()
+		if err != nil {
+			return nil, fmt.Errorf("读取 %s 更新说明：%w", tag, err)
+		}
+		name, notes, ok := strings.Cut(string(out), "\x00")
+		if !ok || name != tag {
+			return nil, fmt.Errorf("找不到已发布的 tag %s", tag)
+		}
+		history[tag] = strings.TrimSpace(notes)
+	}
+	return history, nil
 }
 
 func cmdSign(args []string) error {
