@@ -451,7 +451,6 @@ export function InteractiveDataTable<T>({
                       "relative select-none truncate px-3 font-semibold",
                       TH_STICKY_LINE,
                       column.pinned && "bg-surface",
-                      column.sortable !== false && "hover:bg-item-hover",
                       column.align === "center" && "text-center",
                       column.align === "right" && "text-right",
                       colDrag?.key === column.key ? "cursor-grabbing opacity-50" : "cursor-pointer",
