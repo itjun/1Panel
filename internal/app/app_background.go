@@ -148,7 +148,7 @@ func (a *App) installBackgroundTray(app *application.App) {
 	tray.SetTooltip("1Panel")
 
 	menu := app.Menu.New()
-	menu.Add("显示主窗口").OnClick(func(*application.Context) {
+	menu.Add("显示窗口").OnClick(func(*application.Context) {
 		(*System)(a).FocusMainWindow()
 	})
 	menu.AddSeparator()
