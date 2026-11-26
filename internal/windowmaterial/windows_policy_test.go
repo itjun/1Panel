@@ -19,6 +19,9 @@ func TestBackdropCapability(t *testing.T) {
 		{"battery saver", windowsPolicy{build: minimumBackdropBuild, composition: true, transparency: true, batterySaver: true}, false},
 		{"unreadable settings", windowsPolicy{build: minimumBackdropBuild, composition: true, transparency: true, readFailed: true}, false},
 	}
+	if material, ok, reason := selectWindowsMaterial(available); material != "mica" || !ok || reason != "" {
+		t.Fatalf("supported Windows prefers mica, got %s %v %q", material, ok, reason)
+	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got, reason := backdropCapability(test.policy)

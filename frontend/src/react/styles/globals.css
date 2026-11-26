@@ -27,8 +27,8 @@
   --color-nav-icon: rgba(0, 0, 0, 0.6);
   --color-placeholder: rgba(0, 0, 0, 0.4);
   --color-disabled: rgba(0, 0, 0, 0.26);
-  --color-rail-selected: #f2f3ff;
-  --color-nav-selected: #f2f3ff;
+  --color-rail-selected: #d9e1ff;
+  --color-nav-selected: #d9e1ff;
   --color-item-selected: #f2f3ff;
   --color-selection: #f2f3ff;
   --color-accent-soft: #f2f3ff;
@@ -166,8 +166,8 @@ html.board-http,
   --color-nav-icon: rgba(255, 255, 255, 0.55);
   --color-placeholder: rgba(255, 255, 255, 0.35);
   --color-disabled: rgba(255, 255, 255, 0.22);
-  --color-rail-selected: #1b2f51;
-  --color-nav-selected: #1b2f51;
+  --color-rail-selected: #173463;
+  --color-nav-selected: #173463;
   --color-item-selected: #1b2f51;
   --color-selection: #1b2f51;
   --color-accent-soft: #1b2f51;
@@ -379,19 +379,30 @@ pre,
 }
 
 /* Only the native controller can enable this attribute; browser/HTTP surfaces stay solid. */
-html:is([data-window-material="mica"], [data-window-material="sidebar"]),
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) body,
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) #app,
-html:is([data-window-material="mica"], [data-window-material="sidebar"]) .react-root {
+html:is([data-window-material="mica"], [data-window-material="translucent"], [data-window-material="sidebar"]),
+html:is([data-window-material="mica"], [data-window-material="translucent"], [data-window-material="sidebar"]) body,
+html:is([data-window-material="mica"], [data-window-material="translucent"], [data-window-material="sidebar"]) #app,
+html:is([data-window-material="mica"], [data-window-material="translucent"], [data-window-material="sidebar"]) .react-root {
   background-color: transparent;
 }
 
-/* Windows 云母沿用深色外观。 */
-html.dark[data-window-material="mica"] .glass-chrome {
+/* Windows：云母优先。工具栏和二级栏透出云母，一级栏只留轻微层次，内容区仍实色。 */
+html[data-window-material="mica"] .glass-chrome,
+html[data-window-material="mica"] .workspace-sidebar {
   background-color: transparent;
+}
+html[data-window-material="mica"] .module-rail {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 html.dark[data-window-material="mica"] .module-rail {
   background-color: rgba(0, 0, 0, 0.08);
+}
+/* 云母原生调用失败时的半透明：亚克力垫底，导航叠半透明色，内容区仍实色。 */
+html[data-window-material="translucent"] .glass-chrome {
+  background-color: transparent;
+}
+html[data-window-material="translucent"] :is(.module-rail, .workspace-sidebar) {
+  background-color: var(--color-rail-translucent);
 }
 /* macOS 原生磨砂只通过 A 区露出。 */
 html[data-window-material="sidebar"] .module-rail {

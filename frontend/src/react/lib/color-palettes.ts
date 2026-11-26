@@ -14,7 +14,9 @@ const roles: readonly [string, string, readonly (`--${string}`)[]][] = [
   ["rgba(0, 0, 0, 0.6)", "rgba(255, 255, 255, 0.55)", ["--color-muted", "--color-rail-label", "--color-rail-icon", "--color-nav-icon"]],
   ["rgba(0, 0, 0, 0.4)", "rgba(255, 255, 255, 0.35)", ["--color-placeholder"]],
   ["rgba(0, 0, 0, 0.26)", "rgba(255, 255, 255, 0.22)", ["--color-disabled"]],
-  ["#f2f3ff", "#1b2f51", ["--color-rail-selected", "--color-nav-selected", "--color-item-selected", "--color-selection", "--color-accent-soft", "--color-accent-tint", "--color-accent-veil", "--color-info-soft"]],
+  ["#f2f3ff", "#1b2f51", ["--color-item-selected", "--color-selection", "--color-accent-soft", "--color-accent-tint", "--color-accent-veil", "--color-info-soft"]],
+  // 导航选中用 TDesign brand-2，不透明，云母、Mac 磨砂和实色上都是同一块清楚的蓝。
+  ["#d9e1ff", "#173463", ["--color-rail-selected", "--color-nav-selected"]],
   ["#0052d9", "#4582e6", ["--color-accent", "--color-primary"]],
   ["#366ef4", "#2667d4", ["--color-accent-hover", "--color-primary-hover"]],
   ["#003cab", "#699ef5", ["--color-accent-active", "--color-primary-active", "--color-link"]],

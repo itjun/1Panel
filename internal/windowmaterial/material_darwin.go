@@ -52,6 +52,8 @@ import (
 
 func Automatic() string { return "sidebar" }
 
+func Candidates() []string { return []string{"sidebar"} }
+
 func Capability(material string) (bool, string) {
 	if material != "sidebar" {
 		return false, "当前系统不支持此窗口材质，正在使用经典外观"

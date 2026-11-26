@@ -18,14 +18,14 @@ type WindowThemeState struct {
 type windowThemeManager struct {
 	mu         sync.Mutex
 	state      WindowThemeState
-	automatic  string
+	candidates []string
 	capability func(string) (bool, string)
 	apply      func(string) error
 }
 
-func newWindowThemeManager(automatic string, capability func(string) (bool, string), apply func(string) error) *windowThemeManager {
+func newWindowThemeManager(candidates []string, capability func(string) (bool, string), apply func(string) error) *windowThemeManager {
 	return &windowThemeManager{
-		automatic: automatic, capability: capability, apply: apply,
+		candidates: candidates, capability: capability, apply: apply,
 		state: WindowThemeState{Effective: "classic", Reason: "正在准备窗口材质"},
 	}
 }
@@ -40,18 +40,39 @@ func (m *windowThemeManager) refresh(forceClassic bool) WindowThemeState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	next := WindowThemeState{Effective: "classic"}
-	next.Supported, next.Reason = m.capability(m.automatic)
+	reason := ""
+	chosen := false
 	if forceClassic {
-		next.Reason = "窗口材质初始化超时，正在使用经典外观"
-	} else if next.Supported {
-		next.Effective = m.automatic
+		reason = "窗口材质初始化超时，正在使用经典外观"
+	} else {
+		// 按平台顺序尝试。Windows 为云母、半透明，再落到实色。
+		for _, material := range m.candidates {
+			ok, why := m.capability(material)
+			if !ok {
+				if reason == "" {
+					reason = why
+				}
+				continue
+			}
+			if err := m.apply(material); err != nil {
+				reason = err.Error()
+				_ = m.apply("classic")
+				continue
+			}
+			next.Effective = material
+			next.Supported = true
+			chosen = true
+			break
+		}
 	}
-	if err := m.apply(next.Effective); err != nil {
-		next.Effective = "classic"
-		next.Supported = false
-		next.Reason = err.Error()
-		// Roll back any partially enabled native backdrop.
-		_ = m.apply("classic")
+	if !chosen {
+		if reason == "" {
+			reason = "当前系统使用经典外观"
+		}
+		next.Reason = reason
+		if err := m.apply("classic"); err != nil {
+			next.Reason = err.Error()
+		}
 	}
 	next.Revision = m.state.Revision
 	if next != m.state {

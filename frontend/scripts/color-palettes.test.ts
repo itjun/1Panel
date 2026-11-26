@@ -58,6 +58,7 @@ for (const mode of ["light", "dark"] as const) {
     check("--color-on-accent-hover", mode === "light" ? "--color-primary" : "--color-primary-hover", 4.5);
     check("--color-on-accent", "--color-primary-active", 4.5);
     check("--color-nav-selected-text", "--color-nav-selected", 4.5);
+    check("--color-rail-selected-text", "--color-rail-selected", 4.5);
     check("--color-on-danger", "--color-danger-fill", 4.5);
     check("--color-info", "--color-accent-soft", 4.5);
     check("--color-item-selected-text", "--color-item-selected", 4.5);

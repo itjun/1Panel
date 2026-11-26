@@ -191,7 +191,7 @@ func NewApp(resources Resources) *application.App {
 		core.applicationRestoreError = "应用数据恢复失败，可使用恢复前的自动备份重试：" + err.Error()
 		app.Logger.Error("恢复应用数据失败", "error", err)
 	}
-	core.windowTheme = newWindowThemeManager(windowmaterial.Automatic(), windowmaterial.Capability, func(material string) error {
+	core.windowTheme = newWindowThemeManager(windowmaterial.Candidates(), windowmaterial.Capability, func(material string) error {
 		return windowmaterial.Apply(core.mainWindow, material)
 	})
 	core.agentPool = agentcli.NewPool(sshMgr, func(host string) (sshd.ConnectOption, error) {

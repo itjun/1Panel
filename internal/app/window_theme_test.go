@@ -10,7 +10,7 @@ func TestAutomaticWindowTheme(t *testing.T) {
 		t.Run(native, func(t *testing.T) {
 			available, fail := true, false
 			applied := ""
-			m := newWindowThemeManager(native, func(material string) (bool, string) {
+			m := newWindowThemeManager([]string{native}, func(material string) (bool, string) {
 				if material != native {
 					t.Fatalf("unexpected material %q", material)
 				}
@@ -52,5 +52,52 @@ func TestAutomaticWindowTheme(t *testing.T) {
 			check(true, "classic")
 			check(false, native)
 		})
+	}
+}
+
+func TestWindowMaterialPriority(t *testing.T) {
+	failMica := true
+	applied := ""
+	m := newWindowThemeManager([]string{"mica", "translucent"}, func(string) (bool, string) {
+		return true, ""
+	}, func(material string) error {
+		applied = material
+		if failMica && material == "mica" {
+			return errors.New("mica failed")
+		}
+		return nil
+	})
+	state := m.refresh(false)
+	if state.Effective != "translucent" || !state.Supported || applied != "translucent" {
+		t.Fatalf("wanted translucent, applied %s, state %+v", applied, state)
+	}
+	failMica = false
+	state = m.refresh(false)
+	if state.Effective != "mica" || applied != "mica" {
+		t.Fatalf("wanted mica, applied %s, state %+v", applied, state)
+	}
+	m = newWindowThemeManager([]string{"mica", "translucent"}, func(string) (bool, string) {
+		return false, "系统已关闭透明效果，正在使用经典外观"
+	}, func(material string) error {
+		applied = material
+		return nil
+	})
+	state = m.refresh(false)
+	if state.Effective != "classic" || state.Supported || state.Reason == "" || applied != "classic" {
+		t.Fatalf("wanted classic, applied %s, state %+v", applied, state)
+	}
+	applied = ""
+	m = newWindowThemeManager([]string{"mica", "translucent"}, func(material string) (bool, string) {
+		if material == "mica" {
+			return false, "原生云母需要 Windows 11 22H2（build 22621）及以上，正在使用经典外观"
+		}
+		return true, ""
+	}, func(material string) error {
+		applied = material
+		return nil
+	})
+	state = m.refresh(false)
+	if state.Effective != "translucent" || !state.Supported || applied != "translucent" {
+		t.Fatalf("wanted translucent fallback, applied %s, state %+v", applied, state)
 	}
 }

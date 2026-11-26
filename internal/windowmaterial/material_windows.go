@@ -25,6 +25,9 @@ var (
 
 func Automatic() string { return "mica" }
 
+// 云母优先；原生云母调用失败时再试半透明亚克力，最后由主题管理器回实色。
+func Candidates() []string { return []string{"mica", "translucent"} }
+
 func readPolicy() windowsPolicy {
 	p := windowsPolicy{build: windows.RtlGetVersion().BuildNumber, transparency: true}
 	if p.build < minimumBackdropBuild {
@@ -66,10 +69,13 @@ func readPolicy() windowsPolicy {
 }
 
 func Capability(material string) (bool, string) {
-	if material != "mica" {
+	switch material {
+	case "mica", "translucent":
+		// 半透明使用同一套门槛。主题管理器先试云母，失败才落到亚克力。
+		return backdropCapability(readPolicy())
+	default:
 		return false, "未知窗口材质，正在使用经典外观"
 	}
-	return backdropCapability(readPolicy())
 }
 
 func ConfigureWindow(options *application.WebviewWindowOptions) {
@@ -143,14 +149,20 @@ func Apply(win *application.WebviewWindow, material string) error {
 		return nil
 	}
 	value := int32(1) // DWMSBT_NONE：经典
-	if material == "mica" {
+	switch material {
+	case "mica", "translucent":
 		if err := applyAppearance(win); err != nil {
 			return err
 		}
 		// 先清类背景刷再开材质：BTNFACE 刷会把 DWM 材质盖成不透明灰
 		setClassErase(win, false)
-		// DWMSBT_MAINWINDOW: system-owned opaque Mica, including focus states.
-		value = 2
+		if material == "mica" {
+			// DWMSBT_MAINWINDOW: system-owned opaque Mica, including focus states.
+			value = 2
+		} else {
+			// DWMSBT_TRANSIENTWINDOW：亚克力，云母不可用时的半透明。
+			value = 3
+		}
 	}
 	if err := setAttribute(win, 38, value); err != nil { // DWMWA_SYSTEMBACKDROP_TYPE
 		return err

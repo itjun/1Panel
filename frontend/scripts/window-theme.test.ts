@@ -88,6 +88,19 @@ test("Mica exposes the native opaque surface and follows effective fallback", as
   stop();
 });
 
+test("translucent material keeps the window transparent until a solid fallback", async () => {
+  host._wails.environment.OS = "windows";
+  state = { effective: "translucent", supported: true, reason: "", revision: 50 };
+  const stop = theme.initializeWindowTheme();
+  await Bun.sleep(10);
+  expect(root.dataset.windowMaterial).toBe("translucent");
+  expect(root.style.background).toBe("transparent");
+  emitTheme({ ...state, effective: "classic", supported: false, reason: "系统已关闭透明效果，正在使用经典外观", revision: 51 });
+  expect(root.dataset.windowMaterial).toBe("classic");
+  expect(root.style.background).toBe("var(--color-canvas)");
+  stop();
+});
+
 
 test("Mac materials expose native backdrop and return to solid on fallback", async () => {
   host._wails.environment.OS = "darwin";

@@ -32,3 +32,13 @@ func backdropCapability(policy windowsPolicy) (bool, string) {
 		return true, ""
 	}
 }
+
+// 优先级：云母、半透明（亚克力）、实色。系统允许效果时先选云母。
+// 云母原生调用失败时，调用方再试半透明；系统不允许效果时直接实色。
+func selectWindowsMaterial(policy windowsPolicy) (string, bool, string) {
+	ok, reason := backdropCapability(policy)
+	if ok {
+		return "mica", true, ""
+	}
+	return "classic", false, reason
+}
