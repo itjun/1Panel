@@ -44,6 +44,7 @@ import { FlashNotices, Notice, Page } from "@/react/components/page";
 import { Meter } from "@/react/components/ui/meter";
 import { RadioGroup } from "@/react/components/ui/radio-group";
 import { Select } from "@/react/components/ui/select";
+import { Switch } from "@/react/components/ui/switch";
 import { Tag, type TagTone } from "@/react/components/ui/tag";
 import { MOTION_MS, usePresence } from "@/react/lib/motion";
 import { useProgressiveList } from "@/react/lib/use-progressive-list";
@@ -446,6 +447,8 @@ const RANGE_SPAN: Record<string, number> = {
 
 /** 与 spanel-agent -interval 默认值一致 */
 const AGENT_DEFAULT_INTERVAL_SEC = 5;
+/** 历史区间打开自动刷新后，重拉一轮折线的间隔 */
+const HISTORY_POLL_MS = 5000;
 const GRAIN_SEC: Record<Exclude<GrainMode, "auto">, number> = {
   "5s": 5,
   "10s": 10,
@@ -501,6 +504,7 @@ function MonitorPage({ host }: { host: string }) {
   const [grain, setGrain] = useState<GrainMode>("auto");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [isAutoRefresh, setIsAutoRefresh] = useState(false);
   const [history, setHistory] = useState<agentapi.RangePoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [grainHint, setGrainHint] = useState("");
@@ -514,7 +518,15 @@ function MonitorPage({ host }: { host: string }) {
   const lastDisk = useRef<{ read: number; write: number; ts: number } | null>(null);
   const lastLiveAt = useRef(0);
   const grainRef = useRef(grain);
+  const rangeRef = useRef(range);
+  const customFromRef = useRef(customFrom);
+  const customToRef = useRef(customTo);
+  const isHistoryInFlight = useRef(false);
+  const historySeq = useRef(0);
   grainRef.current = grain;
+  rangeRef.current = range;
+  customFromRef.current = customFrom;
+  customToRef.current = customTo;
 
   const connectGroup = `monitor-${host}`;
 
@@ -621,12 +633,32 @@ function MonitorPage({ host }: { host: string }) {
     }
   }
 
-  async function loadHistory(from: number, to: number, isManualRefresh = false) {
-    setHistoryLoading(true);
+  function historySpan(): { from: number; to: number } | null {
+    const mode = rangeRef.current;
+    if (mode === "live") return null;
+    if (mode === "custom") {
+      if (!customFromRef.current || !customToRef.current) return null;
+      const from = Math.floor(new Date(customFromRef.current).getTime() / 1000);
+      const to = Math.floor(new Date(customToRef.current).getTime() / 1000);
+      if (!(from < to)) return null;
+      return { from, to };
+    }
+    const span = RANGE_SPAN[mode];
+    if (!span) return null;
+    const to = Math.floor(Date.now() / 1000);
+    return { from: to - span, to };
+  }
+
+  async function loadHistory(from: number, to: number, isManualRefresh = false, isSilent = false) {
+    if (isSilent && isHistoryInFlight.current) return;
+    const seq = ++historySeq.current;
+    isHistoryInFlight.current = true;
+    if (!isSilent) setHistoryLoading(true);
     const span = to - from;
     const { src, everySec } = resolveGrainQuery(grainRef.current);
     try {
       const r = await api.agentRange(host, from, to, src);
+      if (seq !== historySeq.current) return;
       let pts = r.points || [];
       let effective = everySec;
       if (effective != null) {
@@ -649,11 +681,17 @@ function MonitorPage({ host }: { host: string }) {
         setGrainHint(`实际：${srcLabel}`);
       }
     } catch (error) {
-      setHistory([]);
-      setGrainHint("");
+      if (seq !== historySeq.current) return;
+      if (!isSilent) {
+        setHistory([]);
+        setGrainHint("");
+      }
       if (isManualRefresh) throw error;
     } finally {
-      setHistoryLoading(false);
+      if (seq === historySeq.current) {
+        isHistoryInFlight.current = false;
+        if (!isSilent) setHistoryLoading(false);
+      }
     }
   }
 
@@ -678,6 +716,27 @@ function MonitorPage({ host }: { host: string }) {
     // 故意不把 seed/load 放进 deps：只跟范围、粒度与自定义时间走
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host, range, grain, customFrom, customTo]);
+
+  useEffect(() => {
+    if (!isAutoRefresh || range === "live") return;
+    const span = historySpan();
+    if (!span) return;
+    void loadHistory(span.from, span.to, false, true);
+    // 只在打开开关时立刻拉一轮；改范围仍由上面的 effect 负责
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAutoRefresh]);
+
+  useEffect(() => {
+    if (!isAutoRefresh || range === "live") return;
+    const timer = window.setInterval(() => {
+      const span = historySpan();
+      if (!span) return;
+      void loadHistory(span.from, span.to, false, true);
+    }, HISTORY_POLL_MS);
+    return () => window.clearInterval(timer);
+    // 范围或粒度变化时重置 5 秒计时，避免和上面的首次加载叠在一起
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAutoRefresh, range, grain, customFrom, customTo, host]);
 
   async function refreshMonitor() {
     if (range === "live") {
@@ -939,6 +998,11 @@ function MonitorPage({ host }: { host: string }) {
               ]}
             />
           </label>
+          {range !== "live" ? (
+            <Switch checked={isAutoRefresh} onChange={setIsAutoRefresh}>
+              每 5 秒刷新
+            </Switch>
+          ) : null}
           {grainHint ? <span className="text-xs text-muted">{grainHint}</span> : null}
         </>
       }
